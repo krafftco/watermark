@@ -97,6 +97,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(bj.slug).status, 'hidden', 'private until published');
   r = await req(port, 'POST', '/studio/works/one', { cookie: ck, body: mp('again.jpg', other, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
   assert.equal(r.status, 409, 'duplicate refused');
+
+  // masters: a full-resolution file replaces the web copy it matches; an unmatched frame goes to the archive, private
+  const meta0 = await sharp2(other).metadata();
+  const bigger = await sharp2(other).resize({ width: Math.round((meta0.width || 800) * 1.5) }).jpeg({ quality: 95 }).toBuffer();
+  r = await req(port, 'POST', '/studio/masters/one', { cookie: ck, body: mp('JOE_FLO-01.jpg', bigger, { folder: 'EUROPE/08_FLORENCE' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  let mj = JSON.parse(r.body); assert.strictEqual(mj.outcome, 'master', 'master matched: ' + r.body);
+  assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.master'").get(), 'master on the ledger');
+  const px = Buffer.alloc(300 * 200 * 3); for (let k = 0; k < px.length; k++) px[k] = (k * 7919) % 251;
+  const fresh = await sharp2(px, { raw: { width: 300, height: 200, channels: 3 } }).jpeg().toBuffer();
+  r = await req(port, 'POST', '/studio/masters/one', { cookie: ck, body: mp('JOE_FLO-123.jpg', fresh, { folder: 'EUROPE/08_FLORENCE' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  mj = JSON.parse(r.body); assert.strictEqual(mj.outcome, 'archive', r.body); assert.strictEqual(mj.title, 'Florence, frame 123');
+  assert.strictEqual(db.prepare('SELECT status FROM works WHERE slug=?').get(mj.slug).status, 'hidden');
+  r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.includes('1 works held at full resolution'));
   // the trove: collections, catalogue record, public room
   r = await req(port, 'POST', '/studio/collections', { cookie: ck, body: { title: 'Florence, 2025', note: 'The city from below.', public: '1' } }); assert.equal(r.status, 302);
   const cid = db.prepare("SELECT id FROM collections WHERE slug='florence-2025'").get().id;
@@ -106,7 +119,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/studio/works/${w.slug}`, { cookie: ck }); assert.ok(r.body.includes('Catalogue record') && r.body.includes('Exhibition history'));
   // the vault: originals and seals are in the store; a fresh server fetches them back; backups land there
   const vk = await app.locals.store.list('originals/'); assert.ok(vk.length >= 1, 'original in the vault');
-  fs.rmSync(path.join(dir, 'originals', w.original_file)); fs.rmSync(path.join(dir, 'cache'), { recursive: true, force: true });
+  fs.rmSync(path.join(dir, 'originals', db.prepare('SELECT original_file FROM works WHERE id=?').get(w.id).original_file)); fs.rmSync(path.join(dir, 'cache'), { recursive: true, force: true });
   r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200, 'original fetched back from the vault');
   const bk = await app.locals.backupDb(); assert.ok((await app.locals.store.list('backups/db/')).includes(bk), 'database backed up');
 

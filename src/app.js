@@ -45,7 +45,7 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
-  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT']])
+  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
@@ -149,7 +149,8 @@ function createApp(cfg = {}) {
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(maker.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
     const nw = q.work.get(slug);
-    db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph') WHERE id=?").run(accession(nw), nw.id);
+    db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph'), dhash=? WHERE id=?").run(accession(nw), await images.dhash(dest).catch(() => null), nw.id);
+    if (store.kind === 's3') fs.unlinkSync(dest); // the vault holds it; the disk is only a cache
     ledger.append(db, 'work.registered', slug, { maker: maker.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
     return q.work.get(slug);
   }
@@ -542,6 +543,74 @@ function createApp(cfg = {}) {
       res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
     }
   });
+  // ---------- Masters: full-resolution files from the maker's own archive ----------
+  // Each file is matched by its visual fingerprint to the web copy already held (from Krafft Studios)
+  // and replaces it as the original, on the ledger. A file with no match is registered privately.
+  const PLACES = { HVNY: 'Hudson Valley, New York', NYC: 'New York', 'NEW YORK': 'New York', BOSTON: 'Boston', ZURICH: 'Zurich, Switzerland', DEIDESHEIM: 'Deidesheim, Germany',
+    PARIS: 'Paris, France', MARLING: 'Marling, South Tyrol, Italy', 'SOUTH TYROL': 'South Tyrol, Italy', MILAN: 'Milan, Italy', COMO: 'Lake Como, Italy', 'LE MARCHE': 'Le Marche, Italy', BERLIN: 'Berlin, Germany',
+    GARDA: 'Lake Garda, Italy', 'LAKE GARDA': 'Lake Garda, Italy', LONDON: 'London', MALLORCA: 'Mallorca, Spain', WETZLAR: 'Wetzlar, Germany', FLORENCE: 'Florence, Italy', KRONBERG: 'Kronberg, Germany' };
+  const placeFromFolder = folder => {
+    const parts = String(folder || '').split('/').map(x => x.replace(/^\d+_/, '').replace(/_/g, ' ').toUpperCase().trim()).filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) if (PLACES[parts[i]]) return PLACES[parts[i]];
+    return null;
+  };
+  let hashed = false;
+  async function ensureHashes() { // works registered before fingerprints existed
+    if (hashed) return; hashed = true;
+    for (const w of db.prepare('SELECT * FROM works WHERE dhash IS NULL').all()) {
+      try { db.prepare('UPDATE works SET dhash=? WHERE id=?').run(await images.dhash(await originalPath(w)), w.id); } catch (e) { /* missing original: leave it */ }
+    }
+  }
+  app.post('/studio/masters/one', studioOnly, upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
+    const file = req.file.path, gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
+    try {
+      await ensureHashes();
+      const info = await images.inspect(file);
+      const held = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
+      if (held) { gone(); return res.json({ ok: true, outcome: 'known', slug: held.slug }); }
+      const h = await images.dhash(file);
+      let best = null, bestD = 99;
+      for (const w of db.prepare('SELECT id, slug, dhash, width, height FROM works WHERE dhash IS NOT NULL').all()) {
+        const d = images.hamming(h, w.dhash);
+        if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
+      }
+      if (best && bestD <= 6) {
+        if ((best.width || 0) >= info.width) { gone(); return res.json({ ok: true, outcome: 'smaller', slug: best.slug }); }
+        const w = q.work.get(best.slug);
+        const ext = (path.extname(req.file.originalname) || '.jpg').toLowerCase();
+        const name = `${w.slug}-master${ext}`, dest = path.join(originals, name);
+        fs.mkdirSync(originals, { recursive: true });
+        try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
+        await store.put('originals/' + name, dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
+        db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
+          camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
+          .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
+        for (const sz of Object.keys(images.SIZES)) { const c = path.join(cache, `${w.slug}-${sz}.jpg`); if (fs.existsSync(c)) fs.unlinkSync(c); }
+        const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
+        if (store.kind === 's3') fs.unlinkSync(dest);
+        ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
+        return res.json({ ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD });
+      }
+      // Not yet published anywhere: into the archive, private.
+      const place = placeFromFolder(req.body.folder);
+      const frame = (req.file.originalname.match(/(\d+)\.[a-z]+$/i) || [])[1];
+      const nw = await registerWork({ file, originalName: req.file.originalname, title: `${place ? place.split(',')[0] : 'Archive'}${frame ? `, frame ${frame}` : ''}`, place });
+      db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, 'Krafft Studios') WHERE id=?").run(nw.id);
+      const roomSlug = 'archive-' + slugify(place ? place.split(',')[0] : 'unsorted');
+      let c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug);
+      if (!c) { db.prepare('INSERT INTO collections (slug,title,note,public,sort) VALUES (?,?,?,0,900)').run(roomSlug, `Archive · ${place ? place.split(',')[0] : 'Unsorted'}`, 'Full-resolution frames from the archive, held privately.'); c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug); }
+      db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(c.id, nw.id);
+      res.json({ ok: true, outcome: 'archive', slug: nw.slug, title: nw.title });
+    } catch (e) {
+      gone();
+      res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
+    }
+  });
+  app.get('/studio/masters', studioOnly, (req, res) => res.send(S.masters({
+    upgraded: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NOT NULL').get().n,
+    web: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NULL').get().n })));
+
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
     db.prepare("UPDATE works SET status = CASE status WHEN 'held' THEN 'hidden' ELSE 'held' END WHERE slug=?").run(req.params.slug);
     res.redirect('/studio/works');

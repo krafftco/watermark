@@ -50,4 +50,14 @@ async function derivative(original, cacheDir, slug, size) {
   return out;
 }
 
-module.exports = { inspect, derivative, SIZES };
+// A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
+// so a full-resolution master can be matched to the web copy already held.
+async function dhash(file) {
+  const px = await sharp(file).rotate().greyscale().resize(9, 8, { fit: 'fill' }).raw().toBuffer();
+  let bits = '';
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits += px[y * 9 + x] > px[y * 9 + x + 1] ? '1' : '0';
+  return BigInt('0b' + bits).toString(16).padStart(16, '0');
+}
+function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
+
+module.exports = { inspect, derivative, dhash, hamming, SIZES };
