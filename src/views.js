@@ -21,7 +21,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css"><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/collection">Collection</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/collection">Collection</a><a href="/yours">Yours</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
@@ -298,7 +298,7 @@ function thanks({ lic, w, maker, use }) {
 <div class="yours-fig"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"><span class="yours-seal" aria-hidden="true"><img src="/static/wave.svg" alt=""></span></div>
 <div class="yours-t">
 <p class="k">${esc(lic.ref)}</p>
-<h1>${done ? 'It&rsquo;s yours.' : 'Payment received. Preparing your file.'}</h1>
+<h1>${done ? 'It&rsquo;s yours.' : 'Payment received. Preparing your file.'}</h1>${done && lic.collector_no ? `<p class="yc-big">Collector No. ${lic.collector_no} of <em>${esc(w.title)}</em>. <a href="/yours">It hangs in your collection.</a></p>` : ''}
 <p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(maker.name)}. ${use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
 ${done ? `<div class="yours-a">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the full file</a>` : ''}
 <a class="yours-l" href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a><a class="yours-l" href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">License page</a><a class="yours-l" href="/verify?ref=${esc(lic.ref)}">Verify</a></div>
@@ -390,4 +390,26 @@ function terms() {
   });
 }
 
-module.exports = { layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+// A collector's own Watermark: every work they have collected, numbered, room by room.
+function collector({ b, items, rooms, works, makers, own, base }) {
+  const who = b && b.name ? b.name : own ? 'Your collection' : 'A collection';
+  if (!b || !items.length) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
+<h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
+<p class="lede">${own ? 'Every photograph you share or license on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This collection is private, or no longer exists.'}</p>
+${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p>' : ''}</section>` });
+  const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span></a>`;
+  const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
+  const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
+  return layout({ title: `${who} · Watermark`, desc: `${works} photographs collected on Watermark.`, body: `<section class="cx-intro"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
+<h1>${esc(who)}${b.name ? '.' : ''}</h1>
+<p class="cx-count">${works} work${works === 1 ? '' : 's'} · ${makers} photographer${makers === 1 ? '' : 's'} · ${rooms.filter(r => r.have === r.total).length} room${rooms.filter(r => r.have === r.total).length === 1 ? '' : 's'} complete${lowest ? ` · earliest: collector No. ${lowest.collector_no} of <em>${esc(lowest.title)}</em>` : ''}</p></section>
+${rooms.length ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
+<section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header><div class="plates">${items.map(plate).join('')}</div></section>
+${own ? `<section class="gal yc-own"><header class="gh"><h2>Show it, or keep it</h2></header>
+<form method="post" action="/yours" class="form yc-form"><label>Name on the wall<input name="name" value="${esc(b.name || '')}" placeholder="Elena's collection"></label>
+<label class="chk"><input type="checkbox" name="public" value="1" ${b.public ? 'checked' : ''}> Open my collection to anyone with the link</label><button>Save</button></form>
+${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${esc(b.code)}">${esc(base)}/collector/${esc(b.code)}</a></p>` : '<p class="note">Private: only this device sees it.</p>'}
+<table class="tbl yc-files"><thead><tr><th>Work</th><th>No.</th><th>Collected</th><th></th></tr></thead><tbody>${items.map(i => `<tr><td>${esc(i.title)}<br><small>${esc(i.maker)} · ${esc(i.use_name)}</small></td><td>${i.collector_no || ''}</td><td>${date(i.starts_at)}</td><td>${i.download_token ? `<a href="/d/${esc(i.download_token)}">Save again</a>` : ''}</td></tr>`).join('')}</tbody></table></section>` : ''}` });
+}
+
+module.exports = { collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

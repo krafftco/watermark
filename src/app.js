@@ -49,6 +49,9 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  // Collectors: every purchase is numbered and hangs in the buyer's own collection.
+  for (const [t, c, d] of [['licenses', 'buyer_id', 'INTEGER'], ['licenses', 'collector_no', 'INTEGER'], ['buyers', 'code', 'TEXT'], ['buyers', 'name', 'TEXT'], ['buyers', 'public', 'INTEGER NOT NULL DEFAULT 0']])
+    if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name=?`).get(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
   for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
@@ -127,6 +130,8 @@ function createApp(cfg = {}) {
     const token = u.kind === 'print' ? null : nanoid(32);
     db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=?")
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
+    // Collector No. n of this work: numbers are never reused, so an early number stays early.
+    if (extra.paid) db.prepare('UPDATE licenses SET collector_no=(SELECT COALESCE(MAX(collector_no),0)+1 FROM licenses WHERE work_id=?) WHERE ref=? AND collector_no IS NULL').run(l.work_id, ref);
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     const g = q.lic.get(ref);
     if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
@@ -389,6 +394,7 @@ function createApp(cfg = {}) {
         const id = db.prepare('INSERT INTO buyers (customer, email) VALUES (?,?)').run(cu.id, email || null).lastInsertRowid;
         b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b);
       }
+      db.prepare('UPDATE licenses SET buyer_id=? WHERE ref=?').run(b.id, ref);
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', automatic_payment_methods: { enabled: true }, customer: b.customer, setup_future_usage: 'off_session',
         description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug }, ...(email ? { receipt_email: email } : {}) });
       db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
@@ -415,8 +421,8 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
-    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions) VALUES (?,?,?,?,?,?,'awaiting_payment',?)")
-      .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null);
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
+      .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null, b.id);
     try {
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', customer: b.customer, payment_method: b.pm, off_session: true, confirm: true,
         description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug, tap: '1' }, ...(b.email ? { receipt_email: b.email } : {}) });
@@ -448,8 +454,39 @@ function createApp(cfg = {}) {
   function handover(l) {
     const w = db.prepare('SELECT title, slug FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    return { ok: true, ref: l.ref, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
+    l = q.lic.get(l.ref);
+    return { ok: true, ref: l.ref, no: l.collector_no, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
   }
+
+  // ---------- Collectors: everyone's own Watermark ----------
+  // Every purchase hangs in the buyer's collection, numbered, room by room. Private by default;
+  // the collector can open it to the world under a name of their choosing.
+  function collected(b) {
+    const items = db.prepare(`SELECT l.ref, l.collector_no, l.starts_at, l.download_token, l.status, u.name AS use_name, u.key AS use_key, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
+      FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
+      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 ORDER BY l.starts_at DESC`).all(b.id);
+    const ids = [...new Set(items.map(i => i.wid))];
+    const rooms = ids.length ? db.prepare(`SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
+      FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
+      WHERE c.public=1 GROUP BY c.id HAVING have > 0 ORDER BY (have * 1.0 / total) DESC, have DESC`).all(...ids) : [];
+    return { items, rooms, works: ids.length, makers: new Set(items.map(i => i.handle)).size };
+  }
+  app.get('/yours', (req, res) => {
+    const b = buyerOf(req);
+    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base }));
+  });
+  app.post('/yours', (req, res) => {
+    const b = buyerOf(req); if (!b) return res.redirect('/yours');
+    const name = String((req.body || {}).name || '').trim().slice(0, 60) || null, pub = (req.body || {}).public === '1' ? 1 : 0;
+    const code = b.code || nanoid(10);
+    db.prepare('UPDATE buyers SET name=?, public=?, code=? WHERE id=?').run(name, pub, code, b.id);
+    res.redirect('/yours');
+  });
+  app.get('/collector/:code', (req, res) => {
+    const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
+    if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
+    res.send(V.collector({ b, ...collected(b), own: false, base: C.base }));
+  });
 
   app.get('/buy/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
@@ -465,6 +502,11 @@ function createApp(cfg = {}) {
     if (!l || !req.query.session_id || l.stripe_session !== req.query.session_id) return res.redirect(l ? `/c/${l.ref}` : '/');
     if (l.status !== 'active' && stripe) {
       try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
+    }
+    if (l.status === 'active' && !l.buyer_id) { // hang it in this device's collection
+      let b = buyerOf(req);
+      if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', ?)").run(l.licensee_email || null).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
+      db.prepare('UPDATE licenses SET buyer_id=? WHERE ref=?').run(b.id, l.ref); l = q.lic.get(l.ref);
     }
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker

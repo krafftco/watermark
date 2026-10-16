@@ -90,6 +90,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 200);
   r = await req(port, 'POST', `/pay/${tj.ref}/undo`, { cookie: bck }); assert.ok(JSON.parse(r.body).ok && refunds.length === 1, 'undo refunds');
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 404, 'undone file stops working');
+  // collectors: numbered, hung in their own collection, private until they open it
+  assert.ok(dj.no >= 1 && tj.no === dj.no + 1, 'collector numbers count up: ' + dj.no + ',' + tj.no);
+  r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your collection'), 'a new visitor is invited to start');
+  r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
+  assert.ok(yb.includes(`No. ${dj.no}`) && yb.includes('The collection'), 'it hangs, numbered');
+  r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
+  const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
+  r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
+  assert.ok(!yb.includes('Save again'), 'no files on the public wall');
+  r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection" } });
+  r = await req(port, 'GET', `/collector/${code}`); assert.equal(r.status, 404, 'private again');
 
 
   // bespoke: ask the maker

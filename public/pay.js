@@ -71,6 +71,8 @@
     sheet.classList.add('is-done');
     setTimeout(function () { dl.click(); }, 450); // the file, handed over
     sheet.querySelector('.ps-dt').textContent += ' Next time, one tap.';
+    if (d.no) sheet.querySelector('.ps-done h2').textContent = 'Collector No. ' + d.no + '.';
+    sheet.querySelector('.ps-lic').textContent = 'Your collection'; sheet.querySelector('.ps-lic').href = '/yours';
   }
 
   function checkout(slug) {
@@ -88,7 +90,7 @@
     try {
       var d = await (await fetch('/pay/' + encodeURIComponent(slug) + '/tap', { method: 'POST' })).json();
       if (!d.ok) { hideToast(); tapping = false; return open(slug, title, null, true); }
-      toast('<b>Yours.</b> ' + esc(d.price || C.price) + ' &middot; <a href="' + esc(d.download) + '" download>Save</a> <button type="button" class="pt-undo">Undo</button>', 9000);
+      toast('<b>Yours.</b> ' + (d.no ? 'Collector No. ' + d.no + ' &middot; ' : '') + esc(d.price || C.price) + ' &middot; <a href="/yours">Collection</a> &middot; <a href="' + esc(d.download) + '" download>Save</a> <button type="button" class="pt-undo">Undo</button>', 9000);
       var a = document.createElement('a'); a.href = d.download; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
       var u = document.querySelector('.pt-undo'); if (u) u.onclick = async function () { u.disabled = true; var r = await (await fetch('/pay/' + d.ref + '/undo', { method: 'POST' })).json(); toast(r.ok ? 'Undone. Refunded in full.' : 'Too late to undo here; write to the maker.', 4000); };
     } catch (e) { hideToast(); open(slug, title, null, true); }
