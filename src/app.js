@@ -200,7 +200,12 @@ function createApp(cfg = {}) {
 
   // --- public pages ---
   app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
-  app.get('/collection', (req, res) => res.send(V.collection({ maker, works: q.publicWorks.all(), rooms: db.prepare("SELECT c.slug, c.title, (SELECT COUNT(*) FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=c.id AND w.status='held') n, (SELECT w.slug FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=c.id AND w.status='held' ORDER BY cw.sort LIMIT 1) cover FROM collections c WHERE c.public=1 ORDER BY c.sort DESC, c.id DESC").all().filter(r => r.n) })));
+  app.get('/collection', (req, res) => {
+    const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort, id').all();
+    const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
+    rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
+    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms }));
+  });
 
   // Makers apply to hold their work here. Read in the Studio.
   app.post('/apply', (req, res) => {

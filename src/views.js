@@ -28,15 +28,33 @@ ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://kraff
 }
 
 function collection({ maker, works, rooms = [] }) {
-  const cards = works.map(w => `<a class="card" href="/w/${esc(w.slug)}"><span class="cf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></span><span class="ct">${esc(w.title)}</span><span class="cm">${esc(w.place || '')}</span></a>`).join('');
+  // The collection is an archive you can walk: rooms as galleries, an index to search, and every
+  // photograph a click from filling the screen.
+  const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
+  const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
+  const data = works.map(w => ({ s: w.slug, t: w.title, p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [] }));
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span></a>`;
+  const byId = Object.fromEntries(works.map(w => [w.id, w]));
+  const seen = new Set();
+  const galleries = rooms.map(r => { const ws = (r.ids || []).map(id => byId[id]).filter(Boolean); ws.forEach(w => seen.add(w.id)); return ws.length ? `<section class="gal" id="room-${esc(r.slug)}" data-room="${esc(r.slug)}"><header class="gh"><h2><a href="/rooms/${esc(r.slug)}">${esc(r.title)}</a></h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>` : ''; }).join('');
+  const rest = works.filter(w => !seen.has(w.id));
+  const total = works.length;
   return layout({
     title: `${maker ? maker.name + ' · ' : ''}Watermark`,
-    desc: 'Photographs held, credited and licensed on Watermark.',
+    desc: `${total} photographs held, credited and licensed on Watermark.`,
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
-    body: `<section class="intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
-<h1>Photographs held on Watermark.</h1><p class="lede">Every work here is registered to its maker, shown at screen size, and licensed at the source. Press any photograph to see who made it and how to use it properly.</p></section>
-${rooms.length ? `<section class="rooms"><h2>Rooms</h2><div class="room-row">${rooms.map(r => `<a class="room-card" href="/rooms/${esc(r.slug)}">${r.cover ? `<span class="cf"><img src="/img/${esc(r.cover)}/thumb" alt="" loading="lazy" draggable="false"></span>` : ''}<span class="ct">${esc(r.title)}</span><span class="cm">${r.n} photograph${r.n === 1 ? '' : 's'}</span></a>`).join('')}</div></section><h2 class="all-h">Every photograph</h2>` : ''}
-<section class="grid">${cards || '<p class="empty">Nothing is held here yet.</p>'}</section>`
+    body: `<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
+<h1>The collection.</h1><p class="cx-count">${total} photographs · ${rooms.filter(r => (r.ids || []).length).length} rooms · each registered to its maker and licensed at the source</p></section>
+<div class="cx-bar" id="cxBar"><label class="cx-q"><span>Search</span><input id="cxQ" type="search" placeholder="Title, place, camera, accession" autocomplete="off" spellcheck="false"></label>
+<div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${rooms.filter(r => (r.ids || []).length).map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
+<div class="cx-view"><button type="button" data-v="plates" aria-pressed="true">Plates</button><button type="button" data-v="index">Index</button></div><span class="cx-n" id="cxN">${total}</span></div>
+<div class="cx" id="cx">${galleries}${rest.length ? `<section class="gal" data-room=""><header class="gh"><h2>${rooms.length ? 'Also held' : 'Every photograph'}</h2><span>${rest.length}</span></header><div class="plates">${rest.map(plate).join('')}</div></section>` : ''}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
+<div class="cx-flat" id="cxFlat" hidden></div>
+<div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
+<div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
+<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#" class="lb-lic">License</a></span></div>
+<button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Previous"></button><button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Next"></button></div>
+<script>window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js" defer></script>`
   });
 }
 
