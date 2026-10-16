@@ -314,7 +314,7 @@ html.lb-on{overflow:hidden}
 .lb.bare .lb-stage{padding:0}
 .lb-stage img{position:absolute;max-width:calc(100% - 2 * clamp(8px,2vw,28px));max-height:calc(100% - clamp(8px,2vw,28px) - 64px);object-fit:contain;-webkit-user-drag:none;user-select:none}
 .lb.bare .lb-stage img{max-width:100%;max-height:100%}
-#lbLo{filter:blur(12px);transform:scale(1);opacity:.6;width:auto;height:auto}
+#lbLo{filter:blur(12px);opacity:.6;transition:opacity .4s}
 #lbImg{opacity:0;transition:opacity .7s var(--e)}#lbImg.in{opacity:1}
 .lb-top,.lb-cap{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px clamp(16px,3vw,32px);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;transition:opacity .8s var(--e)}
 .lb-top{top:0;color:rgba(246,245,242,.6);background:linear-gradient(rgba(0,0,0,.4),transparent)}
