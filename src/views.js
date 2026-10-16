@@ -27,7 +27,7 @@ ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://kraff
 </body></html>`;
 }
 
-function collection({ maker, works }) {
+function collection({ maker, works, rooms = [] }) {
   const cards = works.map(w => `<a class="card" href="/w/${esc(w.slug)}"><span class="cf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></span><span class="ct">${esc(w.title)}</span><span class="cm">${esc(w.place || '')}</span></a>`).join('');
   return layout({
     title: `${maker ? maker.name + ' · ' : ''}Watermark`,
@@ -35,6 +35,7 @@ function collection({ maker, works }) {
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
     body: `<section class="intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
 <h1>Photographs held on Watermark.</h1><p class="lede">Every work here is registered to its maker, shown at screen size, and licensed at the source. Press any photograph to see who made it and how to use it properly.</p></section>
+${rooms.length ? `<section class="rooms"><h2>Rooms</h2><div class="room-row">${rooms.map(r => `<a class="room-card" href="/rooms/${esc(r.slug)}">${r.cover ? `<span class="cf"><img src="/img/${esc(r.cover)}/thumb" alt="" loading="lazy" draggable="false"></span>` : ''}<span class="ct">${esc(r.title)}</span><span class="cm">${r.n} photograph${r.n === 1 ? '' : 's'}</span></a>`).join('')}</div></section><h2 class="all-h">Every photograph</h2>` : ''}
 <section class="grid">${cards || '<p class="empty">Nothing is held here yet.</p>'}</section>`
   });
 }

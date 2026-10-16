@@ -254,3 +254,8 @@ body.studio .tv{max-width:none}
 .bulk-list li.busy i{color:var(--ink)}.bulk-list li.done i{color:#3f6b3f}.bulk-list li.skip i{color:#9a5b2e}
 .single{margin:20px 0 28px;font-size:14px}.single summary{cursor:pointer;color:var(--mu)}
 .drop,.drop b,.drop span{text-transform:none;letter-spacing:0}.drop b{color:var(--ink)}
+.rooms{padding:0 clamp(16px,4vw,56px);margin-top:8px}
+.rooms h2,.all-h{padding:0 clamp(16px,4vw,56px)}.rooms h2{padding:0}
+.room-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,1fr);gap:18px;overflow-x:auto;padding-bottom:12px;scrollbar-width:thin}
+.room-card{display:grid;gap:8px;text-decoration:none;color:inherit}
+.room-card .cf{aspect-ratio:4/3}

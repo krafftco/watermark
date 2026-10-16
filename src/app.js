@@ -198,7 +198,7 @@ function createApp(cfg = {}) {
 
   // --- public pages ---
   app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
-  app.get('/collection', (req, res) => res.send(V.collection({ maker, works: q.publicWorks.all() })));
+  app.get('/collection', (req, res) => res.send(V.collection({ maker, works: q.publicWorks.all(), rooms: db.prepare("SELECT c.slug, c.title, (SELECT COUNT(*) FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=c.id AND w.status='held') n, (SELECT w.slug FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=c.id AND w.status='held' ORDER BY cw.sort LIMIT 1) cover FROM collections c WHERE c.public=1 ORDER BY c.sort DESC, c.id DESC").all().filter(r => r.n) })));
 
   // Makers apply to hold their work here. Read in the Studio.
   app.post('/apply', (req, res) => {
@@ -681,12 +681,16 @@ function createApp(cfg = {}) {
   // Back the database up to the vault every six hours, and once shortly after start.
   if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
+  // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).
+  const sync = require('./studios-sync').createSync({ db, registerWork, slugify, fetchImpl: cfg.fetchImpl || fetch });
+  if (!cfg.noTimers && process.env.STUDIOS_SYNC !== 'off') { setTimeout(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 20e3).unref(); setInterval(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 6 * 3600e3).unref(); }
+  app.post('/studio/sync', studioOnly, (req, res) => { sync.run().catch(e => console.error('[studios-sync]', e.message)); res.redirect('/studio?ok=' + encodeURIComponent('Pulling new photographs from Krafft Studios. They appear as they arrive.')); });
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
-  app.locals = { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep };
+  app.locals = { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync };
   return app;
 }
 
