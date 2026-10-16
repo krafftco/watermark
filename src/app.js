@@ -269,6 +269,11 @@ function createApp(cfg = {}) {
     res.sendStatus(204);
   });
   app.options('/api/seen', (req, res) => { res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST' }); res.sendStatus(204); });
+  // The house bar, shared with krafftco.com and studios.krafftco.com (loaded in each site's <head>).
+  app.get('/house.js', (req, res) => {
+    res.type('application/javascript').set('Cache-Control', 'public, max-age=600').set('Access-Control-Allow-Origin', '*');
+    res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));
+  });
   app.get('/embed.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=3600').set('Access-Control-Allow-Origin', '*');
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'embed.js'), 'utf8').replace(/__WM_BASE__/g, C.base));

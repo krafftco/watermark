@@ -38,6 +38,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/img/${w.slug}/original`); assert.equal(r.status, 404, 'no original by size');
   r = await req(port, 'GET', `/api/work/${w.slug}`); assert.equal(JSON.parse(r.body).title, 'Test Dome');
   r = await req(port, 'GET', '/embed.js'); assert.ok(r.body.toString().includes("'http://localhost'"));
+  r = await req(port, 'GET', '/house.js'); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('kh_'));
+  r = await req(port, 'GET', '/'); assert.ok(r.body.toString().includes('class="kh"') && r.body.toString().includes('studios.krafftco.com'));
 
   // every use shows its price before anything is submitted
   r = await req(port, 'GET', `/license/${w.slug}`); const page = r.body.toString();
