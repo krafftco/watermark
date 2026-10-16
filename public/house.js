@@ -11,24 +11,28 @@
     { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com' },
     { id: 'studios', name: 'Krafft Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com' },
     { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com' },
+    // A venture that lives as a page on krafftco.com: matched by path, always opens at its page.
+    { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club' },
     { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1 }
   ];
   function fam(host) { return /wrkfullerton\.com$/.test(host) ? 'wrkfullerton.com' : /krafftco\.com$/.test(host) ? 'krafftco.com' : ''; }
   var h = location.hostname.replace(/^www\./, '');
   var here = null;
-  for (var i = 0; i < P.length; i++) if (h === P[i].host) here = P[i].id;
+  for (var i = 0; i < P.length; i++) if (h === P[i].host && !P[i].path) here = P[i].id;
+  for (var i2 = 0; i2 < P.length; i2++) if (P[i2].path && h === P[i2].host && location.pathname.indexOf(P[i2].path) === 0) here = P[i2].id;
   // Pages that should never be "returned to": private, one-off or transactional.
   var SKIP = /^\/(studio|thanks|buy|k\/|view|ghost|members|signin|signup|account|checkout|utilities|401|404)/;
   var F = fam(h), DOMAIN = F ? '; domain=.' + F : '';
   function read(id) { var m = document.cookie.match(new RegExp('(?:^|; )kh_' + id + '=([^;]*)')); try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return ''; } }
   // Arrived from the other domain's bar: go straight on to the last page open here.
   if (here && location.hash === '#kh') {
-    var last = read(here), cur = location.pathname + location.search;
+    var last = read(here === 'dgc' ? 'krafft' : here), cur = location.pathname + location.search;
     if (last && last.charAt(0) === '/' && !/^\/\//.test(last) && last !== cur) { location.replace(last); return; }
     try { history.replaceState(null, '', cur); } catch (e) {}
   }
-  if (here && !SKIP.test(location.pathname)) {
-    try { document.cookie = 'kh_' + here + '=' + encodeURIComponent(location.pathname + location.search) + '; max-age=1800; path=/; SameSite=Lax; Secure' + DOMAIN; } catch (e) {}
+  var keep = here === 'dgc' ? null : here;  // a venture page is not "where you were" on Krafft
+  if (keep && !SKIP.test(location.pathname)) {
+    try { document.cookie = 'kh_' + keep + '=' + encodeURIComponent(location.pathname + location.search) + '; max-age=1800; path=/; SameSite=Lax; Secure' + DOMAIN; } catch (e) {}
   }
   var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:clamp(18px,2.6vw,36px);height:32px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.24em;text-transform:uppercase;-webkit-font-smoothing:antialiased;overflow-x:auto;scrollbar-width:none;white-space:nowrap;box-sizing:border-box}'
     + '.kh::-webkit-scrollbar{display:none}'
@@ -39,13 +43,13 @@
     + '.kh .kh-own{margin-left:auto}'
     + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
     + '.kh .kh-sh{display:none}'
-    + '@media (max-width:600px){.kh{gap:16px;letter-spacing:.15em;padding:0 16px}.kh .kh-fl{display:none}.kh .kh-sh{display:inline}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
+    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-fl{display:none}.kh .kh-sh{display:inline}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
     + '@media print{.kh{display:none}}';
   function link(p) {
     var a = document.createElement('a');
     var other = fam(p.host) !== F;           // another domain: its cookie can't be read from here
     var back = p.id !== here && !other ? read(p.id) : '';
-    a.href = p.id === here ? p.url + '/' : p.url + (back && back.charAt(0) === '/' && !/^\/\//.test(back) ? back : '/') + (other ? '#kh' : '');
+    a.href = p.path ? p.url : p.id === here ? p.url + '/' : p.url + (back && back.charAt(0) === '/' && !/^\/\//.test(back) ? back : '/') + (other ? '#kh' : '');
     var short = p.short || (p.id === 'studios' ? 'Studios' : '');
     if (short) { var f1 = document.createElement('span'); f1.className = 'kh-fl'; f1.textContent = p.name; var f2 = document.createElement('span'); f2.className = 'kh-sh'; f2.textContent = short; a.appendChild(f1); a.appendChild(f2); }
     else a.textContent = p.name;
