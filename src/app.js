@@ -11,6 +11,7 @@ const ledger = require('./ledger');
 const images = require('./images');
 const V = require('./views');
 const R = require('./rules');
+const SEAL = require('./seal');
 const S = require('./studio-views');
 const prov = require('./provenance');
 const mail = require('./mail');
@@ -434,12 +435,64 @@ function createApp(cfg = {}) {
     res.redirect('/studio/works');
   });
 
+  // --- sealed files ---
+  // The maker seals a full-resolution copy for someone. It opens only in the Watermark viewer.
+  app.post('/studio/works/:slug/seal', studioOnly, async (req, res) => {
+    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const size = req.body.size === 'original' ? 'original' : 'large';
+    const days = Number(req.body.days) || 0;
+    const sharp = require('sharp');
+    const orig = path.join(originals, w.original_file);
+    let image = size === 'large' ? fs.readFileSync(await images.derivative(orig, cache, w.slug, 'large')) : fs.readFileSync(orig);
+    if (size === 'original' && !/\.(jpe?g|png)$/i.test(w.original_file)) image = await sharp(image).rotate().jpeg({ quality: 95 }).toBuffer();
+    const preview = fs.readFileSync(await images.derivative(orig, cache, w.slug, 'thumb'));
+    const id = nanoid(14), access = nanoid(24);
+    const expires = days > 0 ? new Date(Date.now() + days * 864e5).toISOString() : null;
+    const rules = R.parse(w.rules);
+    const header = { v: 1, id, access, keys: `${C.base}/k/${id}`, work: w.slug, title: w.title, maker: maker.name, house: maker.house,
+      credit: `Photograph by ${maker.name}`, fingerprint: w.sha256, conditions: R.conditions(rules) || null, expires, license: `${C.base}/license/${w.slug}`, sealed: new Date().toISOString() };
+    const { key, file } = SEAL.seal({ image, preview, header });
+    fs.mkdirSync(path.join(C.dataDir, 'seals'), { recursive: true });
+    fs.writeFileSync(path.join(C.dataDir, 'seals', id + '.wmk'), file);
+    db.prepare('INSERT INTO seals (id,work_id,label,size,access,wrapped_key,expires_at) VALUES (?,?,?,?,?,?,?)').run(id, w.id, String(req.body.label || '').slice(0, 120) || null, size, access, SEAL.wrap(key, C.secret), expires);
+    ledger.append(db, 'seal.created', id, { work: w.slug, size, expires });
+    res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Sealed. Download the file and send it however you like.')}#seals`);
+  });
+  app.get('/studio/seals/:id.wmk', studioOnly, (req, res) => {
+    const s = db.prepare('SELECT s.*, w.slug FROM seals s JOIN works w ON w.id=s.work_id WHERE s.id=?').get(req.params.id); if (!s) return res.sendStatus(404);
+    res.set('Content-Disposition', `attachment; filename="${s.slug}.wmk"`).type('application/vnd.watermark.sealed').sendFile(path.join(C.dataDir, 'seals', s.id + '.wmk'));
+  });
+  app.post('/studio/seals/:id/:act', studioOnly, (req, res) => {
+    const s = db.prepare('SELECT s.*, w.slug FROM seals s JOIN works w ON w.id=s.work_id WHERE s.id=?').get(req.params.id); if (!s) return res.sendStatus(404);
+    const status = req.params.act === 'close' ? 'closed' : 'open';
+    db.prepare('UPDATE seals SET status=? WHERE id=?').run(status, s.id);
+    ledger.append(db, status === 'closed' ? 'seal.closed' : 'seal.reopened', s.id, { work: s.slug });
+    res.redirect(`/studio/works/${s.slug}#seals`);
+  });
+
+  // The key desk. Every opening of a sealed file comes here; the answer is the maker's to give.
+  app.post('/k/:id', (req, res) => {
+    const s = db.prepare('SELECT * FROM seals WHERE id=?').get(req.params.id);
+    const a = String(req.body.access || '');
+    if (!s || a.length !== s.access.length || !crypto.timingSafeEqual(Buffer.from(a), Buffer.from(s.access))) return res.status(404).json({ open: false, reason: 'This file was not sealed on Watermark.' });
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(s.work_id);
+    if (s.status !== 'open') return res.status(403).json({ open: false, reason: 'The maker has closed this file.', license: `${C.base}/license/${w.slug}` });
+    if (s.expires_at && new Date(s.expires_at) < new Date()) return res.status(403).json({ open: false, reason: 'This file has expired.', license: `${C.base}/license/${w.slug}` });
+    const host = String(req.body.host || '').toLowerCase().replace(/[^a-z0-9.\-:]/g, '').slice(0, 120) || null;
+    const now = new Date().toISOString();
+    db.prepare('UPDATE seals SET opens=opens+1, last_opened_at=? WHERE id=?').run(now, s.id);
+    db.prepare('INSERT INTO seal_opens (seal_id,day,host) VALUES (?,?,?) ON CONFLICT(seal_id,day,host) DO UPDATE SET count=count+1').run(s.id, now.slice(0, 10), host);
+    res.set('Cache-Control', 'no-store').json({ open: true, key: SEAL.unwrap(s.wrapped_key, C.secret).toString('base64') });
+  });
+  app.get('/view', (req, res) => res.send(V.viewer()));
+
   // The maker's say, per work.
   app.get('/studio/works/:slug', studioOnly, (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
     const seen = db.prepare('SELECT * FROM sightings WHERE work_id=? ORDER BY id DESC').all(w.id);
     const lic = db.prepare("SELECT l.*, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? ORDER BY l.id DESC").all(w.id);
-    res.send(S.workTerms({ w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, notice: req.query.ok }));
+    const seals = db.prepare('SELECT * FROM seals WHERE work_id=? ORDER BY created_at DESC').all(w.id);
+    res.send(S.workTerms({ w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
   });
   app.post('/studio/works/:slug', studioOnly, (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);

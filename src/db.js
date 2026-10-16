@@ -82,6 +82,26 @@ function open(file) {
     status TEXT NOT NULL DEFAULT 'new', -- new | licensed | offered | resolved
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS seals (
+    id TEXT PRIMARY KEY,           -- printed in the file's header
+    work_id INTEGER NOT NULL REFERENCES works(id),
+    label TEXT,                    -- who or what it was sealed for; private
+    size TEXT NOT NULL,            -- large | original
+    access TEXT NOT NULL,          -- access code carried in the file
+    wrapped_key TEXT NOT NULL,     -- the data key, wrapped; never stored in the clear
+    expires_at TEXT,
+    status TEXT NOT NULL DEFAULT 'open', -- open | closed
+    opens INTEGER NOT NULL DEFAULT 0,
+    last_opened_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS seal_opens (
+    seal_id TEXT NOT NULL REFERENCES seals(id),
+    day TEXT NOT NULL,
+    host TEXT,
+    count INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(seal_id, day, host)
+  );
   CREATE TABLE IF NOT EXISTS applications (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,

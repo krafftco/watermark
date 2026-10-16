@@ -119,7 +119,7 @@ ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.
 
 <section class="h-sec"><p class="k">Protection</p><h2 class="h2">Protected by design, not by a stamp across the middle.</h2>
 <div class="h-6">
-<div><h3>The original stays in the vault.</h3><p>Only screen-sized copies are ever shown. The full file leaves only under a license.</p></div>
+<div><h3>Sealed when it travels.</h3><p>Only screen-sized copies are shown. When the full file must travel, it goes sealed: it opens only in Watermark, every opening is counted, and you can close it at any time.</p></div>
 <div><h3>Fingerprinted on arrival.</h3><p>Every original is fingerprinted and registered on a public ledger that cannot be quietly edited.</p></div>
 <div><h3>Licensed inside the file.</h3><p>Each delivered file carries the maker, the licensee, the reference, the term and your conditions.</p></div>
 <div><h3>Reserved from AI.</h3><p>Every page and image tells crawlers and AI companies the work is reserved and not theirs to train on.</p></div>
@@ -162,6 +162,18 @@ function life({ w, maker, lic, reg, rules }) {
 <ol class="life-l"><li><span>${date(w.created_at)}</span><b>Registered on Watermark</b><em>Fingerprint ${esc(w.sha256.slice(0, 16))}&hellip;</em>${reg ? `<a href="/ledger">Ledger ${reg.seq}</a>` : ''}</li>${rows}</ol>
 <p class="note">Licensees are not named. Each reference can be checked by anyone at <a href="/verify">/verify</a>.</p>
 <p><a class="btn" href="/license/${esc(w.slug)}">License this photograph</a></p></section>` });
+}
+
+// The viewer for sealed files.
+function viewer() {
+  return layout({ title: 'Open a sealed file · Watermark', desc: 'Open a photograph sealed on Watermark.', body: `<section class="sv">
+<div class="sv-intro"><p class="k">Watermark viewer</p><h1>Open a sealed photograph.</h1>
+<p class="lede">Drop a <code>.wmk</code> file here, or choose one. It opens in this window only, with the maker&rsquo;s permission, and is never saved as a picture.</p>
+<label class="buy-btn sv-btn">Choose a sealed file<input id="sv-pick" type="file" accept=".wmk" hidden></label></div>
+<div class="sv-frame"><div id="sv-stage"><img id="sv-preview" alt=""><canvas id="sv-canvas"></canvas>
+<div class="sv-state"><p id="sv-msg"></p><p id="sv-sub"></p><a id="sv-license" class="h-ln" href="/">License this photograph</a></div></div>
+<div class="sv-cap"><div><b id="sv-title"></b><span id="sv-credit"></span></div><span id="sv-terms"></span><span class="sv-seal">Sealed on Watermark</span></div></div>
+</section><script src="/static/seal-viewer.js" defer></script>` });
 }
 
 function reported({ w }) {
@@ -323,4 +335,4 @@ function terms() {
   });
 }
 
-module.exports = { layout, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { layout, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

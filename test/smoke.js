@@ -83,6 +83,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/'); assert.ok(r.body.includes('For the people who make the pictures'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
+  // sealed files: seal, open with the maker's key, refuse when tampered, closed or wrong
+  const SEAL = require('../src/seal');
+  r = await req(port, 'POST', `/studio/works/${w.slug}/seal`, { cookie: ck, body: { label: 'An editor', size: 'original', days: '30' } }); assert.equal(r.status, 302);
+  const sl = db.prepare('SELECT * FROM seals ORDER BY created_at DESC').get();
+  r = await req(port, 'GET', `/studio/seals/${sl.id}.wmk`, { cookie: ck }); assert.equal(r.status, 200);
+  const wmk = r.body; const parsed = SEAL.parse(wmk);
+  assert.equal(parsed.header.title, 'Test Dome'); assert.ok(!wmk.includes(fs.readFileSync(SRC).slice(1000, 1064)), 'image is not in the clear');
+  r = await req(port, 'GET', `/studio/seals/${sl.id}.wmk`); assert.equal(r.status, 302, 'download is the maker\'s');
+  r = await req(port, 'POST', `/k/${sl.id}`, { body: JSON.stringify({ access: parsed.header.access, host: 'mag.com' }), headers: { 'content-type': 'application/json' } });
+  const kj = JSON.parse(r.body); assert.ok(kj.open);
+  assert.ok(SEAL.open(wmk, Buffer.from(kj.key, 'base64')).equals(fs.readFileSync(SRC)), 'opens to the exact original');
+  const bad = Buffer.from(wmk); const hp = bad.indexOf('Test Dome'); bad[hp] = 'X'.charCodeAt(0);
+  assert.throws(() => SEAL.open(bad, Buffer.from(kj.key, 'base64')), 'altered header breaks the seal');
+  r = await req(port, 'POST', `/k/${sl.id}`, { body: JSON.stringify({ access: 'x'.repeat(24) }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 404);
+  assert.equal(db.prepare('SELECT opens FROM seals WHERE id=?').get(sl.id).opens, 1, 'opening counted');
+  r = await req(port, 'POST', `/studio/seals/${sl.id}/close`, { cookie: ck }); assert.equal(r.status, 302);
+  r = await req(port, 'POST', `/k/${sl.id}`, { body: JSON.stringify({ access: parsed.header.access }), headers: { 'content-type': 'application/json' } });
+  assert.equal(r.status, 403); assert.ok(JSON.parse(r.body).reason.includes('closed'));
+  assert.ok(!db.prepare('SELECT wrapped_key FROM seals WHERE id=?').get(sl.id).wrapped_key.includes(kj.key), 'key stored wrapped');
+
   // request (on-request price) -> studio grants
   db.prepare("UPDATE uses SET price_cents=NULL WHERE key='editorial'").run();
   r = await req(port, 'POST', `/license/${w.slug}`, { body: { use: 'editorial', name: 'Ann Editor', email: 'ann@mag.com', company: 'The Mag', intended: 'Feature, web', agree: '1' } });

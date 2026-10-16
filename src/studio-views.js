@@ -71,7 +71,7 @@ function uses({ list, notice }) {
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ w, rules, uses, NEVER, seen, lic, notice }) {
+function workTerms({ w, rules, uses, NEVER, seen, lic, seals = [], notice }) {
   const open = k => !rules.uses || rules.uses.includes(k);
   const paid = lic.filter(l => ['active', 'expired'].includes(l.status));
   const earned = paid.reduce((a, l) => a + (l.price_cents || 0), 0);
@@ -89,6 +89,13 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <h2>Credit</h2><label class="chk"><input type="checkbox" name="credit" value="1" ${rules.credit ? 'checked' : ''}> Require credit wherever the use allows</label>
 <button>Save my terms</button><p class="note">Terms apply to every new license and are written into its certificate and the delivered file. Licenses already granted keep the terms they were sold under.</p></form>
 <h2>The life of this photograph</h2><table class="tbl"><thead><tr><th>Ref</th><th>Date</th><th>Licensee</th><th>Use</th><th>Fee</th><th>Status</th></tr></thead><tbody>${life || '<tr><td colspan="6">Not licensed yet.</td></tr>'}</tbody></table>
+<h2 id="seals">Sealed copies</h2>
+<p class="lede">Send the full photograph to a client, an editor or a printer without letting it go. A sealed file opens only in the Watermark viewer, every opening is counted here, and you can close it at any time.</p>
+<form method="post" action="/studio/works/${esc(w.slug)}/seal" class="form inline seal-form"><label>For<input name="label" placeholder="An editor at a magazine"></label>
+<label>Size<select name="size"><option value="large">Large (2400 px)</option><option value="original">Full resolution</option></select></label>
+<label>Open for<select name="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="365">A year</option><option value="0">Until I close it</option></select></label><button>Seal a copy</button></form>
+<table class="tbl"><thead><tr><th>For</th><th>Sealed</th><th>Size</th><th>Open until</th><th>Opened</th><th>Status</th><th></th></tr></thead><tbody>${seals.map(s => `<tr><td>${esc(s.label || '—')}</td><td>${date(s.created_at)}</td><td>${s.size === 'original' ? 'Full' : 'Large'}</td><td>${s.expires_at ? date(s.expires_at) : 'Until closed'}</td><td>${s.opens}${s.last_opened_at ? `<br><small>last ${date(s.last_opened_at)}</small>` : ''}</td><td>${s.status === 'open' ? 'Open' : 'Closed'}</td>
+<td><a href="/studio/seals/${esc(s.id)}.wmk">Download</a> &middot; <form method="post" action="/studio/seals/${esc(s.id)}/${s.status === 'open' ? 'close' : 'open'}" class="inline"><button class="link">${s.status === 'open' ? 'Close it' : 'Reopen'}</button></form></td></tr>`).join('') || '<tr><td colspan="7">Nothing sealed yet.</td></tr>'}</tbody></table>
 <h2>Sightings</h2><ul class="plain">${sg || '<li>None reported.</li>'}</ul>
 <p class="note">Fingerprint <code>${esc(w.sha256)}</code></p></section>` });
 }

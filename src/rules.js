@@ -16,7 +16,7 @@ function parse(json) {
 const allows = (rules, key) => !rules.uses || rules.uses.includes(key);
 function conditions(rules) {
   const parts = [];
-  if (rules.never.length) parts.push('Not for: ' + rules.never.map(k => NEVER[k].toLowerCase()).join('; '));
+  if (rules.never.length) parts.push('Not for: ' + rules.never.map(k => (NEVER[k][0].toLowerCase() + NEVER[k].slice(1))).join('; '));
   if (rules.credit) parts.push('Credit the maker wherever the use allows');
   return parts.join('. ');
 }
