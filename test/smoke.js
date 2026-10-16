@@ -17,7 +17,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-test-'));
-  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', webhookSecret: 'whsec_test' });
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
   const { registerWork, db } = app.locals;
   const tmp = path.join(dir, 'in.jpg'); fs.copyFileSync(SRC, tmp);
@@ -46,8 +46,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);
-  r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200); assert.equal(r.body.length, fs.statSync(SRC).size, 'original delivered intact');
-  r = await req(port, 'GET', `/verify?ref=${ref1}`); assert.ok(r.body.includes('active'));
+  r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);
+  const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
+  assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
+  const sh = require('sharp'); const [a, b] = await Promise.all([sh(r.body).raw().toBuffer(), sh(fs.readFileSync(SRC)).raw().toBuffer()]);
+  assert.ok(a.equals(b), 'pixels untouched by the stamp');
+  r = await req(port, 'GET', `/c/${ref1}.pdf`); assert.equal(r.status, 200); assert.equal(r.body.slice(0, 4).toString(), '%PDF');
+  // renewal notice for a license ending soon, then expiry
+  db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + 5 * 864e5).toISOString(), ref1);
+  assert.equal(app.locals.sweep(), 1, 'renewal offered'); assert.equal(app.locals.sweep(), 0, 'only once');
+  r = await req(port, 'GET', `/license/${w.slug}?use=editorial&renews=${ref1}`); assert.ok(r.body.includes('Renewing license'));
+  db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() - 864e5).toISOString(), ref1); app.locals.sweep();
+  assert.equal(db.prepare('SELECT status FROM licenses WHERE ref=?').get(ref1).status, 'expired');
+  r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 404, 'no download after expiry');
+  r = await req(port, 'GET', `/verify?ref=${ref1}`); assert.ok(r.body.includes('expired'));
 
   // priced use, paid via signed webhook
   db.prepare("UPDATE uses SET price_cents=75000 WHERE key='commercial'").run();

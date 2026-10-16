@@ -12,6 +12,9 @@ Watermark v0 is the first working version of the licensing system described in t
 - **License.** Editorial, Commercial, Campaign and A print to keep, each with a term. A use with a price goes straight to Stripe Checkout. A use without a price ("On request") becomes a request the maker quotes from the Studio; the quote produces a Stripe payment link.
 - **Certificate.** Every license has a reference (WM-2026-000001), a plain-language certificate page, and a public verify page. When it is granted, the licensee gets a private link to the full file, valid for the term.
 - **Ledger.** Every registration, request, quote, grant, decline and delivery is appended to a hash-chained ledger. Each entry carries the hash of the one before, so any edit to history shows as a broken chain at /ledger. No personal details are published.
+- **Provenance.** The delivered JPEG carries its license: the maker, licensee, reference, term and the original's fingerprint are written into its EXIF without re-encoding the image (pixels are untouched). Every active license also has a PDF certificate at /c/REF.pdf.
+- **Renewals.** Licenses end on their date and stop delivering the file. Thirty days before the end the licensee is offered a one-tap renewal; the Studio lists everything ending in the next 60 days.
+- **Email.** With `RESEND_API_KEY` set, Watermark emails the maker on every request and the licensee on receipt, quote (with the payment link), grant (certificate and download) and renewal. Without it, everything works and the Studio shows what to send.
 - **Studio.** Password sign-in. Overview (works, active licenses, requests, revenue, where the work was seen), Vault (upload, hide or show), Licenses (quote, grant, decline), Uses and prices.
 
 ## Run it
@@ -39,13 +42,11 @@ The Dockerfile and `render.yaml` deploy to Render with a persistent disk at `/da
 
 - The license terms at /terms are a plain-language draft. Have counsel review them.
 - Decide which entity receives payments (Watermark Ventures Inc. or Krafftco LLC) and connect that entity's Stripe account.
-- Email: v0 does not send email. The Studio shows requests and payment links; Will sends them. Add a mail provider (Postmark or Resend) next.
+- Email: create a Resend account, verify the sending domain (krafftco.com) and set `RESEND_API_KEY` and `MAIL_FROM`.
 
 ## Roadmap
 
-1. Email notifications (request received, payment link, license granted, renewal due).
-2. Point krafftco.com/license and the Studios theme's license links at Watermark work pages.
-3. Multiple makers: the schema already has makers; add sign-up and per-maker Stripe Connect payouts.
-4. Provenance: embed the license reference and fingerprint in the delivered file's metadata; add C2PA content credentials.
-5. Renewals: a reminder 30 days before a license ends and one-tap renewal.
-6. Machines: an opt-in, licensed dataset export for AI companies on the maker's terms.
+1. Point krafftco.com/license and the Studios theme's license links at Watermark work pages.
+2. Multiple makers: the schema already has makers; add sign-up and per-maker Stripe Connect payouts.
+3. Provenance: add C2PA content credentials alongside the EXIF stamp.
+4. Machines: an opt-in, licensed dataset export for AI companies on the maker's terms.

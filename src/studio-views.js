@@ -8,12 +8,16 @@ function login({ error }) {
 <form method="post" action="/studio/login" class="form"><label>Password<input type="password" name="password" required autofocus></label><button>Sign in</button></form></section>` });
 }
 
-function overview({ maker, stats, recent, views }) {
+function overview({ maker, stats, recent, views, ending = [], notice }) {
+  const en = ending.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${esc(l.title)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${date(l.ends_at)}</td><td>${l.renewal_sent_at ? 'Notice sent' : 'Not yet'}</td></tr>`).join('');
   const v = views.map(r => `<tr><td>${esc(r.host || 'watermark')}</td><td>${esc(r.kind)}</td><td>${r.n}</td></tr>`).join('');
   const rl = recent.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${esc(l.title)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
   return layout({ studio: true, title: 'Studio · Watermark', body: `<section class="studio-wrap">${nav('/studio')}
 <p class="k">${esc(maker.house || maker.name)}</p><h1>Your estate.</h1>
 <div class="stats"><div><b>${stats.works}</b><span>works held</span></div><div><b>${stats.active}</b><span>active licenses</span></div><div><b>${stats.open}</b><span>requests waiting</span></div><div><b>${money(stats.earned || 0)}</b><span>licensed to date</span></div><div><b>${stats.views}</b><span>views, 30 days</span></div></div>
+${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<h2>Ending in the next 60 days</h2><table class="tbl"><thead><tr><th>Ref</th><th>Work</th><th>Licensee</th><th>Ends</th><th>Renewal</th></tr></thead><tbody>${en || '<tr><td colspan="5">Nothing ending soon.</td></tr>'}</tbody></table>
+<form method="post" action="/studio/renewals" class="inline" style="margin-top:12px"><button class="link">Send renewal notices now</button></form>
 <h2>Recent licenses</h2><table class="tbl"><thead><tr><th>Ref</th><th>Work</th><th>Licensee</th><th>Use</th><th>Status</th></tr></thead><tbody>${rl || '<tr><td colspan="5">None yet.</td></tr>'}</tbody></table>
 <h2>Where your work was seen (30 days)</h2><table class="tbl"><thead><tr><th>Site</th><th>Kind</th><th>Count</th></tr></thead><tbody>${v || '<tr><td colspan="3">No views yet.</td></tr>'}</tbody></table>
 </section>` });

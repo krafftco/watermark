@@ -56,7 +56,7 @@ ${w.caption ? `<p class="cap">${esc(w.caption)}</p>` : ''}
   });
 }
 
-function licenseForm({ w, maker, uses, chosen, error, values = {} }) {
+function licenseForm({ w, maker, uses, chosen, error, values = {}, renews }) {
   const opts = uses.map(u => `<label class="opt"><input type="radio" name="use" value="${esc(u.key)}" ${u.key === chosen ? 'checked' : ''} required><span><b>${esc(u.name)}</b> &middot; ${money(u.price_cents)}<br><small>${esc(u.description)} ${esc(termText(u))}.</small></span></label>`).join('');
   return layout({
     title: `License ${w.title} · Watermark`,
@@ -65,6 +65,7 @@ function licenseForm({ w, maker, uses, chosen, error, values = {} }) {
 <form method="post" action="/license/${esc(w.slug)}" class="form">
 <p class="k">License a photograph</p><h1>Use it properly. Pay the person who made it.</h1>
 ${error ? `<p class="err">${esc(error)}</p>` : ''}
+${renews ? `<p class="ok">Renewing license ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <fieldset><legend>How you will use it</legend>${opts}</fieldset>
 <label>Your name<input name="name" required value="${esc(values.name)}"></label>
 <label>Email<input name="email" type="email" required value="${esc(values.email)}"></label>
@@ -108,6 +109,7 @@ ${entry ? `<div><dt>Ledger</dt><dd>Entry ${entry.seq} &middot; <code>${esc(entry
 <div class="terms"><h2>In plain language</h2>
 <p>${esc(maker.name)} grants ${esc(lic.licensee_company || lic.licensee_name)} a non-exclusive, non-transferable license to use the photograph above for ${esc(use.name.toLowerCase())} use as described${lic.intended_use ? `: &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}, for the term shown, with credit to ${esc(maker.name)} where the use allows. Copyright stays with the maker. Any other use needs a new license. The full terms are at <a href="${esc(base)}/terms">${esc(base.replace(/^https?:\/\//, ''))}/terms</a>.</p></div>
 ${owner && active && lic.download_token ? `<p><a class="btn" href="/d/${esc(lic.download_token)}">Download the full file</a></p>` : ''}
+${active ? `<p><a href="/c/${esc(lic.ref)}.pdf">Certificate as PDF</a></p>` : ''}
 <p class="note">Anyone can check this license at <a href="/verify?ref=${esc(lic.ref)}">/verify</a>.</p>
 </section>`
   });

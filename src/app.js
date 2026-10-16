@@ -11,6 +11,8 @@ const ledger = require('./ledger');
 const images = require('./images');
 const V = require('./views');
 const S = require('./studio-views');
+const prov = require('./provenance');
+const mail = require('./mail');
 
 const DEFAULT_USES = [
   ['editorial', 'Editorial', 'An article, a magazine, a book or a report. Credited.', 12, 'license', 1],
@@ -34,6 +36,8 @@ function createApp(cfg = {}) {
     maker: cfg.maker || { handle: process.env.MAKER_HANDLE || 'krafft', name: process.env.MAKER_NAME || 'Will Fullerton', house: process.env.MAKER_HOUSE || 'Krafft Studios', email: process.env.MAKER_EMAIL || 'will@krafftco.com' },
   };
   const db = open(path.join(C.dataDir, 'watermark.db'));
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   const stripe = C.stripeKey ? require('stripe')(C.stripeKey) : null;
   const originals = path.join(C.dataDir, 'originals');
   const cache = path.join(C.dataDir, 'cache');
@@ -83,7 +87,9 @@ function createApp(cfg = {}) {
     db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=?")
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
-    return q.lic.get(ref);
+    const g = q.lic.get(ref);
+    mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) });
+    return g;
   }
 
   function countView(workId, host, kind) {
@@ -186,7 +192,7 @@ function createApp(cfg = {}) {
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
-    res.send(V.licenseForm({ w, maker, uses: q.uses.all(maker.id), chosen: req.query.use }));
+    res.send(V.licenseForm({ w, maker, uses: q.uses.all(maker.id), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null }));
   });
 
   app.post('/license/:slug', async (req, res) => {
@@ -196,12 +202,16 @@ function createApp(cfg = {}) {
     const u = q.use.get(maker.id, String(b.use || ''));
     const email = String(b.email || '').trim();
     if (!u || !b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !b.agree) {
-      return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
+      return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, renews: b.renews, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
     }
     const ref = nextRef();
     db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status) VALUES (?,?,?,?,?,?,?,?,?)')
       .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, u.price_cents == null ? 'requested' : 'awaiting_payment');
     ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key });
+    const renews = /^WM-\d{4}-\d{6}$/.test(String(b.renews || '')) ? String(b.renews) : null;
+    if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
+    mail.send({ to: maker.email, ...mail.templates.requestToMaker({ ref, title: w.title, name: b.name, company: b.company, email, use: u.name, intended: b.intended, base: C.base }) });
+    if (u.price_cents == null) mail.send({ to: email, ...mail.templates.receivedToLicensee({ ref, title: w.title, name: b.name }) });
     if (u.price_cents != null && stripe) {
       const url = await checkoutUrl(ref);
       return res.redirect(303, url);
@@ -222,6 +232,16 @@ function createApp(cfg = {}) {
     db.prepare("UPDATE licenses SET stripe_session=?, status='awaiting_payment', updated_at=datetime('now') WHERE ref=?").run(s.id, ref);
     return s.url;
   }
+
+  app.get('/c/:ref.pdf', (req, res) => {
+    const l = q.licFull.get(req.params.ref);
+    if (!l || l.status !== 'active') return res.sendStatus(404);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const u = q.useById.get(l.use_id);
+    const e = q.lastEntryFor.get(l.ref);
+    res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
+    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use });
+  });
 
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
   app.get('/c/:ref', async (req, res) => {
@@ -245,7 +265,17 @@ function createApp(cfg = {}) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug });
-    res.download(path.join(originals, w.original_file), `${w.slug}-${l.ref}${path.extname(w.original_file)}`);
+    const file = path.join(originals, w.original_file);
+    const name = `${w.slug}-${l.ref}${path.extname(w.original_file)}`;
+    if (/\.jpe?g$/i.test(w.original_file)) {
+      try {
+        const u = q.useById.get(l.use_id);
+        const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base });
+        res.set('Content-Disposition', `attachment; filename="${name}"`);
+        return res.type('jpg').send(buf);
+      } catch (e) { /* fall through to the untouched original */ }
+    }
+    res.download(file, name);
   });
 
   app.get('/verify', (req, res) => {
@@ -278,7 +308,8 @@ function createApp(cfg = {}) {
       views: db.prepare("SELECT COALESCE(SUM(count),0) n FROM views WHERE day >= date('now','-30 day')").get().n,
     };
     const views = db.prepare("SELECT host, kind, SUM(count) n FROM views WHERE day >= date('now','-30 day') GROUP BY host, kind ORDER BY n DESC LIMIT 20").all();
-    res.send(S.overview({ maker, stats, recent: q.licList.all(8), views }));
+    const ending = db.prepare("SELECT l.ref, l.ends_at, l.renewal_sent_at, w.title, l.licensee_company, l.licensee_name FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.status='active' AND l.ends_at IS NOT NULL AND l.ends_at <= ? ORDER BY l.ends_at").all(new Date(Date.now() + 60 * 864e5).toISOString());
+    res.send(S.overview({ maker, stats, recent: q.licList.all(8), views, ending, notice: req.query.ok }));
   });
 
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
@@ -311,7 +342,9 @@ function createApp(cfg = {}) {
     ledger.append(db, 'license.quoted', l.ref, { currency: l.currency });
     if (!stripe) return res.redirect(`/studio/licenses/${l.ref}?ok=${encodeURIComponent('Fee saved. Connect Stripe (STRIPE_SECRET_KEY) to send a payment link.')}`);
     const url = await checkoutUrl(l.ref);
-    res.redirect(`/studio/licenses/${l.ref}?ok=${encodeURIComponent('Payment link ready. Send it to the licensee.')}&pay=${encodeURIComponent(url)}`);
+    const lf = q.licFull.get(l.ref);
+    mail.send({ to: lf.licensee_email, ...mail.templates.payToLicensee({ ref: l.ref, title: lf.title, name: lf.licensee_name, fee: V.money(cents), url }) });
+    res.redirect(`/studio/licenses/${l.ref}?ok=${encodeURIComponent(process.env.RESEND_API_KEY ? 'Payment link sent to the licensee.' : 'Payment link ready. Send it to the licensee.')}&pay=${encodeURIComponent(url)}`);
   });
   app.post('/studio/licenses/:ref/grant', studioOnly, (req, res) => { grant(req.params.ref, { paid: false }); res.redirect(`/studio/licenses/${req.params.ref}?ok=Granted`); });
   app.post('/studio/licenses/:ref/decline', studioOnly, (req, res) => {
@@ -329,10 +362,25 @@ function createApp(cfg = {}) {
     res.redirect('/studio/uses?ok=Saved');
   });
 
+  // Renewals: expire what has ended; remind licensees 30 days before the end.
+  function sweep() {
+    db.prepare("UPDATE licenses SET status='expired', updated_at=datetime('now') WHERE status='active' AND ends_at IS NOT NULL AND ends_at < ?").run(new Date().toISOString());
+    const soon = new Date(Date.now() + 30 * 864e5).toISOString();
+    const due = db.prepare("SELECT l.*, w.title, w.slug, u.key AS use_key FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE l.status='active' AND l.ends_at IS NOT NULL AND l.ends_at <= ? AND l.renewal_sent_at IS NULL").all(soon);
+    for (const l of due) {
+      mail.send({ to: l.licensee_email, ...mail.templates.renewalToLicensee({ ref: l.ref, title: l.title, name: l.licensee_name, ends: l.ends_at, url: `${C.base}/license/${l.slug}?use=${l.use_key}&renews=${l.ref}` }) });
+      db.prepare("UPDATE licenses SET renewal_sent_at=? WHERE ref=?").run(new Date().toISOString(), l.ref);
+      ledger.append(db, 'license.renewal_offered', l.ref, {});
+    }
+    return due.length;
+  }
+  if (!cfg.noTimers) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
+  app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
+
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
-  app.locals = { db, registerWork, grant, maker, C };
+  app.locals = { db, registerWork, grant, maker, C, sweep };
   return app;
 }
 
