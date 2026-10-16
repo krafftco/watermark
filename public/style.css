@@ -85,3 +85,48 @@ td{padding:12px 12px 12px 0;border-bottom:1px solid var(--ln);vertical-align:top
 .wv-bar button{background:none;border:1px solid #ece7de55;color:#ece7de;padding:8px 14px;font-size:11px;letter-spacing:.2em}
 @media (max-width:900px){.work,.lic{grid-template-columns:1fr}.plate{position:relative;top:0}.cert-grid{grid-template-columns:1fr}.top nav a:nth-child(3){display:none}}
 @media print{img,.plate,.cf{visibility:hidden}}
+/* License: one photograph, four uses, one button */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.buy{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:clamp(28px,5vw,80px);padding:clamp(24px,4vw,56px) clamp(16px,4vw,56px);align-items:start}
+.buy-fig{margin:0;position:sticky;top:96px;background:#141414;padding:clamp(20px,4vw,56px);display:flex;flex-direction:column;align-items:center}
+.buy-plate{max-height:70vh;display:flex;justify-content:center;width:100%}
+.buy-plate img{display:block;max-height:70vh;width:auto;max-width:100%;object-fit:contain;box-shadow:0 30px 80px rgba(0,0,0,.5);-webkit-user-select:none;user-select:none}
+.buy-fig figcaption{margin-top:22px;color:#bdb9b1;font-size:12px;letter-spacing:.06em;line-height:1.6;text-align:center}
+.buy-fig figcaption b{color:#f2efe9;font-family:var(--read);font-weight:400;font-size:17px;letter-spacing:0}
+.buy-form h1{font-size:clamp(30px,3.2vw,46px)}
+.bus{border:0;margin:26px 0 0;padding:0;display:grid;gap:10px}
+.bu{display:grid;grid-template-columns:1fr auto;gap:4px 16px;padding:18px 20px;border:1px solid var(--ln);background:#fff;cursor:pointer;transition:border-color .25s var(--e),box-shadow .25s var(--e),transform .25s var(--e)}
+.bu:hover{border-color:#a9a59d}
+.bu input{position:absolute;opacity:0;pointer-events:none}
+.bu:has(input:checked){border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.bu:has(input:focus-visible){outline:2px solid var(--ink);outline-offset:3px}
+.bu-n{font-family:var(--read);font-size:21px;font-weight:400}
+.bu-p{font-size:15px;font-variant-numeric:tabular-nums;align-self:center}
+.bu-d{grid-column:1/-1;font-size:13px;line-height:1.5;color:var(--mu)}
+.bu-d em{font-style:normal;color:var(--ink)}
+.buy-note{margin:18px 0 0;font-size:13px;color:var(--mu)}
+.buy-note summary{cursor:pointer;list-style:none}.buy-note summary::before{content:"+ "}
+.buy-note[open] summary::before{content:"– "}
+.buy-note textarea{width:100%;margin-top:10px;padding:12px;border:1px solid var(--ln);font:inherit;font-size:15px;background:#fff;color:var(--ink)}
+.buy-btn{display:block;width:100%;margin-top:22px;padding:19px 24px;border:0;border-radius:999px;background:var(--ink);color:#fff;font:500 16px/1 var(--sans);letter-spacing:.01em;text-align:center;text-decoration:none;cursor:pointer;transition:transform .2s var(--e),background .2s}
+.buy-btn:hover{background:#000;transform:translateY(-1px)}.buy-btn:active{transform:scale(.985)}
+.buy-how{margin:14px 0 0;font-size:13px;line-height:1.5;color:var(--mu);text-align:center}
+.buy-p{list-style:none;margin:28px 0 0;padding:20px 0 0;border-top:1px solid var(--ln);display:flex;flex-wrap:wrap;gap:8px 22px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu)}
+.buy-more{margin:18px 0 0;font-size:13px;color:var(--mu)}
+.buy-ask .form label{display:block;margin-top:16px}
+/* It's yours */
+.yours{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,1fr);gap:clamp(28px,5vw,80px);padding:clamp(32px,6vw,96px) clamp(16px,4vw,56px);align-items:center}
+.yours-fig{position:relative;background:#141414;padding:clamp(20px,4vw,56px)}
+.yours-fig>img{display:block;width:100%;height:auto;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.yours-seal{position:absolute;right:clamp(10px,2vw,28px);bottom:clamp(10px,2vw,28px);width:64px;height:64px;border-radius:50%;background:#f6f5f2;display:grid;place-items:center;transform:scale(.4) rotate(-30deg);opacity:0}
+.yours-seal img{width:34px}
+.yours.in .yours-seal{animation:seal .9s .35s var(--e) forwards}
+.yours.in .yours-t{animation:rise .8s .15s var(--e) both}
+@keyframes seal{to{transform:none;opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+.yours-a{margin-top:26px}.yours-a .buy-btn{margin-top:0}
+.yours-l{display:inline-block;margin:18px 22px 0 0;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu)}
+@media (prefers-reduced-motion:reduce){.yours.in .yours-seal,.yours.in .yours-t{animation:none;opacity:1;transform:none}}
+@media (max-width:860px){.buy,.yours{grid-template-columns:1fr}.buy-fig{position:static;padding:18px}.buy-plate,.buy-plate img{max-height:56vh}}
+.buy-fig,.yours-fig{overflow:clip}
+.yours-fig{display:flex;justify-content:center}.yours-fig>img{width:auto;max-width:100%;max-height:72vh}

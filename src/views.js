@@ -35,7 +35,7 @@ function work({ w, maker, uses, base }) {
     ['Camera', w.camera], ['Lens', w.lens], ['Registered', date(w.created_at)],
   ].filter(f => f[1]).map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
   const embed = `&lt;script src="${esc(base)}/embed.js" defer&gt;&lt;/script&gt;\n&lt;watermark-image work="${esc(w.slug)}"&gt;&lt;/watermark-image&gt;`;
-  const options = uses.map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.kind === 'print' ? 'Order' : u.price_cents == null ? 'Inquire' : 'License'} <i></i></span></a>`).join('');
+  const options = uses.map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   return layout({
     title: `${w.title} · ${maker.name} · Watermark`,
     desc: `${w.title}, a photograph by ${maker.name}. Held on Watermark.`,
@@ -75,6 +75,75 @@ ${renews ? `<p class="ok">Renewing license ${esc(renews)}.</p><input type="hidde
 <button type="submit">Continue</button>
 <p class="note">Priced uses go straight to secure payment. Uses on request are answered by the maker, usually within a day.</p>
 </form></section>`
+  });
+}
+
+// The license page. One photograph, four uses, every price in plain sight, one button.
+// Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
+function buy({ w, maker, uses, chosen, renews, instant }) {
+  const pick = uses.find(u => u.key === chosen) || uses.find(u => u.key === 'commercial') || uses[0];
+  const label = u => u.price_cents == null || !instant ? 'Ask the maker' : `${u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
+  const rows = uses.map(u => `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
+<span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
+<span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`).join('');
+  const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
+  return layout({
+    title: `License ${w.title} · Watermark`,
+    desc: `License ${w.title}, a photograph by ${maker.name}.`,
+    body: `<section class="buy">
+<figure class="buy-fig"><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
+<figcaption><b>${esc(w.title)}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}</figcaption></figure>
+<form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
+<p class="k">Held on Watermark</p><h1>Give it somewhere to live.</h1>
+${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
+<fieldset class="bus"><legend class="vh">How it will be used</legend>${rows}</fieldset>
+<details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
+<button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
+<p class="buy-how">${instant ? 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.' : 'The maker replies with terms and a payment link, usually within the day.'}</p>
+<ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded on the <a href="/ledger">ledger</a></li></ul>
+<p class="buy-more">Exclusivity, a longer term or something larger? <a href="/buy/${esc(w.slug)}?ask=1" data-ask>Ask the maker</a>. &middot; <a href="/terms" target="_blank">The terms</a>, in plain language.</p>
+</form></section>
+<script>(function(){var b=document.getElementById('buyBtn');document.querySelectorAll('.bu input').forEach(function(i){i.addEventListener('change',function(){b.textContent=i.dataset.label;});});
+var a=document.querySelector('[data-ask]');a&&a.addEventListener('click',function(e){e.preventDefault();var f=document.querySelector('.buy-form');var h=document.createElement('input');h.type='hidden';h.name='ask';h.value='1';f.appendChild(h);f.submit();});})();</script>`
+  });
+}
+
+// For anything bespoke: three fields, then the maker answers.
+function ask({ w, maker, u, note, renews, error }) {
+  return layout({
+    title: `Ask about ${w.title} · Watermark`,
+    body: `<section class="buy buy-ask">
+<figure class="buy-fig"><div class="buy-plate"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
+<figcaption><b>${esc(w.title)}</b><br>Photograph by ${esc(maker.name)}</figcaption></figure>
+<form method="post" action="/license/${esc(w.slug)}" class="buy-form form">
+<p class="k">${esc(u.name)}</p><h1>Tell the maker what you have in mind.</h1>
+${error ? `<p class="err">${esc(error)}</p>` : ''}
+<input type="hidden" name="use" value="${esc(u.key)}"><input type="hidden" name="agree" value="1">
+${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
+<label>Your name<input name="name" required autocomplete="name" autofocus></label>
+<label>Email<input name="email" type="email" required autocomplete="email"></label>
+<label>The project<textarea name="intended" rows="4" placeholder="Where it will appear, for how long, and whether you need it exclusively.">${esc(note || '')}</textarea></label>
+<button type="submit" class="buy-btn">Send to the maker</button>
+<p class="buy-how">A reply with terms and a one-tap payment link, usually within the day.</p>
+</form></section>`
+  });
+}
+
+// The moment after paying.
+function thanks({ lic, w, maker, use }) {
+  const done = lic.status === 'active';
+  return layout({
+    title: done ? `It's yours · ${w.title}` : 'One moment · Watermark',
+    body: `${done ? '' : '<meta http-equiv="refresh" content="3">'}<section class="yours${done ? ' in' : ''}">
+<div class="yours-fig"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"><span class="yours-seal" aria-hidden="true"><img src="/static/wave.svg" alt=""></span></div>
+<div class="yours-t">
+<p class="k">${esc(lic.ref)}</p>
+<h1>${done ? 'It&rsquo;s yours.' : 'Payment received. Preparing your file.'}</h1>
+<p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(maker.name)}. ${use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
+${done ? `<div class="yours-a">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the full file</a>` : ''}
+<a class="yours-l" href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a><a class="yours-l" href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">License page</a><a class="yours-l" href="/verify?ref=${esc(lic.ref)}">Verify</a></div>
+<p class="note">The file carries its license inside it: maker, licensee, reference and term. ${esc(maker.name)} has been paid.</p>` : ''}
+</div></section>`
   });
 }
 
@@ -160,4 +229,4 @@ function terms() {
   });
 }
 
-module.exports = { layout, collection, work, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { layout, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

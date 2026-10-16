@@ -17,7 +17,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-test-'));
-  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', webhookSecret: 'whsec_test', noTimers: true });
+  // Stripe with Checkout mocked: sessions are created and retrieved locally, webhooks are really signed.
+  const stripeClient = require('stripe')('sk_test_dummy'); const sessions = {};
+  stripeClient.checkout.sessions.create = async o => { const id = 'cs_mock_' + Object.keys(sessions).length; sessions[id] = { id, ...o, url: 'https://checkout.stripe.test/' + id, payment_status: 'unpaid' }; return sessions[id]; };
+  stripeClient.checkout.sessions.retrieve = async id => sessions[id];
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
   const { registerWork, db } = app.locals;
   const tmp = path.join(dir, 'in.jpg'); fs.copyFileSync(SRC, tmp);
@@ -35,7 +39,30 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/api/work/${w.slug}`); assert.equal(JSON.parse(r.body).title, 'Test Dome');
   r = await req(port, 'GET', '/embed.js'); assert.ok(r.body.toString().includes("'http://localhost'"));
 
+  // every use shows its price before anything is submitted
+  r = await req(port, 'GET', `/license/${w.slug}`); const page = r.body.toString();
+  for (const p of ['$350', '$750', '$2,500', '$250', 'License for $750']) assert.ok(page.includes(p), 'price visible: ' + p);
+  assert.ok(!/name="email"/.test(page), 'no form fields before payment');
+
+  // one tap: use -> Checkout -> paid -> it's yours, with buyer details from Stripe
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'commercial', note: 'Homepage hero' } });
+  assert.equal(r.status, 303); assert.ok(r.headers.location.startsWith('https://checkout.stripe.test/'));
+  const sid = r.headers.location.split('/').pop(); const sess = sessions[sid];
+  assert.equal(sess.line_items[0].price_data.unit_amount, 75000); const tref = sess.metadata.ref;
+  assert.ok(sess.success_url.includes(`/thanks/${tref}`));
+  r = await req(port, 'GET', `/thanks/${tref}?session_id=${sid}`); assert.ok(r.body.includes('Preparing'), 'pending until paid');
+  Object.assign(sess, { payment_status: 'paid', amount_total: 75000, customer_details: { email: 'cy@co.com', name: 'Cy Founder' }, custom_fields: [{ key: 'company', text: { value: 'Cy Co' } }] });
+  r = await req(port, 'GET', `/thanks/${tref}?session_id=${sid}`); const ty = r.body.toString();
+  assert.ok(ty.includes('yours.') && ty.includes('cy@co.com') && ty.includes('/d/'), 'it is yours, file ready');
+  const tl = db.prepare('SELECT * FROM licenses WHERE ref=?').get(tref);
+  assert.equal(tl.status, 'active'); assert.equal(tl.licensee_company, 'Cy Co'); assert.equal(tl.intended_use, 'Homepage hero');
+  r = await req(port, 'GET', `/d/${tl.download_token}`); assert.equal(r.status, 200);
+  r = await req(port, 'GET', `/thanks/${tref}?session_id=wrong`); assert.equal(r.status, 302, 'thanks page needs its session');
+  // bespoke: ask the maker
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'campaign', ask: '1' } }); assert.ok(r.body.includes('Send to the maker'));
+
   // request (on-request price) -> studio grants
+  db.prepare("UPDATE uses SET price_cents=NULL WHERE key='editorial'").run();
   r = await req(port, 'POST', `/license/${w.slug}`, { body: { use: 'editorial', name: 'Ann Editor', email: 'ann@mag.com', company: 'The Mag', intended: 'Feature, web', agree: '1' } });
   assert.equal(r.status, 200); const ref1 = /WM-\d{4}-\d{6}/.exec(r.body.toString())[0];
   r = await req(port, 'POST', `/license/${w.slug}`, { body: { use: 'editorial', name: 'x', email: 'bad' } }); assert.equal(r.status, 400);
@@ -55,7 +82,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // renewal notice for a license ending soon, then expiry
   db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + 5 * 864e5).toISOString(), ref1);
   assert.equal(app.locals.sweep(), 1, 'renewal offered'); assert.equal(app.locals.sweep(), 0, 'only once');
-  r = await req(port, 'GET', `/license/${w.slug}?use=editorial&renews=${ref1}`); assert.ok(r.body.includes('Renewing license'));
+  r = await req(port, 'GET', `/license/${w.slug}?use=editorial&renews=${ref1}`); assert.ok(r.body.includes('Renewing'));
   db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() - 864e5).toISOString(), ref1); app.locals.sweep();
   assert.equal(db.prepare('SELECT status FROM licenses WHERE ref=?').get(ref1).status, 'expired');
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 404, 'no download after expiry');

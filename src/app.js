@@ -14,11 +14,12 @@ const S = require('./studio-views');
 const prov = require('./provenance');
 const mail = require('./mail');
 
+// [key, name, description, term months, kind, sort, default price in cents (null = ask privately)]
 const DEFAULT_USES = [
-  ['editorial', 'Editorial', 'An article, a magazine, a book or a report. Credited.', 12, 'license', 1],
-  ['commercial', 'Commercial', 'Your website, social channels, email and presentations. Non-exclusive.', 12, 'license', 2],
-  ['campaign', 'Campaign', 'Paid media, print advertising, out of home and packaging. Exclusivity available.', 12, 'license', 3],
-  ['print', 'A print to keep', 'An archival print, signed by the photographer.', null, 'print', 4],
+  ['editorial', 'In a story', 'A feature, a book, an essay or a report, with the maker named beside it.', 12, 'license', 1, 35000],
+  ['commercial', 'For a company', 'The face of a website, a presentation, a letter to investors. Non-exclusive.', 12, 'license', 2, 75000],
+  ['campaign', 'Before an audience', 'A campaign, a film, a billboard, a package. Non-exclusive; exclusivity on request.', 12, 'license', 3, 250000],
+  ['print', 'On a wall', 'An archival print, signed by the photographer, to live with for good.', null, 'print', 4, 25000],
 ];
 
 function slugify(s) {
@@ -38,7 +39,7 @@ function createApp(cfg = {}) {
   const db = open(path.join(C.dataDir, 'watermark.db'));
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
-  const stripe = C.stripeKey ? require('stripe')(C.stripeKey) : null;
+  const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
   const originals = path.join(C.dataDir, 'originals');
   const cache = path.join(C.dataDir, 'cache');
   fs.mkdirSync(originals, { recursive: true });
@@ -48,7 +49,7 @@ function createApp(cfg = {}) {
     let row = db.prepare('SELECT * FROM makers WHERE handle=?').get(m.handle);
     if (!row) {
       const id = db.prepare('INSERT INTO makers (handle,name,email,house) VALUES (?,?,?,?)').run(m.handle, m.name, m.email, m.house).lastInsertRowid;
-      const ins = db.prepare('INSERT INTO uses (maker_id,key,name,description,term_months,kind,sort) VALUES (?,?,?,?,?,?,?)');
+      const ins = db.prepare('INSERT INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
       DEFAULT_USES.forEach(u => ins.run(id, ...u));
       row = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
     }
@@ -88,8 +89,18 @@ function createApp(cfg = {}) {
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     const g = q.lic.get(ref);
-    mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) });
+    if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
+    if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) });
     return g;
+  }
+
+  // The buyer's name and email come from Stripe Checkout, so the license form never asks for them.
+  function fillBuyer(ref, s) {
+    const d = s.customer_details || {};
+    const name = d.name || (d.email ? d.email.split('@')[0] : null);
+    if (d.email) db.prepare("UPDATE licenses SET licensee_email=?, licensee_name=COALESCE(?, licensee_name), updated_at=datetime('now') WHERE ref=? AND status!='active'").run(d.email, name, ref);
+    const co = (s.custom_fields || []).find(f => f.key === 'company');
+    if (co && co.text && co.text.value) db.prepare('UPDATE licenses SET licensee_company=? WHERE ref=?').run(String(co.text.value).slice(0, 160), ref);
   }
 
   function countView(workId, host, kind) {
@@ -129,7 +140,7 @@ function createApp(cfg = {}) {
     if (event.type === 'checkout.session.completed') {
       const s = event.data.object;
       const ref = s.metadata && s.metadata.ref;
-      if (ref && s.payment_status === 'paid') grant(ref, { paid: true, price_cents: s.amount_total });
+      if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
     }
     res.json({ received: true });
   });
@@ -192,7 +203,56 @@ function createApp(cfg = {}) {
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
-    res.send(V.licenseForm({ w, maker, uses: q.uses.all(maker.id), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null }));
+    countView(w.id, null, 'open');
+    res.send(V.buy({ w, maker, uses: q.uses.all(maker.id), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+  });
+
+  // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
+  // No account, no form: Stripe collects the buyer's name and email.
+  app.post('/buy/:slug', async (req, res) => {
+    const w = q.work.get(req.params.slug);
+    if (!w || w.status !== 'held') return res.sendStatus(404);
+    const u = q.use.get(maker.id, String(req.body.use || ''));
+    if (!u) return res.redirect(`/license/${w.slug}`);
+    const note = String(req.body.note || '').slice(0, 2000) || null;
+    if (req.body.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews }));
+    const ref = nextRef();
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status) VALUES (?,?,?,?,?,?,?,'awaiting_payment')")
+      .run(ref, w.id, u.id, 'Buyer', '', note, u.price_cents);
+    const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
+    if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
+    ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
+    try {
+      const s = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: `${w.title}: ${u.name}`, description: `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
+        custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }],
+        ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
+        metadata: { ref },
+        success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${C.base}/license/${w.slug}?use=${u.key}`,
+      });
+      db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
+      res.redirect(303, s.url);
+    } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
+  });
+
+  app.get('/buy/:slug', (req, res) => {
+    const w = q.work.get(req.params.slug);
+    if (!w || w.status !== 'held') return res.sendStatus(404);
+    const u = q.use.get(maker.id, String(req.query.use || 'campaign')) || q.uses.all(maker.id)[0];
+    res.send(V.ask({ w, maker, u }));
+  });
+
+  // The moment after paying: the work is theirs, the file is ready, the email is on its way.
+  app.get('/thanks/:ref', async (req, res) => {
+    let l = q.lic.get(req.params.ref);
+    if (!l || !req.query.session_id || l.stripe_session !== req.query.session_id) return res.redirect(l ? `/c/${l.ref}` : '/');
+    if (l.status !== 'active' && stripe) {
+      try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
+    }
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id) }));
   });
 
   app.post('/license/:slug', async (req, res) => {
@@ -380,7 +440,7 @@ function createApp(cfg = {}) {
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
-  app.locals = { db, registerWork, grant, maker, C, sweep };
+  app.locals = { fillBuyer, db, registerWork, grant, maker, C, sweep };
   return app;
 }
 

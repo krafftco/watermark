@@ -28,8 +28,12 @@ const templates = {
     text: `Dear ${name},\n\nThe fee for your license of "${title}" is ${fee}. Pay securely here and the file and certificate arrive at once:\n\n${url}\n\nReference: ${ref}`,
   }),
   grantedToLicensee: ({ ref, title, name, certUrl, downloadUrl, ends }) => ({
-    subject: `Licensed: "${title}" (${ref})`,
-    text: `Dear ${name},\n\nYour license is active${ends ? ` until ${ends.slice(0, 10)}` : ''}.\n\nCertificate: ${certUrl}\n${downloadUrl ? `Full file (valid for the term): ${downloadUrl}\n` : ''}\nThe file carries its license reference, so the use can always be verified.`,
+    subject: `It's yours: "${title}" (${ref})`,
+    text: `Dear ${name},\n\nThank you. Your license is active${ends ? ` until ${ends.slice(0, 10)}` : ''}.\n\nCertificate: ${certUrl}\n${downloadUrl ? `Full file (valid for the term): ${downloadUrl}\n` : ''}\nThe file carries its license reference, so the use can always be verified.`,
+  }),
+  soldToMaker: ({ ref, title, use, buyer, fee, base }) => ({
+    subject: `Sold: "${title}", ${fee}`,
+    text: `"${title}" was just licensed.\n\n${use}, to ${buyer}. ${fee}, paid.\nThe file, the certificate and the receipt have been sent.\n\n${base}/studio/licenses/${ref}`,
   }),
   renewalToLicensee: ({ ref, title, name, ends, url }) => ({
     subject: `Your license for "${title}" ends ${ends.slice(0, 10)}`,
