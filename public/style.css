@@ -520,3 +520,37 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .ps-seal{background-color:#0e0e0e}
 .ps-dl{padding:18px;letter-spacing:.2em}
 .pt{background:#0e0e0e;box-shadow:inset 0 0 0 3px #0e0e0e,inset 0 0 0 4px rgba(255,255,255,.18),0 10px 40px rgba(0,0,0,.25)}
+
+/* ---- The work page as a catalogue entry ---- */
+.lot{display:grid;grid-template-columns:1fr;gap:0;max-width:none;margin:0;padding:0}
+.lot-wall{background:var(--soft);padding:clamp(28px,6vw,96px) clamp(16px,5vw,88px) clamp(18px,3vw,36px);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.lot-wall .plate{width:100%;max-width:min(100%,calc(78vh * var(--ar,1.5)));max-height:78vh;margin:0;box-shadow:0 2px 4px rgba(0,0,0,.06),0 24px 60px rgba(0,0,0,.16);cursor:zoom-in}
+.lot-wall .plate img{width:100%;height:100%;object-fit:contain;display:block}
+.lot-hint{margin:22px 0 0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu)}
+.lot-entry{padding:clamp(32px,5vw,64px) clamp(16px,4vw,56px);max-width:560px}
+.lot-no{margin:0 0 22px;font-size:11px;letter-spacing:.22em;color:var(--mu)}
+.lot-maker{margin:0;font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase}
+.lot-maker span{font-weight:400;color:var(--mu);margin-left:8px;letter-spacing:.16em}
+.lot-t{margin:10px 0 10px!important;font-family:var(--disp)!important;font-style:italic;font-weight:400;font-size:clamp(40px,4.6vw,64px)!important;line-height:1!important;letter-spacing:-.015em}
+.lot-pl{margin:0;font-family:var(--read);font-size:19px}
+.lot-md{margin:16px 0 0;font-size:13px;line-height:1.6;color:var(--mu)}
+.lot-keep{margin:22px 0 0;padding-top:18px;border-top:1px solid var(--ln);font-family:var(--read);font-style:italic;font-size:16px;line-height:1.5;color:#333}
+.lot-keep small{font-style:normal;font-family:var(--sans);font-size:11px;letter-spacing:.08em;color:var(--mu)}
+.lot .share-buy{margin:26px 0 6px}
+.lot .more-uses{margin-top:26px}
+.lot-rec{max-width:1180px;margin:0 auto;padding:clamp(24px,4vw,56px) clamp(16px,4vw,56px) 80px;display:grid;gap:44px}
+.lot-sec h2,.lot-fold summary{margin:0 0 16px;font-size:11px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--ink)}
+.lot-sec .cap{font-family:var(--read);font-size:20px;line-height:1.6;max-width:36em}
+.lot-fold{border-top:1px solid var(--ln);padding-top:18px}
+.lot-fold summary{cursor:pointer;list-style:none;margin:0}
+.lot-fold summary::-webkit-details-marker{display:none}
+.lot-fold summary::after{content:"+";float:right;font-weight:300;font-size:16px;letter-spacing:0}
+.lot-fold[open] summary::after{content:"\2013"}
+.lot-fold[open] summary{margin-bottom:16px}
+@media (min-width:1000px){
+  .lot{grid-template-columns:minmax(0,1fr) 440px;align-items:stretch}
+  .lot-wall{min-height:calc(100vh - 130px);position:sticky;top:0}
+  .lot-entry{padding:72px 48px;align-self:start;position:sticky;top:40px}
+  .lot-rec{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:72px}
+  .lot-rec .lot-fold{grid-column:1/-1}
+}
