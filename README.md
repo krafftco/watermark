@@ -33,7 +33,7 @@ npm test                       # end-to-end smoke test
 node scripts/seed.js <folder>  # seed with the Krafft Studios originals
 ```
 
-Originals, sealed files and database backups live in the vault: a private, encrypted, versioned S3 bucket the app can write to but never delete from (`docs/VAULT.md`). The server disk holds only the live database and caches. Without `S3_BUCKET`, everything stays under `DATA_DIR` for development.
+Originals, sealed files and database backups live in the vault: a private, versioned S3 bucket, sealed with Watermark's own key (`VAULT_KEY`), that the app can write to but never delete from (`docs/VAULT.md`). The server disk holds only the live database and caches. Without `S3_BUCKET`, everything stays under `DATA_DIR` for development.
 
 ## Deploy
 
