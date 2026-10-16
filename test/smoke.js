@@ -83,6 +83,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/'); assert.ok(r.body.includes('For the people who make the pictures'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
+  // the vault: originals and seals are in the store; a fresh server fetches them back; backups land there
+  const vk = await app.locals.store.list('originals/'); assert.ok(vk.length >= 1, 'original in the vault');
+  fs.rmSync(path.join(dir, 'originals', w.original_file)); fs.rmSync(path.join(dir, 'cache'), { recursive: true, force: true });
+  r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200, 'original fetched back from the vault');
+  const bk = await app.locals.backupDb(); assert.ok((await app.locals.store.list('backups/db/')).includes(bk), 'database backed up');
+
   // sealed files: seal, open with the maker's key, refuse when tampered, closed or wrong
   const SEAL = require('../src/seal');
   r = await req(port, 'POST', `/studio/works/${w.slug}/seal`, { cookie: ck, body: { label: 'An editor', size: 'original', days: '30' } }); assert.equal(r.status, 302);

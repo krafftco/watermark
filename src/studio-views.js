@@ -18,6 +18,7 @@ function overview({ maker, stats, recent, views, ending = [], notice }) {
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <h2>Ending in the next 60 days</h2><table class="tbl"><thead><tr><th>Ref</th><th>Work</th><th>Licensee</th><th>Ends</th><th>Renewal</th></tr></thead><tbody>${en || '<tr><td colspan="5">Nothing ending soon.</td></tr>'}</tbody></table>
 <form method="post" action="/studio/renewals" class="inline" style="margin-top:12px"><button class="link">Send renewal notices now</button></form>
+<form method="post" action="/studio/backup" class="inline" style="margin-top:8px"><button class="link">Back up the database to the vault now</button></form>
 <h2>Recent licenses</h2><table class="tbl"><thead><tr><th>Ref</th><th>Work</th><th>Licensee</th><th>Use</th><th>Status</th></tr></thead><tbody>${rl || '<tr><td colspan="5">None yet.</td></tr>'}</tbody></table>
 <h2>Where your work was seen (30 days)</h2><table class="tbl"><thead><tr><th>Site</th><th>Kind</th><th>Count</th></tr></thead><tbody>${v || '<tr><td colspan="3">No views yet.</td></tr>'}</tbody></table>
 </section>` });

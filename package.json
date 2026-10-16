@@ -5,13 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js test/fixture.jpg",
+    "test": "node test/smoke.js test/fixture.jpg && node test/s3.js",
     "seed": "node scripts/seed.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
     "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "exifr": "^7.1.3",

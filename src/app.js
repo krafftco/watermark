@@ -12,6 +12,7 @@ const images = require('./images');
 const V = require('./views');
 const R = require('./rules');
 const SEAL = require('./seal');
+const { createStore } = require('./storage');
 const S = require('./studio-views');
 const prov = require('./provenance');
 const mail = require('./mail');
@@ -44,7 +45,24 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
-  const originals = path.join(C.dataDir, 'originals');
+  const originals = path.join(C.dataDir, 'originals'); // a cache when the vault is S3
+  const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, localRoot: path.join(C.dataDir, 'vault') });
+  // The original, from the local cache or, if this server is new, from the vault.
+  async function originalPath(w) {
+    const p = path.join(originals, w.original_file);
+    if (fs.existsSync(p)) return p;
+    const buf = await store.get('originals/' + w.original_file);
+    if (!buf) throw new Error('Original missing from the vault: ' + w.original_file);
+    fs.writeFileSync(p, buf); return p;
+  }
+  // Database backups: a consistent copy of SQLite, written to the vault.
+  async function backupDb() {
+    const tmp = path.join(C.dataDir, 'backup.tmp.db');
+    await db.backup(tmp);
+    const key = `backups/db/watermark-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
+    await store.put(key, tmp, 'application/x-sqlite3'); fs.unlinkSync(tmp);
+    return key;
+  }
   const cache = path.join(C.dataDir, 'cache');
   fs.mkdirSync(originals, { recursive: true });
 
@@ -121,6 +139,7 @@ function createApp(cfg = {}) {
     const ext = (path.extname(originalName || file) || '.jpg').toLowerCase();
     const dest = path.join(originals, slug + ext);
     fs.renameSync(file, dest);
+    await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(maker.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
     ledger.append(db, 'work.registered', slug, { maker: maker.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at });
@@ -210,7 +229,7 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug);
     if (!w || !images.SIZES[req.params.size]) return res.sendStatus(404);
     try {
-      const file = await images.derivative(path.join(originals, w.original_file), cache, w.slug, req.params.size);
+      const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size);
       res.set('Cache-Control', 'public, max-age=86400');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -366,12 +385,12 @@ function createApp(cfg = {}) {
     res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner }));
   });
 
-  app.get('/d/:token', (req, res) => {
+  app.get('/d/:token', async (req, res) => {
     const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug });
-    const file = path.join(originals, w.original_file);
+    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
     const name = `${w.slug}-${l.ref}${path.extname(w.original_file)}`;
     if (/\.jpe?g$/i.test(w.original_file)) {
       try {
@@ -442,7 +461,7 @@ function createApp(cfg = {}) {
     const size = req.body.size === 'original' ? 'original' : 'large';
     const days = Number(req.body.days) || 0;
     const sharp = require('sharp');
-    const orig = path.join(originals, w.original_file);
+    const orig = await originalPath(w);
     let image = size === 'large' ? fs.readFileSync(await images.derivative(orig, cache, w.slug, 'large')) : fs.readFileSync(orig);
     if (size === 'original' && !/\.(jpe?g|png)$/i.test(w.original_file)) image = await sharp(image).rotate().jpeg({ quality: 95 }).toBuffer();
     const preview = fs.readFileSync(await images.derivative(orig, cache, w.slug, 'thumb'));
@@ -454,13 +473,17 @@ function createApp(cfg = {}) {
     const { key, file } = SEAL.seal({ image, preview, header });
     fs.mkdirSync(path.join(C.dataDir, 'seals'), { recursive: true });
     fs.writeFileSync(path.join(C.dataDir, 'seals', id + '.wmk'), file);
+    await store.put(`seals/${id}.wmk`, file, 'application/vnd.watermark.sealed');
     db.prepare('INSERT INTO seals (id,work_id,label,size,access,wrapped_key,expires_at) VALUES (?,?,?,?,?,?,?)').run(id, w.id, String(req.body.label || '').slice(0, 120) || null, size, access, SEAL.wrap(key, C.secret), expires);
     ledger.append(db, 'seal.created', id, { work: w.slug, size, expires });
     res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Sealed. Download the file and send it however you like.')}#seals`);
   });
-  app.get('/studio/seals/:id.wmk', studioOnly, (req, res) => {
+  app.get('/studio/seals/:id.wmk', studioOnly, async (req, res) => {
     const s = db.prepare('SELECT s.*, w.slug FROM seals s JOIN works w ON w.id=s.work_id WHERE s.id=?').get(req.params.id); if (!s) return res.sendStatus(404);
-    res.set('Content-Disposition', `attachment; filename="${s.slug}.wmk"`).type('application/vnd.watermark.sealed').sendFile(path.join(C.dataDir, 'seals', s.id + '.wmk'));
+    const local = path.join(C.dataDir, 'seals', s.id + '.wmk');
+    const buf = fs.existsSync(local) ? fs.readFileSync(local) : await store.get(`seals/${s.id}.wmk`);
+    if (!buf) return res.sendStatus(404);
+    res.set('Content-Disposition', `attachment; filename="${s.slug}.wmk"`).type('application/vnd.watermark.sealed').send(buf);
   });
   app.post('/studio/seals/:id/:act', studioOnly, (req, res) => {
     const s = db.prepare('SELECT s.*, w.slug FROM seals s JOIN works w ON w.id=s.work_id WHERE s.id=?').get(req.params.id); if (!s) return res.sendStatus(404);
@@ -561,12 +584,15 @@ function createApp(cfg = {}) {
     return due.length;
   }
   if (!cfg.noTimers) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
+  // Back the database up to the vault every six hours, and once shortly after start.
+  if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }
+  app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
-  app.locals = { fillBuyer, db, registerWork, grant, maker, C, sweep };
+  app.locals = { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep };
   return app;
 }
 

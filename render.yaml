@@ -7,7 +7,7 @@ services:
     disk:
       name: watermark-data
       mountPath: /data
-      sizeGB: 20
+      sizeGB: 10
     envVars:
       - key: BASE_URL
         sync: false
@@ -18,4 +18,12 @@ services:
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
         sync: false

@@ -33,13 +33,13 @@ npm test                       # end-to-end smoke test
 node scripts/seed.js <folder>  # seed with the Krafft Studios originals
 ```
 
-Storage is one SQLite file plus the originals folder, both under `DATA_DIR`. Back that folder up and you have everything.
+Originals, sealed files and database backups live in the vault: a private, encrypted, versioned S3 bucket the app can write to but never delete from (`docs/VAULT.md`). The server disk holds only the live database and caches. Without `S3_BUCKET`, everything stays under `DATA_DIR` for development.
 
 ## Deploy
 
 The Dockerfile and `render.yaml` deploy to Render with a persistent disk at `/data`. Any host that runs a Docker container with a persistent volume works the same way: Fly.io, Railway, a small VPS.
 
-1. Create the service and set `BASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET`.
+1. Create the vault (`docs/VAULT.md`). Create the service and set `BASE_URL`, `ADMIN_PASSWORD`, `S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (`SESSION_SECRET` is generated).
 2. Point a domain at it (for example `watermark.krafftco.com`).
 3. Stripe: add `STRIPE_SECRET_KEY` (test key first), create a webhook to `BASE_URL/stripe/webhook` for `checkout.session.completed`, and add its signing secret as `STRIPE_WEBHOOK_SECRET`. Without Stripe, every use works on request.
 4. Sign in at `/studio` and upload, or run the seed script against the server's disk.
