@@ -23,7 +23,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/yours">Yours</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/patronage">On patronage</a> &middot; <a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
 }
 
@@ -425,4 +425,19 @@ function collectors({ list }) {
 <section class="gal">${list.length ? `<div class="yc-cards">${list.map(card).join('')}</div>` : '<p class="note">No collection is public yet. Yours could be the first: collect a work, then open your wall from <a href="/yours">Yours</a>.</p>'}</section>` });
 }
 
-module.exports = { collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+// On patronage: why collectors matter, and why makers must be paid. Will's words, confirmed 16 Oct 2026.
+function patronage() {
+  return layout({ title: 'On patronage · Watermark', desc: 'Every great work you have stood in front of was paid for by someone. Those who make and those who collect: Watermark honours both.', path: '/patronage', type: 'article', body: `<article class="essay">
+<p class="k">On patronage</p>
+<h1>Every great work you have stood in front of was paid for by someone.</h1>
+<p>In Florence around 1490, Lorenzo de&rsquo; Medici took a teenage stonecutter into his own household. He fed him at his table and let him study the family&rsquo;s collection of ancient sculpture. The boy was Michelangelo. Without that house there is no David, and no Sistine ceiling.</p>
+<p>Leonardo&rsquo;s story runs the same way, through more hands. Lorenzo sent him from Florence to Milan, where Ludovico Sforza kept him for nearly twenty years. Out of those years came <em>The Last Supper</em>. Later Giuliano de&rsquo; Medici gave him rooms in Rome, and at the end of his life the King of France gave him a house at Amboise, where he died in 1519. Each patron bought him time. Time is what a maker needs most and can least afford.</p>
+<p>Centuries later Henry Clay Frick and J.&nbsp;P. Morgan did the same work another way. They collected, kept and finally gave what they had gathered back to the public. You can walk into the Frick on Fifth Avenue because one man spent his life choosing well.</p>
+<p>Collectors are not customers. They are the reason the rest of us get to see great work at all. Their taste becomes our inheritance.</p>
+<p>The makers of our time are photographers, filmmakers and image makers, and most of them are paid nothing when their work is used. Watermark exists to change that: every image held, credited and paid for at the source. And it exists to bring back the oldest arrangement in art, the one between those who make and those who collect.</p>
+<p class="essay-end">Those who make and those who collect. Watermark honours both.</p>
+<p class="essay-go"><a class="buy-btn" href="/collection">Walk the collection</a> <a href="/collectors">See the collectors</a></p>
+</article>` });
+}
+
+module.exports = { patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

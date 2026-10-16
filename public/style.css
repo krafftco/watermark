@@ -423,3 +423,11 @@ input.copy{width:100%;min-width:240px;font:12px/1.4 ui-monospace,Menlo,monospace
 .yc-th img{width:100%;height:100%;object-fit:cover}
 .yc-card b{font-family:var(--read);font-weight:400;font-size:19px;margin-top:6px}
 .yc-card span:last-child{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+
+/* Essays */
+.essay{max-width:680px;margin:0 auto;padding:clamp(56px,8vw,120px) clamp(16px,4vw,32px) 40px}
+.essay h1{font-size:clamp(32px,4vw,52px);margin-bottom:32px}
+.essay p{font-family:var(--read);font-size:clamp(18px,1.4vw,21px);line-height:1.65;color:#2a2825;margin:0 0 22px}
+.essay .k{font-family:var(--sans)}
+.essay-end{font-style:italic;margin-top:36px!important}
+.essay-go{display:flex;gap:24px;align-items:center;margin-top:36px!important;font-family:var(--sans)!important;font-size:12px!important;letter-spacing:.2em;text-transform:uppercase}
