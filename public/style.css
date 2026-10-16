@@ -431,3 +431,14 @@ input.copy{width:100%;min-width:240px;font:12px/1.4 ui-monospace,Menlo,monospace
 .essay .k{font-family:var(--sans)}
 .essay-end{font-style:italic;margin-top:36px!important}
 .essay-go{display:flex;gap:24px;align-items:center;margin-top:36px!important;font-family:var(--sans)!important;font-size:12px!important;letter-spacing:.2em;text-transform:uppercase}
+
+/* Journal */
+.jr-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:40px 28px}
+.jr{display:grid;gap:14px;text-decoration:none}
+.jr-lead{grid-column:1/-1;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);align-items:end;gap:32px}
+.jr-f{display:block;aspect-ratio:3/2;overflow:hidden;background:var(--soft)}.jr-f img{width:100%;height:100%;object-fit:cover;transition:transform 1.2s var(--e)}.jr:hover .jr-f img{transform:scale(1.02)}
+.jr-t{display:grid;gap:8px}.jr-t small{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}
+.jr-t b{font-family:var(--read);font-weight:300;font-size:clamp(22px,2vw,30px);line-height:1.15}
+.jr-lead .jr-t b{font-size:clamp(30px,3.4vw,48px)}
+.jr-t span{font-family:var(--read);font-size:17px;line-height:1.5;color:#2f2d29}
+@media (max-width:760px){.jr-lead{grid-template-columns:1fr}}

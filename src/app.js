@@ -189,7 +189,7 @@ function createApp(cfg = {}) {
     const ws = db.prepare("SELECT slug, title, created_at FROM works WHERE status='held' ORDER BY id").all();
     const rooms = db.prepare('SELECT slug FROM collections WHERE public=1').all();
     const img = w => `<url><loc>${C.base}/w/${w.slug}</loc><image:image><image:loc>${C.base}/img/${w.slug}/screen</image:loc><image:title>${V.esc(w.title)}</image:title></image:image></url>`;
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/collection', '/collectors', '/patronage', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/collection', '/collectors', '/journal', '/patronage', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
   });
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
@@ -486,6 +486,20 @@ function createApp(cfg = {}) {
   });
   // The collectors: walls their owners chose to show. Taste is what makes others want the work.
   app.get('/patronage', (req, res) => res.send(V.patronage()));
+  // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
+  // (news, art history, patronage) appears here, linked back to Studios where it was published.
+  let journal = { at: 0, posts: [] };
+  async function journalPosts() {
+    if (Date.now() - journal.at < 10 * 60e3) return journal.posts;
+    try {
+      const API = process.env.GHOST_CONTENT_API || 'https://krafftstudios.ghost.io/ghost/api/content';
+      const KEY = process.env.GHOST_CONTENT_KEY || '8198cc66daa230f254acfaf9d5';
+      const r = await (cfg.fetchImpl || fetch)(`${API}/posts/?key=${KEY}&filter=tag:watermark&limit=30&fields=title,slug,url,custom_excerpt,excerpt,feature_image,feature_image_alt,published_at,reading_time&order=published_at%20desc`);
+      if (r.ok) journal = { at: Date.now(), posts: ((await r.json()).posts || []) };
+    } catch (e) { /* keep what we had */ }
+    return journal.posts;
+  }
+  app.get('/journal', async (req, res) => res.send(V.journal({ posts: await journalPosts() })));
   app.get('/collectors', (req, res) => {
     const list = db.prepare(`SELECT b.id, b.code, b.name, COUNT(DISTINCT l.work_id) AS works, MIN(l.collector_no) AS earliest FROM buyers b
       JOIN licenses l ON l.buyer_id=b.id AND l.status IN ('active','expired') AND l.price_cents > 0 JOIN works w ON w.id=l.work_id AND w.status='held'

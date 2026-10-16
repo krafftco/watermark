@@ -273,6 +273,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: ck, body: { maker: me } }); assert.equal(db.prepare('SELECT curated FROM works WHERE id=?').get(w.id).curated, 1, 'a jewel');
   r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); assert.ok(r.body.toString().includes('class="ac-j"'), 'jewels lead');
 
+  r = await req(port, 'GET', '/journal'); assert.ok(r.status === 200 && r.body.toString().includes('On patronage'), 'the journal');
+  r = await req(port, 'GET', '/patronage'); assert.ok(r.body.toString().includes('Watermark honours both'));
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
