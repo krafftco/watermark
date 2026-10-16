@@ -314,6 +314,14 @@ ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 }
 
 // The moment after paying.
+function setThanks({ items, name }) {
+  const done = items.every(l => l.status === 'active');
+  return layout({ title: 'Yours · Watermark', body: `<section class="cx-intro sr-thanks"><p class="k">${esc(name)}</p><h1>${done ? 'They&rsquo;re yours.' : 'Payment received. Preparing your files.'}</h1>
+<p class="lede">${done ? `${items.length} photographs, each numbered and hung in <a href="/yours">your collection</a>. Save them below; every file carries its maker&rsquo;s credit.` : 'This takes a few seconds. Refresh the page in a moment.'}</p></section>
+<section class="gal"><div class="st-grid">${items.map(l => `<div class="st-it"><img src="/img/${esc(l.slug)}/thumb" alt="${esc(tidy(l.title))}" loading="lazy" draggable="false"><i>${esc(tidy(l.title))}</i><small>${l.collector_no ? `Collector No.&nbsp;${l.collector_no}` : ''}</small>${done && l.download_token ? `<a href="/d/${esc(l.download_token)}" download>Save</a>` : ''}</div>`).join('')}</div>
+<p class="sr-also"><a class="buy-btn" href="/yours">See your collection</a></p></section>` });
+}
+
 function thanks({ lic, w, maker, use }) {
   const done = lic.status === 'active';
   return layout({
@@ -443,7 +451,7 @@ ${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${
 const pageHero = (slug, cap, h) => `<section class="cx-cover pg-hero"><img src="/img/${esc(slug)}/large" alt="${esc(cap)}" fetchpriority="high" draggable="false">${h ? `<div class="cx-hero">${h}</div>` : ''}<span class="cx-cap">${esc(cap)} &middot; Will Fullerton</span></section>`;
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 
-function series({ s, chapters, pay = null, share = null }) {
+function series({ s, chapters, whole = null, buy = false }) {
   const plate = (w, big) => `<a class="sr-pl${big ? ' sr-big' : ''}" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><span class="sr-im"><img src="/img/${esc(w.slug)}/${big ? 'large' : 'screen'}" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async" draggable="false"></span><span class="sr-lb"><i>${esc(tidy(w.title))}</i><small>${esc(w.place || '')}${w.accession ? ` &middot; ${esc(w.accession)}` : ''}</small></span></a>`;
   const cover = chapters.flatMap(c => c.works).find(w => w.slug === s.cover);
   const n = chapters.reduce((a, c) => a + c.works.length, 0);
@@ -451,8 +459,11 @@ function series({ s, chapters, pay = null, share = null }) {
     body: `${cover ? pageHero(cover.slug, `${tidy(cover.title)}, ${cover.place || ''}`, `<div><p class="sr-k">A series by ${esc(s.maker)} &middot; ${esc(s.house)}</p><h1>${esc(s.title)}</h1></div><a class="btn" href="#ch-1">Enter</a>`) : ''}
 <section class="sr-intro"><p class="lede">${esc(s.dek)}</p><p class="sr-toc">${chapters.map((c, i) => `<a href="#ch-${i + 1}"><span>${ROMAN[i]}</span>${esc(c.title)}</a>`).join('')}</p><p class="cx-count">${n} photographs in ${chapters.length} parts &middot; each one collectable</p></section>
 ${chapters.map((c, i) => `<section class="sr-ch" id="ch-${i + 1}"><header><span class="sr-no">${ROMAN[i]}</span><h2>${esc(c.title)}</h2><p>${esc(c.dek)}</p></header>
-<div class="sr-hang">${c.works.map((w, j) => plate(w, j === 0)).join('')}</div></section>`).join('')}
-<section class="sr-end"><p>${esc(s.title)} is a series by ${esc(s.maker)} for ${esc(s.house)}. Every photograph in it is held on Watermark, and every one can hang in your collection.</p><a class="buy-btn" href="/collection">Walk the whole collection</a></section>` });
+<div class="sr-hang">${c.works.map((w, j) => plate(w, j === 0)).join('')}</div>
+${buy && c.items && c.items.length > 1 ? `<form method="post" action="/series/${esc(s.slug)}/collect" class="sr-set"><input type="hidden" name="part" value="${c.i}"><button class="jewel"><span>Collect all ${c.items.length} of ${esc(c.title)}</span><b>${money(c.price)}</b></button><p>${money(c.full)} one by one. Each photograph is numbered in your collection.</p></form>` : ''}</section>`).join('')}
+<section class="sr-end"><p>${esc(s.title)} is a series by ${esc(s.maker)} for ${esc(s.house)}. Every photograph in it is held on Watermark, and every one can hang in your collection.</p>
+${buy && whole && whole.n > 1 ? `<form method="post" action="/series/${esc(s.slug)}/collect" class="sr-set sr-set-all"><input type="hidden" name="part" value="all"><button class="jewel"><span>Collect the whole series &middot; ${whole.n} photographs</span><b>${money(whole.price)}</b></button><p>${money(whole.full)} one by one. The complete series, numbered on your wall.</p></form>` : ''}
+<p class="sr-also"><a href="/collection">Walk the whole collection</a></p></section>` });
 }
 
 function collectors({ list }) {
@@ -488,4 +499,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { series, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { series, setThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

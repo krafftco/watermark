@@ -46,6 +46,7 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='set_ref'").get()) db.exec('ALTER TABLE licenses ADD COLUMN set_ref TEXT'); // bought together as a set
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
@@ -204,7 +205,8 @@ function createApp(cfg = {}) {
     if (event.type === 'checkout.session.completed') {
       const s = event.data.object;
       const ref = s.metadata && s.metadata.ref;
-      if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
+      if (s.metadata && s.metadata.set && s.payment_status === 'paid') grantSet(s.metadata.set, s);
+      else if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
     }
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
@@ -488,11 +490,57 @@ function createApp(cfg = {}) {
   app.get('/patronage', (req, res) => res.send(V.patronage()));
   // Series: the maker's photographs hung in order, in parts.
   const SERIES = require('./series');
+  // Collecting more than one: a part of a series at a quarter off, the whole series at 40% off. Whole dollars. (Draft rates.)
+  const SET_OFF = { part: 0.25, all: 0.40 };
+  const collectable = slugs => slugs.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social'))
+    .map(w => ({ w, u: priced(q.use.get(mk(w).id, 'social'), w) })).filter(x => x.u && x.u.price_cents != null);
+  const setPrice = (items, off) => { const full = items.reduce((a, x) => a + x.u.price_cents, 0); return { full, price: Math.max(100, Math.round(full * (1 - off) / 100) * 100) }; };
+  const seriesParts = s => {
+    const chapters = s.chapters.map((c, i) => { const items = collectable(c.works); return { ...c, i: i + 1, works: c.works.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held'), items, ...setPrice(items, SET_OFF.part) }; }).filter(c => c.works.length);
+    const every = chapters.flatMap(c => c.items);
+    return { chapters, whole: { n: every.length, ...setPrice(every, SET_OFF.all) } };
+  };
+  const SETS = Object.fromEntries(SERIES.map(s => [s.slug, { name: s.title }]));
   app.get('/series/:slug', (req, res) => {
     const s = SERIES.find(x => x.slug === req.params.slug); if (!s) return res.sendStatus(404);
-    const chapters = s.chapters.map(c => ({ ...c, works: c.works.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held') })).filter(c => c.works.length);
-    res.send(V.series({ s, chapters }));
+    const { chapters, whole } = seriesParts(s);
+    res.send(V.series({ s, chapters, whole, buy: !!stripe }));
   });
+  app.post('/series/:slug/collect', async (req, res) => {
+    const s = SERIES.find(x => x.slug === req.params.slug); if (!s || !stripe) return res.redirect(`/series/${req.params.slug}`);
+    const { chapters, whole } = seriesParts(s);
+    const part = String((req.body || {}).part || 'all');
+    const c = part === 'all' ? null : chapters.find(x => String(x.i) === part);
+    const items = c ? c.items : chapters.flatMap(x => x.items);
+    const { price, full } = c ? c : whole;
+    if (items.length < 2) return res.redirect(`/series/${s.slug}`);
+    const setRef = `${s.slug}:${nextRef()}`;
+    // Each photograph is its own license and its own collector number; the price is shared out across them.
+    const each = Math.floor(price / items.length), extra = price - each * items.length;
+    const refs = items.map((x, j) => {
+      const ref = nextRef();
+      db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,set_ref) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
+        .run(ref, x.w.id, x.u.id, 'Buyer', '', each + (j === 0 ? extra : 0), R.conditions(R.parse(x.w.rules)) || null, setRef);
+      return ref;
+    });
+    const label = c ? `${s.title}, ${c.title}` : `${s.title}, the whole series`;
+    ledger.append(db, 'license.checkout', refs[0], { set: setRef, works: items.map(x => x.w.slug) });
+    try {
+      const ss = await stripe.checkout.sessions.create({
+        mode: 'payment', payment_method_types: ['card', 'link'], submit_type: 'pay',
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: label, description: `${items.length} photographs by ${s.maker}, each yours to keep and share, each numbered in your collection. ${V.money(full)} if collected one by one.`, images: items.slice(0, 3).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
+        metadata: { ref: refs[0], set: setRef },
+        success_url: `${C.base}/thanks/${refs[0]}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${C.base}/series/${s.slug}${c ? '#ch-' + c.i : ''}`,
+      });
+      db.prepare('UPDATE licenses SET stripe_session=? WHERE set_ref=?').run(ss.id, setRef);
+      res.redirect(303, ss.url);
+    } catch (e) { console.error('[set]', e.message); db.prepare("DELETE FROM licenses WHERE set_ref=? AND status='awaiting_payment'").run(setRef); res.redirect(`/series/${s.slug}`); }
+  });
+  function grantSet(setRef, s) {
+    const all = db.prepare("SELECT ref FROM licenses WHERE set_ref=?").all(setRef);
+    for (const x of all) { fillBuyer(x.ref, s); grant(x.ref, { paid: true }); }
+  }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };
@@ -533,6 +581,17 @@ function createApp(cfg = {}) {
   app.get('/thanks/:ref', async (req, res) => {
     let l = q.lic.get(req.params.ref);
     if (!l || !req.query.session_id || l.stripe_session !== req.query.session_id) return res.redirect(l ? `/c/${l.ref}` : '/');
+    if (l.set_ref) { // a set: every photograph in it, numbered, hung together
+      if (l.status !== 'active' && stripe) { try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') grantSet(l.set_ref, s); } catch (e) { /* show pending */ } }
+      const all = db.prepare('SELECT * FROM licenses WHERE set_ref=? ORDER BY id').all(l.set_ref);
+      if (all.every(x => x.status === 'active')) {
+        let b = buyerOf(req);
+        if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', ?)").run(l.licensee_email || null).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
+        db.prepare('UPDATE licenses SET buyer_id=COALESCE(buyer_id, ?) WHERE set_ref=?').run(b.id, l.set_ref);
+      }
+      const items = db.prepare('SELECT l.*, w.slug, w.title, w.place FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.set_ref=? ORDER BY l.id').all(l.set_ref);
+      return res.send(V.setThanks({ items, name: (SETS[l.set_ref.split(':')[0]] || {}).name || 'The set' }));
+    }
     if (l.status !== 'active' && stripe) {
       try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
     }

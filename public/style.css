@@ -598,3 +598,18 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 @media (max-width:560px){.sr-band{grid-template-columns:1fr}.sr-band-im img:nth-child(3){display:none}}
 .sr-im img{width:min(100%,calc(70vh * var(--r)));max-height:none;height:auto}
 .sr-big .sr-im img{width:min(100%,calc(82vh * var(--r)))}
+/* Collecting a set */
+.sr-set{max-width:520px;margin:clamp(36px,4vw,56px) auto 0;text-align:center}
+.sr-set button{display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;padding:20px 26px 20px 28px;font:inherit;cursor:pointer}
+.sr-set span{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:500;text-align:left}
+.sr-set b{font-family:var(--disp);font-weight:400;font-size:32px;line-height:1;padding-left:22px;border-left:1px solid rgba(255,255,255,.22)}
+.sr-set p{margin:12px 0 0;font-size:13px;color:var(--mu)}
+.sr-set-all{margin-top:0}
+.sr-also{margin-top:28px;text-align:center}
+.sr-also a{color:var(--ink)}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:28px}
+.st-it{display:flex;flex-direction:column;gap:8px}
+.st-it img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:var(--soft)}
+.st-it i{font-family:var(--disp);font-size:19px}
+.st-it small{font-size:11px;letter-spacing:.1em;color:var(--mu)}
+.st-it a{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink)}

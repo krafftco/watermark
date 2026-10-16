@@ -100,6 +100,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
   assert.ok(!yb.includes('Save again'), 'no files on the public wall');
   r = await req(port, 'GET', '/series/the-great-rooms'); assert.equal(r.status, 200, 'the series hangs'); assert.ok(r.body.toString().includes('The Great Rooms'));
+  // Collecting a set: two photographs of a series part at a quarter off, each its own numbered license.
+  const tmp3 = path.join(dir, 'in3.jpg'); await require('sharp')(SRC).flop().modulate({ brightness: 0.8 }).toFile(tmp3);
+  const w2 = await registerWork({ file: tmp3, originalName: 'z.jpg', title: 'Test Stacks', place: 'New York' });
+  require('../src/series').push({ slug: 'test-set', title: 'Test Set', house: 'H', maker: 'M', cover: w.slug, dek: 'd', chapters: [{ title: 'One', dek: '', works: [w.slug, w2.slug] }] });
+  r = await req(port, 'GET', '/series/test-set'); assert.ok(r.body.toString().includes('Collect all 2 of One'), 'a set offered');
+  r = await req(port, 'POST', '/series/test-set/collect', { body: { part: '1' } }); assert.equal(r.status, 303);
+  const setS = sessions[r.headers.location.split('/').pop()]; assert.equal(setS.line_items[0].price_data.unit_amount, 800, 'two at $5, a quarter off, whole dollars');
+  setS.payment_status = 'paid'; setS.customer_details = { email: 'set@me.com', name: 'Set Fan' };
+  r = await req(port, 'GET', setS.success_url.replace('{CHECKOUT_SESSION_ID}', setS.id).replace('http://localhost', ''));
+  assert.ok(r.body.toString().includes('yours.') || r.body.toString().includes('They&rsquo;re yours'), 'the set is granted');
+  const setLs = db.prepare("SELECT * FROM licenses WHERE set_ref LIKE 'test-set:%'").all();
+  assert.equal(setLs.length, 2); assert.ok(setLs.every(l => l.status === 'active' && l.collector_no && l.download_token), 'each numbered, each with its file');
+  assert.equal(setLs.reduce((a, l) => a + l.price_cents, 0), 800, 'the price shared out');
   r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('/collector/' + code), 'shown among the collectors');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/In \d+ collections?, among them/.test(r.body.toString()), 'in the collections of');
   r = await req(port, 'GET', `/collector/${code}`); assert.ok(r.body.toString().includes('data-buy') && r.body.toString().includes('/static/pay.js'), 'collect it from their wall');
