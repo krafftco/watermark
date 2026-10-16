@@ -50,8 +50,10 @@ function createApp(cfg = {}) {
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
-  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT']])
+  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
+  // A photograph may carry its own Share it price; otherwise the maker's standard one.
+  const priced = (u, w) => (u && w && u.key === 'social' && w.share_cents ? { ...u, price_cents: w.share_cents } : u);
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
@@ -246,7 +248,7 @@ function createApp(cfg = {}) {
     if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), base: C.base, rules, pay: payCfg() }));
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg() }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -304,7 +306,7 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
-    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -312,7 +314,7 @@ function createApp(cfg = {}) {
   app.post('/buy/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
-    const u = q.use.get(maker.id, String(req.body.use || ''));
+    const u = priced(q.use.get(maker.id, String(req.body.use || '')), w);
     const rules = R.parse(w.rules);
     if (!u || !R.allows(rules, u.key)) return res.redirect(`/license/${w.slug}`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
@@ -356,7 +358,7 @@ function createApp(cfg = {}) {
     try { stripe.paymentMethodDomains.create({ domain_name: new URL(C.base).hostname }).catch(() => {}); } catch (e) { /* older client */ }
   }
   app.post('/pay/:slug', async (req, res) => {
-    const w = q.work.get(req.params.slug), u = q.use.get(maker.id, 'social');
+    const w = q.work.get(req.params.slug), u = priced(q.use.get(maker.id, 'social'), w);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
     const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
@@ -393,7 +395,7 @@ function createApp(cfg = {}) {
 
   // Every Share it after the first: one tap, the remembered card, no sheet. Undo for a short while after.
   app.post('/pay/:slug/tap', async (req, res) => {
-    const w = q.work.get(req.params.slug), u = q.use.get(maker.id, 'social'), b = buyerOf(req);
+    const w = q.work.get(req.params.slug), u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
@@ -429,7 +431,7 @@ function createApp(cfg = {}) {
   });
   function handover(l) {
     const w = db.prepare('SELECT title, slug FROM works WHERE id=?').get(l.work_id);
-    return { ok: true, ref: l.ref, download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
+    return { ok: true, ref: l.ref, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
   }
 
   app.get('/buy/:slug', (req, res) => {
@@ -608,6 +610,11 @@ function createApp(cfg = {}) {
     const b = req.body; const t = (v, n) => String(v || '').trim().slice(0, n) || null;
     db.prepare('UPDATE works SET title=COALESCE(?,title), caption=?, place=?, keywords=?, credit=?, medium=? WHERE id=?')
       .run(t(b.title, 160), t(b.caption, 4000), t(b.place, 160), t(b.keywords, 400), t(b.credit, 200), t(b.medium, 120), w.id);
+    // Share it price for this photograph alone: whole dollars, $3 at least; empty = the maker's standard price.
+    const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
+    db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
+    // A work too important to share at any price: license only.
+    const rl = R.parse(w.rules); rl.social = b.noshare === '1' ? false : undefined; db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rl), w.id);
     const ids = (b.rooms == null ? [] : Array.isArray(b.rooms) ? b.rooms : [b.rooms]).map(Number).filter(Boolean);
     db.prepare('DELETE FROM collection_works WHERE work_id=?').run(w.id);
     for (const cid of ids) if (db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id);
@@ -797,7 +804,7 @@ function createApp(cfg = {}) {
     const arr = v => v == null ? [] : Array.isArray(v) ? v : [v];
     const all = q.uses.all(maker.id).map(u => u.key);
     const open = arr(req.body.uses).filter(k => all.includes(k));
-    const rules = { uses: open.length === all.length ? null : open, approve: req.body.approve === '1', never: arr(req.body.never).filter(k => R.NEVER[k]), credit: req.body.credit === '1', showEarned: req.body.showEarned === '1' };
+    const rules = { uses: open.length === all.length ? null : open, approve: req.body.approve === '1', never: arr(req.body.never).filter(k => R.NEVER[k]), credit: req.body.credit === '1', showEarned: req.body.showEarned === '1', ...(open.includes('social') ? {} : { social: false }) };
     db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rules), w.id);
     ledger.append(db, 'work.terms', w.slug, { open: rules.uses || 'all', approve: rules.approve, never: rules.never });
     res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Your terms are saved. They apply to every new license.')}`);

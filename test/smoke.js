@@ -101,6 +101,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '5' } });
+  // a photograph priced on its own, and one held back for licenses only
+  r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '40' } });
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it for $40'), 'its own price');
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social' } }); assert.equal(sessions[r.headers.location.split('/').pop()].line_items[0].price_data.unit_amount, 4000);
+  r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '40', noshare: '1' } });
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('share-buy'), 'license only');
+  r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '' } });
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it for $5'), 'back to the standard price');
   r = await req(port, 'POST', `/studio/works/${w.slug}`, { cookie: ck, body: 'uses=editorial&uses=commercial&uses=print&never=ai&never=political&credit=1&showEarned=1' , headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   assert.equal(r.status, 302);
   r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(!r.body.includes('Before an audience'), 'closed use hidden'); assert.ok(r.body.includes('Training or fine-tuning AI models'));

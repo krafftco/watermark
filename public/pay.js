@@ -88,7 +88,7 @@
     try {
       var d = await (await fetch('/pay/' + encodeURIComponent(slug) + '/tap', { method: 'POST' })).json();
       if (!d.ok) { hideToast(); tapping = false; return open(slug, title, null, true); }
-      toast('<b>Yours.</b> ' + esc(C.price) + ' &middot; <a href="' + esc(d.download) + '" download>Save</a> <button type="button" class="pt-undo">Undo</button>', 9000);
+      toast('<b>Yours.</b> ' + esc(d.price || C.price) + ' &middot; <a href="' + esc(d.download) + '" download>Save</a> <button type="button" class="pt-undo">Undo</button>', 9000);
       var a = document.createElement('a'); a.href = d.download; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
       var u = document.querySelector('.pt-undo'); if (u) u.onclick = async function () { u.disabled = true; var r = await (await fetch('/pay/' + d.ref + '/undo', { method: 'POST' })).json(); toast(r.ok ? 'Undone. Refunded in full.' : 'Too late to undo here; write to the maker.', 4000); };
     } catch (e) { hideToast(); open(slug, title, null, true); }
@@ -101,17 +101,19 @@
   }
   function hideToast() { if (tEl) tEl.classList.remove('in'); }
 
-  async function open(slug, title, img, noTap) {
+  async function open(slug, title, img, noTap, amount) {
+    amount = +amount || C.amount;
     if (!noTap && hasTap()) return tap(slug, title);
     if (!sheet) build();
-    cur = { slug: slug };
+    cur = { slug: slug, amount: amount };
+    sheet.querySelector('.ps-p').textContent = '$' + (amount / 100);
     sheet.classList.remove('is-done'); sheet.querySelector('.ps-buy').hidden = false; sheet.querySelector('.ps-done').hidden = true;
     sheet.querySelector('.ps-img').src = img || '/img/' + slug + '/thumb'; sheet.querySelector('.ps-t').textContent = title || '';
     sheet.querySelector('.ps-copy').textContent = 'Copy the credit';
     sheet.querySelector('.ps-wait').hidden = ready;
     sheet.hidden = false; document.documentElement.classList.add('ps-on');
     requestAnimationFrame(function () { sheet.classList.add('in'); });
-    try { await loadStripe(); if (!ece) mount(); else settle(); } catch (e) { checkout(slug); }
+    try { await loadStripe(); elements.update({ amount: amount }); if (!ece) mount(); else settle(); } catch (e) { checkout(slug); }
   }
   function close() { sheet.classList.remove('in'); document.documentElement.classList.remove('ps-on'); setTimeout(function () { sheet.hidden = true; }, 260); }
 
@@ -122,6 +124,6 @@
     e.preventDefault();
     var slug = f.dataset.share || (f.action.split('/buy/')[1] || '').split(/[?#]/)[0];
     var title = f.dataset.title || (document.getElementById('lbT') || {}).textContent || '';
-    open(slug, title);
+    open(slug, title, null, false, f.dataset.amount);
   }, true);
 })();

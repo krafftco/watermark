@@ -32,9 +32,9 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   // photograph a click from filling the screen.
   const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
-  const data = works.map(w => ({ s: w.slug, t: w.title, p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [] }));
+  const data = works.map(w => ({ s: w.slug, t: w.title, p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
   const sp = share && share.price_cents != null ? money(share.price_cents) : null;
-  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp ? `<span class="pb" data-buy role="button" tabindex="0">Share it · ${sp}</span>` : ''}</a>`;
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0">Share it · ${w.share_cents ? money(w.share_cents) : sp}</span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
   const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
@@ -87,7 +87,7 @@ function work({ w, maker, uses, base, rules, pay = null }) {
 <p class="by">Photograph by ${esc(maker.name)}${maker.house ? `, ${esc(maker.house)}` : ''}</p>
 ${w.caption ? `<p class="cap">${esc(w.caption)}</p>` : ''}
 <dl class="facts">${facts}</dl>
-${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(w.title)}"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>About the price of a coffee, and 85% of it goes to the photographer. Yours to post on your own accounts, credited; the file arrives the moment you pay.</p></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}` : ''}
+${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(w.title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>About the price of a coffee, and 85% of it goes to the photographer. Yours to post on your own accounts, credited; the file arrives the moment you pay.</p></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="note">Every license is written in plain language, carries its own reference, and is recorded on the <a href="/ledger">ledger</a>. The full file is delivered when the license is granted.</p>
