@@ -1,22 +1,32 @@
-/* The house bar: one thin strip shared by Krafft, Krafft Studios and Watermark.
-   Served from watermark.krafftco.com/house.js and loaded in the <head> of every property, so the
-   three sites always show the same bar and it changes in one place.
-   Seamless: each link returns you to the page you last had open on that property (a shared
-   .krafftco.com cookie, 30 minutes), the next page is prefetched on hover, and links stay in the tab. */
+/* The house bar: one thin strip shared by Krafft, Krafft Studios, Watermark and Will Fullerton's own site.
+   Served from watermark.krafftco.com/house.js and loaded in the <head> of every site, so they all
+   show the same bar and it changes in one place.
+   Seamless: each link returns you to the page you last had open on that site (30 minutes), the next
+   page is prefetched on hover, and links stay in the tab. The krafftco.com sites share one cookie;
+   across to wrkfullerton.com (another domain) the link carries #kh and the site you land on sends you
+   on to your last page there. */
 (function () {
   if (window.__krafftHouse) return; window.__krafftHouse = 1;
   var P = [
-    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://krafftco.com' },
+    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com' },
     { id: 'studios', name: 'Krafft Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com' },
-    { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com' }
+    { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com' },
+    { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1 }
   ];
+  function fam(host) { return /wrkfullerton\.com$/.test(host) ? 'wrkfullerton.com' : /krafftco\.com$/.test(host) ? 'krafftco.com' : ''; }
   var h = location.hostname.replace(/^www\./, '');
   var here = null;
   for (var i = 0; i < P.length; i++) if (h === P[i].host) here = P[i].id;
   // Pages that should never be "returned to": private, one-off or transactional.
   var SKIP = /^\/(studio|thanks|buy|k\/|view|ghost|members|signin|signup|account|checkout|utilities|401|404)/;
-  var DOMAIN = /krafftco\.com$/.test(h) ? '; domain=.krafftco.com' : '';
+  var F = fam(h), DOMAIN = F ? '; domain=.' + F : '';
   function read(id) { var m = document.cookie.match(new RegExp('(?:^|; )kh_' + id + '=([^;]*)')); try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return ''; } }
+  // Arrived from the other domain's bar: go straight on to the last page open here.
+  if (here && location.hash === '#kh') {
+    var last = read(here), cur = location.pathname + location.search;
+    if (last && last.charAt(0) === '/' && !/^\/\//.test(last) && last !== cur) { location.replace(last); return; }
+    try { history.replaceState(null, '', cur); } catch (e) {}
+  }
   if (here && !SKIP.test(location.pathname)) {
     try { document.cookie = 'kh_' + here + '=' + encodeURIComponent(location.pathname + location.search) + '; max-age=1800; path=/; SameSite=Lax; Secure' + DOMAIN; } catch (e) {}
   }
@@ -26,13 +36,20 @@
     + '.kh a:hover,.kh a:focus-visible{color:#f6f5f2;outline:none}'
     + '.kh a[aria-current]{color:#f6f5f2}'
     + '.kh a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
-    + '@media (max-width:600px){.kh{gap:20px;letter-spacing:.2em}}'
+    + '.kh .kh-own{margin-left:auto}'
+    + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
+    + '.kh .kh-sh{display:none}'
+    + '@media (max-width:600px){.kh{gap:16px;letter-spacing:.15em;padding:0 16px}.kh .kh-fl{display:none}.kh .kh-sh{display:inline}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
     + '@media print{.kh{display:none}}';
   function link(p) {
     var a = document.createElement('a');
-    var back = p.id !== here ? read(p.id) : '';
-    a.href = p.id === here ? p.url + '/' : p.url + (back && back.charAt(0) === '/' && !/^\/\//.test(back) ? back : '/');
-    a.textContent = p.name;
+    var other = fam(p.host) !== F;           // another domain: its cookie can't be read from here
+    var back = p.id !== here && !other ? read(p.id) : '';
+    a.href = p.id === here ? p.url + '/' : p.url + (back && back.charAt(0) === '/' && !/^\/\//.test(back) ? back : '/') + (other ? '#kh' : '');
+    var short = p.short || (p.id === 'studios' ? 'Studios' : '');
+    if (short) { var f1 = document.createElement('span'); f1.className = 'kh-fl'; f1.textContent = p.name; var f2 = document.createElement('span'); f2.className = 'kh-sh'; f2.textContent = short; a.appendChild(f1); a.appendChild(f2); }
+    else a.textContent = p.name;
+    if (p.own) a.className = 'kh-own';
     if (p.id === here) a.setAttribute('aria-current', 'site');
     var done = false;
     function pre() { if (done || p.id === here) return; done = true; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.href; document.head.appendChild(l); }

@@ -13,7 +13,7 @@ function headMeta({ title, desc, path, image, type = 'website', jsonld }) {
 }
 // The house bar (Krafft · Krafft Studios · Watermark), rendered here so it never flashes in;
 // public/house.js then points each link back to the page last open on that property.
-const HOUSE = '<nav class="kh" aria-label="Krafft"><a data-p="krafft" href="https://krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a></nav>';
+const HOUSE = '<nav class="kh" aria-label="Krafft"><a data-p="krafft" href="https://www.krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a><a data-p="will" class="kh-own" href="https://www.wrkfullerton.com/">Will Fullerton</a></nav>';
 function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
