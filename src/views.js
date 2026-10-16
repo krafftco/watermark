@@ -35,8 +35,9 @@ function collection({ maker, works, rooms = [] }) {
   const data = works.map(w => ({ s: w.slug, t: w.title, p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [] }));
   const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span></a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
+  const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
-  const galleries = rooms.map(r => { const ws = (r.ids || []).map(id => byId[id]).filter(Boolean); ws.forEach(w => seen.add(w.id)); return ws.length ? `<section class="gal" id="room-${esc(r.slug)}" data-room="${esc(r.slug)}"><header class="gh"><h2><a href="/rooms/${esc(r.slug)}">${esc(r.title)}</a></h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>` : ''; }).join('');
+  const galleries = shown.map(r => { const ws = (r.ids || []).map(id => byId[id]).filter(Boolean); ws.forEach(w => seen.add(w.id)); return ws.length ? `<section class="gal" id="room-${esc(r.slug)}" data-room="${esc(r.slug)}"><header class="gh"><h2><a href="/rooms/${esc(r.slug)}">${esc(r.title)}</a></h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>` : ''; }).join('');
   const rest = works.filter(w => !seen.has(w.id));
   const total = works.length;
   return layout({
@@ -44,11 +45,11 @@ function collection({ maker, works, rooms = [] }) {
     desc: `${total} photographs held, credited and licensed on Watermark.`,
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
     body: `<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
-<h1>The collection.</h1><p class="cx-count">${total} photographs · ${rooms.filter(r => (r.ids || []).length).length} rooms · each registered to its maker and licensed at the source</p></section>
-<div class="cx-bar" id="cxBar"><label class="cx-q"><span>Search</span><input id="cxQ" type="search" placeholder="Title, place, camera, accession" autocomplete="off" spellcheck="false"></label>
-<div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${rooms.filter(r => (r.ids || []).length).map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
-<div class="cx-view"><button type="button" data-v="plates" aria-pressed="true">Plates</button><button type="button" data-v="index">Index</button></div><span class="cx-n" id="cxN">${total}</span></div>
-<div class="cx" id="cx">${galleries}${rest.length ? `<section class="gal" data-room=""><header class="gh"><h2>${rooms.length ? 'Also held' : 'Every photograph'}</h2><span>${rest.length}</span></header><div class="plates">${rest.map(plate).join('')}</div></section>` : ''}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
+<h1>The collection.</h1><p class="cx-count">${total} photographs · ${shown.length} rooms · each registered to its maker and licensed at the source</p></section>
+<div class="cx-bar" id="cxBar"><label class="cx-q"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="cxQ" type="search" placeholder="Search ${total} photographs" aria-label="Search the collection" autocomplete="off" spellcheck="false"></label>
+<div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
+<div class="cx-view"><button type="button" data-v="plates" aria-pressed="true" title="Plates">Plates</button><button type="button" data-v="index" title="Index">Index</button></div><span class="cx-n" id="cxN" hidden></span></div>
+<div class="cx" id="cx">${galleries}${rest.length ? `<section class="gal" data-room=""><header class="gh"><h2>${shown.length ? 'Also held' : 'Every photograph'}</h2><span>${rest.length}</span></header><div class="plates">${rest.map(plate).join('')}</div></section>` : ''}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
@@ -122,7 +123,10 @@ ${renews ? `<p class="ok">Renewing license ${esc(renews)}.</p><input type="hidde
 
 // The front door, written for image makers.
 function home({ maker, works, uses, sent }) {
-  const hero = works[0]; const demo = works[1] || works[0];
+  // Lead with a large landscape frame from a place, never a small web copy.
+  const big = works.filter(w => (w.width || 0) >= 1800 && w.width > w.height * 1.3);
+  const hero = big.find(w => /florence|lake como|zurich|paris/i.test(w.place || '')) || big[0] || works[0];
+  const demo = works.find(w => w !== hero && (w.width || 0) >= 1200) || works[1] || works[0];
   const strip = works.slice(0, 8).map(w => `<a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></a>`).join('');
   const price = k => { const u = uses.find(x => x.key === k); return u ? money(u.price_cents) : ''; };
   return layout({

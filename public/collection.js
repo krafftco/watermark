@@ -18,7 +18,7 @@
   function render() {
     var terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
     showing = W.filter(function (w) { return (!state.room || w.m.indexOf(state.room) > -1) && terms.every(function (t) { return w.q.indexOf(t) > -1; }); });
-    n.textContent = showing.length === W.length ? W.length + ' photographs' : showing.length + ' of ' + W.length;
+    n.hidden = showing.length === W.length; n.textContent = showing.length + ' of ' + W.length;
     var grouped = !terms.length && !state.room && state.view === 'plates';
     cx.hidden = !grouped; flat.hidden = grouped;
     if (!grouped) {
@@ -30,7 +30,7 @@
     try { sessionStorage.setItem('wm-cx', JSON.stringify({ view: state.view })); } catch (e) {}
   }
   var t; q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { state.q = q.value.trim(); render(); }, 90); });
-  roomsEl.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; state.room = b.dataset.r; render(); window.scrollTo({ top: $('cxBar').offsetTop - 70, behavior: 'smooth' }); });
+  roomsEl.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; state.room = b.dataset.r; render(); var y = (state.room && !state.q ? flat : cx).getBoundingClientRect().top + scrollY - $('cxBar').offsetHeight - 8; if (scrollY > y) window.scrollTo({ top: y, behavior: 'smooth' }); var sel = roomsEl.querySelector('[aria-pressed=true]'); if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); });
   document.querySelector('.cx-view').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; state.view = b.dataset.v; render(); });
   document.addEventListener('keydown', function (e) { if (e.key === '/' && document.activeElement !== q && lb.hidden) { e.preventDefault(); q.focus(); } });
   if (state.view !== 'plates') render();

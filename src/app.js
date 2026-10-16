@@ -201,7 +201,7 @@ function createApp(cfg = {}) {
   // --- public pages ---
   app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
   app.get('/collection', (req, res) => {
-    const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort, id').all();
+    const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
     res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms }));
