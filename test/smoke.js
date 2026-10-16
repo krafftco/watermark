@@ -83,6 +83,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/'); assert.ok(r.body.includes('For the people who make the pictures'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
+  // the trove: collections, catalogue record, public room
+  r = await req(port, 'POST', '/studio/collections', { cookie: ck, body: { title: 'Florence, 2025', note: 'The city from below.', public: '1' } }); assert.equal(r.status, 302);
+  const cid = db.prepare("SELECT id FROM collections WHERE slug='florence-2025'").get().id;
+  r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', place: 'Florence', keywords: 'dome, fresco', caption: 'Looking up.', rooms: String(cid) } }); assert.equal(r.status, 302);
+  r = await req(port, 'GET', '/studio?room=florence-2025', { cookie: ck }); assert.ok(r.body.includes('Florence, 2025') && r.body.includes('Test Dome'));
+  r = await req(port, 'GET', '/rooms/florence-2025'); assert.equal(r.status, 200); assert.ok(r.body.includes('The city from below.'));
+  r = await req(port, 'GET', `/studio/works/${w.slug}`, { cookie: ck }); assert.ok(r.body.includes('Catalogue record') && r.body.includes('Exhibition history'));
   // the vault: originals and seals are in the store; a fresh server fetches them back; backups land there
   const vk = await app.locals.store.list('originals/'); assert.ok(vk.length >= 1, 'original in the vault');
   fs.rmSync(path.join(dir, 'originals', w.original_file)); fs.rmSync(path.join(dir, 'cache'), { recursive: true, force: true });
@@ -118,7 +125,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/login', { body: { password: 'nope' } }); assert.equal(r.status, 401);
   r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); assert.equal(r.status, 302);
   const cookie = r.headers['set-cookie'][0].split(';')[0];
-  r = await req(port, 'GET', '/studio', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
+  r = await req(port, 'GET', '/studio/activity', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
+  r = await req(port, 'GET', '/studio', { cookie }); assert.ok(r.body.includes('The trove') && r.body.includes('WM.'), 'trove with accession numbers');
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);

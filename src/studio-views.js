@@ -1,7 +1,7 @@
 // The Studio: where the maker manages the vault, prices and licenses.
 const { layout, esc, money, date, termText } = require('./views');
 
-const nav = active => `<nav class="snav">${[['/studio', 'Overview'], ['/studio/works', 'Vault'], ['/studio/licenses', 'Licenses'], ['/studio/sightings', 'Sightings'], ['/studio/uses', 'Uses & prices'], ['/studio/makers', 'Makers']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
+const nav = active => `<nav class="snav">${[['/studio', 'Trove'], ['/studio/activity', 'Activity'], ['/studio/works', 'Vault'], ['/studio/licenses', 'Licenses'], ['/studio/sightings', 'Sightings'], ['/studio/uses', 'Uses & prices'], ['/studio/makers', 'Makers']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
 
 function login({ error }) {
   return layout({ title: 'Studio · Watermark', body: `<section class="narrow"><p class="k">Studio</p><h1>Sign in to your vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}
@@ -12,8 +12,8 @@ function overview({ maker, stats, recent, views, ending = [], notice }) {
   const en = ending.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${esc(l.title)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${date(l.ends_at)}</td><td>${l.renewal_sent_at ? 'Notice sent' : 'Not yet'}</td></tr>`).join('');
   const v = views.map(r => `<tr><td>${esc(r.host || 'watermark')}</td><td>${esc(r.kind)}</td><td>${r.n}</td></tr>`).join('');
   const rl = recent.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${esc(l.title)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
-  return layout({ studio: true, title: 'Studio · Watermark', body: `<section class="studio-wrap">${nav('/studio')}
-<p class="k">${esc(maker.house || maker.name)}</p><h1>Your estate.</h1>
+  return layout({ studio: true, title: 'Activity · Watermark', body: `<section class="studio-wrap">${nav('/studio/activity')}
+<p class="k">${esc(maker.house || maker.name)}</p><h1>Activity.</h1>
 <div class="stats"><div><b>${stats.works}</b><span>works held</span></div><div><b>${stats.active}</b><span>active licenses</span></div><div><b>${stats.open}</b><span>requests waiting</span></div><div><b>${money(stats.earned || 0)}</b><span>licensed to date</span></div><div><b>${stats.views}</b><span>views, 30 days</span></div></div>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <h2>Ending in the next 60 days</h2><table class="tbl"><thead><tr><th>Ref</th><th>Work</th><th>Licensee</th><th>Ends</th><th>Renewal</th></tr></thead><tbody>${en || '<tr><td colspan="5">Nothing ending soon.</td></tr>'}</tbody></table>
@@ -25,7 +25,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 function works({ list, error, notice }) {
-  const rows = list.map(w => `<tr><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="72"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${esc(w.camera || '')}</td><td>${date(w.created_at)}</td><td>${w.status === 'held' ? 'Public' : 'Hidden'}</td><td><a href="/studio/works/${esc(w.slug)}">Terms &amp; life</a></td><td><form method="post" action="/studio/works/${esc(w.slug)}/toggle"><button class="link">${w.status === 'held' ? 'Hide' : 'Show'}</button></form></td></tr>`).join('');
+  const rows = list.map(w => `<tr><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="72"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${esc(w.camera || '')}</td><td>${date(w.created_at)}</td><td>${w.status === 'held' ? 'Public' : 'Hidden'}</td><td><a href="/studio/works/${esc(w.slug)}">Catalogue</a></td><td><form method="post" action="/studio/works/${esc(w.slug)}/toggle"><button class="link">${w.status === 'held' ? 'Hide' : 'Show'}</button></form></td></tr>`).join('');
   return layout({ studio: true, title: 'Vault · Watermark', body: `<section class="studio-wrap">${nav('/studio/works')}
 <h1>The vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form method="post" action="/studio/works" enctype="multipart/form-data" class="form upload">
@@ -72,16 +72,34 @@ function uses({ list, notice }) {
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ w, rules, uses, NEVER, seen, lic, seals = [], notice }) {
+function workTerms({ w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice }) {
   const open = k => !rules.uses || rules.uses.includes(k);
   const paid = lic.filter(l => ['active', 'expired'].includes(l.status));
   const earned = paid.reduce((a, l) => a + (l.price_cents || 0), 0);
   const life = lic.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.starts_at || l.created_at)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
   const sg = seen.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a> &middot; ${date(x.created_at)} &middot; ${esc(x.status)}</li>`).join('');
   return layout({ studio: true, title: `${w.title} · Studio`, body: `<section class="studio-wrap">${nav('/studio/works')}
-<div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">Terms &amp; life</p><h1>${esc(w.title)}</h1>
+<div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">${esc(w.accession || 'Catalogue')}</p><h1>${esc(w.title)}</h1>
 <div class="stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${seen.length}</b><span>sightings</span></div></div></div></div>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<h2>Catalogue record</h2>
+<div class="cat"><dl class="facts cat-fixed">
+<div><dt>Accession</dt><dd>${esc(w.accession || '')}</dd></div><div><dt>Maker</dt><dd>Will Fullerton</dd></div>
+<div><dt>Date made</dt><dd>${w.taken_at ? date(w.taken_at) : 'Unknown'}</dd></div><div><dt>Registered</dt><dd>${date(w.created_at)}</dd></div>
+<div><dt>Dimensions</dt><dd>${w.width && w.height ? `${w.width} × ${w.height} px · prints to ${Math.round(w.width / 300 * 2.54)} × ${Math.round(w.height / 300 * 2.54)} cm at 300 dpi` : ''}</dd></div>
+<div><dt>Camera</dt><dd>${esc([w.camera, w.lens].filter(Boolean).join(', '))}</dd></div>
+<div><dt>Fingerprint</dt><dd><code>${esc(w.sha256.slice(0, 24))}…</code></dd></div></dl>
+<form method="post" action="/studio/works/${esc(w.slug)}/catalogue" class="form cat-form">
+<label>Title<input name="title" value="${esc(w.title)}" required></label>
+<label>Place<input name="place" value="${esc(w.place || '')}" placeholder="Florence, Italy"></label>
+<label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
+<label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="Will Fullerton / Krafft Studios"></label>
+<label class="wide">Keywords<input name="keywords" value="${esc(w.keywords || '')}" placeholder="architecture, cathedral, fresco, Renaissance"></label>
+<label class="wide">Wall text<textarea name="caption" rows="4" placeholder="What it is, when and why it was made.">${esc(w.caption || '')}</textarea></label>
+<fieldset class="wide"><legend>Collections</legend>${rooms.length ? rooms.map(c => `<label class="chk"><input type="checkbox" name="rooms" value="${c.id}" ${c.has ? 'checked' : ''}> ${esc(c.title)}</label>`).join('') : '<small>No collections yet. Start one from the Trove.</small>'}</fieldset>
+<button>Save the record</button></form></div>
+<h2>Exhibition history</h2><table class="tbl"><thead><tr><th>Where</th><th>How</th><th>Views</th><th>First</th><th>Latest</th></tr></thead><tbody>${views.map(v => `<tr><td>${esc(v.host || 'Watermark')}</td><td>${esc({ view: 'Its page', open: 'License page opened', embed: 'Embedded with credit' }[v.kind] || v.kind)}</td><td>${v.n}</td><td>${esc(v.first)}</td><td>${esc(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">Not shown anywhere yet.</td></tr>'}${w.source_url ? `<tr><td colspan="5">Published at <a href="${esc(w.source_url)}" target="_blank" rel="noopener">${esc(w.source_url.replace(/^https?:\/\//, ''))}</a></td></tr>` : ''}</tbody></table>
+<h2>Terms</h2>
 <form method="post" action="/studio/works/${esc(w.slug)}" class="form terms-form">
 <h2>Open to</h2>${uses.map(u => `<label class="chk"><input type="checkbox" name="uses" value="${esc(u.key)}" ${open(u.key) ? 'checked' : ''}> ${esc(u.name)} <small>${money(u.price_cents)}</small></label>`).join('')}
 <h2>Approval</h2><label class="chk"><input type="checkbox" name="approve" value="1" ${rules.approve ? 'checked' : ''}> Approve each license myself before the buyer pays</label>
@@ -120,4 +138,26 @@ function makers({ list }) {
 <table class="tbl"><thead><tr><th>Maker</th><th>Practice</th><th>Work</th><th>Applied</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No applications yet.</td></tr>'}</tbody></table></section>` });
 }
 
-module.exports = { login, overview, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+// The Trove. The maker's private gallery: every work, what it is, and what it has done.
+function trove({ maker, rows, totals, sort, room, rooms, untapped, notice }) {
+  const q = (o) => { const p = new URLSearchParams({ ...(room ? { room: room.slug } : {}), sort, ...o }); return '/studio?' + p; };
+  const sorts = [['earned', 'Most earned'], ['seen', 'Most seen'], ['untapped', 'Seen, never licensed'], ['taken', 'Date made'], ['newest', 'Newest in'], ['unfinished', 'Needs cataloguing']];
+  const tiles = rows.map(w => `<a class="tv-w" href="/studio/works/${esc(w.slug)}">
+<span class="tv-f"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">${w.sealed ? '<i class="tv-s" title="Sealed copies out">Sealed</i>' : ''}</span>
+<span class="tv-acc">${esc(w.accession || '')}</span><b>${esc(w.title)}</b><span class="tv-pl">${esc([w.place, w.taken_at ? String(w.taken_at).slice(0, 4) : ''].filter(Boolean).join(', '))}</span>
+<span class="tv-n"><em>${money(w.earned)}</em><span>${w.licensed} licensed · ${w.seen} seen${w.sites ? ` · ${w.sites} site${w.sites > 1 ? 's' : ''}` : ''}</span></span>
+${w.missing.length ? `<span class="tv-miss">Record ${w.complete}% · add ${esc(w.missing.join(', '))}</span>` : '<span class="tv-ok">Record complete</span>'}</a>`).join('');
+  return layout({ studio: true, title: 'Trove · Watermark', body: `<section class="studio-wrap tv">${nav('/studio')}
+<div class="tv-head"><div><p class="k">${esc(maker.house || maker.name)}</p><h1>${room ? esc(room.title) : 'The trove.'}</h1>
+${room && room.note ? `<p class="lede">${esc(room.note)}</p>` : `<p class="lede">Everything you hold, what each work is, and what it has done in its life.</p>`}</div>
+<div class="tv-tot"><div><b>${money(totals.earned)}</b><span>earned, lifetime</span></div><div><b>${totals.works}</b><span>works held</span></div><div><b>${totals.licensed}</b><span>licensed at least once</span></div><div><b>${totals.seen}</b><span>times seen</span></div><div><b>${totals.complete}%</b><span>catalogued</span></div></div></div>
+${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+${untapped.length && !room ? `<div class="tv-hint"><span class="k">Worth a look</span> Seen often, never licensed: ${untapped.map(w => `<a href="/studio/works/${esc(w.slug)}">${esc(w.title)}</a> (${w.seen})`).join(', ')}. A wall text, a collection or a public room can turn attention into a license.</div>` : ''}
+<nav class="tv-rooms"><a href="${'/studio?sort=' + sort}"${room ? '' : ' aria-current="page"'}>All works</a>${rooms.map(c => `<a href="/studio?room=${esc(c.slug)}&sort=${sort}"${room && room.id === c.id ? ' aria-current="page"' : ''}>${esc(c.title)} <small>${c.n}</small>${c.public ? ' <small>· public</small>' : ''}</a>`).join('')}
+<details class="tv-new"><summary>New collection</summary><form method="post" action="/studio/collections" class="form"><label>Title<input name="title" required placeholder="Florence, 2025"></label><label>Wall text<textarea name="note" rows="2"></textarea></label><label class="chk"><input type="checkbox" name="public" value="1"> Give it a public room</label><button>Open the collection</button></form></details></nav>
+${room && room.public ? `<p class="note">Public room: <a href="/rooms/${esc(room.slug)}">/rooms/${esc(room.slug)}</a></p>` : ''}
+<div class="tv-sort">${sorts.map(([k, t]) => `<a href="${q({ sort: k })}"${k === sort ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</div>
+<div class="tv-grid">${tiles || '<p class="empty">Nothing here yet. Register a work in the Vault.</p>'}</div></section>` });
+}
+
+module.exports = { login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

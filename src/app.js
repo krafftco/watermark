@@ -44,6 +44,11 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
+  // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
+  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT']])
+    if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
+  const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
+  for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
   const originals = path.join(C.dataDir, 'originals'); // a cache when the vault is S3
   const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, localRoot: path.join(C.dataDir, 'vault') });
@@ -142,7 +147,9 @@ function createApp(cfg = {}) {
     await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(maker.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
-    ledger.append(db, 'work.registered', slug, { maker: maker.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at });
+    const nw = q.work.get(slug);
+    db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph') WHERE id=?").run(accession(nw), nw.id);
+    ledger.append(db, 'work.registered', slug, { maker: maker.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
     return q.work.get(slug);
   }
 
@@ -424,7 +431,64 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/logout', (req, res) => { res.clearCookie('wm_s'); res.redirect('/'); });
 
+  // The Trove: the maker's private gallery of everything they hold, and what each work has done in its life.
+  function troveRows() {
+    return db.prepare(`SELECT w.*,
+      (SELECT COALESCE(SUM(price_cents),0) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired')) AS earned,
+      (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired')) AS licensed,
+      (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status='active') AS active,
+      (SELECT COALESCE(SUM(count),0) FROM views v WHERE v.work_id=w.id) AS seen,
+      (SELECT COALESCE(SUM(count),0) FROM views v WHERE v.work_id=w.id AND v.day >= date('now','-30 day')) AS seen30,
+      (SELECT COUNT(DISTINCT host) FROM views v WHERE v.work_id=w.id AND v.kind='embed' AND v.host IS NOT NULL) AS sites,
+      (SELECT COUNT(*) FROM sightings s WHERE s.work_id=w.id) AS sightings,
+      (SELECT COUNT(*) FROM seals s WHERE s.work_id=w.id AND s.status='open') AS sealed,
+      (SELECT GROUP_CONCAT(c.title, ' · ') FROM collection_works cw JOIN collections c ON c.id=cw.collection_id WHERE cw.work_id=w.id) AS rooms
+      FROM works w ORDER BY w.id DESC`).all().map(w => {
+        const missing = [];
+        if (!w.caption) missing.push('caption'); if (!w.place) missing.push('place'); if (!w.taken_at) missing.push('date');
+        if (!w.keywords) missing.push('keywords'); if (!w.rooms) missing.push('a collection');
+        return { ...w, missing, complete: Math.round(100 * (5 - missing.length) / 5) };
+      });
+  }
   app.get('/studio', studioOnly, (req, res) => {
+    let rows = troveRows();
+    const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
+    if (room) { const ids = new Set(db.prepare('SELECT work_id FROM collection_works WHERE collection_id=?').all(room.id).map(r => r.work_id)); rows = rows.filter(w => ids.has(w.id)); }
+    const sorts = { earned: (a, b) => b.earned - a.earned || b.seen - a.seen, seen: (a, b) => b.seen - a.seen, newest: (a, b) => b.id - a.id, taken: (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')), untapped: (a, b) => (b.licensed ? -1 : b.seen) - (a.licensed ? -1 : a.seen), unfinished: (a, b) => a.complete - b.complete };
+    const sort = sorts[req.query.sort] ? req.query.sort : 'earned';
+    rows.sort(sorts[sort]);
+    const all = troveRows();
+    const totals = { works: all.length, earned: all.reduce((a, w) => a + w.earned, 0), licensed: all.filter(w => w.licensed).length, seen: all.reduce((a, w) => a + w.seen, 0), sealed: all.reduce((a, w) => a + w.sealed, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
+    const untapped = all.filter(w => !w.licensed && w.seen > 0).sort((a, b) => b.seen - a.seen).slice(0, 3);
+    res.send(S.trove({ maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
+  });
+
+  // Collections: the maker's rooms. Private by default; a public room has its own page.
+  app.post('/studio/collections', studioOnly, (req, res) => {
+    const title = String(req.body.title || '').trim().slice(0, 120); if (!title) return res.redirect('/studio');
+    let slug = slugify(title), i = 2; while (db.prepare('SELECT 1 FROM collections WHERE slug=?').get(slug)) slug = `${slugify(title)}-${i++}`;
+    db.prepare('INSERT INTO collections (slug,title,note,public) VALUES (?,?,?,?)').run(slug, title, String(req.body.note || '').slice(0, 2000) || null, req.body.public ? 1 : 0);
+    res.redirect(`/studio?room=${slug}&ok=${encodeURIComponent(`"${title}" is open. Add works to it from their catalogue pages.`)}`);
+  });
+  app.get('/rooms/:slug', (req, res) => {
+    const c = db.prepare('SELECT * FROM collections WHERE slug=? AND public=1').get(req.params.slug); if (!c) return res.sendStatus(404);
+    const works = db.prepare("SELECT w.* FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, w.id").all(c.id);
+    res.send(V.room({ c, works, maker }));
+  });
+
+  // The catalogue record for one work.
+  app.post('/studio/works/:slug/catalogue', studioOnly, (req, res) => {
+    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const b = req.body; const t = (v, n) => String(v || '').trim().slice(0, n) || null;
+    db.prepare('UPDATE works SET title=COALESCE(?,title), caption=?, place=?, keywords=?, credit=?, medium=? WHERE id=?')
+      .run(t(b.title, 160), t(b.caption, 4000), t(b.place, 160), t(b.keywords, 400), t(b.credit, 200), t(b.medium, 120), w.id);
+    const ids = (b.rooms == null ? [] : Array.isArray(b.rooms) ? b.rooms : [b.rooms]).map(Number).filter(Boolean);
+    db.prepare('DELETE FROM collection_works WHERE work_id=?').run(w.id);
+    for (const cid of ids) if (db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id);
+    res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Catalogue record saved.')}`);
+  });
+
+  app.get('/studio/activity', studioOnly, (req, res) => {
     const stats = {
       works: db.prepare("SELECT COUNT(*) n FROM works").get().n,
       active: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active'").get().n,
@@ -515,7 +579,9 @@ function createApp(cfg = {}) {
     const seen = db.prepare('SELECT * FROM sightings WHERE work_id=? ORDER BY id DESC').all(w.id);
     const lic = db.prepare("SELECT l.*, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? ORDER BY l.id DESC").all(w.id);
     const seals = db.prepare('SELECT * FROM seals WHERE work_id=? ORDER BY created_at DESC').all(w.id);
-    res.send(S.workTerms({ w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
+    const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
+    const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
+    res.send(S.workTerms({ rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
   });
   app.post('/studio/works/:slug', studioOnly, (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
@@ -586,8 +652,8 @@ function createApp(cfg = {}) {
   if (!cfg.noTimers) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }
-  app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
-  app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
+  app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
+  app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
