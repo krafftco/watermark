@@ -13,7 +13,7 @@
       var s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/'; s.onload = res; s.onerror = rej; document.head.appendChild(s);
     }).then(function () {
       stripe = window.Stripe(C.pk);
-      elements = stripe.elements({ mode: 'payment', amount: C.amount, currency: 'usd', appearance: { theme: 'flat', variables: { borderRadius: '0px' } } });
+      elements = stripe.elements({ mode: 'payment', amount: C.amount, currency: 'usd', appearance: { theme: 'flat', variables: { borderRadius: '0px', colorPrimary: '#0e0e0e', fontFamily: 'Archivo, Helvetica Neue, Arial, sans-serif' } } });
     });
     return loading;
   }
@@ -26,9 +26,9 @@
   function build() {
     sheet = el('div', 'ps'); sheet.hidden = true; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Share it');
     sheet.innerHTML = '<div class="ps-veil"></div><div class="ps-card"><button type="button" class="ps-x" aria-label="Close">&times;</button>'
-      + '<div class="ps-buy"><div class="ps-head"><img class="ps-img" alt=""><div><p class="ps-k">Share it</p><p class="ps-t"></p><p class="ps-p">' + esc(C.price) + '</p></div></div>'
+      + '<div class="ps-buy"><div class="ps-head"><div class="ps-mat"><img class="ps-img" alt=""></div><div class="ps-row"><p class="ps-t"></p><p class="ps-p">' + esc(C.price) + '</p></div><p class="ps-k">Collect it &middot; yours to share</p></div>'
       + '<div class="ps-ece"></div><p class="ps-wait">One moment&hellip;</p><button type="button" class="ps-card-link">Pay by card instead</button>'
-      + '<p class="ps-fine">About a coffee; 85% goes to the photographer. Yours to post on your own accounts, credited. Your card is remembered on this device, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
+      + '<p class="ps-fine">85% goes to the photographer. Your card is remembered here, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
       + '<div class="ps-done" hidden><span class="ps-seal" aria-hidden="true"></span><h2>Yours.</h2><p class="ps-dt"></p>'
       + '<a class="ps-dl" href="#" download>Save the photograph</a><button type="button" class="ps-copy">Copy the credit</button><a class="ps-lic" href="#">Your license</a></div></div>';
     document.body.appendChild(sheet);
@@ -39,7 +39,7 @@
   }
 
   function mount() {
-    ece = elements.create('expressCheckout', { emailRequired: true, buttonHeight: 52, buttonType: { applePay: 'buy', googlePay: 'buy' }, layout: { maxColumns: 1, maxRows: 3, overflow: 'never' } });
+    ece = elements.create('expressCheckout', { emailRequired: true, buttonHeight: 54, buttonTheme: { applePay: 'black', googlePay: 'black', paypal: 'black' }, buttonType: { applePay: 'buy', googlePay: 'buy' }, layout: { maxColumns: 1, maxRows: 3, overflow: 'never' } });
     ece.on('ready', function (e) { ready = true; available = !!(e.availablePaymentMethods && Object.keys(e.availablePaymentMethods).some(function (k) { return e.availablePaymentMethods[k]; })); settle(); });
     ece.on('confirm', pay);
     ece.mount(sheet.querySelector('.ps-ece'));

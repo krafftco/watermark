@@ -1,4 +1,4 @@
-:root{--bg:#fff;--ink:#0e0e0e;--mu:#5f5f5c;--ln:#e2e2df;--soft:#f2f2f0;--ac:#2335c4;--disp:"Instrument Serif",Georgia,serif;--read:"Newsreader",Georgia,serif;--sans:"Archivo","Helvetica Neue",Arial,sans-serif;--e:cubic-bezier(.16,1,.3,1)}
+:root{--bg:#fff;--ink:#0e0e0e;--mu:#5f5f5c;--ln:#e2e2df;--soft:#f2f2f0;--ac:#0e0e0e;--disp:"Instrument Serif",Georgia,serif;--read:"Newsreader",Georgia,serif;--sans:"Archivo","Helvetica Neue",Arial,sans-serif;--e:cubic-bezier(.16,1,.3,1)}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
 a{color:inherit}
@@ -461,15 +461,15 @@ h1{font-size:clamp(44px,6vw,96px);line-height:.95}
 .gh h2{font-size:clamp(28px,2.6vw,40px)}
 .top{background:rgba(255,255,255,.94)}
 .top nav{font-family:var(--sans);font-weight:500;letter-spacing:.04em;text-transform:none;font-size:14px}
-.top nav a{color:var(--ink)}.top nav a:hover{color:var(--ac)}
+.top nav a{color:var(--ink)}.top nav a:hover{color:var(--mu)}
 .k,.cx-count,.gh span{letter-spacing:.06em;text-transform:none;font-size:13px;font-weight:500}
 .buy-btn{border-radius:0;background:var(--ac);font-weight:600;font-size:15px}
-.buy-btn:hover{background:#16238a}
-.share-buy button{background:var(--ac)}.share-buy button:hover{background:#16238a}
+
+
 .share-buy span{letter-spacing:.02em;text-transform:none;font-size:15px;font-weight:600}
 .share-buy b{font-family:var(--disp);font-size:30px}
 .pb{background:#fff;color:var(--ac);font-weight:600;letter-spacing:.02em;text-transform:none;font-size:12px}
-.lb .lb-share button{background:var(--ac);color:#fff}.lb .lb-share button:hover{background:#3a4ddb;color:#fff}
+
 .cx-bar button{letter-spacing:.02em;text-transform:none;font-size:13px;font-weight:500}
 .cx-bar button[aria-pressed=true]{color:var(--ac);text-decoration-color:var(--ac)}
 .jr-go,.essay-go{color:var(--ac)!important}
@@ -487,6 +487,36 @@ h1{font-size:clamp(44px,6vw,96px);line-height:.95}
 .cx-hero .btn{flex:none}
 .cx-cap{z-index:1}
 .cx-intro h2{font-family:var(--disp);font-weight:400;font-size:clamp(40px,5vw,64px);line-height:1;margin:6px 0 8px}
-.cx-hero .btn{background:var(--ac);border-color:var(--ac);color:#fff;border-radius:0;padding:18px 30px;font-weight:600}
-.cx-hero .btn:hover{background:#16238a;border-color:#16238a}
 section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
+
+/* ---- The jewel button: black lacquer, an inner hairline like a mat, the price set in the display serif ---- */
+.jewel,.share-buy button,.buy-btn,.lb .lb-share button,.ps-dl{position:relative;overflow:hidden;border:0;border-radius:0;background:#0e0e0e;color:#f7f6f3;box-shadow:inset 0 0 0 4px #0e0e0e,inset 0 0 0 5px rgba(255,255,255,.22);transition:background .5s var(--e),box-shadow .5s var(--e),transform .2s var(--e)}
+.jewel::after,.share-buy button::after,.buy-btn::after,.lb .lb-share button::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);transform:skewX(-18deg);transition:left .9s var(--e);pointer-events:none}
+.jewel:hover::after,.share-buy button:hover::after,.buy-btn:hover::after,.lb .lb-share button:hover::after{left:120%}
+.jewel:hover,.share-buy button:hover,.buy-btn:hover,.lb .lb-share button:hover,.ps-dl:hover{background:#000;box-shadow:inset 0 0 0 4px #000,inset 0 0 0 5px rgba(255,255,255,.4)}
+.jewel:active,.share-buy button:active,.buy-btn:active{transform:scale(.99)}
+.buy-btn{font-weight:500;letter-spacing:.04em;padding:21px 26px}
+.share-buy button{max-width:440px;align-items:center;padding:20px 26px 20px 28px}
+.share-buy span{font-size:12px;letter-spacing:.26em;font-weight:500}
+.share-buy b{font-family:var(--disp);font-weight:400;font-size:32px;line-height:1;letter-spacing:0;padding-left:22px;border-left:1px solid rgba(255,255,255,.22)}
+.share-buy p{max-width:440px}
+/* On a photograph: ivory instead of black */
+.cx-hero .btn{background:#f7f6f3;color:#0e0e0e;border:0;border-radius:0;padding:19px 32px;font-weight:500;letter-spacing:.04em;box-shadow:inset 0 0 0 4px #f7f6f3,inset 0 0 0 5px rgba(14,14,14,.25);transition:background .4s var(--e)}
+.cx-hero .btn:hover{background:#fff}
+.pb{background:rgba(255,255,255,.94);color:#0e0e0e;font-weight:500}
+.yc-no{background:#0e0e0e}
+.jr-go,.essay-go{color:var(--ink)!important}
+.cx-bar button[aria-pressed=true]{color:var(--ink);text-decoration-color:var(--ink)}
+/* The sheet: the photograph first, matted, then one price and one button */
+.ps-card{width:min(460px,100%);padding:22px 22px calc(22px + env(safe-area-inset-bottom))}
+.ps-head{display:block;margin:0 0 18px}
+.ps-mat{background:var(--soft);padding:18px;margin:0 0 16px}
+.ps-img{display:block;width:100%;height:auto;max-height:42vh;object-fit:contain;background:none;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.ps-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.ps-t{font-family:var(--disp);font-size:26px;line-height:1.1}
+.ps-p{margin:0;font-family:var(--disp);font-size:32px;line-height:1;color:var(--ink)}
+.ps-k{margin:6px 0 0}
+.ps-done h2{font-family:var(--disp);font-size:52px}
+.ps-seal{background-color:#0e0e0e}
+.ps-dl{padding:18px;letter-spacing:.2em}
+.pt{background:#0e0e0e;box-shadow:inset 0 0 0 3px #0e0e0e,inset 0 0 0 4px rgba(255,255,255,.18),0 10px 40px rgba(0,0,0,.25)}
