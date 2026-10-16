@@ -596,3 +596,5 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .sr-band-t span{font-size:14px;color:#333}
 .sr-band:hover b{color:var(--mu)}
 @media (max-width:560px){.sr-band{grid-template-columns:1fr}.sr-band-im img:nth-child(3){display:none}}
+.sr-im img{width:min(100%,calc(70vh * var(--r)));max-height:none;height:auto}
+.sr-big .sr-im img{width:min(100%,calc(82vh * var(--r)))}
