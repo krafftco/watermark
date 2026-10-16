@@ -237,7 +237,7 @@ function reported({ w }) {
 // Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
 function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false } }) {
   const pick = uses.find(u => u.key === chosen) || uses.find(u => u.key === 'social' && u.price_cents != null) || uses.find(u => u.key === 'commercial') || uses[0];
-  const label = u => u.price_cents == null || !instant ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
+  const label = u => u.price_cents == null || !instant ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Share it' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
   const row = u => `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
 <span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`;
@@ -259,7 +259,7 @@ ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name=
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 <button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
 ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
-<p class="buy-how">${rules.approve ? 'The maker approves each license personally, usually within the day. You pay only once it is approved.' : instant ? 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.' : 'The maker replies with terms and a payment link, usually within the day.'}</p>
+<p class="buy-how">${rules.approve ? 'The maker approves each license personally, usually within the day. You pay only once it is approved.' : instant ? (pick && pick.key === 'social' ? 'Apple Pay, Google Pay or card. The file is yours the moment you pay, ready to post.' : 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.') : 'The maker replies with terms and a payment link, usually within the day.'}</p>
 <ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded on the <a href="/ledger">ledger</a></li></ul>
 <p class="buy-more">Exclusivity, a longer term or something larger? <a href="/buy/${esc(w.slug)}?ask=1" data-ask>Ask the maker</a>. &middot; <a href="/terms" target="_blank">The terms</a>, in plain language.</p>
 </form></section>
