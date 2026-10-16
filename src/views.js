@@ -27,7 +27,7 @@ ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://kraff
 </body></html>`;
 }
 
-function collection({ maker, works, rooms = [], share = null }) {
+function collection({ maker, works, rooms = [], share = null, pay = null }) {
   // The collection is an archive you can walk: rooms as galleries, an index to search, and every
   // photograph a click from filling the screen.
   const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
@@ -56,11 +56,11 @@ function collection({ maker, works, rooms = [], share = null }) {
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
 <div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button>Share it · ${money(share.price_cents)}</button></form>` : ''}</span></div>
 <button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Previous"></button><button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Next"></button></div>
-<script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js" defer></script>`
+<script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js" defer></script>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}`
   });
 }
 
-function work({ w, maker, uses, base, rules }) {
+function work({ w, maker, uses, base, rules, pay = null }) {
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
   const facts = [
     ['Maker', maker.name], ['House', maker.house], ['Place', w.place], ['Taken', date(w.taken_at)],
@@ -87,7 +87,7 @@ function work({ w, maker, uses, base, rules }) {
 <p class="by">Photograph by ${esc(maker.name)}${maker.house ? `, ${esc(maker.house)}` : ''}</p>
 ${w.caption ? `<p class="cap">${esc(w.caption)}</p>` : ''}
 <dl class="facts">${facts}</dl>
-${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>Yours to post on your own accounts, credited. Apple Pay, one tap; the file arrives the moment you pay.</p></form>` : ''}
+${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(w.title)}"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>Yours to post on your own accounts, credited. Apple Pay, one tap; the file arrives the moment you pay.</p></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="note">Every license is written in plain language, carries its own reference, and is recorded on the <a href="/ledger">ledger</a>. The full file is delivered when the license is granted.</p>

@@ -21,7 +21,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const stripeClient = require('stripe')('sk_test_dummy'); const sessions = {};
   stripeClient.checkout.sessions.create = async o => { const id = 'cs_mock_' + Object.keys(sessions).length; sessions[id] = { id, ...o, url: 'https://checkout.stripe.test/' + id, payment_status: 'unpaid' }; return sessions[id]; };
   stripeClient.checkout.sessions.retrieve = async id => sessions[id];
-  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
+  const pis = {}; let cus = 0, refunds = [];
+  stripeClient.customers.create = async o => ({ id: 'cus_' + (++cus), ...o });
+  stripeClient.paymentIntents.create = async o => { const id = 'pi_mock_' + Object.keys(pis).length; pis[id] = { id, client_secret: id + '_secret', status: o.confirm ? 'succeeded' : 'requires_payment_method', amount_received: o.confirm ? o.amount : 0, payment_method: o.payment_method || null, ...o }; return pis[id]; };
+  stripeClient.paymentIntents.retrieve = async id => pis[id];
+  stripeClient.refunds.create = async o => { refunds.push(o); return { id: 're_1', ...o }; };
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
   const { registerWork, db } = app.locals;
   const tmp = path.join(dir, 'in.jpg'); fs.copyFileSync(SRC, tmp);
@@ -69,6 +74,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const sl1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ss.metadata.ref);
   r = await req(port, 'GET', `/d/${sl1.download_token}`); assert.equal(r.status, 200);
   const sm = await require('sharp')(r.body).metadata(); assert.ok(sm.width <= 2400 && sm.height <= 2400, 'screen-sized for sharing');
+  // Share it in place: wallet sheet first time (card remembered), then one tap with a short undo
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('/static/pay.js') && r.body.toString().includes('pk_test_dummy'), 'wallet sheet offered');
+  r = await req(port, 'POST', `/pay/${w.slug}`, { body: JSON.stringify({ email: 'tap@me.com', name: 'Tap Fan' }), headers: { 'content-type': 'application/json' } });
+  let pj = JSON.parse(r.body); assert.ok(pj.ok && pj.secret, 'intent made'); const bck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+  const pi0 = Object.values(pis).find(p => p.metadata.ref === pj.ref); assert.strictEqual(pi0.setup_future_usage, 'off_session');
+  r = await req(port, 'POST', `/pay/${pj.ref}/done`, { cookie: bck }); assert.strictEqual(JSON.parse(r.body).ok, false, 'not before paying');
+  Object.assign(pi0, { status: 'succeeded', amount_received: 500, payment_method: 'pm_card_1' });
+  r = await req(port, 'POST', `/pay/${pj.ref}/done`, { cookie: bck }); let dj = JSON.parse(r.body);
+  assert.ok(dj.ok && dj.download.startsWith('/d/'), 'handed over'); assert.ok(r.headers['set-cookie'].some(c => c.startsWith('wm_tap=1')), 'one tap next time');
+  r = await req(port, 'POST', `/pay/${w.slug}/tap`); assert.strictEqual(JSON.parse(r.body).sheet, true, 'no remembered card, no tap');
+  r = await req(port, 'POST', `/pay/${w.slug}/tap`, { cookie: bck }); const tj = JSON.parse(r.body);
+  assert.ok(tj.ok && tj.undo && tj.download, 'one tap: paid and handed over');
+  assert.strictEqual(Object.values(pis).find(p => p.metadata.ref === tj.ref).payment_method, 'pm_card_1');
+  r = await req(port, 'GET', tj.download); assert.equal(r.status, 200);
+  r = await req(port, 'POST', `/pay/${tj.ref}/undo`, { cookie: bck }); assert.ok(JSON.parse(r.body).ok && refunds.length === 1, 'undo refunds');
+  r = await req(port, 'GET', tj.download); assert.equal(r.status, 404, 'undone file stops working');
+
 
   // bespoke: ask the maker
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'campaign', ask: '1' } }); assert.ok(r.body.includes('Send to the maker'));

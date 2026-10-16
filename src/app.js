@@ -37,6 +37,8 @@ function createApp(cfg = {}) {
     adminPassword: cfg.adminPassword || process.env.ADMIN_PASSWORD || '',
     secret: cfg.secret || process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     stripeKey: cfg.stripeKey !== undefined ? cfg.stripeKey : process.env.STRIPE_SECRET_KEY,
+    // Public by design: lets the page open Apple Pay / Google Pay / Link in place.
+    stripePk: cfg.stripePk !== undefined ? cfg.stripePk : process.env.STRIPE_PUBLISHABLE_KEY,
     webhookSecret: cfg.webhookSecret !== undefined ? cfg.webhookSecret : process.env.STRIPE_WEBHOOK_SECRET,
     maker: cfg.maker || { handle: process.env.MAKER_HANDLE || 'krafft', name: process.env.MAKER_NAME || 'Will Fullerton', house: process.env.MAKER_HOUSE || 'Krafft Studios', email: process.env.MAKER_EMAIL || 'will@krafftco.com' },
   };
@@ -45,6 +47,8 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
+  // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
+  db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
   for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
@@ -191,6 +195,10 @@ function createApp(cfg = {}) {
       const ref = s.metadata && s.metadata.ref;
       if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
     }
+    if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
+      const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
+      if (ref && q.lic.get(ref)) grant(ref, { paid: true, price_cents: pi.amount_received });
+    }
     res.json({ received: true });
   });
 
@@ -208,7 +216,7 @@ function createApp(cfg = {}) {
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
-    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms, share: q.use.get(maker.id, 'social') }));
+    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms, share: q.use.get(maker.id, 'social'), pay: payCfg() }));
   });
 
   // Makers apply to hold their work here. Read in the Studio.
@@ -238,7 +246,7 @@ function createApp(cfg = {}) {
     if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), base: C.base, rules }));
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), base: C.base, rules, pay: payCfg() }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -331,6 +339,98 @@ function createApp(cfg = {}) {
       res.redirect(303, s.url);
     } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
   });
+
+  // ---------- Share it, paid in place ----------
+  // Tap, Face ID, done: the page opens Apple Pay / Google Pay / Link itself (Stripe Express Checkout),
+  // the payment is confirmed here, and the file is handed over without leaving the photograph.
+  const payCfg = () => { const u = q.use.get(maker.id, 'social'); return stripe && C.stripePk && u && u.price_cents != null ? { pk: C.stripePk, amount: u.price_cents, price: V.money(u.price_cents) } : null; };
+  app.locals.payCfg = payCfg;
+  // The buyer is known only by a signed cookie on their device; no account, no password.
+  const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); return mac === sign('b' + id) ? db.prepare('SELECT * FROM buyers WHERE id=?').get(+id) : null; };
+  const setBuyer = (res, b, tap) => {
+    const o = { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 365 };
+    res.cookie('wm_b', `${b.id}.${sign('b' + b.id)}`, { ...o, httpOnly: true });
+    if (tap) res.cookie('wm_tap', '1', o); // tells the page a one-tap card is ready (holds nothing)
+  };
+  if (stripe && C.stripePk && !cfg.noTimers) { // Apple Pay shows only on a domain Stripe knows
+    try { stripe.paymentMethodDomains.create({ domain_name: new URL(C.base).hostname }).catch(() => {}); } catch (e) { /* older client */ }
+  }
+  app.post('/pay/:slug', async (req, res) => {
+    const w = q.work.get(req.params.slug), u = q.use.get(maker.id, 'social');
+    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
+    const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
+    const ref = nextRef();
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions) VALUES (?,?,?,?,?,?,'awaiting_payment',?)")
+      .run(ref, w.id, u.id, name, email, u.price_cents, R.conditions(R.parse(w.rules)) || null);
+    try {
+      // First Share it from this device: a Stripe customer is made so the card can be remembered for one tap next time.
+      let b = buyerOf(req);
+      if (!b) {
+        const cu = await stripe.customers.create({ ...(email ? { email } : {}), ...(name && name !== 'Buyer' ? { name } : {}), metadata: { source: 'watermark-share' } });
+        const id = db.prepare('INSERT INTO buyers (customer, email) VALUES (?,?)').run(cu.id, email || null).lastInsertRowid;
+        b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b);
+      }
+      const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', automatic_payment_methods: { enabled: true }, customer: b.customer, setup_future_usage: 'off_session',
+        description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug }, ...(email ? { receipt_email: email } : {}) });
+      db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
+      ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
+      res.json({ ok: true, ref, secret: pi.client_secret });
+    } catch (e) { console.error('[pay]', e.message); db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref); res.status(502).json({ ok: false }); }
+  });
+  app.post('/pay/:ref/done', async (req, res) => {
+    let l = q.lic.get(req.params.ref);
+    if (!l || !stripe || !/^pi_/.test(l.stripe_session || '')) return res.status(404).json({ ok: false });
+    if (l.status !== 'active') {
+      const pi = await stripe.paymentIntents.retrieve(l.stripe_session).catch(() => null);
+      if (!pi || pi.status !== 'succeeded') return res.json({ ok: false, status: pi ? pi.status : 'unknown' });
+      const b = buyerOf(req);
+      if (b && pi.customer === b.customer && pi.payment_method) { db.prepare('UPDATE buyers SET pm=?, email=COALESCE(email, ?) WHERE id=?').run(pi.payment_method, pi.receipt_email || null, b.id); setBuyer(res, b, true); }
+      l = grant(l.ref, { paid: true, price_cents: pi.amount_received });
+    }
+    res.json(handover(l));
+  });
+
+  // Every Share it after the first: one tap, the remembered card, no sheet. Undo for a short while after.
+  app.post('/pay/:slug/tap', async (req, res) => {
+    const w = q.work.get(req.params.slug), u = q.use.get(maker.id, 'social'), b = buyerOf(req);
+    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (!b || !b.pm) return res.json({ ok: false, sheet: true });
+    const ref = nextRef();
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions) VALUES (?,?,?,?,?,?,'awaiting_payment',?)")
+      .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null);
+    try {
+      const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', customer: b.customer, payment_method: b.pm, off_session: true, confirm: true,
+        description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug, tap: '1' }, ...(b.email ? { receipt_email: b.email } : {}) });
+      db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
+      ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key, tap: true });
+      if (pi.status !== 'succeeded') return res.json({ ok: false, sheet: true });
+      res.json({ ...handover(grant(ref, { paid: true, price_cents: pi.amount_received })), undo: true });
+    } catch (e) { // the bank wants a word (3-D Secure) or the card has gone: fall back to the sheet
+      db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref);
+      res.json({ ok: false, sheet: true });
+    }
+  });
+  // A mis-tap: within two minutes, the same device can take it back. Refunded in full; the file stops working.
+  app.post('/pay/:ref/undo', async (req, res) => {
+    const l = q.lic.get(req.params.ref), b = buyerOf(req);
+    if (!l || !b || l.status !== 'active' || !/^pi_/.test(l.stripe_session || '') || Date.now() - new Date(l.starts_at).getTime() > 120e3) return res.status(400).json({ ok: false });
+    const pi = await stripe.paymentIntents.retrieve(l.stripe_session).catch(() => null);
+    if (!pi || pi.customer !== b.customer) return res.status(403).json({ ok: false });
+    try { await stripe.refunds.create({ payment_intent: pi.id }); } catch (e) { return res.status(502).json({ ok: false }); }
+    db.prepare("UPDATE licenses SET status='declined', download_token=NULL, updated_at=datetime('now') WHERE ref=?").run(l.ref);
+    ledger.append(db, 'license.undone', l.ref, { refunded: true });
+    res.json({ ok: true });
+  });
+  // Forget the remembered card on this device.
+  app.post('/pay/forget', (req, res) => {
+    const b = buyerOf(req); if (b) db.prepare('UPDATE buyers SET pm=NULL WHERE id=?').run(b.id);
+    res.clearCookie('wm_b'); res.clearCookie('wm_tap'); res.json({ ok: true });
+  });
+  function handover(l) {
+    const w = db.prepare('SELECT title, slug FROM works WHERE id=?').get(l.work_id);
+    return { ok: true, ref: l.ref, download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
+  }
 
   app.get('/buy/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
