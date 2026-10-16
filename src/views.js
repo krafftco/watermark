@@ -5,16 +5,22 @@ const date = s => s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric',
 const { NEVER } = require('./rules');
 const termText = u => u.kind === 'print' ? 'Yours to keep' : u.term_months ? (u.term_months % 12 ? `${u.term_months} months` : `${u.term_months / 12} year${u.term_months > 12 ? 's' : ''}`) : 'Perpetual';
 
-function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false }) {
+const BASE = () => (process.env.BASE_URL || 'https://watermark.krafftco.com').replace(/\/$/, '');
+// Link previews (iMessage, LinkedIn, Slack), search engines and Google Images read these.
+function headMeta({ title, desc, path, image, type = 'website', jsonld }) {
+  const u = BASE() + (path || '');
+  return `<link rel="canonical" href="${esc(u)}"><meta property="og:site_name" content="Watermark"><meta property="og:type" content="${type}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(u)}">${image ? `<meta property="og:image" content="${esc(BASE() + image)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(BASE() + image)}">` : '<meta name="twitter:card" content="summary">'}${jsonld ? `<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>` : ''}`;
+}
+function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="noai, noimageai"><meta name="tdm-reservation" content="1">
+<title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&display=swap">
 <link rel="stylesheet" href="/static/style.css"><link rel="icon" href="/static/wave.svg"></head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; a Krafft company &middot; Leave your mark.</p><p><a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
 }
 
@@ -23,6 +29,7 @@ function collection({ maker, works }) {
   return layout({
     title: `${maker ? maker.name + ' · ' : ''}Watermark`,
     desc: 'Photographs held, credited and licensed on Watermark.',
+    path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
     body: `<section class="intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
 <h1>Photographs held on Watermark.</h1><p class="lede">Every work here is registered to its maker, shown at screen size, and licensed at the source. Press any photograph to see who made it and how to use it properly.</p></section>
 <section class="grid">${cards || '<p class="empty">Nothing is held here yet.</p>'}</section>`
@@ -39,7 +46,14 @@ function work({ w, maker, uses, base, rules }) {
   const options = uses.map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   return layout({
     title: `${w.title} · ${maker.name} · Watermark`,
-    desc: `${w.title}, a photograph by ${maker.name}. Held on Watermark.`,
+    desc: `${w.title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; license it at the source.`,
+    path: `/w/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article',
+    // Google Images shows a "Licensable" badge when an image carries these fields.
+    jsonld: { '@context': 'https://schema.org', '@type': 'ImageObject', name: w.title, caption: w.caption || undefined, contentUrl: `${BASE()}/img/${w.slug}/screen`, thumbnailUrl: `${BASE()}/img/${w.slug}/thumb`,
+      creator: { '@type': 'Person', name: maker.name }, creditText: `Photograph by ${maker.name}${maker.house ? ', ' + maker.house : ''}`, copyrightNotice: `© ${maker.name}`,
+      copyrightHolder: { '@type': 'Person', name: maker.name }, license: `${BASE()}/terms`, acquireLicensePage: `${BASE()}/license/${w.slug}`,
+      dateCreated: w.taken_at || undefined, contentLocation: w.place ? { '@type': 'Place', name: w.place } : undefined, identifier: w.accession || undefined,
+      sourceOrganization: { '@type': 'Organization', name: 'Watermark', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } } },
     body: `<article class="work">
 <figure class="plate" style="aspect-ratio:${ratio}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(w.title)}" data-credit="Photograph by ${esc(maker.name)}">
 <img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"><span class="shield"></span></figure>
@@ -92,6 +106,8 @@ function home({ maker, works, uses, sent }) {
   return layout({
     title: 'Watermark · For the people who make the pictures',
     desc: 'Hold your work, set your terms, and get paid the moment someone uses it properly.',
+    path: '/', image: hero ? `/img/${hero.slug}/screen` : null,
+    jsonld: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Watermark', url: BASE(), logo: `${BASE()}/static/watermark-logo.svg`, slogan: 'Leave your mark.', description: 'Hold, show, license and protect photographs at the source.', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } },
     body: `<section class="h-hero">${hero ? `<img src="/img/${esc(hero.slug)}/large" alt="" draggable="false">` : ''}<div class="h-shade"></div>
 <div class="h-in"><p class="k">Watermark</p><h1>For the people who make the pictures.</h1>
 <p class="h-lede">Hold your work. Set your terms. Get paid the moment someone uses it properly.</p>

@@ -74,7 +74,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'commercial' } }); assert.ok(r.body.includes('approves each license personally'));
   r = await req(port, 'GET', `/w/${w.slug}/life`); assert.ok(r.body.includes('$750') && r.body.includes('times licensed'), 'life shows earnings when opted in');
   // protection signals, sightings, applications
-  r = await req(port, 'GET', '/robots.txt'); assert.ok(r.body.includes('GPTBot') && r.body.includes('Disallow: /img/'));
+  r = await req(port, 'GET', '/sitemap.xml'); assert.ok(r.body.includes(`/w/${w.slug}`) && r.body.includes('image:loc'), 'sitemap lists works with images');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.includes('"acquireLicensePage"') && r.body.includes('og:image'), 'licensable image metadata and link previews');
+  r = await req(port, 'GET', '/robots.txt'); assert.ok(r.body.includes('GPTBot') && r.body.includes('Disallow: /img/') && r.body.includes('Allow: /img/*/screen') && r.body.includes('Sitemap:'));
   r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.headers['tdm-reservation'], '1'); assert.ok(r.headers['x-robots-tag'].includes('noai'));
   r = await req(port, 'POST', `/report/${w.slug}`, { body: { url: 'https://example.org/story', note: 'header image' } }); assert.ok(r.body.includes('The maker will see it'));
   r = await req(port, 'GET', '/studio/sightings', { cookie: ck }); assert.ok(r.body.includes('example.org/story'));
