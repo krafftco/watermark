@@ -21,7 +21,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css"><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours">Yours</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours">Yours</a><a href="/#makers" class="nv-m">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/patronage">On patronage</a> &middot; <a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
@@ -442,8 +442,8 @@ function patronage() {
 
 // The Journal: what Krafft Studios writes about Watermark, art history and the people who make and collect.
 function journal({ posts }) {
-  const item = (p, lead) => `<a class="jr${lead ? ' jr-lead' : ''}" href="${esc(p.url)}">${p.feature_image ? `<span class="jr-f"><img src="${esc(p.feature_image)}" alt="${esc(p.feature_image_alt || '')}" loading="lazy" draggable="false"></span>` : ''}
-<span class="jr-t"><small>${date(p.published_at)}${p.reading_time ? ` &middot; ${p.reading_time} min` : ''}</small><b>${esc(p.title)}</b><span>${esc(p.custom_excerpt || (p.excerpt || '').slice(0, 220))}</span></span></a>`;
+  const item = (p, lead) => `<a class="jr${lead ? ' jr-lead' : ''}" href="${esc(p.url)}">${p.feature_image ? `<span class="jr-f"><img src="${esc(p.feature_image)}" alt="${esc(p.feature_image_alt || '')}"${lead ? ' fetchpriority="high"' : ' loading="lazy"'} draggable="false"></span>` : ''}
+<span class="jr-t"><small>${date(p.published_at)}${p.reading_time ? ` &middot; ${p.reading_time} min` : ''}</small><b>${esc(p.title)}</b><span>${esc(p.custom_excerpt || (p.excerpt || '').slice(0, 220))}</span>${lead ? '<span class="jr-go">Read on Krafft Studios &rarr;</span>' : ''}</span></a>`;
   return layout({ title: 'Journal · Watermark', desc: 'Watermark news, art history and patronage, written by Krafft Studios.', path: '/journal', body: `<section class="cx-intro"><p class="k">Journal</p>
 <h1>On making, collecting and keeping.</h1><p class="lede">News from Watermark, the history of art and patronage, and the people who make and collect. Written and published by <a href="https://studios.krafftco.com">Krafft Studios</a>.</p></section>
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
