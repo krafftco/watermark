@@ -28,7 +28,7 @@
     sheet.innerHTML = '<div class="ps-veil"></div><div class="ps-card"><button type="button" class="ps-x" aria-label="Close">&times;</button>'
       + '<div class="ps-buy"><div class="ps-head"><img class="ps-img" alt=""><div><p class="ps-k">Share it</p><p class="ps-t"></p><p class="ps-p">' + esc(C.price) + '</p></div></div>'
       + '<div class="ps-ece"></div><p class="ps-wait">One moment&hellip;</p><button type="button" class="ps-card-link">Pay by card instead</button>'
-      + '<p class="ps-fine">Yours to post on your own accounts, credited. Your card is remembered on this device, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
+      + '<p class="ps-fine">About a coffee; 85% goes to the photographer. Yours to post on your own accounts, credited. Your card is remembered on this device, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
       + '<div class="ps-done" hidden><span class="ps-seal" aria-hidden="true"></span><h2>Yours.</h2><p class="ps-dt"></p>'
       + '<a class="ps-dl" href="#" download>Save the photograph</a><button type="button" class="ps-copy">Copy the credit</button><a class="ps-lic" href="#">Your license</a></div></div>';
     document.body.appendChild(sheet);

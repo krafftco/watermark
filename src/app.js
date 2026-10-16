@@ -840,8 +840,10 @@ function createApp(cfg = {}) {
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));
   app.post('/studio/uses/:key', studioOnly, (req, res) => {
     const v = String(req.body.price || '').trim();
-    const cents = v === '' ? null : Math.round(Number(v) * 100);
+    // Whole dollars only. Share it has a floor: below $3 the card fee eats the maker's share.
+    let cents = v === '' ? null : Math.round(Number(v)) * 100;
     if (cents !== null && !(cents >= 0)) return res.redirect('/studio/uses');
+    if (req.params.key === 'social' && cents !== null && cents < 300) cents = 300;
     db.prepare('UPDATE uses SET price_cents=? WHERE maker_id=? AND key=?').run(cents, maker.id, req.params.key);
     res.redirect('/studio/uses?ok=Saved');
   });

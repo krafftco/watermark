@@ -83,7 +83,7 @@ ${open ? `<div class="actions">
 }
 
 function uses({ list, notice }) {
-  const rows = list.map(u => `<tr><td><b>${esc(u.name)}</b><br><small>${esc(u.description)}</small></td><td>${esc(termText(u))}</td><td><form method="post" action="/studio/uses/${esc(u.key)}" class="inline"><input name="price" type="number" min="0" step="1" value="${u.price_cents == null ? '' : u.price_cents / 100}" placeholder="On request"><button>Save</button></form></td></tr>`).join('');
+  const rows = list.map(u => `<tr><td><b>${esc(u.name)}</b><br><small>${esc(u.description)}</small></td><td>${esc(termText(u))}</td><td><form method="post" action="/studio/uses/${esc(u.key)}" class="inline"><input name="price" type="number" min="${u.key === 'social' ? 3 : 0}" step="1" value="${u.price_cents == null ? '' : Math.round(u.price_cents / 100)}" placeholder="On request"><button>Save</button></form>${u.key === 'social' ? '<br><small>About the price of a coffee. Whole dollars, $3 at least.</small>' : ''}</td></tr>`).join('');
   return layout({ studio: true, title: 'Uses & prices · Watermark', body: `<section class="studio-wrap">${nav('/studio/uses')}<h1>Uses and prices.</h1>${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <p class="lede">Leave a price empty to take requests and quote each one yourself. A price lets licensees pay at once.</p>
 <table class="tbl"><thead><tr><th>Use</th><th>Term</th><th>Price (USD)</th></tr></thead><tbody>${rows}</tbody></table></section>` });
