@@ -43,7 +43,8 @@
     + '.kh .kh-own{margin-left:auto}'
     + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
     + '.kh .kh-sh{display:none}'
-    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-fl{display:none}.kh .kh-sh{display:inline}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
+    + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
+    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
     + '@media print{.kh{display:none}}';
   function link(p) {
     var a = document.createElement('a');
