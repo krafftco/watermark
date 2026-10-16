@@ -27,13 +27,14 @@ ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://kraff
 </body></html>`;
 }
 
-function collection({ maker, works, rooms = [] }) {
+function collection({ maker, works, rooms = [], share = null }) {
   // The collection is an archive you can walk: rooms as galleries, an index to search, and every
   // photograph a click from filling the screen.
   const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
   const data = works.map(w => ({ s: w.slug, t: w.title, p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [] }));
-  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span></a>`;
+  const sp = share && share.price_cents != null ? money(share.price_cents) : null;
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(w.title)}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp ? `<span class="pb" data-buy role="button" tabindex="0">Share it · ${sp}</span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
   const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
@@ -53,9 +54,9 @@ function collection({ maker, works, rooms = [] }) {
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
-<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#" class="lb-lic">License</a></span></div>
+<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button>Share it · ${money(share.price_cents)}</button></form>` : ''}</span></div>
 <button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Previous"></button><button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Next"></button></div>
-<script>window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js" defer></script>`
+<script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js" defer></script>`
   });
 }
 
@@ -66,7 +67,8 @@ function work({ w, maker, uses, base, rules }) {
     ['Camera', w.camera], ['Lens', w.lens], ['Registered', date(w.created_at)],
   ].filter(f => f[1]).map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
   const embed = `&lt;script src="${esc(base)}/embed.js" defer&gt;&lt;/script&gt;\n&lt;watermark-image work="${esc(w.slug)}"&gt;&lt;/watermark-image&gt;`;
-  const options = uses.map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
+  const share = uses.find(u => u.key === 'social' && u.price_cents != null);
+  const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   return layout({
     title: `${w.title} · ${maker.name} · Watermark`,
     desc: `${w.title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; license it at the source.`,
@@ -85,7 +87,8 @@ function work({ w, maker, uses, base, rules }) {
 <p class="by">Photograph by ${esc(maker.name)}${maker.house ? `, ${esc(maker.house)}` : ''}</p>
 ${w.caption ? `<p class="cap">${esc(w.caption)}</p>` : ''}
 <dl class="facts">${facts}</dl>
-<h2>Use this photograph</h2><div class="uses">${options}</div>
+${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>Yours to post on your own accounts, credited. Apple Pay, one tap; the file arrives the moment you pay.</p></form>` : ''}
+${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="note">Every license is written in plain language, carries its own reference, and is recorded on the <a href="/ledger">ledger</a>. The full file is delivered when the license is granted.</p>
 <h2>Embed it with credit</h2><pre class="code">${embed}</pre>
@@ -233,11 +236,15 @@ function reported({ w }) {
 // The license page. One photograph, four uses, every price in plain sight, one button.
 // Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
 function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false } }) {
-  const pick = uses.find(u => u.key === chosen) || uses.find(u => u.key === 'commercial') || uses[0];
+  const pick = uses.find(u => u.key === chosen) || uses.find(u => u.key === 'social' && u.price_cents != null) || uses.find(u => u.key === 'commercial') || uses[0];
   const label = u => u.price_cents == null || !instant ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
-  const rows = uses.map(u => `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
+  const row = u => `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
-<span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`).join('');
+<span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`;
+  // Share it leads; the larger uses wait behind one line until someone asks for them.
+  const lead = uses.find(u => u.key === 'social' && u.price_cents != null);
+  const rest = uses.filter(u => u !== lead);
+  const rows = lead ? `${row(lead)}<details class="bu-more"${pick !== lead ? ' open' : ''}><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary>${rest.map(row).join('')}</details>` : uses.map(row).join('');
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
   return layout({
     title: `License ${w.title} · Watermark`,
@@ -246,7 +253,7 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
 <figure class="buy-fig"><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
 <figcaption><b>${esc(w.title)}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}</figcaption></figure>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
-<p class="k">Held on Watermark</p><h1>Give it somewhere to live.</h1>
+<p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Share it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <fieldset class="bus"><legend class="vh">How it will be used</legend>${rows}</fieldset>
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>

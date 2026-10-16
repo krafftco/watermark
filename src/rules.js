@@ -13,7 +13,8 @@ function parse(json) {
   let r = {}; try { r = JSON.parse(json || '{}') || {}; } catch (e) { r = {}; }
   return { ...DEFAULT, ...r, never: Array.isArray(r.never) ? r.never.filter(k => NEVER[k]) : DEFAULT.never };
 }
-const allows = (rules, key) => !rules.uses || rules.uses.includes(key);
+// Share it is on for every work unless the maker turns it off; the other uses follow the maker's list.
+const allows = (rules, key) => key === 'social' ? rules.social !== false : (!rules.uses || rules.uses.includes(key));
 function conditions(rules) {
   const parts = [];
   if (rules.never.length) parts.push('Not for: ' + rules.never.map(k => (NEVER[k][0].toLowerCase() + NEVER[k].slice(1))).join('; '));

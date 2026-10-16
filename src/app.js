@@ -19,6 +19,7 @@ const mail = require('./mail');
 
 // [key, name, description, term months, kind, sort, default price in cents (null = ask privately)]
 const DEFAULT_USES = [
+  ['social', 'Share it', 'Post it on your own accounts: Instagram, a story, X, your lock screen. Personal, not for a business; tag the maker.', null, 'license', 0, 500],
   ['editorial', 'In a story', 'A feature, a book, an essay or a report, with the maker named beside it.', 12, 'license', 1, 35000],
   ['commercial', 'For a company', 'The face of a website, a presentation, a letter to investors. Non-exclusive.', 12, 'license', 2, 75000],
   ['campaign', 'Before an audience', 'A campaign, a film, a billboard, a package. Non-exclusive; exclusivity on request.', 12, 'license', 3, 250000],
@@ -80,6 +81,9 @@ function createApp(cfg = {}) {
       DEFAULT_USES.forEach(u => ins.run(id, ...u));
       row = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
     }
+    // Uses added since the maker joined (e.g. Share it) arrive at their default price.
+    const add = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
+    DEFAULT_USES.forEach(u => add.run(row.id, ...u));
     return row;
   }
   const maker = ensureMaker(C.maker);
@@ -204,7 +208,7 @@ function createApp(cfg = {}) {
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
-    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms }));
+    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms, share: q.use.get(maker.id, 'social') }));
   });
 
   // Makers apply to hold their work here. Read in the Studio.
@@ -315,8 +319,8 @@ function createApp(cfg = {}) {
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: `${w.title}: ${u.name}`, description: `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
-        custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: `${w.title}: ${u.name}`, description: u.key === 'social' ? `To share on your own accounts, credited. The file arrives the moment you pay. Photograph by ${maker.name}. Watermark ${ref}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
+        ...(u.key === 'social' ? {} : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
         metadata: { ref },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
@@ -417,11 +421,12 @@ function createApp(cfg = {}) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug });
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
-    const name = `${w.slug}-${l.ref}${path.extname(w.original_file)}`;
-    if (/\.jpe?g$/i.test(w.original_file)) {
+    const lu = q.useById.get(l.use_id);
+    let file; try { file = await originalPath(w); if (lu && lu.key === 'social') file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
+    const name = `${w.slug}-${l.ref}${lu && lu.key === 'social' ? '.jpg' : path.extname(w.original_file)}`;
+    if (/\.jpe?g$/i.test(file)) {
       try {
-        const u = q.useById.get(l.use_id);
+        const u = lu;
         const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base, conditions: l.conditions });
         res.set('Content-Disposition', `attachment; filename="${name}"`);
         return res.type('jpg').send(buf);

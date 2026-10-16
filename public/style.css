@@ -328,10 +328,28 @@ html.lb-on{overflow:hidden}
 .lb-act{display:flex;gap:22px;flex:none;align-items:center}
 .lb button,.lb a{border:0;border-radius:0;background:none;color:rgba(246,245,242,.7);font:inherit;letter-spacing:inherit;text-transform:inherit;text-decoration:none;cursor:pointer;padding:6px 0}
 .lb button:hover,.lb a:hover{color:#fff}
-.lb a.lb-lic{color:#0b0b0a;background:#f6f5f2;padding:8px 14px}.lb a.lb-lic:hover{background:#fff}
+.lb-share{margin:0}.lb .lb-share button{color:#0b0b0a;background:#f6f5f2;padding:9px 16px}.lb .lb-share button:hover{background:#fff;color:#000}
 .lb-nav{position:absolute!important;top:64px;bottom:64px;width:22%;padding:0!important;cursor:pointer}
 .lb-prev{left:0;cursor:w-resize}.lb-next{right:0;cursor:e-resize}
 .lb.idle .lb-top,.lb.idle .lb-cap,.lb.bare .lb-top,.lb.bare .lb-cap{opacity:0}
 .lb.idle{cursor:none}
 @media (max-width:760px){.lb-nav{display:none}.lb-stage{padding:0 0 72px}.lb-stage img{max-width:100%;max-height:calc(100% - 72px)}.lb-cap{flex-wrap:wrap}.lb-act{gap:16px}}
 @media (prefers-reduced-motion:reduce){.lb,#lbImg,.pl img{animation:none;transition:none}}
+
+/* Share it: the one-tap, everyday license. */
+.share-buy{margin:28px 0 8px}
+.share-buy button{display:flex;align-items:baseline;justify-content:space-between;gap:24px;width:100%;max-width:420px;border:0;border-radius:0;background:var(--ink);color:#f6f5f2;padding:18px 22px;font:inherit;cursor:pointer;transition:background .4s var(--e)}
+.share-buy button:hover{background:#000}
+.share-buy span{font-size:12px;letter-spacing:.24em;text-transform:uppercase}
+.share-buy b{font-family:var(--read);font-weight:300;font-size:24px}
+.share-buy p{margin:10px 0 0;max-width:420px;font-size:13px;line-height:1.5;color:var(--mu)}
+.more-uses,.bu-more{margin:18px 0 6px;border-top:1px solid var(--ln)}
+.more-uses summary,.bu-more summary{display:flex;align-items:baseline;gap:14px;padding:14px 0;cursor:pointer;list-style:none;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink)}
+.more-uses summary::-webkit-details-marker,.bu-more summary::-webkit-details-marker{display:none}
+.more-uses summary span,.bu-more summary span{font-size:12px;letter-spacing:0;text-transform:none;color:var(--mu)}
+.more-uses summary::after,.bu-more summary::after{content:"+";margin-left:auto;font-size:16px;letter-spacing:0;color:var(--mu)}
+.more-uses[open] summary::after,.bu-more[open] summary::after{content:"\2212"}
+.pb{position:absolute;top:10px;right:10px;padding:7px 11px;background:rgba(246,245,242,.94);color:var(--ink);font-size:10px;letter-spacing:.16em;text-transform:uppercase;opacity:0;transform:translateY(-4px);transition:opacity .4s var(--e),transform .4s var(--e),background .3s}
+.pl:hover .pb,.pl:focus-within .pb,.pb:focus-visible{opacity:1;transform:none}
+.pb:hover{background:#fff}
+@media (hover:none){.pb{opacity:1;transform:none;top:auto;bottom:8px;right:8px;padding:6px 9px}}

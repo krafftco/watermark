@@ -60,6 +60,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.equal(tl.status, 'active'); assert.equal(tl.licensee_company, 'Cy Co'); assert.equal(tl.intended_use, 'Homepage hero');
   r = await req(port, 'GET', `/d/${tl.download_token}`); assert.equal(r.status, 200);
   r = await req(port, 'GET', `/thanks/${tref}?session_id=wrong`); assert.equal(r.status, 302, 'thanks page needs its session');
+  // Share it: the everyday license. One tap to Checkout, no company field, the file arrives screen-sized and stamped
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it.') && r.body.toString().includes('License for $5'), 'Share it leads');
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social' } }); assert.equal(r.status, 303);
+  const ss = sessions[r.headers.location.split('/').pop()]; assert.equal(ss.line_items[0].price_data.unit_amount, 500); assert.ok(!ss.custom_fields, 'nothing to fill in');
+  Object.assign(ss, { payment_status: 'paid', amount_total: 500, customer_details: { email: 'fan@me.com', name: 'A Fan' } });
+  r = await req(port, 'GET', `/thanks/${ss.metadata.ref}?session_id=${ss.id}`); assert.ok(r.body.toString().includes('/d/'));
+  const sl1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ss.metadata.ref);
+  r = await req(port, 'GET', `/d/${sl1.download_token}`); assert.equal(r.status, 200);
+  const sm = await require('sharp')(r.body).metadata(); assert.ok(sm.width <= 2400 && sm.height <= 2400, 'screen-sized for sharing');
+
   // bespoke: ask the maker
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'campaign', ask: '1' } }); assert.ok(r.body.includes('Send to the maker'));
 
