@@ -143,7 +143,8 @@ function createApp(cfg = {}) {
     while (q.work.get(slug)) slug = `${slugify(title)}-${i++}`;
     const ext = (path.extname(originalName || file) || '.jpg').toLowerCase();
     const dest = path.join(originals, slug + ext);
-    fs.renameSync(file, dest);
+    // A file staged on another disk (e.g. /tmp beside a mounted volume) can't be renamed across; copy it.
+    try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
     await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(maker.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
@@ -682,7 +683,7 @@ function createApp(cfg = {}) {
   if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).
-  const sync = require('./studios-sync').createSync({ db, registerWork, slugify, fetchImpl: cfg.fetchImpl || fetch });
+  const sync = require('./studios-sync').createSync({ db, registerWork, slugify, fetchImpl: cfg.fetchImpl || fetch, stageDir: path.join(C.dataDir, 'incoming') });
   if (!cfg.noTimers && process.env.STUDIOS_SYNC !== 'off') { setTimeout(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 20e3).unref(); setInterval(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 6 * 3600e3).unref(); }
   app.post('/studio/sync', studioOnly, (req, res) => { sync.run().catch(e => console.error('[studios-sync]', e.message)); res.redirect('/studio?ok=' + encodeURIComponent('Pulling new photographs from Krafft Studios. They appear as they arrive.')); });
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));

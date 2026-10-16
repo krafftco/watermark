@@ -55,20 +55,21 @@ function placeOf(post) {
   return city && city !== country.name ? `${city}, ${country.name}` : country.name;
 }
 
-async function fetchTo(url, fetchImpl) {
+async function fetchTo(url, fetchImpl, dir) {
   // Ghost keeps the untouched upload beside the web copy as name_o.ext; prefer it.
   const o = url.replace(/(\.[a-z]+)$/i, '_o$1');
   for (const u of [o, url]) {
     const r = await fetchImpl(u);
     if (!r.ok) continue;
-    const file = path.join(os.tmpdir(), `wm-sync-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(url) || '.jpg'}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `wm-sync-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(url) || '.jpg'}`);
     fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
     return file;
   }
   throw new Error('not found: ' + url);
 }
 
-function createSync({ db, registerWork, slugify, log = console.log, fetchImpl = fetch }) {
+function createSync({ db, registerWork, slugify, log = console.log, fetchImpl = fetch, stageDir = os.tmpdir() }) {
   db.exec(`CREATE TABLE IF NOT EXISTS studios_imports (
     src TEXT PRIMARY KEY, work_id INTEGER, post_slug TEXT, outcome TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   let running = false;
@@ -104,7 +105,7 @@ function createSync({ db, registerWork, slugify, log = console.log, fetchImpl = 
           if (db.prepare('SELECT 1 FROM studios_imports WHERE src=?').get(p.src)) { done.known++; continue; }
           let file;
           try {
-            file = await fetchTo(p.src, fetchImpl);
+            file = await fetchTo(p.src, fetchImpl, stageDir);
             const title = (p.alt && p.alt.length > 3 && !/^(image|photo|img)\b/i.test(p.alt)) ? p.alt.slice(0, 160) : `${post.title}, No. ${n}`;
             const w = await registerWork({ file, originalName: path.basename(p.src), title, place: placeOf(post), caption: p.caption || null, source_url: post.url });
             db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id, sort) VALUES (?,?,?)').run(c.id, w.id, n);
