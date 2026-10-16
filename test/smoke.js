@@ -229,6 +229,22 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/api/seen', { body: JSON.stringify({ work: w.slug, host: 'example.com', kind: 'embed' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 204);
   assert.equal(db.prepare("SELECT count FROM views WHERE host='example.com'").get().count, 1);
 
+  // maker accounts: Will invites an estate; the link signs them in once; each maker sees only their own work
+  r = await req(port, 'GET', '/account'); assert.equal(r.status, 401, 'no account without a link');
+  r = await req(port, 'POST', '/studio/accounts', { cookie: ck, body: { name: 'The Ada Estate', email: 'ada@estate.com', kind: 'estate' } }); assert.equal(r.status, 302);
+  const est = db.prepare("SELECT * FROM makers WHERE handle='the-ada-estate'").get(); assert.ok(est.invite_token && est.kind === 'estate');
+  assert.ok(db.prepare("SELECT 1 FROM uses WHERE maker_id=? AND key='social'").get(est.id), 'their own prices');
+  r = await req(port, 'GET', `/account/join/${est.invite_token}`); assert.equal(r.headers.location, '/account'); const mck = r.headers['set-cookie'][0].split(';')[0];
+  r = await req(port, 'GET', `/account/join/${est.invite_token}`); assert.equal(r.status, 404, 'link works once');
+  r = await req(port, 'GET', '/account', { cookie: mck }); let ab = r.body.toString(); assert.ok(ab.includes('The Ada Estate.') && ab.includes('Nothing here yet'), 'their own dashboard');
+  r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: mck }); assert.equal(r.status, 404, 'cannot touch another maker\'s work');
+  // Will's own dashboard, as he sees it: the sales so far, at 85%
+  const me = db.prepare('SELECT handle FROM makers WHERE id=1').get().handle;
+  r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); ab = r.body.toString(); assert.ok(ab.includes('Share it') && ab.includes('Everything you hold'));
+  r = await req(port, 'GET', `/account?maker=${me}`); assert.equal(r.status, 401, 'only the Studio can look over a shoulder');
+  r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: ck, body: { maker: me } }); assert.equal(db.prepare('SELECT curated FROM works WHERE id=?').get(w.id).curated, 1, 'a jewel');
+  r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); assert.ok(r.body.toString().includes('class="ac-j"'), 'jewels lead');
+
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);

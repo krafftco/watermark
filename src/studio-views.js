@@ -1,7 +1,7 @@
 // The Studio: where the maker manages the vault, prices and licenses.
 const { layout, esc, money, date, termText } = require('./views');
 
-const nav = active => `<nav class="snav">${[['/studio', 'Trove'], ['/studio/activity', 'Activity'], ['/studio/works', 'Vault'], ['/studio/masters', 'Masters'], ['/studio/licenses', 'Licenses'], ['/studio/sightings', 'Sightings'], ['/studio/uses', 'Uses & prices'], ['/studio/makers', 'Makers']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
+const nav = active => `<nav class="snav">${[['/studio', 'Trove'], ['/studio/activity', 'Activity'], ['/studio/works', 'Vault'], ['/studio/masters', 'Masters'], ['/studio/licenses', 'Licenses'], ['/studio/sightings', 'Sightings'], ['/studio/uses', 'Uses & prices'], ['/studio/accounts', 'Accounts'], ['/studio/makers', 'Makers']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
 
 function login({ error }) {
   return layout({ title: 'Studio · Watermark', body: `<section class="narrow"><p class="k">Studio</p><h1>Sign in to your vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}

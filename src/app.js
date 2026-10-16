@@ -211,6 +211,8 @@ function createApp(cfg = {}) {
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('hex');
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
+  // Every maker and estate has their own account and dashboard.
+  app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V });
 
   // --- public pages ---
   app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
