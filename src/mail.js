@@ -32,8 +32,8 @@ const templates = {
     text: `Dear ${name},\n\nThank you. Your license is active${ends ? ` until ${ends.slice(0, 10)}` : ''}.\n\nCertificate: ${certUrl}\n${downloadUrl ? `Full file (valid for the term): ${downloadUrl}\n` : ''}\nThe file carries its license reference, so the use can always be verified.`,
   }),
   soldToMaker: ({ ref, title, use, buyer, fee, base }) => ({
-    subject: `Sold: "${title}", ${fee}`,
-    text: `"${title}" was just licensed.\n\n${use}, to ${buyer}. ${fee}, paid.\nThe file, the certificate and the receipt have been sent.\n\n${base}/studio/licenses/${ref}`,
+    subject: `Collected: "${title}", ${fee}`,
+    text: `"${title}" was just collected.\n\n${use}, by ${buyer}. ${fee}, paid.\nThe file, the certificate and the receipt have been sent.\n\n${base}/studio/licenses/${ref}`,
   }),
   sightingToMaker: ({ title, url, base }) => ({
     subject: `"${title}" was seen at ${url.replace(/^https?:\/\//, '').split('/')[0]}`,

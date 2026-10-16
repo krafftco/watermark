@@ -156,7 +156,7 @@ ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.
 <p class="h-ck">Never for</p><div class="h-tags"><b>Training AI</b><b>Political campaigns</b><b>Altering the image</b></div></div>
 <ul class="h-list">
 <li><b>Choose the uses.</b> Open a photograph to stories and companies and close it to campaigns. Each work can have its own terms.</li>
-<li><b>Set the price.</b> Public, fixed and yours. Buyers see it before they decide, so nobody has to ask.</li>
+<li><b>Set the price.</b> Public, fixed and yours. Collectors see it before they decide, so nobody has to ask.</li>
 <li><b>Approve every sale, or none.</b> Let licenses happen on their own, or see each one before it is granted.</li>
 <li><b>Say never.</b> Not for AI training. Not for politics. Not altered. Your conditions are written into the license, the certificate and the file itself.</li>
 <li><b>Credit, always.</b> Your name travels with the photograph wherever it is embedded or delivered.</li>
@@ -166,7 +166,7 @@ ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.
 <div class="h-6">
 <div><h3>Sealed when it travels.</h3><p>Only screen-sized copies are shown. When the full file must travel, it goes sealed: it opens only in Watermark, every opening is counted, and you can close it at any time.</p></div>
 <div><h3>Fingerprinted on arrival.</h3><p>Every original is fingerprinted and registered on a public ledger that cannot be quietly edited.</p></div>
-<div><h3>Licensed inside the file.</h3><p>Each delivered file carries the maker, the licensee, the reference, the term and your conditions.</p></div>
+<div><h3>Licensed inside the file.</h3><p>Each delivered file carries the maker, the collector, the reference, the term and your conditions.</p></div>
 <div><h3>Reserved from AI.</h3><p>Every page and image tells crawlers and AI companies the work is reserved and not theirs to train on.</p></div>
 <div><h3>Seen somewhere? You decide.</h3><p>Anyone can report where your work turned up. Offer a license, ask for credit, or let it be.</p></div>
 <div><h3>Anyone can verify.</h3><p>Every license has a reference. One look tells a publisher, a client or a court whether a use is licensed.</p></div>
@@ -205,7 +205,7 @@ function life({ w, maker, lic, reg, rules }) {
 <p class="by">Made by ${esc(maker.name)}${w.taken_at ? `, ${date(w.taken_at)}` : ''}. Rights held by ${esc(maker.name)}.</p></div></div>
 <div class="stats"><div><b>${lic.length}</b><span>times licensed</span></div>${rules.showEarned ? `<div><b>${money(earned)}</b><span>earned for its maker</span></div>` : ''}<div><b>${date(w.created_at)}</b><span>registered</span></div></div>
 <ol class="life-l"><li><span>${date(w.created_at)}</span><b>Registered on Watermark</b><em>Fingerprint ${esc(w.sha256.slice(0, 16))}&hellip;</em>${reg ? `<a href="/ledger">Ledger ${reg.seq}</a>` : ''}</li>${rows}</ol>
-<p class="note">Licensees are not named. Each reference can be checked by anyone at <a href="/verify">/verify</a>.</p>
+<p class="note">Collectors are not named. Each reference can be checked by anyone at <a href="/verify">/verify</a>.</p>
 <p><a class="btn" href="/license/${esc(w.slug)}">License this photograph</a></p></section>` });
 }
 
@@ -302,7 +302,7 @@ function thanks({ lic, w, maker, use }) {
 <p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(maker.name)}. ${use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
 ${done ? `<div class="yours-a">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the full file</a>` : ''}
 <a class="yours-l" href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a><a class="yours-l" href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">License page</a><a class="yours-l" href="/verify?ref=${esc(lic.ref)}">Verify</a></div>
-<p class="note">The file carries its license inside it: maker, licensee, reference and term. ${esc(maker.name)} has been paid.</p>` : ''}
+<p class="note">The file carries its license inside it: maker, collector, reference and term. ${esc(maker.name)} has been paid.</p>` : ''}
 </div></section>`
   });
 }
