@@ -238,6 +238,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/account/join/${est.invite_token}`); assert.equal(r.status, 404, 'link works once');
   r = await req(port, 'GET', '/account', { cookie: mck }); let ab = r.body.toString(); assert.ok(ab.includes('The Ada Estate.') && ab.includes('Nothing here yet'), 'their own dashboard');
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: mck }); assert.equal(r.status, 404, 'cannot touch another maker\'s work');
+  // the estate adds its own photograph: private until it publishes, with its word on rights and releases
+  const px2 = Buffer.alloc(320 * 200 * 3); for (let k = 0; k < px2.length; k++) px2[k] = (k * 104729 + 7) % 241;
+  const theirs = await sharp2(px2, { raw: { width: 320, height: 200, channels: 3 } }).jpeg().toBuffer();
+  r = await req(port, 'POST', '/account/works/one', { cookie: mck, body: mp('ada_harbour.jpg', theirs, { place: 'Genoa, Italy' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  const aj = JSON.parse(r.body); assert.ok(aj.ok, r.body); const aw = db.prepare('SELECT * FROM works WHERE slug=?').get(aj.slug);
+  assert.strictEqual(aw.maker_id, est.id); assert.strictEqual(aw.status, 'hidden', 'private on arrival');
+  r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck }); assert.ok(r.headers.location.includes('need=attest'), 'no publishing without the attestation');
+  r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck, body: { attest: '1' } });
+  assert.strictEqual(db.prepare('SELECT status FROM works WHERE id=?').get(aw.id).status, 'held');
+  r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('Photograph by The Ada Estate'), 'their name on their work');
+  r = await req(port, 'POST', `/buy/${aj.slug}`, { body: { use: 'social' } }); const es = sessions[r.headers.location.split('/').pop()];
+  assert.ok(es.line_items[0].price_data.product_data.description.includes('The Ada Estate'), 'their name at checkout');
+  r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('ada harbour'), 'on their dashboard');
+  r = await req(port, 'POST', `/account/works/${w.slug}/show`, { cookie: mck, body: { attest: '1' } }); assert.equal(r.status, 404, 'not someone else\'s');
   // Will's own dashboard, as he sees it: the sales so far, at 85%
   const me = db.prepare('SELECT handle FROM makers WHERE id=1').get().handle;
   r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); ab = r.body.toString(); assert.ok(ab.includes('Share it') && ab.includes('Everything you hold'));

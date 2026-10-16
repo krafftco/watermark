@@ -24,14 +24,17 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option></select></label><button>Create the account</button></form></section>` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need }) {
   const hidden = viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : '';
   const star = w => `<form method="post" action="/account/works/${esc(w.slug)}/jewel" class="inline">${hidden}<button class="jw${w.curated ? ' on' : ''}" title="${w.curated ? 'Remove from your jewels' : 'Mark as a jewel'}" aria-pressed="${w.curated ? 'true' : 'false'}">${w.curated ? '&#9733;' : '&#9734;'}</button></form>`;
   const jewel = w => `<div class="ac-j" id="w-${esc(w.slug)}"><a href="/w/${esc(w.slug)}" class="ac-jf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></a>
 <div class="ac-jt"><b>${esc(w.title)}</b>${star(w)}</div><dl class="ac-jm"><div><dt>To you</dt><dd>${money(toMaker(w.gross))}</dd></div><div><dt>Shares</dt><dd>${w.shares}</dd></div><div><dt>Licenses</dt><dd>${w.licenses}</dd></div><div><dt>Seen, 30 days</dt><dd>${w.seen30}</dd></div><div><dt>Sightings</dt><dd>${w.sightings}</dd></div><div><dt>Share it</dt><dd>${w.share_cents ? money(w.share_cents) : 'Standard'}</dd></div></dl></div>`;
   const kinds = byUse.map(u => `<tr><td>${esc(u.name)}</td><td>${u.n}</td><td>${money(u.gross)}</td><td><b>${money(toMaker(u.gross))}</b></td></tr>`).join('');
   const sales = recent.map(l => `<tr><td>${date(l.starts_at)}</td><td><a href="/w/${esc(l.slug)}">${esc(l.title)}</a></td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><b>${money(toMaker(l.price_cents))}</b></td></tr>`).join('');
-  const all = works.map(w => `<tr id="w-${esc(w.slug)}"><td>${star(w)}</td><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="56" loading="lazy" draggable="false"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}${w.status === 'held' ? '' : ' · private'}</small></td><td>${w.seen30}</td><td>${w.shares}</td><td>${w.licenses}</td><td>${money(toMaker(w.gross))}</td></tr>`).join('');
+  const pub = w => viewing ? (w.status === 'held' ? 'Public' : 'Private') : w.status === 'held'
+    ? `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline"><button class="link">Public &middot; make private</button></form>`
+    : `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline ac-pub"><label class="chk"><input type="checkbox" name="attest" value="1" required> I hold the rights, and releases for anyone identifiable</label><button>Publish</button></form>`;
+  const all = works.map(w => `<tr id="w-${esc(w.slug)}"><td>${star(w)}</td><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="56" loading="lazy" draggable="false"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${pub(w)}</td><td>${w.seen30}</td><td>${w.shares}</td><td>${w.licenses}</td><td>${money(toMaker(w.gross))}</td></tr>`).join('');
   return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap ac">
 ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s dashboard as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
 <p class="k">${m.kind === 'estate' ? 'Estate' : 'Your Watermark'}${m.house ? ' · ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1>
@@ -41,8 +44,20 @@ ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s dashboard as they se
 <h2>Your jewels</h2>${jewels.length ? `<div class="ac-js">${jewels.map(jewel).join('')}</div>` : '<p class="note">Mark the works that matter most with the star; they lead this page and are the first we show buyers.</p>'}
 <h2>What is selling</h2><table class="tbl"><thead><tr><th>Use</th><th>Sold</th><th>Paid</th><th>To you</th></tr></thead><tbody>${kinds}</tbody></table>
 <h2>Recent sales</h2><table class="tbl"><thead><tr><th>Date</th><th>Work</th><th>Use</th><th>Paid</th><th>To you</th></tr></thead><tbody>${sales || '<tr><td colspan="5">No sales yet.</td></tr>'}</tbody></table>
-<h2>Everything you hold</h2><table class="tbl ac-all"><thead><tr><th></th><th></th><th>Work</th><th>Seen, 30 days</th><th>Shares</th><th>Licenses</th><th>To you</th></tr></thead><tbody>${all || '<tr><td colspan="7">Nothing here yet.</td></tr>'}</tbody></table>
+<h2>Everything you hold</h2>${viewing ? '' : '<p><a class="buy-btn ac-up" href="/account/upload">Add photographs</a></p>'}${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : ''}<table class="tbl ac-all"><thead><tr><th></th><th></th><th>Work</th><th>On Watermark</th><th>Seen, 30 days</th><th>Shares</th><th>Licenses</th><th>To you</th></tr></thead><tbody>${all || '<tr><td colspan="8">Nothing here yet.</td></tr>'}</tbody></table>
 <p class="note"><a href="/account/logout">Sign out</a></p></section>` });
 }
 
-module.exports = { signedOut, gone, studioAccounts, dashboard };
+function upload({ m }) {
+  return layout({ title: 'Add photographs · Watermark', studio: true, body: `<section class="studio-wrap"><p class="k"><a href="/account">${esc(m.name)}</a></p><h1>Add photographs.</h1>
+<p class="lede">Full-resolution files: JPEG, TIFF or PNG. Each is fingerprinted, sealed in the vault and written to the ledger the moment it arrives. They stay private until you publish them from your account.</p>
+<form class="form upload bulk" onsubmit="return false"><label class="drop"><input type="file" id="aFiles" accept="image/jpeg,image/png,image/tiff" multiple><b>Choose photographs or a folder&rsquo;s worth</b><span>Titles come from the file names; refine them later.</span></label>
+<label>Place, for all<input id="aPlace" placeholder="Florence, Italy"></label><button type="button" id="aGo" disabled>Choose photographs</button><ol class="bulk-list" id="aList"></ol></form>
+<script>(function(){var inp=document.getElementById('aFiles'),go=document.getElementById('aGo'),list=document.getElementById('aList'),files=[];
+inp.onchange=function(){files=[].slice.call(inp.files);go.disabled=!files.length;go.textContent='Hold '+files.length+' photograph'+(files.length===1?'':'s')};
+go.onclick=async function(){go.disabled=true;var ok=0,i=0;async function one(){while(i<files.length){var f=files[i++],li=document.createElement('li');li.textContent=f.name;list.appendChild(li);var fd=new FormData();fd.append('file',f);fd.append('place',document.getElementById('aPlace').value);
+try{var j=await (await fetch('/account/works/one',{method:'POST',body:fd,credentials:'same-origin'})).json();li.className=j.ok?'done':'skip';li.textContent=f.name+(j.ok?' · held':' · '+j.error);if(j.ok)ok++}catch(e){li.className='skip';li.textContent=f.name+' · connection lost'}go.textContent=i+' of '+files.length}}
+await Promise.all([one(),one()]);go.textContent=ok+' held';setTimeout(function(){location.href='/account'},1200)};})();</script></section>` });
+}
+
+module.exports = { signedOut, gone, studioAccounts, dashboard, upload };

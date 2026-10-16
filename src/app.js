@@ -93,6 +93,8 @@ function createApp(cfg = {}) {
     return row;
   }
   const maker = ensureMaker(C.maker);
+  // Each work belongs to its maker; pages, prices, licenses and emails follow the work.
+  const mk = w => (w && w.maker_id && w.maker_id !== maker.id ? db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) : null) || maker;
 
   const q = {
     work: db.prepare("SELECT * FROM works WHERE slug=?"),
@@ -118,6 +120,7 @@ function createApp(cfg = {}) {
     if (!l || l.status === 'active') return l;
     const u = q.useById.get(l.use_id);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     const start = new Date();
     const end = u.term_months ? new Date(start.getTime()) : null;
     if (end) end.setUTCMonth(end.getUTCMonth() + u.term_months);
@@ -145,7 +148,8 @@ function createApp(cfg = {}) {
     db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=count+1').run(workId, host || null, kind, day);
   }
 
-  async function registerWork({ file, title, place, caption, source_url, originalName }) {
+  async function registerWork({ file, title, place, caption, source_url, originalName, makerId }) {
+    const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
     const info = await images.inspect(file);
     const dupe = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
     if (dupe) { fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e; }
@@ -157,11 +161,11 @@ function createApp(cfg = {}) {
     try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
     await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(maker.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
     const nw = q.work.get(slug);
     db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph'), dhash=? WHERE id=?").run(accession(nw), await images.dhash(dest).catch(() => null), nw.id);
     if (store.kind === 's3') fs.unlinkSync(dest); // the vault holds it; the disk is only a cache
-    ledger.append(db, 'work.registered', slug, { maker: maker.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
+    ledger.append(db, 'work.registered', slug, { maker: owner.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
     return q.work.get(slug);
   }
 
@@ -212,7 +216,7 @@ function createApp(cfg = {}) {
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   // Every maker and estate has their own account and dashboard.
-  app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V });
+  app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger });
 
   // --- public pages ---
   app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
@@ -220,7 +224,9 @@ function createApp(cfg = {}) {
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
-    res.send(V.collection({ maker, works: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all(), rooms, share: q.use.get(maker.id, 'social'), pay: payCfg() }));
+    const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
+    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all().map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w);
+    res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg() }));
   });
 
   // Makers apply to hold their work here. Read in the Studio.
@@ -235,6 +241,7 @@ function createApp(cfg = {}) {
   // Anyone can tell a maker where their work turned up. The maker decides what to do about it.
   app.post('/report/:slug', (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const maker = mk(w); // the work's own maker
     const url = String(req.body.url || '').trim().slice(0, 500);
     if (!/^https?:\/\/\S+\.\S+/.test(url)) return res.redirect(`/w/${w.slug}#report`);
     const em = String(req.body.email || '').trim();
@@ -247,6 +254,7 @@ function createApp(cfg = {}) {
 
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
@@ -256,6 +264,7 @@ function createApp(cfg = {}) {
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
   app.get('/w/:slug/life', (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const rules = R.parse(w.rules);
     const lic = db.prepare("SELECT l.ref, l.starts_at, l.ends_at, l.status, l.price_cents, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.status IN ('active','expired') ORDER BY l.starts_at").all(w.id);
@@ -265,6 +274,7 @@ function createApp(cfg = {}) {
 
   app.get('/img/:slug/:size', async (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size]) return res.sendStatus(404);
     try {
       const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size);
@@ -278,6 +288,7 @@ function createApp(cfg = {}) {
   // JSON for embeds
   app.get('/api/work/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     res.set('Access-Control-Allow-Origin', '*');
     if (!w || w.status !== 'held') return res.status(404).json({ error: 'not found' });
     res.json({ slug: w.slug, title: w.title, maker: maker.name, house: maker.house, width: w.width, height: w.height,
@@ -286,6 +297,7 @@ function createApp(cfg = {}) {
   app.post('/api/seen', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     const w = q.work.get(String(req.body.work || req.query.work || ''));
+    const maker = mk(w); // the work's own maker
     const host = String(req.body.host || '').toLowerCase().replace(/[^a-z0-9.\-:]/g, '').slice(0, 120);
     const kind = ['embed', 'open'].includes(req.body.kind) ? req.body.kind : 'embed';
     if (w) countView(w.id, host || null, kind);
@@ -305,6 +317,7 @@ function createApp(cfg = {}) {
   // --- licensing ---
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
@@ -315,6 +328,7 @@ function createApp(cfg = {}) {
   // No account, no form: Stripe collects the buyer's name and email.
   app.post('/buy/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = priced(q.use.get(maker.id, String(req.body.use || '')), w);
     const rules = R.parse(w.rules);
@@ -360,7 +374,7 @@ function createApp(cfg = {}) {
     try { stripe.paymentMethodDomains.create({ domain_name: new URL(C.base).hostname }).catch(() => {}); } catch (e) { /* older client */ }
   }
   app.post('/pay/:slug', async (req, res) => {
-    const w = q.work.get(req.params.slug), u = priced(q.use.get(maker.id, 'social'), w);
+    const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
     const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
@@ -397,7 +411,7 @@ function createApp(cfg = {}) {
 
   // Every Share it after the first: one tap, the remembered card, no sheet. Undo for a short while after.
   app.post('/pay/:slug/tap', async (req, res) => {
-    const w = q.work.get(req.params.slug), u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
+    const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
@@ -433,11 +447,13 @@ function createApp(cfg = {}) {
   });
   function handover(l) {
     const w = db.prepare('SELECT title, slug FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     return { ok: true, ref: l.ref, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
   }
 
   app.get('/buy/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = q.use.get(maker.id, String(req.query.use || 'campaign')) || q.uses.all(maker.id)[0];
     res.send(V.ask({ w, maker, u }));
@@ -451,11 +467,13 @@ function createApp(cfg = {}) {
       try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
     }
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id) }));
   });
 
   app.post('/license/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug);
+    const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const b = req.body; const uses = q.uses.all(maker.id);
     const rules = R.parse(w.rules);
@@ -498,6 +516,7 @@ function createApp(cfg = {}) {
     const l = q.licFull.get(req.params.ref);
     if (!l || l.status !== 'active') return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
@@ -518,6 +537,7 @@ function createApp(cfg = {}) {
     if (req.query.k && l.download_token && req.query.k === l.download_token) owner = true;
     if (isStudio(req)) owner = true;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner }));
   });
 
@@ -525,6 +545,7 @@ function createApp(cfg = {}) {
     const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const maker = mk(w); // the work's own maker
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug });
     const lu = q.useById.get(l.use_id);
     let file; try { file = await originalPath(w); if (lu && lu.key === 'social') file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
@@ -544,6 +565,7 @@ function createApp(cfg = {}) {
     const ref = String(req.query.ref || '').trim().toUpperCase();
     const lic = ref ? q.lic.get(ref) : null;
     const w = lic ? db.prepare('SELECT * FROM works WHERE id=?').get(lic.work_id) : null;
+    const maker = mk(w); // the work's own maker
     res.send(V.verify({ ref, lic, w, notFound: ref && !lic }));
   });
 
@@ -740,6 +762,7 @@ function createApp(cfg = {}) {
   // The maker seals a full-resolution copy for someone. It opens only in the Watermark viewer.
   app.post('/studio/works/:slug/seal', studioOnly, async (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const maker = mk(w); // the work's own maker
     const size = req.body.size === 'original' ? 'original' : 'large';
     const days = Number(req.body.days) || 0;
     const sharp = require('sharp');

@@ -7,7 +7,8 @@ const A = require('./account-views');
 
 const MULTIPLE = 3; // draft: an archive valued at three times its last twelve months of earnings to the maker
 
-function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V }) {
+function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork, upload, ledger }) {
+  const fs = require('fs');
   for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='curated'").get()) db.exec('ALTER TABLE works ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
@@ -90,15 +91,41 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account', (req, res) => {
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
-    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), money: V.money }));
+    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, money: V.money }));
   });
   // The maker marks the jewels of their collection; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {
-    const m = makerOf(req) || (isStudio(req) && req.body.maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.body.maker)) : null);
+    const m = makerOf(req) || (isStudio(req) && (req.body || {}).maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.body.maker)) : null);
     if (!m) return res.sendStatus(401);
     const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404);
     db.prepare('UPDATE works SET curated=? WHERE id=?').run(w.curated ? 0 : 1, w.id);
-    res.redirect('/account' + (req.body.maker ? '?maker=' + encodeURIComponent(req.body.maker) : '') + '#w-' + w.slug);
+    res.redirect('/account' + ((req.body || {}).maker ? '?maker=' + encodeURIComponent(req.body.maker) : '') + '#w-' + w.slug);
+  });
+
+  // ---------- the maker's own uploads: private until they publish ----------
+  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m })); });
+  app.post('/account/works/one', (req, res, next) => upload().single('file')(req, res, next), async (req, res) => {
+    const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.status(401).json({ ok: false }); }
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
+    try {
+      const name = req.file.originalname.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
+      const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, title: String(req.body.title || '').trim() || name || 'Untitled', place: String(req.body.place || '').trim() || null, makerId: m.id });
+      db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(m.name, w.id);
+      res.json({ ok: true, slug: w.slug, title: w.title });
+    } catch (e) {
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
+    }
+  });
+  // Publishing is the maker's word that they hold the rights, and releases for anyone identifiable.
+  app.post('/account/works/:slug/show', (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404);
+    if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
+    if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
+    db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
+    ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });
+    res.redirect('/account#w-' + w.slug);
   });
 
   return { makerOf, dashboard, inviteLink };
