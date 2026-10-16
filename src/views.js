@@ -17,7 +17,7 @@ const HOUSE = '<nav class="kh" aria-label="Krafft"><a data-p="krafft" href="http
 function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&display=swap">
 <link rel="stylesheet" href="/static/style.css"><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
@@ -41,11 +41,14 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   const galleries = shown.map(r => { const ws = (r.ids || []).map(id => byId[id]).filter(Boolean); ws.forEach(w => seen.add(w.id)); return ws.length ? `<section class="gal" id="room-${esc(r.slug)}" data-room="${esc(r.slug)}"><header class="gh"><h2><a href="/rooms/${esc(r.slug)}">${esc(r.title)}</a></h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>` : ''; }).join('');
   const rest = works.filter(w => !seen.has(w.id));
   const total = works.length;
+  // The cover: a jewel if one is marked, else a large landscape frame.
+  const wide = w => (w.width || 0) >= 1800 && w.width > w.height * 1.3;
+  const cover = works.find(w => w.curated && wide(w)) || works.filter(wide).find(w => /florence|paris|como|zurich/i.test(w.place || '')) || works.find(wide) || null;
   return layout({
     title: `${maker ? maker.name + ' · ' : ''}Watermark`,
     desc: `${total} photographs held, credited and licensed on Watermark.`,
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
-    body: `<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
+    body: `${cover ? `<section class="cx-cover"><img src="/img/${esc(cover.slug)}/large" alt="${esc(cover.title)}" fetchpriority="high" draggable="false"><span class="cx-cap">${esc(cover.title)}${cover.place ? ` &middot; ${esc(cover.place)}` : ''}</span></section>` : ''}<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
 <h1>The collection.</h1><p class="cx-count">${total} photographs · ${shown.length} rooms · each registered to its maker and licensed at the source</p></section>
 <div class="cx-bar" id="cxBar"><label class="cx-q"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="cxQ" type="search" placeholder="Search ${total} photographs" aria-label="Search the collection" autocomplete="off" spellcheck="false"></label>
 <div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
@@ -63,7 +66,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
 function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] } }) {
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
   const facts = [
-    ['Maker', maker.name], ['House', maker.house], ['Place', w.place], ['Taken', date(w.taken_at)],
+    ['Accession', w.accession], ['Maker', maker.name], ['House', maker.house], ['Place', w.place], ['Taken', date(w.taken_at)],
     ['Camera', w.camera], ['Lens', w.lens], ['Registered', date(w.created_at)],
   ].filter(f => f[1]).map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
   const embed = `&lt;script src="${esc(base)}/embed.js" defer&gt;&lt;/script&gt;\n&lt;watermark-image work="${esc(w.slug)}"&gt;&lt;/watermark-image&gt;`;
