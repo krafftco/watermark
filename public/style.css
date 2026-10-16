@@ -487,3 +487,6 @@ h1{font-size:clamp(44px,6vw,96px);line-height:.95}
 .cx-hero .btn{flex:none}
 .cx-cap{z-index:1}
 .cx-intro h2{font-family:var(--disp);font-weight:400;font-size:clamp(40px,5vw,64px);line-height:1;margin:6px 0 8px}
+.cx-hero .btn{background:var(--ac);border-color:var(--ac);color:#fff;border-radius:0;padding:18px 30px;font-weight:600}
+.cx-hero .btn:hover{background:#16238a;border-color:#16238a}
+section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
