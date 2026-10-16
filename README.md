@@ -17,6 +17,11 @@ Watermark v0 is the first working version of the licensing system described in t
 - **Email.** With `RESEND_API_KEY` set, Watermark emails the maker on every request and the licensee on receipt, quote (with the payment link), grant (certificate and download) and renewal. Without it, everything works and the Studio shows what to send.
 - **Studio.** Password sign-in. Overview (works, active licenses, requests, revenue, where the work was seen), Vault (upload, hide or show), Licenses (quote, grant, decline), Uses and prices.
 
+- **The maker's say.** Each work has its own terms in the Studio: which uses are open, whether every license needs the maker's approval, what it may never be used for (AI training, political campaigns, alteration, sensitive categories), and whether credit is required. The terms are copied into each license at the moment of sale and written into its certificate, its PDF and the delivered file.
+- **Protection.** Every public page and image carries `noai` and TDM-reservation signals; `/robots.txt` closes the site to known AI crawlers and keeps `/img` out of search indexes; `/.well-known/tdmrep.json` states the reservation. Anyone can report a sighting from a work page; the maker sees it under Sightings and decides: offer a license (pre-written email), mark it licensed, or let it be.
+- **The life of a photograph.** `/w/:slug/life` is the public record of a work: registered, then every license by use and date (licensees unnamed). The maker can choose to show what it has earned. The Studio shows the full life with licensees, fees and sightings.
+- **For makers.** The home page is written for image makers, with an application form; applications arrive in Studio → Makers.
+
 ## Run it
 
 ```

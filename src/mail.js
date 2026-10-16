@@ -35,6 +35,14 @@ const templates = {
     subject: `Sold: "${title}", ${fee}`,
     text: `"${title}" was just licensed.\n\n${use}, to ${buyer}. ${fee}, paid.\nThe file, the certificate and the receipt have been sent.\n\n${base}/studio/licenses/${ref}`,
   }),
+  sightingToMaker: ({ title, url, base }) => ({
+    subject: `"${title}" was seen at ${url.replace(/^https?:\/\//, '').split('/')[0]}`,
+    text: `Someone reported "${title}" in use here:\n${url}\n\nCheck it against your licenses and decide what to do:\n${base}/studio/sightings`,
+  }),
+  applicationToMaker: ({ name, email, portfolio, practice, base }) => ({
+    subject: `A maker applied: ${name}`,
+    text: `${name} (${email}) applied to hold their work on Watermark.\n${practice ? `Practice: ${practice}\n` : ''}${portfolio ? `Work: ${portfolio}\n` : ''}\n${base}/studio/makers`,
+  }),
   renewalToLicensee: ({ ref, title, name, ends, url }) => ({
     subject: `Your license for "${title}" ends ${ends.slice(0, 10)}`,
     text: `Dear ${name},\n\nLicense ${ref} for "${title}" ends on ${ends.slice(0, 10)}. To keep using it, renew here:\n\n${url}`,

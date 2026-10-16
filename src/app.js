@@ -10,6 +10,7 @@ const { open } = require('./db');
 const ledger = require('./ledger');
 const images = require('./images');
 const V = require('./views');
+const R = require('./rules');
 const S = require('./studio-views');
 const prov = require('./provenance');
 const mail = require('./mail');
@@ -39,6 +40,8 @@ function createApp(cfg = {}) {
   const db = open(path.join(C.dataDir, 'watermark.db'));
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
   const originals = path.join(C.dataDir, 'originals');
   const cache = path.join(C.dataDir, 'cache');
@@ -128,6 +131,11 @@ function createApp(cfg = {}) {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
+  // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
+  app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
+  const AI_BOTS = ['GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'CCBot', 'ClaudeBot', 'anthropic-ai', 'Google-Extended', 'Applebot-Extended', 'PerplexityBot', 'Bytespider', 'Meta-ExternalAgent', 'Amazonbot', 'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot'];
+  app.get('/robots.txt', (req, res) => res.type('text').send(`${AI_BOTS.map(b => `User-agent: ${b}\nDisallow: /`).join('\n\n')}\n\nUser-agent: *\nDisallow: /img/\nDisallow: /d/\nDisallow: /studio\nAllow: /\n`));
+  app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
   app.use(cookieParser());
 
@@ -154,7 +162,28 @@ function createApp(cfg = {}) {
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
 
   // --- public pages ---
-  app.get('/', (req, res) => res.send(V.collection({ maker, works: q.publicWorks.all() })));
+  app.get('/', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
+  app.get('/collection', (req, res) => res.send(V.collection({ maker, works: q.publicWorks.all() })));
+
+  // Makers apply to hold their work here. Read in the Studio.
+  app.post('/apply', (req, res) => {
+    const b = req.body; const email = String(b.email || '').trim();
+    if (!b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/#apply');
+    db.prepare('INSERT INTO applications (name,email,portfolio,practice,note) VALUES (?,?,?,?,?)').run(String(b.name).slice(0, 120), email.slice(0, 160), String(b.portfolio || '').slice(0, 300) || null, String(b.practice || '').slice(0, 80) || null, String(b.note || '').slice(0, 2000) || null);
+    mail.send({ to: maker.email, ...mail.templates.applicationToMaker({ name: b.name, email, portfolio: b.portfolio, practice: b.practice, base: C.base }) });
+    res.redirect(303, '/?sent=1#apply');
+  });
+
+  // Anyone can tell a maker where their work turned up. The maker decides what to do about it.
+  app.post('/report/:slug', (req, res) => {
+    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const url = String(req.body.url || '').trim().slice(0, 500);
+    if (!/^https?:\/\/\S+\.\S+/.test(url)) return res.redirect(`/w/${w.slug}#report`);
+    const em = String(req.body.email || '').trim();
+    db.prepare('INSERT INTO sightings (work_id,url,note,reporter_email) VALUES (?,?,?,?)').run(w.id, url, String(req.body.note || '').slice(0, 1000) || null, /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? em.slice(0, 160) : null);
+    mail.send({ to: maker.email, ...mail.templates.sightingToMaker({ title: w.title, url, base: C.base }) });
+    res.send(V.reported({ w }));
+  });
   app.get('/about', (req, res) => res.send(V.about()));
   app.get('/terms', (req, res) => res.send(V.terms()));
 
@@ -162,7 +191,18 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug);
     if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
     countView(w.id, null, 'view');
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id), base: C.base }));
+    const rules = R.parse(w.rules);
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), base: C.base, rules }));
+  });
+
+  // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
+  app.get('/w/:slug/life', (req, res) => {
+    const w = q.work.get(req.params.slug);
+    if (!w || w.status !== 'held') return res.sendStatus(404);
+    const rules = R.parse(w.rules);
+    const lic = db.prepare("SELECT l.ref, l.starts_at, l.ends_at, l.status, l.price_cents, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.status IN ('active','expired') ORDER BY l.starts_at").all(w.id);
+    const reg = db.prepare("SELECT * FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq LIMIT 1").get(w.slug);
+    res.send(V.life({ w, maker, lic, reg, rules }));
   });
 
   app.get('/img/:slug/:size', async (req, res) => {
@@ -204,7 +244,8 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
-    res.send(V.buy({ w, maker, uses: q.uses.all(maker.id), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    const rules = R.parse(w.rules);
+    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -213,12 +254,14 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = q.use.get(maker.id, String(req.body.use || ''));
-    if (!u) return res.redirect(`/license/${w.slug}`);
+    const rules = R.parse(w.rules);
+    if (!u || !R.allows(rules, u.key)) return res.redirect(`/license/${w.slug}`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
+    if (rules.approve) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews, approve: true }));
     if (req.body.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews }));
     const ref = nextRef();
-    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status) VALUES (?,?,?,?,?,?,?,'awaiting_payment')")
-      .run(ref, w.id, u.id, 'Buyer', '', note, u.price_cents);
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?)")
+      .run(ref, w.id, u.id, 'Buyer', '', note, u.price_cents, R.conditions(rules) || null);
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
@@ -259,20 +302,22 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug);
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const b = req.body; const uses = q.uses.all(maker.id);
+    const rules = R.parse(w.rules);
     const u = q.use.get(maker.id, String(b.use || ''));
     const email = String(b.email || '').trim();
-    if (!u || !b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !b.agree) {
+    if (!u || !R.allows(rules, u.key) || !b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !b.agree) {
       return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, renews: b.renews, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
     }
     const ref = nextRef();
-    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, u.price_cents == null ? 'requested' : 'awaiting_payment');
+    const needsMaker = u.price_cents == null || rules.approve || !stripe;
+    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null);
     ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key });
     const renews = /^WM-\d{4}-\d{6}$/.test(String(b.renews || '')) ? String(b.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
     mail.send({ to: maker.email, ...mail.templates.requestToMaker({ ref, title: w.title, name: b.name, company: b.company, email, use: u.name, intended: b.intended, base: C.base }) });
-    if (u.price_cents == null) mail.send({ to: email, ...mail.templates.receivedToLicensee({ ref, title: w.title, name: b.name }) });
-    if (u.price_cents != null && stripe) {
+    if (needsMaker) mail.send({ to: email, ...mail.templates.receivedToLicensee({ ref, title: w.title, name: b.name }) });
+    if (!needsMaker) {
       const url = await checkoutUrl(ref);
       return res.redirect(303, url);
     }
@@ -300,7 +345,7 @@ function createApp(cfg = {}) {
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
-    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use });
+    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions });
   });
 
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
@@ -330,7 +375,7 @@ function createApp(cfg = {}) {
     if (/\.jpe?g$/i.test(w.original_file)) {
       try {
         const u = q.useById.get(l.use_id);
-        const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base });
+        const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base, conditions: l.conditions });
         res.set('Content-Disposition', `attachment; filename="${name}"`);
         return res.type('jpg').send(buf);
       } catch (e) { /* fall through to the untouched original */ }
@@ -387,6 +432,34 @@ function createApp(cfg = {}) {
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
     db.prepare("UPDATE works SET status = CASE status WHEN 'held' THEN 'hidden' ELSE 'held' END WHERE slug=?").run(req.params.slug);
     res.redirect('/studio/works');
+  });
+
+  // The maker's say, per work.
+  app.get('/studio/works/:slug', studioOnly, (req, res) => {
+    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const seen = db.prepare('SELECT * FROM sightings WHERE work_id=? ORDER BY id DESC').all(w.id);
+    const lic = db.prepare("SELECT l.*, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? ORDER BY l.id DESC").all(w.id);
+    res.send(S.workTerms({ w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, notice: req.query.ok }));
+  });
+  app.post('/studio/works/:slug', studioOnly, (req, res) => {
+    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const arr = v => v == null ? [] : Array.isArray(v) ? v : [v];
+    const all = q.uses.all(maker.id).map(u => u.key);
+    const open = arr(req.body.uses).filter(k => all.includes(k));
+    const rules = { uses: open.length === all.length ? null : open, approve: req.body.approve === '1', never: arr(req.body.never).filter(k => R.NEVER[k]), credit: req.body.credit === '1', showEarned: req.body.showEarned === '1' };
+    db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rules), w.id);
+    ledger.append(db, 'work.terms', w.slug, { open: rules.uses || 'all', approve: rules.approve, never: rules.never });
+    res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Your terms are saved. They apply to every new license.')}`);
+  });
+  app.get('/studio/sightings', studioOnly, (req, res) => res.send(S.sightings({ list: db.prepare('SELECT s.*, w.title, w.slug FROM sightings s JOIN works w ON w.id=s.work_id ORDER BY s.id DESC').all(), embeds: db.prepare("SELECT v.host, w.title, w.slug, SUM(v.count) AS n, MAX(v.day) AS last FROM views v JOIN works w ON w.id=v.work_id WHERE v.kind='embed' AND v.host IS NOT NULL GROUP BY v.host, w.id ORDER BY last DESC").all(), base: C.base })));
+  app.post('/studio/sightings/:id', studioOnly, (req, res) => {
+    if (['new', 'licensed', 'offered', 'resolved'].includes(req.body.status)) db.prepare('UPDATE sightings SET status=? WHERE id=?').run(req.body.status, req.params.id);
+    res.redirect('/studio/sightings');
+  });
+  app.get('/studio/makers', studioOnly, (req, res) => res.send(S.makers({ list: db.prepare('SELECT * FROM applications ORDER BY id DESC').all() })));
+  app.post('/studio/makers/:id', studioOnly, (req, res) => {
+    if (['new', 'invited', 'declined'].includes(req.body.status)) db.prepare('UPDATE applications SET status=? WHERE id=?').run(req.body.status, req.params.id);
+    res.redirect('/studio/makers');
   });
 
   app.get('/studio/licenses', studioOnly, (req, res) => res.send(S.licenses({ list: db.prepare('SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id ORDER BY l.id DESC').all() })));

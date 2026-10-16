@@ -73,6 +73,25 @@ function open(file) {
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS sightings (
+    id INTEGER PRIMARY KEY,
+    work_id INTEGER NOT NULL REFERENCES works(id),
+    url TEXT NOT NULL,             -- where the work was seen
+    note TEXT,
+    reporter_email TEXT,           -- optional; never published
+    status TEXT NOT NULL DEFAULT 'new', -- new | licensed | offered | resolved
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS applications (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    portfolio TEXT,
+    practice TEXT,                 -- what they make
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'new', -- new | invited | declined
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   CREATE TABLE IF NOT EXISTS views (
     id INTEGER PRIMARY KEY,
     work_id INTEGER NOT NULL REFERENCES works(id),

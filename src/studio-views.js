@@ -1,7 +1,7 @@
 // The Studio: where the maker manages the vault, prices and licenses.
 const { layout, esc, money, date, termText } = require('./views');
 
-const nav = active => `<nav class="snav">${[['/studio', 'Overview'], ['/studio/works', 'Vault'], ['/studio/licenses', 'Licenses'], ['/studio/uses', 'Uses & prices']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
+const nav = active => `<nav class="snav">${[['/studio', 'Overview'], ['/studio/works', 'Vault'], ['/studio/licenses', 'Licenses'], ['/studio/sightings', 'Sightings'], ['/studio/uses', 'Uses & prices'], ['/studio/makers', 'Makers']].map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>`;
 
 function login({ error }) {
   return layout({ title: 'Studio · Watermark', body: `<section class="narrow"><p class="k">Studio</p><h1>Sign in to your vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}
@@ -24,7 +24,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 function works({ list, error, notice }) {
-  const rows = list.map(w => `<tr><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="72"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${esc(w.camera || '')}</td><td>${date(w.created_at)}</td><td>${w.status === 'held' ? 'Public' : 'Hidden'}</td><td><form method="post" action="/studio/works/${esc(w.slug)}/toggle"><button class="link">${w.status === 'held' ? 'Hide' : 'Show'}</button></form></td></tr>`).join('');
+  const rows = list.map(w => `<tr><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="72"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${esc(w.camera || '')}</td><td>${date(w.created_at)}</td><td>${w.status === 'held' ? 'Public' : 'Hidden'}</td><td><a href="/studio/works/${esc(w.slug)}">Terms &amp; life</a></td><td><form method="post" action="/studio/works/${esc(w.slug)}/toggle"><button class="link">${w.status === 'held' ? 'Hide' : 'Show'}</button></form></td></tr>`).join('');
   return layout({ studio: true, title: 'Vault · Watermark', body: `<section class="studio-wrap">${nav('/studio/works')}
 <h1>The vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form method="post" action="/studio/works" enctype="multipart/form-data" class="form upload">
@@ -36,7 +36,7 @@ function works({ list, error, notice }) {
 <label>Published at (optional)<input name="source_url" type="url" placeholder="https://studios.krafftco.com/florence/"></label>
 <button>Register and hold</button>
 <p class="note">Watermark reads the camera, lens and time, fingerprints the original, and writes the registration to the ledger. The original is never shown publicly.</p></form>
-<table class="tbl"><thead><tr><th></th><th>Work</th><th>Camera</th><th>Registered</th><th>Visibility</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="6">The vault is empty.</td></tr>'}</tbody></table></section>` });
+<table class="tbl"><thead><tr><th></th><th>Work</th><th>Camera</th><th>Registered</th><th>Visibility</th><th></th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7">The vault is empty.</td></tr>'}</tbody></table></section>` });
 }
 
 function licenses({ list }) {
@@ -69,4 +69,47 @@ function uses({ list, notice }) {
 <table class="tbl"><thead><tr><th>Use</th><th>Term</th><th>Price (USD)</th></tr></thead><tbody>${rows}</tbody></table></section>` });
 }
 
-module.exports = { login, overview, works, licenses, licenseDetail, uses };
+
+// One work: the maker's terms, and the life of the photograph so far.
+function workTerms({ w, rules, uses, NEVER, seen, lic, notice }) {
+  const open = k => !rules.uses || rules.uses.includes(k);
+  const paid = lic.filter(l => ['active', 'expired'].includes(l.status));
+  const earned = paid.reduce((a, l) => a + (l.price_cents || 0), 0);
+  const life = lic.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.starts_at || l.created_at)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
+  const sg = seen.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a> &middot; ${date(x.created_at)} &middot; ${esc(x.status)}</li>`).join('');
+  return layout({ studio: true, title: `${w.title} · Studio`, body: `<section class="studio-wrap">${nav('/studio/works')}
+<div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">Terms &amp; life</p><h1>${esc(w.title)}</h1>
+<div class="stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${seen.length}</b><span>sightings</span></div></div></div></div>
+${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<form method="post" action="/studio/works/${esc(w.slug)}" class="form terms-form">
+<h2>Open to</h2>${uses.map(u => `<label class="chk"><input type="checkbox" name="uses" value="${esc(u.key)}" ${open(u.key) ? 'checked' : ''}> ${esc(u.name)} <small>${money(u.price_cents)}</small></label>`).join('')}
+<h2>Approval</h2><label class="chk"><input type="checkbox" name="approve" value="1" ${rules.approve ? 'checked' : ''}> Approve each license myself before the buyer pays</label>
+<h2>Never for</h2>${Object.entries(NEVER).map(([k, v]) => `<label class="chk"><input type="checkbox" name="never" value="${k}" ${rules.never.includes(k) ? 'checked' : ''}> ${esc(v)}</label>`).join('')}
+<h2>Its public record</h2><label class="chk"><input type="checkbox" name="showEarned" value="1" ${rules.showEarned ? 'checked' : ''}> Show what this photograph has earned on its public life page</label>
+<h2>Credit</h2><label class="chk"><input type="checkbox" name="credit" value="1" ${rules.credit ? 'checked' : ''}> Require credit wherever the use allows</label>
+<button>Save my terms</button><p class="note">Terms apply to every new license and are written into its certificate and the delivered file. Licenses already granted keep the terms they were sold under.</p></form>
+<h2>The life of this photograph</h2><table class="tbl"><thead><tr><th>Ref</th><th>Date</th><th>Licensee</th><th>Use</th><th>Fee</th><th>Status</th></tr></thead><tbody>${life || '<tr><td colspan="6">Not licensed yet.</td></tr>'}</tbody></table>
+<h2>Sightings</h2><ul class="plain">${sg || '<li>None reported.</li>'}</ul>
+<p class="note">Fingerprint <code>${esc(w.sha256)}</code></p></section>` });
+}
+
+function sightings({ list, embeds, base }) {
+  const st = { new: 'New', licensed: 'Licensed', offered: 'License offered', resolved: 'Let it be' };
+  const rows = list.map(x => `<tr><td><a href="/studio/works/${esc(x.slug)}">${esc(x.title)}</a></td><td><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url.replace(/^https?:\/\//, '').slice(0, 60))}</a>${x.note ? `<br><small>${esc(x.note)}</small>` : ''}</td><td>${date(x.created_at)}</td>
+<td><form method="post" action="/studio/sightings/${x.id}" class="inline"><select name="status" onchange="this.form.submit()">${Object.entries(st).map(([k, v]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></form>
+<a class="link" href="mailto:?subject=${encodeURIComponent(`Your use of "${x.title}"`)}&body=${encodeURIComponent(`Hello,\n\nI'm the photographer behind "${x.title}", which appears at ${x.url}. I'd be glad for you to keep using it. You can license it in a minute here:\n\n${base}/license/${x.slug}\n\nThank you.`)}">Offer a license</a></td></tr>`).join('');
+  const em = embeds.map(e => `<tr><td>${esc(e.host)}</td><td>${esc(e.title)}</td><td>${e.n}</td><td>${esc(e.last)}</td></tr>`).join('');
+  return layout({ studio: true, title: 'Sightings · Watermark', body: `<section class="studio-wrap">${nav('/studio/sightings')}<h1>Where your work has been seen.</h1>
+<p class="lede">Reported by people who noticed it, and counted wherever it is embedded with credit. You decide what to do: offer a license, ask for credit, or let it be.</p>
+<h2>Reported</h2><table class="tbl"><thead><tr><th>Work</th><th>Where</th><th>Reported</th><th>Your call</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No sightings reported.</td></tr>'}</tbody></table>
+<h2>Embedded with credit</h2><table class="tbl"><thead><tr><th>Site</th><th>Work</th><th>Views</th><th>Last seen</th></tr></thead><tbody>${em || '<tr><td colspan="4">Not embedded anywhere yet.</td></tr>'}</tbody></table></section>` });
+}
+
+function makers({ list }) {
+  const rows = list.map(a => `<tr><td><b>${esc(a.name)}</b><br><small><a href="mailto:${esc(a.email)}">${esc(a.email)}</a></small></td><td>${esc(a.practice || '')}</td><td>${a.portfolio ? `<a href="${esc(a.portfolio)}" target="_blank" rel="noopener">${esc(a.portfolio.replace(/^https?:\/\//, ''))}</a>` : ''}${a.note ? `<br><small>${esc(a.note)}</small>` : ''}</td><td>${date(a.created_at)}</td>
+<td><form method="post" action="/studio/makers/${a.id}" class="inline"><select name="status" onchange="this.form.submit()">${['new', 'invited', 'declined'].map(k => `<option ${a.status === k ? 'selected' : ''}>${k}</option>`).join('')}</select></form></td></tr>`).join('');
+  return layout({ studio: true, title: 'Makers · Watermark', body: `<section class="studio-wrap">${nav('/studio/makers')}<h1>Makers who want in.</h1>
+<table class="tbl"><thead><tr><th>Maker</th><th>Practice</th><th>Work</th><th>Applied</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No applications yet.</td></tr>'}</tbody></table></section>` });
+}
+
+module.exports = { login, overview, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
