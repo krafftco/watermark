@@ -54,6 +54,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
     body: `${cover ? `<section class="cx-cover"><img src="/img/${esc(cover.slug)}/large" alt="${esc(cover.title)}" fetchpriority="high" draggable="false"><div class="cx-hero"><h1>Those who make. Those who collect.</h1><a class="btn" href="#rooms">Walk the collection</a></div><span class="cx-cap">${esc(tidy(cover.title))}${cover.place ? ` &middot; ${esc(cover.place)}` : ''}</span></section>` : ''}<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
 ${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection.</h1>'}<p class="cx-count">${total} photographs · ${shown.length} rooms · each registered to its maker and licensed at the source</p></section>
+<a class="sr-band" href="/series/the-great-rooms"><span class="sr-band-im"><img src="/img/the-library-stacks/thumb" alt="" loading="lazy" draggable="false"><img src="/img/behind-the-clock-at-the-musee-d-orsay/thumb" alt="" loading="lazy" draggable="false"><img src="/img/under-the-gallery-dome/thumb" alt="" loading="lazy" draggable="false"></span><span class="sr-band-t"><small>A series by Will Fullerton &middot; Krafft Studios</small><b>The Great Rooms</b><span>Domes, libraries and the light inside them. See the series &rarr;</span></span></a>
 <div class="cx-bar" id="cxBar"><label class="cx-q"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="cxQ" type="search" placeholder="Search ${total} photographs" aria-label="Search the collection" autocomplete="off" spellcheck="false"></label>
 <div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
 <div class="cx-view"><button type="button" data-v="plates" aria-pressed="true" title="Plates">Plates</button><button type="button" data-v="index" title="Index">Index</button></div><span class="cx-n" id="cxN" hidden></span></div>
@@ -438,10 +439,26 @@ ${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${
 }
 
 // The collectors: the walls people chose to show, so others can see what taste looks like here.
+// A photograph across the top of a page, captioned like a wall label.
+const pageHero = (slug, cap, h) => `<section class="cx-cover pg-hero"><img src="/img/${esc(slug)}/large" alt="${esc(cap)}" fetchpriority="high" draggable="false">${h ? `<div class="cx-hero">${h}</div>` : ''}<span class="cx-cap">${esc(cap)} &middot; Will Fullerton</span></section>`;
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+
+function series({ s, chapters, pay = null, share = null }) {
+  const plate = (w, big) => `<a class="sr-pl${big ? ' sr-big' : ''}" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><span class="sr-im"><img src="/img/${esc(w.slug)}/${big ? 'large' : 'screen'}" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async" draggable="false"></span><span class="sr-lb"><i>${esc(tidy(w.title))}</i><small>${esc(w.place || '')}${w.accession ? ` &middot; ${esc(w.accession)}` : ''}</small></span></a>`;
+  const cover = chapters.flatMap(c => c.works).find(w => w.slug === s.cover);
+  const n = chapters.reduce((a, c) => a + c.works.length, 0);
+  return layout({ title: `${s.title} · ${s.house} · Watermark`, desc: s.dek, path: `/series/${s.slug}`, image: cover ? `/img/${cover.slug}/screen` : null, type: 'article',
+    body: `${cover ? pageHero(cover.slug, `${tidy(cover.title)}, ${cover.place || ''}`, `<div><p class="sr-k">A series by ${esc(s.maker)} &middot; ${esc(s.house)}</p><h1>${esc(s.title)}</h1></div><a class="btn" href="#ch-1">Enter</a>`) : ''}
+<section class="sr-intro"><p class="lede">${esc(s.dek)}</p><p class="sr-toc">${chapters.map((c, i) => `<a href="#ch-${i + 1}"><span>${ROMAN[i]}</span>${esc(c.title)}</a>`).join('')}</p><p class="cx-count">${n} photographs in ${chapters.length} parts &middot; each one collectable</p></section>
+${chapters.map((c, i) => `<section class="sr-ch" id="ch-${i + 1}"><header><span class="sr-no">${ROMAN[i]}</span><h2>${esc(c.title)}</h2><p>${esc(c.dek)}</p></header>
+<div class="sr-hang">${c.works.map((w, j) => plate(w, j === 0)).join('')}</div></section>`).join('')}
+<section class="sr-end"><p>${esc(s.title)} is a series by ${esc(s.maker)} for ${esc(s.house)}. Every photograph in it is held on Watermark, and every one can hang in your collection.</p><a class="buy-btn" href="/collection">Walk the whole collection</a></section>` });
+}
+
 function collectors({ list }) {
   const card = c => `<a class="yc-card" href="/collector/${esc(c.code)}"><span class="yc-th">${c.thumbs.map(t => `<img src="/img/${esc(t.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span>
 <b>${esc(c.name || 'A private collector')}</b><span>${c.works} work${c.works === 1 ? '' : 's'}${c.earliest ? ` · earliest No. ${c.earliest}` : ''}</span></a>`;
-  return layout({ title: 'The collectors · Watermark', desc: 'Collections people have chosen to show on Watermark.', path: '/collectors', body: `<section class="cx-intro"><p class="k">The collectors</p>
+  return layout({ title: 'The collectors · Watermark', desc: 'Collections people have chosen to show on Watermark.', path: '/collectors', body: `${pageHero('the-library-stacks', 'J. P. Morgan’s library, New York')}<section class="cx-intro"><p class="k">The collectors</p>
 <h1>The people who keep the work.</h1><p class="lede">Frick, Morgan, Gardner: the great collections are why we can see the great works. These are the collections people have chosen to show on Watermark. Every work on their walls can hang on yours.</p>
 <p class="cx-count"><a href="/yours">Your collection</a> &middot; <a href="/collection">Walk the archive</a></p></section>
 <section class="gal">${list.length ? `<div class="yc-cards">${list.map(card).join('')}</div>` : '<p class="note">No collection is public yet. Yours could be the first: collect a work, then open your wall from <a href="/yours">Yours</a>.</p>'}</section>` });
@@ -449,7 +466,7 @@ function collectors({ list }) {
 
 // On patronage: why collectors matter, and why makers must be paid. Will's words, confirmed 16 Oct 2026.
 function patronage() {
-  return layout({ title: 'On patronage · Watermark', desc: 'Every great work you have stood in front of was paid for by someone. Those who make and those who collect: Watermark honours both.', path: '/patronage', type: 'article', body: `<article class="essay">
+  return layout({ title: 'On patronage · Watermark', desc: 'Every great work you have stood in front of was paid for by someone. Those who make and those who collect: Watermark honours both.', path: '/patronage', type: 'article', body: `${pageHero('inside-brunelleschi-s-dome', 'Brunelleschi’s dome, Florence: the city of the Medici')}<article class="essay">
 <p class="k">On patronage</p>
 <h1>Every great work you have stood in front of was paid for by someone.</h1>
 <p>In Florence around 1490, Lorenzo de&rsquo; Medici took a teenage stonecutter into his own household. He fed him at his table and let him study the family&rsquo;s collection of ancient sculpture. The boy was Michelangelo. Without that house there is no David, and no Sistine ceiling.</p>
@@ -466,9 +483,9 @@ function patronage() {
 function journal({ posts }) {
   const item = (p, lead) => `<a class="jr${lead ? ' jr-lead' : ''}" href="${esc(p.url)}">${p.feature_image ? `<span class="jr-f"><img src="${esc(p.feature_image)}" alt="${esc(p.feature_image_alt || '')}"${lead ? ' fetchpriority="high"' : ' loading="lazy"'} draggable="false"></span>` : ''}
 <span class="jr-t"><small>${date(p.published_at)}${p.reading_time ? ` &middot; ${p.reading_time} min` : ''}</small><b>${esc(p.title)}</b><span>${esc(p.custom_excerpt || (p.excerpt || '').slice(0, 220))}</span>${lead ? '<span class="jr-go">Read on Krafft Studios &rarr;</span>' : ''}</span></a>`;
-  return layout({ title: 'Journal · Watermark', desc: 'Watermark news, art history and patronage, written by Krafft Studios.', path: '/journal', body: `<section class="cx-intro"><p class="k">Journal</p>
+  return layout({ title: 'Journal · Watermark', desc: 'Watermark news, art history and patronage, written by Krafft Studios.', path: '/journal', body: `${pageHero('under-the-gallery-dome', 'The National Gallery, London')}<section class="cx-intro"><p class="k">Journal</p>
 <h1>On making, collecting and keeping.</h1><p class="lede">News from Watermark, the history of art and patronage, and the people who make and collect. Written and published by <a href="https://studios.krafftco.com">Krafft Studios</a>.</p></section>
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { series, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

@@ -189,7 +189,7 @@ function createApp(cfg = {}) {
     const ws = db.prepare("SELECT slug, title, created_at FROM works WHERE status='held' ORDER BY id").all();
     const rooms = db.prepare('SELECT slug FROM collections WHERE public=1').all();
     const img = w => `<url><loc>${C.base}/w/${w.slug}</loc><image:image><image:loc>${C.base}/img/${w.slug}/screen</image:loc><image:title>${V.esc(w.title)}</image:title></image:image></url>`;
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/collection', '/collectors', '/journal', '/patronage', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/collection', '/collectors', '/journal', '/patronage', '/series/the-great-rooms', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
   });
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
@@ -486,6 +486,13 @@ function createApp(cfg = {}) {
   });
   // The collectors: walls their owners chose to show. Taste is what makes others want the work.
   app.get('/patronage', (req, res) => res.send(V.patronage()));
+  // Series: the maker's photographs hung in order, in parts.
+  const SERIES = require('./series');
+  app.get('/series/:slug', (req, res) => {
+    const s = SERIES.find(x => x.slug === req.params.slug); if (!s) return res.sendStatus(404);
+    const chapters = s.chapters.map(c => ({ ...c, works: c.works.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held') })).filter(c => c.works.length);
+    res.send(V.series({ s, chapters }));
+  });
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };

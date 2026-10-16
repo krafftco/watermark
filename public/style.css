@@ -554,3 +554,45 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
   .lot-rec{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:72px}
   .lot-rec .lot-fold{grid-column:1/-1}
 }
+
+/* ---- Page heroes ---- */
+.pg-hero{height:min(62vh,640px)}
+.essay{padding-top:clamp(40px,6vw,80px)}
+
+/* ---- A series, hung like a show ---- */
+.sr-k{margin:0 0 10px;color:#fff;font-size:12px;letter-spacing:.22em;text-transform:uppercase;opacity:.9}
+.sr-intro{max-width:880px;margin:0 auto;padding:clamp(48px,7vw,104px) clamp(16px,4vw,56px) 24px;text-align:center}
+.sr-intro .lede{font-family:var(--disp);font-size:clamp(26px,3vw,38px);line-height:1.2;color:var(--ink);margin:0 auto 34px}
+.sr-toc{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 34px;margin:0 0 18px}
+.sr-toc a{color:var(--ink);text-decoration:none;font-family:var(--disp);font-style:italic;font-size:22px}
+.sr-toc a span{font-family:var(--sans);font-style:normal;font-size:11px;letter-spacing:.16em;color:var(--mu);margin-right:10px}
+.sr-toc a:hover{color:var(--mu)}
+.sr-ch{padding:clamp(56px,8vw,120px) clamp(16px,4vw,56px) 0;max-width:1440px;margin:0 auto}
+.sr-ch header{text-align:center;max-width:640px;margin:0 auto clamp(32px,4vw,56px)}
+.sr-no{display:block;font-size:12px;letter-spacing:.24em;color:var(--mu);margin-bottom:12px}
+.sr-ch h2{margin:0 0 14px;font-family:var(--disp);font-weight:400;font-style:italic;font-size:clamp(44px,5.4vw,80px);line-height:1;letter-spacing:-.015em;text-transform:none;color:var(--ink)}
+.sr-ch header p{margin:0;font-family:var(--read);font-size:19px;line-height:1.55;color:#333}
+.sr-hang{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:clamp(28px,4vw,64px) clamp(20px,3vw,48px);align-items:end}
+.sr-pl{display:flex;flex-direction:column;gap:14px;color:var(--ink);text-decoration:none}
+.sr-big{grid-column:1/-1}
+.sr-im{display:flex;justify-content:center;align-items:center;background:var(--soft);padding:clamp(18px,3vw,44px)}
+.sr-im img{display:block;max-width:100%;max-height:70vh;width:auto;height:auto;aspect-ratio:var(--r);box-shadow:0 2px 4px rgba(0,0,0,.05),0 18px 44px rgba(0,0,0,.14);transition:transform .8s var(--e)}
+.sr-big .sr-im img{max-height:82vh}
+.sr-pl:hover .sr-im img{transform:scale(1.012)}
+.sr-lb{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.sr-lb i{font-family:var(--disp);font-size:21px}
+.sr-lb small{font-size:11px;letter-spacing:.1em;color:var(--mu);white-space:nowrap}
+.sr-end{max-width:640px;margin:0 auto;padding:clamp(72px,9vw,140px) clamp(16px,4vw,56px) 100px;text-align:center}
+.sr-end p{font-family:var(--read);font-size:19px;line-height:1.6;margin:0 0 28px}
+.sr-end .buy-btn{display:inline-block;width:auto;padding:20px 34px}
+
+/* The series band on the collection page */
+.sr-band{display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(18px,3vw,40px);align-items:center;margin:8px clamp(16px,4vw,56px) 28px;padding:clamp(16px,2vw,24px);background:var(--soft);color:var(--ink);text-decoration:none}
+.sr-band-im{display:flex;gap:6px}
+.sr-band-im img{width:clamp(56px,8vw,112px);height:clamp(76px,11vw,150px);object-fit:cover;display:block}
+.sr-band-t{display:flex;flex-direction:column;gap:6px}
+.sr-band-t small{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}
+.sr-band-t b{font-family:var(--disp);font-weight:400;font-style:italic;font-size:clamp(30px,3.6vw,48px);line-height:1}
+.sr-band-t span{font-size:14px;color:#333}
+.sr-band:hover b{color:var(--mu)}
+@media (max-width:560px){.sr-band{grid-template-columns:1fr}.sr-band-im img:nth-child(3){display:none}}
