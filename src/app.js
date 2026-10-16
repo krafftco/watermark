@@ -263,7 +263,9 @@ function createApp(cfg = {}) {
     if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg() }));
+    const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
+    const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown } }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -482,10 +484,19 @@ function createApp(cfg = {}) {
     db.prepare('UPDATE buyers SET name=?, public=?, code=? WHERE id=?').run(name, pub, code, b.id);
     res.redirect('/yours');
   });
+  // The collectors: walls their owners chose to show. Taste is what makes others want the work.
+  app.get('/collectors', (req, res) => {
+    const list = db.prepare(`SELECT b.id, b.code, b.name, COUNT(DISTINCT l.work_id) AS works, MIN(l.collector_no) AS earliest FROM buyers b
+      JOIN licenses l ON l.buyer_id=b.id AND l.status IN ('active','expired') AND l.price_cents > 0 JOIN works w ON w.id=l.work_id AND w.status='held'
+      WHERE b.public=1 AND b.code IS NOT NULL GROUP BY b.id ORDER BY works DESC, b.id LIMIT 200`).all();
+    const thumbs = db.prepare(`SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id AND w.status='held' WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY w.id ORDER BY MAX(l.starts_at) DESC LIMIT 4`);
+    list.forEach(c => { c.thumbs = thumbs.all(c.id); });
+    res.send(V.collectors({ list }));
+  });
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
-    res.send(V.collector({ b, ...collected(b), own: false, base: C.base }));
+    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social') }));
   });
 
   app.get('/buy/:slug', (req, res) => {

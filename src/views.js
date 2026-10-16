@@ -21,7 +21,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css"><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/collection">Collection</a><a href="/yours">Yours</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/yours">Yours</a><a href="/#makers">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
@@ -60,7 +60,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   });
 }
 
-function work({ w, maker, uses, base, rules, pay = null }) {
+function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] } }) {
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
   const facts = [
     ['Maker', maker.name], ['House', maker.house], ['Place', w.place], ['Taken', date(w.taken_at)],
@@ -87,6 +87,7 @@ function work({ w, maker, uses, base, rules, pay = null }) {
 <p class="by">Photograph by ${esc(maker.name)}${maker.house ? `, ${esc(maker.house)}` : ''}</p>
 ${w.caption ? `<p class="cap">${esc(w.caption)}</p>` : ''}
 <dl class="facts">${facts}</dl>
+${held.n ? `<p class="held">In ${held.n} collection${held.n === 1 ? '' : 's'}${held.shown.length ? ', among them ' + held.shown.map(c => `<a href="/collector/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No. ${c.no}</small>`).join(', ') : ''}.</p>` : '<p class="held">Not yet in any collection. The first collector is No. 1.</p>'}
 ${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(w.title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><button><span>Share it</span><b>${money(share.price_cents)}</b></button><p>About the price of a coffee, and 85% of it goes to the photographer. Yours to post on your own accounts, credited; the file arrives the moment you pay.</p></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
@@ -391,20 +392,22 @@ function terms() {
 }
 
 // A collector's own Watermark: every work they have collected, numbered, room by room.
-function collector({ b, items, rooms, works, makers, own, base }) {
+function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null }) {
   const who = b && b.name ? b.name : own ? 'Your collection' : 'A collection';
   if (!b || !items.length) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
 <h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
 <p class="lede">${own ? 'Every photograph you share or license on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This collection is private, or no longer exists.'}</p>
 ${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p>' : ''}</section>` });
-  const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span></a>`;
+  const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span>${!own && pay ? '<span class="pb" data-buy role="button" tabindex="0">Collect it</span>' : ''}</a>`;
   const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
   const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
   return layout({ title: `${who} · Watermark`, desc: `${works} photographs collected on Watermark.`, body: `<section class="cx-intro"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
 <h1>${esc(who)}${b.name ? '.' : ''}</h1>
 <p class="cx-count">${works} work${works === 1 ? '' : 's'} · ${makers} photographer${makers === 1 ? '' : 's'} · ${rooms.filter(r => r.have === r.total).length} room${rooms.filter(r => r.have === r.total).length === 1 ? '' : 's'} complete${lowest ? ` · earliest: collector No. ${lowest.collector_no} of <em>${esc(lowest.title)}</em>` : ''}</p></section>
 ${rooms.length ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
-<section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header><div class="plates">${items.map(plate).join('')}</div></section>
+<section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header><div class="plates">${items.map(plate).join('')}</div>
+${!own && pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js" defer></script>` : ''}
+${!own && share && share.price_cents != null ? `<p class="yc-cta">Like what ${esc(b.name || 'this collector')} collects? Every work here can be yours too, from ${money(share.price_cents)}: open one and press Share it.</p>` : ''}</section>
 ${own ? `<section class="gal yc-own"><header class="gh"><h2>Show it, or keep it</h2></header>
 <form method="post" action="/yours" class="form yc-form"><label>Name on the wall<input name="name" value="${esc(b.name || '')}" placeholder="Elena's collection"></label>
 <label class="chk"><input type="checkbox" name="public" value="1" ${b.public ? 'checked' : ''}> Open my collection to anyone with the link</label><button>Save</button></form>
@@ -412,4 +415,14 @@ ${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${
 <table class="tbl yc-files"><thead><tr><th>Work</th><th>No.</th><th>Collected</th><th></th></tr></thead><tbody>${items.map(i => `<tr><td>${esc(i.title)}<br><small>${esc(i.maker)} · ${esc(i.use_name)}</small></td><td>${i.collector_no || ''}</td><td>${date(i.starts_at)}</td><td>${i.download_token ? `<a href="/d/${esc(i.download_token)}">Save again</a>` : ''}</td></tr>`).join('')}</tbody></table></section>` : ''}` });
 }
 
-module.exports = { collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+// The collectors: the walls people chose to show, so others can see what taste looks like here.
+function collectors({ list }) {
+  const card = c => `<a class="yc-card" href="/collector/${esc(c.code)}"><span class="yc-th">${c.thumbs.map(t => `<img src="/img/${esc(t.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span>
+<b>${esc(c.name || 'A private collector')}</b><span>${c.works} work${c.works === 1 ? '' : 's'}${c.earliest ? ` · earliest No. ${c.earliest}` : ''}</span></a>`;
+  return layout({ title: 'The collectors · Watermark', desc: 'Collections people have chosen to show on Watermark.', path: '/collectors', body: `<section class="cx-intro"><p class="k">The collectors</p>
+<h1>The people who keep the work.</h1><p class="lede">Frick, Morgan, Gardner: the great collections are why we can see the great works. These are the collections people have chosen to show on Watermark. Every work on their walls can hang on yours.</p>
+<p class="cx-count"><a href="/yours">Your collection</a> &middot; <a href="/collection">Walk the archive</a></p></section>
+<section class="gal">${list.length ? `<div class="yc-cards">${list.map(card).join('')}</div>` : '<p class="note">No collection is public yet. Yours could be the first: collect a work, then open your wall from <a href="/yours">Yours</a>.</p>'}</section>` });
+}
+
+module.exports = { collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

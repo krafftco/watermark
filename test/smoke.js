@@ -99,6 +99,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
   assert.ok(!yb.includes('Save again'), 'no files on the public wall');
+  r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('/collector/' + code), 'shown among the collectors');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/In \d+ collections?, among them/.test(r.body.toString()), 'in the collections of');
+  r = await req(port, 'GET', `/collector/${code}`); assert.ok(r.body.toString().includes('data-buy') && r.body.toString().includes('/static/pay.js'), 'collect it from their wall');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection" } });
   r = await req(port, 'GET', `/collector/${code}`); assert.equal(r.status, 404, 'private again');
 

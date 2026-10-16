@@ -414,3 +414,12 @@ input.copy{width:100%;min-width:240px;font:12px/1.4 ui-monospace,Menlo,monospace
 .yc-big{font-family:var(--read);font-size:20px;margin:0 0 14px}
 .yc-form{max-width:520px}
 .yc-files{margin-top:24px}
+
+.held{margin:18px 0 0;font-size:14px;color:var(--mu)}.held a{color:var(--ink)}.held small{font-size:11px;letter-spacing:.08em}
+.yc-cta{margin:22px 0 0;font-family:var(--read);font-size:18px}
+.yc-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:28px}
+.yc-card{display:grid;gap:6px;text-decoration:none}
+.yc-th{display:grid;grid-template-columns:1fr 1fr;gap:3px;aspect-ratio:1;background:var(--soft);overflow:hidden}
+.yc-th img{width:100%;height:100%;object-fit:cover}
+.yc-card b{font-family:var(--read);font-weight:400;font-size:19px;margin-top:6px}
+.yc-card span:last-child{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}

@@ -120,6 +120,13 @@
   function close() { sheet.classList.remove('in'); document.documentElement.classList.remove('ps-on'); setTimeout(function () { sheet.hidden = true; }, 260); }
 
   window.WMShare = open;
+  // On pages without the collection script (a collector's wall), "Collect it" opens the sheet too.
+  document.addEventListener('click', function (e) {
+    if (window.__WM) return;
+    var b = e.target.closest && e.target.closest('[data-buy]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    var a = b.closest('[data-s]'); if (a) open(a.dataset.s, (a.querySelector('.pc b') || {}).textContent || '');
+  }, true);
   // The Share it form on a work page opens the sheet instead of leaving.
   document.addEventListener('submit', function (e) {
     var f = e.target.closest && e.target.closest('form[data-share], form.lb-share'); if (!f) return;
