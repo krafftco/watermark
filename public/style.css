@@ -242,3 +242,15 @@ body.studio .tv{max-width:none}
 .cat-form{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}.cat-form .wide,.cat-form button{grid-column:1/-1}.cat-form button{justify-self:start}
 .cat-form fieldset{border:0;padding:0;margin:0}.cat-form legend{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
 @media (max-width:900px){.tv-head,.cat{grid-template-columns:1fr}.tv-tot{grid-template-columns:repeat(3,auto)}.cat-form{grid-template-columns:1fr}}
+/* Bulk registration */
+.bulk{max-width:none}
+.drop{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;text-align:center;padding:40px 20px;border:1px dashed #a9a59d;background:#fff;cursor:pointer;transition:background .2s}
+.drop.over{background:#efece6}.drop input{position:absolute;opacity:0;pointer-events:none}
+.drop b{font-family:var(--read);font-weight:400;font-size:22px}.drop span{font-size:13px;color:var(--mu);max-width:560px;line-height:1.5}
+.bulk-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;margin-top:16px}.bulk-opts .chk{grid-column:1/-1}
+.bulk-list{list-style:none;padding:0;margin:16px 0 0;max-height:420px;overflow:auto;font-size:13px}
+.bulk-list li{display:grid;grid-template-columns:minmax(0,1fr) 70px 200px;gap:12px;padding:8px 0;border-bottom:1px solid var(--ln)}
+.bulk-list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bulk-list em{font-style:normal;color:var(--mu);text-align:right}.bulk-list i{font-style:normal;color:var(--mu)}
+.bulk-list li.busy i{color:var(--ink)}.bulk-list li.done i{color:#3f6b3f}.bulk-list li.skip i{color:#9a5b2e}
+.single{margin:20px 0 28px;font-size:14px}.single summary{cursor:pointer;color:var(--mu)}
+.drop,.drop b,.drop span{text-transform:none;letter-spacing:0}.drop b{color:var(--ink)}

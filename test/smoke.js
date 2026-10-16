@@ -83,6 +83,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/'); assert.ok(r.body.includes('For the people who make the pictures'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
+  // bulk registration, one file per request
+  const fx = fs.readFileSync(SRC); const sharp2 = require('sharp');
+  const other = await sharp2(fx).rotate(90).jpeg().toBuffer();
+  const boundary = '----wm' + Date.now();
+  const mp = (name, buf, fields) => Buffer.concat([...Object.entries(fields).map(([k, v]) => Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`)), Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: image/jpeg\r\n\r\n`), buf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
+  r = await req(port, 'POST', '/studio/works/one', { cookie: ck, body: mp('JOE_COMO-99.jpg', other, { place: 'Lake Como', hidden: '1', room: '' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  const bj = JSON.parse(r.body); assert.ok(bj.ok && /^WM\.\d{4}\.\d{4}$/.test(bj.accession) && bj.title === 'JOE COMO 99', 'bulk registered with accession');
+  assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(bj.slug).status, 'hidden', 'private until published');
+  r = await req(port, 'POST', '/studio/works/one', { cookie: ck, body: mp('again.jpg', other, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  assert.equal(r.status, 409, 'duplicate refused');
   // the trove: collections, catalogue record, public room
   r = await req(port, 'POST', '/studio/collections', { cookie: ck, body: { title: 'Florence, 2025', note: 'The city from below.', public: '1' } }); assert.equal(r.status, 302);
   const cid = db.prepare("SELECT id FROM collections WHERE slug='florence-2025'").get().id;

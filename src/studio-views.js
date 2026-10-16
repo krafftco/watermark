@@ -24,19 +24,38 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 </section>` });
 }
 
-function works({ list, error, notice }) {
+function works({ list, error, notice, rooms = [] }) {
   const rows = list.map(w => `<tr><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="72"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')}</small></td><td>${esc(w.camera || '')}</td><td>${date(w.created_at)}</td><td>${w.status === 'held' ? 'Public' : 'Hidden'}</td><td><a href="/studio/works/${esc(w.slug)}">Catalogue</a></td><td><form method="post" action="/studio/works/${esc(w.slug)}/toggle"><button class="link">${w.status === 'held' ? 'Hide' : 'Show'}</button></form></td></tr>`).join('');
   return layout({ studio: true, title: 'Vault · Watermark', body: `<section class="studio-wrap">${nav('/studio/works')}
 <h1>The vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<form class="form upload bulk" id="bulk" onsubmit="return false">
+<p class="k">Bring works into the vault</p>
+<label class="drop" id="drop"><input type="file" id="bulkFiles" accept="image/jpeg,image/png,image/tiff" multiple><b>Choose photographs or drop them here</b><span>Full-resolution masters: JPEG, TIFF or PNG. Each is fingerprinted, sealed into the vault and written to the ledger. Titles come from the file names; refine them in each catalogue record.</span></label>
+<div class="bulk-opts"><label>Place, for all<input id="bulkPlace" placeholder="Florence, Italy"></label>
+<label>Collection<select id="bulkRoom"><option value="">None</option>${rooms.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></label>
+<label class="chk"><input type="checkbox" id="bulkHidden" checked> Keep them private until I publish each one</label></div>
+<button type="button" id="bulkGo" disabled>Register 0 works</button>
+<ol class="bulk-list" id="bulkList"></ol>
+</form>
+<script>(function(){var files=[],inp=document.getElementById('bulkFiles'),go=document.getElementById('bulkGo'),list=document.getElementById('bulkList'),drop=document.getElementById('drop');
+function set(f){files=[].slice.call(f).filter(function(x){return ['image/jpeg','image/png','image/tiff'].indexOf(x.type)>=0||/[.](jpe?g|png|tiff?)$/i.test(x.name)});list.innerHTML=files.map(function(x,i){return '<li id="b'+i+'"><span>'+x.name.replace(/</g,'&lt;')+'</span><em>'+(x.size/1048576).toFixed(1)+' MB</em><i>Waiting</i></li>'}).join('');go.disabled=!files.length;go.textContent='Register '+files.length+' work'+(files.length===1?'':'s');}
+inp.addEventListener('change',function(){set(inp.files)});
+drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('over')});drop.addEventListener('dragleave',function(){drop.classList.remove('over')});
+drop.addEventListener('drop',function(e){e.preventDefault();drop.classList.remove('over');set(e.dataTransfer.files)});
+go.addEventListener('click',async function(){go.disabled=true;var ok=0,skip=0;for(var i=0;i<files.length;i++){var li=document.getElementById('b'+i),st=li.querySelector('i');st.textContent='Sealing…';li.className='busy';
+var fd=new FormData();fd.append('file',files[i]);fd.append('place',document.getElementById('bulkPlace').value);fd.append('room',document.getElementById('bulkRoom').value);fd.append('hidden',document.getElementById('bulkHidden').checked?'1':'0');
+try{var r=await fetch('/studio/works/one',{method:'POST',body:fd,credentials:'same-origin'});var j=await r.json();if(j.ok){ok++;li.className='done';st.innerHTML='<a href="/studio/works/'+j.slug+'">'+j.accession+'</a>'}else{skip++;li.className='skip';st.textContent=j.error}}catch(e){skip++;li.className='skip';st.textContent='Connection lost; try again'}
+go.textContent=ok+' registered'+(skip?', '+skip+' skipped':'')+' of '+files.length;}
+go.textContent='Done: '+ok+' registered'+(skip?', '+skip+' skipped':'');setTimeout(function(){location.href='/studio/works?ok='+encodeURIComponent(ok+' works registered.')},1500);});})();</script>
+<details class="single"><summary>Register a single work with its details</summary>
 <form method="post" action="/studio/works" enctype="multipart/form-data" class="form upload">
-<p class="k">Register a work</p>
 <label>Photograph (JPEG, TIFF or PNG, full resolution)<input type="file" name="file" accept="image/*" required></label>
 <label>Title<input name="title" required></label>
 <label>Place<input name="place" placeholder="Florence, Italy"></label>
 <label>Caption<textarea name="caption" rows="3"></textarea></label>
 <label>Published at (optional)<input name="source_url" type="url" placeholder="https://studios.krafftco.com/florence/"></label>
 <button>Register and hold</button>
-<p class="note">Watermark reads the camera, lens and time, fingerprints the original, and writes the registration to the ledger. The original is never shown publicly.</p></form>
+<p class="note">Watermark reads the camera, lens and time, fingerprints the original, and writes the registration to the ledger. The original is never shown publicly.</p></form></details>
 <table class="tbl"><thead><tr><th></th><th>Work</th><th>Camera</th><th>Registered</th><th>Visibility</th><th></th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7">The vault is empty.</td></tr>'}</tbody></table></section>` });
 }
 

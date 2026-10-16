@@ -502,7 +502,7 @@ function createApp(cfg = {}) {
   });
 
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
-  app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok })));
+  app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {
     if (!req.file || !req.body.title) return res.status(400).send(S.works({ list: q.allWorks.all(), error: 'Choose a photograph and give it a title.' }));
     try {
@@ -511,6 +511,21 @@ function createApp(cfg = {}) {
     } catch (e) {
       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       res.status(400).send(S.works({ list: q.allWorks.all(), error: e.user ? e.message : 'That file could not be read as a photograph.' }));
+    }
+  });
+  // Bulk registration: the page sends one file per request, so hundreds of masters go in one by one,
+  // each fingerprinted and on the ledger, with no giant upload to time out. Duplicates are refused.
+  const titleFrom = n => String(n || 'Untitled').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) || 'Untitled';
+  app.post('/studio/works/one', studioOnly, upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
+    try {
+      const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, title: String(req.body.title || '').trim() || titleFrom(req.file.originalname), place: req.body.place, source_url: req.body.source_url });
+      const cid = Number(req.body.room); if (cid && db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id);
+      if (req.body.hidden === '1') db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id);
+      res.json({ ok: true, slug: w.slug, title: w.title, accession: q.work.get(w.slug).accession });
+    } catch (e) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
     }
   });
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
