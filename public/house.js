@@ -103,6 +103,23 @@
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(lic, 0); }); else setTimeout(lic, 0);
   }
+
+  // krafftco.com/watermark: "Go further" leads into the living collection, not away from it.
+  if (/(^|\.)krafftco\.com$/.test(h) && /^\/watermark\/?$/.test(location.pathname)) {
+    var wmp = function () {
+      var ul = document.querySelector('.wm .wm-links'); if (!ul || ul.getAttribute('data-wm')) return; ul.setAttribute('data-wm', '1');
+      var W = 'https://watermark.krafftco.com';
+      var row = function (href, t, s) { var li = document.createElement('li'); li.innerHTML = '<a href="' + href + '"><span>' + t + '<i></i></span><small>' + s + '</small></a>'; return li; };
+      [].forEach.call(ul.querySelectorAll('a'), function (a) {
+        if (/studios\.krafftco\.com\/?$/.test(a.href)) { a.href = W + '/collection'; a.removeAttribute('target'); a.querySelector('span').firstChild.textContent = 'Walk the collection'; a.querySelector('small').textContent = 'Krafft Studios'; }
+        if (/\/license$/.test(a.getAttribute('href') || '')) { a.querySelector('small').textContent = 'Four uses'; }
+      });
+      var first = ul.children[1] || null;
+      [row(W + '/series/the-great-rooms', 'The Great Rooms', 'A series'), row(W + '/collectors', 'The collectors', 'Founding 100'), row(W + '/m/will-fullerton#patron', 'Become a patron', 'Patronage')]
+        .forEach(function (li) { ul.insertBefore(li, first ? first.nextSibling : null); first = li; });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wmp); else wmp();
+  }
   // A page that renders the bar itself says so; wait for it to be parsed, then refresh its links.
   var own = document.querySelector('meta[name="kh"]');
   if (own) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build(); }
