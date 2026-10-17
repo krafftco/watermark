@@ -56,12 +56,13 @@ function gone() {
 function studioAccounts({ list, base, notice }) {
   const rows = list.map(m => `<tr><td><b>${esc(m.name)}</b>${m.house ? `<br><small>${esc(m.house)}</small>` : ''}</td><td>${m.kind === 'estate' ? 'Estate' : 'Maker'}</td><td>${m.works}</td><td>${m.joined_at ? 'Joined ' + date(m.joined_at) : 'Invited'}</td>
 <td>${m.invite_token ? `<input class="copy" readonly value="${esc(base)}/account/join/${esc(m.invite_token)}" onclick="this.select()">` : `<form method="post" action="/studio/accounts/${m.id}/link" class="inline"><button class="link">New sign-in link</button></form>`}</td>
-<td><a href="/account?maker=${esc(m.handle)}">Their dashboard</a> &middot; <form method="post" action="/studio/accounts/${m.id}/standing" class="inline"><button class="link">${m.standing === 'held' ? 'Release' : 'Hold'}</button></form></td></tr>`).join('');
+<td class="ac-doors"><a href="/account?maker=${esc(m.handle)}">Studio</a> <a href="/account/requests?maker=${esc(m.handle)}">Requests</a> <a href="/account/payouts?maker=${esc(m.handle)}">Statement</a> <a href="/account/prices?maker=${esc(m.handle)}">Prices</a> <a href="/m/${esc(m.handle)}">Page</a> <form method="post" action="/studio/accounts/${m.id}/standing" class="inline"><button class="link">${m.standing === 'held' ? 'Release' : 'Hold'}</button></form></td></tr>`).join('');
   return layout({ studio: true, title: 'Accounts · Watermark', body: `<section class="studio-wrap">${require('./studio-views').nav('/studio/accounts')}
 <p class="k">Accounts</p><h1>Every maker, their own Watermark.</h1>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <p class="lede">Watermark is by invitation: applications arrive at Studio → Makers; approving one opens an account here and mails the invitation. You can also invite a maker or an estate with a sign-in link. Hold a maker and their work goes private until you release them. They keep 85% of every sale.</p>
-<table class="tbl"><thead><tr><th>Account</th><th>Kind</th><th>Works</th><th>Status</th><th>Sign-in link</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+<p class="note">Every door of a maker's studio opens for you from this table: their dashboard, their requests, their statement, their prices, their public page. You are shown as the Studio while you are in it; looking changes nothing.</p>
+<table class="tbl"><thead><tr><th>Account</th><th>Kind</th><th>Works</th><th>Status</th><th>Sign-in link</th><th>Their doors</th></tr></thead><tbody>${rows}</tbody></table>
 <h2>Invite a maker or an estate</h2>
 <form method="post" action="/studio/accounts" class="form inline-form"><label>Name<input name="name" required placeholder="Greg Williams"></label><label>Email<input name="email" type="email" placeholder="Optional"></label><label>Studio or estate<input name="house" placeholder="Optional"></label>
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option></select></label><button>Create the account</button></form></section>` });

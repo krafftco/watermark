@@ -1529,7 +1529,7 @@ function createApp(cfg = {}) {
   });
 
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));
-  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id), notice: req.query.ok, base: '/account/prices', studio: false })); });
+  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.asMaker(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id), notice: req.query.ok, base: '/account/prices', studio: false })); });
   app.post('/account/prices/:key', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.sendStatus(401); savePrice(req, res, m, '/account/prices'); });
   app.post('/studio/uses/:key', studioOnly, (req, res) => savePrice(req, res, maker, '/studio/uses'));
   function savePrice(req, res, maker, back) {

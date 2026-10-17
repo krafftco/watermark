@@ -206,7 +206,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     res.redirect('/account#w-' + w.slug);
   });
 
-  return { makerOf, setMaker, dashboard, inviteLink };
+  // The maker, or (for the Studio, with ?maker=handle) any maker: the Studio can open every room of a studio.
+  const asMaker = req => makerOf(req) || (req.query && req.query.maker && isStudio(req) ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.query.maker)) : null);
+  return { makerOf, asMaker, setMaker, dashboard, inviteLink };
 }
 
 module.exports = { mountAccounts, MULTIPLE };

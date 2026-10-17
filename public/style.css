@@ -1943,3 +1943,5 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .gp-big{display:grid;gap:4px;margin:26px 0 22px}.gp-big span{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}.gp-big b{font-family:var(--disp);font-weight:400;font-size:clamp(44px,6vw,72px);line-height:1;letter-spacing:-.02em}
 .gp-st dd small{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .gp-pay{font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:16px 24px;cursor:pointer}.gp-pay[disabled]{opacity:.45;cursor:not-allowed}
+.ac-doors a{margin-right:10px;white-space:nowrap}
+.ac-viewing{margin:0 0 18px;padding:10px 14px;background:#fbf6ea;border:1px solid #e9dcbd;font-size:13px}.ac-viewing a{margin-left:8px}
