@@ -581,7 +581,7 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ b, ...col, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ b, ...col, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -594,6 +594,8 @@ function createApp(cfg = {}) {
   const pat = app.locals.patronage = require('./patronage').mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer, ledger, V });
   // Voices: the maker, an art historian, a note, held with each photograph.
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
+  // Seats: the people at a licensee who hold the licence too, each with their own link.
+  require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
@@ -825,7 +827,7 @@ function createApp(cfg = {}) {
     if (isStudio(req)) owner = true;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner }));
+    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null }));
   });
 
   // ---------- The contract ----------
@@ -852,8 +854,9 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
-  app.get('/d/:token', async (req, res) => {
-    const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
+  app.get('/d/:token', (req, res) => deliver(db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token), res));
+  // The licensed file, stamped and sealed: for the holder's link, and for each seat on the licence.
+  async function deliver(l, res) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
@@ -880,7 +883,8 @@ function createApp(cfg = {}) {
       } catch (e) { /* fall through to the untouched original */ }
     }
     res.download(file, name);
-  });
+  }
+  app.locals.deliver = deliver;
 
   app.get('/verify', (req, res) => {
     const ref = String(req.query.ref || '').trim().toUpperCase();

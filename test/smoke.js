@@ -249,6 +249,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);
+  // Seats: the holder shares the licence with a colleague, who keeps it and takes the file.
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('1 of 3 seats'), 'seats on a story licence');
+  r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: l1.download_token, name: 'Desk Editor', email: 'desk@mag.com' } });
+  const seatTok = decodeURIComponent(r.headers.location).match(/seat=([A-Za-z0-9_-]{20,})/)[1];
+  r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: 'wrong', email: 'x@y.z' } }); assert.equal(db.prepare('SELECT COUNT(*) n FROM seats').get().n, 1, 'only the holder adds seats');
+  r = await req(port, 'GET', `/seat/${seatTok}`); assert.ok(r.body.toString().includes('Shared with you') && r.body.toString().includes('Keep it in my collection'));
+  r = await req(port, 'POST', `/seat/${seatTok}`); const seatCk = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+  r = await req(port, 'GET', `/seat/${seatTok}/file`); assert.equal(r.status, 200, 'the seat takes the file'); assert.ok(!String(r.headers.location || '').includes(l1.download_token), 'without the holder\'s key');
+  r = await req(port, 'GET', '/yours', { cookie: seatCk }); assert.ok(r.body.toString().includes('Shared with you'), 'in their collection');
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 3 seats') && r.body.toString().includes('In their collection'));
+  r = await req(port, 'GET', `/d/${l1.download_token}`);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
   const sh = require('sharp'); const [a, b] = await Promise.all([sh(r.body).raw().toBuffer(), sh(fs.readFileSync(BIG)).raw().toBuffer()]);

@@ -614,6 +614,21 @@ function requested({ lic, w }) {
   });
 }
 
+// A seat on someone's licence: the person it was shared with sees what it covers and keeps it.
+function seat({ s, l, live, mine }) {
+  const who = l.licensee_company || l.licensee_name || 'A licence holder';
+  return layout({ title: `${tidy(l.title)} · A seat on licence ${l.ref} · Watermark`, body: `<section class="lc2 seat-pg">
+<figure class="lc2-fig"><img src="/img/${esc(l.slug)}/screen" alt="${esc(tidy(l.title))}" draggable="false"></figure>
+<div class="lc2-side"><p class="lc2-st s-${live ? 'active' : 'expired'}"><i></i>${live ? 'Shared with you' : 'Ended'}</p>
+<h1>${esc(tidy(l.title))}</h1>
+<p class="lc2-says">${esc(who)} holds this photograph for ${esc(l.use_name.toLowerCase())}${l.ends_at ? `, until ${date(l.ends_at)}` : ''}, and has given you a seat on the licence${s.name ? `, ${esc(s.name)}` : ''}.</p>
+<dl class="lc2-dl"><div><dt>Licence</dt><dd>${esc(l.ref)}</dd></div><div><dt>For</dt><dd>${esc(l.use_name)}</dd></div><div><dt>Your seat</dt><dd>Inside ${esc(who)}&rsquo;s use; it does not pass to another company.</dd></div></dl>
+<div class="lc2-acts">${mine ? (live ? `<a class="buy-btn" href="/seat/${esc(s.token)}/file">Download the photograph</a>` : '') + `<a href="/yours">Your collection</a>`
+  : s.buyer_id ? '<p class="note">This seat has been taken. Ask the person who shared it with you.</p>'
+  : live ? `<form method="post" action="/seat/${esc(s.token)}" style="flex:1 1 100%"><button class="buy-btn" style="width:100%">Keep it in my collection</button></form>` : ''}
+<a href="/c/${esc(l.ref)}">The licence</a></div></div></section>` });
+}
+
 // The licence, as the person who holds it should see it: the photograph, what they may do with it, until
 // when, and what to keep in mind. The proof (fingerprint, register entry) is there for anyone who asks,
 // folded away; nobody needs to read a hash to trust a licence.
@@ -624,7 +639,7 @@ const USE_SAYS = {
   commercial: 'for their company: a website, a presentation, a letter to investors',
   campaign: 'before an audience: a campaign, a film, a billboard, a package',
 };
-function certificate({ lic, w, maker, use, entry, base, owner }) {
+function certificate({ lic, w, maker, use, entry, base, owner, seats = null, seat = null }) {
   const active = lic.status === 'active';
   const who = lic.licensee_company || lic.licensee_name || 'The holder';
   const C = require('./contract');
@@ -690,6 +705,11 @@ ${active ? `<a href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a>` : ''}
 <p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the licence set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
 <p class="lc2-sig"><span>${esc(maker.name)}</span><small>The maker, through Watermark</small></p>
 ${t && t.hash && active ? `<p class="lc2-acc">Agreement accepted by ${esc(who)} at payment on ${date(lic.starts_at)}. Order ${esc(lic.ref)}.</p>` : ''}</div></div>
+${owner && seats && seats.capacity > 1 && lic.download_token ? `<section class="lc2-seats" id="seats"><p class="lc2-h">People on this licence <span>${seats.list.length + 1} of ${seats.capacity} seats</span></p>
+<p class="lc2-sn">Everyone at ${esc(who)} who works with the photograph can hold the licence too: the file, the agreement and the dates, in their own collection. Each seat is recorded.</p>
+${seat && seat.length > 12 ? `<p class="ok">Seat added. Their link: <input class="lc2-link" readonly value="${esc(base)}/seat/${esc(seat)}" onclick="this.select()"></p>` : seat === 'full' ? '<p class="err">Every seat is in use. Remove one, or ask the maker for more.</p>' : seat === 'email' ? '<p class="err">An email address, so they can be sent their link.</p>' : seat === 'ended' ? '<p class="err">This licence has ended.</p>' : ''}
+<ul class="lc2-sl"><li><b>${esc(who)}</b><span>Holder</span></li>${seats.list.map(x => `<li><b>${esc(x.name || x.email)}</b><span>${x.claimed_at ? 'In their collection' : 'Link sent'}</span><form method="post" action="/c/${esc(lic.ref)}/seats/${x.id}/remove"><input type="hidden" name="k" value="${esc(lic.download_token)}"><button class="link">Remove</button></form></li>`).join('')}</ul>
+${seats.list.length + 1 < seats.capacity && active ? `<form method="post" action="/c/${esc(lic.ref)}/seats" class="lc2-sf"><input type="hidden" name="k" value="${esc(lic.download_token)}"><input name="name" placeholder="Name" autocomplete="off"><input name="email" type="email" placeholder="Email" required autocomplete="off"><button class="btn">Add a seat</button></form>` : ''}</section>` : ''}
 <details class="lc2-proof"><summary>How we know it&rsquo;s genuine</summary>
 <p>Every licence is written into Watermark&rsquo;s permanent record the moment it is granted, and each entry is sealed to the one before it, so nothing can be changed afterwards without it showing. The photograph is identified by its fingerprint, so this licence belongs to this exact picture and no other.</p>
 <dl class="lc2-dl lc2-tech"><div><dt>Licence</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
@@ -752,10 +772,10 @@ function terms() {
 }
 
 // A collector's own Watermark: every work they have collected, numbered, room by room.
-function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null, keyed = true, pf = null, offer = null, offers = [], accepted = null }) {
+function collector({ shared = [], b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null, keyed = true, pf = null, offer = null, offers = [], accepted = null }) {
   const pr = pf ? Object.fromEntries(pf.rows.map(r => [r.id, r])) : {};
   const who = b && b.name ? b.name : own ? 'Your collection' : 'A collection';
-  if (!b || !items.length) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
+  if (!b || (!items.length && !(own && shared.length))) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
 <h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
 <p class="lede">${own ? 'Every photograph you collect on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This collection is private, or no longer exists.'}</p>
 ${own && left ? `<p class="fc-call"><span class="fc-k">${K_MARK}</span>The first hundred people to collect on Watermark are its Founding Collectors, marked so on their wall for good. ${left} of 100 places remain.</p>` : ''}
@@ -780,6 +800,7 @@ ${own && pf ? `<section class="pf"><div class="pf-v"><span>Value of your collect
 <dl class="pf-dl"><div><dt>You paid</dt><dd>${money(pf.paid)}</dd></div><div><dt>Change</dt><dd class="${change > 0 ? 'pf-up' : change < 0 ? 'pf-dn' : ''}">${change === 0 ? 'No change' : `${change > 0 ? '+' : '&minus;'}${money(Math.abs(change))} (${(Math.abs(pf.change) * 100).toFixed(1)}%)`}</dd></div><div><dt>Market</dt><dd><a href="/market">See what is offered</a></dd></div></dl>
 <p class="pf-n">Limited editions are valued at their last trade, or at their issue price until they trade; open editions at what you paid. These are prices, not appraisals.</p></section>` : ''}
 ${rooms.length ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
+${own && shared.length ? `<section class="gal yc-shared"><header class="gh"><h2>Shared with you</h2><span>seats on licences held by others</span></header>${shared.map(x => `<a class="hd-ev" href="/seat/${esc(x.token)}"><span>${esc(x.use_name)}</span><b>${esc(tidy(x.title))}</b><span>${esc(x.licensee_company || x.licensee_name || '')}${x.ends_at ? ` &middot; until ${date(x.ends_at)}` : ''}</span><span class="hd-v">Seat</span></a>`).join('')}</section>` : ''}
 <section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header>${own ? `<div class="tc-grid">${items.map(card).join('')}</div>` : `<div class="plates">${items.map(plate).join('')}</div>`}
 ${!own && pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}
 ${!own && share && share.price_cents != null ? `<p class="yc-cta">Like what ${esc(b.name || 'this collector')} collects? Every work here can be yours too, from ${money(share.price_cents)}: open one and press Share it.</p>` : ''}</section>
@@ -853,4 +874,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
