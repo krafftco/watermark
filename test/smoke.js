@@ -182,7 +182,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const px = Buffer.alloc(300 * 200 * 3); for (let k = 0; k < px.length; k++) px[k] = (k * 7919) % 251;
   const fresh = await sharp2(px, { raw: { width: 300, height: 200, channels: 3 } }).jpeg().toBuffer();
   r = await req(port, 'POST', '/studio/masters/one', { cookie: ck, body: mp('JOE_FLO-123.jpg', fresh, { folder: 'EUROPE/08_FLORENCE' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
-  mj = JSON.parse(r.body); assert.strictEqual(mj.outcome, 'archive', r.body); assert.strictEqual(mj.title, 'Florence, frame 123');
+  mj = JSON.parse(r.body); assert.strictEqual(mj.outcome, 'archive', r.body); assert.strictEqual(mj.title, 'Florence, Frame 123');
   assert.strictEqual(db.prepare('SELECT status FROM works WHERE slug=?').get(mj.slug).status, 'hidden');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.includes('1 works held at full resolution'));
   // the trove: collections, catalogue record, public room
@@ -284,7 +284,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('Photograph by The Ada Estate'), 'their name on their work');
   r = await req(port, 'POST', `/buy/${aj.slug}`, { body: { use: 'social' } }); const es = sessions[r.headers.location.split('/').pop()];
   assert.ok(es.line_items[0].price_data.product_data.description.includes('The Ada Estate'), 'their name at checkout');
-  r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('ada harbour'), 'on their dashboard');
+  r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('Ada Harbour'), 'on their dashboard');
   r = await req(port, 'POST', `/account/works/${w.slug}/show`, { cookie: mck, body: { attest: '1' } }); assert.equal(r.status, 404, 'not someone else\'s');
   // Will's own dashboard, as he sees it: the sales so far, at 85%
   const me = db.prepare('SELECT handle FROM makers WHERE id=1').get().handle;

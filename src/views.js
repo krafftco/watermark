@@ -329,6 +329,33 @@ function reported({ w }) {
 <p><a class="btn" href="/w/${esc(w.slug)}">Back to the photograph</a></p></section>` });
 }
 
+// Where it will live: each use drawn as a place, the photograph at the centre of it.
+// The wall hangs the whole picture at its true proportions; the billboard and the screens crop it as they would.
+function scenes(w, maker) {
+  const r = w.width && w.height ? w.width / w.height : 1.5;
+  let hp = 42, wp = hp * 0.75 * r; if (wp > 48) { wp = 48; hp = wp / (0.75 * r); }
+  const t = esc(tidy(w.title)), by = esc(maker.name);
+  const yr = String(w.taken_at || w.created_at || '').slice(0, 4);
+  return `<div class="ls-sc ls-social" data-sc="social"><div class="pd"><i class="pd-is"></i><div class="pd-st"><span>9:41</span><span class="pd-bt"></span></div>
+<div class="pd-top"><i></i><b>yourname</b><em>&middot;&middot;&middot;</em></div><div class="ph"></div>
+<div class="pd-act"><i class="h"></i><i class="c"></i><i class="s"></i><i class="b"></i></div>
+<div class="pd-cap"><b>1,204 likes</b><p><b>yourname</b> The light that evening.</p><span>Photograph by ${by} &middot; Watermark</span></div></div></div>
+<div class="ls-sc ls-story" data-sc="editorial"><div class="sp"><div class="sp-l"><div class="ph"></div><span class="sp-cr">Photograph: ${by}</span></div>
+<div class="sp-r"><span class="kk">The feature</span><span class="hh">${t}</span><span class="dk">${w.place ? esc(w.place) + '. ' : ''}A place, and the hour it was seen.</span>
+<span class="tx"><b>T</b><i></i><i></i><i></i><i></i><i style="width:82%"></i><i></i><i></i><i style="width:64%"></i></span><span class="fo">${yr || ''} &middot; 14</span></div></div></div>
+<div class="ls-sc ls-co" data-sc="commercial"><div class="br"><div class="bar"><i></i><i></i><i></i><u>yourcompany.com</u></div>
+<div class="site"><div class="ph"></div><div class="nav"><b>Your Company</b><span>Work</span><span>About</span><span>Contact</span></div>
+<div class="hd">Your company,<br>introduced.</div><span class="cta">Learn more</span><span class="crd">Photograph: ${by}</span></div></div></div>
+<div class="ls-sc ls-aud" data-sc="campaign"><i class="sky"></i><i class="bl b1"></i><i class="bl b2"></i><i class="bl b3"></i>
+<div class="ws"><div class="ph"></div><div class="ad"><b>Your line, here.</b><span>Photograph by ${by}</span></div></div>
+<i class="lp l1"></i><i class="lp l2"></i><i class="lp l3"></i><i class="st"></i>
+<div class="sh"><div class="ph"></div></div><i class="fg f1"></i><i class="fg f2"></i></div>
+<div class="ls-sc ls-wall" data-sc="print"><i class="spot"></i>
+<div class="fr" style="left:${(50 - wp / 2).toFixed(2)}%;top:${(39 - hp / 2).toFixed(2)}%;width:${wp.toFixed(2)}%;height:${hp.toFixed(2)}%"><div class="ph"></div><i class="sig">${by}</i></div>
+<div class="lbl" style="left:calc(${(50 + wp / 2).toFixed(2)}% + 9cqw);top:${(39 + hp / 2 - 6).toFixed(2)}%"><b>${t}</b><span>${by}${yr ? ', ' + yr : ''}</span><span>Archival pigment print, signed</span></div>
+<i class="base"></i><i class="fl"></i><i class="bench"></i></div>`;
+}
+
 // The license page. One photograph, four uses, every price in plain sight, one button.
 // Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
 function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false } }) {
@@ -348,12 +375,7 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
     body: `<section class="buy">
 <figure class="buy-fig"><div class="ls" data-ls style="--img:url('/img/${esc(w.slug)}/screen')">
 <div class="ls-sc on" data-sc=""><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></div></div>
-<div class="ls-sc ls-social" data-sc="social"><div class="ph-dev"><div class="ph-top"><i></i><b>yourname</b></div><div class="ph"></div><div class="ph-cap"><b>yourname</b> Evening light. <span>Photograph by ${esc(maker.name)} &middot; Watermark</span></div></div></div>
-<div class="ls-sc ls-story" data-sc="editorial"><div class="ph"></div><div class="pg"><span class="kk">The feature</span><span class="hh">${esc(tidy(w.title))}</span><span class="ln"></span><span class="ln"></span><span class="ln" style="width:86%"></span><span class="ln"></span><span class="ln" style="width:70%"></span><span class="cr">Photograph by ${esc(maker.name)}</span></div></div>
-<div class="ls-sc ls-co" data-sc="commercial"><div class="bar"><i></i><i></i><i></i><u></u></div><div class="site"><div class="ph"></div><div class="nav"><span></span><span style="width:120px"></span></div><div class="hd">Your company, introduced.</div></div></div>
-<div class="ls-sc ls-aud" data-sc="campaign"><div class="bb"><div class="ph"></div></div><i class="pole p1"></i><i class="pole p2"></i></div>
-<div class="ls-sc ls-wall" data-sc="print"><div class="fr"><div class="mt"><div class="ph"></div></div></div><div class="fl"></div></div>
-</div>
+${scenes(w, maker)}</div>
 <figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Share it.' : 'Give it somewhere to live.'}</h1>
@@ -369,7 +391,7 @@ ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rule
 <script>(function(){var b=document.getElementById('buyBtn');
 // See it where it will live: each use shows the photograph in its place.
 var st=document.querySelector('[data-ls]'),cap=document.querySelector('[data-ls-cap]'),sc=st?[].slice.call(st.querySelectorAll('[data-sc]')):[];
-var CAPS={'':'Choose where it will live, and see it there.',social:'Share it: on your own accounts, credited.',editorial:'In a story: opening the feature, credited on the page.',commercial:'For a company: the first thing anyone sees.',campaign:'On a billboard, at the scale it deserves.',print:'On a wall: signed, matted, framed, kept.'};
+var CAPS={'':'Choose where it will live, and see it there.',social:'Shared: on your own accounts, with the maker named.',editorial:'In a story: the opening spread, credited on the page.',commercial:'For a company: the first thing anyone sees of you.',campaign:'A campaign: a city wall, at the scale it was made for.',print:'On a wall: signed, matted, framed and lit, for good.'};
 function show(k){if(!st)return;var has=sc.some(function(x){return x.getAttribute('data-sc')===k;});sc.forEach(function(x){x.classList.toggle('on',x.getAttribute('data-sc')===(has?k:''));});if(cap)cap.textContent=CAPS[has?k:'']||CAPS[''];}
 var cur=(document.querySelector('.bu input:checked')||{}).value||'';show(cur);
 document.querySelectorAll('.bu').forEach(function(l){var i=l.querySelector('input');l.addEventListener('mouseenter',function(){show(i.value);});l.addEventListener('mouseleave',function(){show((document.querySelector('.bu input:checked')||{}).value||'');});});

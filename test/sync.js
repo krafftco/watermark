@@ -13,7 +13,7 @@ const { photosIn } = require('../src/studios-sync');
   const G = 'https://studios.test/content/images/2026/10/';
   const posts = [
     { slug: 'florence', title: 'Florence', url: 'https://studios.test/florence/', tags: [{ slug: 'travel', name: 'Travel' }, { slug: 'place-italy', name: 'Italy' }],
-      feature_image: G + 'size/w2000/flo-1.jpg', feature_image_alt: 'The Duomo at dusk',
+      feature_image: G + 'size/w2000/flo-1.jpg', feature_image_alt: 'The Duomo at Dusk',
       html: `<figure class="kg-card"><img src="${G}size/w1200/flo-1.jpg" alt="dup"></figure><figure><img src="${G}flo-2.jpg" alt=""><figcaption>Ponte Vecchio</figcaption></figure>` },
     { slug: 'journey-out-west-the-people', title: 'Journey Out West: The People', url: 'https://studios.test/people/', tags: [{ slug: 'travel', name: 'Travel' }],
       feature_image: G + 'people-1.jpg', html: '' },
@@ -35,7 +35,7 @@ const { photosIn } = require('../src/studios-sync');
   assert.deepStrictEqual([r1.added, r1.held_private, r1.failed], [2, 1, 0], JSON.stringify(r1));
   assert.ok(fetched.includes(G + 'flo-1_o.jpg'), 'prefers the untouched upload');
   const works = db.prepare('SELECT slug,title,status,place,caption,credit FROM works ORDER BY id').all();
-  assert.strictEqual(works[0].title, 'The Duomo at dusk');
+  assert.strictEqual(works[0].title, 'The Duomo at Dusk');
   assert.strictEqual(works[1].title, 'Florence, No. 2');
   assert.strictEqual(works[1].caption, 'Ponte Vecchio');
   assert.strictEqual(works[0].place, 'Florence, Italy');

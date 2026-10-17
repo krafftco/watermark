@@ -176,6 +176,7 @@ function createApp(cfg = {}) {
     const info = await images.inspect(file);
     const dupe = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
     if (dupe) { fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e; }
+    title = require('./titles').titleCase(title);
     let slug = slugify(title), i = 2;
     while (q.work.get(slug)) slug = `${slugify(title)}-${i++}`;
     const ext = (path.extname(originalName || file) || '.jpg').toLowerCase();
@@ -570,6 +571,8 @@ function createApp(cfg = {}) {
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
+  // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
+  try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
@@ -1003,7 +1006,7 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
     const b = req.body; const t = (v, n) => String(v || '').trim().slice(0, n) || null;
     db.prepare('UPDATE works SET title=COALESCE(?,title), caption=?, place=?, keywords=?, credit=?, medium=? WHERE id=?')
-      .run(t(b.title, 160), t(b.caption, 4000), t(b.place, 160), t(b.keywords, 400), t(b.credit, 200), t(b.medium, 120), w.id);
+      .run(t(b.title, 160) && require('./titles').titleCase(t(b.title, 160)), t(b.caption, 4000), t(b.place, 160), t(b.keywords, 400), t(b.credit, 200), t(b.medium, 120), w.id);
     // Share it price for this photograph alone: whole dollars, $3 at least; empty = the maker's standard price.
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
