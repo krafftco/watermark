@@ -102,14 +102,19 @@
     if (!data || !data.works || !data.works.length) return;
     var by = {}; data.works.forEach(function (w) { if (w.collect || w.ask) by[w.path] = w; });
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
-    var root = document.querySelector('article') || document.querySelector('main') || document.body;
+    var root = document.querySelector('article') || document.querySelector('main') || document.body, fits = [];
     [].forEach.call(root.querySelectorAll('img'), function (img) {
       var w = by[path(img.currentSrc || img.src)] || by[path(img.getAttribute('src'))]; if (!w) return;
       var host = img.closest('figure, .kg-gallery-image, .kg-image-card') || img.parentElement;
       if (!host || host.querySelector(':scope > .wk')) return;
       if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
-      host.classList.add('wk-host'); host.appendChild(seal(w, img, data.license || 'https://www.krafftco.com/license'));
+      host.classList.add('wk-host'); var sl = seal(w, img, data.license || 'https://www.krafftco.com/license'); host.appendChild(sl);
+      // Sit on the photograph itself, not on its figure (which may carry a caption below it).
+      var fit = function () { var h = host.getBoundingClientRect(), r = img.getBoundingClientRect(); if (!r.width) return; var inset = window.matchMedia('(hover:none)').matches ? 8 : 12;
+        sl.style.right = Math.round(h.right - r.right + inset) + 'px'; sl.style.bottom = Math.round(h.bottom - r.bottom + inset) + 'px'; };
+      fit(); if (!img.complete) img.addEventListener('load', fit); fits.push(fit);
     });
+    window.addEventListener('resize', function () { fits.forEach(function (f) { f(); }); });
     var cr = data.credits, tipUrl = cr && cr.tip ? cr.tip + '?back=' + encodeURIComponent(location.href.split('#')[0]) : null;
     if (!data.room && !tipUrl) return;
     var esc = function (t) { return String(t).replace(/[<>&"]/g, ''); };
