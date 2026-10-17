@@ -25,6 +25,8 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Quality control: MIN_MP in app.js (share 1, story and company 12, audience and wall 24, reference 40; drafts). A use is offered only when the held file meets it (`offered`), on Watermark and on the K. Studio → Masters lists works waiting and takes a master per work (/studio/works/:slug/master: same picture by dhash, larger), via `replaceMaster`.
 - Owners: `heldBy(req, w)`; the work page shows In your collection (download, license, put it up / withdraw) and leaves held uses out of the menu; /buy and one-tap refuse a second sale of a held use.
 - Seats: `src/seats.js`. Each license carries seats (share 1, story 3, company 5, audience 10; drafts; extra seats $50 each via Checkout, `extra_seats` on the license): the holder adds people on the license page (/c/:ref, owner), each gets /seat/:token to keep it in their collection and take the file (delivered by `deliver`, never the holder's key); every seat recorded. Seats stay inside the licensee; another company is a new license.
+- Downloads: counted per license (DL in app.js: collect 5, story 10, company 25, audience 50, print 5; drafts; `dl_extra` on the license), shared with seats, recorded in `downloads`; 410 when used up. Every license includes the share-size copy (/d/:token?size=share) and the right to share; holding any license covers Collect (`covers`).
+- The $5 piece is called Collect everywhere (use key stays `social`).
 - Your collection shows pieces as cards (`card` in views.js; .tc in style.css).
 
 ## Rules (from Will)

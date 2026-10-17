@@ -119,7 +119,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="${esc(makerName)}"></label>
 <label>Copyright registration<input name="copyright_reg" value="${esc(w.copyright_reg || '')}" placeholder="VA 2-345-678"></label>
 <label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition"></label>
-<label>Share it price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
+<label>Collect price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
 <label class="chk"><input type="checkbox" name="noshare" value="1" ${w.rules && /"social":false/.test(w.rules) ? 'checked' : ''}> License only: no Share it on this photograph</label>
 <label class="wide">Keywords<input name="keywords" value="${esc(w.keywords || '')}" placeholder="architecture, cathedral, fresco, Renaissance"></label>
 <label class="wide">Wall text<textarea name="caption" rows="4" placeholder="What it is, when and why it was made.">${esc(w.caption || '')}</textarea></label>
@@ -213,7 +213,7 @@ ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2><a 
 // Masters: choose the archive folder once; every full-resolution file is matched to the work it was
 // published as and becomes that work's original. Frames not yet published are held privately.
 function masters({ upgraded, web, need = [], min = {}, ok = null }) {
-  const U = { social: 'Share it', reference: 'the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
+  const U = { social: 'Collect', reference: 'the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
   return layout({ studio: true, title: 'Masters · Watermark', body: `<section class="studio-wrap">${nav('/studio/masters')}
 <p class="k">Vault</p><h1>Masters.</h1>
 <p class="lede">${upgraded} works held at full resolution; ${web} still from the web copy.</p>
@@ -275,7 +275,7 @@ ${groups.length ? `<section class="hd-list"><div class="hd-h"><h2>Groups</h2></d
 // Launch: the rails, checked.
 function contract({ review, rights, extras, bundles, add }) {
   const tag = { FIX: 'Corrected', ADDED: 'Added', OPEN: 'For counsel' };
-  const U = { social: 'Share it', reference: 'Collect the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
+  const U = { social: 'Collect', reference: 'Collect the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
   return layout({ studio: true, title: 'Contract · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/contract')}
 <p class="k">Contract</p><h1>The Standard Content License Agreement</h1>
 <p class="lede">Counsel's 2021 draft for Watermark Ventures, now assembled for each order from the rights the licensee pays for. Each use carries its rights; anything else can be added at a price or asked of the maker; the maker's never list is written in.</p>

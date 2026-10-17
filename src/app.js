@@ -21,7 +21,7 @@ const mail = require('./mail');
 
 // [key, name, description, term months, kind, sort, default price in cents (null = ask privately)]
 const DEFAULT_USES = [
-  ['social', 'Share it', 'Post it on your own accounts: Instagram, a story, X, your lock screen. Personal, not for a business; tag the maker.', null, 'license', 0, 500],
+  ['social', 'Collect', 'Yours to keep and to share: your own accounts, a story, your lock screen. Personal, not for a business; the maker named.', null, 'license', 0, 500],
   ['editorial', 'In a story', 'A feature, a book, an essay or a report, with the maker named beside it.', 12, 'license', 1, 35000],
   ['commercial', 'For a company', 'The face of a website, a presentation, a letter to investors. Non-exclusive.', 12, 'license', 2, 75000],
   ['campaign', 'Before an audience', 'A campaign, a film, a billboard, a package. Non-exclusive; exclusivity on request.', 12, 'license', 3, 250000],
@@ -83,6 +83,14 @@ function createApp(cfg = {}) {
   const mpOf = w => (w && w.width && w.height ? w.width * w.height / 1e6 : 0);
   const meets = (w, key) => mpOf(w) >= (MIN_MP[key] || 0);
   const QUALITY = { MIN_MP, mpOf, meets };
+  // One name for the $5 piece: Collect (it was Share it).
+  try { db.prepare("UPDATE uses SET name='Collect', description=? WHERE key='social' AND name='Share it'").run(DEFAULT_USES[0][2]); } catch (e) { /* first boot */ }
+  // Downloads are counted. Every license comes with a number of them (drafts), shared with its seats; the
+  // share-size file comes with every license, because holding a license includes the right to share it.
+  const DL = { social: 5, reference: 5, editorial: 10, commercial: 25, campaign: 50, print: 5 };
+  db.exec(`CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, seat_id INTEGER, size TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='dl_extra'").get()) db.exec('ALTER TABLE licenses ADD COLUMN dl_extra INTEGER NOT NULL DEFAULT 0');
+  const dlOf = l => { const u = q.useById.get(l.use_id); const limit = (DL[u ? u.key : 'social'] || 5) + (l.dl_extra || 0); const used = db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(l.id).n; return { limit, used, left: Math.max(0, limit - used) }; };
   const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social' && w.share_cents) v.price_cents = w.share_cents; return v; };
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
@@ -205,7 +213,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
-  app.locals.quality = QUALITY;
+  app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
@@ -299,8 +307,11 @@ function createApp(cfg = {}) {
 
   // What the visitor already holds of a work: one row per active license, with its use and any open offer.
   const heldBy = (req, w) => { const b = buyerOf(req); if (!b || !w) return [];
-    return db.prepare(`SELECT l.ref, l.collector_no, l.ends_at, l.download_token, l.status, u.key, u.name, u.kind, (SELECT ask_cents FROM listings s WHERE s.license_id=l.id AND s.status='open') listed
-      FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) ORDER BY l.id`).all(w.id, b.id); };
+    return db.prepare(`SELECT l.id, l.use_id, l.dl_extra, l.ref, l.collector_no, l.ends_at, l.download_token, l.status, u.key, u.name, u.kind, (SELECT ask_cents FROM listings s WHERE s.license_id=l.id AND s.status='open') listed
+      FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) ORDER BY l.id`).all(w.id, b.id)
+      .map(h => ({ ...h, dl: dlOf({ id: h.id, use_id: h.use_id, dl_extra: h.dl_extra }) })); };
+  // Holding any license includes the right to share the photograph: Collect is not sold to someone who already holds a larger use.
+  const covers = (held, key) => held.some(h => h.key === key || (key === 'social' && h.kind !== 'print'));
   app.locals.heldBy = heldBy;
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
@@ -429,7 +440,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     if (!u || !offered(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
     // Already held: not sold twice (a renewal is the exception).
-    if (!req.body.renews && heldBy(req, w).some(h => h.key === u.key)) return res.redirect(`/w/${w.slug}#yours`);
+    if (!req.body.renews && covers(heldBy(req, w), u.key)) return res.redirect(`/w/${w.slug}#yours`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
@@ -483,7 +494,7 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
-    if (heldBy(req, w).some(h => h.key === 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
+    if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
     const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
     const ref = nextRef();
@@ -499,7 +510,7 @@ function createApp(cfg = {}) {
       }
       db.prepare('UPDATE licenses SET buyer_id=? WHERE ref=?').run(b.id, ref);
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', automatic_payment_methods: { enabled: true }, customer: b.customer, setup_future_usage: 'off_session',
-        description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug }, ...(email ? { receipt_email: email } : {}) });
+        description: `${w.title.replace(/[.\s]+$/, '')}: Collected. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug }, ...(email ? { receipt_email: email } : {}) });
       db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
       ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
       res.json({ ok: true, ref, secret: pi.client_secret });
@@ -523,14 +534,14 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
-    if (heldBy(req, w).some(h => h.key === 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
+    if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null, b.id);
     try {
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', customer: b.customer, payment_method: b.pm, off_session: true, confirm: true,
-        description: `${w.title.replace(/[.\s]+$/, '')}: Share it. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug, tap: '1' }, ...(b.email ? { receipt_email: b.email } : {}) });
+        description: `${w.title.replace(/[.\s]+$/, '')}: Collected. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug, tap: '1' }, ...(b.email ? { receipt_email: b.email } : {}) });
       db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
       ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key, tap: true });
       if (pi.status !== 'succeeded') return res.json({ ok: false, sheet: true });
@@ -827,7 +838,7 @@ function createApp(cfg = {}) {
     if (isStudio(req)) owner = true;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null }));
+    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l) }));
   });
 
   // ---------- The contract ----------
@@ -854,16 +865,20 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
-  app.get('/d/:token', (req, res) => deliver(db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token), res));
+  app.get('/d/:token', (req, res) => deliver(db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token), res, { size: req.query.size }));
   // The licensed file, stamped and sealed: for the holder's link, and for each seat on the license.
-  async function deliver(l, res) {
+  async function deliver(l, res, { size = null, seat = null } = {}) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    ledger.append(db, 'file.delivered', l.ref, { work: w.slug });
     const lu = q.useById.get(l.use_id);
-    let file; try { file = await originalPath(w); if (lu && lu.key === 'social') file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
-    const name = `${w.slug}-${l.ref}${lu && lu.key === 'social' ? '.jpg' : path.extname(w.original_file)}`;
+    const share = size === 'share' || (lu && lu.key === 'social');
+    const dl = dlOf(l);
+    if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
+    db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full');
+    ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
+    let file; try { file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
+    const name = `${w.slug}-${l.ref}${share ? '.jpg' : path.extname(w.original_file)}`;
     if (/\.jpe?g$/i.test(file)) {
       try {
         const u = lu;

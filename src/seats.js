@@ -95,7 +95,7 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
     const l = db.prepare('SELECT * FROM licenses WHERE id=?').get(s.license_id);
     if (!live(l) || !l.download_token) return res.sendStatus(404);
     ledger.append(db, 'license.seat.file', l.ref, {});
-    app.locals.deliver(l, res);
+    app.locals.deliver(l, res, { seat: s.id, size: req.query.size });
   });
   return { SEATS, seatsOf };
 }

@@ -77,7 +77,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/d/${tl.download_token}`); assert.equal(r.status, 200);
   r = await req(port, 'GET', `/thanks/${tref}?session_id=wrong`); assert.equal(r.status, 302, 'thanks page needs its session');
   // Share it: the everyday license. One tap to Checkout, no company field, the file arrives screen-sized and stamped
-  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it.') && r.body.toString().includes('Share it for $5'), 'Share it leads');
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Collect it.') && r.body.toString().includes('Collect for $5'), 'Share it leads');
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social', back: 'https://studios.krafftco.com/florence/' } }); assert.equal(r.status, 303);
   assert.equal(sessions[r.headers.location.split('/').pop()].cancel_url, 'https://studios.krafftco.com/florence/', 'back to the story');
   const ss = sessions[r.headers.location.split('/').pop()]; assert.equal(ss.line_items[0].price_data.unit_amount, 500); assert.ok(!ss.custom_fields, 'nothing to fill in');
@@ -148,12 +148,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '5' } });
   // a photograph priced on its own, and one held back for licenses only
   r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '40' } });
-  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it for $40'), 'its own price');
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Collect for $40'), 'its own price');
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social' } }); assert.equal(sessions[r.headers.location.split('/').pop()].line_items[0].price_data.unit_amount, 4000);
   r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '40', noshare: '1' } });
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('share-buy'), 'license only');
   r = await req(port, 'POST', `/studio/works/${w.slug}/catalogue`, { cookie: ck, body: { title: 'Test Dome', share: '' } });
-  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it for $5'), 'back to the standard price');
+  r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Collect for $5'), 'back to the standard price');
   r = await req(port, 'POST', `/studio/works/${w.slug}`, { cookie: ck, body: 'uses=editorial&uses=commercial&uses=print&never=ai&never=political&credit=1&showEarned=1' , headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   assert.equal(r.status, 302);
   r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(!r.body.includes('Before an audience'), 'closed use hidden'); assert.ok(r.body.includes('Training or fine-tuning AI models'));
@@ -264,6 +264,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     Object.assign(so, { payment_status: 'paid', status: 'complete' });
     r = await req(port, 'GET', `/c/${ref1}/seats/added?session_id=${so.id}&k=${l1.download_token}`); r = await req(port, 'GET', `/c/${ref1}/seats/added?session_id=${so.id}&k=${l1.download_token}`); }
   r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 5 seats'), 'seats added once');
+  // Downloads counted: a story license has 10, shared with its seats; the share-size copy comes with every license.
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); { const cb = r.body.toString(); assert.ok(/\d+ of 10 downloads left/.test(cb) && cb.includes('Share-size copy') && cb.includes('Share it on your own accounts'), 'downloads shown; sharing included'); }
+  r = await req(port, 'GET', `/d/${l1.download_token}?size=share`); assert.equal(r.status, 200); { const sm = await require('sharp')(r.body).metadata(); assert.ok(sm.width <= 2400, 'share size is the small file'); }
+  db.prepare("UPDATE licenses SET dl_extra=-100 WHERE ref=?").run(ref1);
+  r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 410, 'no downloads left');
+  db.prepare("UPDATE licenses SET dl_extra=0 WHERE ref=?").run(ref1);
   r = await req(port, 'GET', `/d/${l1.download_token}`);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
@@ -326,7 +332,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/journal'); assert.ok(r.status === 200 && r.body.toString().includes('On patronage'), 'the journal');
   r = await req(port, 'GET', '/patronage'); assert.ok(r.body.toString().includes('Watermark honours both'));
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
-  r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Share it') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
+  r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
