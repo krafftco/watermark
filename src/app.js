@@ -1227,8 +1227,10 @@ function createApp(cfg = {}) {
   });
 
   // The catalogue record for one work.
-  app.post('/studio/works/:slug/catalogue', studioOnly, (req, res) => {
-    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+  // Who may edit a work's record and terms: the Studio, or the work's own maker (from their own studio).
+  const mayEdit = (req, w) => !!(w && (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id));
+  const deskBase = req => (req.path.startsWith('/account') ? '/account/works' : '/studio/works');
+  function saveCatalogue(req, res, w) {
     const b = req.body; const t = (v, n) => String(v || '').trim().slice(0, n) || null;
     db.prepare('UPDATE works SET title=COALESCE(?,title), caption=?, place=?, keywords=?, credit=?, medium=? WHERE id=?')
       .run(t(b.title, 160) && require('./titles').titleCase(t(b.title, 160)), t(b.caption, 4000), t(b.place, 160), t(b.keywords, 400), t(b.credit, 200), t(b.medium, 120), w.id);
@@ -1242,10 +1244,12 @@ function createApp(cfg = {}) {
     // A work too important to share at any price: license only.
     const rl = R.parse(w.rules); rl.social = b.noshare === '1' ? false : undefined; db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rl), w.id);
     const ids = (b.rooms == null ? [] : Array.isArray(b.rooms) ? b.rooms : [b.rooms]).map(Number).filter(Boolean);
-    db.prepare('DELETE FROM collection_works WHERE work_id=?').run(w.id);
-    for (const cid of ids) if (db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id);
-    res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Catalogue record saved.')}`);
-  });
+    if (isStudio(req)) db.prepare('DELETE FROM collection_works WHERE work_id=?').run(w.id);
+    if (isStudio(req)) { for (const cid of ids) if (db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id); }
+    res.redirect(`${deskBase(req)}/${w.slug}?ok=${encodeURIComponent('Catalogue record saved.')}`);
+  }
+  app.post('/studio/works/:slug/catalogue', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); saveCatalogue(req, res, w); });
+  app.post('/account/works/:slug/catalogue', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.sendStatus(401); saveCatalogue(req, res, w); });
 
   app.get('/studio/activity', studioOnly, (req, res) => {
     const stats = {
@@ -1456,25 +1460,28 @@ function createApp(cfg = {}) {
   app.get('/view', (req, res) => res.send(V.viewer()));
 
   // The maker's say, per work.
-  app.get('/studio/works/:slug', studioOnly, (req, res) => {
-    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+  function workDesk(req, res, w) {
     const seen = db.prepare('SELECT * FROM sightings WHERE work_id=? ORDER BY id DESC').all(w.id);
     const lic = db.prepare("SELECT l.*, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? ORDER BY l.id DESC").all(w.id);
     const seals = db.prepare('SELECT * FROM seals WHERE work_id=? ORDER BY created_at DESC').all(w.id);
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
-    res.send(S.workTerms({ makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
-  });
-  app.post('/studio/works/:slug', studioOnly, (req, res) => {
-    const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
+    const studio = !req.path.startsWith('/account');
+    res.send(S.workTerms({ makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
+  }
+  app.get('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); workDesk(req, res, w); });
+  app.get('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); workDesk(req, res, w); });
+  function saveTerms(req, res, w) {
     const arr = v => v == null ? [] : Array.isArray(v) ? v : [v];
-    const all = q.uses.all(maker.id).map(u => u.key);
+    const all = q.uses.all(mk(w).id).map(u => u.key);
     const open = arr(req.body.uses).filter(k => all.includes(k));
     const rules = { uses: open.length === all.length ? null : open, approve: req.body.approve === '1', never: arr(req.body.never).filter(k => R.NEVER[k]), credit: req.body.credit === '1', showEarned: req.body.showEarned === '1', ...(open.includes('social') ? {} : { social: false }) };
     db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rules), w.id);
     ledger.append(db, 'work.terms', w.slug, { open: rules.uses || 'all', approve: rules.approve, never: rules.never });
-    res.redirect(`/studio/works/${w.slug}?ok=${encodeURIComponent('Your terms are saved. They apply to every new license.')}`);
-  });
+    res.redirect(`${deskBase(req)}/${w.slug}?ok=${encodeURIComponent('Your terms are saved. They apply to every new license.')}`);
+  }
+  app.post('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); saveTerms(req, res, w); });
+  app.post('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.sendStatus(401); saveTerms(req, res, w); });
   app.get('/studio/sightings', studioOnly, (req, res) => res.send(S.sightings({ list: db.prepare('SELECT s.*, w.title, w.slug FROM sightings s JOIN works w ON w.id=s.work_id ORDER BY s.id DESC').all(), embeds: db.prepare("SELECT v.host, w.title, w.slug, SUM(v.count) AS n, MAX(v.day) AS last FROM views v JOIN works w ON w.id=v.work_id WHERE v.kind='embed' AND v.host IS NOT NULL GROUP BY v.host, w.id ORDER BY last DESC").all(), base: C.base })));
   app.post('/studio/sightings/:id', studioOnly, (req, res) => {
     if (['new', 'licensed', 'offered', 'resolved'].includes(req.body.status)) db.prepare('UPDATE sightings SET status=? WHERE id=?').run(req.body.status, req.params.id);
@@ -1510,15 +1517,18 @@ function createApp(cfg = {}) {
   });
 
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));
-  app.post('/studio/uses/:key', studioOnly, (req, res) => {
+  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id), notice: req.query.ok, base: '/account/prices', studio: false })); });
+  app.post('/account/prices/:key', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.sendStatus(401); savePrice(req, res, m, '/account/prices'); });
+  app.post('/studio/uses/:key', studioOnly, (req, res) => savePrice(req, res, maker, '/studio/uses'));
+  function savePrice(req, res, maker, back) {
     const v = String(req.body.price || '').trim();
     // Whole dollars only. Share it has a floor: below $3 the card fee eats the maker's share.
     let cents = v === '' ? null : Math.round(Number(v)) * 100;
-    if (cents !== null && !(cents >= 0)) return res.redirect('/studio/uses');
+    if (cents !== null && !(cents >= 0)) return res.redirect(back);
     if (req.params.key === 'social' && cents !== null && cents < 300) cents = 300;
     db.prepare('UPDATE uses SET price_cents=? WHERE maker_id=? AND key=?').run(cents, maker.id, req.params.key);
-    res.redirect('/studio/uses?ok=Saved');
-  });
+    res.redirect(back + '?ok=Saved');
+  }
 
   // Renewals: expire what has ended; remind licensees 30 days before the end.
   function sweep() {

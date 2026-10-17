@@ -22,6 +22,7 @@
     var r = await post('/signin/code', { email: email }); busy(emailForm, false);
     if (!r.ok) { msg(again ? steps.code : steps.email, r.j.why || 'Not sent. Try again in a moment.', true); return; }
     root.querySelector('[data-si-to]').textContent = r.j.to;
+    if (r.j.sent === false) { var off = steps.code.querySelector('[data-si-off]'); if (off) off.hidden = false; }
     boxes.forEach(function (b) { b.value = ''; b.classList.remove('ok', 'bad'); }); msg(steps.code, again ? 'A new code is on its way.' : '');
     if (!again) show('code');
   }

@@ -64,11 +64,11 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     db.prepare('INSERT INTO signins (email, code_hash, salt, link, created_at) VALUES (?,?,?,?,?)').run(email, hash(code, salt), salt, link, Date.now());
     const who = whois(email), first = who.maker ? who.maker.name.split(' ')[0] : null;
     const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
-    await mail.send({ to: email, subject: `${spaced} is your Watermark code`,
+    await mail.send({ to: email, subject: `${spaced} is your Watermark code`, feature: spaced, cta: { label: 'Sign in with one tap', url: `${C.base}/signin/${link}` },
       text: `${first ? `${first},\n\n` : ''}Your code to sign in to Watermark is\n\n    ${spaced}\n\nIt is good for ten minutes. Or open this link on the device you are signing in on:\n\n${C.base}/signin/${link}\n\nIf you did not ask for it, nothing happens; ignore this message.\n\nWatermark, a Krafft company` });
     if (process.env.NODE_ENV === 'test') app.locals.lastCode = { email, code, link };
     if (!mail.on()) console.log(`[signin] code for ${email}: ${code}  link: ${C.base}/signin/${link}`);
-    res.json({ ok: true, to: mask(email), known: !!(who.buyer || who.maker), maker: !!who.maker });
+    res.json({ ok: true, to: mask(email), known: !!(who.buyer || who.maker), maker: !!who.maker, sent: mail.on() });
   });
 
   // Step two: the code comes back.

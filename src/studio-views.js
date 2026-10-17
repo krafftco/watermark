@@ -86,22 +86,25 @@ ${open ? `<div class="actions">
 <p><a href="/c/${esc(l.ref)}">Open the certificate</a></p></section>` });
 }
 
-function uses({ list, notice }) {
-  const rows = list.map(u => `<tr><td><b>${esc(u.name)}</b><br><small>${esc(u.description)}</small></td><td>${esc(termText(u))}</td><td><form method="post" action="/studio/uses/${esc(u.key)}" class="inline"><input name="price" type="number" min="${u.key === 'social' ? 3 : 0}" step="1" value="${u.price_cents == null ? '' : Math.round(u.price_cents / 100)}" placeholder="On request"><button>Save</button></form>${u.key === 'social' ? '<br><small>About the price of a coffee. Whole dollars, $3 at least.</small>' : ''}</td></tr>`).join('');
-  return layout({ studio: true, title: 'Uses & prices · Watermark', body: `<section class="studio-wrap">${nav('/studio/uses')}<h1>Uses and prices.</h1>${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+function uses({ list, notice, base = '/studio/uses', studio = true }) {
+  if (!studio) setDeskPath('/account/prices');
+  const rows = list.map(u => `<tr><td><b>${esc(u.name)}</b><br><small>${esc(u.description)}</small></td><td>${esc(termText(u))}</td><td><form method="post" action="${base}/${esc(u.key)}" class="inline"><input name="price" type="number" min="${u.key === 'social' ? 3 : 0}" step="1" value="${u.price_cents == null ? '' : Math.round(u.price_cents / 100)}" placeholder="On request"><button>Save</button></form>${u.key === 'social' ? '<br><small>About the price of a coffee. Whole dollars, $3 at least.</small>' : ''}</td></tr>`).join('');
+  return layout({ studio: true, title: 'Uses & prices · Watermark', body: `<section class="studio-wrap${studio ? '' : ' hd'}">${studio ? nav('/studio/uses') : '<p class="k">Your studio</p>'}<h1>${studio ? 'Uses and prices.' : 'Your prices.'}</h1>${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <p class="lede">Leave a price empty to take requests and quote each one yourself. A price lets licensees pay at once.</p>
 <table class="tbl"><thead><tr><th>Use</th><th>Term</th><th>Price (USD)</th></tr></thead><tbody>${rows}</tbody></table></section>` });
 }
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice }) {
+function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true }) {
+  const licBase = studio ? '/studio/licenses' : '/account/requests';
+  if (!studio) setDeskPath('/account');
   const open = k => !rules.uses || rules.uses.includes(k);
   const paid = lic.filter(l => ['active', 'expired'].includes(l.status));
   const earned = paid.reduce((a, l) => a + (l.price_cents || 0), 0);
-  const life = lic.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.starts_at || l.created_at)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
+  const life = lic.map(l => `<tr><td><a href="${licBase}/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.starts_at || l.created_at)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
   const sg = seen.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a> &middot; ${date(x.created_at)} &middot; ${esc(x.status)}</li>`).join('');
-  return layout({ studio: true, title: `${w.title} · Studio`, body: `<section class="studio-wrap">${nav('/studio/works')}
+  return layout({ studio: true, title: `${w.title} · ${studio ? 'Studio' : 'Your studio'}`, body: `<section class="studio-wrap${studio ? '' : ' hd'}">${studio ? nav('/studio/works') : '<p class="k"><a href="/account">Your studio</a> · the record</p>'}
 <div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">${esc(w.accession || 'Catalogue')}</p><h1>${esc(w.title)}</h1>
 <div class="stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${seen.length}</b><span>sightings</span></div></div></div></div>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
@@ -113,7 +116,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <div><dt>Dimensions</dt><dd>${w.width && w.height ? `${w.width} × ${w.height} px · prints to ${Math.round(w.width / 300 * 2.54)} × ${Math.round(w.height / 300 * 2.54)} cm at 300 dpi` : ''}</dd></div>
 <div><dt>Camera</dt><dd>${esc([w.camera, w.lens].filter(Boolean).join(', '))}</dd></div>
 <div><dt>Fingerprint</dt><dd><code>${esc(w.sha256.slice(0, 24))}…</code></dd></div></dl>
-<form method="post" action="/studio/works/${esc(w.slug)}/catalogue" class="form cat-form">
+<form method="post" action="${base}/${esc(w.slug)}/catalogue" class="form cat-form">
 <label>Title<input name="title" value="${esc(w.title)}" required></label>
 <label>Place<input name="place" value="${esc(w.place || '')}" placeholder="Florence, Italy"></label>
 <label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
@@ -128,7 +131,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <button>Save the record</button></form></div>
 <h2>Exhibition history</h2><table class="tbl"><thead><tr><th>Where</th><th>How</th><th>Views</th><th>First</th><th>Latest</th></tr></thead><tbody>${views.map(v => `<tr><td>${esc(v.host || 'Watermark')}</td><td>${esc({ view: 'Its page', open: 'License page opened', embed: 'Embedded with credit' }[v.kind] || v.kind)}</td><td>${v.n}</td><td>${esc(v.first)}</td><td>${esc(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">Not shown anywhere yet.</td></tr>'}${w.source_url ? `<tr><td colspan="5">Published at <a href="${esc(w.source_url)}" target="_blank" rel="noopener">${esc(w.source_url.replace(/^https?:\/\//, ''))}</a></td></tr>` : ''}</tbody></table>
 <h2>Terms</h2>
-<form method="post" action="/studio/works/${esc(w.slug)}" class="form terms-form">
+<form method="post" action="${base}/${esc(w.slug)}" class="form terms-form">
 <h2>Open to</h2>${uses.map(u => `<label class="chk"><input type="checkbox" name="uses" value="${esc(u.key)}" ${open(u.key) ? 'checked' : ''}> ${esc(u.name)} <small>${money(u.price_cents)}</small></label>`).join('')}
 <h2>Approval</h2><label class="chk"><input type="checkbox" name="approve" value="1" ${rules.approve ? 'checked' : ''}> Approve each license myself before the buyer pays</label>
 <h2>Never for</h2>${Object.entries(NEVER).map(([k, v]) => `<label class="chk"><input type="checkbox" name="never" value="${k}" ${rules.never.includes(k) ? 'checked' : ''}> ${esc(v)}</label>`).join('')}

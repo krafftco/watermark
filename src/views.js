@@ -637,6 +637,7 @@ ${mailOn ? '' : '<p class="note si-off">Email codes are not switched on for this
 <div class="si-step" data-step="code">
 <p class="k">Check your mail</p><h1>Enter the code.</h1>
 <p class="lede">We sent six digits to <b data-si-to></b>. Type them here, or open the link in the message.</p>
+<p class="note si-off" data-si-off hidden>Mail is not connected for this house yet, so the code was not sent. The keeper can read it from the house log and give it to you.</p>
 <form class="si-f" data-si-code novalidate><div class="si-code" data-si-boxes>${'<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" pattern="[0-9]" aria-label="digit">'.repeat(6)}</div>
 <button class="buy-btn si-go" type="submit"><span>Sign in</span><i class="si-spin" aria-hidden="true"></i></button></form>
 <p class="si-msg" data-si-msg aria-live="polite"></p>
