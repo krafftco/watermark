@@ -18,6 +18,38 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     db.prepare('INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)').run(b.id, -cents, kind, ref || null, note || null);
     return true;
   }
+  // Credit: money earned in the house (a curator's share, a card received, earnings kept here), posted at once.
+  function credit(b, cents, kind, ref, note) { if (!b || !(cents > 0)) return false; db.prepare('INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)').run(b.id, cents, kind, ref || null, note || null); return true; }
+  // What was earned here (not put in) may be cashed out: earned, less what has already gone out, never more than the balance.
+  const EARNED = ['curation', 'thanks_in', 'earnings', 'resale'];
+  const earned = b => (b ? db.prepare(`SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted' AND kind IN (${EARNED.map(() => '?').join(',')})`).get(b.id, ...EARNED).s : 0);
+  const cashable = b => (b ? Math.max(0, Math.min(balance(b), earned(b) + db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status IN ('posted','pending') AND kind='cashout'").get(b.id).s)) : 0);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('buyers') WHERE name='stripe_account'").get()) db.exec('ALTER TABLE buyers ADD COLUMN stripe_account TEXT');
+  const PAY_ON = () => !!stripe && process.env.PAYOUTS === 'stripe';
+  // The bank: Stripe Connect Express, the same door the makers use.
+  app.post('/pocket/connect', async (req, res) => {
+    const b = buyerOf(req); if (!b || !stripe) return res.redirect('/yours?tab=settings&pocket=off#pocket');
+    try {
+      let acct = b.stripe_account;
+      if (!acct) { const a = await stripe.accounts.create({ type: 'express', email: b.email || undefined, capabilities: { transfers: { requested: true } }, business_profile: { name: b.name || undefined, product_description: 'Curation and cards on Watermark' } }); acct = a.id; db.prepare('UPDATE buyers SET stripe_account=? WHERE id=?').run(acct, b.id); }
+      const link = await stripe.accountLinks.create({ account: acct, type: 'account_onboarding', refresh_url: `${C.base}/yours?tab=settings#pocket`, return_url: `${C.base}/yours?tab=settings&pocket=bank#pocket` });
+      res.redirect(303, link.url);
+    } catch (e) { console.error('[pocket connect]', e.message); res.redirect('/yours?tab=settings&pocket=unavailable#pocket'); }
+  });
+  // Cash out what was earned: transferred when payouts are on and the bank is there; otherwise recorded and paid by hand.
+  app.post('/pocket/cashout', async (req, res) => {
+    const b = buyerOf(req); if (!b) return res.redirect('/yours');
+    const cents = cashable(b); if (cents < 100) return res.redirect('/yours?tab=settings&pocket=small#pocket');
+    const id = db.prepare("INSERT INTO pocket (buyer_id, cents, kind, status, note) VALUES (?,?,'cashout','pending','Cashed out')").run(b.id, -cents).lastInsertRowid;
+    if (PAY_ON() && b.stripe_account) {
+      try { const t = await stripe.transfers.create({ amount: cents, currency: 'usd', destination: b.stripe_account, description: 'Watermark: cashed out', metadata: { pocket: String(id) } }); db.prepare("UPDATE pocket SET status='posted', ref=? WHERE id=?").run(t.id, id); ledger.append(db, 'pocket.cashed', `buyer-${b.id}`, { amount: cents, how: 'stripe' }); return res.redirect('/yours?tab=settings&pocket=cashed#pocket'); }
+      catch (e) { console.error('[cashout]', e.message); }
+    }
+    db.prepare("UPDATE pocket SET status='posted' WHERE id=?").run(id);                      // the balance drops now; the house pays by hand
+    ledger.append(db, 'pocket.cashed', `buyer-${b.id}`, { amount: cents, how: 'hand' });
+    try { require('./mail').send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Cash out: ${money(cents)} to buyer ${b.id}`, text: `${b.name || 'A collector'} <${b.email || 'no email'}> asked to cash out ${money(cents)} from their pocket.${b.stripe_account ? ` Connect account ${b.stripe_account}.` : ' No bank on file yet.'}` }); } catch (e) { /* mail off */ }
+    res.redirect('/yours?tab=settings&pocket=cashed#pocket');
+  });
   app.post('/pocket/add', async (req, res) => {
     const cents = Math.round(Number((req.body || {}).amount)); if (!TOPUPS.includes(cents)) return res.redirect('/yours?tab=settings#pocket');
     if (!stripe) return res.redirect('/yours?tab=settings&pocket=off#pocket');
@@ -46,19 +78,20 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     res.redirect('/yours?tab=settings&pocket=filled#pocket');
   });
   app.locals.pocketEvent = event => { if (event.type === 'checkout.session.completed') { const s = event.data.object; if (s.metadata && s.metadata.pocket) settle(s.metadata.pocket, s); } };
-  app.locals.pocket = { balance, spend, history, TOPUPS, settle };
+  app.locals.pocket = { balance, spend, credit, earned, cashable, history, TOPUPS, settle };
   return app.locals.pocket;
 }
 
 // The pocket on Yours → Settings.
-function pocketBlock({ balance, history, state, on }) {
-  const notice = { filled: 'Filled. Thank-you cards now go out with one tap.', off: 'The till is closed for the moment.', unavailable: 'The payment could not be started. Try again in a moment.' }[state];
+function pocketBlock({ balance, history, state, on, cashable = 0, bank = false }) {
+  const notice = { filled: 'Filled. Thank-you cards now go out with one tap.', off: 'The till is closed for the moment.', unavailable: 'The payment could not be started. Try again in a moment.', cashed: 'Cashed out. It is on its way to your bank, or the house will send it by hand.', bank: 'Your bank is connected.', small: 'A dollar at least to cash out.' }[state];
   return `<section class="pocket" id="pocket"><header class="gh"><h2>Your pocket</h2><span>${money(balance)}</span></header>
 <p class="lede pk-lede">Small money for small things: ninety-nine-cent thank-you cards to the people who made what you love, sent with one tap, no checkout each time. Put a little in; it is spent here and only here.</p>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form method="post" action="/pocket/add" class="pk-add">${TOPUPS.map(c => `<button name="amount" value="${c}" ${on ? '' : 'disabled'}>Add ${money(c)}</button>`).join('')}</form>
-${history.length ? `<ul class="pk-hist">${history.map(h => `<li><span>${esc(h.at.slice(0, 10))}</span><span>${h.kind === 'topup' ? 'Put in' : h.kind === 'earnings' ? 'Your earnings, kept in the house' : h.kind === 'thanks' ? `Thank you${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'collect' ? `Collected${h.note ? `: ${esc(h.note)}` : ''}` : esc(h.kind)}</span><b class="${h.cents < 0 ? 'out' : 'in'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></li>`).join('')}</ul>` : ''}
-<p class="note">What is in the pocket is the house's debt to you, spent in the house; it is never cashed out. The makers are paid what their cards add up to, with the rest of their earnings.</p></section>`;
+${history.length ? `<ul class="pk-hist">${history.map(h => `<li><span>${esc(h.at.slice(0, 10))}</span><span>${h.kind === 'topup' ? 'Put in' : h.kind === 'earnings' ? 'Your earnings, kept in the house' : h.kind === 'thanks' ? `Thank you${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'collect' ? `Collected${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'curation' ? `Your eye: ${esc(h.note || '')}` : h.kind === 'thanks_in' ? esc(h.note || 'A card for you') : h.kind === 'cashout' ? 'Cashed out' : esc(h.kind)}</span><b class="${h.cents < 0 ? 'out' : 'in'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></li>`).join('')}</ul>` : ''}
+${cashable >= 100 ? `<div class="pk-out"><p><b>${money(cashable)}</b> of this you earned here: a curator's share, cards received. Spend it in the house, or take it out.</p><form method="post" action="/pocket/cashout"><button class="link">Cash out ${money(cashable)}</button></form>${bank ? '' : `<form method="post" action="/pocket/connect"><button class="link">Add your bank</button></form>`}</div>` : ''}
+<p class="note">What you put in is spent in the house. What you earn in the house (collecting through your hangs and galleries, the cards people send you) can be spent here or cashed out. The makers are paid what their cards add up to, with the rest of their earnings.</p></section>`;
 }
 
 module.exports = { mountPocket, pocketBlock, TOPUPS };

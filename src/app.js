@@ -178,6 +178,7 @@ function createApp(cfg = {}) {
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
     // Collector No. n of this work: numbers are never reused, so an early number stays early.
     if (extra.paid) db.prepare('UPDATE licenses SET collector_no=(SELECT COALESCE(MAX(collector_no),0)+1 FROM licenses WHERE work_id=?) WHERE ref=? AND collector_no IS NULL').run(l.work_id, ref);
+    if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     const g = q.lic.get(ref);
     if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
@@ -262,6 +263,7 @@ function createApp(cfg = {}) {
     if (app.locals.patronEvent) app.locals.patronEvent(event); // patronage: joined, or ended
     if (app.locals.libraryEvent) app.locals.libraryEvent(event); // a copy taken from the Library
     if (app.locals.pocketEvent) app.locals.pocketEvent(event); // the pocket filled
+    if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
       if (ref && q.lic.get(ref)) grant(ref, { paid: true, price_cents: pi.amount_received });
@@ -395,7 +397,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.balance(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.balance(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -545,6 +547,7 @@ function createApp(cfg = {}) {
     t.version = 'standard-2021-counsel/v0'; t.hash = require('crypto').createHash('sha256').update(JSON.stringify(K.assemble({ t, work: w.title, maker: maker.name, ref }))).digest('hex');
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, 'Buyer', '', noteAll, u.price_cents, R.conditions(rules) || null, JSON.stringify(t));
+    if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
     // From the pocket: money already in the house, spent in the house, one tap, no checkout.
@@ -601,6 +604,7 @@ function createApp(cfg = {}) {
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions) VALUES (?,?,?,?,?,?,'awaiting_payment',?)")
       .run(ref, w.id, u.id, name, email, u.price_cents, R.conditions(R.parse(w.rules)) || null);
+    if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     try {
       // First Share it from this device: a Stripe customer is made so the card can be remembered for one tap next time.
       let b = buyerOf(req);
@@ -640,6 +644,7 @@ function createApp(cfg = {}) {
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null, b.id);
+    if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     try {
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', customer: b.customer, payment_method: b.pm, off_session: true, confirm: true,
         description: `${w.title.replace(/[.\s]+$/, '')}: Collected. Photograph by ${maker.name}. Watermark ${ref}.`, metadata: { ref, work: w.slug, tap: '1' }, ...(b.email ? { receipt_email: b.email } : {}) });
@@ -699,7 +704,7 @@ function createApp(cfg = {}) {
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
     const rights = col.items.filter(i => i.use_key !== 'social' && i.use_kind !== 'print').map(i => ({ ...i, dl: dlOf({ id: i.id, use_id: i.use_id, dl_extra: i.dl_extra }), seats: (() => { try { return db.prepare('SELECT COUNT(*) n FROM seats WHERE license_id=?').get(i.id).n; } catch (e) { return 0; } })(), live: i.status === 'active' && (!i.ends_at || new Date(i.ends_at) > new Date()), soon: i.ends_at && new Date(i.ends_at) - Date.now() < 30 * 864e5 }));
-    res.send(V.collector({ hand: ownHand(b, req), rights, isMaker: !!app.locals.accounts.makerOf(req), isHouse: isStudio(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(buyerOf(req)), history: app.locals.pocket.history(buyerOf(req)), state: req.query.pocket || null, on: !!stripe }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ hand: ownHand(b, req), rights, isMaker: !!app.locals.accounts.makerOf(req), isHouse: isStudio(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(b), history: app.locals.pocket.history(b), state: req.query.pocket || null, on: !!stripe, cashable: app.locals.pocket.cashable(b), bank: !!(b && b.stripe_account) }) : '', hangs: app.locals.hangs ? require('./hangs').hangsBlock({ hangs: app.locals.hangs.mine(b), b: b || {}, pct: app.locals.hangs.CURATOR_PCT, earned: b ? db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND kind='curation' AND status='posted'").get(b.id).s : 0 }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -898,7 +903,8 @@ function createApp(cfg = {}) {
     const thumbs = db.prepare(`SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id AND w.status='held' WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY w.id ORDER BY MAX(l.starts_at) DESC LIMIT 4`);
     list.forEach(c => { c.thumbs = thumbs.all(c.id); });
     list.forEach(c => { c.founding = foundingNo(c); });
-    res.send(V.collectors({ list, left: foundingLeft() }));
+    list.forEach(c => { c.statement = (db.prepare('SELECT statement FROM buyers WHERE id=?').get(c.id) || {}).statement; });
+    res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [] }));
   });
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
@@ -1298,6 +1304,7 @@ function createApp(cfg = {}) {
   require('./open').mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./payouts').mountPayouts(app, { db, C, stripe, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger, mail });
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
+  require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });

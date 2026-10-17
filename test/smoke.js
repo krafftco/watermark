@@ -522,6 +522,27 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/buy/${w4.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(r.headers.location.includes('collected=1'), 'collected from the pocket, no checkout');
     const after = app.locals.pocket.balance(pb);
     const lic = db.prepare("SELECT * FROM licenses WHERE ref=(SELECT subject FROM ledger WHERE type='license.paid.pocket' ORDER BY seq DESC LIMIT 1)").get(); assert.equal(lic.status, 'active'); assert.ok(lic.collector_no, 'numbered'); assert.equal(before - after, lic.price_cents, 'the pocket paid exactly the price'); }
+  // Curators: Ada hangs a wall from the collection, shows it; a visitor collects through it; Ada's pocket gets the curator's share; she can cash out.
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: sck }); assert.ok(r.body.toString().includes('Hang it'), 'hang it on the work page');
+  r = await req(port, 'POST', '/hang/add', { cookie: sck, body: { work: w.slug, hang: 'new', title: 'Stone and Light' } }); assert.ok(r.headers.location.includes('hung='));
+  const hg = db.prepare('SELECT * FROM hangs ORDER BY id DESC LIMIT 1').get(); assert.equal(hg.title, 'Stone and Light');
+  r = await req(port, 'POST', '/hang/add', { cookie: sck, body: { work: w2.slug, hang: String(hg.id) } });
+  r = await req(port, 'GET', `/hang/${hg.slug}`); assert.equal(r.status, 404, 'private until shown');
+  r = await req(port, 'POST', `/hang/${hg.id}/edit`, { cookie: sck, body: { title: 'Stone and Light', line: 'Two ways a wall holds the sun.', public: '1' } });
+  r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('Stone and Light') && r.body.toString().includes('Hangs'), 'listed with the galleries');
+  r = await req(port, 'GET', `/hang/${hg.slug}`); const viack = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_via=')); assert.ok(viack && viack.includes(`hang%3A${hg.id}`) || viack.includes(`hang:${hg.id}`), 'the wall is remembered'); assert.ok(r.body.toString().includes('Thank the eye'), 'a card for the curator');
+  r = await req(port, 'POST', `/buy/${w.slug}`, { cookie: viack.split(';')[0], body: { use: 'commercial', note: 'A campaign' } }); assert.equal(r.status, 303);
+  { const hid = r.headers.location.split('/').pop(), hs = sessions[hid]; assert.equal(db.prepare('SELECT via FROM licenses WHERE ref=?').get(hs.metadata.ref).via, `hang:${hg.id}`, 'via stamped');
+    Object.assign(hs, { payment_status: 'paid', amount_total: hs.line_items[0].price_data.unit_amount, customer_details: { email: 'vis@example.com', name: 'A Visitor' } });
+    r = await req(port, 'GET', `/thanks/${hs.metadata.ref}?session_id=${hid}`);
+    const ada = db.prepare('SELECT * FROM buyers WHERE email=?').get('ada@example.com') || db.prepare('SELECT b.* FROM buyers b JOIN hangs h ON h.buyer_id=b.id WHERE h.id=?').get(hg.id);
+    const cur = db.prepare("SELECT * FROM pocket WHERE kind='curation' ORDER BY id DESC LIMIT 1").get(); assert.ok(cur && cur.cents === Math.round(hs.line_items[0].price_data.unit_amount * 0.05), 'the curator\'s share, 5%'); assert.equal(cur.buyer_id, hg.buyer_id);
+    assert.equal(db.prepare('SELECT sales FROM hangs WHERE id=?').get(hg.id).sales, 1);
+    r = await req(port, 'GET', '/yours?tab=settings', { cookie: sck }); assert.ok(r.body.toString().includes('Cash out'), 'cash out offered');
+    r = await req(port, 'POST', '/pocket/cashout', { cookie: sck }); assert.ok(r.headers.location.includes('pocket=cashed'));
+    assert.equal(app.locals.pocket.cashable(db.prepare('SELECT * FROM buyers WHERE id=?').get(hg.buyer_id)), 0, 'cashed out, by hand until payouts are on');
+    r = await req(port, 'GET', '/yours?tab=hangs', { cookie: sck }); assert.ok(r.body.toString().includes('1 collected'), 'the hang keeps its score');
+    r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('A curator hung a wall'), 'told on the register'); }
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

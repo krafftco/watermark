@@ -201,7 +201,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -259,6 +259,7 @@ ${closerBlock(closer, w, edit)}${wander ? `<a class="wd-on" href="/wander?from=$
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
 ${w.disputed ? `<p class="wk-claim">Under review: a claim about this photograph is with the house. It is shown, and nothing is sold, until the house decides.</p>` : ''}
 ${shieldBlock(shield, { slug: w.slug })}
+${hang}
 <p class="wk-claim-door"><a href="/w/${esc(w.slug)}/claim">Is this yours, or are you in it? Say so.</a></p>
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}${share && share.ladder && share.ladder.step ? ` &middot; issued at ${money(share.ladder.base)} to No.&nbsp;1, ${money(share.ladder.price)} now` : ''}${share && share.ladder && share.ladder.next && ed.left ? ` &middot; ${money(share.ladder.next)} from No.&nbsp;${share.ladder.at + 1}` : ''}</span></p>` : ''}
@@ -1115,10 +1116,10 @@ function terms() {
 }
 
 // A collector's own Watermark: every work they have collected, numbered, room by room.
-function collector({ hand = [], rights = [], isMaker = false, isHouse = false, pocket = '', sent = null, canSend = () => true, looking = null, tab = null, book = null, note = null, me = null, swaps = { forMe: [], byMe: [] }, shared = [], lines = [], applauded = [], regard = null, b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null, keyed = true, pf = null, offer = null, offers = [], accepted = null }) {
+function collector({ hangs = '', hand = [], rights = [], isMaker = false, isHouse = false, pocket = '', sent = null, canSend = () => true, looking = null, tab = null, book = null, note = null, me = null, swaps = { forMe: [], byMe: [] }, shared = [], lines = [], applauded = [], regard = null, b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null, keyed = true, pf = null, offer = null, offers = [], accepted = null }) {
   const pr = pf ? Object.fromEntries(pf.rows.map(r => [r.id, r])) : {};
   const who = b && b.name ? b.name : own ? 'Your gallery' : 'A gallery';
-  if (!b || (!items.length && !(own && (hand.length || shared.length || lines.length || applauded.length)))) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your gallery' : 'Collection'}</p>
+  if (!b || (!items.length && !(own && (tab === 'hangs' || hand.length || shared.length || lines.length || applauded.length)))) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your gallery' : 'Collection'}</p>
 ${own && (isMaker || isHouse) ? `<div class="yc-sw">${SWITCH('gallery', { admin: isHouse })}</div>` : ''}<h1>${own ? 'Start your gallery.' : 'Nothing to see here.'}</h1>
 <p class="lede">${own ? 'Every photograph you collect on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This gallery is private, or no longer exists.'}</p>
 ${own && left ? `<p class="fc-call"><span class="fc-k">${K_MARK}</span>The first hundred people to collect on Watermark are its Founding Collectors, marked so on their wall for good. ${left} of 100 places remain.</p>` : ''}
@@ -1136,7 +1137,7 @@ ${pr[i.id] && pr[i.id].market && pr[i.id].market.value != null && i.edition_size
   const marks = [founding ? `Founding Collector, No.&nbsp;${founding} of 100` : null, ...patronOf.map(p => `Patron of ${esc(p.maker_name)} since ${esc(new Date(p.started_at + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))}`)].filter(Boolean);
   const change = pf ? pf.value - pf.paid : 0;
   // The owner's gallery in rooms: one tab at a time, the way a studio is laid out; a visitor sees it whole.
-  const TABS = [['gallery', 'Gallery'], ['files', 'Files & licenses'], ['market', 'Market & trades'], ['books', 'Guest books'], ['patronage', 'Patronage'], ['settings', 'Show it, or keep it']];
+  const TABS = [['gallery', 'Gallery'], ['hangs', 'Hangs'], ['files', 'Files & licenses'], ['market', 'Market & trades'], ['books', 'Guest books'], ['patronage', 'Patronage'], ['settings', 'Show it, or keep it']];
   const T = own ? (TABS.some(t => t[0] === tab) ? tab : 'gallery') : null;
   const on = k => !own || T === k;
   const tabs = own ? `<nav class="yt" aria-label="Your gallery"><div class="yt-in">${TABS.map(([k, n]) => `<a href="/yours?tab=${k}"${T === k ? ' aria-current="page"' : ''}>${n}${k === 'market' && (offers.length + swaps.forMe.length) ? `<i>${offers.length + swaps.forMe.length}</i>` : ''}</a>`).join('')}</div></nav>` : '';
@@ -1151,6 +1152,7 @@ ${own && pf && on('gallery') ? `<section class="pf"><div class="pf-v"><span>Valu
 ${rooms.length && on('gallery') ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
 ${lines.length && on('books') ? `<section class="gal yc-lines"><header class="gh"><h2>In the guest books</h2><span>${own ? 'what you have written' : `what ${esc(b.name || 'this collector')} has written`}</span></header><ol class="gb gb-mine">${lines.map(n => `<li><span class="gb-d">${date(n.at)}</span><p class="gb-p">${esc(n.body)}</p><span class="gb-s gb-w">on <a href="/w/${esc(n.slug)}#notes">${esc(tidy(n.title))}</a>, ${esc(n.maker)}</span></li>`).join('')}</ol></section>` : ''}
 ${applauded.length && on('books') ? `<section class="gal yc-ap"><header class="gh"><h2>Tips of the hat</h2><span>${applauded.length} photograph${applauded.length === 1 ? '' : 's'}</span></header><div class="yc-apg">${applauded.map(a => `<a href="/w/${esc(a.slug)}" title="${esc(tidy(a.title))}, ${esc(a.maker)}"><img src="/img/${esc(a.slug)}/thumb" alt="${esc(tidy(a.title))}" loading="lazy" draggable="false"></a>`).join('')}</div></section>` : ''}
+${own && on('hangs') ? hangs : ''}
 ${own && shared.length && on('files') ? `<section class="gal yc-shared"><header class="gh"><h2>Shared with you</h2><span>seats on licenses held by others</span></header>${shared.map(x => `<a class="hd-ev" href="/seat/${esc(x.token)}"><span>${esc(x.use_name)}</span><b>${esc(tidy(x.title))}</b><span>${esc(x.licensee_company || x.licensee_name || '')}${x.ends_at ? ` &middot; until ${date(x.ends_at)}` : ''}</span><span class="hd-v">Seat</span></a>`).join('')}</section>` : ''}
 ${hand.length && on('gallery') ? `<section class="gal yc-hand"><header class="gh"><h2>From ${own ? 'your' : `${esc(hand[0].maker.split(' ')[0])}'s`} own hand</h2><span>${hand.length} jewel${hand.length === 1 ? '' : 's'} · the artist's copies</span></header><div class="plates">${hand.map(w => `<a class="pl" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(tidy(w.title))}" loading="lazy" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b><i>${esc([w.place, w.taken_at ? String(w.taken_at).slice(0, 4) : ''].filter(Boolean).join(', '))}</i></span></a>`).join('')}</div>${own ? '<p class="note">Every photograph you grade five hangs here, beside what you collect; grade it lower and it returns to the studio.</p>' : ''}</section>` : ''}
 ${on('gallery') ? `<section class="gal"><header class="gh"><h2>${hand.length ? 'What ' + (own ? 'you collect' : esc(hand[0].maker.split(' ')[0]) + ' collects') : 'The gallery'}</h2><span>newest first</span></header>${own ? `<div class="tc-grid">${items.map(card).join('')}</div>` : `<div class="plates">${items.map(plate).join('')}</div>`}
@@ -1207,13 +1209,15 @@ ${buy && whole && whole.n > 1 ? `<form method="post" action="/series/${esc(s.slu
 <p class="sr-also"><a href="/collection">Walk the whole collection</a></p></section>` });
 }
 
-function collectors({ list, left = null }) {
+function collectors({ list, left = null, hangs = [] }) {
+  const hangCard = require('./hangs').hangCard;
   const card = c => `<a class="yc-card" href="/collector/${esc(c.code)}"><span class="yc-th">${c.thumbs.map(t => `<img src="/img/${esc(t.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span>
-<b>${esc(c.name || 'A private collector')}</b>${c.founding ? `<small class="fc-tag">Founding Collector No. ${c.founding}</small>` : ''}<span>${c.works} work${c.works === 1 ? '' : 's'}${c.earliest ? ` · earliest No. ${c.earliest}` : ''}</span></a>`;
-  return layout({ title: 'The collectors · Watermark', desc: 'Collections people have chosen to show on Watermark.', path: '/collectors', body: `${pageHero('the-library-stacks', 'J. P. Morgan’s library, New York')}<section class="cx-intro"><p class="k">The collectors</p>
-<h1>The people who keep the work.</h1><p class="lede">Frick, Morgan, Gardner: the great collections are why we can see the great works. These are the collections people have chosen to show on Watermark. Every work on their walls can hang on yours.</p>
-<p class="cx-count"><a href="/yours">Your gallery</a> &middot; <a href="/collection">Walk the archive</a></p>${left ? `<p class="fc-call"><span class="fc-k">${K_MARK}</span>The first hundred collectors are Watermark&rsquo;s Founding Collectors. ${left} of 100 places remain.</p>` : ''}</section>
-<section class="gal">${list.length ? `<div class="yc-cards">${list.map(card).join('')}</div>` : '<p class="note">No collection is public yet. Yours could be the first: collect a work, then open your wall from <a href="/yours">Yours</a>.</p>'}</section>` });
+<b>${esc(c.name || 'A private collector')}</b>${c.founding ? `<small class="fc-tag">Founding Collector No. ${c.founding}</small>` : ''}<span>${c.works} work${c.works === 1 ? '' : 's'}${c.earliest ? ` · earliest No. ${c.earliest}` : ''}</span>${c.statement ? `<small class="yc-stmt">${esc(c.statement)}</small>` : ''}</a>`;
+  return layout({ title: 'Galleries · Watermark', desc: 'The galleries people keep on Watermark, and the walls curators hang.', path: '/collectors', body: `${pageHero('the-library-stacks', 'J. P. Morgan’s library, New York')}<section class="cx-intro"><p class="k">Galleries</p>
+<h1>The people who keep the work, and the people who hang it.</h1><p class="lede">Frick, Morgan, Gardner: the great collections are why we can see the great works. Here are the galleries people have chosen to show, and the walls curators have hung from the whole collection. Every photograph on them can hang on yours; collect through a wall and its curator earns a share, from the house, never from the maker.</p>
+<p class="cx-count"><a href="/yours">Your gallery</a> &middot; <a href="/yours?tab=hangs">Hang a wall</a> &middot; <a href="/collection">Walk the archive</a></p>${left ? `<p class="fc-call"><span class="fc-k">${K_MARK}</span>The first hundred collectors are Watermark&rsquo;s Founding Collectors. ${left} of 100 places remain.</p>` : ''}</section>
+${hangs.length ? `<section class="gal"><header class="gh"><h2>Hangs</h2><span>walls curated from the collection</span></header><div class="hg-cards">${hangs.map(hangCard).join('')}</div></section>` : ''}
+<section class="gal"><header class="gh"><h2>Collections</h2><span>what people hold</span></header>${list.length ? `<div class="yc-cards">${list.map(card).join('')}</div>` : '<p class="note">No collection is public yet. Yours could be the first: collect a work, then open your wall from <a href="/yours">Yours</a>.</p>'}</section>` });
 }
 
 // On patronage: why collectors matter, and why makers must be paid. Will's words, confirmed 16 Oct 2026.
