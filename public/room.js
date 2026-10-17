@@ -1,11 +1,11 @@
-/* The viewing room: one photograph at a time on a dark wall; the guide read aloud; on to the next by itself. */
+/* The viewing room: one photograph at a time on a dark wall. You stand in front of it first; it moves on only when you ask it to wander. */
 (function () {
   var R = document.querySelector('[data-vr]'); if (!R) return;
   var im = R.querySelectorAll('.vr-im'), cur = 0, hist = [], at = -1, seen = (R.getAttribute('data-from') || '').split(',').filter(Boolean);
   var $ = function (s) { return R.querySelector(s); };
   var kEl = $('[data-vr-k]'), tEl = $('[data-vr-t]'), byEl = $('[data-vr-by]'), gEl = $('[data-vr-guide]'), pageEl = $('[data-vr-page]'), colEl = $('[data-vr-collect]'), bar = $('[data-vr-bar]'), hint = $('[data-vr-hint]');
   var sayB = $('[data-vr-say]'), autoB = $('[data-vr-auto]');
-  var auto = true, saying = false, DWELL = 14000, timer = null, t0 = 0, left = DWELL, paused = false;
+  var auto = false, saying = false, DWELL = 14000, timer = null, t0 = 0, left = DWELL, paused = false;
   var S = window.speechSynthesis;
   function voice() { if (!S) return null; var vs = S.getVoices().filter(function (v) { return /^en(-|_|$)/i.test(v.lang); }); var pref = [/premium|enhanced|natural|neural/i, /Daniel|Serena|Kate|Oliver|Arthur/, /Samantha|Ava|Allison|Google UK English|Google US English/]; for (var k = 0; k < pref.length; k++) { var f = vs.filter(function (v) { return pref[k].test(v.name); }); if (f.length) return f[0]; } return vs[0] || null; }
   function stopSay() { saying = false; if (S) S.cancel(); sayB.setAttribute('aria-pressed', 'false'); gEl.querySelectorAll('p').forEach(function (p) { p.classList.remove('now'); }); }
@@ -44,11 +44,11 @@
   function pause(on) { paused = on; if (on) { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - t0)); bar.style.transition = 'none'; bar.style.width = getComputedStyle(bar).width; } else dwell(); R.classList.toggle('paused', on); }
   $('[data-vr-next]').addEventListener('click', function () { go(1); });
   $('[data-vr-prev]').addEventListener('click', function () { go(-1); });
-  autoB.addEventListener('click', function () { auto = !auto; autoB.setAttribute('aria-pressed', String(auto)); autoB.querySelector('span').textContent = auto ? 'Wandering' : 'Staying'; if (auto) dwell(); else { clearTimeout(timer); bar.style.width = '0%'; } });
+  autoB.addEventListener('click', function () { auto = !auto; autoB.setAttribute('aria-pressed', String(auto)); autoB.querySelector('span').textContent = auto ? 'Wandering' : 'Standing'; if (auto) dwell(); else { clearTimeout(timer); bar.style.width = '0%'; } });
   sayB.addEventListener('click', function () { if (saying) { stopSay(); dwell(); } else { clearTimeout(timer); bar.style.width = '0%'; say(hist[at]); } });
   document.addEventListener('keydown', function (e) {
     if (e.key === ' ') { e.preventDefault(); pause(!paused); } else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
-    else if (e.key.toLowerCase() === 'g') sayB.click(); else if (e.key === 'Escape') location.href = '/collection';
+    else if (e.key.toLowerCase() === 'g') sayB.click(); else if (e.key.toLowerCase() === 'w') autoB.click(); else if (e.key === 'Escape') location.href = '/collection';
   });
   var hideT; function wake() { R.classList.add('awake'); clearTimeout(hideT); hideT = setTimeout(function () { R.classList.remove('awake'); }, 2600); }
   ['mousemove', 'touchstart', 'keydown'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });

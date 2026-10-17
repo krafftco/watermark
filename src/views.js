@@ -719,11 +719,11 @@ ${cover ? `<p class="fw-cap">${esc(tidy(cover.title))}${cover.place ? `, ${esc(c
 function viewingRoom({ from = '' }) {
   return layout({ title: 'The viewing room · Watermark', desc: 'Wander through the collection, one photograph at a time, with a guide beside each.', path: '/wander/room', bare: true, body: `<main class="vr" data-vr data-from="${esc(from)}">
 <figure class="vr-fig"><img class="vr-im" alt="" draggable="false"><img class="vr-im vr-next" alt="" draggable="false"></figure>
-<header class="vr-top"><a class="vr-home" href="/collection" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark"></a><div class="vr-ctl"><button type="button" class="vr-b" data-vr-say aria-pressed="false"><i></i><span>Guide</span></button><button type="button" class="vr-b" data-vr-auto aria-pressed="true"><span>Wandering</span></button><a class="vr-b vr-x" href="/collection" aria-label="Leave the room">&times;</a></div></header>
+<header class="vr-top"><a class="vr-home" href="/collection" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark"></a><div class="vr-ctl"><button type="button" class="vr-b" data-vr-say aria-pressed="false"><i></i><span>Guide</span></button><button type="button" class="vr-b" data-vr-auto aria-pressed="false"><span>Standing</span></button><a class="vr-b vr-x" href="/collection" aria-label="Leave the room">&times;</a></div></header>
 <aside class="vr-side"><p class="vr-k" data-vr-k></p><h1 class="vr-t" data-vr-t></h1><p class="vr-by" data-vr-by></p><div class="vr-guide" data-vr-guide hidden></div><p class="vr-row"><a class="vr-go" data-vr-page href="#">See the photograph</a><a class="vr-go vr-collect" data-vr-collect href="#" hidden></a></p></aside>
 <div class="vr-bar"><i data-vr-bar></i></div>
 <button type="button" class="vr-nav vr-prev" data-vr-prev aria-label="Back">&larr;</button><button type="button" class="vr-nav vr-nxt" data-vr-next aria-label="Next">&rarr;</button>
-<p class="vr-hint" data-vr-hint>Space pauses. Arrows move. G reads the guide. Esc leaves.</p>
+<p class="vr-hint" data-vr-hint>Stand as long as you like. Arrows move. G reads the guide. W wanders. Esc leaves.</p>
 </main><script src="/static/room.js?v=${VER}" defer></script>` });
 }
 
