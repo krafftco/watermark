@@ -1632,3 +1632,9 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .fw-btn{display:inline-block;padding:14px 30px;border:1px solid #f2efe9;color:#f2efe9;text-decoration:none;font-size:12px;letter-spacing:.18em;text-transform:uppercase;transition:background .3s,color .3s}.fw-btn:hover{background:#f2efe9;color:#0e0d0b}
 .fw-alt{color:#bdb9b1;font-size:14px;text-decoration:none;border-bottom:1px solid rgba(242,239,233,.35)}
 .fw-cap{position:absolute;right:0;bottom:-44px;font-size:11px;letter-spacing:.06em;color:#8f8a81}
+/* Wander. */
+.top nav a.nv-w{display:inline-flex;align-items:center;gap:8px;color:var(--ink);padding:6px 12px;border:1px solid var(--ink);border-radius:999px;margin-left:6px}
+.top nav a.nv-w svg{width:22px;height:7px;fill:currentColor}.top nav a.nv-w:hover{background:var(--ink);color:#fff}
+.wd-on{position:fixed;right:22px;bottom:22px;z-index:40;display:inline-flex;align-items:center;gap:10px;padding:12px 18px;background:#141414;color:#f2efe9;text-decoration:none;font-size:12px;letter-spacing:.16em;text-transform:uppercase;border-radius:999px;box-shadow:0 12px 36px rgba(0,0,0,.28);transition:transform .4s var(--e)}
+.wd-on:hover{transform:translateY(-2px)}.wd-on svg{width:26px;height:8px;fill:currentColor}
+@media (max-width:600px){.top nav a.nv-w span{display:none}.top nav a.nv-w{padding:6px 10px}}

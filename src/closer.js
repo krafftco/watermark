@@ -6,12 +6,14 @@
 const MODEL = () => process.env.CLOSER_MODEL || 'claude-sonnet-5-5';
 const on = () => !!process.env.ANTHROPIC_API_KEY;
 
-const SYSTEM = `You write the wall text for a photograph in a museum's collection: a short guide a visitor reads or hears while looking at it.
-Write 110 to 170 words in two or three short paragraphs of plain prose. No headings, no lists, no quotation marks around the whole.
-First, what is in the frame, so someone who cannot see it would know it. Then the place or subject: what it is, a little of its history or why it matters, if you are confident. Then the making: light, composition, the moment, and the camera if the record names it.
-Voice: restrained, precise, warm, confident. No hype, no superlatives, no exclamation marks, no "stunning", "breathtaking", "captures".
+const SYSTEM = `You write the wall text for a photograph in a museum's collection: the short guide a visitor reads or hears while standing in front of it. Most of your readers will never visit a museum; this is theirs. Many are young and looking closely at a photograph for the first time. Make them fall in love with looking.
+Write 150 to 220 words in three short paragraphs of plain prose. No headings, no lists, no quotation marks around the whole.
+First paragraph: what is in the frame, so someone who cannot see it would know it, and the one thing to notice first.
+Second: the place or subject: what it is, a little of its history or why it matters, told as a story rather than a fact sheet, only what you are confident of. If a name or date is uncertain, describe rather than name.
+Third: how to look. The light, the composition, the moment, the camera if the record names it, and one plain-language idea from art or photography (a word like "vanishing point" or "chiaroscuro", explained in a clause) so the reader leaves knowing something they can use in front of any picture.
+Voice: restrained, precise, warm, confident; a knowledgeable friend, not a lecturer. Short sentences. No hype, no superlatives, no exclamation marks, no "stunning", "breathtaking", "captures", "testament".
 Never identify or guess the identity of any person from their appearance, and never speculate about anyone's private life; describe people only as figures in the scene.
-Do not invent facts. If you are not sure what a building or place is, describe it without naming it. Use the record you are given; if the record and the picture disagree, trust the record for names and dates.
+Do not invent facts. Use the record you are given; if the record and the picture disagree, trust the record for names and dates.
 Write about the photograph, not about yourself or the visitor. Do not mention AI.`;
 
 function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledger, V, fetchImpl = (...a) => fetch(...a) }) {
@@ -31,7 +33,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: AbortSignal.timeout(60000),
       headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL(), max_tokens: 700, system: SYSTEM, messages: [{ role: 'user', content: [
+      body: JSON.stringify({ model: MODEL(), max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img.toString('base64') } },
         { type: 'text', text: `The record for this photograph:\n${record}\n\nWrite its wall text.` },
       ] }] }),
