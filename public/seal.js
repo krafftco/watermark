@@ -40,6 +40,16 @@
     }
     [].forEach.call(document.querySelectorAll('.seal-row.is-open'), function (r) { if (!r.contains(e.target)) setMenu(r.closest('form'), false); });
   });
+  // The "ways to have it" line opens the same card; and once, as the seal comes into view, it shows that it opens.
+  document.addEventListener('click', function (e) {
+    var m = e.target.closest && e.target.closest('[data-sm]'); if (!m) return;
+    e.preventDefault(); e.stopPropagation(); var f = m.closest('form'), row = f.querySelector('.seal-row'); setMenu(f, !row.classList.contains('is-open'));
+  }, true);
+  if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (!en.isIntersecting) return; io.unobserve(en.target); setTimeout(function () { en.target.classList.add('sm-hint'); setTimeout(function () { en.target.classList.remove('sm-hint'); }, 1800); }, 700); }); }, { threshold: .8 });
+    var watch = function () { [].forEach.call(document.querySelectorAll('form.share-buy .seal-row'), function (r) { if (r.querySelector('.seal-menu')) io.observe(r); }); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+  }
   document.addEventListener('keydown', function (e) {
     var open = document.querySelector('.seal-row.is-open'); if (!open) return;
     var items = [].slice.call(open.querySelectorAll('.seal-menu button')), i = items.indexOf(document.activeElement);
