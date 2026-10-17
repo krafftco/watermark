@@ -351,7 +351,7 @@ function createApp(cfg = {}) {
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
       collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
-      uses: r.status === 'held' ? allUses.filter(u => R.allows(R.parse(r.rules), u.key)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name })) : [] })).filter(x => x.path);
+      uses: r.status === 'held' ? allUses.filter(u => R.allows(R.parse(r.rules), u.key)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name, p: u.key === 'social' ? null : u.price_cents })) : [] })).filter(x => x.path);
     const shown = works.filter(w => !w.ask).length;
     let credits = null; try { const cr = app.locals.creditsOf ? await app.locals.creditsOf(post) : null; if (cr && cr.people.length) credits = { people: cr.people.map(p => ({ name: p.name, label: p.label })), tip: stripe ? `${C.base}/tip/${post}` : null }; } catch (e) { /* none */ }
     res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works, credits,
