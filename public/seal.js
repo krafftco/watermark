@@ -21,20 +21,31 @@
     var s = e.target.closest && e.target.closest('form .seal'); if (!s) return;
     var f = s.closest('form'); if (f.dataset.go) { delete f.dataset.go; return; }
     e.preventDefault();
+    if (menuOf(f)) { var row = f.querySelector('.seal-row'); setMenu(f, !row.classList.contains('is-open')); return; }
     if (!s.classList.contains('is-up')) { down(s); requestAnimationFrame(function () { up(s); }); }
     setTimeout(function () { f.dataset.go = '1'; f.requestSubmit ? f.requestSubmit(s) : f.submit(); }, 260);
   }, true);
-  // The toggle beside the seal: choose how you want the photograph; the seal then commits that choice.
+  // The seal on a photograph's page opens its card: Collect first, then the licenses. A line commits.
+  function menuOf(f) { return f && f.querySelector('.seal-menu'); }
+  function setMenu(f, on) { var m = menuOf(f); if (!m) return; var row = f.querySelector('.seal-row'); if (on) { m.hidden = false; requestAnimationFrame(function () { row.classList.add('is-open'); }); var first = m.querySelector('button'); if (first) first.focus({ preventScroll: true }); } else { row.classList.remove('is-open'); setTimeout(function () { if (!row.classList.contains('is-open')) m.hidden = true; }, 350); } }
   document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('.use-tg button'); if (!b) return;
-    e.preventDefault();
-    var g = b.parentNode, f = g.closest('form'), uses = JSON.parse(g.dataset.uses || '[]'), u = uses.filter(function (x) { return x.k === b.dataset.k; })[0]; if (!u || !f) return;
-    [].forEach.call(g.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
-    var t = f.querySelector('.seal-t'), h = f.querySelector('.seal-t b'), p = f.querySelector('.seal-t > span'), inp = f.querySelector('input[name=use]');
-    if (inp) inp.value = u.k;
-    t.classList.remove('tg-in'); void t.offsetWidth; t.classList.add('tg-in');
-    if (h) h.textContent = u.b; if (p) p.textContent = u.d;
-    var s = f.querySelector('.seal'); if (s) s.setAttribute('aria-label', u.b);
+    var b = e.target.closest && e.target.closest('.seal-menu button[data-k]');
+    if (b) {
+      e.preventDefault();
+      var f = b.closest('form'), inp = f.querySelector('input[name=use]'); if (inp) inp.value = b.dataset.k;
+      b.parentNode.classList.add('is-go');
+      var s = f.querySelector('.seal'); if (s) { down(s); requestAnimationFrame(function () { up(s); }); }
+      setTimeout(function () { setMenu(f, false); f.requestSubmit ? f.requestSubmit() : f.submit(); }, 260);
+      return;
+    }
+    [].forEach.call(document.querySelectorAll('.seal-row.is-open'), function (r) { if (!r.contains(e.target)) setMenu(r.closest('form'), false); });
+  });
+  document.addEventListener('keydown', function (e) {
+    var open = document.querySelector('.seal-row.is-open'); if (!open) return;
+    var items = [].slice.call(open.querySelectorAll('.seal-menu button')), i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { setMenu(open.closest('form'), false); var s = open.querySelector('.seal'); if (s) s.focus(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
   });
   // Called by the payment sheet when a photograph is collected.
   window.WMSealed = function (slug, no, of) {

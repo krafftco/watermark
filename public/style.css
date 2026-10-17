@@ -1020,3 +1020,19 @@ button.h-row{border-radius:0;padding:13px 0;box-shadow:none}
 .tp-note input{font:inherit;font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);border:0;border-bottom:1px solid var(--ln);padding:8px 0;background:transparent;outline:none}
 @media (max-width:640px){.tp-who li{flex-direction:column;gap:4px}.tp-r{width:auto}}
 .tp .pat-own>span{border:0;padding:0;font-family:var(--disp);font-size:20px;background:none;color:var(--mu)}
+
+/* The seal's card on a photograph's page (the same card as the K on Krafft Studios) */
+.share-buy .seal-row{position:relative}
+.seal-menu{position:absolute;left:0;bottom:calc(100% + 12px);z-index:20;min-width:280px;max-width:min(340px,calc(100vw - 32px));margin:0;padding:6px;list-style:none;background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.07);opacity:0;transform:translateY(8px) scale(.97);transform-origin:20px 100%;transition:opacity .35s var(--e),transform .45s var(--e)}
+.seal-row.is-open .seal-menu{opacity:1;transform:none}
+.seal-menu::after{content:"";position:absolute;left:30px;bottom:-5px;width:10px;height:10px;background:#fff;transform:rotate(45deg);border-radius:2px}
+.seal-menu li{margin:0}.seal-menu li+li{border-top:1px solid rgba(0,0,0,.07)}
+.seal-menu .sm-h{padding:10px 12px 8px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu)}
+form.share-buy .seal-menu button{display:flex;align-items:center;gap:12px;width:100%;max-width:none;padding:12px;border:0;border-radius:9px;background:none;color:var(--ink);box-shadow:none;font:400 14px/1.2 var(--sans);letter-spacing:0;text-transform:none;text-align:left;cursor:pointer;transform:none;transition:background .25s}
+form.share-buy .seal-menu button::after{display:none}
+form.share-buy .seal-menu button:hover,form.share-buy .seal-menu button:focus-visible{background:var(--soft);outline:none;box-shadow:none}
+.seal-menu b{flex:1;font-weight:500;font-size:14px;letter-spacing:0;text-transform:none}
+form.share-buy .seal-menu em{font-style:normal;color:var(--mu);font-variant-numeric:tabular-nums;font-size:14px;letter-spacing:0;text-transform:none}
+.seal-menu i{font-style:normal;color:#9b978f;transition:transform .3s var(--e)}.seal-menu button:hover i{transform:translateX(3px)}
+form.share-buy .seal-menu li.is-go button{background:var(--ink);color:#f7f6f3}.seal-menu li.is-go em,.seal-menu li.is-go i{color:#f7f6f3}
+form.share-buy .seal-menu b{padding:0;margin:0;border:0;font-family:var(--sans);font-size:14px;font-weight:500;line-height:1.2;color:inherit}
