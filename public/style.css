@@ -2262,3 +2262,4 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .wk-go{gap:8px;font-size:10.5px;letter-spacing:.2em;color:rgba(255,255,255,.6);transition:color .3s}.wk-go:hover{color:#fff}.wk-go .ic{width:16px;height:16px;transition:transform .3s var(--e)}.wk-prev:hover .ic{transform:translateX(-3px)}.wk-next:hover .ic{transform:translateX(3px)}.wk-go img{display:none}.wk-go span{border:0;padding:0}
 .wk-where{display:flex;gap:14px;align-items:baseline;justify-content:center;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.45)}.wk-where a{color:rgba(255,255,255,.75);border:0;text-decoration:none}.wk-where a:hover{color:#fff}.wk-where b{font-size:10.5px;letter-spacing:.2em;color:rgba(255,255,255,.45)}
 @media(max-width:600px){.wk-where{flex-direction:column;gap:2px;align-items:center}}
+.top .nv-w svg{width:26px;height:8px;fill:currentColor;transition:transform .4s var(--e)}.top .nv-w:hover svg{transform:translateX(3px)}
