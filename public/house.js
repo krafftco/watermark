@@ -52,7 +52,7 @@
     + '.kh .kh-me{display:none}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
-    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-h{gap:13px}.kh .kh-gb{display:none}}'
+    + '@media (max-width:600px){.kh{gap:12px;letter-spacing:.1em;padding:0 14px;font-size:9.5px;overflow-x:auto;scrollbar-width:none;max-width:100vw;box-sizing:border-box}.kh .kh-h{gap:12px;white-space:nowrap}.kh .kh-gb{display:none}.kh .kh-h a:not([aria-current]):nth-child(n+4){display:none}.kh .kh-r{gap:12px;flex:none}}'
     + '@media print{.kh{display:none}}';
   var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="51.66 0 .14 51.88 .14 51.67 .14 32.28 28.16 0 51.66 0"/></svg>';
   function link(p) {
