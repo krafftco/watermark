@@ -1667,3 +1667,4 @@ body.bare .vr{position:fixed;inset:0;background:#0a0a09;color:#f2efe9;overflow:h
 @media (max-width:700px){.vr-side{right:16px;max-width:none}.vr-guide{max-height:30vh}.vr-hint{display:none}.vr-nav{display:none}.vr-im{padding:12px 12px 40vh}}
 .vr-im{padding-bottom:clamp(96px,14vh,150px)}
 .vr-side::before{content:"";position:absolute;left:-40px;right:-60px;top:-60px;bottom:-60px;background:radial-gradient(ellipse at 20% 80%,rgba(10,10,9,.78),rgba(10,10,9,0) 70%);z-index:-1;pointer-events:none}
+.lc-src{font-size:12.5px;color:var(--mu);line-height:1.6;margin:10px 0 4px}.lc-src b{font-weight:500;color:var(--ink);margin-right:4px}.lc-src a{color:inherit}

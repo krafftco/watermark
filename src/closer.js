@@ -78,7 +78,8 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     try {
       if (b.act === 'write') { await write(w); return res.redirect(`/closer/${w.slug}?ok=written`); }
       if (!c) return res.redirect(`/closer/${w.slug}`);
-      if (b.act === 'save') { const t = String(b.text || '').trim().slice(0, 4000); if (t) save(w.id, { ...c, text: t, state: 'approved', edited: t !== c.text || !!c.edited, approvedAt: new Date().toISOString() }); }
+      if (b.act === 'save') { const t = String(b.text || '').trim().slice(0, 4000); const sources = String(b.sources || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean).slice(0, 8); const by = String(b.by || '').trim().slice(0, 80) || null;
+        if (t) save(w.id, { ...c, text: t, sources, by, state: 'approved', edited: t !== c.text || !!c.edited, approvedAt: new Date().toISOString() }); }
       else if (b.act === 'hide') save(w.id, { ...c, state: 'hidden' });
       else if (b.act === 'show') save(w.id, { ...c, state: c.approvedAt ? 'approved' : 'shown' });
     } catch (e) { console.error('[closer]', e.message); return res.redirect(`/closer/${w.slug}?ok=failed`); }

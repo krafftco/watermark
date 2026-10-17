@@ -120,7 +120,8 @@ const closerBlock = (c, w, edit) => {
   const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
   return `<section class="lc" id="closer"><div class="lc-h"><p class="k">Look closer</p><button type="button" class="lc-say" data-say aria-label="Hear it"><i></i><span>Hear it</span></button></div>
 <div class="lc-t" data-say-text>${paras}</div>
-<p class="lc-by">${c.state === 'approved' ? 'Written with AI from the photograph and its record; read and approved by the maker.' : 'Written by AI from the photograph and its record. The maker may correct it.'}${edit ? ` <a href="/closer/${esc(w.slug)}">Edit</a>` : ''}</p></section>
+${c.sources && c.sources.length ? `<p class="lc-src"><b>Sources</b> ${c.sources.map(x => /^https?:\/\//.test(x) ? `<a href="${esc(x)}" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(x)).join(' &middot; ')}</p>` : ''}
+<p class="lc-by">${c.by ? `Written by ${esc(c.by)}, with AI from the photograph and its record.` : c.state === 'approved' ? 'Written with AI from the photograph and its record; read and approved by the maker.' : 'Written by AI from the photograph and its record. The maker may correct it.'}${edit ? ` <a href="/closer/${esc(w.slug)}">Edit</a>` : ''}</p></section>
 <script src="/static/closer.js?v=${VER}" defer></script>`;
 };
 function closerEdit({ w, c, on, ok }) {
@@ -132,6 +133,8 @@ ${msg ? `<p class="ok">${msg}</p>` : ''}
 ${!on ? `<p class="note">Guides are written once ANTHROPIC_API_KEY is set in Render.</p>` : ''}
 ${c ? `<form method="post" class="form"><input type="hidden" name="act" value="save">
 <label>The guide, as visitors will read and hear it<textarea name="text" rows="12">${esc(c.text)}</textarea></label>
+<label>Sources, one a line: a book, a catalogue entry, a monument&rsquo;s own record, a page you checked<textarea name="sources" rows="3" placeholder="Krautheimer, Rome: Profile of a City, 312–1308 (Princeton, 1980), pp. 20–25&#10;The Pantheon: pantheonroma.com">${esc((c.sources || []).join('\n'))}</textarea></label>
+<label>Written by<input name="by" value="${esc(c.by || '')}" placeholder="Your name, or the writer's, as it should be credited"></label>
 <p class="note">${c.state === 'hidden' ? 'Hidden from the page.' : c.state === 'approved' ? 'Approved by you.' : 'Shown as written by AI; not yet approved.'} Saving approves it.</p>
 <button class="btn">Save and approve</button></form>
 <div class="lc-acts"><form method="post"><input type="hidden" name="act" value="${c.state === 'hidden' ? 'show' : 'hide'}"><button class="link">${c.state === 'hidden' ? 'Show it again' : 'Hide it'}</button></form>
