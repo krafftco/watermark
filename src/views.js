@@ -246,7 +246,7 @@ function work({ walk = null, hang = '', open = null, thanks = null, stood = null
       dateCreated: w.taken_at || undefined, contentLocation: w.place ? { '@type': 'Place', name: w.place } : undefined, identifier: w.accession || undefined,
       sourceOrganization: { '@type': 'Organization', name: 'Watermark', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } } },
     body: `<article class="work lot">
-<div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="Photograph by ${esc(maker.name)}">
+<div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="Photograph by ${esc(maker.name)}" data-place="${esc([w.place, year].filter(Boolean).join(', '))}">
 <img src="/img/${esc(w.slug)}/screen" alt="${esc(title)}" draggable="false"><span class="shield"></span></figure>
 <p class="lot-hint">Click the photograph to see it whole.${walk ? ' Arrows walk.' : ''}</p>${require('./walk').walkBar(walk)}</div>
 <div class="meta lot-entry">
@@ -310,7 +310,7 @@ ${rules && rules.never.length ? `<p class="never"><span>The maker says never</sp
 <form method="post" action="/report/${esc(w.slug)}" class="form"><label>Where you saw it<input name="url" type="url" required placeholder="https://"></label>
 <label>A note (optional)<input name="note"></label><label>Your email, if the maker may write back (optional)<input name="email" type="email"></label><button>Tell the maker</button></form></details>
 </section>
-<script>window.__WM_GUARD=${JSON.stringify({ slug: w.slug, accession: w.accession || null, maker: maker.name, wave: WAVE_MARK.match(/d="([^"]+)"/)[1], capture: `/w/${w.slug}/capture`, stood: `/w/${w.slug}/stood`, collect: share ? `/license/${w.slug}` : null, price: share ? money(share.price_cents) : null }).replace(/</g, '\\u003c')};</script><script src="/static/guard.js?v=${VER}" defer></script><script src="/static/viewer.js" defer></script><script src="/static/hang.js?v=${VER}" defer></script><script src="/static/walk.js?v=${VER}" defer></script><script src="/static/applause.js?v=${VER}" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
+<script>window.__WM_GUARD=${JSON.stringify({ slug: w.slug, accession: w.accession || null, maker: maker.name, wave: WAVE_MARK.match(/d="([^"]+)"/)[1], capture: `/w/${w.slug}/capture`, stood: `/w/${w.slug}/stood`, collect: share ? `/license/${w.slug}` : null, price: share ? money(share.price_cents) : null }).replace(/</g, '\\u003c')};</script>${['hat','hang','collect','guide','back','next','close'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}<script src="/static/guard.js?v=${VER}" defer></script><script src="/static/viewer.js?v=${VER}" defer></script><script src="/static/hang.js?v=${VER}" defer></script><script src="/static/walk.js?v=${VER}" defer></script><script src="/static/applause.js?v=${VER}" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
   });
 }
 
