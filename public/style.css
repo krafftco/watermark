@@ -2043,3 +2043,4 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .yc-stmt{display:block;margin-top:6px;font-family:var(--read);font-size:13.5px;color:var(--mu);line-height:1.45}
 .pk-out{margin:12px 0;padding:12px 16px;border:1px solid var(--ink);font-size:13.5px}.pk-out p{margin:0 0 8px}.pk-out form{display:inline-block;margin-right:16px}
 .hg-ty{padding:48px 24px 56px}.hg-ty .ty-in{max-width:1100px;margin:0 auto}
+.hg-share{margin:14px 0 0;font-size:13px}.hg-share .k{display:block;margin:0 0 4px}.hg-share code{font-size:12.5px;background:var(--soft);padding:4px 8px;margin-right:8px}.hg-share small{display:block;margin-top:6px;color:var(--mu)}

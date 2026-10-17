@@ -5,7 +5,7 @@
 // house's side (CURATOR_PCT, a draft), credited to their pocket at once; and anyone may thank a curator with a
 // card. What a curator earns can be spent in the house or cashed out (pocket.js). The maker's 85% is untouched.
 const { layout, esc, money, date, tidy } = require('./views');
-const CURATOR_PCT = 5;      // of the sale price, paid from the house's share; a draft
+const CURATOR_PCT = 5;      // of the sale price, paid from the house's share; confirmed by Will, 17 Oct 2026
 const VIA_DAYS = 30;
 
 function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, mk }) {
@@ -56,7 +56,7 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
     const b = buyerOf(req), isOwn = b && b.id === h.buyer_id;
     if (!h.public && !isOwn) return res.sendStatus(404);
     if (h.public) via(res, `hang:${h.id}`);
-    res.send(hangPage({ h, works: worksOf(h), own: !!isOwn, thanks: thanksOf(h), state: req.query.thanks || null, pocket: b && pocket ? pocket.balance(b) : 0, on: !!stripe, pct: CURATOR_PCT }));
+    res.send(hangPage({ h, works: worksOf(h), own: !!isOwn, thanks: thanksOf(h), state: req.query.thanks || null, pocket: b && pocket ? pocket.balance(b) : 0, on: !!stripe, pct: CURATOR_PCT, base: C.base }));
   });
   // Making one, and hanging work on it.
   app.post('/hangs/new', (req, res) => {
@@ -149,26 +149,28 @@ function hangsPage({ hangs, me }) {
 }
 const hangCard = h => `<a class="hg-card" href="/hang/${esc(h.slug)}"><span class="hg-th">${h.thumbs.map(w => `<img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span><b>${esc(h.title)}</b><span>Hung by ${esc(h.curator || 'a curator')} · ${h.n} photograph${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected from it` : ''}</span>${h.line ? `<small>${esc(h.line)}</small>` : ''}</a>`;
 
-function hangPage({ h, works, own, thanks, state, pocket, on, pct }) {
+function hangPage({ h, works, own, thanks, state, pocket, on, pct, base = '' }) {
   const notice = { given: 'Your card is with the curator. Thank you.', off: 'The till is closed for the moment.' }[state];
   const first = h.curator ? h.curator.split(' ')[0] : 'the curator';
   return layout({ title: `${h.title} · Watermark`, desc: h.line || `A wall hung by ${h.curator || 'a curator'}.`, body: `<section class="cx-intro hg-head"><p class="k">A hang${h.public ? '' : ' · private, yours alone'}</p><h1>${esc(h.title)}.</h1>
 <p class="hg-by">Hung by ${h.curator_public && h.curator_code ? `<a href="/collector/${esc(h.curator_code)}">${esc(h.curator || 'a curator')}</a>` : esc(h.curator || 'a curator')} · ${works.length} photograph${works.length === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected from this wall` : ''}</p>
 ${h.line ? `<p class="lede">${esc(h.line)}</p>` : ''}
+${own && h.public ? `<p class="hg-share"><span class="k">Share this wall</span><code>${esc(base)}/hang/${esc(h.slug)}</code><button type="button" class="link" data-copy="${esc(base)}/hang/${esc(h.slug)}">Copy</button><small>Whoever comes through this link and collects within thirty days earns you ${pct}% of the sale.</small></p>` : ''}
 ${own ? `<details class="hg-edit"><summary>Edit the hang</summary><form method="post" action="/hang/${h.id}/edit" class="cl-f"><label><span>Title</span><input name="title" value="${esc(h.title)}" maxlength="80" required></label><label><span>A line on the wall</span><textarea name="line" rows="3" maxlength="600">${esc(h.line || '')}</textarea></label><label class="cl-oath"><input type="checkbox" name="public" value="1" ${h.public ? 'checked' : ''}> Show it: list it with the galleries, and earn ${pct}% of what is collected through it</label><button class="buy-btn">Save</button></form><form method="post" action="/hang/${h.id}/delete" onsubmit="return confirm('Take this wall down? The photographs stay in the collection.')"><button class="link">Take the wall down</button></form></details>` : ''}</section>
 <section class="hg-wall">${works.map((w, i) => `<div class="hg-pl">${plate(w, w.note, i)}${own ? `<form method="post" action="/hang/${h.id}/work" class="hg-ctl"><input type="hidden" name="work" value="${esc(w.slug)}"><button name="do" value="up">Earlier</button><button name="do" value="down">Later</button><input name="note" placeholder="A line on this one, for the wall" value="${esc(w.note || '')}" maxlength="400"><button name="do" value="note">Keep the line</button><button name="do" value="remove" class="hg-rm">Take it down</button></form>` : ''}</div>`).join('') || '<p class="note hg-empty">Nothing on the wall yet. On any photograph, choose <i>Hang it</i>.</p>'}</section>
 ${h.public && !own ? `<section class="ty hg-ty" id="thanks"><div class="ty-in"><p class="k">A card for ${esc(first)}</p><h2>Thank the eye.</h2><p class="lede">Curators are not paid to hang a wall. If this one gave you something, send ${esc(first)} a card: ninety-nine cents, or what you like, with a word. The house keeps nothing of it.${thanks.n ? ` ${thanks.n} card${thanks.n === 1 ? '' : 's'} so far.` : ''}</p>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
-<form method="post" action="/hang/${h.id}/thanks" class="ty-f"${pocket >= 99 ? ' data-pocket="1"' : ''}><div class="ty-amts">${[99, 499, 999].map((c, i) => `<label><input type="radio" name="amount" value="${c}" ${i === 0 ? 'checked' : ''}><span>${money(c)}</span></label>`).join('')}<label class="ty-own"><input type="radio" name="amount" value="own"><span>Or</span><input name="own" inputmode="decimal" placeholder="$"></label></div><input name="word" placeholder="A word, if you like" maxlength="280"><button class="buy-btn" ${on || pocket >= 99 ? '' : 'disabled'}>Send the card</button></form></div></section>` : ''}` });
+<form method="post" action="/hang/${h.id}/thanks" class="ty-f"${pocket >= 99 ? ' data-pocket="1"' : ''}><div class="ty-amts">${[99, 499, 999].map((c, i) => `<label><input type="radio" name="amount" value="${c}" ${i === 0 ? 'checked' : ''}><span>${money(c)}</span></label>`).join('')}<label class="ty-own"><input type="radio" name="amount" value="own"><span>Or</span><input name="own" inputmode="decimal" placeholder="$"></label></div><input name="word" placeholder="A word, if you like" maxlength="280"><button class="buy-btn" ${on || pocket >= 99 ? '' : 'disabled'}>Send the card</button></form></div></section>` : ''}<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)})})</script>` });
 }
 
 // Yours → Hangs: the curator's room.
-function hangsBlock({ hangs, b, pct, earned }) {
+function hangsBlock({ hangs, b, pct, earned, base = '' }) {
   return `<section class="gal yc-hangs"><header class="gh"><h2>Your hangs</h2><span>${hangs.length} wall${hangs.length === 1 ? '' : 's'}</span></header>
 <p class="lede pk-lede">A collector holds the work; a curator hangs it. Choose photographs from the whole collection, put them in an order, say why. Show a wall and it is listed with the galleries; collect from it and ${pct}% of the sale is yours, from the house's side${earned ? ` (so far ${money(earned)})` : ''}. Yours to spend here, or to cash out.</p>
+${b.code && b.public ? `<p class="hg-share"><span class="k">Your gallery's link</span><code>${esc(base)}/collector/${esc(b.code)}</code><button type="button" class="link" data-copy="${esc(base)}/collector/${esc(b.code)}">Copy</button><small>Your gallery earns the same way: whoever comes through it and collects within thirty days earns you ${pct}% of the sale.</small></p>` : b.code ? `<p class="note">Show your gallery (Settings) and its link earns the same ${pct}% on what is collected through it.</p>` : ''}
 ${hangs.length ? `<div class="hg-list">${hangs.map(h => `<a class="hd-ev" href="/hang/${esc(h.slug)}"><span>${h.public ? 'Shown' : 'Private'}</span><b>${esc(h.title)}</b><span>${h.n} photograph${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected · ${money(h.earned)} earned` : ''}</span><span class="hd-v">Open</span></a>`).join('')}</div>` : ''}
 <form method="post" action="/hangs/new" class="cl-f hg-new"><label><span>A new wall</span><input name="title" placeholder="Its title" maxlength="80" required></label><label><span>A line on it (optional)</span><input name="line" maxlength="600" placeholder="What holds these together"></label><button class="buy-btn">Hang it</button></form>
-<form method="post" action="/yours/statement" class="cl-f hg-st"><label><span>Your eye, in a line (shown with your gallery and your hangs)</span><input name="statement" value="${esc(b.statement || '')}" maxlength="400" placeholder="What you look for"></label><button class="link">Keep</button></form></section>`;
+<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)})})</script><form method="post" action="/yours/statement" class="cl-f hg-st"><label><span>Your eye, in a line (shown with your gallery and your hangs)</span><input name="statement" value="${esc(b.statement || '')}" maxlength="400" placeholder="What you look for"></label><button class="link">Keep</button></form></section>`;
 }
 
 // On the work page: hang it on one of mine.
