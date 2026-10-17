@@ -11,6 +11,10 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
   db.exec(`CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL, buyer_id INTEGER, name TEXT, body TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')), removed_at TEXT)`);
   // The maker's regard: a line the maker marks "well seen". The only rating of a reviewer here is the regard of the people whose work they wrote about.
   if (!db.prepare("SELECT 1 FROM pragma_table_info('notes') WHERE name='seen_at'").get()) db.exec('ALTER TABLE notes ADD COLUMN seen_at TEXT');
+  // The house guest book: one book for the whole of Krafft, in chapters. Lines signed on a photograph are
+  // a chapter of their own (watermark); lines signed from the other houses have no work.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('notes') WHERE name='chapter'").get()) { db.exec("ALTER TABLE notes ADD COLUMN chapter TEXT NOT NULL DEFAULT 'watermark'"); }
+  const CHAPTERS = { krafft: 'Krafft', studios: 'Krafft Studios', advisory: 'Krafft Advisory', ventures: 'Krafft Ventures', watermark: 'Watermark', dgc: 'Dallas Golf Club' };
   const work = slug => db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(slug));
   const count = id => db.prepare('SELECT COUNT(*) n FROM applause WHERE work_id=?').get(id).n;
   const mine = (id, b) => !!(b && db.prepare('SELECT 1 FROM applause WHERE work_id=? AND buyer_id=?').get(id, b.id));
@@ -57,6 +61,28 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
     res.redirect(`/w/${w.slug}?note=1#notes`);
   });
   // The maker (or the Studio) may remove a note; the writer may remove their own.
+  // The house book, read and signed.
+  const houseLines = () => db.prepare("SELECT n.*, b.code, b.public, w.slug AS wslug, w.title AS wtitle, m.name AS maker FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id LEFT JOIN works w ON w.id=n.work_id AND w.status='held' LEFT JOIN makers m ON m.id=w.maker_id WHERE n.removed_at IS NULL AND (n.work_id=0 OR w.id IS NOT NULL) ORDER BY n.id DESC LIMIT 200").all();
+  app.get('/guestbook', (req, res) => res.send(V.guestbook({ lines: houseLines(), chapters: CHAPTERS, chapter: CHAPTERS[req.query.chapter] ? req.query.chapter : null, note: req.query.note || null, from: /^https:\/\/([a-z0-9-]+\.)?(krafftco|wrkfullerton)\.com\//.test(String(req.query.from || '')) ? String(req.query.from) : null, canModerate: isStudio(req), me: (buyerOf(req) || {}).id || null })));
+  app.post('/guestbook', (req, res) => {
+    const x = req.body || {}, body = String(x.body || '').trim().replace(/\s+/g, ' ').slice(0, 280), name = String(x.name || '').trim().slice(0, 60) || null;
+    const chapter = CHAPTERS[x.chapter] ? x.chapter : 'krafft';
+    const back = q => res.redirect(`/guestbook?chapter=${chapter}${q}#sign`);
+    if (body.length < 2 || !name || /https?:\/\/|www\./i.test(body)) return back('&note=check');
+    if (UNKIND.test(body) || UNKIND.test(name)) return back('&note=kind');
+    const b = person(req, res);
+    if (db.prepare("SELECT COUNT(*) n FROM notes WHERE buyer_id=? AND at > datetime('now','-10 minutes')").get(b.id).n >= 3) return back('&note=slow');
+    db.prepare('INSERT INTO notes (work_id, buyer_id, name, body, chapter) VALUES (0,?,?,?,?)').run(b.id, name, body, chapter);
+    if (!b.name) db.prepare('UPDATE buyers SET name=? WHERE id=?').run(name, b.id);
+    ledger.append(db, 'house.signed', chapter, {});
+    back('&note=1');
+  });
+  app.post('/guestbook/:id/remove', (req, res) => {
+    const n = db.prepare('SELECT * FROM notes WHERE id=? AND work_id=0').get(Number(req.params.id)); if (!n) return res.redirect('/guestbook');
+    const b = buyerOf(req); if (!(isStudio(req) || (b && n.buyer_id === b.id))) return res.sendStatus(403);
+    db.prepare("UPDATE notes SET removed_at=datetime('now') WHERE id=?").run(n.id);
+    res.redirect('/guestbook');
+  });
   app.post('/w/:slug/notes/:id/remove', (req, res) => {
     const w = work(req.params.slug); if (!w) return res.sendStatus(404);
     const n = db.prepare('SELECT * FROM notes WHERE id=? AND work_id=?').get(Number(req.params.id), w.id); if (!n) return res.redirect(`/w/${w.slug}#notes`);

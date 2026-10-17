@@ -388,6 +388,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/friends/${ks.metadata.friend}/thanks?session_id=${ks.id}`); assert.ok(r.headers.location.includes('ok=begun'));
     r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('On, $15 a month'), 'keeping on'); }
   r = await req(port, 'GET', '/m/greta-lund'); assert.ok(r.body.toString().includes('of every sale is Greta'), 'the split on her page');
+  // The house guest book: signed from any door, in chapters; lines on photographs appear in the Watermark chapter.
+  r = await req(port, 'POST', '/guestbook', { body: { chapter: 'studios', body: 'Came for the Florence story, stayed for the dome.', name: 'R. Okafor' } }); assert.ok(r.headers.location.includes('note=1'));
+  r = await req(port, 'GET', '/guestbook'); { const gb = r.body.toString(); assert.ok(gb.includes('Came for the Florence story') && gb.includes('Krafft Studios') && gb.includes('The guest book'), 'the house book'); }
+  r = await req(port, 'GET', '/guestbook?chapter=watermark'); assert.ok(!r.body.toString().includes('Came for the Florence story'), 'chapters filter');
+  r = await req(port, 'POST', '/guestbook', { body: { chapter: 'krafft', body: 'you all suck', name: 'x' } }); assert.ok(r.headers.location.includes('note=kind'));
+  r = await req(port, 'GET', '/house.js'); assert.ok(r.body.toString().includes('/guestbook?chapter='), 'the bar carries the book');
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');

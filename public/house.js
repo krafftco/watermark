@@ -41,6 +41,7 @@
     + '.kh a[aria-current]{color:#f6f5f2}'
     + '.kh a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
     + '.kh .kh-own{margin-left:auto}'
+    + '.kh .kh-gb{opacity:.75}'
     + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
@@ -72,6 +73,11 @@
     }
     bar = document.createElement('nav'); bar.className = 'kh'; bar.setAttribute('aria-label', 'Krafft');
     for (var n = 0; n < P.length; n++) bar.appendChild(link(P[n]));
+    // The house guest book, from every door: a quiet line at the end of the bar.
+    var gb = document.createElement('a'); gb.className = 'kh-gb'; gb.textContent = 'Guest book';
+    var ch = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : here === 'will' ? 'krafft' : 'krafft';
+    gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
+    bar.appendChild(gb);
     document.body.insertBefore(bar, document.body.firstChild);
   }
 

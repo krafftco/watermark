@@ -64,7 +64,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
 }
 
@@ -672,6 +672,26 @@ ${plan && plan.status === 'active' ? `<form method="post" action="/account/keepi
 <p class="sr-also"><a href="/account">Your studio</a></p></section>` });
 }
 
+
+// The house guest book: every line signed anywhere in Krafft, in chapters, newest first. A masthead for
+// the house: who came, what they saw, what they said.
+function guestbook({ lines, chapters, chapter, note, from, canModerate, me }) {
+  const shown = chapter ? lines.filter(n => (n.work_id ? 'watermark' : n.chapter) === chapter) : lines;
+  const line = n => `<li><span class="gb-d">${date(n.at)}<br><small>${esc(chapters[n.work_id ? 'watermark' : n.chapter] || '')}</small></span><p class="gb-p">${esc(n.body)}</p><span class="gb-s">${n.public && n.code ? `<a href="/collector/${esc(n.code)}">${esc(n.name || 'A visitor')}</a>` : esc(n.name || 'A visitor')}${n.wslug ? `<small class="gb-on">on <a href="/w/${esc(n.wslug)}#notes">${esc(tidy(n.wtitle))}</a>, ${esc(n.maker)}</small>` : ''}</span>${n.seen_at ? `<span class="gb-ws">${HAT}Well seen</span>` : ''}${!n.work_id && (canModerate || (me && n.buyer_id === me)) ? `<form method="post" action="/guestbook/${n.id}/remove" class="gb-rm"><button class="link">Remove</button></form>` : ''}</li>`;
+  return layout({ title: 'The guest book · Krafft', desc: 'The guest book of the house of Krafft: who came, what they saw, what they said.', path: '/guestbook', body: `<section class="cx-intro gbk"><p class="k">The house of Krafft</p>
+<h1>The guest book.</h1>
+<p class="lede">One book for the whole house: Krafft, Krafft Studios, Advisory, Ventures, Watermark and Dallas Golf Club. Whoever comes through any of our doors may sign it, as you would in someone&rsquo;s home. Every line is kept, under the name that signed it.</p>
+<p class="nt-ep">It is easy to be clever about a picture and hard to be useful to the person who made it. A line here costs nothing to write and is kept for good, under your name. Write the one you would want to find beneath your own work.</p>
+<nav class="gbk-ch"><a href="/guestbook"${chapter ? '' : ' aria-current="page"'}>Every chapter</a>${Object.entries(chapters).map(([k, v]) => `<a href="/guestbook?chapter=${k}"${chapter === k ? ' aria-current="page"' : ''}>${esc(v)}</a>`).join('')}</nav></section>
+<section class="gal gbk-book">${shown.length ? `<ol class="gb">${shown.map(line).join('')}</ol>` : '<p class="nt-0">This chapter is open. No one has signed yet.</p>'}</section>
+<section class="gal gbk-sign" id="sign"><header class="gh"><h2>Sign the book</h2></header>
+${note === '1' ? '<p class="ok">Signed. Thank you for coming.</p>' : note === 'check' ? '<p class="err">A line and your name, please, without links.</p>' : note === 'kind' ? '<p class="err">Not in this house. Say it as you would to our faces.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}
+<form method="post" action="/guestbook" class="gb-f"><label class="gb-l"><span>Which door you came through</span><select name="chapter">${Object.entries(chapters).filter(([k]) => k !== 'watermark').map(([k, v]) => `<option value="${k}"${chapter === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+<label class="gb-l"><span>A line for the book</span><textarea name="body" rows="2" maxlength="280" placeholder="What brought you, what you found, or a word for the house." required></textarea></label>
+<div class="gb-row"><label class="gb-l gb-n"><span>Signed</span><input name="name" placeholder="Your name" maxlength="60" required autocomplete="name"></label><button class="btn">Sign the book</button></div>
+<p class="note">To sign beneath a photograph, open it and sign there; those lines appear here too, in the Watermark chapter.</p></form>
+${from ? `<p class="sr-also"><a href="${esc(from)}">Back to where you were</a></p>` : ''}</section>` });
+}
 // The license, as the person who holds it should see it: the photograph, what they may do with it, until
 // when, and what to keep in mind. The proof (fingerprint, register entry) is there for anyone who asks,
 // folded away; nobody needs to read a hash to trust a license.
@@ -922,4 +942,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

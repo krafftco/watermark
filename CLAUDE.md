@@ -33,6 +33,7 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Friends of the house: `src/friends.js` (/friends): Friend $10, Patron $50, Benefactor $250 a month, or any amount once (drafts), to Watermark or Krafft; wall of friends; the thanks page lets a friend set their name. Keeping (same table, kind 'keeping'): a maker's archive is free to 200 works or 5 GB (drafts), then $15/month via /account/keeping; a notice, never a block, until Will confirms. `works.bytes` records each original's size. Not tax-deductible; a foundation is the plan, said on the page.
 - The maker page states the split: "85% of every sale is <first name>'s".
 - Scope: photographs first. Music and film are earmarked, not built: the schema already keys works by maker and kind; add kinds when the time comes.
+- The house guest book: /guestbook (`guestbook` in views.js; routes in applause.js). One book for all of Krafft in chapters (`notes.chapter`: krafft, studios, advisory, ventures, watermark, dgc; lines on photographs have work_id and count as the Watermark chapter; house lines have work_id=0). Signed from any site through the house bar's 'Guest book' link (house.js), which carries the chapter and a way back. Footer link on Watermark.
 - Your collection shows pieces as cards (`card` in views.js; .tc in style.css).
 
 ## Rules (from Will)
