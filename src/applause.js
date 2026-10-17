@@ -34,6 +34,16 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
   app.locals.applaudedBy = b => (b ? db.prepare('SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM applause a JOIN works w ON w.id=a.work_id JOIN makers m ON m.id=w.maker_id WHERE a.buyer_id=? AND w.status=\'held\' ORDER BY a.at DESC LIMIT 60').all(b.id) : []);
   // A visitor who applauds becomes a collector record on this device, so one person is one hand.
   const person = (req, res) => { let b = buyerOf(req); if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', NULL)").run().lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); } return b; };
+  // Captures: a Print Screen or a copy on a work's page, noted for the maker. Not a lock; a signal.
+  db.exec(`CREATE TABLE IF NOT EXISTS captures (id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL, kind TEXT NOT NULL, viewer TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  app.post('/w/:slug/capture', require('express').text({ type: '*/*', limit: '2kb' }), (req, res) => {
+    const w = work(req.params.slug); if (!w) return res.sendStatus(204);
+    let b = {}; try { b = JSON.parse(req.body || '{}'); } catch (e) { /* plain */ }
+    const kind = ['printscreen', 'copy'].includes(b.kind) ? b.kind : 'other';
+    db.prepare('INSERT INTO captures (work_id, kind, viewer) VALUES (?,?,?)').run(w.id, kind, String(b.v || '').slice(0, 16) || null);
+    res.sendStatus(204);
+  });
+  app.locals.capturesOf = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM captures GROUP BY work_id').all().map(r => [r.work_id, r.n]));
   app.locals.applauseOf = (w, req) => ({ n: count(w.id), mine: mine(w.id, buyerOf(req)), notes: notesOf(w.id) });
   // Standing: the share of people who saw a work and applauded it, for the Studio's sort and the duds.
   app.locals.standing = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM applause GROUP BY work_id').all().map(r => [r.work_id, r.n]));

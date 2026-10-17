@@ -233,7 +233,7 @@ ${rules && rules.never.length ? `<p class="never"><span>The maker says never</sp
 <form method="post" action="/report/${esc(w.slug)}" class="form"><label>Where you saw it<input name="url" type="url" required placeholder="https://"></label>
 <label>A note (optional)<input name="note"></label><label>Your email, if the maker may write back (optional)<input name="email" type="email"></label><button>Tell the maker</button></form></details>
 </section>
-<script src="/static/viewer.js" defer></script><script src="/static/applause.js?v=${VER}" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
+<script>window.__WM_GUARD=${JSON.stringify({ slug: w.slug, accession: w.accession || null, maker: maker.name, wave: WAVE_MARK.match(/d="([^"]+)"/)[1], capture: `/w/${w.slug}/capture`, collect: share ? `/license/${w.slug}` : null, price: share ? money(share.price_cents) : null }).replace(/</g, '\\u003c')};</script><script src="/static/guard.js?v=${VER}" defer></script><script src="/static/viewer.js" defer></script><script src="/static/applause.js?v=${VER}" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
   });
 }
 

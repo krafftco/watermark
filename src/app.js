@@ -956,7 +956,7 @@ function createApp(cfg = {}) {
     let rows = troveRows();
     const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
     if (room) { const ids = new Set(db.prepare('SELECT work_id FROM collection_works WHERE collection_id=?').all(room.id).map(r => r.work_id)); rows = rows.filter(w => ids.has(w.id)); }
-    const st = app.locals.standing ? app.locals.standing() : {}; rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; });
+    const st = app.locals.standing ? app.locals.standing() : {}, cp = app.locals.capturesOf ? app.locals.capturesOf() : {}; rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
     const sorts = { stars: (a, b) => (b.stars || 0) - (a.stars || 0) || b.earned - a.earned, standing: (a, b) => b.applause - a.applause || b.standing - a.standing || b.seen - a.seen, duds: (a, b) => (a.seen >= 20 ? a.standing : 9) - (b.seen >= 20 ? b.standing : 9) || b.seen - a.seen, earned: (a, b) => b.earned - a.earned || b.seen - a.seen, seen: (a, b) => b.seen - a.seen, newest: (a, b) => b.id - a.id, taken: (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')), untapped: (a, b) => (b.licensed ? -1 : b.seen) - (a.licensed ? -1 : a.seen), unfinished: (a, b) => a.complete - b.complete };
     const sort = sorts[req.query.sort] ? req.query.sort : 'earned';
     rows.sort(sorts[sort]);
