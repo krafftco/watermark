@@ -1879,3 +1879,13 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .vf-checks i{width:18px;height:18px;border-radius:50%;margin-top:2px;background:#2d6a3e;position:relative}.vf-checks i::after{content:"";position:absolute;left:6px;top:3px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .vf-checks li.no i{background:#8a2a2a}.vf-checks li.no i::after{width:8px;height:0;border-width:0 0 2px 0;left:5px;top:8px;transform:none}
 .vf-checks b{display:block;font-weight:500;font-size:14px}.vf-checks small{color:var(--mu);font-size:13px}
+/* The body of work, year by year. */
+.mh-lede{max-width:40em;margin:-6px 0 22px}
+.yr{display:grid;gap:22px}
+.yr-y h3{display:flex;align-items:baseline;gap:14px;margin:0 0 10px;font-family:var(--disp);font-weight:400;font-size:30px;letter-spacing:-.01em}.yr-y h3 small{font-family:var(--sans);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu)}
+.yr-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}.yr-row::-webkit-scrollbar{display:none}
+.yr-row a{flex:none;height:150px;aspect-ratio:var(--r);background:#1a1816;display:block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}.yr-row img{width:100%;height:100%;object-fit:cover;display:block}
+.yr-more{display:grid;place-items:center;aspect-ratio:1;font-family:var(--read);font-size:18px;color:var(--mu);text-decoration:none;background:var(--soft)!important}
+.mk-links .k{display:inline;margin:0 12px 0 0;font-size:10px}
+.pf-links{display:grid;gap:8px}.pf-link{display:grid;grid-template-columns:minmax(100px,140px) 1fr;gap:8px}
+.ab h1{font-size:clamp(30px,3.6vw,48px)}.ab p{font-family:var(--read);font-size:18px;line-height:1.6;color:#2f2d29;max-width:40em}.ab h2{margin-top:40px}.ab-sig{margin-top:40px;font-family:var(--disp);font-size:24px}.ab-sig small{font-family:var(--sans);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}

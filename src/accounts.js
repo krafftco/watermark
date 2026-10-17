@@ -9,7 +9,7 @@ const MULTIPLE = 3; // draft: an archive valued at three times its last twelve m
 
 function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork, upload, ledger, mail }) {
   const fs = require('fs');
-  for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT'], ['bio', 'TEXT'], ['place', 'TEXT'], ['site', 'TEXT'], ['instagram', 'TEXT'], ['portrait', 'TEXT'], ['buyer_id', 'INTEGER'], ['standing', "TEXT NOT NULL DEFAULT 'open'"]])
+  for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT'], ['bio', 'TEXT'], ['place', 'TEXT'], ['site', 'TEXT'], ['instagram', 'TEXT'], ['links', 'TEXT'], ['portrait', 'TEXT'], ['buyer_id', 'INTEGER'], ['standing', "TEXT NOT NULL DEFAULT 'open'"]])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='curated'").get()) db.exec('ALTER TABLE works ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
   // Stars: the maker's own grade, one to five, as in Lightroom. Five is a jewel. Zero is ungraded.
@@ -82,6 +82,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const b = req.body || {}, t = (v, n) => String(v || '').trim().slice(0, n) || null;
     const name = t(b.name, 120) || m.name;
     const site = t(b.site, 200), ig = t(b.instagram, 60);
+    // Elsewhere: writing, film, music, a shop; label and address, up to six.
+    const links = []; for (let i = 0; i < 6; i++) { const L = t((b.link_label || [])[i], 40), U = t((b.link_url || [])[i], 300); if (L && U && /^https?:\/\//i.test(U)) links.push({ label: L, url: U }); }
+    db.prepare('UPDATE makers SET links=? WHERE id=?').run(JSON.stringify(links), m.id);
     db.prepare('UPDATE makers SET name=?, house=?, place=?, bio=?, site=?, instagram=? WHERE id=?').run(name, t(b.house, 120), t(b.place, 120), t(b.bio, 700), site && /^https?:\/\//i.test(site) ? site : site ? 'https://' + site.replace(/^\/+/, '') : null, ig ? ig.replace(/^@/, '').replace(/[^A-Za-z0-9._]/g, '') : null, m.id);
     if (req.file) {
       try {

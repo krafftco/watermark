@@ -26,13 +26,15 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
 
   app.get('/m/:slug', async (req, res) => {
     const m = makerBySlug(req.params.slug); if (!m) return res.sendStatus(404);
-    const works = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, id").all(m.id);
+    const RG = require('./regard');
+    const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, id").all(m.id));
+    const years = RG.chronology(db, works);
     const collectors = db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.collector_no IS NOT NULL AND l.status IN ('active','expired')").get(m.id).n;
     const series = require('./series').filter(s => s.maker === m.name);
     const stories = app.locals.storiesBy ? await app.locals.storiesBy(m) : [];
     const lines = db.prepare("SELECT n.body, n.name, n.at, w.slug, w.title FROM notes n JOIN works w ON w.id=n.work_id WHERE w.maker_id=? AND n.removed_at IS NULL AND w.status='held' ORDER BY CASE WHEN n.seen_at IS NULL THEN 1 ELSE 0 END, n.id DESC LIMIT 3").all(m.id);
     const ap = db.prepare('SELECT COUNT(*) n FROM applause a JOIN works w ON w.id=a.work_id WHERE w.maker_id=?').get(m.id).n;
-    res.send(V.makerPage({ m, slug: slugOf(m), works, collectors, patrons: count(m), wall: wall(m), series, levels: LEVELS, once: ONCE, open: open(m), mine: of(buyerOf(req)).filter(p => p.maker_id === m.id), stories, lines, applause: ap }));
+    res.send(V.makerPage({ m, slug: slugOf(m), works, collectors, patrons: count(m), wall: wall(m), series, levels: LEVELS, once: ONCE, open: open(m), mine: of(buyerOf(req)).filter(p => p.maker_id === m.id), stories, lines, applause: ap, years }));
   });
 
   app.post('/m/:slug/patron', async (req, res) => {

@@ -43,6 +43,7 @@ ${saved ? '<p class="ok">Saved.</p>' : ''}
 <label>About you <small>a few lines, in your words</small><textarea name="bio" rows="5" maxlength="700">${esc(m.bio || '')}</textarea></label>
 <label>Website<input name="site" value="${esc(m.site || '')}" placeholder="yourname.com"></label>
 <label>Instagram<input name="instagram" value="${esc(m.instagram || '')}" placeholder="@yourname"></label>
+<fieldset class="wide pf-links"><legend>Elsewhere <small>writing, film, music, a shop; up to six</small></legend>${(() => { let L = []; try { L = JSON.parse(m.links || '[]'); } catch (e) { /* none */ } return [0, 1, 2, 3, 4, 5].map(i => `<div class="pf-link"><input name="link_label" value="${esc((L[i] || {}).label || '')}" placeholder="${['Writing', 'Film', 'Music', 'Shop', 'Books', 'Talks'][i]}" maxlength="40"><input name="link_url" value="${esc((L[i] || {}).url || '')}" placeholder="https://" maxlength="300"></div>`).join(''); })()}</fieldset>
 <button class="btn">Save</button></form>
 <p class="sr-also"><a href="/account">Your studio</a> &middot; <a href="/account/upload">Add photographs</a></p></section>` });
 }

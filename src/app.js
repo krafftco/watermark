@@ -10,6 +10,7 @@ const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
 const images = require('./images');
+const RG = require('./regard');
 const CR = require('./credentials');
 const V = require('./views');
 const R = require('./rules');
@@ -314,6 +315,8 @@ function createApp(cfg = {}) {
     const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate') GROUP BY m.id ORDER BY n DESC, m.id`).all();
     const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
       collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
+    const rg = RG.regardMap(db); const sumOf = m => db.prepare("SELECT id FROM works WHERE maker_id=? AND status='held'").all(m.id).reduce((a, w) => a + (rg.get(w.id) || 0), 0);
+    artists.forEach(a => { a.regard = sumOf(a); }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
     res.send(V.artists({ artists }));
   });
   app.get('/makers', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
@@ -323,7 +326,7 @@ function createApp(cfg = {}) {
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
-    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all()
+    const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all())
       .map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w)
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
