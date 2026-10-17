@@ -12,7 +12,7 @@ function mountWalk(app, { db, V, SERIES }) {
     const hit = cache.get(key); if (hit && Date.now() - hit.at < TTL) return hit.v;
     let v = null; const [kind, ...rest] = String(key || '').split(':'); const k = rest.join(':');
     try {
-      if (kind === 'collection') v = { label: 'the collection', href: '/collection', works: RG.byRegard(db, db.prepare(`${SEL} WHERE w.status='held' ORDER BY w.id`).all()) };
+      if (kind === 'collection') v = { label: 'The collection', href: '/collection', works: RG.byRegard(db, db.prepare(`${SEL} WHERE w.status='held' ORDER BY w.id`).all()) };
       else if (kind === 'maker') { const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(k) || [...db.prepare('SELECT * FROM makers').all()].find(x => V.makerSlug(x) === k); if (m) v = { label: `${m.name}'s archive`, href: `/m/${V.makerSlug(m)}`, works: RG.byRegard(db, db.prepare(`${SEL} WHERE w.maker_id=? AND w.status='held' ORDER BY w.curated DESC, w.id`).all(m.id)) }; }
       else if (kind === 'gallery') { const b = db.prepare('SELECT * FROM buyers WHERE code=?').get(k); if (b) v = { label: `${b.name ? b.name + "'s" : 'a'} gallery`, href: `/g/${b.code}`, works: db.prepare(`${SEL} JOIN licenses l ON l.work_id=w.id AND l.buyer_id=? AND l.status='active' WHERE w.status='held' GROUP BY w.id ORDER BY MIN(l.collector_no) IS NULL, MIN(l.collector_no), MIN(l.starts_at)`).all(b.id) }; }
       else if (kind === 'hang') { const h = db.prepare('SELECT h.*, b.code FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.slug=?').get(k); if (h) v = { label: h.title, href: `/g/${h.code}/hang/${h.slug}`, works: db.prepare(`${SEL} JOIN hang_works hw ON hw.work_id=w.id WHERE hw.hang_id=? AND w.status='held' ORDER BY hw.pos, w.id`).all(h.id) }; }
@@ -37,8 +37,7 @@ function mountWalk(app, { db, V, SERIES }) {
 // The bar on the photograph page.
 function walkBar(k) {
   if (!k) return '';
-  const side = (w, cls, glyph, word) => `<a class="wk-go ${cls}" href="${esc(w.href)}" title="${esc(w.title)}"><img src="${esc(w.thumb)}" alt="" loading="lazy"><span>${glyph}<i>${word}</i></span></a>`;
-  return `<nav class="wk" aria-label="Walk" data-walk>${side(k.prev, 'wk-prev', I.back, 'Before')}<p class="wk-where"><a href="${esc(k.href)}">${esc(k.label)}</a><b>${k.i} of ${k.n}</b></p>${side(k.next, 'wk-next', I.next, 'Next')}</nav>
+  return `<nav class="wk" aria-label="Walk" data-walk><a class="wk-go wk-prev" href="${esc(k.prev.href)}" title="${esc(k.prev.title)}">${I.back}<span>Before</span></a><p class="wk-where"><a href="${esc(k.href)}">${esc(k.label)}</a><b>${k.i} of ${k.n}</b></p><a class="wk-go wk-next" href="${esc(k.next.href)}" title="${esc(k.next.title)}"><span>Next</span>${I.next}</a></nav>
 <script>window.__WM_WALK=${JSON.stringify({ prev: k.prev, next: k.next, i: k.i, n: k.n, label: k.label, href: k.href }).replace(/</g, '\\u003c')};</script>`;
 }
 
