@@ -269,7 +269,7 @@ function createApp(cfg = {}) {
   });
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
-  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); } catch (e) { /* before the Studio exists */ } next(); });
+  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
 
@@ -678,7 +678,7 @@ function createApp(cfg = {}) {
   // Every purchase hangs in the buyer's collection, numbered, room by room. Private by default;
   // the collector can open it to the world under a name of their choosing.
   function collected(b) {
-    const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.download_token, l.status, u.name AS use_name, u.key AS use_key, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
+    const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
       WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 ORDER BY l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
@@ -693,7 +693,8 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ isMaker: !!app.locals.accounts.makerOf(req), isHouse: isStudio(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(buyerOf(req)), history: app.locals.pocket.history(buyerOf(req)), state: req.query.pocket || null, on: !!stripe }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    const rights = col.items.filter(i => i.use_key !== 'social' && i.use_kind !== 'print').map(i => ({ ...i, dl: dlOf({ id: i.id, use_id: i.use_id, dl_extra: i.dl_extra }), seats: (() => { try { return db.prepare('SELECT COUNT(*) n FROM seats WHERE license_id=?').get(i.id).n; } catch (e) { return 0; } })(), live: i.status === 'active' && (!i.ends_at || new Date(i.ends_at) > new Date()), soon: i.ends_at && new Date(i.ends_at) - Date.now() < 30 * 864e5 }));
+    res.send(V.collector({ rights, isMaker: !!app.locals.accounts.makerOf(req), isHouse: isStudio(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(buyerOf(req)), history: app.locals.pocket.history(buyerOf(req)), state: req.query.pocket || null, on: !!stripe }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -1518,7 +1519,7 @@ function createApp(cfg = {}) {
     res.redirect('/studio/makers');
   });
 
-  app.get('/studio/licenses', studioOnly, (req, res) => res.send(S.licenses({ list: db.prepare('SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id ORDER BY l.id DESC').all() })));
+  app.get('/studio/licenses', studioOnly, (req, res) => res.send(S.licenses({ list: db.prepare('SELECT l.*, w.title, w.slug, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id ORDER BY l.id DESC').all() })));
   app.get('/studio/licenses/:ref', studioOnly, (req, res) => {
     const l = q.licFull.get(req.params.ref); if (!l) return res.sendStatus(404);
     res.send(S.licenseDetail({ l, notice: req.query.ok, payLink: req.query.pay }));

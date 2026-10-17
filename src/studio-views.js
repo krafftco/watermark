@@ -63,10 +63,24 @@ go.textContent='Done: '+ok+' registered'+(skip?', '+skip+' skipped':'');setTimeo
 <table class="tbl"><thead><tr><th></th><th>Work</th><th>Camera</th><th>Registered</th><th>Visibility</th><th></th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7">The vault is empty.</td></tr>'}</tbody></table></section>` });
 }
 
+// The register of licenses: every grant, request and ending, with the photograph beside it, grouped the way a
+// registrar reads them: what waits for an answer, what is live, what ends soon, what has ended.
 function licenses({ list }) {
-  const rows = list.map(l => `<tr><td><a href="/studio/licenses/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.created_at)}</td><td>${esc(l.title)}</td><td>${esc(l.licensee_company || l.licensee_name)}<br><small>${esc(l.licensee_email)}</small></td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
-  return layout({ studio: true, title: 'Licenses · Watermark', body: `<section class="studio-wrap">${nav('/studio/licenses')}<h1>Licenses.</h1>
-<table class="tbl"><thead><tr><th>Ref</th><th>Date</th><th>Work</th><th>Licensee</th><th>Use</th><th>Fee</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No requests yet.</td></tr>'}</tbody></table></section>` });
+  const now = Date.now(), soon = now + 30 * 864e5;
+  const groups = [
+    ['Waiting for an answer', l => l.status === 'requested'],
+    ['Awaiting payment', l => l.status === 'awaiting_payment'],
+    ['Ending within thirty days', l => l.status === 'active' && l.ends_at && new Date(l.ends_at).getTime() < soon],
+    ['Live', l => l.status === 'active' && !(l.ends_at && new Date(l.ends_at).getTime() < soon)],
+    ['Ended, declined', l => ['expired', 'declined'].includes(l.status)],
+  ];
+  const seen = new Set();
+  const row = l => `<a class="lg-row" href="/studio/licenses/${esc(l.ref)}"><img src="/img/${esc(l.slug || '')}/thumb" alt="" loading="lazy"><span class="lg-t"><b>${esc(l.title)}</b><small>${esc(l.ref)} · ${date(l.created_at)}</small></span><span class="lg-w"><b>${esc(l.licensee_company || l.licensee_name || '—')}</b><small>${esc(l.licensee_email || '')}</small></span><span class="lg-u">${esc(l.use_name)}${l.ends_at ? `<small>${l.status === 'active' ? 'until' : 'ended'} ${date(l.ends_at)}</small>` : '<small>for good</small>'}</span><span class="lg-f">${money(l.price_cents)}</span><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></a>`;
+  const sections = groups.map(([name, f]) => { const rows = list.filter(l => !seen.has(l.id) && f(l)); rows.forEach(l => seen.add(l.id)); return rows.length ? `<section class="lg-g"><header class="gh"><h2>${name}</h2><span>${rows.length}</span></header><div class="lg-list">${rows.map(row).join('')}</div></section>` : ''; }).join('');
+  const live = list.filter(l => l.status === 'active'), fees = live.reduce((a, l) => a + (l.price_cents || 0), 0);
+  return layout({ studio: true, title: 'Licenses · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/licenses')}<p class="k">The house</p><h1>Licenses.</h1>
+<div class="hd-held"><span><b>${live.length}</b> live</span><span><b>${list.filter(l => l.status === 'requested').length}</b> waiting</span><span><b>${money(fees)}</b> in live licenses</span><span><b>${list.length}</b> on the register</span></div>
+${sections || '<p class="note">No licenses yet.</p>'}</section>` });
 }
 
 function licenseDetail({ l, payLink, notice }) {

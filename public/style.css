@@ -1795,7 +1795,7 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .hp-plate b{font-family:var(--disp);font-weight:400;font-size:22px;letter-spacing:.02em}.hp-plate span{font-size:11px;letter-spacing:.14em;text-transform:uppercase}.hp-plate small{font-size:11px;letter-spacing:.14em}.hp-plate em{font-family:var(--read);font-size:13px;font-style:italic;margin-top:4px}
 .hh-none p{font-family:var(--read);font-style:italic;color:#8f8a81;text-align:center}
 .hh-foot p{font-size:14px;color:#bdb9b1}.hh-foot a{color:#f2efe9}
-.hd-f{margin-bottom:24px}.hd-row{display:grid;grid-template-columns:2fr 2fr 1fr;gap:16px}.hd-acts{display:flex;gap:16px;align-items:center}
+.hd-f{margin-bottom:24px}.hl-row{display:grid;grid-template-columns:2fr 2fr 1fr;gap:16px}.hd-acts{display:flex;gap:16px;align-items:center}
 .hd-one{display:grid;grid-template-columns:72px 1fr;gap:18px;align-items:start;padding:18px 0;border-top:1px solid var(--ln)}.hd-one img{width:72px;height:90px;object-fit:cover}.hd-blank{display:block;width:72px;height:90px;background:var(--soft)}
 /* ---- The jewel case. The house is the case; the photographs are the jewels.
    A wall of deep velvet, near-black, lit by one pool of light from above. The photograph, a soft shadow,
@@ -1958,3 +1958,33 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .op-credit{display:grid;gap:4px;margin:0 0 10px}.op-credit code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.5;color:var(--ink);white-space:normal}
 .op-intro{max-width:860px}.op-inst{font-family:var(--sans);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-left:8px}
 .op-form select{max-width:100%}
+/* ---- The desk, set like a registrar's book: every row a photograph in a small case, the title in the
+   reading face, the numbers tabular and right-aligned, one hairline between rows, nothing else. ---- */
+.hd-row img,.ac-row img,.cat-th img,.rq img,.lg-row img,.tbl td img,.hd-one img{width:56px;height:42px;object-fit:cover;display:block;background:#1a1816;box-shadow:0 1px 1px rgba(0,0,0,.25),0 8px 16px -8px rgba(0,0,0,.5)}
+.hd-row img{width:56px;height:42px}
+.tbl td img{width:56px!important;height:42px!important}
+.tbl{border-collapse:collapse;width:100%}.tbl th{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);font-weight:400;text-align:left;padding:0 10px 10px 0;border-bottom:1px solid var(--ink)}
+.tbl td{padding:12px 10px 12px 0;border-bottom:1px solid var(--ln);vertical-align:middle;font-size:13.5px}.tbl tr:hover td{background:var(--soft)}
+.tbl td a{color:var(--ink)}.tbl td small{color:var(--mu);font-size:11.5px}
+.lg-g{margin-top:36px}
+.lg-list{display:grid}
+.lg-row{display:grid;grid-template-columns:56px minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1fr) 90px 140px;gap:18px;align-items:center;padding:11px 0;border-bottom:1px solid var(--ln);text-decoration:none;color:var(--ink);transition:background .3s}
+.lg-row:hover{background:var(--soft)}
+.lg-t,.lg-w,.lg-u{display:grid;gap:2px;min-width:0}.lg-t b{font-family:var(--read);font-weight:400;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg-w b{font-weight:500;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lg-t small,.lg-w small,.lg-u small{font-size:11px;color:var(--mu);letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg-u{font-size:13.5px}.lg-f{text-align:right;font-family:var(--read);font-size:17px;font-variant-numeric:tabular-nums}
+.lg-row .pill{justify-self:end}
+@media (max-width:860px){.lg-row{grid-template-columns:48px minmax(0,1fr) auto}.lg-w,.lg-u,.lg-f{display:none}}
+.studio-wrap h1{font-family:var(--read);font-weight:300;letter-spacing:-.02em}
+.studio-wrap .k+h1{margin-top:4px}
+/* Your rights: covered, in one glance. */
+.cov{margin-top:8px}.cov-lede{max-width:40em;margin-bottom:18px}
+.cov-list{display:grid;border-top:1px solid var(--ink)}
+.cov-row{display:grid;grid-template-columns:56px minmax(0,1.3fr) minmax(0,1.2fr) auto auto 110px;gap:18px;align-items:center;padding:14px 0;border-bottom:1px solid var(--ln)}
+.cov-row img{width:56px;height:42px;object-fit:cover;display:block;background:#1a1816;box-shadow:0 1px 1px rgba(0,0,0,.25),0 8px 16px -8px rgba(0,0,0,.5)}
+.cov-t,.cov-u{display:grid;gap:2px;min-width:0}.cov-t b{font-family:var(--read);font-weight:400;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cov-u b{font-weight:500;font-size:13.5px}.cov-t small,.cov-u small{font-size:11.5px;color:var(--mu)}
+.cov-n{display:grid;gap:2px;font-size:12px;color:var(--mu);white-space:nowrap}.cov-n b{color:var(--ink);font-weight:500}
+.cov-a{display:flex;gap:14px;font-size:12.5px;white-space:nowrap}.cov-a a{color:var(--ink)}
+.cov-st{justify-self:end;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;padding:5px 10px;border:1px solid currentColor;border-radius:999px}
+.cov-live .cov-st{color:#2d5a27}.cov-soon .cov-st{color:#8a6a1e}.cov-ended .cov-st{color:#9a9a97}.cov-ended{opacity:.7}
+@media (max-width:900px){.cov-row{grid-template-columns:48px minmax(0,1fr) auto}.cov-u,.cov-n{display:none}.cov-a{grid-column:2/-1}}
