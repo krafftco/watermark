@@ -2288,3 +2288,20 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .wv-guide{position:absolute;right:clamp(16px,3vw,40px);top:clamp(64px,10vh,96px);width:min(380px,calc(100% - 32px));max-height:60vh;overflow:auto;z-index:3;padding:18px 20px;background:rgba(10,10,9,.6);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:3px;font-family:var(--serif,Georgia,serif);font-size:15px;line-height:1.65;color:rgba(242,239,233,.86)}
 .wv-guide p{margin:0 0 12px}.wv-guide p:last-child{margin:0}
 @media (max-width:700px){.wv-deck{left:50%;bottom:14px;gap:2px;padding:4px 6px}.wv-deck .wv-b span{display:none}.wv-deck .wv-b.wv-buy span{display:inline}.wv-plate{bottom:72px;max-width:calc(100% - 32px)}.wv-ctl{gap:10px}.wv-ctl .wv-b span{display:none}.wv-t{display:none}.wv-guide{top:auto;bottom:140px;max-height:40vh}}
+/* Installed on iPhone, iPad, Mac (Will, 17 Oct): the house respects the notch and the home bar, and gives a way back. */
+.ap-me dt::after{content:" · this device";color:var(--mut);font-weight:400;letter-spacing:0;text-transform:none}
+@supports (padding: env(safe-area-inset-top)){
+  @media (display-mode:standalone), (display-mode:fullscreen){
+    body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+    .top{padding-top:calc(18px + env(safe-area-inset-top))}
+    .kh + .top, .kh ~ .top{padding-top:18px}
+    .vr-deck,.wv-deck,.fm-deck{bottom:calc(clamp(18px,4vh,40px) + env(safe-area-inset-bottom))}
+    .vr-plate,.wv-plate{bottom:calc(clamp(18px,4vh,40px) + env(safe-area-inset-bottom))}
+    .vr-top,.wv-top{padding-top:calc(14px + env(safe-area-inset-top))}
+    .hs-card,.ps-card{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+    footer.ft{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+    .nv-back{display:inline-flex}
+  }
+}
+.nv-back{display:none;align-items:center;gap:6px;color:var(--mut);font-size:11px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;padding:6px 8px 6px 0;cursor:pointer}.nv-back .ic{width:18px;height:18px}.nv-back[hidden]{display:none}
+@media (max-width:700px){@media (display-mode:standalone){.vr-deck,.wv-deck{bottom:calc(14px + env(safe-area-inset-bottom))}.wv-plate{bottom:calc(72px + env(safe-area-inset-bottom))}}}

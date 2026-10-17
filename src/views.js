@@ -71,12 +71,13 @@ function appPage({ standalone = false }) {
 <p class="lede">${standalone ? 'The house, without the browser around it. Wander from the icon; the rooms you have walked stay with you when the connection does not.' : 'The house without the browser around it: its own window and icon, instant pages, the photographs you have seen kept on the device, and the rooms you have walked there when the connection is not. Nothing to download from a store; nothing it can see but the house.'}</p>
 ${standalone ? '' : `<p class="ap-act"><button class="buy-btn" data-install hidden>Install Watermark</button></p>
 <h2>By hand</h2>
-<dl class="facts ap-how"><div><dt>Mac, Chrome or Edge</dt><dd>In the address bar, the install icon at the right; or the browser menu → <b>Install Watermark</b>.</dd></div>
-<div><dt>Mac, Safari</dt><dd>File → <b>Add to Dock</b>.</dd></div>
-<div><dt>iPhone, iPad</dt><dd>Share → <b>Add to Home Screen</b>.</dd></div>
+<dl class="facts ap-how" data-ap-how><div data-os="ios"><dt>iPhone, iPad</dt><dd>In Safari, tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>, then <b>Add</b>. The house opens full screen from its own icon.</dd></div>
+<div data-os="mac-safari"><dt>Mac, Safari</dt><dd>File → <b>Add to Dock</b>.</dd></div>
+<div data-os="mac-chrome"><dt>Mac, Chrome or Edge</dt><dd>In the address bar, the install icon at the right; or the browser menu → <b>Install Watermark</b>.</dd></div>
 <div><dt>Android</dt><dd>The browser menu → <b>Install app</b>, or <b>Add to Home screen</b>.</dd></div>
 <div><dt>Windows</dt><dd>Chrome or Edge: the install icon in the address bar.</dd></div></dl>`}
-<p class="note">A native application for the Mac and the phone is on the list; this is the same house, installed, and it will be kept current.</p></section>` });
+<p class="note">A native application for the Mac and the phone is on the list; this is the same house, installed, and it will be kept current.</p></section>
+<script>(function(){var ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),mac=/Macintosh/.test(ua)&&!ios,safari=/Safari/.test(ua)&&!/Chrome|Chromium|Edg/.test(ua);var me=ios?'ios':mac?(safari?'mac-safari':'mac-chrome'):null;var dl=document.querySelector('[data-ap-how]');if(dl&&me){var el=dl.querySelector('[data-os="'+me+'"]');if(el){el.classList.add('ap-me');dl.prepend(el);}}})();</script>` });
 }
 // The house bar (Krafft · Krafft Studios · Watermark), rendered here so it never flashes in;
 // public/house.js then points each link back to the page last open on that property.
@@ -107,16 +108,16 @@ function deskHeader(path = '') {
 <div class="dk-status">${deskStatus()}</div></header>`;
 }
 function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld, mark = null }) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="theme-color" content="#0e0e0e"><link rel="manifest" href="/static/app/manifest.webmanifest"><link rel="apple-touch-icon" href="/static/app/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Watermark"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="mobile-web-app-capable" content="yes"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&display=swap">
 <link rel="stylesheet" href="/static/style.css?v=${VER}"><script>(function(){var m=document.cookie.match(/(?:^|; )wm_hi=([^;]*)/);if(!m)return;document.cookie='wm_hi=; Max-Age=0; path=/';var n=decodeURIComponent(m[1]);addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.className='wm-hi';d.textContent=n&&n!=='·'?'Welcome back, '+n+'.':'You are signed in.';document.body.appendChild(d);requestAnimationFrame(function(){d.classList.add('on')});setTimeout(function(){d.classList.remove('on');setTimeout(function(){d.remove()},600)},3200)})})()</script><link rel="icon" href="/static/wave.svg">${bare || studio ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
-${bare ? '' : studio ? deskHeader(path) : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
+${bare ? '' : studio ? deskHeader(path) : `${HOUSE}<header class="top"><button type="button" class="nv-back" data-nv-back hidden aria-label="Back">${I.back}<span>Back</span></button><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/artists">Artists</a><a href="/collection">Collection</a><a href="/collectors">Galleries</a><a href="/market" class="nv-m">Market</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav><a href="/wander/room" class="nv-w" title="The viewing room: wander through the collection">${WAVE_MARK}<span>Wander</span></a></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/journal">Journal</a> · <a href="/library">The Library</a> &middot; <a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">The register</a> &middot; <a href="/copyright">Copyright Office</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a> &middot; <a href="/app">The app</a> &middot; <a href="/frame">The frame</a></p></footer>`}${bare || studio ? '' : APP}
-<script src="/static/foryou.js?v=${VER}" defer></script></body></html>`;
+<script src="/static/foryou.js?v=${VER}" defer></script><script>(function(){var sa=matchMedia('(display-mode:standalone)').matches||navigator.standalone;if(!sa)return;var b=document.querySelector('[data-nv-back]');if(!b)return;var came=document.referrer&&new URL(document.referrer,location.href).origin===location.origin;if(history.length>1&&came&&location.pathname!=='/'){b.hidden=false;b.onclick=function(){history.back();};}})();</script></body></html>`;
 }
 
 // One row of the collection's search index: the small shape collection.js searches and lays out.
@@ -248,7 +249,7 @@ function work({ walk = null, hang = '', open = null, thanks = null, stood = null
     body: `<article class="work lot">
 <div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="Photograph by ${esc(maker.name)}" data-place="${esc([w.place, year].filter(Boolean).join(', '))}">
 <img src="/img/${esc(w.slug)}/screen" alt="${esc(title)}" draggable="false"><span class="shield"></span></figure>
-<p class="lot-hint">Click the photograph to see it whole.${walk ? ' Arrows walk.' : ''}</p>${require('./walk').walkBar(walk)}</div>
+<p class="lot-hint">Tap or click the photograph to see it whole.${walk ? ' Arrows walk.' : ''}</p>${require('./walk').walkBar(walk)}</div>
 <div class="meta lot-entry">
 ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-maker"><a href="/m/${esc(makerSlug(maker))}">${esc(maker.name)}</a>${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
