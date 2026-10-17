@@ -271,6 +271,17 @@ function createApp(cfg = {}) {
 
   // --- public pages ---
   // The front door is the collection; makers have their own entrance.
+  // The viewing room: the picture alone on a dark wall, the guide read aloud, and on to the next by itself.
+  app.get('/wander/room', (req, res) => res.send(V.viewingRoom({ from: String(req.query.from || '') })));
+  app.get('/api/wander', (req, res) => {
+    const from = String(req.query.from || '').split(',').filter(Boolean).slice(-12);
+    const w = db.prepare(`SELECT * FROM works WHERE status='held'${from.length ? ` AND slug NOT IN (${from.map(() => '?').join(',')})` : ''} ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(...from)
+      || db.prepare("SELECT * FROM works WHERE status='held' ORDER BY RANDOM() LIMIT 1").get();
+    if (!w) return res.json({ none: true });
+    const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
+    res.set('Cache-Control', 'no-store').json({ slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
+      img: `/img/${w.slug}/large`, guide: c ? c.text : null, approved: !!(c && c.state === 'approved'), collect: u && u.price_cents != null && offered(R.parse(w.rules), 'social', w) ? { url: `/license/${w.slug}`, price: V.money(priced(u, w).price_cents) } : null });
+  });
   // Wander: a photograph you did not go looking for. The best work weighs more; what you just saw is left out.
   app.get('/wander', (req, res) => {
     const from = String(req.query.from || '');

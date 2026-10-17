@@ -1638,3 +1638,32 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .wd-on{position:fixed;right:22px;bottom:22px;z-index:40;display:inline-flex;align-items:center;gap:10px;padding:12px 18px;background:#141414;color:#f2efe9;text-decoration:none;font-size:12px;letter-spacing:.16em;text-transform:uppercase;border-radius:999px;box-shadow:0 12px 36px rgba(0,0,0,.28);transition:transform .4s var(--e)}
 .wd-on:hover{transform:translateY(-2px)}.wd-on svg{width:26px;height:8px;fill:currentColor}
 @media (max-width:600px){.top nav a.nv-w span{display:none}.top nav a.nv-w{padding:6px 10px}}
+/* The viewing room. */
+body.bare .vr{position:fixed;inset:0;background:#0a0a09;color:#f2efe9;overflow:hidden;font-family:var(--sans)}
+.vr-fig{position:absolute;inset:0;margin:0}
+.vr-im{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:clamp(24px,5vw,72px);box-sizing:border-box;opacity:0;transition:opacity 1.6s ease;filter:drop-shadow(0 30px 80px rgba(0,0,0,.6))}
+.vr-im.on{opacity:1}
+.vr-top{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:16px clamp(16px,3vw,32px);opacity:0;transition:opacity .5s;z-index:3}
+.vr.awake .vr-top,.vr.paused .vr-top{opacity:1}
+.vr-home img{height:22px;filter:invert(1);opacity:.85}
+.vr-ctl{display:flex;gap:8px;align-items:center}
+.vr-b{font:inherit;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#f2efe9;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:8px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;backdrop-filter:blur(8px)}
+.vr-b[aria-pressed=true]{background:#f2efe9;color:#0a0a09;border-color:#f2efe9}
+.vr-b i{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.vr-x{font-size:18px;padding:4px 12px;line-height:1}
+.vr-side{position:absolute;left:clamp(16px,3vw,40px);bottom:clamp(20px,4vw,44px);max-width:min(560px,calc(100% - 32px));z-index:3;opacity:0;transform:translateY(8px);transition:opacity .6s,transform .6s var(--e)}
+.vr.awake .vr-side,.vr.paused .vr-side,.vr-side:has([data-vr-guide]:not([hidden])){opacity:1;transform:none}
+.vr-k{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#bdb9b1;margin:0 0 6px;min-height:1em}
+.vr-t{font-family:var(--disp);font-weight:400;font-size:clamp(26px,3.4vw,44px);line-height:1.05;letter-spacing:-.01em;margin:0 0 6px;color:#f6f5f2}
+.vr-by{font-size:13px;color:#bdb9b1;margin:0 0 14px}.vr-by a{color:#f2efe9;text-decoration:none;border-bottom:1px solid rgba(242,239,233,.4)}
+.vr-guide{font-family:var(--read);font-size:17px;line-height:1.5;color:#d9d5cd;max-height:38vh;overflow:auto;padding-right:8px;margin-bottom:14px;scrollbar-width:thin}
+.vr-guide p{margin:0 0 10px;transition:color .4s}.vr-guide p.now{color:#fff}.vr-guide small{display:block;font-family:var(--sans);font-size:11px;color:#8f8a81;letter-spacing:.04em}
+.vr-row{display:flex;gap:18px;align-items:center;margin:0;flex-wrap:wrap}
+.vr-go{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#f2efe9;text-decoration:none;border-bottom:1px solid rgba(242,239,233,.4);padding-bottom:3px}.vr-collect{color:#fff;border-color:#fff}
+.vr-bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.08);z-index:3}.vr-bar i{display:block;height:100%;width:0;background:rgba(242,239,233,.7)}
+.vr-nav{position:absolute;top:50%;transform:translateY(-50%);font:inherit;font-size:22px;color:#f2efe9;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);width:48px;height:48px;border-radius:50%;cursor:pointer;opacity:0;transition:opacity .5s;z-index:3}
+.vr.awake .vr-nav{opacity:.9}.vr-prev{left:clamp(12px,2vw,28px)}.vr-nxt{right:clamp(12px,2vw,28px)}
+.vr-hint{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8f8a81;margin:0;transition:opacity 1s;z-index:3}.vr-hint.gone{opacity:0}
+@media (max-width:700px){.vr-side{right:16px;max-width:none}.vr-guide{max-height:30vh}.vr-hint{display:none}.vr-nav{display:none}.vr-im{padding:12px 12px 40vh}}
+.vr-im{padding-bottom:clamp(96px,14vh,150px)}
+.vr-side::before{content:"";position:absolute;left:-40px;right:-60px;top:-60px;bottom:-60px;background:radial-gradient(ellipse at 20% 80%,rgba(10,10,9,.78),rgba(10,10,9,0) 70%);z-index:-1;pointer-events:none}

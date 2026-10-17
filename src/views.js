@@ -62,7 +62,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css?v=${VER}"><script>(function(){var m=document.cookie.match(/(?:^|; )wm_hi=([^;]*)/);if(!m)return;document.cookie='wm_hi=; Max-Age=0; path=/';var n=decodeURIComponent(m[1]);addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.className='wm-hi';d.textContent=n&&n!=='·'?'Welcome back, '+n+'.':'You are signed in.';document.body.appendChild(d);requestAnimationFrame(function(){d.classList.add('on')});setTimeout(function(){d.classList.remove('on');setTimeout(function(){d.remove()},600)},3200)})})()</script><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/artists">Artists</a><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a><a href="/wander" class="nv-w" title="A photograph you did not go looking for">${WAVE_MARK}<span>Wander</span></a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/artists">Artists</a><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a><a href="/wander/room" class="nv-w" title="The viewing room: wander through the collection">${WAVE_MARK}<span>Wander</span></a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">The register</a> &middot; <a href="/copyright">Copyright Office</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
@@ -690,6 +690,19 @@ function farewell({ name = null, cover = null }) {
 ${cover ? `<p class="fw-cap">${esc(tidy(cover.title))}${cover.place ? `, ${esc(cover.place)}` : ''}</p>` : ''}</div></section>` });
 }
 
+// The viewing room. Nothing but the photograph on a dark wall, its title small beneath, the guide read
+// aloud if you like, and the next one after a slow count unless you touch it. The museum, for an afternoon.
+function viewingRoom({ from = '' }) {
+  return layout({ title: 'The viewing room · Watermark', desc: 'Wander through the collection, one photograph at a time, with a guide beside each.', path: '/wander/room', bare: true, body: `<main class="vr" data-vr data-from="${esc(from)}">
+<figure class="vr-fig"><img class="vr-im" alt="" draggable="false"><img class="vr-im vr-next" alt="" draggable="false"></figure>
+<header class="vr-top"><a class="vr-home" href="/collection" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark"></a><div class="vr-ctl"><button type="button" class="vr-b" data-vr-say aria-pressed="false"><i></i><span>Guide</span></button><button type="button" class="vr-b" data-vr-auto aria-pressed="true"><span>Wandering</span></button><a class="vr-b vr-x" href="/collection" aria-label="Leave the room">&times;</a></div></header>
+<aside class="vr-side"><p class="vr-k" data-vr-k></p><h1 class="vr-t" data-vr-t></h1><p class="vr-by" data-vr-by></p><div class="vr-guide" data-vr-guide hidden></div><p class="vr-row"><a class="vr-go" data-vr-page href="#">See the photograph</a><a class="vr-go vr-collect" data-vr-collect href="#" hidden></a></p></aside>
+<div class="vr-bar"><i data-vr-bar></i></div>
+<button type="button" class="vr-nav vr-prev" data-vr-prev aria-label="Back">&larr;</button><button type="button" class="vr-nav vr-nxt" data-vr-next aria-label="Next">&rarr;</button>
+<p class="vr-hint" data-vr-hint>Space pauses. Arrows move. G reads the guide. Esc leaves.</p>
+</main><script src="/static/room.js?v=${VER}" defer></script>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -1079,4 +1092,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
