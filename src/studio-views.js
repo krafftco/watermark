@@ -3,7 +3,7 @@ const { layout, esc, money, date, termText } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const MORE = [['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
 const nav = active => `<nav class="snav">${MAIN.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="snav-more">${MORE.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</span></nav>`;
 
 function login({ error }) {
@@ -266,4 +266,14 @@ ${groups.length ? `<section class="hd-list"><div class="hd-h"><h2>Groups</h2></d
 <p class="note">Check the publication dates before filing: a photograph first published on Krafft Studios may have an earlier date than the one Watermark holds. Watermark is not a law firm; for anything unusual (work made for hire, joint authors, earlier registrations), ask counsel.</p></section>` });
 }
 
-module.exports = { copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+// Launch: the rails, checked.
+function launch({ checks, live }) {
+  const all = checks.flatMap(g => g.items), ready = all.filter(i => i.ok).length;
+  return layout({ studio: true, title: 'Launch · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/launch')}
+<p class="k">Launch</p><h1>${live ? 'Live.' : 'Before Watermark takes real money.'}</h1>
+<p class="lede">Every rail Watermark runs on, checked as this page loads. ${ready} of ${all.length} are in place. Green is done; the rest says exactly what is missing and where it goes.</p>
+${checks.map(g => `<section class="hd-list"><div class="hd-h"><h2>${esc(g.group)}</h2></div>${g.items.map(i => `<div class="ln-row"><span class="ln-dot ${i.ok ? 'ln-ok' : i.manual ? 'ln-man' : 'ln-no'}" aria-label="${i.ok ? 'Done' : 'To do'}"></span><b>${esc(i.name)}</b><span>${esc(i.detail || '')}</span></div>`).join('')}</section>`).join('')}
+<p class="note">Keys and passwords go in Render's environment settings only, never in chat, Notion or email.</p></section>` });
+}
+
+module.exports = { launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

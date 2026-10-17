@@ -1156,3 +1156,9 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .cr-m{margin:6px 0 10px;font-size:13px;color:var(--mu)}
 .cr-a{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12px;letter-spacing:.1em;text-transform:uppercase}.cr-a a{color:var(--ink)}
 .cr-f{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.cr-f input{flex:1;min-width:240px;padding:9px 10px;border:1px solid var(--ln);font:inherit}
+/* Launch */
+.ln-row{display:grid;grid-template-columns:14px minmax(200px,1fr) 2fr;gap:16px;align-items:baseline;padding:13px 0;border-bottom:1px solid var(--ln)}
+.ln-row b{font-weight:500}.ln-row span:last-child{font-size:13px;color:var(--mu)}
+.ln-dot{width:9px;height:9px;border-radius:50%;display:inline-block;transform:translateY(1px)}
+.ln-ok{background:#2f5d3a}.ln-no{background:#8a3b2e}.ln-man{border:1px solid var(--mu)}
+@media (max-width:760px){.ln-row{grid-template-columns:14px 1fr}.ln-row span:last-child{grid-column:2}}

@@ -26,6 +26,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   stripeClient.paymentIntents.create = async o => { const id = 'pi_mock_' + Object.keys(pis).length; pis[id] = { id, client_secret: id + '_secret', status: o.confirm ? 'succeeded' : 'requires_payment_method', amount_received: o.confirm ? o.amount : 0, payment_method: o.payment_method || null, ...o }; return pis[id]; };
   stripeClient.paymentIntents.retrieve = async id => pis[id];
   stripeClient.subscriptions.update = async (id, o) => ({ id, ...o });
+  stripeClient.webhookEndpoints.list = async () => ({ data: [{ url: 'http://localhost/stripe/webhook', enabled_events: ['checkout.session.completed', 'payment_intent.succeeded'] }] });
   stripeClient.refunds.create = async o => { refunds.push(o); return { id: 're_1', ...o }; };
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
@@ -229,6 +230,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/activity', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
   r = await req(port, 'GET', '/studio', { cookie }); assert.ok(r.body.includes('Holdings') && r.body.includes('Needs you') && r.body.includes('WM.'), 'holdings');
   r = await req(port, 'GET', '/studio/trove', { cookie }); assert.ok(r.body.includes('The works') && r.body.includes('WM.'), 'works with accession numbers');
+  r = await req(port, 'GET', '/studio/launch', { cookie }); assert.ok(r.body.includes('Before Watermark takes real money') && r.body.includes('customer.subscription.deleted'), 'launch checks');
   r = await req(port, 'GET', '/studio/editions', { cookie }); assert.ok(r.body.includes('Number the collection') && /name="size_\d+"/.test(r.body), 'editions proposed');
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);

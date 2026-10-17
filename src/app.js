@@ -53,6 +53,7 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
   // Editions: what a collector has printed, and works passed from one collector to another.
+  db.exec(`CREATE TABLE IF NOT EXISTS stripe_events (id TEXT PRIMARY KEY, type TEXT, livemode INTEGER, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS prints (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, size TEXT, paper TEXT, made TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, token TEXT UNIQUE NOT NULL, from_buyer INTEGER, to_buyer INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), claimed_at TEXT)`);
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
@@ -219,6 +220,7 @@ function createApp(cfg = {}) {
     let event;
     try { event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], C.webhookSecret); }
     catch (e) { return res.status(400).send('Bad signature'); }
+    try { db.prepare('INSERT INTO stripe_events (id, type, livemode) VALUES (?,?,?) ON CONFLICT(id) DO NOTHING').run(event.id, event.type, event.livemode ? 1 : 0); } catch (e) { /* table not yet made */ }
     if (event.type === 'checkout.session.completed') {
       const s = event.data.object;
       const ref = s.metadata && s.metadata.ref;
@@ -907,6 +909,46 @@ function createApp(cfg = {}) {
     }
     if (n) ledger.append(db, 'editions.set', maker.handle, { works: n });
     res.redirect('/studio/editions?ok=' + encodeURIComponent(`${n} photograph${n === 1 ? '' : 's'} now numbered as limited editions.`));
+  });
+
+  // Launch: every rail Watermark needs to take real money and keep its promises, checked in one place.
+  app.get('/studio/launch', studioOnly, async (req, res) => {
+    const key = C.stripeKey || '', live = /^(sk|rk)_live_/.test(key);
+    const last = db.prepare('SELECT * FROM stripe_events ORDER BY at DESC LIMIT 1').get();
+    const seen = new Set(db.prepare('SELECT DISTINCT type FROM stripe_events').all().map(r => r.type));
+    const want = ['checkout.session.completed', 'payment_intent.succeeded', 'customer.subscription.deleted'];
+    let endpoint = null; try { if (stripe) { const l = await stripe.webhookEndpoints.list({ limit: 20 }); endpoint = l.data.find(e => e.url && e.url.startsWith(C.base)) || null; } } catch (e) { endpoint = { error: e.message }; }
+    const enabled = endpoint && endpoint.enabled_events ? endpoint.enabled_events : [];
+    const missing = want.filter(t => !(enabled.includes('*') || enabled.includes(t)));
+    const n = sql => db.prepare(sql).get().n;
+    const held = n("SELECT COUNT(*) n FROM works WHERE status='held'");
+    const checks = [
+      { group: 'The address', items: [
+        { ok: /^https:\/\//.test(C.base), name: 'Served at its own address, over HTTPS', detail: C.base } ] },
+      { group: 'Payments', items: [
+        { ok: !!stripe, name: 'Stripe connected', detail: stripe ? (live ? 'Live mode: real cards, real money' : 'Test mode: sandbox only, no real money moves') : 'STRIPE_SECRET_KEY is not set in Render' },
+        { ok: live, name: 'Live keys', detail: live ? 'Live' : 'Switch STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY and STRIPE_WEBHOOK_SECRET to the live ones in Render when ready', manual: !live },
+        { ok: !!C.stripePk, name: 'Payment sheet on the page (Apple Pay, cards)', detail: C.stripePk ? 'Publishable key set' : 'STRIPE_PUBLISHABLE_KEY is not set: buyers go to Stripe Checkout instead of paying in place' },
+        { ok: !!C.webhookSecret && !!endpoint && !endpoint.error, name: 'Webhook endpoint', detail: endpoint && endpoint.error ? 'Could not read from Stripe: ' + endpoint.error : endpoint ? endpoint.url : 'No endpoint at this address in Stripe' },
+        { ok: !!endpoint && !missing.length, name: 'Webhook events', detail: missing.length ? 'Add in Stripe: ' + missing.join(', ') : 'All the events Watermark listens for' },
+        { ok: !!last, name: 'Webhook heard from', detail: last ? `${last.type}, ${last.at} UTC${last.livemode ? ' (live)' : ' (test)'}` : 'Nothing received yet. A test purchase will confirm it.' },
+        { ok: false, manual: true, name: 'Payouts to other makers, writers and sellers', detail: 'Needs Stripe Connect, after counsel. Until then Watermark records each person\'s share and pays by hand.' } ] },
+      { group: 'Email', items: [
+        { ok: !!process.env.RESEND_API_KEY, name: 'Receipts, files and invitations by email', detail: process.env.RESEND_API_KEY ? `Sending as ${process.env.MAIL_FROM || 'the default address'}` : 'RESEND_API_KEY is not set: buyers get their file on the thanks page only, and no emails go out' } ] },
+      { group: 'The vault', items: [
+        { ok: store.kind === 's3', name: 'Originals held off the server', detail: store.kind === 's3' ? 'S3' : 'Local disk only' },
+        { ok: !!process.env.VAULT_KEY, name: 'Sealed with Watermark\'s own key', detail: process.env.VAULT_KEY ? 'VAULT_KEY set' : 'Provider encryption only' },
+        { ok: CR.enabled(), name: 'Content Credentials on every delivered file', detail: CR.enabled() ? 'Signing' : 'Needs a C2PA certificate (DigiCert, SSL.com and others) as C2PA_CERT and C2PA_KEY' } ] },
+      { group: 'The collection', items: [
+        { ok: held > 0, name: 'Photographs public', detail: `${held}` },
+        { ok: n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL") > 0, name: 'Numbered as editions', detail: `${n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL")} of ${held}. Studio, Editions.` },
+        { ok: n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''") > 0, name: 'Registered with the U.S. Copyright Office', detail: `${n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''")} of ${held}. Studio, Copyright.` } ] },
+      { group: 'Words and terms (yours to confirm)', items: [
+        { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licences and prints are drafts' },
+        { ok: false, manual: true, name: 'Shares', detail: '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
+        { ok: false, manual: true, name: 'Terms for resale', detail: 'The licence says non-transferable; counsel to revise it before the market opens' } ] },
+    ];
+    res.send(S.launch({ checks, live }));
   });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
