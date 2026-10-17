@@ -95,7 +95,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   // Leaving: the house says goodbye the way a good host does, at the door.
   app.post('/signout', (req, res) => {
     const b = buyerOf(req), m = makerOf(req); const name = ((m && m.name) || (b && b.name) || '').split(' ')[0] || null;
-    for (const c of ['wm_b', 'wm_tap', 'wm_m']) res.clearCookie(c);
+    for (const c of ['wm_b', 'wm_tap', 'wm_m', 'wm_as']) res.clearCookie(c);
     res.redirect(`/farewell${name ? `?to=${encodeURIComponent(name)}` : ''}`);
   });
   app.get('/farewell', (req, res) => {

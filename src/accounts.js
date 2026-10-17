@@ -16,8 +16,12 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='stars'").get()) { db.exec('ALTER TABLE works ADD COLUMN stars INTEGER NOT NULL DEFAULT 0'); db.exec('UPDATE works SET stars=5 WHERE curated=1'); }
 
   const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 90 };
+  // The house, having opened a maker's studio (?maker=handle), stays in it from room to room: the handle is kept
+  // in a cookie for the Studio session and read wherever a maker is looked for. A real maker sign-in wins.
+  app.use((req, res, next) => { if (req.query && req.query.maker && isStudio(req)) res.cookie('wm_as', String(req.query.maker), { ...cookieOpts, maxAge: 12 * 3600e3 }); next(); });
   const makerOf = req => {
-    const c = req.cookies && req.cookies.wm_m; if (!c) return null;
+    const c = req.cookies && req.cookies.wm_m;
+    if (!c) { const h = isStudio(req) ? (req.query && req.query.maker) || (req.cookies && req.cookies.wm_as) : null; return h ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(h)) || null : null; }
     const [id, exp, mac] = String(c).split('.');
     if (mac !== sign(`m${id}.${exp}`) || Date.now() > +exp) return null;
     return db.prepare('SELECT * FROM makers WHERE id=?').get(+id) || null;

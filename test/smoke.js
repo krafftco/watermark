@@ -442,6 +442,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='dispute.upheld'").get().n === 1 && db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='dispute.opened'").get().n === 2, 'on the register');
     r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('upheld by the house') && !r.body.toString().includes('Nils'), 'told without names');
     db.prepare("UPDATE works SET status='held' WHERE slug=?").run(g1);
+    // The house opens a maker's studio once and walks its rooms without being asked to sign in.
+    r = await req(port, 'GET', '/account?maker=greta-lund', { cookie: ck }); const asck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_as=')); assert.ok(asck, 'viewing cookie');
+    for (const p of ['/account/payouts', '/account/keeping', '/account/requests', '/account/claims', '/account/profile']) { r = await req(port, 'GET', p, { cookie: `${ck}; ${asck.split(';')[0]}` }); assert.equal(r.status, 200, `house walks ${p}`); }
     r = await req(port, 'GET', '/studio/trove?sort=stars', { cookie: ck }); assert.ok(r.body.toString().includes('&#9733;&#9733;&#9733;&#9733;&#9733;'), 'the rubies in the Studio'); }
   // Who is at the door: the house bar asks /api/me from any Krafft site.
   r = await req(port, 'GET', '/api/me', { headers: { origin: 'https://studios.krafftco.com' } }); assert.equal(JSON.parse(r.body).in, false); assert.equal(r.headers['access-control-allow-origin'], 'https://studios.krafftco.com');
@@ -657,7 +660,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/collectors">Galleries<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');
