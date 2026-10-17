@@ -954,7 +954,8 @@ function createApp(cfg = {}) {
     res.send(V.verify({ ref, lic, w, notFound: ref && !lic }));
   });
 
-  app.get('/ledger', (req, res) => res.send(V.ledgerPage({ entries: db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 500').all(), check: ledger.verify(db) })));
+  // The register, told in plain words with the photographs beside it.
+  require('./register').mountRegister(app, { db, V, ledger });
   app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
 
   // --- Studio ---

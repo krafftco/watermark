@@ -1593,3 +1593,18 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .pat-letter{font-size:13px;line-height:1.5}.pat-letter a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.5)}
 .pat-medici .seal-row{color:#f2efe9}.pat-medici .pat-go{color:#f2efe9}
 @media (max-width:860px){.pat-medici{grid-template-columns:1fr}}
+/* The register: the life of the house. */
+.rg-intro{max-width:900px}
+.rg-n{display:flex;gap:28px;flex-wrap:wrap;margin:22px 0 0;font-size:13px;color:var(--mu)}.rg-n b{font-family:var(--read);font-size:24px;color:var(--ink);margin-right:6px}
+.rg{max-width:900px;margin:0 auto;padding:0 clamp(16px,4vw,56px) 64px}
+.rg-day{margin-top:40px}.rg-day h2{font-family:var(--disp);font-weight:400;font-size:22px;letter-spacing:0;text-transform:none;color:var(--ink);margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--ink)}
+.rg-day ol{list-style:none;margin:0;padding:0}
+.rg-i{display:grid;grid-template-columns:72px 1fr auto;gap:18px;align-items:center;padding:14px 0;border-bottom:1px solid var(--ln)}
+.rg-im{display:block;width:72px;height:50px;overflow:hidden;background:#0b0a09}.rg-im img{width:100%;height:100%;object-fit:cover;display:block}
+.rg-none{display:grid;place-items:center;background:var(--soft);color:var(--ink)}.rg-none svg{width:22px;height:22px}.rg-applause .rg-none svg{width:24px}.rg-collect .rg-none svg,.rg-trade .rg-none svg{width:34px;height:10px}
+.rg-c{font-family:var(--read);font-size:20px}
+.rg-t{font-family:var(--read);font-size:18px;line-height:1.4;margin:0;color:var(--ink)}.rg-t a{color:inherit;text-decoration:none;border-bottom:1px solid var(--ln)}.rg-t a:hover{border-color:var(--ink)}
+.rg-birth .rg-t{font-size:20px}
+.rg-m{display:grid;justify-items:end;gap:4px;font-size:11px;color:var(--mu);letter-spacing:.04em}.rg-m code{font-size:10px;color:#b8b3aa;letter-spacing:.06em}
+.rg-foot{margin-top:40px}
+@media (max-width:600px){.rg-i{grid-template-columns:56px 1fr}.rg-im{width:56px;height:40px}.rg-m{grid-column:2;justify-items:start;grid-auto-flow:column;gap:12px}}

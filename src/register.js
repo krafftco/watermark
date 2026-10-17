@@ -1,0 +1,84 @@
+// The register, read aloud. Every entry on the ledger is a moment in the life of the house: a photograph
+// entering the archive, its first tip of the hat, a collector taking a number, a license going out, a
+// trade, a name on the wall. Here each entry becomes a sentence in plain words with the photograph beside
+// it, grouped by day. Private things (sign-ins, keys, seats' emails) are kept off the public stream;
+// nothing on it names a person who did not choose to be named. The hash stays, small, for those who look.
+const USE = { social: 'collected', reference: 'collected as the Reference', editorial: 'licensed for a story', commercial: 'licensed to a company', campaign: 'licensed for a campaign', print: 'ordered as a print' };
+const HIDDEN = new Set(['signin.email', 'collector.passkey', 'maker.passkey', 'license.seat', 'license.seat.claimed', 'license.seat.file', 'license.seat.removed', 'license.seats.added', 'market.refunded', 'license.undone', 'patron.ending', 'license.renewal_offered']);
+
+function mountRegister(app, { db, V, ledger }) {
+  const workBySlug = db.prepare("SELECT id, slug, title, maker_id, width, height, status FROM works WHERE slug=?");
+  const workByRef = db.prepare("SELECT w.id, w.slug, w.title, w.maker_id, w.width, w.height, w.status, l.collector_no, u.key AS use_key FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE l.ref=?");
+  const makerByHandle = db.prepare('SELECT id, name, handle FROM makers WHERE handle=?');
+  const makerById = db.prepare('SELECT id, name, handle FROM makers WHERE id=?');
+  const esc = V.esc, tidy = V.tidy, money = V.money;
+  const T = w => (w ? `<a href="/w/${esc(w.slug)}"><i>${esc(tidy(w.title).replace(/[.\s]+$/, ''))}</i></a>` : 'a photograph');
+  const by = w => { const m = w && makerById.get(w.maker_id); return m ? ` by ${V.mlink ? V.mlink(m.name) : esc(m.name)}` : ''; };
+  const no = (w, d) => { const n = (w && w.collector_no) || (d && d.collector_no); return n ? `, No.&nbsp;${n}` : ''; };
+  const data = e => { try { return JSON.parse(e.data || '{}'); } catch (x) { return {}; } };
+  const HOUSE = { watermark: 'Watermark', krafft: 'Krafft', studios: 'Krafft Studios', advisory: 'Krafft Advisory', ventures: 'Krafft Ventures', dgc: 'Dallas Golf Club' };
+  const LV = { friend: 'a Friend', patron: 'a Patron', benefactor: 'a Benefactor', medici: 'a Medici', once: 'a friend' };
+
+  // One entry → { text, work, kind } or null when it stays private.
+  function tell(e) {
+    if (HIDDEN.has(e.type)) return null;
+    const d = data(e), t = e.type;
+    let w = d.work ? workBySlug.get(d.work) : null;
+    if (!w && /^WM-/.test(e.subject)) w = workByRef.get(e.subject);
+    if (!w) { const ws = workBySlug.get(e.subject); if (ws) w = ws; }
+    if (w && w.status !== 'held' && !['work.registered'].includes(t)) w = null; // private work stays unnamed
+    const k = { kind: 'life' };
+    switch (t) {
+      case 'work.registered': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} entered the archive${d.accession ? `, ${esc(d.accession)}` : ''}.` };
+      case 'work.published': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} was shown for the first time.` };
+      case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };
+      case 'work.guide': return { ...k, work: w, text: `${T(w)} received its wall text.` };
+      case 'work.master': return { ...k, work: w, text: `${T(w)} received its master.` };
+      case 'work.terms': return { ...k, work: w, text: `The terms of ${T(w)} were set by its maker.` };
+      case 'work.voice': return { ...k, work: w, text: `Someone spoke about ${T(w)}.` };
+      case 'license.granted': case 'license.checkout': {
+        if (d.set) return { ...k, kind: 'collect', work: w, text: `A set of ${d.works ? d.works.length : 'several'} photographs was collected together.` };
+        const u = USE[d.use || (w && w.use_key)] || 'licensed';
+        return { ...k, kind: 'collect', work: w, text: `${T(w)}${by(w)} was ${u}${no(w, d)}.` }; }
+      case 'license.requested': return { ...k, work: w, text: `A license was asked for ${T(w)}.` };
+      case 'license.quoted': return { ...k, work: w, text: `Terms were offered for ${T(w)}.` };
+      case 'license.declined': return { ...k, work: w, text: `A request for ${T(w)} was declined by its maker.` };
+      case 'license.transferred': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} passed to a new collector${d.how === 'trade' ? ', in a trade' : ''}.` };
+      case 'file.delivered': return { ...k, work: w, text: `A copy of ${T(w)} went out under its license.` };
+      case 'print.recorded': return { ...k, work: w, text: `A print of ${T(w)} was made${d.size ? `, ${esc(d.size)}` : ''}.` };
+      case 'seal.created': return { ...k, work: w, text: `A sealed copy of ${T(w)} was made.` };
+      case 'editions.set': return { ...k, text: 'Edition sizes were set across the collection.' };
+      case 'market.offered': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} was put up on the market${d.ask ? ` at ${money(d.ask)}` : ''}.` };
+      case 'market.withdrawn': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} was taken off the market.` };
+      case 'market.bid': case 'market.offer': return { ...k, kind: 'trade', work: w, text: `An offer was made for ${T(w)}${no(w, d)}.` };
+      case 'market.accepted': return { ...k, kind: 'trade', work: w, text: `An offer for ${T(w)}${no(w, d)} was accepted.` };
+      case 'market.traded': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} sold on the market${d.price ? ` for ${money(d.price)}` : ''}; the photographer received a royalty.` };
+      case 'swap.offered': { const a = workBySlug.get(d.give), b = workBySlug.get(d.want); return { ...k, kind: 'trade', work: b || w, text: `A trade was offered: ${T(a)}, No.&nbsp;${d.give_no || '?'}, for ${T(b)}, No.&nbsp;${d.want_no || '?'}.` }; }
+      case 'swap.declined': return { ...k, kind: 'trade', text: 'A trade was declined.' };
+      case 'swap.traded': { const a = workBySlug.get(d.give), b = workBySlug.get(d.want); return { ...k, kind: 'trade', work: a || w, text: `${T(a)}, No.&nbsp;${d.give_no || '?'}, and ${T(b)}, No.&nbsp;${d.want_no || '?'}, changed hands in a trade.` }; }
+      case 'payout.sent': return { ...k, kind: 'trade', text: 'A collector was paid their share.' };
+      case 'tip.given': { const m = d.to ? makerByHandle.get(d.to) : null; return { ...k, kind: 'applause', text: `A tip${d.amount ? ` of ${money(d.amount)}` : ''} was left for ${m ? esc(m.name) : 'a maker'}${d.story ? ', for a story' : ''}.` }; }
+      case 'gallery.signed': return { ...k, kind: 'applause', text: 'A visitor signed a collector’s guest book.' };
+      case 'house.signed': return { ...k, kind: 'applause', text: `Someone signed the ${HOUSE[e.subject] || 'house'} guest book.` };
+      case 'friend.joined': return { ...k, kind: 'patron', text: `${HOUSE[d.house] || 'The house'} gained ${LV[d.level] || 'a friend'}.` };
+      case 'friend.gave': return { ...k, kind: 'patron', text: `A gift${d.amount ? ` of ${money(d.amount)}` : ''} was made to ${HOUSE[d.house] || 'the house'}.` };
+      case 'keeping.begun': return { ...k, text: 'A maker entrusted a larger archive to the vault.' };
+      case 'maker.joined': { const m = makerByHandle.get(e.subject); return { ...k, kind: 'birth', text: `${m ? esc(m.name) : 'A maker'} opened a studio on Watermark.` }; }
+      case 'maker.culled': return { ...k, text: 'A maker graded their archive and set the best in front.' };
+      case 'copyright.prepared': return { ...k, kind: 'office', text: `${d.works === 1 ? 'A photograph was' : `${d.works || 'A group of'} photographs were`} prepared for registration with the U.S. Copyright Office.` };
+      case 'copyright.filed': return { ...k, kind: 'office', text: 'A group of photographs was filed with the U.S. Copyright Office.' };
+      case 'copyright.registered': return { ...k, kind: 'office', text: `${d.works === 1 ? 'A photograph was' : `${d.works || 'A group of'} photographs were`} registered with the U.S. Copyright Office${d.reg ? `, ${esc(d.reg)}` : ''}.` };
+      default: return { ...k, text: `${esc(t.replace(/[._]/g, ' '))}.` };
+    }
+  }
+
+  app.get('/ledger', (req, res) => {
+    const entries = db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 400').all();
+    const told = entries.map(e => ({ e, line: tell(e) })).filter(x => x.line);
+    const counts = { all: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, works: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get().n, collected: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('license.granted')").get().n, hats: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.applauded'").get().n };
+    res.send(V.registerPage({ told, check: ledger.verify(db), counts }));
+  });
+  return { tell };
+}
+
+module.exports = { mountRegister };

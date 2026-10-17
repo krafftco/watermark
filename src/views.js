@@ -905,13 +905,22 @@ ${lic ? `<p class="lede">License <a href="/c/${esc(lic.ref)}">${esc(lic.ref)}</a
   });
 }
 
-function ledgerPage({ entries, check }) {
-  const rows = entries.map(e => `<tr><td>${e.seq}</td><td>${esc(e.at.slice(0, 19).replace('T', ' '))}</td><td>${esc(e.type)}</td><td>${esc(e.subject)}</td><td><code>${esc(e.hash.slice(0, 16))}&hellip;</code></td></tr>`).join('');
+// The register: the life of the house, day by day. A photograph enters, is seen, is tipped a hat, is
+// collected, is licensed, changes hands. The hash of each entry is kept small at the end of the line.
+function registerPage({ told, check, counts }) {
+  const dayOf = at => new Date(at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+  const timeOf = at => new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+  const days = [];
+  for (const x of told) { const d = dayOf(x.e.at); if (!days.length || days[days.length - 1].day !== d) days.push({ day: d, items: [] }); days[days.length - 1].items.push(x); }
+  const MARK = { birth: K_MARK, applause: HAT, collect: WAVE_MARK, trade: WAVE_MARK, patron: K_MARK, office: '<span class="rg-c">&copy;</span>', life: '' };
+  const row = ({ e, line }) => `<li class="rg-i rg-${line.kind}">${line.work ? `<a class="rg-im" href="/w/${esc(line.work.slug)}" style="--r:${line.work.width && line.work.height ? (line.work.width / line.work.height).toFixed(3) : 1.5}"><img src="/img/${esc(line.work.slug)}/thumb" alt="" loading="lazy" draggable="false"></a>` : `<span class="rg-im rg-none">${MARK[line.kind] || ''}</span>`}<p class="rg-t">${line.text}</p><span class="rg-m"><time>${timeOf(e.at)}</time><code title="Entry ${e.seq}, chained to the one before it">${esc(e.hash.slice(0, 10))}</code></span></li>`;
   return layout({
-    title: 'Ledger · Watermark',
-    body: `<section class="narrow wide"><p class="k">The register</p><h1>Every registration and every license, recorded once.</h1>
-<p class="lede">Each entry carries the fingerprint of the one before it, so history cannot be quietly changed. Chain status: <b>${check.ok ? `intact, ${check.checked} entries` : `broken at entry ${check.broken_at}`}</b>.</p>
-<table class="ledger"><thead><tr><th>#</th><th>When (UTC)</th><th>Event</th><th>Subject</th><th>Hash</th></tr></thead><tbody>${rows}</tbody></table></section>`
+    title: 'The register · Watermark', desc: 'The life of the house: every photograph that enters, every hat tipped, every piece collected, licensed or traded, recorded once and chained to the one before.', path: '/ledger',
+    body: `<section class="cx-intro rg-intro"><p class="k">The register</p><h1>The life of the house, written once.</h1>
+<p class="lede">Every photograph that enters, every hat tipped, every piece collected, licensed or passed on, every name on the wall: recorded here as it happens, each entry chained to the one before it so the past cannot be quietly changed. ${check.ok ? `<b>${check.checked} entries, intact.</b>` : `<b class="err">The chain is broken at entry ${check.broken_at}.</b>`}</p>
+<p class="rg-n"><span><b>${counts.works}</b> photographs entered</span><span><b>${counts.collected}</b> collected or licensed</span><span><b>${counts.hats}</b> tips of the hat</span><span><b>${counts.all}</b> entries in all</span></p></section>
+<section class="rg">${days.map(d => `<div class="rg-day"><h2>${esc(d.day)}</h2><ol>${d.items.map(row).join('')}</ol></div>`).join('') || '<p class="nt-0">The first entry is still to be written.</p>'}
+<p class="note rg-foot">Sign-ins, keys and the people behind each entry are kept off this page. The full chain, with every hash, is at <a href="/ledger.json">/ledger.json</a>.</p></section>`
   });
 }
 
@@ -1050,4 +1059,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
