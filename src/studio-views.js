@@ -212,10 +212,16 @@ ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2><a 
 
 // Masters: choose the archive folder once; every full-resolution file is matched to the work it was
 // published as and becomes that work's original. Frames not yet published are held privately.
-function masters({ upgraded, web }) {
+function masters({ upgraded, web, need = [], min = {}, ok = null }) {
+  const U = { social: 'Share it', reference: 'the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
   return layout({ studio: true, title: 'Masters · Watermark', body: `<section class="studio-wrap">${nav('/studio/masters')}
 <p class="k">Vault</p><h1>Masters.</h1>
 <p class="lede">${upgraded} works held at full resolution; ${web} still from the web copy.</p>
+${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
+<section class="hd-list" id="need"><div class="hd-h"><h2>Waiting for a master</h2><span>${need.length} public photograph${need.length === 1 ? '' : 's'}</span></div>
+<p class="note">What each use needs: ${Object.entries(min).map(([k, v]) => `${esc(U[k] || k)} ${v} MP`).join(' &middot; ')}. Below the line, a buyer can still ask, and you are told to upload the master; nothing low-resolution is sent for a campaign or a print.</p>
+${need.length ? need.map(w => `<div class="ms-row"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><div><b>${esc(String(w.title).replace(/[.\s]+$/, ''))}</b><span>${w.width && w.height ? `${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')}, ${w.mp.toFixed(1)} MP` : 'Size unknown'} &middot; waiting: ${w.waiting.map(k => esc(U[k] || k)).join(', ')}</span></div>
+<form method="post" action="/studio/works/${esc(w.slug)}/master" enctype="multipart/form-data" class="ms-up"><label><input type="file" name="file" accept="image/jpeg,image/tiff,image/png" required onchange="this.form.submit()"><span>Upload the master</span></label></form></div>`).join('') : '<p class="hd-calm">Every public photograph is held at full resolution.</p>'}</section>
 <form method="post" action="/studio/credentials/scan" class="inline"><button class="link">Read Content Credentials from every original</button></form>
 <form class="form upload bulk" onsubmit="return false">
 <label class="drop"><input type="file" id="mFiles" webkitdirectory directory multiple><b>Choose your exports folder</b><span>Every JPEG, TIFF or PNG inside, in every subfolder. A file that matches a work already held replaces its web copy as the original; one that matches nothing is registered privately in an archive room for its place. Folders starting with an underscore (contact sheets, web exports) are skipped. Leave this page open; you can stop and pick up later.</span></label>

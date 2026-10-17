@@ -75,8 +75,15 @@ function createApp(cfg = {}) {
   const foundingNo = b => { if (!b) return null; const rows = db.prepare("SELECT buyer_id FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY buyer_id ORDER BY MIN(starts_at), buyer_id LIMIT ?").all(FOUNDING); const i = rows.findIndex(r => r.buyer_id === b.id); return i < 0 ? null : i + 1; };
   const foundingLeft = () => Math.max(0, FOUNDING - db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n);
   const refOK = w => !!(w && w.width && w.height && w.width * w.height >= 40e6);
-  const offered = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w));
-  const priced = (u, w) => (u && w && u.key === 'social' && w.share_cents ? { ...u, price_cents: w.share_cents } : u);
+  // A use is offered only when the maker allows it and the file held is good enough for it (see MIN_MP).
+  const offered = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
+  // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
+  const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
+  const mpOf = w => (w && w.width && w.height ? w.width * w.height / 1e6 : 0);
+  const meets = (w, key) => mpOf(w) >= (MIN_MP[key] || 0);
+  const QUALITY = { MIN_MP, mpOf, meets };
+  const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social' && w.share_cents) v.price_cents = w.share_cents; return v; };
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
@@ -198,6 +205,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
+  app.locals.quality = QUALITY;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
@@ -429,7 +437,7 @@ function createApp(cfg = {}) {
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
     const noteAll = [wants, note].filter(Boolean).join('\n') || null;
     if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true }));
-    if (req.body.ask || t.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews }));
+    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews }));
     u.price_cents = t.price;
     const ref = nextRef();
     // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
@@ -1030,6 +1038,7 @@ function createApp(cfg = {}) {
       { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
       { n: all.filter(w => !w.copyright_reg && !w.copyright_group).length, label: ' photographs not yet registered with the U.S. Copyright Office', href: '/studio/copyright' },
       { n: all.filter(w => !w.edition_size && w.status === 'held').length, label: ' public photographs not yet numbered as editions', href: '/studio/editions' },
+      { n: all.filter(w => w.status === 'held' && !meets(w, 'campaign')).length, label: ' public photographs held below full resolution: upload their masters', href: '/studio/masters#need' },
     ];
     const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
     const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();
@@ -1128,6 +1137,39 @@ function createApp(cfg = {}) {
       try { db.prepare('UPDATE works SET dhash=? WHERE id=?').run(await images.dhash(await originalPath(w)), w.id); } catch (e) { /* missing original: leave it */ }
     }
   }
+  // A better file for a work already held: it becomes the original; derivatives are rebuilt; the record notes it.
+  async function replaceMaster(w, f, info, h) {
+    const file = f.path;
+        const ext = (path.extname(f.originalname) || '.jpg').toLowerCase();
+        const name = `${w.slug}-master${ext}`, dest = path.join(originals, name);
+        fs.mkdirSync(originals, { recursive: true });
+        try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
+        await store.put('originals/' + name, dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
+        db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
+          camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
+          .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
+        for (const sz of Object.keys(images.SIZES)) { const c = path.join(cache, `${w.slug}-${sz}.jpg`); if (fs.existsSync(c)) fs.unlinkSync(c); }
+        const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
+        const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
+        if (store.kind === 's3') fs.unlinkSync(dest);
+        ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
+    return w;
+  }
+  // The maker's portal for one photograph: upload its full-resolution master. It must be the same picture (by
+  // its visual fingerprint) and larger than what is held.
+  app.post('/studio/works/:slug/master', studioOnly, upload.single('file'), async (req, res) => {
+    const w = q.work.get(req.params.slug); const back = m => res.redirect('/studio/masters?ok=' + encodeURIComponent(m) + '#need');
+    if (!w) return res.sendStatus(404); if (!req.file) return back('Choose an image file.');
+    const gone = () => { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); };
+    try {
+      const info = await images.inspect(req.file.path), h = await images.dhash(req.file.path);
+      if (w.dhash && images.hamming(h, w.dhash) > 12) { gone(); return back(`That file does not look like ${tidyT(w.title)}. Nothing was changed.`); }
+      if ((w.width || 0) * (w.height || 0) >= info.width * info.height) { gone(); return back(`That file is no larger than the one held for ${tidyT(w.title)}.`); }
+      await replaceMaster(w, req.file, info, h);
+      back(`${tidyT(w.title)} is now held at ${Math.round(info.width * info.height / 1e6)} megapixels.`);
+    } catch (e) { gone(); console.error('[master]', e.message); back('That file could not be read.'); }
+  });
+  const tidyT = t => String(t || '').replace(/[.\s]+$/, '');
   app.post('/studio/masters/one', studioOnly, upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     const file = req.file.path, gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
@@ -1144,20 +1186,7 @@ function createApp(cfg = {}) {
       }
       if (best && bestD <= 6) {
         if ((best.width || 0) >= info.width) { gone(); return res.json({ ok: true, outcome: 'smaller', slug: best.slug }); }
-        const w = q.work.get(best.slug);
-        const ext = (path.extname(req.file.originalname) || '.jpg').toLowerCase();
-        const name = `${w.slug}-master${ext}`, dest = path.join(originals, name);
-        fs.mkdirSync(originals, { recursive: true });
-        try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
-        await store.put('originals/' + name, dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
-        db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
-          camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
-          .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
-        for (const sz of Object.keys(images.SIZES)) { const c = path.join(cache, `${w.slug}-${sz}.jpg`); if (fs.existsSync(c)) fs.unlinkSync(c); }
-        const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
-        const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
-        if (store.kind === 's3') fs.unlinkSync(dest);
-        ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
+        const w = await replaceMaster(q.work.get(best.slug), req.file, info, h);
         return res.json({ ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD });
       }
       // Not yet published anywhere: into the archive, private.
@@ -1188,7 +1217,9 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/masters', studioOnly, (req, res) => res.send(S.masters({
     upgraded: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NOT NULL').get().n,
-    web: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NULL').get().n })));
+    web: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NULL').get().n,
+    need: db.prepare("SELECT slug, title, width, height, status FROM works WHERE status='held' ORDER BY id").all().filter(w => !meets(w, 'campaign'))
+      .map(w => ({ ...w, mp: mpOf(w), waiting: Object.keys(MIN_MP).filter(k => !meets(w, k)) })), min: MIN_MP, ok: req.query.ok })));
 
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
     db.prepare("UPDATE works SET status = CASE status WHEN 'held' THEN 'hidden' ELSE 'held' END WHERE slug=?").run(req.params.slug);

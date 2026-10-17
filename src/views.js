@@ -168,7 +168,7 @@ function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = nu
   const toggle = tUses.length > 1 ? `<ul class="seal-menu" role="menu" hidden><li class="sm-h" role="presentation">Have this photograph</li>${tUses.map(u => {
     const pu = uses.find(x => x.key === u.k);
     return `<li role="none"><button type="button" role="menuitem" data-k="${esc(u.k)}"><b>${esc(u.k === 'social' ? u.b : u.l)}</b>${u.k !== 'social' && pu && pu.price_cents != null ? `<em>${money(pu.price_cents)}</em>` : ''}<i>&rsaquo;</i></button></li>`; }).join('')}</ul>` : '';
-  const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
+  const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null || u.needsMaster ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   const keepers = held.n
     ? `In ${held.n} collection${held.n === 1 ? '' : 's'}${held.shown.length ? ', among them ' + held.shown.map(c => `<a href="/collector/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No.&nbsp;${c.no}</small>`).join(', ') : ''}.`
     : 'Not yet in any collection. The first collector will be No.&nbsp;1.';
@@ -428,12 +428,12 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
   const held = Object.fromEntries((renews ? [] : mine).map(m => [m.key, m]));
   const open = uses.filter(u => !held[u.key]);
   const pick = open.find(u => u.key === chosen) || open.find(u => u.key === 'social' && u.price_cents != null) || open.find(u => u.key === 'commercial') || open[0] || uses[0];
-  const label = u => u.price_cents == null || !instant ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Share it' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
+  const label = u => u.price_cents == null || !instant || u.needsMaster ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Share it' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
   const row = u => held[u.key] ? `<label class="bu is-mine"><input type="radio" name="use" value="${esc(u.key)}" disabled>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">Yours</span>
 <span class="bu-d">${held[u.key].ends_at ? `Licensed to you until ${date(held[u.key].ends_at)}.` : 'In your collection.'} <a href="/c/${esc(held[u.key].ref)}${held[u.key].download_token ? `?k=${esc(held[u.key].download_token)}` : ''}">Your licence</a></span></label>` : `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
-<span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`;
+<span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em>${u.needsMaster ? ' <span class="bu-nm">The maker supplies the full-resolution file for this use; they reply within the day.</span>' : ''}</span></label>`;
   // Share it leads; the larger uses wait behind one line until someone asks for them.
   const lead = uses.find(u => u.key === 'social' && u.price_cents != null);
   const rest = uses.filter(u => u !== lead);

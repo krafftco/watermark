@@ -31,11 +31,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
   const { registerWork, db } = app.locals;
-  const tmp = path.join(dir, 'in.jpg'); fs.copyFileSync(SRC, tmp);
+  // A master-sized file (25 MP), so every use is sold instantly; a web-sized one is tested below.
+  const BIG = path.join(dir, 'big.jpg'); await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).jpeg({ quality: 70 }).toFile(BIG);
+  const tmp = path.join(dir, 'in.jpg'); fs.copyFileSync(BIG, tmp);
   const w = await registerWork({ file: tmp, originalName: 'x.jpg', title: 'Test Dome', place: 'Florence' });
   assert.ok(w.sha256 && w.width > 0, 'registered with fingerprint and size');
   // duplicate rejected
-  const tmp2 = path.join(dir, 'in2.jpg'); fs.copyFileSync(SRC, tmp2);
+  const tmp2 = path.join(dir, 'in2.jpg'); fs.copyFileSync(BIG, tmp2);
   await assert.rejects(registerWork({ file: tmp2, originalName: 'y.jpg', title: 'Dupe' }), /already held/);
 
   let r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(r.body.includes('Test Dome'));
@@ -97,7 +99,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/pay/${w.slug}/tap`, { cookie: bck }); assert.ok(JSON.parse(r.body).held, 'what you hold is not sold to you again');
   r = await req(port, 'GET', `/w/${w.slug}`, { cookie: bck }); { const wb = r.body.toString(); assert.ok(wb.includes('In your collection') && !wb.includes('class="share-buy"'), 'your copy shown, not the Collect button'); }
   r = await req(port, 'POST', `/buy/${w.slug}`, { cookie: bck, body: { use: 'social' } }); assert.ok(r.headers.location.endsWith('#yours'), 'no second sale through checkout either');
-  const tmpT = path.join(dir, 'inT.jpg'); await require('sharp')(SRC).flip().toFile(tmpT);
+  const tmpT = path.join(dir, 'inT.jpg'); await require('sharp')(SRC).resize({ width: 1800 }).flip().toFile(tmpT);
   const wT = await registerWork({ file: tmpT, originalName: 't.jpg', title: 'Test Tap', place: 'Rome' }); db.prepare("UPDATE works SET status='held' WHERE id=?").run(wT.id);
   r = await req(port, 'POST', `/pay/${wT.slug}/tap`, { cookie: bck }); const tj = JSON.parse(r.body);
   assert.ok(tj.ok && tj.undo && tj.download, 'one tap: paid and handed over');
@@ -116,7 +118,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(!yb.includes('Save again'), 'no files on the public wall');
   r = await req(port, 'GET', '/series/the-great-rooms'); assert.equal(r.status, 200, 'the series hangs'); assert.ok(r.body.toString().includes('The Great Rooms'));
   // Collecting a set: two photographs of a series part at a quarter off, each its own numbered license.
-  const tmp3 = path.join(dir, 'in3.jpg'); await require('sharp')(SRC).flop().modulate({ brightness: 0.8 }).toFile(tmp3);
+  const tmp3 = path.join(dir, 'in3.jpg'); await require('sharp')(SRC).resize({ width: 1800 }).flop().modulate({ brightness: 0.8 }).toFile(tmp3);
   const w2 = await registerWork({ file: tmp3, originalName: 'z.jpg', title: 'Test Stacks', place: 'New York' });
   require('../src/series').push({ slug: 'test-set', title: 'Test Set', house: 'H', maker: 'M', cover: w.slug, dek: 'd', chapters: [{ title: 'One', dek: '', works: [w.slug, w2.slug] }] });
   r = await req(port, 'GET', '/series/test-set'); assert.ok(r.body.toString().includes('Collect all 2 of One'), 'a set offered');
@@ -216,11 +218,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const sl = db.prepare('SELECT * FROM seals ORDER BY created_at DESC').get();
   r = await req(port, 'GET', `/studio/seals/${sl.id}.wmk`, { cookie: ck }); assert.equal(r.status, 200);
   const wmk = r.body; const parsed = SEAL.parse(wmk);
-  assert.equal(parsed.header.title, 'Test Dome'); assert.ok(!wmk.includes(fs.readFileSync(SRC).slice(1000, 1064)), 'image is not in the clear');
+  assert.equal(parsed.header.title, 'Test Dome'); assert.ok(!wmk.includes(fs.readFileSync(BIG).slice(1000, 1064)), 'image is not in the clear');
   r = await req(port, 'GET', `/studio/seals/${sl.id}.wmk`); assert.equal(r.status, 302, 'download is the maker\'s');
   r = await req(port, 'POST', `/k/${sl.id}`, { body: JSON.stringify({ access: parsed.header.access, host: 'mag.com' }), headers: { 'content-type': 'application/json' } });
   const kj = JSON.parse(r.body); assert.ok(kj.open);
-  assert.ok(SEAL.open(wmk, Buffer.from(kj.key, 'base64')).equals(fs.readFileSync(SRC)), 'opens to the exact original');
+  assert.ok(SEAL.open(wmk, Buffer.from(kj.key, 'base64')).equals(fs.readFileSync(BIG)), 'opens to the exact original');
   const bad = Buffer.from(wmk); const hp = bad.indexOf('Test Dome'); bad[hp] = 'X'.charCodeAt(0);
   assert.throws(() => SEAL.open(bad, Buffer.from(kj.key, 'base64')), 'altered header breaks the seal');
   r = await req(port, 'POST', `/k/${sl.id}`, { body: JSON.stringify({ access: 'x'.repeat(24) }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 404);
@@ -249,7 +251,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
-  const sh = require('sharp'); const [a, b] = await Promise.all([sh(r.body).raw().toBuffer(), sh(fs.readFileSync(SRC)).raw().toBuffer()]);
+  const sh = require('sharp'); const [a, b] = await Promise.all([sh(r.body).raw().toBuffer(), sh(fs.readFileSync(BIG)).raw().toBuffer()]);
   assert.ok(a.equals(b), 'pixels untouched by the stamp');
   r = await req(port, 'GET', `/c/${ref1}.pdf`); assert.equal(r.status, 200); assert.equal(r.body.slice(0, 4).toString(), '%PDF');
   // renewal notice for a license ending soon, then expiry
@@ -286,7 +288,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: mck }); assert.equal(r.status, 404, 'cannot touch another maker\'s work');
   // the estate adds its own photograph: private until it publishes, with its word on rights and releases
   const px2 = Buffer.alloc(320 * 200 * 3); for (let k = 0; k < px2.length; k++) px2[k] = (k * 104729 + 7) % 241;
-  const theirs = await sharp2(px2, { raw: { width: 320, height: 200, channels: 3 } }).jpeg().toBuffer();
+  const theirs = await sharp2(px2, { raw: { width: 320, height: 200, channels: 3 } }).resize({ width: 2000, height: 1250, kernel: "nearest" }).jpeg().toBuffer();
   r = await req(port, 'POST', '/account/works/one', { cookie: mck, body: mp('ada_harbour.jpg', theirs, { place: 'Genoa, Italy' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
   const aj = JSON.parse(r.body); assert.ok(aj.ok, r.body); const aw = db.prepare('SELECT * FROM works WHERE slug=?').get(aj.slug);
   assert.strictEqual(aw.maker_id, est.id); assert.strictEqual(aw.status, 'hidden', 'private on arrival');
@@ -307,6 +309,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
   r = await req(port, 'GET', '/journal'); assert.ok(r.status === 200 && r.body.toString().includes('On patronage'), 'the journal');
   r = await req(port, 'GET', '/patronage'); assert.ok(r.body.toString().includes('Watermark honours both'));
+  // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
+  r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Share it') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
+  r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');
+  r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
+  { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
+    const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
+    r = await req(port, 'POST', `/studio/works/${w2.slug}/master`, { cookie: ck, body: mp('wrong.jpg', wrong, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+    assert.ok(decodeURIComponent(r.headers.location).includes('does not look like'), 'a different picture is refused');
+    r = await req(port, 'POST', `/studio/works/${w2.slug}/master`, { cookie: ck, body: mp('stacks.jpg', bigger, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+    assert.ok(decodeURIComponent(r.headers.location).includes('25 megapixels'), 'the master is held'); }
+  r = await req(port, 'GET', `/license/${w2.slug}`); assert.ok(r.body.toString().includes('Before an audience'), 'the master opens the larger uses');
   // Editions: a limited number, never more; prints recorded; a work passed on with its number.
   r = await req(port, 'POST', `/studio/works/${w2.slug}/catalogue`, { cookie: ck, body: { title: 'Test Stacks', edition: '1' } });
   r = await req(port, 'GET', `/w/${w2.slug}`); assert.ok(r.body.toString().includes('Edition of 1') && r.body.toString().includes('This edition is complete'), 'complete edition shown');
