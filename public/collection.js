@@ -14,7 +14,7 @@
   var showing = domOrder.length ? domOrder : W.slice();
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var SP = window.__WM_SHARE;
-  function plate(w) { return '<a class="pl" href="/w/' + w.s + '" data-s="' + w.s + '" style="--r:' + w.r + '"><img src="/img/' + w.s + '/thumb" alt="' + esc(w.t) + '" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>' + esc(w.t) + '</b>' + (w.p ? '<i>' + esc(w.p) + '</i>' : '') + '</span>' + (SP && !w.x ? '<span class="pb" data-buy role="button" tabindex="0">Share it · ' + esc(w.$ ? '$' + (w.$ / 100) : SP) + '</span>' : '') + '</a>'; }
+  function plate(w) { return '<a class="pl" href="/w/' + w.s + '" data-s="' + w.s + '" style="--r:' + w.r + '"><img src="/img/' + w.s + '/thumb" alt="' + esc(w.t) + '" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>' + esc(w.t) + '</b>' + (w.p ? '<i>' + esc(w.p) + '</i>' : '') + '</span>' + (SP && !w.x ? '<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">' + (window.__WM_MARK || 'K') + '<i class="seal-r"></i></span>' : '') + '</a>'; }
   // One tap, like Buy Now: straight to Apple Pay / card, the file on screen the moment it clears.
   function buy(slug) { var f = document.createElement('form'); f.method = 'post'; f.action = '/buy/' + slug; var i = document.createElement('input'); i.type = 'hidden'; i.name = 'use'; i.value = 'social'; f.appendChild(i); document.body.appendChild(f); f.submit(); }
   document.addEventListener('click', function (e) { var b = e.target.closest('[data-buy]'); if (!b) return; e.preventDefault(); e.stopPropagation(); var sl = b.closest('[data-s]').dataset.s; if (window.WMShare) return window.WMShare(sl, (bySlug[sl] || {}).t, null, false, (bySlug[sl] || {}).$); b.textContent = 'One moment…'; buy(sl); }, true);
@@ -59,7 +59,7 @@
     $('lbT').textContent = w.t;
     $('lbM').textContent = [w.p, w.d, w.c, w.a].filter(Boolean).join('  ·  ');
     $('lbPos').textContent = (cur + 1) + ' / ' + list.length;
-    $('lbRec').href = '/w/' + w.s; $('lbLic').href = '/license/' + w.s; if ($('lbShare')) { $('lbShare').hidden = !!w.x; $('lbShare').action = '/buy/' + w.s; $('lbShare').dataset.amount = w.$ || ''; var sb = $('lbShare').querySelector('button'); if (sb && window.__WM_SHARE) sb.textContent = 'Share it · ' + (w.$ ? '$' + (w.$ / 100) : window.__WM_SHARE); }
+    $('lbRec').href = '/w/' + w.s; $('lbLic').href = '/license/' + w.s; if ($('lbShare')) { $('lbShare').hidden = !!w.x; $('lbShare').action = '/buy/' + w.s; $('lbShare').dataset.amount = w.$ || ''; }
     [cur - 1, cur + 1].forEach(function (j) { var x = list[(j + list.length) % list.length]; if (x) { var p = new Image(); p.src = '/img/' + x.s + (window.innerWidth * (window.devicePixelRatio || 1) > 1700 ? '/large' : '/screen'); } });
     history.replaceState(null, '', '#' + w.s);
   }

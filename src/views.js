@@ -3,6 +3,10 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const money = (c, cur = 'usd') => c == null ? 'On request' : new Intl.NumberFormat('en-US', { style: 'currency', currency: cur.toUpperCase(), maximumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
 // Titles as a catalogue sets them: no closing period, proper apostrophes.
 const tidy = s => String(s == null ? '' : s).trim().replace(/\.$/, '').replace(/(\w)'(\w)/g, '$1\u2019$2').replace(/'/g, '\u2019');
+// The maker's mark, used as the Collect seal. Krafft makers carry the hand-made K; others the Watermark wave.
+const K_MARK = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
+const markOf = m => K_MARK; // one mark for now; each maker can have their own later
+const seal = (m, label = 'Collect', cls = '') => `<button class="seal${cls ? ' ' + cls : ''}" aria-label="${esc(label)}"><span class="seal-k">${markOf(m)}</span><span class="seal-r" aria-hidden="true"></span></button>`;
 const date = s => s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 const { NEVER } = require('./rules');
 const termText = u => u.kind === 'print' ? 'Yours to keep' : u.term_months ? (u.term_months % 12 ? `${u.term_months} months` : `${u.term_months / 12} year${u.term_months > 12 ? 's' : ''}`) : 'Perpetual';
@@ -26,7 +30,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours">Yours</a><a href="/#makers" class="nv-m">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
-<main>${body}</main>
+<main>${body}</main><script>window.__WM_MARK=${JSON.stringify(K_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/patronage">On patronage</a> &middot; <a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
 </body></html>`;
 }
@@ -38,7 +42,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
   const data = works.map(w => ({ s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
   const sp = share && share.price_cents != null ? money(share.price_cents) : null;
-  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0">Collect · ${w.share_cents ? money(w.share_cents) : sp}</span>` : ''}</a>`;
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${K_MARK}<i class="seal-r"></i></span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
   const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
@@ -62,7 +66,7 @@ ${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
-<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button>Collect it · ${money(share.price_cents)}</button></form>` : ''}</span></div>
+<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button class="lb-seal"><span class="lb-k">${K_MARK}</span>Collect</button></form>` : ''}</span></div>
 <button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Previous"></button><button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Next"></button></div>
 <script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js?v=${VER}" defer></script>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}`
   });
@@ -108,7 +112,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 <p class="lot-keep">${keepers}</p>
-${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><button><span>Collect it</span><b>${money(share.price_cents)}</b></button><p>The photograph is yours to keep and to share on your own accounts, credited. 85% goes to the photographer.</p></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
+${share ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><div class="seal-row">${seal(maker, `Collect ${title}`)}<div class="seal-t"><b>Collect</b><span>Yours to keep and to share, credited. 85% goes to the photographer.</span></div></div></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 </div></article>
 <section class="lot-rec">
@@ -429,7 +433,7 @@ function collector({ b, items, rooms, works, makers, own, base, pay = null, shar
 <h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
 <p class="lede">${own ? 'Every photograph you share or license on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This collection is private, or no longer exists.'}</p>
 ${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p>' : ''}</section>` });
-  const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span>${!own && pay ? '<span class="pb" data-buy role="button" tabindex="0">Collect it</span>' : ''}</a>`;
+  const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span>${!own && pay ? '<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${K_MARK}<i class="seal-r"></i></span>' : ''}</a>`;
   const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
   const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
   return layout({ title: `${who} · Watermark`, desc: `${works} photographs collected on Watermark.`, body: `<section class="cx-intro"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
