@@ -896,17 +896,20 @@ function friendThanks({ f, house, level }) {
 ${f.status !== 'pending' && f.buyer_id ? `<form method="post" action="/friends/${f.id}/name" class="form inline"><input name="name" value="${esc(f.name || '')}" placeholder="Your name, as it should read on the wall"><button class="btn">Set</button></form>` : ''}
 <p class="sr-also"><a href="/friends#wall">The wall</a> &middot; <a href="/collection">The collection</a></p></section>` });
 }
-// Keeping: what the archive holds for a maker, and what it costs beyond the free line.
-function keeping({ m, works, gb, over, plan, terms, open, ok }) {
+// Keeping: what the archive holds for a maker, the line it is free to, and the ladder above it.
+function keeping({ m, works, weighed, gb, over, pct, tier, fits, plan, tiers, open, ok }) {
   setDeskPath('/account/keeping');
+  const gbs = g => (g >= 1000 ? `${g / 1000} TB` : `${g} GB`), held = gb < 0.1 ? '<0.1 GB' : `${gb.toFixed(1)} GB`;
+  const notice = { begun: 'Keeping has begun. Thank you for trusting the archive with your work.', moved: `Moved to ${tier.name}.`, ending: 'Keeping ends at the close of this period; the studio tier holds after that.', unavailable: 'Payment is unavailable for a moment.' }[ok];
   return layout({ title: 'Keeping · Watermark', studio: true, body: `<section class="narrow kp"><p class="k">Your studio</p><h1>Keeping.</h1>
-<p class="lede">Watermark is an archive. Every photograph you hold here is fingerprinted, kept in the vault with its master, served at every size, protected by the Shield and written into the register. Up to ${terms.freeWorks} photographs or ${terms.freeGB} GB, that is free. Beyond it, Keeping is ${money(terms.cents)} a month.</p>
-${ok === 'begun' ? '<p class="ok">Keeping has begun. Thank you for trusting the archive with your work.</p>' : ok === 'ending' ? '<p class="ok">Keeping ends at the close of this period.</p>' : ok === 'unavailable' ? '<p class="err">Payment is unavailable for a moment.</p>' : ''}
-<dl class="lc2-dl"><div><dt>Held</dt><dd>${works} photograph${works === 1 ? '' : 's'}, ${gb < 0.1 ? '<0.1' : gb.toFixed(1)} GB</dd></div><div><dt>The free line</dt><dd>${terms.freeWorks} photographs or ${terms.freeGB} GB</dd></div><div><dt>Keeping</dt><dd>${plan ? (plan.status === 'ending' ? 'Ending at the close of this period' : `On, ${money(plan.amount_cents)} a month`) : over ? 'Not yet on. Your archive is above the free line.' : 'Not needed yet.'}</dd></div></dl>
-${plan && plan.status === 'active' ? `<form method="post" action="/account/keeping/end"><button class="link">End Keeping</button></form>` : open ? `<form method="post" action="/account/keeping"><button class="buy-btn">Begin Keeping, ${money(terms.cents)} a month</button></form><p class="note">${esc(terms.gives)}</p>` : '<p class="note">Keeping opens when payments go live.</p>'}
+<p class="lede">Watermark is an archive. Every photograph you hold here is fingerprinted, kept in the vault with its master, served at every size, protected by the Shield and written into the register. The studio is free to ${tiers[0].works} photographs or ${gbs(tiers[0].gb)}. Storage costs, so above that line a larger archive is kept for a monthly sum, by what it holds.</p>
+${notice ? `<p class="${ok === 'unavailable' ? 'err' : 'ok'}">${esc(notice)}</p>` : ''}
+<div class="kp-meter${over ? ' over' : ''}"><div class="kp-bar"><i style="width:${pct}%"></i></div><p><b>${works} photograph${works === 1 ? '' : 's'}, ${held}</b> held${weighed !== works ? ` (culled work weighs a quarter: ${weighed} toward the line)` : ''} · ${tier.name}: ${tier.works.toLocaleString()} photographs or ${gbs(tier.gb)}${over ? ` · <em>above the line${fits ? `; ${fits.name} would hold it` : '; write to the house'}</em>` : ''}</p></div>
+<div class="kp-tiers">${tiers.map(t => `<div class="kp-tier${t.key === tier.key ? ' on' : ''}"><p class="k">${t.key === tier.key ? 'Yours now' : fits && fits.key === t.key && over ? 'Would hold it' : '&nbsp;'}</p><h2>${esc(t.name)}</h2><p class="kp-size">${t.works.toLocaleString()} photographs<br>or ${gbs(t.gb)}</p><p class="kp-price">${t.cents ? `${money(t.cents)} a month` : 'Free'}</p><p class="kp-gives">${esc(t.gives)}</p>
+${t.key === tier.key ? (plan && plan.status === 'active' ? `<form method="post" action="/account/keeping/end"><button class="link">End Keeping</button></form>` : plan && plan.status === 'ending' ? '<p class="note">Ending at the close of this period.</p>' : '') : t.cents ? (open ? `<form method="post" action="/account/keeping"><input type="hidden" name="tier" value="${t.key}"><button class="buy-btn">${plan && plan.status === 'active' ? 'Move here' : 'Begin'}</button></form>` : '<p class="note">Opens when payments go live.</p>') : ''}</div>`).join('')}</div>
+<p class="note">Above the line the archive still holds everything: a notice, never a block. Larger than the vault, reference masters, film: by letter to the house. Prices are drafts.</p>
 <p class="sr-also"><a href="/account">Your studio</a></p></section>` });
 }
-
 
 // The house guest book: every line signed anywhere in Krafft, in chapters, newest first. A masthead for
 // the house: who came, what they saw, what they said.

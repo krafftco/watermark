@@ -25,7 +25,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   stripeClient.customers.create = async o => ({ id: 'cus_' + (++cus), ...o });
   stripeClient.paymentIntents.create = async o => { const id = 'pi_mock_' + Object.keys(pis).length; pis[id] = { id, client_secret: id + '_secret', status: o.confirm ? 'succeeded' : 'requires_payment_method', amount_received: o.confirm ? o.amount : 0, payment_method: o.payment_method || null, ...o }; return pis[id]; };
   stripeClient.paymentIntents.retrieve = async id => pis[id];
-  stripeClient.subscriptions.update = async (id, o) => ({ id, ...o });
+  stripeClient.subscriptions.update = async (id, o) => ({ id, ...o }); stripeClient.subscriptions.retrieve = async id => ({ id, items: { data: [{ id: 'si_1' }] } });
   stripeClient.webhookEndpoints.list = async () => ({ data: [{ url: 'http://localhost/stripe/webhook', enabled_events: ['checkout.session.completed', 'payment_intent.succeeded'] }] });
   stripeClient.refunds.create = async o => { refunds.push(o); return { id: 're_1', ...o }; };
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
@@ -394,10 +394,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/friends/${fs1.metadata.friend}/name`, { cookie: bck, body: { name: 'The Tap Family' } }); }
   r = await req(port, 'POST', '/friends', { body: { house: 'krafft', amount: '250' } }); { const fs2 = sessions[r.headers.location.split('/').pop()]; assert.equal(fs2.mode, 'payment'); assert.equal(fs2.line_items[0].price_data.unit_amount, 25000); }
   r = await req(port, 'GET', '/friends'); assert.ok(r.body.toString().includes('The Tap Family') && r.body.toString().includes('1 friend'), 'on the wall');
-  r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('Keeping') && r.body.toString().includes('Begin Keeping'));
+  r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('Keeping') && r.body.toString().includes('kp-tier'));
   r = await req(port, 'POST', '/account/keeping', { cookie: gck }); { const ks = sessions[r.headers.location.split('/').pop()]; assert.equal(ks.line_items[0].price_data.unit_amount, 1500); Object.assign(ks, { status: 'complete', payment_status: 'paid', subscription: 'sub_kp1' });
     r = await req(port, 'GET', `/friends/${ks.metadata.friend}/thanks?session_id=${ks.id}`); assert.ok(r.headers.location.includes('ok=begun'));
-    r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('On, $15 a month'), 'keeping on'); }
+    r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('End Keeping') && r.body.toString().includes('Move here') && r.body.toString().includes('kp-tier on'), 'keeping on');
+    // Moving up the ladder changes the standing subscription in place.
+    r = await req(port, 'POST', '/account/keeping', { cookie: gck, body: { tier: 'archive' } }); assert.ok(r.headers.location.includes('ok=moved'), 'move');
+    r = await req(port, 'GET', '/account/keeping?ok=moved', { cookie: gck }); assert.ok(r.body.toString().includes('Moved to The archive'), 'moved'); }
   r = await req(port, 'GET', '/m/greta-lund'); assert.ok(r.body.toString().includes('of every sale is Greta'), 'the split on her page');
   // The house guest book: signed from any door, in chapters; lines on photographs appear in the Watermark chapter.
   r = await req(port, 'POST', '/guestbook', { body: { chapter: 'studios', body: 'Came for the Florence story, stayed for the dome.', name: 'R. Okafor' } }); assert.ok(r.headers.location.includes('note=1'));

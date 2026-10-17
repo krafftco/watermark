@@ -87,6 +87,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
   const privateN = works.filter(w => w.status !== 'held').length;
   const needs = viewing ? [] : [
     asks ? `<li><a href="/account/requests"><b>${asks}</b> request${asks === 1 ? '' : 's'} waiting for your answer<span>&rarr;</span></a></li>` : '',
+    keeping && keeping.over ? `<li><a href="/account/keeping"><b>${keeping.works}</b> photographs held, above the ${esc(keeping.tier.name)} line; see Keeping<span>&rarr;</span></a></li>` : '',
     owed >= 100 ? `<li><a href="/account/payouts"><b>${money(owed)}</b> owed to you; see the statement, add your bank<span>&rarr;</span></a></li>` : '',
     privateN ? `<li><a href="#holdings"><b>${privateN}</b> photograph${privateN === 1 ? '' : 's'} waiting to be published<span>&rarr;</span></a></li>` : '',
     !jewels.length && works.length ? `<li><a href="#holdings"><b>&#9734;</b> Star the works that matter most; collectors see them first<span>&rarr;</span></a></li>` : '',

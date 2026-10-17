@@ -2001,3 +2001,11 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .wk-panel>h2:first-child{margin-top:0}
 .ac-row{grid-template-columns:56px minmax(0,1fr) 150px 60px 80px 100px 118px}
 @media (max-width:860px){.wt-card{grid-template-columns:1fr}.wt-stats{grid-template-columns:repeat(2,1fr)}}
+/* Keeping: the meter and the ladder. */
+.kp-meter{margin:0 0 28px}.kp-bar{height:6px;background:var(--ln);overflow:hidden}.kp-bar i{display:block;height:100%;background:var(--ink);transition:width .6s}.kp-meter.over .kp-bar i{background:#9a3b2e}
+.kp-meter p{margin:10px 0 0;font-size:13.5px;color:var(--mu)}.kp-meter b{color:var(--ink);font-weight:500}.kp-meter em{font-style:normal;color:#9a3b2e}
+.kp-tiers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--ln);border:1px solid var(--ln);margin:0 0 20px}
+.kp-tier{background:var(--bg);padding:22px 20px 20px;display:flex;flex-direction:column}.kp-tier.on{background:var(--ink);color:var(--bg)}.kp-tier.on .k,.kp-tier.on .kp-size,.kp-tier.on .kp-gives{color:rgba(255,255,255,.72)}
+.kp-tier h2{margin:6px 0 8px;font-size:24px}.kp-size{margin:0 0 10px;font-size:13.5px;color:var(--mu);line-height:1.45}.kp-price{margin:0 0 12px;font-family:var(--read);font-size:22px}
+.kp-gives{margin:0 0 16px;font-size:13px;color:var(--mu);line-height:1.5;flex:1}.kp-tier form{margin:0}.kp-tier .buy-btn{width:100%}.kp-tier.on .link{color:var(--bg)}
+@media (max-width:900px){.kp-tiers{grid-template-columns:repeat(2,1fr)}}@media (max-width:520px){.kp-tiers{grid-template-columns:1fr}}

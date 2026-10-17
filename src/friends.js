@@ -19,7 +19,16 @@ const LETTER = [
 const ONCE = [2500, 10000, 50000];
 const HOUSES = { watermark: 'Watermark', krafft: 'Krafft' };
 // Keeping: the archive holds a maker's work for free up to a point; beyond it, a monthly fee (drafts).
-const KEEPING = { freeGB: 5, freeWorks: 200, cents: 1500, name: 'Keeping', gives: 'Up to 1 TB held in the vault, served, fingerprinted and protected; masters and derivatives; the register.' };
+// Keeping: the archive is free to a line, and above it a maker pays by what is held. Storage costs; so the tiers
+// are set by gigabytes, with a count of photographs as the plainer measure. Prices are drafts until Will confirms.
+const TIERS = [
+  { key: 'studio', name: 'The studio', gb: 5, works: 200, cents: 0, gives: 'Free. Every photograph fingerprinted, kept with its master, served at every size, protected by the Shield, on the register.' },
+  { key: 'keeping', name: 'Keeping', gb: 100, works: 2000, cents: 1500, gives: 'For a working archive: masters and derivatives, the .wmark archival master for every work, fixity checks on a schedule.' },
+  { key: 'archive', name: 'The archive', gb: 500, works: 10000, cents: 4500, gives: 'For a life\'s work or an estate: the whole body held, culled and graded, conserved and registered.' },
+  { key: 'vault', name: 'The vault', gb: 2000, works: 50000, cents: 15000, gives: 'For an institution or a collection of masters: two terabytes held at the source. Above it, by letter.' },
+];
+const tierOf = key => TIERS.find(t => t.key === key) || TIERS[0];
+const KEEPING = { freeGB: TIERS[0].gb, freeWorks: TIERS[0].works, cents: TIERS[1].cents, name: 'Keeping', gives: TIERS[1].gives, TIERS };
 
 function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, V }) {
   db.exec(`CREATE TABLE IF NOT EXISTS friends (id INTEGER PRIMARY KEY, house TEXT NOT NULL, buyer_id INTEGER, maker_id INTEGER, kind TEXT NOT NULL DEFAULT 'friend', level TEXT NOT NULL, amount_cents INTEGER NOT NULL,
@@ -58,17 +67,33 @@ function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, 
 
   // Keeping: a maker pays for the archive to hold a large body of work. Free up to the line; a notice, not a wall, until Will confirms.
   // Culled work (held privately) weighs a quarter: the archive rewards a maker who grades and culls.
-  const usage = m => { const r = db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN status='held' THEN 1 ELSE 0.25 END) wn, SUM(COALESCE(bytes, 0) * CASE WHEN status='held' THEN 1 ELSE 0.25 END) b, SUM(CASE WHEN status='held' THEN 1 ELSE 0 END) pub FROM works WHERE maker_id=?").get(m.id); const gb = (r.b || 0) / 1e9; return { works: r.n, pub: r.pub || 0, weighed: Math.round(r.wn || 0), gb, over: (r.wn || 0) > KEEPING.freeWorks || gb > KEEPING.freeGB }; };
-  const keeping = m => db.prepare("SELECT * FROM friends WHERE maker_id=? AND kind='keeping' AND status='active' ORDER BY id DESC").get(m.id) || null;
-  app.locals.keepingOf = m => ({ ...usage(m), plan: keeping(m), terms: KEEPING });
-  app.get('/account/keeping', (req, res) => { const m = makerOf(req); if (!m) return res.redirect('/account'); res.send(V.keeping({ m, ...usage(m), plan: keeping(m), terms: KEEPING, open: !!stripe, ok: req.query.ok })); });
+  const usage = m => {
+    const r = db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN status='held' THEN 1 ELSE 0.25 END) wn, SUM(COALESCE(bytes, 0) * CASE WHEN status='held' THEN 1 ELSE 0.25 END) b, SUM(CASE WHEN status='held' THEN 1 ELSE 0 END) pub FROM works WHERE maker_id=?").get(m.id);
+    const gb = (r.b || 0) / 1e9, weighed = Math.round(r.wn || 0);
+    const plan = keeping(m), tier = tierOf(plan ? plan.level : 'studio');
+    const fits = TIERS.find(t => weighed <= t.works && gb <= t.gb) || null;           // the smallest tier the archive fits in
+    return { works: r.n, pub: r.pub || 0, weighed, gb, tier, fits, over: !(weighed <= tier.works && gb <= tier.gb), pct: Math.min(100, Math.round(100 * Math.max(weighed / tier.works, gb / tier.gb))) };
+  };
+  const keeping = m => db.prepare("SELECT * FROM friends WHERE maker_id=? AND kind='keeping' AND status IN ('active','ending') ORDER BY id DESC").get(m.id) || null;
+  app.locals.keepingOf = m => ({ ...usage(m), plan: keeping(m), terms: KEEPING, tiers: TIERS });
+  app.get('/account/keeping', (req, res) => { const m = makerOf(req); if (!m) return res.redirect('/account'); res.send(V.keeping({ m, ...usage(m), plan: keeping(m), terms: KEEPING, tiers: TIERS, open: !!stripe, ok: req.query.ok })); });
+  // Begin a tier, or move to another: a new subscription, or the standing one changed in place.
   app.post('/account/keeping', async (req, res) => {
     const m = makerOf(req); if (!m || !stripe) return res.redirect('/account/keeping?ok=unavailable');
-    if (keeping(m)) return res.redirect('/account/keeping');
-    const id = db.prepare("INSERT INTO friends (house, maker_id, kind, level, amount_cents, recurring, name, email) VALUES ('watermark',?,'keeping','keeping',?,1,?,?)").run(m.id, KEEPING.cents, m.name, m.email).lastInsertRowid;
+    const t = tierOf(String((req.body || {}).tier || 'keeping')); if (!t.cents) return res.redirect('/account/keeping');
+    const k = keeping(m);
+    if (k && k.status === 'active') {
+      if (k.level === t.key) return res.redirect('/account/keeping');
+      try { if (k.stripe_sub) { const sub = await stripe.subscriptions.retrieve(k.stripe_sub); await stripe.subscriptions.update(k.stripe_sub, { proration_behavior: 'create_prorations', items: [{ id: sub.items.data[0].id, price_data: { currency: 'usd', unit_amount: t.cents, recurring: { interval: 'month' }, product_data: { name: `${t.name}, on Watermark`, description: t.gives } } }] }); } }
+      catch (e) { console.error('[keeping]', e.message); return res.redirect('/account/keeping?ok=unavailable'); }
+      db.prepare('UPDATE friends SET level=?, amount_cents=? WHERE id=?').run(t.key, t.cents, k.id);
+      ledger.append(db, 'keeping.moved', `friend-${k.id}`, { to: t.key, amount: t.cents });
+      return res.redirect('/account/keeping?ok=moved');
+    }
+    const id = db.prepare("INSERT INTO friends (house, maker_id, kind, level, amount_cents, recurring, name, email) VALUES ('watermark',?,'keeping',?,?,1,?,?)").run(m.id, t.key, t.cents, m.name, m.email).lastInsertRowid;
     try {
       const s = await stripe.checkout.sessions.create({ mode: 'subscription', ...(m.email ? { customer_email: m.email } : {}),
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: KEEPING.cents, recurring: { interval: 'month' }, product_data: { name: 'Keeping, on Watermark', description: KEEPING.gives } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: t.cents, recurring: { interval: 'month' }, product_data: { name: `${t.name}, on Watermark`, description: t.gives } } }],
         metadata: { friend: String(id) }, subscription_data: { metadata: { friend: String(id) } },
         success_url: `${C.base}/friends/${id}/thanks?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/account/keeping` });
       db.prepare('UPDATE friends SET stripe_session=? WHERE id=?').run(s.id, id);
@@ -111,7 +136,7 @@ function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, 
     db.prepare('UPDATE friends SET name=? WHERE id=?').run(String((req.body || {}).name || '').trim().slice(0, 80) || null, f.id);
     res.redirect('/friends#wall');
   });
-  return { LEVELS, ONCE, KEEPING, wall };
+  return { LEVELS, ONCE, KEEPING, TIERS, wall };
 }
 
-module.exports = { mountFriends, LEVELS, LETTER, ONCE, KEEPING, HOUSES };
+module.exports = { mountFriends, LEVELS, LETTER, ONCE, KEEPING, TIERS, HOUSES };

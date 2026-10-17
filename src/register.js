@@ -67,6 +67,7 @@ function mountRegister(app, { db, V, ledger }) {
       case 'friend.joined': return { ...k, kind: 'patron', text: `${HOUSE[d.house] || 'The house'} gained ${LV[d.level] || 'a friend'}.` };
       case 'friend.gave': return { ...k, kind: 'patron', text: `A gift${d.amount ? ` of ${money(d.amount)}` : ''} was made to ${HOUSE[d.house] || 'the house'}.` };
       case 'keeping.begun': return { ...k, text: 'A maker entrusted a larger archive to the vault.' };
+      case 'keeping.moved': return { ...k, text: 'A maker moved their archive to a larger shelf.' };
       case 'maker.joined': { const m = makerByHandle.get(e.subject); return { ...k, kind: 'birth', text: `${m ? esc(m.name) : 'A maker'} opened a studio on Watermark.` }; }
       case 'maker.culled': return { ...k, text: 'A maker graded their archive and set the best in front.' };
       case 'copyright.prepared': return { ...k, kind: 'office', text: `${d.works === 1 ? 'A photograph was' : `${d.works || 'A group of'} photographs were`} prepared for registration with the U.S. Copyright Office.` };
@@ -82,7 +83,7 @@ function mountRegister(app, { db, V, ledger }) {
     applause: { name: 'Applause', types: ['work.applauded', 'gallery.signed', 'house.signed', 'tip.given', 'work.voice'] },
     collected: { name: 'Collected & licensed', types: ['license.granted', 'license.checkout', 'license.requested', 'license.quoted', 'license.declined', 'file.delivered', 'print.recorded', 'seal.created'] },
     trades: { name: 'Trades', types: ['license.transferred', 'market.offered', 'market.withdrawn', 'market.bid', 'market.offer', 'market.accepted', 'market.traded', 'swap.offered', 'swap.declined', 'swap.traded', 'payout.sent'] },
-    patrons: { name: 'Patrons', types: ['friend.joined', 'friend.gave', 'keeping.begun'] },
+    patrons: { name: 'Patrons', types: ['friend.joined', 'friend.gave', 'keeping.begun', 'keeping.moved'] },
     office: { name: 'Copyright Office', types: ['copyright.prepared', 'copyright.filed', 'copyright.registered'] },
   };
   const SPANS = { today: ['Today', '-1 day'], week: ['This week', '-7 days'], month: ['This month', '-30 days'], year: ['This year', '-365 days'], all: ['All time', null] };
