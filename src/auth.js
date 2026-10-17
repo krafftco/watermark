@@ -4,7 +4,7 @@
 const crypto = require('crypto');
 const SW = require('@simplewebauthn/server');
 
-function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V }) {
+function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker }) {
   db.exec(`CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, buyer_id INTEGER NOT NULL, cred_id TEXT UNIQUE NOT NULL, public_key BLOB NOT NULL,
     counter INTEGER NOT NULL DEFAULT 0, transports TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), used_at TEXT)`);
   const origin = C.base.replace(/\/$/, ''), rpID = new URL(origin).hostname;
@@ -68,6 +68,41 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V }) {
       const fresh = db.prepare('SELECT * FROM buyers WHERE id=?').get(b.id);
       setBuyer(res, fresh, !!fresh.pm);
       res.json({ ok: true });
+    } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
+  });
+  // ---------- makers: the same passkey sign-in, for their own room ----------
+  db.exec(`CREATE TABLE IF NOT EXISTS maker_passkeys (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, cred_id TEXT UNIQUE NOT NULL, public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0, transports TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), used_at TEXT)`);
+  const mkeys = m => (m ? db.prepare('SELECT * FROM maker_passkeys WHERE maker_id=?').all(m.id) : []);
+  app.locals.makerKeys = mkeys;
+  app.post('/auth/maker/register/options', async (req, res) => {
+    const m = makerOf && makerOf(req); if (!m) return res.status(401).json({ ok: false });
+    const opts = await SW.generateRegistrationOptions({ rpName: 'Watermark', rpID, userName: m.email || m.name, userDisplayName: m.name, userID: new TextEncoder().encode('wm-maker-' + m.id),
+      attestationType: 'none', excludeCredentials: mkeys(m).map(k => ({ id: k.cred_id })), authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' } });
+    hold(res, { challenge: opts.challenge, maker: m.id, kind: 'mreg' }); res.json(opts);
+  });
+  app.post('/auth/maker/register/verify', async (req, res) => {
+    const p = take(req), m = makerOf && makerOf(req);
+    if (!p || p.kind !== 'mreg' || !m || m.id !== p.maker) return res.status(400).json({ ok: false });
+    try {
+      const v = await SW.verifyRegistrationResponse({ response: req.body, expectedChallenge: p.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false });
+      if (!v.verified) return res.status(400).json({ ok: false });
+      const c = v.registrationInfo.credential;
+      db.prepare('INSERT OR IGNORE INTO maker_passkeys (maker_id, cred_id, public_key, counter, transports) VALUES (?,?,?,?,?)').run(m.id, c.id, Buffer.from(c.publicKey), c.counter || 0, JSON.stringify(c.transports || []));
+      ledger.append(db, 'maker.passkey', m.handle, {}); res.json({ ok: true });
+    } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
+  });
+  app.post('/auth/maker/login/options', async (req, res) => { const opts = await SW.generateAuthenticationOptions({ rpID, userVerification: 'preferred' }); hold(res, { challenge: opts.challenge, kind: 'mauth' }); res.json(opts); });
+  app.post('/auth/maker/login/verify', async (req, res) => {
+    const p = take(req); const body = req.body || {};
+    if (!p || p.kind !== 'mauth' || !body.id) return res.status(400).json({ ok: false });
+    const k = db.prepare('SELECT * FROM maker_passkeys WHERE cred_id=?').get(String(body.id)); if (!k) return res.status(404).json({ ok: false, unknown: true });
+    try {
+      const v = await SW.verifyAuthenticationResponse({ response: body, expectedChallenge: p.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false,
+        credential: { id: k.cred_id, publicKey: new Uint8Array(k.public_key), counter: k.counter, transports: k.transports ? JSON.parse(k.transports) : undefined } });
+      if (!v.verified) return res.status(400).json({ ok: false });
+      db.prepare("UPDATE maker_passkeys SET counter=?, used_at=datetime('now') WHERE id=?").run(v.authenticationInfo.newCounter || 0, k.id);
+      setMaker(res, db.prepare('SELECT * FROM makers WHERE id=?').get(k.maker_id)); res.json({ ok: true, to: '/account' });
     } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
   });
   app.post('/auth/signout', (req, res) => { res.clearCookie('wm_b'); res.clearCookie('wm_tap'); res.redirect('/signin?out=1'); });

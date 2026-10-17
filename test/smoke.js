@@ -158,7 +158,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/sightings', { cookie: ck }); assert.ok(r.body.includes('example.org/story'));
   r = await req(port, 'POST', '/apply', { body: { name: 'Ada Lens', email: 'ada@lens.com', portfolio: 'https://ada.photo', practice: 'Photography' } }); assert.equal(r.status, 303);
   r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.includes('Ada Lens'));
-  r = await req(port, 'GET', '/'); assert.ok(r.body.includes('For the people who make the pictures'));
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For the people who make the pictures'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
   // bulk registration, one file per request
@@ -344,6 +344,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, "GET", vo1.audio); assert.equal(r.status, 200); assert.equal(r.body.toString(), "fakeaudiodata");
   r = await req(port, 'POST', `/voices/${w.slug}`, { body: { body: 'not mine to say' } }); assert.equal(r.status, 403, 'only the maker or the Studio');
   r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: mck, body: { body: 'nor theirs' } }); assert.equal(r.status, 403, 'not another maker');
+  // Makers: the front door is the collection; makers apply, Will approves in one step, and they sign in with a passkey.
+  r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.toString().includes('Approve and invite'), 'one-step approval');
+  r = await req(port, 'GET', '/account'); assert.ok(r.body.toString().includes('data-passkey="maker-signin"'), 'makers sign in with a passkey');
+  r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('data-passkey="maker-save"'), 'and save one from their room');
+  r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' }, cookie: mck }); assert.ok(JSON.parse(r.body).challenge, 'maker passkey options');
+  r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 401, 'only for a maker');
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.toString().includes('Sign in to your room'));
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);

@@ -50,6 +50,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
 
   // ---------- the maker side ----------
+  const setMaker = (res, m) => { const exp = String(Date.now() + cookieOpts.maxAge); res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}`)}`, cookieOpts); };
   app.get('/account/join/:token', (req, res) => {
     const m = db.prepare('SELECT * FROM makers WHERE invite_token=?').get(String(req.params.token));
     if (!m) return res.status(404).send(A.gone());
@@ -91,7 +92,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account', (req, res) => {
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
-    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, money: V.money }));
+    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their collection; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {
@@ -128,7 +129,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     res.redirect('/account#w-' + w.slug);
   });
 
-  return { makerOf, dashboard, inviteLink };
+  return { makerOf, setMaker, dashboard, inviteLink };
 }
 
 module.exports = { mountAccounts, MULTIPLE };

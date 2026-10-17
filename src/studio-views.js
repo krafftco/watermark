@@ -156,7 +156,8 @@ function sightings({ list, embeds, base }) {
 
 function makers({ list }) {
   const rows = list.map(a => `<tr><td><b>${esc(a.name)}</b><br><small><a href="mailto:${esc(a.email)}">${esc(a.email)}</a></small></td><td>${esc(a.practice || '')}</td><td>${a.portfolio ? `<a href="${esc(a.portfolio)}" target="_blank" rel="noopener">${esc(a.portfolio.replace(/^https?:\/\//, ''))}</a>` : ''}${a.note ? `<br><small>${esc(a.note)}</small>` : ''}</td><td>${date(a.created_at)}</td>
-<td><form method="post" action="/studio/makers/${a.id}" class="inline"><select name="status" onchange="this.form.submit()">${['new', 'invited', 'declined'].map(k => `<option ${a.status === k ? 'selected' : ''}>${k}</option>`).join('')}</select></form></td></tr>`).join('');
+<td>${a.status === 'invited' ? 'Invited' : `<form method="post" action="/studio/accounts" class="inline"><input type="hidden" name="name" value="${esc(a.name)}"><input type="hidden" name="email" value="${esc(a.email)}"><input type="hidden" name="application" value="${a.id}"><button>Approve and invite</button></form>`}
+<form method="post" action="/studio/makers/${a.id}" class="inline"><select name="status" onchange="this.form.submit()">${['new', 'invited', 'declined'].map(k => `<option ${a.status === k ? 'selected' : ''}>${k}</option>`).join('')}</select></form></td></tr>`).join('');
   return layout({ studio: true, title: 'Makers · Watermark', body: `<section class="studio-wrap">${nav('/studio/makers')}<h1>Makers who want in.</h1>
 <table class="tbl"><thead><tr><th>Maker</th><th>Practice</th><th>Work</th><th>Applied</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No applications yet.</td></tr>'}</tbody></table></section>` });
 }

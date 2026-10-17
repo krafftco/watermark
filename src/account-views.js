@@ -2,8 +2,11 @@
 const { layout, esc, money, date } = require('./views');
 
 function signedOut() {
-  return layout({ title: 'Your account · Watermark', studio: true, body: `<section class="narrow"><p class="k">Your account</p><h1>Sign in with your link.</h1>
-<p class="lede">Watermark accounts open from the link we send you; there is no password to remember. Lost it? Write to us and we will send a fresh one.</p></section>` });
+  return layout({ title: 'Your account · Watermark', studio: true, body: `<section class="narrow" data-passkey-box><p class="k">For makers</p><h1>Sign in to your room.</h1>
+<p class="lede">With the passkey you saved: Face ID, Touch ID or your phone. The first time, open the invitation link we sent you.</p>
+<p><button class="buy-btn" data-passkey="maker-signin">Sign in with a passkey</button></p><p class="pk-msg" data-passkey-msg></p>
+<p class="note">Not a Watermark maker yet? <a href="/makers#apply">Apply</a>. Lost everything? Write to us and we will send a fresh invitation.</p></section>
+<script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` });
 }
 function gone() {
   return layout({ title: 'Link used · Watermark', studio: true, body: `<section class="narrow"><p class="k">Your account</p><h1>This link has been used.</h1>
@@ -24,7 +27,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option></select></label><button>Create the account</button></form></section>` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true }) {
   const hidden = viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : '';
   const star = w => `<form method="post" action="/account/works/${esc(w.slug)}/jewel" class="inline">${hidden}<button class="jw${w.curated ? ' on' : ''}" title="${w.curated ? 'Remove from your jewels' : 'Mark as a jewel'}" aria-pressed="${w.curated ? 'true' : 'false'}">${w.curated ? '&#9733;' : '&#9734;'}</button></form>`;
   const jewel = w => `<div class="ac-j" id="w-${esc(w.slug)}"><a href="/w/${esc(w.slug)}" class="ac-jf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></a>
@@ -38,6 +41,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
   return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap ac">
 ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s dashboard as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
 <p class="k">${m.kind === 'estate' ? 'Estate' : 'Your Watermark'}${m.house ? ' · ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1>
+${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) lets you come back to your room from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
 <div class="stats ac-stats"><div><b>${money(totals.earned)}</b><span>earned, all time</span></div><div><b>${money(totals.earned30)}</b><span>last 30 days</span></div><div><b>${totals.shares}</b><span>shares sold</span></div><div><b>${totals.jewels}</b><span>jewels</span></div><div><b>${totals.works}</b><span>works held (${totals.public} public)</span></div>
 <div><b>${totals.value != null ? money(totals.value) : '&mdash;'}</b><span>archive value, estimate</span></div></div>
 <p class="note">You keep ${pct}% of every sale; figures here are your share. Archive value is ${multiple}&times; your last twelve months of earnings, an illustration rather than an appraisal${totals.value == null ? '; it appears once you have sales' : ''}.</p>
