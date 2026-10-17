@@ -1,0 +1,26 @@
+{
+  "name": "Watermark",
+  "short_name": "Watermark",
+  "description": "A house for photographs: see them properly, wander, learn, collect, license. A Krafft company.",
+  "id": "/",
+  "start_url": "/?app=1",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0e0e0e",
+  "theme_color": "#0e0e0e",
+  "lang": "en",
+  "categories": ["photo", "art", "education"],
+  "icons": [
+    { "src": "/static/app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/static/app/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Wander", "url": "/wander/room?app=1", "description": "A photograph, then another" },
+    { "name": "Today's photograph", "url": "/today?app=1" },
+    { "name": "Your gallery", "url": "/yours?app=1" },
+    { "name": "The Library", "url": "/library?app=1" }
+  ]
+}

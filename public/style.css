@@ -1907,3 +1907,11 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .lb-pdf{margin-top:32px;background:#1a1816;padding:12px}.lb-pdf iframe{width:100%;height:80vh;border:0;background:#fff}
 .lb-src,.lb-reg{margin-top:28px;font-size:12.5px}
 .lb-form textarea{font-family:var(--read);font-size:16px;line-height:1.5}
+/* The app. Pages cross-fade; in the installed window the house sits flush. */
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:220ms var(--e) both wm-out}::view-transition-new(root){animation:260ms var(--e) both wm-in}
+@keyframes wm-out{to{opacity:0}}@keyframes wm-in{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation:none}}
+@media (display-mode:standalone){.kh{padding-top:env(safe-area-inset-top)}.top{-webkit-app-region:drag}.top a,.top nav,.top button{-webkit-app-region:no-drag}}
+.ap-act{margin:22px 0}.ap-how dt{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}.ap-how dd b{font-weight:500}
+.of h1{font-family:var(--read);font-weight:300}

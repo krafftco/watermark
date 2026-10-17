@@ -462,6 +462,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const tok = db.prepare("SELECT token FROM text_orders WHERE status='paid' ORDER BY id DESC LIMIT 1").get().token; assert.ok(tok);
   r = await req(port, 'GET', `/library/d/${tok}`); assert.equal(r.status, 200); assert.ok(r.headers['content-type'].includes('pdf') && r.body.length > 1000, 'the copy, as a PDF');
   r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('shelved in the Library'), 'on the register');
+  // The app: installable, with a worker and an offline room.
+  r = await req(port, 'GET', '/static/app/manifest.webmanifest'); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).display, 'standalone');
+  r = await req(port, 'GET', '/sw.js'); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('PRIVATE'));
+  r = await req(port, 'GET', '/app'); assert.ok(r.body.toString().includes('Add to Dock'));
+  r = await req(port, 'GET', '/offline'); assert.ok(r.body.toString().includes('cannot be reached'));
+  r = await req(port, 'GET', '/collection'); assert.ok(r.body.toString().includes('rel="manifest"') && r.body.toString().includes('speculationrules'), 'the app in every page');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

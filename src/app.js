@@ -494,6 +494,9 @@ function createApp(cfg = {}) {
     const name = (m && m.name) || (b && b.name) || null;
     res.json({ in: true, name, initial: name ? name.trim().charAt(0).toUpperCase() : null, maker: m ? { handle: m.handle, slug: V.makerSlug(m) } : null, collector: b ? { code: b.public ? b.code : null } : null });
   });
+  app.get('/sw.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-cache').set('Service-Worker-Allowed', '/'); res.sendFile(path.join(__dirname, '..', 'public', 'sw.js')); });
+  app.get('/offline', (req, res) => res.send(V.offline()));
+  app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=600').set('Access-Control-Allow-Origin', '*');
     res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));
