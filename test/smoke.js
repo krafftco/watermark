@@ -609,6 +609,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account/claims/999', { headers: { accept: 'text/html' } }); assert.ok(r.body.toString().includes('nf-t') || r.status === 302, 'a private door is a sign too');
   r = await req(port, 'GET', '/api/wander?from=zzz', { headers: { accept: 'application/json' } }); assert.equal(r.status, 200, 'JSON keeps its shape');
   r = await req(port, 'GET', '/img/no-such/thumb'); assert.ok(r.status === 404 && !r.body.toString().includes('<html'), 'images keep a plain status');
+  // The frame: a screen pairs by code; the phone is the remote; the set can be collected in one tap from the pocket.
+  r = await req(port, 'GET', '/frame'); assert.ok(r.body.toString().includes('Pair a screen') && r.body.toString().includes('How it is licensed'), 'the frame\'s door');
+  r = await req(port, 'GET', '/frame/tv'); { const h = r.body.toString(); const fcode = (h.match(/data-code="([A-Z]{5})"/) || [])[1]; assert.ok(fcode && h.includes(fcode) && h.includes('data-waiting="1"'), 'the screen shows its code');
+    r = await req(port, 'GET', `/frame/tv/${fcode}/state`); let fs = JSON.parse(r.body); assert.ok(fs.works.length > 0 && fs.works.every(w => /\/screen$/.test(w.img)), 'unheld pieces at screen size');
+    r = await req(port, 'GET', `/frame/pair?code=${fcode.toLowerCase()}`); assert.ok(r.headers.location.endsWith('/frame/' + fcode), 'pairs by code');
+    r = await req(port, 'GET', `/frame/${fcode}`, { cookie: sck }); assert.ok(r.body.toString().includes('The remote') && r.body.toString().includes('Collect the set'), 'the remote');
+    r = await req(port, 'POST', `/frame/${fcode}`, { cookie: sck, body: { set: 'today', q: '', every: '15', plate: 'always', music: 'quiet' } }); assert.ok(r.headers.location.includes('ok='));
+    r = await req(port, 'GET', `/frame/tv/${fcode}/state`); fs = JSON.parse(r.body); assert.ok(fs.every === 15 && fs.music === 'quiet' && fs.plate === 'always', 'the remote changed the screen');
+    const sb = db.prepare("SELECT b.* FROM buyers b JOIN frames f ON f.buyer_id=b.id WHERE f.code=?").get(fcode); assert.ok(sb, 'the first signed-in hand holds the screen');
+    const need = fs.works.filter(w => !w.held).length; db.prepare("INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)").run(sb.id, need * 500 + 100, 'topup', 'test', 'for the frame');
+    r = await req(port, 'POST', `/frame/${fcode}/collect`, { cookie: sck, body: { from: 'pocket' } }); assert.ok(decodeURIComponent(r.headers.location).includes('Yours:'), 'the set collected from the pocket');
+    r = await req(port, 'GET', `/frame/tv/${fcode}/state`); fs = JSON.parse(r.body); assert.ok(fs.works.length && fs.works.every(w => w.held && /\/large$/.test(w.img)), 'now at full size');
+    r = await req(port, 'GET', '/tv'); assert.equal(r.headers.location, '/frame/tv'); }
+  console.log('ok: the frame');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');
