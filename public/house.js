@@ -74,6 +74,35 @@
     for (var n = 0; n < P.length; n++) bar.appendChild(link(P[n]));
     document.body.insertBefore(bar, document.body.firstChild);
   }
+
+  // krafftco.com/license and Watermark, joined: when the photograph is held on Watermark, each use is
+  // bought there at once and the photograph can be collected; with no photograph, the uses lead to the collection.
+  if (/(^|\.)krafftco\.com$/.test(h) && /^\/license\/?$/.test(location.pathname)) {
+    var WMB = 'https://watermark.krafftco.com', USE = { Editorial: 'editorial', Commercial: 'commercial', Campaign: 'campaign', Print: 'print' };
+    var lic = function () {
+      var r = document.querySelector('.wl'); if (!r) return;
+      var img = new URLSearchParams(location.search).get('image') || '';
+      var set = function (w) {
+        [].forEach.call(r.querySelectorAll('.wl-use'), function (li) {
+          var go = li.querySelector('.wl-go'), t = li.getAttribute('data-tier'); if (!go || !USE[t]) return;
+          go.href = w ? w.license + '?use=' + USE[t] : WMB + '/collection';
+          go.firstChild.textContent = w ? 'Continue on Watermark ' : 'Choose a photograph on Watermark ';
+          go.addEventListener('click', function (e) { e.stopImmediatePropagation(); }, true);
+          var ta = li.querySelector('textarea'); if (ta) ta.addEventListener('input', function () { setTimeout(function () { go.href = w ? w.license + '?use=' + USE[t] : WMB + '/collection'; }, 0); });
+        });
+        if (w && w.collect && !r.querySelector('.wk-col')) {
+          var a = document.createElement('a'); a.className = 'wk-col'; a.href = w.page;
+          a.innerHTML = '<span><svg viewBox="0 0 51.66 51.88" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg></span>Or collect it: yours to keep, numbered';
+          a.setAttribute('style', 'display:inline-flex;align-items:center;gap:14px;margin:-12px 0 36px;font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:#eee8dd;text-decoration:none;border-bottom:0');
+          a.firstChild.setAttribute('style', 'display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#eee8dd;color:#0d0b09');
+          var dek = r.querySelector('.wl-dek'); if (dek) dek.insertAdjacentElement('afterend', a);
+        }
+      };
+      if (!img) return set(null);
+      fetch(WMB + '/api/match?src=' + encodeURIComponent(img)).then(function (x) { return x.json(); }).then(function (j) { if (j && j.work) set(j.work); }).catch(function () {});
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(lic, 0); }); else setTimeout(lic, 0);
+  }
   // A page that renders the bar itself says so; wait for it to be parsed, then refresh its links.
   var own = document.querySelector('meta[name="kh"]');
   if (own) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build(); }
