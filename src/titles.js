@@ -1,7 +1,9 @@
 // Titles in title case, the way a catalogue or a gallery wall sets them: "The Dome of the Pantheon".
 // Small words stay lower (a, of, the, in…) unless they open or close the title or follow a colon;
 // words the maker already capitalised (McQueen, iPhone, NASA) are left as they are.
-const SMALL = new Set('a an and as at but by en for from if in into nor of off on onto or over per so the to up via vs with yet'.split(' '));
+const SMALL = new Set('a an and as at but by en for from if in into nor of off on onto or over per so the to up via vs with yet'.split(' ').concat(
+  // Particles in the languages the collection travels through (dei Calzaiuoli, du Louvre, de la Cité, am Main).
+  'de del della delle dei degli di da du des le les la il lo los las y e et und am im von van der zu au aux'.split(' ')));
 function titleCase(s) {
   const str = String(s == null ? '' : s).trim(); if (!str) return str;
   const words = str.split(/(\s+)/);
