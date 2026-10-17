@@ -31,7 +31,17 @@ function mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStud
     const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w || !w.open || !OPEN[w.open]) return res.sendStatus(404);
     let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
     ledger.append(db, 'open.taken', w.slug, { licence: w.open });
-    res.set('Content-Disposition', `attachment; filename="${w.slug}-${OPEN[w.open].short.toLowerCase().replace(/\s+/g, '-')}${path.extname(w.original_file) || '.jpg'}"`);
+    const name = `${w.slug}-${OPEN[w.open].short.toLowerCase().replace(/\s+/g, '-')}${path.extname(w.original_file) || '.jpg'}`;
+    // Free and clear still carries the mark: the maker, the licence and the way back, and a mark unique to the taking.
+    if (app.locals.mark && /\.(jpe?g|png|tiff?)$/i.test(file)) {
+      try {
+        const dlId = Number(db.prepare("INSERT INTO downloads (license_id, seat_id, size) VALUES (0, NULL, 'open')").run().lastInsertRowid);
+        const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
+        const buf = await app.locals.mark.marked(fs.readFileSync(file), { w, maker: mk(w), ref: null, licensee: null, use: OPEN[w.open].name, dlId, format: fmt });
+        res.set('Content-Disposition', `attachment; filename="${name}"`); return res.type(fmt === 'png' ? 'png' : fmt === 'tiff' ? 'tiff' : 'jpg').send(buf);
+      } catch (e) { console.error('[open mark]', e.message); }
+    }
+    res.set('Content-Disposition', `attachment; filename="${name}"`);
     res.type(/\.png$/i.test(file) ? 'image/png' : /\.tiff?$/i.test(file) ? 'image/tiff' : 'image/jpeg');
     fs.createReadStream(file).pipe(res);
   });

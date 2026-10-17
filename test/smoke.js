@@ -274,8 +274,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/d/${l1.download_token}`);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
-  const sh = require('sharp'); const [a, b] = await Promise.all([sh(r.body).raw().toBuffer(), sh(fs.readFileSync(BIG)).raw().toBuffer()]);
-  assert.ok(a.equals(b), 'pixels untouched by the stamp');
+  // The mark, policy: the file carries the record in the open (XMP), and a mark within the picture unique to this delivery; it traces back even after recompression.
+  { const M = require('../src/mark'); const x = M.readXmp(r.body); assert.ok(x && x.license === ref1 && x.creator, 'XMP names the license and the creator');
+    const dl = db.prepare('SELECT * FROM downloads WHERE license_id=(SELECT id FROM licenses WHERE ref=?) ORDER BY id DESC LIMIT 1').get(ref1); assert.ok(dl.sha256 && dl.mark === dl.id, 'the delivery recorded with its mark');
+    const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok && rd.payload === dl.id, 'the mark reads back');
+    const re = await require('sharp')(r.body).jpeg({ quality: 60 }).toBuffer(); const tr = await app.locals.mark.trace(re); assert.ok(tr && tr.ref === ref1 && tr.how === 'mark', 'a recompressed copy still traces to the license');
+    const exact = await app.locals.mark.trace(r.body); assert.equal(exact.how, 'bytes');
+    r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it'); }
   r = await req(port, 'GET', `/c/${ref1}.pdf`); assert.equal(r.status, 200); assert.equal(r.body.slice(0, 4).toString(), '%PDF');
   // renewal notice for a license ending soon, then expiry
   db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + 5 * 864e5).toISOString(), ref1);

@@ -95,6 +95,27 @@ function createApp(cfg = {}) {
   // share-size file comes with every license, because holding a license includes the right to share it.
   const DL = { social: 5, reference: 5, editorial: 10, commercial: 25, campaign: 50, print: 5 };
   db.exec(`CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, seat_id INTEGER, size TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  for (const [c, t] of [['sha256', 'TEXT'], ['mark', 'INTEGER'], ['work_id', 'INTEGER'], ['to_whom', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('downloads') WHERE name=?").get(c)) db.exec(`ALTER TABLE downloads ADD COLUMN ${c} ${t}`);
+  // The mark (mark.js): every image that leaves the house carries its maker, its license and the way back, in the open
+  // (XMP), sealed (Content Credentials) and within the picture (an invisible mark unique to the delivery). Policy, no switch.
+  const MARK = require('./mark'); const MARK_KEY = process.env.MARK_KEY || cfg.markKey || C.secret;
+  async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, format = 'jpeg' }) {
+    let out = await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format });
+    if (share) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
+    if (format === 'jpeg') {
+      const tmp = path.join(cache, `mark-${dlId}-${Date.now()}.jpg`); fs.writeFileSync(tmp, out);
+      try { out = prov.stampJpeg(tmp, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null }); } catch (e) { /* keep */ } finally { fs.rmSync(tmp, { force: true }); }
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, noAI: R.parse(w.rules).never.includes('ai') }));
+    }
+    db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
+    return out;
+  }
+  const markApi = { marked, read: buf => MARK.read(buf, MARK_KEY), readXmp: MARK.readXmp, trace: async buf => {
+    const h = crypto.createHash('sha256').update(buf).digest('hex');
+    let d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.sha256=?').get(h); let how = 'bytes';
+    if (!d) { const x = MARK.readXmp(buf); if (x && x.license) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d JOIN licenses l ON l.id=d.license_id WHERE l.ref=? ORDER BY d.id DESC LIMIT 1').get(x.license); how = 'xmp'; } }
+    if (!d) { try { const r = await MARK.read(buf, MARK_KEY); if (r && r.ok && r.payload) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.id=?').get(r.payload); how = 'mark'; } } catch (e) { /* unreadable */ } }
+    return d ? { ...d, how } : null; } };
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='dl_extra'").get()) db.exec('ALTER TABLE licenses ADD COLUMN dl_extra INTEGER NOT NULL DEFAULT 0');
   const dlOf = l => { const u = q.useById.get(l.use_id); const limit = (DL[u ? u.key : 'social'] || 5) + (l.dl_extra || 0); const used = db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(l.id).n; return { limit, used, left: Math.max(0, limit - used) }; };
   // The ladder: as a limited edition fills, its issue price rises, so every collector before the step
@@ -225,6 +246,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
+  app.locals.mark = markApi;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -1089,14 +1111,16 @@ function createApp(cfg = {}) {
     const share = size === 'share' || (lu && lu.key === 'social');
     const dl = dlOf(l);
     if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
-    db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full');
+    const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
     let file; try { file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
     const name = `${w.slug}-${l.ref}${share ? '.jpg' : path.extname(w.original_file)}`;
-    if (/\.jpe?g$/i.test(file)) {
+    if (/\.(jpe?g|png|tiff?)$/i.test(file)) {
       try {
         const u = lu;
-        const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base, conditions: l.conditions });
+        const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
+        const buf = await marked(fs.readFileSync(file), { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, format: fmt });
+        if (fmt !== 'jpeg') { res.set('Content-Disposition', `attachment; filename="${name}"`); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
         res.set('Content-Disposition', `attachment; filename="${name}"`);
         // The Shield goes with the file: Content Credentials naming the maker, the copyright holder and this license.
         if (CR.enabled()) {
