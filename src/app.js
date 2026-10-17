@@ -425,6 +425,8 @@ function createApp(cfg = {}) {
     if (req.body.ask || t.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews }));
     u.price_cents = t.price;
     const ref = nextRef();
+    // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
+    t.version = 'standard-2021-counsel/v0'; t.hash = require('crypto').createHash('sha256').update(JSON.stringify(K.assemble({ t, work: w.title, maker: maker.name, ref }))).digest('hex');
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, 'Buyer', '', noteAll, u.price_cents, R.conditions(rules) || null, JSON.stringify(t));
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
@@ -438,6 +440,7 @@ function createApp(cfg = {}) {
         ...(u.key === 'social' ? { submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
         metadata: { ref },
+        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for this order (${ref}), with the rights shown on Watermark: ${C.base}/contract/${w.slug}?use=${u.key}${t.added.map(a => '&add=' + a).join('')}${t.extras.map(a => '&x=' + a).join('')}` } },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : `${C.base}/license/${w.slug}?use=${u.key}`,
       });

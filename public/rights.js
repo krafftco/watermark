@@ -23,7 +23,9 @@
     [].forEach.call(box.querySelectorAll('.rt-e input:checked'), function (i) { x.push(i.value); });
     return { add: add, x: x };
   }
+  function assent() { var a = document.querySelector('[data-assent]'); if (!a) return; var c = chosen(); a.href = '/contract/' + slug + '?use=' + encodeURIComponent(cur() || '') + c.add.map(function (x) { return '&add=' + x; }).join('') + c.x.map(function (x) { return '&x=' + x; }).join(''); }
   function price() {
+    assent();
     var k = cur(), u = D.uses[k], inp = form.querySelector('.bu input:checked'); if (!u || !inp) return;
     var c = chosen(), ask = c.x.some(function (e) { return D.extras[e] == null; });
     var label = inp.getAttribute('data-label') || '';

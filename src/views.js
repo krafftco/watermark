@@ -62,7 +62,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/m/will-fullerton#patron">Patronage</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/m/will-fullerton#patron">Patronage</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
 }
 
@@ -286,7 +286,7 @@ c.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)re
 <section class="h-sec"><p class="k">Protection</p><h2 class="h2">Protected by design, not by a stamp across the middle.</h2>
 <div class="h-6">
 <div><h3>Sealed when it travels.</h3><p>Only screen-sized copies are shown. When the full file must travel, it goes sealed: it opens only in Watermark, every opening is counted, and you can close it at any time.</p></div>
-<div><h3>Fingerprinted on arrival.</h3><p>Every original is fingerprinted and registered on a public ledger that cannot be quietly edited.</p></div>
+<div><h3>Fingerprinted on arrival.</h3><p>Every original is fingerprinted and written into a public register that cannot be quietly edited.</p></div>
 <div><h3>Licensed inside the file.</h3><p>Each delivered file carries the maker, the collector, the reference, the term and your conditions.</p></div>
 <div><h3>Reserved from AI.</h3><p>Every page and image tells crawlers and AI companies the work is reserved and not theirs to train on.</p></div>
 <div><h3>Seen somewhere? You decide.</h3><p>Anyone can report where your work turned up. Offer a license, ask for credit, or let it be.</p></div>
@@ -300,7 +300,7 @@ c.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)re
 <li><b>It is done.</b>The file, the certificate and the receipt arrive at once. You are paid, and you get a note saying so.</li></ol>
 ${demo ? `<p><a class="h-btn h-btn-d" href="/license/${esc(demo.slug)}">See it for yourself</a></p>` : ''}</section>
 
-<section class="h-sec h-num"><p class="h-big">85%</p><div><h2 class="h2">Of every license goes to the maker.</h2><p>Watermark&rsquo;s share covers payment, delivery, the ledger and the protection. You own your work, your buyers and your record of sales.</p></div></section>
+<section class="h-sec h-num"><p class="h-big">85%</p><div><h2 class="h2">Of every license goes to the maker.</h2><p>Watermark&rsquo;s share covers payment, delivery, the record and the protection. You own your work, your buyers and your record of sales.</p></div></section>
 
 <section class="h-sec h-by"><p class="k">By image makers</p><h2 class="h2">Built by a photographer, for photographers.</h2>
 <p class="h-p">Watermark began seven years ago with a simple frustration: the photographs travelled and the photographer didn&rsquo;t. It is built by Krafft, a creative company, and its first collection is our own. We built it the way we wanted to be treated: credited, asked, and paid.</p>
@@ -444,9 +444,10 @@ ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name=
 ${rightsPanel(uses, rules)}
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 <button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
+<p class="buy-assent">By paying you accept the <a href="/contract/${esc(w.slug)}?use=${esc(pick ? pick.key : '')}" target="_blank" data-assent>licence agreement</a> for the rights you chose. It is binding on both sides, and a copy is yours with the certificate.</p>
 ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="buy-how">${rules.approve ? 'The maker approves each license personally, usually within the day. You pay only once it is approved.' : instant ? (pick && pick.key === 'social' ? 'Apple Pay, Google Pay or card. The file is yours the moment you pay, ready to post.' : 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.') : 'The maker replies with terms and a payment link, usually within the day.'}</p>
-<ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded on the <a href="/ledger">ledger</a></li></ul>
+<ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded in Watermark&rsquo;s <a href="/ledger">register</a></li></ul>
 <p class="buy-more">Exclusivity, a longer term or something larger? <a href="/buy/${esc(w.slug)}?ask=1" data-ask>Ask the maker</a>. &middot; <a href="/terms" target="_blank">The terms</a>, in plain language.</p>
 </form></section>
 <script>(function(){var b=document.getElementById('buyBtn');
@@ -603,33 +604,95 @@ function requested({ lic, w }) {
   });
 }
 
+// The licence, as the person who holds it should see it: the photograph, what they may do with it, until
+// when, and what to keep in mind. The proof (fingerprint, register entry) is there for anyone who asks,
+// folded away; nobody needs to read a hash to trust a licence.
+const USE_SAYS = {
+  social: 'on their own accounts, credited',
+  reference: 'as their own: to keep, to print large and to share, credited',
+  editorial: 'in a story: a feature, a book, an essay or a report, with the maker named',
+  commercial: 'for their company: a website, a presentation, a letter to investors',
+  campaign: 'before an audience: a campaign, a film, a billboard, a package',
+};
 function certificate({ lic, w, maker, use, entry, base, owner }) {
   const active = lic.status === 'active';
+  const who = lic.licensee_company || lic.licensee_name || 'The holder';
+  const C = require('./contract');
+  let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older licence */ }
+  const added = t ? C.RIGHTS.filter(r => t.added.includes(r.key)).map(r => r.label.toLowerCase()) : [];
+  const extras = t ? t.extras.map(k => (C.EXTRAS.find(e => e.key === k) || {}).label).filter(Boolean) : [];
+  const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended' }[lic.status] || lic.status;
+  const says = use.kind === 'print' ? `${esc(who)} owns this print: signed, archival, theirs to keep.`
+    : `${esc(who)} may use this photograph ${esc(USE_SAYS[use.key] || use.name.toLowerCase())}${added.length ? `, and also in ${esc(added.join(', '))}` : ''}${extras.length ? `. Included: ${esc(extras.join(', ').toLowerCase())}` : ''}${active ? (lic.ends_at ? `, until ${date(lic.ends_at)}.` : ', for good.') : '.'}`;
+  let left = '';
+  if (active && lic.ends_at && lic.starts_at) {
+    const a = new Date(lic.starts_at).getTime(), z = new Date(lic.ends_at).getTime(), now = Date.now();
+    const pct = Math.max(0, Math.min(100, (now - a) / (z - a) * 100)), days = Math.max(0, Math.ceil((z - now) / 864e5));
+    left = `<div class="lc2-term"><div class="lc2-bar"><i style="width:${pct.toFixed(1)}%"></i></div><span>${date(lic.starts_at)}</span><span>${days ? `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'} left` : 'Ends today'}</span><span>${date(lic.ends_at)}</span></div>`;
+  }
+  // What they can and cannot do, in plain words, from the contract they hold.
+  const cond = String(lic.conditions || '');
+  const never = [/AI/i.test(cond) && 'ai', /altering/i.test(cond) && 'alter', /political/i.test(cond) && 'political', /tobacco/i.test(cond) && 'sensitive'].filter(Boolean);
+  const tt = t || C.terms({ use, never, base: lic.price_cents });
+  const can = [], cannot = [];
+  if (use.kind === 'print') { can.push('Hang it, live with it, show it anywhere', 'Sell it or give it away, as an object'); cannot.push('Photograph, scan or reproduce it'); }
+  else if (tt.personal) { can.push('Post it on your own accounts', 'Set it as your lock screen or wallpaper', use.key === 'reference' ? 'Print it large for your own walls' : 'Keep the file for good'); cannot.push('Use it for a business, a brand or a client'); }
+  else {
+    can.push('Use it in ' + C.RIGHTS.filter(r => tt.rights.includes(r.key)).map(r => r.label.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' and $1'));
+    can.push(tt.extras.includes('entities') ? 'Use it for more than one company or client' : 'Use it for one company or client');
+    if (lic.ends_at) can.push(`Keep using it until ${date(lic.ends_at)}`);
+    if (tt.extras.includes('merchandise')) can.push('Put it on goods for sale'); else cannot.push('Put it on goods for sale: prints, cards, apparel');
+    cannot.push('Make it part of a logo or trademark');
+  }
+  if (use.kind !== 'print') {
+    if (tt.extras.includes('derivative')) can.push('Adapt it: retouch, recolour, combine'); else { can.push('Resize it and crop it lightly'); cannot.push('Change the picture itself'); }
+    cannot.push('Let others download it as a file', 'Pass the licence to someone else');
+  }
+  if (never.includes('ai')) cannot.push('Train or test AI with it');
+  if (never.includes('political')) cannot.push('Use it in politics or advocacy');
+  if (never.includes('sensitive')) cannot.push('Use it for tobacco, firearms or gambling');
+  cannot.push('Say you made it');
+  const keep = cond.split(/\.\s*/).map(x => x.trim()).filter(Boolean);
   return layout({
-    title: `License ${lic.ref} · Watermark`,
-    body: `<section class="cert">
-<p class="k">Watermark license</p><h1>${esc(lic.ref)}</h1>
-<p class="status s-${esc(lic.status)}">${esc({ active: 'Active', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Expired' }[lic.status] || lic.status)}</p>
-<div class="cert-grid">
-<img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" draggable="false">
-<dl class="facts">
-<div><dt>Work</dt><dd><a href="/w/${esc(w.slug)}">${esc(w.title)}</a></dd></div>
-<div><dt>Maker</dt><dd>${esc(maker.name)}</dd></div>
-<div><dt>Licensee</dt><dd>${esc(lic.licensee_company || lic.licensee_name)}</dd></div>
-<div><dt>Use</dt><dd>${esc(use.name)}: ${esc(use.description)}</dd></div>
-<div><dt>Term</dt><dd>${active ? `${date(lic.starts_at)}${lic.ends_at ? ' to ' + date(lic.ends_at) : ', perpetual'}` : esc(termText(use))}</dd></div>
-${lic.price_cents != null ? `<div><dt>Fee</dt><dd>${money(lic.price_cents, lic.currency)}</dd></div>` : ''}
-${lic.conditions ? `<div><dt>Conditions</dt><dd>${esc(lic.conditions)}.</dd></div>` : ''}
-<div><dt>Fingerprint</dt><dd><code>${esc(w.sha256)}</code></dd></div>
-${entry ? `<div><dt>Ledger</dt><dd>Entry ${entry.seq} &middot; <code>${esc(entry.hash.slice(0, 24))}&hellip;</code></dd></div>` : ''}
-</dl></div>
-<div class="terms"><h2>In plain language</h2>
-<p>${esc(maker.name)} grants ${esc(lic.licensee_company || lic.licensee_name)} a non-exclusive, non-transferable license to use the photograph above for ${esc(use.name.toLowerCase())} use as described${lic.intended_use ? `: &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}, for the term shown, with credit to ${esc(maker.name)} where the use allows. ${lic.conditions ? esc(lic.conditions) + '. ' : ''}Copyright stays with the maker. Any other use needs a new license. The full terms are at <a href="${esc(base)}/terms">${esc(base.replace(/^https?:\/\//, ''))}/terms</a>.</p></div>
-${owner && active && lic.download_token ? `<p><a class="btn" href="/d/${esc(lic.download_token)}">Download the full file</a></p>` : ''}
-${owner && lic.download_token ? `<p><a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">The agreement</a>, with the rights you hold.</p>` : ''}
-${active ? `<p><a href="/c/${esc(lic.ref)}.pdf">Certificate as PDF</a></p>` : ''}
-<p class="note">Anyone can check this license at <a href="/verify?ref=${esc(lic.ref)}">/verify</a>.</p>
-</section>`
+    title: `${tidy(w.title)}: licence ${lic.ref} · Watermark`,
+    body: `<section class="lc2">
+<figure class="lc2-fig"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></a></figure>
+<div class="lc2-side">
+<p class="lc2-st s-${esc(lic.status)}"><i></i>${esc(status)}</p>
+<h1>${esc(tidy(w.title))}</h1>
+<p class="lc2-by">Photograph by ${esc(maker.name)}</p>
+<p class="lc2-says">${says}</p>
+${left}
+<dl class="lc2-dl">
+<div><dt>Licensed to</dt><dd>${esc(who)}</dd></div>
+<div><dt>For</dt><dd>${esc(use.name)}</dd></div>
+${lic.price_cents != null ? `<div><dt>Paid</dt><dd>${money(lic.price_cents, lic.currency)}${lic.collector_no ? ` &middot; No.&nbsp;${lic.collector_no}` : ''}</dd></div>` : ''}
+<div><dt>Credit</dt><dd>Photograph by ${esc(maker.name)}</dd></div>
+</dl>
+<div class="lc2-cc"><div><p class="lc2-h">You can</p><ul>${can.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><p class="lc2-h">You can&rsquo;t</p><ul class="no">${cannot.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>
+<div class="lc2-acts">
+${owner && active && lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the photograph</a>` : ''}
+${owner && lic.download_token ? `<a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">The agreement</a>` : ''}
+${active ? `<a href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a>` : ''}
+<a href="/verify?ref=${esc(lic.ref)}">Anyone can check it</a>
+</div>
+<div class="lc2-coa">${SHIELD}<div><p class="lc2-h">Certificate of authenticity</p>
+<p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the licence set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
+<p class="lc2-sig"><span>${esc(maker.name)}</span><small>The maker, through Watermark</small></p>
+${t && t.hash && active ? `<p class="lc2-acc">Agreement accepted by ${esc(who)} at payment on ${date(lic.starts_at)}. Order ${esc(lic.ref)}.</p>` : ''}</div></div>
+<details class="lc2-proof"><summary>How we know it&rsquo;s genuine</summary>
+<p>Every licence is written into Watermark&rsquo;s permanent record the moment it is granted, and each entry is sealed to the one before it, so nothing can be changed afterwards without it showing. The photograph is identified by its fingerprint, so this licence belongs to this exact picture and no other.</p>
+<dl class="lc2-dl lc2-tech"><div><dt>Licence</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
+<p class="note">The full record is public at <a href="/ledger">the register</a>.</p></details>
+</div></section>
+<section class="lc2-learn"><p class="k">Licensing, simply</p><div class="lc2-cards">
+<div><b>The photographer keeps the copyright.</b><p>Owning a file, or even a print, doesn&rsquo;t give you the right to copy it. The copyright stays with the person who made the picture.</p></div>
+<div><b>A licence is permission for a use.</b><p>It says what you may do, where, and for how long. Pay for the use you need; anything more is a new licence.</p></div>
+<div><b>Credit is part of the price.</b><p>Name the photographer wherever the use allows: &ldquo;Photograph by ${esc(maker.name)}.&rdquo; It is how their work finds its next buyer.</p></div>
+<div><b>When it ends, it ends.</b><p>${lic.ends_at ? 'At the end of the term, take it down or renew. Watermark reminds you a month before.' : 'This one has no end date. Keep it within its use and it is yours to keep.'}</p></div>
+</div></section>
+<section class="lc2-plain"><p class="k">In plain language</p>
+<p>${esc(maker.name)} keeps the copyright and grants ${esc(who)} this licence for the use above${lic.intended_use ? `, described as &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}. Credit ${esc(maker.name)} wherever the use allows. Anything beyond it needs a new licence, which takes a minute on Watermark. The full agreement is ${owner && lic.download_token ? `<a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">here</a>` : `at <a href="/terms">the terms</a>`}.</p></section>`
   });
 }
 
@@ -647,7 +710,7 @@ function ledgerPage({ entries, check }) {
   const rows = entries.map(e => `<tr><td>${e.seq}</td><td>${esc(e.at.slice(0, 19).replace('T', ' '))}</td><td>${esc(e.type)}</td><td>${esc(e.subject)}</td><td><code>${esc(e.hash.slice(0, 16))}&hellip;</code></td></tr>`).join('');
   return layout({
     title: 'Ledger · Watermark',
-    body: `<section class="narrow wide"><p class="k">The ledger</p><h1>Every registration and every license, recorded once.</h1>
+    body: `<section class="narrow wide"><p class="k">The register</p><h1>Every registration and every license, recorded once.</h1>
 <p class="lede">Each entry carries the fingerprint of the one before it, so history cannot be quietly changed. Chain status: <b>${check.ok ? `intact, ${check.checked} entries` : `broken at entry ${check.broken_at}`}</b>.</p>
 <table class="ledger"><thead><tr><th>#</th><th>When (UTC)</th><th>Event</th><th>Subject</th><th>Hash</th></tr></thead><tbody>${rows}</tbody></table></section>`
   });
@@ -674,7 +737,7 @@ function terms() {
 <li><b>Exclusions.</b> No use in AI training datasets, no resale or sublicensing, and no use that implies the maker endorses a product, unless the certificate says so.</li>
 <li><b>Term.</b> The license ends on the date on the certificate. Renewal is offered before it ends.</li>
 <li><b>Prints.</b> A print is sold for private display. It carries no reproduction rights.</li>
-<li><b>Record.</b> Every license is recorded on the Watermark ledger by reference and fingerprint. Personal details are not published.</li></ol></section>`
+<li><b>Record.</b> Every license is recorded in Watermark&rsquo;s register by reference and fingerprint. Personal details are not published.</li></ol></section>`
   });
 }
 
