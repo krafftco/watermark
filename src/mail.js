@@ -27,7 +27,7 @@ function paper({ subject, text, feature = null, cta = null }) {
 }
 async function send({ to, subject, text, from, html, feature, cta }) {
   const key = process.env.RESEND_API_KEY;
-  const sender = from || process.env.MAIL_FROM || 'Watermark <license@krafftco.com>';
+  const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
   if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); return { skipped: true }; }
   try {
     const r = await fetch('https://api.resend.com/emails', {

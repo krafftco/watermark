@@ -259,6 +259,7 @@ function createApp(cfg = {}) {
       else if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
     }
     if (app.locals.patronEvent) app.locals.patronEvent(event); // patronage: joined, or ended
+    if (app.locals.libraryEvent) app.locals.libraryEvent(event); // a copy taken from the Library
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
       if (ref && q.lic.get(ref)) grant(ref, { paid: true, price_cents: pi.amount_received });
@@ -1272,6 +1273,7 @@ function createApp(cfg = {}) {
   require('./archive').mountArchive(app, { db, C, q, V, mk, originalPath, images, isStudio, makerOf: req => app.locals.accounts.makerOf(req), heldBy, mail, upload: () => upload, copyrightState: w => (app.locals.copyrightState ? app.locals.copyrightState(w) : null) });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
   app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });
+  require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {

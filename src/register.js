@@ -34,6 +34,10 @@ function mountRegister(app, { db, V, ledger }) {
       case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };
       case 'work.guide': return { ...k, work: w, text: `${T(w)} received its wall text.` };
       case 'work.master': return { ...k, work: w, text: `${T(w)} received its master.` };
+      case 'text.shelved': return { ...k, kind: 'birth', work: null, text: `<a href="/library/${esc(e.subject)}">${esc(d.title || e.subject)}</a> was shelved in the Library.` };
+      case 'text.taken': return { ...k, kind: 'sale', work: null, text: `A copy of <a href="/library/${esc(e.subject)}">${esc(e.subject.replace(/-/g, ' '))}</a> was taken from the Library.` };
+      case 'archive.issued': return { ...k, work: w, text: `The archival master of ${T(w)} was issued, with its papers.` };
+      case 'maker.invited': return { ...k, kind: 'birth', work: null, text: `A maker was invited to the house.` };
       case 'work.terms': return { ...k, work: w, text: `The terms of ${T(w)} were set by its maker.` };
       case 'work.voice': return { ...k, work: w, text: `Someone spoke about ${T(w)}.` };
       case 'license.granted': case 'license.checkout': {

@@ -454,6 +454,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const f = mpart(null, 'orig.jpg', fs.readFileSync(path.join(dir, 'originals', w.original_file))); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(r.body.toString().includes('Genuine.') && r.body.toString().includes('byte for byte'), 'the original itself is known'); }
   { const fx = await app.locals.archive.fixity(100); assert.ok(fx.ran >= 2 && fx.bad === 0, 'fixity whole'); r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('Fixity verified'), 'said on the shield'); }
   r = await req(port, 'GET', '/studio/fixity', { cookie: ck }); assert.ok(r.body.toString().includes('Nothing failing'), 'conservation desk');
+  // The Library: a volume set by the house, read for nothing, a copy taken for a price (free here), on the register.
+  r = await req(port, 'POST', '/studio/library', { cookie: ck, body: { title: 'On Looking', kind: 'essay', author: 'The house', year: '2026', summary: 'How to stand in front of a photograph.', body: 'Stand still.\n\n# First\n\nLook longer than feels polite.\n\n> The eye takes a while.', price: '0', public: '1', cover: w.slug } }); assert.ok(r.headers.location.includes('/studio/library/on-looking'), 'shelved');
+  r = await req(port, 'GET', '/library'); assert.ok(r.body.toString().includes('On Looking') && r.body.toString().includes('Essays'), 'on the shelf');
+  r = await req(port, 'GET', '/library/on-looking'); { const lb = r.body.toString(); assert.ok(lb.includes('Look longer than feels polite') && lb.includes('<h2>First</h2>') && lb.includes('Take a copy, free'), 'read in the house'); }
+  r = await req(port, 'POST', '/library/on-looking/take', { cookie: bck }); assert.ok(r.headers.location.includes('ok=taken'), 'taken');
+  const tok = db.prepare("SELECT token FROM text_orders WHERE status='paid' ORDER BY id DESC LIMIT 1").get().token; assert.ok(tok);
+  r = await req(port, 'GET', `/library/d/${tok}`); assert.equal(r.status, 200); assert.ok(r.headers['content-type'].includes('pdf') && r.body.length > 1000, 'the copy, as a PDF');
+  r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('shelved in the Library'), 'on the register');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
@@ -592,7 +600,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/library">Library<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');

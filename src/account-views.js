@@ -17,6 +17,7 @@ function join({ err = null, sent = false, name = '', email = '' }) {
 <p class="sr-also"><a href="/artists">The artists whose work hangs here</a> · <a href="/collection">The collection</a></p></section>` });
   return layout({ title: 'By invitation · Watermark', desc: 'Watermark holds work a curator has looked at. Apply with yours.', path: '/join', body: `<section class="narrow jn"><p class="k">For makers</p><h1>By invitation.</h1>
 <p class="lede">Watermark is not a place to upload. It is a house that holds photographs the way a gallery or a museum does: looked at first, then kept, shown, collected and licensed at the source, with the maker's copyright intact and 85% of every sale theirs. An invitation means a curator has stood in front of your work and said it is ready to be shown. You have to work for it; that is the point.</p>
+<p class="lede">What hangs here is work worth presenting, at the level of thought of a great museum. The beautiful rises; the body of work is kept whole. Nothing pornographic; a nude is a thoughtful nude or it does not hang. No identifiable people without their consent.</p>
 <h2>Apply with the work</h2>
 ${msg ? `<p class="err">${msg}</p>` : ''}
 <form method="post" action="/apply" class="form">
