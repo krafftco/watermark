@@ -1002,3 +1002,21 @@ button.h-row{border-radius:0;padding:13px 0;box-shadow:none}
 .sh-m{width:40px;height:46px}.sh-m svg{width:36px;height:42px}
 .sh-dl div{grid-template-columns:120px 1fr}
 @media (max-width:640px){.sh-dl div{grid-template-columns:1fr}}
+.hd-mix{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+
+/* Tips */
+.tp h1 i{font-style:italic}
+.tp-who{list-style:none;margin:20px 0 36px;padding:0;border-top:1px solid var(--ln)}
+.tp-who li{display:flex;align-items:baseline;gap:18px;padding:14px 0;border-bottom:1px solid var(--ln)}
+.tp-r{width:180px;flex:none;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu)}
+.tp-who b{font-family:var(--read);font-weight:400;font-size:20px}
+.tp-f{display:grid;gap:26px}
+.tp-to{border:0;margin:0;padding:0}.tp-to legend{margin-bottom:10px}
+.tp-to label{cursor:pointer}.tp-to input{position:absolute;opacity:0;pointer-events:none}
+.tp-to label>span{display:inline-block;border:1px solid var(--ln);color:var(--mu);font:500 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:9px 13px;border-radius:999px;transition:all .3s}
+.tp-to input:checked+span{background:var(--ink);border-color:var(--ink);color:#f7f6f3}
+.tp-to input:focus-visible+span{outline:1px solid var(--ink);outline-offset:2px}
+.tp-note{display:grid;gap:8px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);max-width:520px}
+.tp-note input{font:inherit;font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink);border:0;border-bottom:1px solid var(--ln);padding:8px 0;background:transparent;outline:none}
+@media (max-width:640px){.tp-who li{flex-direction:column;gap:4px}.tp-r{width:auto}}
+.tp .pat-own>span{border:0;padding:0;font-family:var(--disp);font-size:20px;background:none;color:var(--mu)}

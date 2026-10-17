@@ -30,6 +30,8 @@
     + '.wk .wk-d{display:inline-flex;gap:3px}.wk .wk-d s{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.25;text-decoration:none}.wk .wk-d s.on{opacity:1}'
     + '@keyframes wkT{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}'
 
+    + '.wk-crs{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 12px!important;font-size:1em}.wk-cr em{font:500 10px/1 \"Helvetica Neue\",Helvetica,Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;font-style:normal;opacity:.6;margin-right:6px}'
+    + '.wk-tip{display:inline-block;margin:2px 0 6px;padding:11px 20px;border-radius:999px;background:#0e0e0e;color:#f7f6f3!important;text-decoration:none;font:500 11px/1 \"Helvetica Neue\",Helvetica,Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;transition:background .3s}.wk-tip:hover{background:#000}'
     + '@media (prefers-reduced-motion:reduce){.wk,.wk *{transition:none!important;animation:none!important}}';
 
   function path(src) { var m = String(src || '').split('?')[0].replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').replace(/_o(\.[a-z]+)$/i, '$1').match(/\/content\/images\/.+$/); return m ? m[0] : null; }
@@ -99,11 +101,18 @@
       if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
       host.classList.add('wk-host'); host.appendChild(seal(w, img, data.license || 'https://www.krafftco.com/license'));
     });
-    if (!data.room) return;
+    var cr = data.credits, tipUrl = cr && cr.tip ? cr.tip + '?back=' + encodeURIComponent(location.href.split('#')[0]) : null;
+    if (!data.room && !tipUrl) return;
+    var esc = function (t) { return String(t).replace(/[<>&"]/g, ''); };
+    var names = cr ? cr.people.map(function (p) { return '<span class="wk-cr"><em>' + esc(p.label) + '</em> ' + esc(p.name) + '</span>'; }).join('') : '';
+    var ROLE = { Words: 'writer', Photographs: 'photographer', Narration: 'narrator', Film: 'filmmaker', Music: 'composer' };
+    var who = !cr ? '' : cr.people.length === 1 ? cr.people[0].name : cr.people.length === 2 && cr.people.every(function (p) { return ROLE[p.label]; }) ? 'the ' + ROLE[cr.people[0].label] + ' and the ' + ROLE[cr.people[1].label] : 'the people who made it';
     var end = document.createElement('aside'); end.className = 'wk-end';
-    end.innerHTML = '<span class="wk-m">' + GLYPH + '</span><div><p>The photographs in this story are held on Watermark, each one numbered for the people who collect it.</p>'
-      + '<small><a href="' + data.room.url + '">Walk the room: ' + data.room.title.replace(/[<>&]/g, '') + '</a>'
-      + (data.patron ? ' &nbsp;&middot;&nbsp; <a href="' + data.patron + '">Become a patron</a>' : '') + '</small></div>';
+    end.innerHTML = '<span class="wk-m">' + GLYPH + '</span><div>'
+      + (names ? '<p class="wk-crs">' + names + '</p>' : '')
+      + (tipUrl ? '<p><a class="wk-tip" href="' + tipUrl + '">Tip ' + esc(who) + '</a></p>' : '')
+      + '<small>' + (data.room ? '<a href="' + data.room.url + '">Walk the room: ' + esc(data.room.title) + '</a>' : '')
+      + (data.room && data.patron ? ' &nbsp;&middot;&nbsp; ' : '') + (data.patron ? '<a href="' + data.patron + '">Become a patron</a>' : '') + '</small></div>';
     var content = root.querySelector('.gh-content, .post-content, .article-content, .k-content') || root;
     content.appendChild(end);
   }

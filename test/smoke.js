@@ -319,6 +319,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Patron of Will Fullerton'), 'the mark on the collection');
   r = await req(port, 'POST', `/patron/${pid}/end`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM patrons WHERE id=?').get(pid).status, 'ending', 'ended with one press');
   r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { once: '50' } }); const po = sessions[r.headers.location.split('/').pop()]; assert.equal(po.mode, 'payment'); assert.equal(po.line_items[0].price_data.unit_amount, 5000);
+
+  // Tips: a reader pays the writer and the photographer of a story, shared evenly.
+  db.prepare("INSERT INTO stories (slug, title, url, fetched_at) VALUES ('lake-garda','Lake Garda','https://studios.krafftco.com/lake-garda/',datetime('now'))").run();
+  const writer = db.prepare("INSERT INTO makers (handle, name, kind) VALUES ('ada-writer','Ada Lovelace','writer')").run().lastInsertRowid;
+  db.prepare("INSERT INTO credits (post_slug, role, maker_id) VALUES ('lake-garda','words',?)").run(writer);
+  db.prepare("INSERT INTO credits (post_slug, role, maker_id) VALUES ('lake-garda','photographs',?)").run(db.prepare("SELECT id FROM makers WHERE handle='krafft' OR id=1 ORDER BY id LIMIT 1").get().id);
+  r = await req(port, 'GET', '/tip/lake-garda'); let tb = r.body.toString(); assert.ok(tb.includes('Ada Lovelace') && tb.includes('Words') && tb.includes('Both, shared evenly'), 'the tip page names who made it');
+  r = await req(port, 'POST', '/tip/lake-garda', { body: { amount: '10', to: 'all', back: 'https://studios.krafftco.com/lake-garda/' } }); assert.equal(r.status, 303);
+  const ts = sessions[r.headers.location.split('/').pop()]; assert.equal(ts.line_items[0].price_data.unit_amount, 1000); assert.equal(ts.cancel_url, 'https://studios.krafftco.com/lake-garda/');
+  assert.deepEqual(db.prepare('SELECT amount_cents FROM tips WHERE grp=? ORDER BY id').all(ts.metadata.tip).map(t => t.amount_cents), [500, 500], 'shared evenly');
+  Object.assign(ts, { status: 'complete', payment_status: 'paid', customer_details: { email: 't@me.com', name: 'Reader' } });
+  r = await req(port, 'GET', ts.success_url.replace('{CHECKOUT_SESSION_ID}', ts.id).replace('http://localhost', '')); assert.ok(r.body.toString().includes('will know'), 'thanked');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM tips WHERE status='paid'").get().n, 2);
+  r = await req(port, 'GET', '/api/k?post=lake-garda'); assert.ok(JSON.parse(r.body.toString()).credits.tip.endsWith('/tip/lake-garda'), 'the K knows where to tip');
   r = await req(port, 'GET', '/w/' + w.slug); assert.ok(r.body.toString().includes('Become a patron of'), 'offered on the work');
   // Signing in: passkeys, and the menu.
   r = await req(port, 'GET', '/signin'); assert.ok(r.status === 200 && r.body.toString().includes('Sign in with a passkey'), 'sign in');

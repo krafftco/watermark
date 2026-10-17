@@ -339,7 +339,7 @@ function createApp(cfg = {}) {
   const imgPath = s => { const m = String(s || '').split('?')[0].replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').replace(/_o(\.[a-z]+)$/i, '$1').match(/\/content\/images\/.+$/); return m ? m[0] : null; };
   const storyOf = w => { try { const r = db.prepare("SELECT c.title, c.slug FROM studios_imports s JOIN collections c ON c.slug=s.post_slug WHERE s.work_id=? LIMIT 1").get(w.id); return r && w.source_url ? { title: r.title, url: w.source_url, room: r.slug } : null; } catch (e) { return null; } };
   app.locals.storyOf = storyOf;
-  app.get('/api/k', (req, res) => {
+  app.get('/api/k', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
     const post = String(req.query.post || '').replace(/[^a-z0-9-]/gi, '').slice(0, 160);
     let rows = [];
@@ -353,7 +353,8 @@ function createApp(cfg = {}) {
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
       uses: r.status === 'held' ? allUses.filter(u => R.allows(R.parse(r.rules), u.key)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name })) : [] })).filter(x => x.path);
     const shown = works.filter(w => !w.ask).length;
-    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works,
+    let credits = null; try { const cr = app.locals.creditsOf ? await app.locals.creditsOf(post) : null; if (cr && cr.people.length) credits = { people: cr.people.map(p => ({ name: p.name, label: p.label })), tip: stripe ? `${C.base}/tip/${post}` : null }; } catch (e) { /* none */ }
+    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works, credits,
       patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, license: 'https://www.krafftco.com/license', mark: 'K' });
   });
   // A Krafft image anywhere (krafftco.com/license?image=…): which work is it?
@@ -554,6 +555,7 @@ function createApp(cfg = {}) {
   // Patronage: keep a maker working, monthly or once.
   const pat = app.locals.patronage = require('./patronage').mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer, ledger, V });
   // Voices: the maker, an art historian, a note, held with each photograph.
+  const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
@@ -872,14 +874,15 @@ function createApp(cfg = {}) {
     const licensed = sum(`SELECT SUM(l.price_cents) s FROM licenses l JOIN uses u ON u.id=l.use_id WHERE ${paid} AND u.key!='social'`);
     let monthly = 0, gifts = 0, patrons = 0;
     try { monthly = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=1 AND status IN ('active','ending')"); gifts = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=0 AND status IN ('active','ending')"); patrons = db.prepare("SELECT COUNT(*) n FROM patrons WHERE status IN ('active','ending')").get().n; } catch (e) { /* no patronage */ }
-    const earned = collected + licensed + gifts;
+    const tipped = app.locals.tipsTo ? app.locals.tipsTo(null) : { s: 0, n: 0 };
+    const earned = collected + licensed + gifts + tipped.s;
     const month = sum(`SELECT SUM(l.price_cents) s FROM licenses l WHERE ${paid} AND COALESCE(l.starts_at, l.created_at) >= date('now','start of month')`);
     const ed = new Map(db.prepare("SELECT work_id, COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY work_id").all().map(r => [r.work_id, r.n]));
     const t = { earned, month, works: all.length, rooms: db.prepare('SELECT COUNT(*) n FROM collections').get().n,
       numbered: db.prepare("SELECT COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
       collectors: db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
       seen30: all.reduce((a, w) => a + w.seen30, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
-    const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${money(gifts)} in gifts` : ''}` }];
+    const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Tips', cents: tipped.s, note: `${tipped.n} from readers, to writers and photographers` }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${money(gifts)} in gifts` : ''}` }];
     const n = sql => db.prepare(sql).get().n;
     const needs = [
       { n: n("SELECT COUNT(*) n FROM licenses WHERE status='requested'"), label: ' license requests to answer', href: '/studio/licenses' },

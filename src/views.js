@@ -411,6 +411,31 @@ ${done && own ? `<form method="post" action="/patron/${p.id}/name" class="form p
 <p class="sr-also"><a href="/m/${esc(slug)}">Back to ${esc(m.name)}</a> &middot; <a href="/yours">Your collection</a></p></section>` });
 }
 
+// A tip for the people who made a story: shared among everyone credited, or to one of them.
+function tip({ c, amounts, back, open, unavailable }) {
+  const many = c.people.length > 1;
+  const who = c.people.map(p => `<li><span class="tp-r">${esc(p.label)}</span><b>${esc(p.name)}</b></li>`).join('');
+  const to = many ? `<fieldset class="tp-to"><legend class="k">To</legend><div class="use-tg">${[['all', `Both, shared evenly`], ...c.people.map(p => [p.id, p.name])].map(([v, l], i) => `<label><input type="radio" name="to" value="${v}" ${i ? '' : 'checked'}><span>${esc(l)}</span></label>`).join('')}</div></fieldset>` : '';
+  return layout({ title: `For ${tidy(c.title)} · Watermark`, body: `<section class="cx-intro tp">
+<p class="k">For the people who made it</p><h1><i>${esc(c.title)}</i></h1>
+<ul class="tp-who">${who}</ul>
+${unavailable ? '<p class="err">Tips could not open just now. Please try again in a moment.</p>' : ''}
+${open ? `<form method="post" action="/tip/${esc(c.post)}" class="tp-f"><input type="hidden" name="back" value="${esc(back || '')}">
+${to}
+<div class="pat-ch">${amounts.map((a, i) => `<label><input type="radio" name="amount" value="${a / 100}" ${i === 1 ? 'checked' : ''}><span>${money(a)}</span></label>`).join('')}<label class="pat-own"><span>$</span><input name="own" inputmode="decimal" placeholder="Your amount" aria-label="Your own amount, in dollars"></label></div>
+<label class="tp-note">A word for them, if you like<input name="note" maxlength="280" placeholder="Optional"></label>
+<div class="seal-row">${seal({ name: 'Krafft Studios', house: 'Krafft Studios' }, 'Tip')}<div class="seal-t"><b>Tip</b><span>85% goes to ${many ? 'them, shared as you choose' : esc(c.people[0].name)}. Paid once; nothing recurring.</span></div></div></form>` : '<p class="lede">Tips open shortly.</p>'}
+${back ? `<p class="sr-also"><a href="${esc(back)}">Back to the story</a></p>` : ''}</section>` });
+}
+function tipThanks({ rows, c }) {
+  const done = rows[0].status === 'paid';
+  const names = rows.map(r => r.maker_name).join(' and ');
+  return layout({ title: 'Thank you · Watermark', body: `<section class="cx-intro pat-ty">${done ? `<span class="ps-stamp" aria-hidden="true">${K_MARK}</span>` : ''}<p class="k">A tip</p>
+<h1>${done ? `Thank you. ${esc(names)} will know.` : 'One moment. Your tip is being confirmed.'}</h1>
+<p class="lede">${done ? `For <i>${esc(c ? c.title : '')}</i>. 85% of it goes to ${rows.length > 1 ? 'them' : esc(names)}.` : 'Refresh in a few seconds.'}</p>
+<p class="sr-also">${c && c.url ? `<a href="${esc(c.url)}">Back to the story</a> &middot; ` : ''}<a href="/">The collection</a></p></section>` });
+}
+
 function voicesEdit({ w, maker, voices, kinds, saved }) {
   return layout({ title: `Voices · ${tidy(w.title)} · Watermark`, body: `<section class="vo-ed"><a class="vo-back" href="/w/${esc(w.slug)}">&larr; ${esc(tidy(w.title))}</a>
 <div class="vo-head"><img src="/img/${esc(w.slug)}/thumb" alt="" draggable="false"><div><p class="k">Voices</p><h1>What is said about this photograph.</h1><p class="lede">Your own word on it, an art historian&rsquo;s reading, or a note. People hear it on the photograph&rsquo;s page and in the viewer.</p></div></div>
@@ -638,4 +663,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

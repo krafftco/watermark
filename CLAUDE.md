@@ -13,6 +13,7 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Design record for the sealed format: `docs/SEALED.md`.
 - Krafft integration (one place, served by Watermark): `public/house.js` (house bar on every site; also joins krafftco.com/license and /watermark to Watermark) and `public/k.js` (the K seal on every Krafft Studios photograph, loaded in Ghost's Code injection; matched via `/api/k` and `/api/match` from `studios_imports`). Patronage: `src/patronage.js` (/m/:slug). Series: `src/series.js`.
 - The Watermark Shield: `src/credentials.js` reads Content Credentials (C2PA) on arrival and signs every delivered file (maker, copyright holder, license, no AI training; original kept as parent ingredient). Signing needs C2PA_CERT + C2PA_KEY in Render (a certificate from a CA on the C2PA trust list); without them files go out unsigned. Shield panel: `shieldBlock` in views.js (work page, life page); shield drawn on the license PDF. Test: `test/credentials.js`.
+- Tips: `src/tips.js` (/tip/:post). Every Studios story carries credits (words from Ghost's author, photographs from Watermark; narration, film, music can be added in the `credits` table); a tip is shared evenly or sent to one person. Writers are maker records of kind 'writer'. The K's end band on each story shows the credits and a Tip button. Money lands in Krafft's Stripe and is recorded per person; direct payouts need Stripe Connect.
 
 ## Rules (from Will)
 - Restrained, precise voice; no hype. Anything written in Will's voice is a draft until he confirms.
