@@ -1679,3 +1679,37 @@ body.bare .vr{position:fixed;inset:0;background:#0a0a09;color:#f2efe9;overflow:h
 .lt-t a{color:inherit;text-decoration:none;border-bottom:1px solid var(--ln)}
 .lt-more{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);text-decoration:none;white-space:nowrap}
 @media (max-width:760px){.lt-in{grid-template-columns:1fr;gap:10px}.lt-more{justify-self:start}}
+/* The desk: the Studio's shell. */
+.dk{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--ink)}
+.dk-row{display:flex;align-items:center;gap:clamp(18px,3vw,40px);padding:0 clamp(16px,4vw,56px);height:52px}
+.dk-brand{display:inline-flex;align-items:baseline;gap:10px;text-decoration:none;color:var(--ink)}.dk-brand img{height:20px;width:auto;display:block;align-self:center}.dk-brand span{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--mu)}
+.dk-nav{display:flex;align-items:center;gap:clamp(14px,2vw,28px);font-size:12.5px;letter-spacing:.02em;font-weight:500;height:100%}
+.dk-nav>a{color:var(--mu);text-decoration:none;height:52px;display:inline-flex;align-items:center;border-bottom:2px solid transparent;margin-bottom:-1px}.dk-nav>a[aria-current]{color:var(--ink);border-color:var(--ink)}.dk-nav>a:hover{color:var(--ink)}
+.dk-more{position:relative}.dk-more summary{list-style:none;cursor:pointer;color:var(--mu);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:6px;height:52px}.dk-more summary::-webkit-details-marker{display:none}.dk-more summary::after{content:"";width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg) translateY(-2px)}
+.dk-more div{position:absolute;left:-12px;top:50px;background:#fff;border:1px solid var(--ink);min-width:200px;padding:6px 0;display:grid;z-index:30;box-shadow:0 14px 40px rgba(0,0,0,.12)}
+.dk-more div a{padding:8px 16px;color:var(--ink);text-decoration:none;font-size:12.5px;font-weight:400}.dk-more div a:hover,.dk-more div a[aria-current]{background:var(--soft)}
+.dk-right{margin-left:auto;display:flex;gap:18px}.dk-out{font-size:12px;color:var(--mu);text-decoration:none}.dk-out:hover{color:var(--ink)}
+.dk-status{display:flex;gap:22px;padding:6px clamp(16px,4vw,56px);background:var(--soft);border-top:1px solid var(--ln);font-size:11px;letter-spacing:.03em;color:var(--mu);overflow-x:auto;white-space:nowrap;scrollbar-width:none;font-variant-numeric:tabular-nums}.dk-status b{font-weight:500;color:var(--ink)}
+/* Inside the desk: smaller display, tabular figures, tighter rhythm. */
+body.studio{background:#fafaf8}
+body.studio .studio-wrap{padding:28px clamp(16px,4vw,56px) 64px;max-width:none}
+body.studio h1{font-size:clamp(26px,3vw,36px);margin:4px 0 18px;letter-spacing:-.01em}
+body.studio .hd-big b{font-size:clamp(44px,6vw,72px)}body.studio .hd-big{margin:4px 0 24px}
+body.studio h2{font-size:18px}
+body.studio table{font-variant-numeric:tabular-nums;font-size:13px}body.studio td,body.studio th{padding:9px 10px 9px 0}
+body.studio .k{font-size:10.5px}
+body.studio code,body.studio .acc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.02em}
+@media (max-width:860px){.dk-row{height:48px;gap:14px}.dk-nav{overflow-x:auto;scrollbar-width:none}.dk-brand span{display:none}.dk-status{display:none}}
+/* The catalogue register. */
+.tv-view{margin-left:auto;display:inline-flex;gap:14px}.tv-view a{color:var(--mu);text-decoration:none}.tv-view a[aria-current]{color:var(--ink);border-bottom:1px solid var(--ink)}
+.cat-wrap{overflow-x:auto;border-top:1px solid var(--ink)}
+.cat{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cat th{text-align:left;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);padding:10px 12px 8px 0;border-bottom:1px solid var(--ln)}
+.cat td{padding:8px 12px 8px 0;border-bottom:1px solid var(--ln);vertical-align:middle}
+.cat .r{text-align:right}.cat td.r{padding-right:0}.cat th.r{padding-right:0}
+.cat .acc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;letter-spacing:.03em;color:var(--mu)}
+.cat-th img{width:40px;height:28px;object-fit:cover;display:block;background:#0b0a09}
+.cat-t a{color:var(--ink);text-decoration:none;font-family:var(--read);font-size:15px}.cat-t small{margin-left:8px;color:#b8a35a;font-size:10px}
+.cat-reg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.cat i{color:#b8b3aa;font-style:normal}
+.cat-miss{color:#8a3a30}.cat-ok{color:var(--mu)}
+.cat,.cat thead,.cat tbody{display:block;min-width:1180px}.cat tr{display:grid;grid-template-columns:118px 52px minmax(220px,1.4fr) 100px minmax(120px,1fr) minmax(170px,1fr) 70px 110px 80px 70px 60px 90px 80px;align-items:center;column-gap:12px}.cat td,.cat th{display:block;padding-right:0;overflow:hidden;text-overflow:ellipsis}.cat tbody tr{border-bottom:1px solid var(--ln)}.cat thead tr{border-bottom:1px solid var(--ln)}.cat td{border-bottom:0}.cat th{border-bottom:0}

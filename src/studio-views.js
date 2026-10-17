@@ -1,10 +1,11 @@
 // The Studio: where the maker manages the vault, prices and licenses.
-const { layout, esc, money, date, termText } = require('./views');
+const { layout, esc, money, date, termText, setDeskPath } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
 const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
-const nav = active => `<nav class="snav">${MAIN.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="snav-more">${MORE.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</span></nav>`;
+// The rooms are in the desk header (views.deskHeader); nav() only says which room this is.
+const nav = active => { setDeskPath(active); return ''; };
 
 function login({ error }) {
   return layout({ title: 'Studio · Watermark', body: `<section class="narrow"><p class="k">Studio</p><h1>Sign in to your vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}
@@ -167,8 +168,16 @@ function makers({ list }) {
 }
 
 // The Trove. The maker's private gallery: every work, what it is, and what it has done.
-function trove({ maker, rows, totals, sort, room, rooms, untapped, notice }) {
-  const q = (o) => { const p = new URLSearchParams({ ...(room ? { room: room.slug } : {}), sort, ...o }); return '/studio/trove?' + p; };
+function trove({ maker, rows, totals, sort, room, rooms, untapped, notice, view = 'wall' }) {
+  const q = (o) => { const p = new URLSearchParams({ ...(room ? { room: room.slug } : {}), sort, ...(view === 'list' ? { view: 'list' } : {}), ...o }); return '/studio/trove?' + p; };
+  // The catalogue register: one row a work, the way a curator reads an archive.
+  const st = w => ({ held: 'Published', private: 'Private', hidden: 'Private', draft: 'Draft' }[w.status] || esc(w.status));
+  const list = `<table class="cat"><thead><tr><th>Accession</th><th></th><th>Title</th><th>Date made</th><th>Place</th><th>Medium · size</th><th>Edition</th><th>U.S. ©</th><th>Status</th><th class="r">Licensed</th><th class="r">Seen</th><th class="r">Earned</th><th>Record</th></tr></thead><tbody>${rows.map(w => `<tr>
+<td class="acc">${esc(w.accession || '')}</td><td class="cat-th"><a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a></td>
+<td class="cat-t"><a href="/studio/works/${esc(w.slug)}">${esc(w.title)}</a>${w.stars ? `<small>${'&#9733;'.repeat(w.stars)}</small>` : ''}</td>
+<td>${w.taken_at ? esc(String(w.taken_at).slice(0, 10)) : '<i>—</i>'}</td><td>${esc(w.place || '')}</td><td>Digital photograph${w.width ? ` · ${w.width}&thinsp;×&thinsp;${w.height}` : ''}</td>
+<td>${w.edition_size ? `of ${w.edition_size}` : 'open'}</td><td>${w.copyright_reg ? `<span class="cat-reg">${esc(w.copyright_reg)}</span>` : '<i>—</i>'}</td><td>${st(w)}</td>
+<td class="r">${w.licensed}</td><td class="r">${w.seen}</td><td class="r">${money(w.earned)}</td><td>${w.missing.length ? `<span class="cat-miss">${w.complete}%</span>` : '<span class="cat-ok">Complete</span>'}</td></tr>`).join('')}</tbody></table>`;
   const sorts = [['stars', 'The rubies: by stars'], ['earned', 'Most earned'], ['standing', 'Most applauded'], ['duds', 'Seen, never applauded'], ['seen', 'Most seen'], ['untapped', 'Seen, never licensed'], ['taken', 'Date made'], ['newest', 'Newest in'], ['unfinished', 'Needs cataloguing']];
   const tiles = rows.map(w => `<a class="tv-w" href="/studio/works/${esc(w.slug)}">
 <span class="tv-f"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">${w.sealed ? '<i class="tv-s" title="Sealed copies out">Sealed</i>' : ''}</span>
@@ -184,8 +193,8 @@ ${untapped.length && !room ? `<div class="tv-hint"><span class="k">Worth a look<
 <nav class="tv-rooms"><a href="${'/studio/trove?sort=' + sort}"${room ? '' : ' aria-current="page"'}>All works</a>${rooms.map(c => `<a href="/studio/trove?room=${esc(c.slug)}&sort=${sort}"${room && room.id === c.id ? ' aria-current="page"' : ''}>${esc(c.title)} <small>${c.n}</small>${c.public ? ' <small>· public</small>' : ''}</a>`).join('')}
 <details class="tv-new"><summary>New collection</summary><form method="post" action="/studio/collections" class="form"><label>Title<input name="title" required placeholder="Florence, 2025"></label><label>Wall text<textarea name="note" rows="2"></textarea></label><label class="chk"><input type="checkbox" name="public" value="1"> Give it a public room</label><button>Open the collection</button></form></details></nav>
 ${room && room.public ? `<p class="note">Public room: <a href="/rooms/${esc(room.slug)}">/rooms/${esc(room.slug)}</a></p>` : ''}
-<div class="tv-sort">${sorts.map(([k, t]) => `<a href="${q({ sort: k })}"${k === sort ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</div>
-<div class="tv-grid">${tiles || '<p class="empty">Nothing here yet. Register a work in the Vault.</p>'}</div></section>` });
+<div class="tv-sort">${sorts.map(([k, t]) => `<a href="${q({ sort: k })}"${k === sort ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="tv-view"><a href="${q({ view: 'wall' })}"${view === 'wall' ? ' aria-current="page"' : ''}>The wall</a><a href="${q({ view: 'list' })}"${view === 'list' ? ' aria-current="page"' : ''}>The register</a></span></div>
+${view === 'list' ? `<div class="cat-wrap">${rows.length ? list : '<p class="empty">Nothing here yet.</p>'}</div>` : `<div class="tv-grid">${tiles || '<p class="empty">Nothing here yet. Register a work in the Vault.</p>'}</div>`}</section>` });
 }
 
 // Holdings: the collection as a body of assets. One number, where it came from, what needs you, and

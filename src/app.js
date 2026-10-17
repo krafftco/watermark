@@ -1020,7 +1020,7 @@ function createApp(cfg = {}) {
     const all = troveRows();
     const totals = { works: all.length, earned: all.reduce((a, w) => a + w.earned, 0), licensed: all.filter(w => w.licensed).length, seen: all.reduce((a, w) => a + w.seen, 0), sealed: all.reduce((a, w) => a + w.sealed, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
     const untapped = all.filter(w => !w.licensed && w.seen > 0).sort((a, b) => b.seen - a.seen).slice(0, 3);
-    res.send(S.trove({ maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
+    res.send(S.trove({ view: req.query.view === 'list' ? 'list' : 'wall', maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
   });
 
 
@@ -1459,6 +1459,17 @@ function createApp(cfg = {}) {
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
   // Readiness, names only: which services are switched on. No values ever.
+  // The desk's status line: the vault, the chain, the mail, the day. Cached a minute.
+  let deskAt = 0, deskLine = '';
+  V.setDeskStatus(() => {
+    if (Date.now() - deskAt > 60000) {
+      const chk = ledger.verify(db), held = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, priv = db.prepare("SELECT COUNT(*) n FROM works WHERE status<>'held'").get().n;
+      const day = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+      deskLine = `<span>${day}</span><span>Vault: <b>${held}</b> held, <b>${priv}</b> private</span><span>Register: <b>${chk.ok ? `intact, ${chk.checked} entries` : `broken at ${chk.broken_at}`}</b></span><span>Mail: <b>${mail.on() ? 'on' : 'off'}</b></span><span>Guides: <b>${process.env.ANTHROPIC_API_KEY ? 'on' : 'off'}</b></span><span>Payments: <b>${stripe ? (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live') ? 'live' : 'test' : 'off'}</b></span><span>Signing: <b>${process.env.C2PA_CERT && process.env.C2PA_KEY ? 'on' : 'off'}</b></span>`;
+      deskAt = Date.now();
+    }
+    return deskLine;
+  });
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: !!stripe, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY) }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
