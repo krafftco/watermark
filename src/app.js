@@ -264,6 +264,25 @@ function createApp(cfg = {}) {
     const img = w => `<url><loc>${C.base}/w/${w.slug}</loc><image:image><image:loc>${C.base}/img/${w.slug}/screen</image:loc><image:title>${V.esc(w.title)}</image:title></image:image></url>`;
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/makers', '/collection', '/collectors', '/journal', '/patronage', '/series/the-great-rooms', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
   });
+  // Apple Pay, Google Pay and Link on the page need the domain registered with Stripe; Stripe checks this file.
+  let applePayFile = null;
+  app.get('/.well-known/apple-developer-merchantid-domain-association', async (req, res) => {
+    try {
+      if (!applePayFile) applePayFile = await (await fetch('https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association')).text();
+      res.set('Cache-Control', 'public, max-age=86400').type('text/plain').send(applePayFile);
+    } catch (e) { res.sendStatus(502); }
+  });
+  async function registerDomain() {
+    if (!stripe || !/^https:/.test(C.base)) return null;
+    const host = new URL(C.base).host;
+    const have = await stripe.paymentMethodDomains.list({ domain_name: host, limit: 1 });
+    let d = have.data[0];
+    if (!d) d = await stripe.paymentMethodDomains.create({ domain_name: host });
+    else if (!d.enabled || (d.apple_pay && d.apple_pay.status !== 'active')) d = await stripe.paymentMethodDomains.validate(d.id);
+    return d;
+  }
+  app.locals.registerDomain = registerDomain;
+  if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => registerDomain().then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
   app.use(require('compression')({ threshold: 1024 }));
