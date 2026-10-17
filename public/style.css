@@ -2047,3 +2047,11 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .hg-band{padding:40px 0 8px}.hg-band-in{max-width:1400px;margin:0 auto;padding:0 24px}.hg-band .note{margin-top:18px}
 .hg-card>span.hg-th{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}
 .hg-desk-f{display:flex;gap:12px}.hg-slugs{margin-top:24px;font-size:13px}.hg-slugs ul{columns:2;list-style:none;padding:0;margin:10px 0 0}.hg-slugs li{margin:0 0 4px}.hg-slugs code{background:var(--soft);padding:1px 5px}.hg-slugs small{color:var(--mu)}
+/* The cabinet and showings. */
+.cb-run{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.cb-guests{list-style:none;padding:0;margin:0 0 16px}.cb-guests li{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ln);font-size:13.5px}.cb-guests small{color:var(--mu);flex:1}.cb-guests form{margin:0}
+.cb-pick{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}.cb-pick form{margin:0}.cb-pick button{padding:0;border:1px solid var(--ln);background:none;cursor:pointer;display:block}.cb-pick img{width:84px;height:64px;object-fit:cover;display:block}
+.cb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin:0 0 28px}.cb-it summary{cursor:pointer;list-style:none}.cb-it summary::-webkit-details-marker{display:none}.cb-it summary img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#15130f;margin:0 0 8px}.cb-it summary b{display:block;font-family:var(--read);font-size:16px;font-weight:400}.cb-it summary small{color:var(--mu);font-size:12px}.cb-it form{margin-top:10px}
+.cb-add{max-width:620px;padding:20px 0 0;border-top:1px solid var(--ln)}.cb-add h3{margin:0 0 14px}
+.cb-foot{max-width:60ch;margin:48px auto 0;text-align:center;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,228,218,.4)}
+.hg-edit h3{font-size:15px;margin:22px 0 8px}

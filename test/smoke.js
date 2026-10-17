@@ -549,6 +549,27 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/studio/hangs/${hh.id}`, { cookie: ck, body: { do: 'feature' } }); r = await req(port, 'GET', '/'); assert.ok(r.body.toString().indexOf('The House Hang') < r.body.toString().indexOf('Stone and Light'), 'featured leads');
   r = await req(port, 'GET', '/studio/hangs', { cookie: ck }); assert.ok(r.body.toString().includes('Featured') && r.body.toString().includes('Stone and Light'), 'the desk');
   r = await req(port, 'GET', `/hang/${hh.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('Edit the hang'), 'the house edits its own wall');
+  // The cabinet: Ada photographs a painting she owns, keeps it privately, opens a showing to one guest by letter; the guest's link admits them, a stranger sees nothing, the image is gated.
+  { const pic = await require('sharp')(SRC).resize({ width: 1400 }).modulate({ hue: 120 }).jpeg().toBuffer();
+    r = await req(port, 'POST', '/cabinet/add', { cookie: sck, body: mp('painting.jpg', pic, { title: 'Harbour at Dusk', artist: 'E. Lund', year: '1931', medium: 'Oil on canvas' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+    assert.ok(r.headers.location.includes('cab=kept'), 'kept'); const cab = db.prepare('SELECT * FROM cabinet ORDER BY id DESC LIMIT 1').get(); assert.equal(cab.title, 'Harbour at Dusk'); assert.ok(cab.sha256 && cab.width > 0);
+    r = await req(port, 'GET', `/cab/${cab.id}/thumb`); assert.equal(r.status, 404, 'a stranger gets nothing');
+    r = await req(port, 'GET', `/cab/${cab.id}/thumb`, { cookie: sck }); assert.equal(r.status, 200, 'the owner sees it'); assert.ok(/no-store/.test(r.headers['cache-control']));
+    r = await req(port, 'POST', '/showings/new', { cookie: sck, body: { title: 'The Lund Room', line: 'Three paintings my grandmother kept.' } }); const sh = db.prepare('SELECT * FROM showings ORDER BY id DESC LIMIT 1').get();
+    r = await req(port, 'POST', `/show/${sh.id}/work`, { cookie: sck, body: { do: 'add', cabinet: String(cab.id) } });
+    r = await req(port, 'GET', `/show/${sh.slug}`); assert.equal(r.status, 404, 'private: closed to a stranger'); assert.ok(r.body.toString().includes('not open to you'));
+    r = await req(port, 'POST', `/show/${sh.id}/guests`, { cookie: sck, body: { guests: 'Nils Ek <nils@example.com>' } }); assert.ok(r.headers.location.includes('n=1'), 'one letter');
+    const g = db.prepare('SELECT * FROM showing_guests WHERE showing_id=?').get(sh.id); assert.equal(g.email, 'nils@example.com'); assert.equal(db.prepare('SELECT access FROM showings WHERE id=?').get(sh.id).access, 'guests');
+    r = await req(port, 'GET', `/show/${sh.slug}/g/${g.token}`); const gck2 = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_g=')).split(';')[0]; assert.ok(r.headers.location.endsWith(`/show/${sh.slug}`));
+    r = await req(port, 'GET', `/show/${sh.slug}`, { cookie: gck2 }); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Harbour at Dusk') && r.body.toString().includes('opened to you, Nils') && !r.body.toString().includes('Send the letters'), 'the guest sees the wall, not the desk');
+    r = await req(port, 'GET', `/cab/${cab.id}/screen`, { cookie: gck2 }); assert.equal(r.status, 200, 'the guest sees the image');
+    assert.ok(db.prepare('SELECT seen_at FROM showing_guests WHERE id=?').get(g.id).seen_at, 'the owner knows they came');
+    r = await req(port, 'POST', `/show/${sh.id}/edit`, { cookie: sck, body: { title: 'The Lund Room', access: 'guests', closes_at: '2000-01-01T00:00' } });
+    r = await req(port, 'GET', `/show/${sh.slug}`, { cookie: gck2 }); assert.equal(r.status, 404, 'a closed run admits nobody');
+    r = await req(port, 'POST', `/show/${sh.id}/guests`, { cookie: sck, body: { do: 'remove', guest: String(g.id) } }); r = await req(port, 'POST', `/show/${sh.id}/edit`, { cookie: sck, body: { title: 'The Lund Room', access: 'guests' } });
+    r = await req(port, 'GET', `/show/${sh.slug}`, { cookie: gck2 }); assert.equal(r.status, 404, 'a removed guest is out');
+    r = await req(port, 'GET', '/yours?tab=cabinet', { cookie: sck }); assert.ok(r.body.toString().includes('Your cabinet') && r.body.toString().includes('The Lund Room'), 'the cabinet room');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('Lund Room') && !r.body.toString().includes('Harbour at Dusk'), 'nothing of the cabinet on the public register'); }
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
