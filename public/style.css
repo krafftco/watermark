@@ -1561,3 +1561,6 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 @media (max-width:760px){.sw-two,.sw-vs{grid-template-columns:1fr}.sw-x{text-align:center}}
 .gb-gal .gb{max-width:none}.gb-sign{margin-top:22px;display:grid;gap:14px}.gb-sign .ap-f{margin:0}
 .gb-row select{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ln);background:#fff;color:var(--ink)}
+.lot-office{font-size:13px;color:var(--mu);margin:12px 0 0;line-height:1.5}.lot-office a{color:inherit}
+.cr-pg{max-width:860px}.cr-n{display:flex;gap:28px;flex-wrap:wrap;margin:22px 0 0;font-size:13px;color:var(--mu)}.cr-n b{font-family:var(--read);font-size:24px;color:var(--ink);margin-right:6px}
+.cr-body h2{font-family:var(--disp);font-weight:400;font-size:26px;margin:32px 0 8px}.cr-body p{font-size:16px;line-height:1.65;color:#2f2d29;max-width:40em}

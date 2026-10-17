@@ -83,7 +83,24 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
     }
     res.redirect('/studio/copyright');
   });
-  return { proposals, groups };
+  // Where a photograph stands with the Office, in one line, for the work page and the Shield.
+  // Copyright exists from the moment the photograph is made; registration is the public record of it.
+  function stateOf(w) {
+    if (w.copyright_reg) return { state: 'registered', reg: w.copyright_reg, line: `Registered with the U.S. Copyright Office, ${w.copyright_reg}.` };
+    const g = w.copyright_group ? db.prepare('SELECT * FROM copyright_groups WHERE id=?').get(w.copyright_group) : null;
+    if (g && g.status === 'filed') return { state: 'filed', sr: g.sr, line: `Filed with the U.S. Copyright Office${g.filed_at ? ` on ${new Date(g.filed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}; registration pending${g.sr ? ` (service request ${g.sr})` : ''}.` };
+    if (g) return { state: 'prepared', line: `Prepared for registration with the U.S. Copyright Office${g.title ? `, in the group ${g.title.replace(/^.*?: /, '')}` : ''}.` };
+    return { state: 'none', line: 'Copyright held by the maker from the moment it was made; not yet registered with the U.S. Copyright Office.' };
+  }
+  app.locals.copyrightState = stateOf;
+  // The public account of the bridge, for the Office and for anyone who asks how it works.
+  app.get('/copyright', (req, res) => {
+    const n = { registered: db.prepare("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''").get().n,
+      filed: db.prepare("SELECT COUNT(*) n FROM works w JOIN copyright_groups g ON g.id=w.copyright_group WHERE g.status='filed'").get().n,
+      held: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, groups: db.prepare("SELECT COUNT(*) n FROM copyright_groups WHERE status='registered'").get().n };
+    res.send(V.copyrightPage({ n, fee: FEE, max: MAX }));
+  });
+  return { proposals, groups, stateOf };
 }
 
 module.exports = { mountCopyright, MAX, FEE };

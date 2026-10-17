@@ -22,7 +22,7 @@ function shieldBlock(sh, { open = false, slug = '' } = {}) {
   const rows = [
     ['Registered to', `${esc(sh.maker)}${sh.house ? `, ${esc(sh.house)}` : ''}, ${date(sh.registered)}${sh.accession ? ` &middot; ${esc(sh.accession)}` : ''}`],
     ['Authorship', `${esc(sh.maker)} attested at registration to having made this photograph and holding its copyright.`],
-    sh.copyright ? ['U.S. copyright', `Registered, ${esc(sh.copyright)}. Search it at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.`] : null,
+    sh.copyright ? ['U.S. copyright', `Registered, ${esc(sh.copyright)}. Search it at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.`] : sh.office ? ['U.S. copyright', `${esc(sh.office.line)} <a href="/copyright">How registration works here</a>.`] : null,
     capture ? ['At capture', capture] : null,
     ['Fingerprint', `<code>sha256:${esc(String(sh.fingerprint || '').slice(0, 16))}&hellip;</code> The original, sealed in the vault.`],
     sh.seq ? ['Ledger', `Entry ${sh.seq} in the <a href="/ledger">public ledger</a>, chained to every entry before it.`] : null,
@@ -64,7 +64,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/copyright">Copyright Office</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
 }
 
@@ -145,7 +145,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -197,7 +197,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 ${ap ? `<div class="ap" id="applause"><form method="post" action="/w/${esc(w.slug)}/applaud" data-ap><button type="button" class="ap-b${ap.mine ? ' on' : ''}" aria-pressed="${ap.mine ? 'true' : 'false'}" aria-label="${ap.mine ? 'Applauded' : 'Applaud'}">${HAT}<span class="ap-r"></span></button></form><span class="ap-t" data-ap-t><b data-ap-n>${ap.n}</b> ${ap.n === 1 ? 'tip of the hat' : 'tips of the hat'}</span></div>` : ''}
-${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered with the U.S. Copyright Office. Search the public record at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.</p></div>` : ''}
+${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered with the U.S. Copyright Office. Search the public record at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.</p></div>` : office ? `<p class="lot-office">${esc(office.line)} <a href="/copyright">How it works</a>.</p>` : ''}
 ${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
 ${closerBlock(closer, w, edit)}
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
@@ -648,6 +648,25 @@ ${!done && role === 'from' ? `<form method="post" action="/swap/${s.id}/withdraw
 <p class="note"><a href="/yours">Your gallery</a></p></section>` });
 }
 
+// Watermark and the U.S. Copyright Office: the public account of the bridge.
+function copyrightPage({ n, fee, max }) {
+  return layout({ title: 'The U.S. Copyright Office · Watermark', desc: 'How Watermark prepares, files and records U.S. copyright registration for every photograph it holds.', path: '/copyright', body: `<section class="cx-intro cr-pg"><p class="k">Watermark and the U.S. Copyright Office</p>
+<h1>Registered, at the source.</h1>
+<p class="lede">Copyright belongs to the photographer from the moment the picture is made. Registration with the United States Copyright Office is the public record of it, and what a court asks for. Watermark prepares that record for every photograph it holds, files it the Office&rsquo;s way, and writes the registration number back onto the work, its certificate and its Shield.</p>
+<p class="cr-n"><span><b>${n.held}</b> photographs held</span><span><b>${n.registered}</b> registered</span><span><b>${n.filed}</b> filed, pending</span><span><b>${n.groups}</b> group registration${n.groups === 1 ? '' : 's'}</span></p></section>
+<section class="narrow cr-body">
+<h2>What the Office receives</h2>
+<p>The Office registers photographs in groups: up to ${max} by one author, published in one calendar year (GRPPH), or unpublished (GRUPH), for a fee of ${money(fee)} a group. Watermark sorts every held photograph into those groups automatically, keeps the title list in the Office&rsquo;s form (title, file name, date), and assembles the deposit: one file for each photograph, named as it is in the list, at the size the Office accepts. The maker&rsquo;s attestation of authorship, taken on arrival, stands behind every title.</p>
+<h2>What comes back</h2>
+<p>When the Office issues a registration, its number is entered once and appears on every photograph in the group: the <i>U.S. Registered</i> mark on the plate, the line on the work&rsquo;s page, the row on its Shield, and the certificate of every license sold afterward, with a link to the Office&rsquo;s public record. While a group is filed and waiting, the work says so; before that, it says the copyright is held and registration is prepared. Nothing on Watermark claims a registration that has not been made.</p>
+<h2>What the record carries</h2>
+<p>Each photograph holds its original in the vault, fingerprinted on arrival, with its camera data intact and, where the camera or its software provided them, its Content Credentials. Every event in its life is on the <a href="/ledger">register</a>: registration here, sale, license, transfer. A registration number from the Office joins that chain, so the Office&rsquo;s record and ours point at the same picture.</p>
+<h2>What we are ready for</h2>
+<p>The Office is moving its filing from eCO to its new Enterprise Copyright System. Watermark already holds every field a group application asks for, in the order it asks, so when the Office opens a way to file by machine, or to sign in with a federal identity, Watermark will file and sign in that way. Until then the Studio files by hand from what Watermark prepares, and the Office hears from one careful filer rather than from hundreds.</p>
+<p class="note">Watermark is not a law firm and does not give legal advice. Registration is made by the author, the claimant or their authorised agent. Questions from the Office: <a href="mailto:will@krafftco.com">will@krafftco.com</a>.</p>
+</section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -1015,4 +1034,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
