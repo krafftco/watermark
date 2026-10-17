@@ -12,6 +12,7 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Flows: one-tap license (/license/:slug → /buy → Stripe Checkout → webhook/thanks grants, emails file + certificate, maker gets "Sold"); ask-the-maker requests; renewals and expiry; sightings; maker applications; public life page /w/:slug/life; sealed files (Studio seals → /k/:id key desk → /view).
 - Design record for the sealed format: `docs/SEALED.md`.
 - Krafft integration (one place, served by Watermark): `public/house.js` (house bar on every site; also joins krafftco.com/license and /watermark to Watermark) and `public/k.js` (the K seal on every Krafft Studios photograph, loaded in Ghost's Code injection; matched via `/api/k` and `/api/match` from `studios_imports`). Patronage: `src/patronage.js` (/m/:slug). Series: `src/series.js`.
+- The Watermark Shield: `src/credentials.js` reads Content Credentials (C2PA) on arrival and signs every delivered file (maker, copyright holder, license, no AI training; original kept as parent ingredient). Signing needs C2PA_CERT + C2PA_KEY in Render (a certificate from a CA on the C2PA trust list); without them files go out unsigned. Shield panel: `shieldBlock` in views.js (work page, life page); shield drawn on the license PDF. Test: `test/credentials.js`.
 
 ## Rules (from Will)
 - Restrained, precise voice; no hype. Anything written in Will's voice is a draft until he confirms.

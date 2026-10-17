@@ -117,6 +117,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Place<input name="place" value="${esc(w.place || '')}" placeholder="Florence, Italy"></label>
 <label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
 <label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="${esc(makerName)}"></label>
+<label>Copyright registration<input name="copyright_reg" value="${esc(w.copyright_reg || '')}" placeholder="VA 2-345-678"></label>
 <label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition"></label>
 <label>Share it price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
 <label class="chk"><input type="checkbox" name="noshare" value="1" ${w.rules && /"social":false/.test(w.rules) ? 'checked' : ''}> License only: no Share it on this photograph</label>
@@ -215,6 +216,7 @@ function masters({ upgraded, web }) {
   return layout({ studio: true, title: 'Masters · Watermark', body: `<section class="studio-wrap">${nav('/studio/masters')}
 <p class="k">Vault</p><h1>Masters.</h1>
 <p class="lede">${upgraded} works held at full resolution; ${web} still from the web copy.</p>
+<form method="post" action="/studio/credentials/scan" class="inline"><button class="link">Read Content Credentials from every original</button></form>
 <form class="form upload bulk" onsubmit="return false">
 <label class="drop"><input type="file" id="mFiles" webkitdirectory directory multiple><b>Choose your exports folder</b><span>Every JPEG, TIFF or PNG inside, in every subfolder. A file that matches a work already held replaces its web copy as the original; one that matches nothing is registered privately in an archive room for its place. Folders starting with an underscore (contact sheets, web exports) are skipped. Leave this page open; you can stop and pick up later.</span></label>
 <button type="button" id="mGo" disabled>Choose a folder</button>

@@ -11,6 +11,24 @@ const isKrafft = m => !!m && (/krafft/i.test(m.house || '') || m.handle === 'kra
 const markOf = m => (isKrafft(m) ? K_MARK : WAVE_MARK);
 const makerSlug = m => String((m && m.name) || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const seal = (m, label = 'Collect', cls = '') => `<button class="seal${cls ? ' ' + cls : ''}" aria-label="${esc(label)}"><span class="seal-k">${markOf(m)}</span><span class="seal-r" aria-hidden="true"></span></button>`;
+// The Watermark Shield: an escutcheon with the wave struck across it.
+const SHIELD = '<svg viewBox="0 0 40 46" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 1.5 37.5 6.5V22c0 11.2-7.4 18.6-17.5 22.4C9.9 40.6 2.5 33.2 2.5 22V6.5Z" stroke-width="1.6"/><path d="M20 5.4 34 9.4V22c0 9-5.8 15.2-14 18.6C11.8 37.2 6 31 6 22V9.4Z" stroke-width=".7" opacity=".55"/><path d="M10.5 23.2c1.6-2.2 3.2-2.2 4.8 0s3.2 2.2 4.7 0 3.2-2.2 4.8 0 3.1 2.2 4.7 0" stroke-width="1.7" stroke-linecap="round"/><path d="M14 16.5h12" stroke-width=".8" opacity=".6"/></svg>';
+function shieldBlock(sh, { open = false, slug = '' } = {}) {
+  if (!sh) return '';
+  const c = sh.cred && !sh.cred.none ? sh.cred : null;
+  const capture = c ? (c.captured ? `Signed in camera at the moment it was made${c.issuer ? `, by ${esc(c.issuer)}` : ''}.` : `Arrived carrying Content Credentials${c.app ? ` from ${esc(c.app)}` : ''}${c.issuer ? `, signed by ${esc(c.issuer)}` : ''}.`) : '';
+  const rows = [
+    ['Registered to', `${esc(sh.maker)}${sh.house ? `, ${esc(sh.house)}` : ''}, ${date(sh.registered)}${sh.accession ? ` &middot; ${esc(sh.accession)}` : ''}`],
+    ['Authorship', `${esc(sh.maker)} attested at registration to having made this photograph and holding its copyright.`],
+    sh.copyright ? ['Copyright registration', `${esc(sh.copyright)}, United States Copyright Office`] : null,
+    capture ? ['At capture', capture] : null,
+    ['Fingerprint', `<code>sha256:${esc(String(sh.fingerprint || '').slice(0, 16))}&hellip;</code> The original, sealed in the vault.`],
+    sh.seq ? ['Ledger', `Entry ${sh.seq} in the <a href="/ledger">public ledger</a>, chained to every entry before it.`] : null,
+    sh.signs ? ['Content Credentials', `Every file that leaves Watermark carries them: the maker, the copyright holder, the license${sh.noAI ? ', and that it is not for AI training' : ''}. Inspect any copy at <a href="https://contentcredentials.org/verify" rel="noopener">contentcredentials.org/verify</a>.`] : null,
+  ].filter(Boolean);
+  return `<details class="wshield"${open ? ' open' : ''}><summary><span class="sh-m">${SHIELD}</span><span class="sh-t"><b>Watermark Shield</b><small>Registered to ${esc(sh.maker)} &middot; ${date(sh.registered)}</small></span><span class="sh-x" aria-hidden="true"></span></summary>
+<dl class="sh-dl">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${slug ? `<p class="sh-more"><a href="/w/${esc(slug)}/life">The life of this photograph &rarr;</a></p>` : ''}</details>`;
+}
 const date = s => s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 const { NEVER } = require('./rules');
 const termText = u => u.kind === 'print' ? 'Yours to keep' : u.term_months ? (u.term_months % 12 ? `${u.term_months} months` : `${u.term_months / 12} year${u.term_months > 12 ? 's' : ''}`) : 'Perpetual';
@@ -89,7 +107,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [] }) {
+function work({ shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [] }) {
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -134,6 +152,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
+${shieldBlock(shield, { slug: w.slug })}
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}</span></p>` : ''}
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors.</p>` : ''}
@@ -256,12 +275,13 @@ ${sent ? '<p class="h-sent">Thank you. We read every application and will write 
 }
 
 // A photograph's record: its title, its terms, and every license in its life.
-function life({ w, maker, lic, reg, rules, ed = null, prints = [], moves = [] }) {
+function life({ w, maker, lic, reg, rules, ed = null, prints = [], moves = [], shield = null }) {
   const earned = lic.reduce((a, l) => a + (l.price_cents || 0), 0);
   const rows = lic.map(l => `<li><span>${date(l.starts_at)}</span><b>${esc(l.use_name)}</b><em>${l.collector_no ? `Collector No. ${l.collector_no}${ed ? ' of ' + ed.size : ''}` : l.status === 'active' ? `Active${l.ends_at ? ' until ' + date(l.ends_at) : ''}` : 'Completed'}</em>${rules.showEarned ? `<i>${money(l.price_cents)}</i>` : ''}<a href="/verify?ref=${esc(l.ref)}">${esc(l.ref)}</a></li>`).join('');
   return layout({ title: `The life of ${w.title} · Watermark`, body: `<section class="lifep">
 <div class="life-h"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" draggable="false"><div><p class="k">The life of a photograph</p><h1>${esc(w.title)}</h1>
 <p class="by">Made by ${esc(maker.name)}${w.taken_at ? `, ${date(w.taken_at)}` : ''}. Rights held by ${esc(maker.name)}.</p></div></div>
+${shieldBlock(shield, { open: true })}
 <div class="stats">${ed ? `<div><b>${ed.sold} of ${ed.size}</b><span>collected</span></div>` : ''}<div><b>${lic.length}</b><span>times licensed</span></div>${prints.length ? `<div><b>${prints.length}</b><span>prints made</span></div>` : ''}${rules.showEarned ? `<div><b>${money(earned)}</b><span>earned for its maker</span></div>` : ''}<div><b>${date(w.created_at)}</b><span>registered</span></div></div>
 <ol class="life-l"><li><span>${date(w.created_at)}</span><b>Registered on Watermark</b><em>Fingerprint ${esc(w.sha256.slice(0, 16))}&hellip;</em>${reg ? `<a href="/ledger">Ledger ${reg.seq}</a>` : ''}</li>${rows}${prints.map(p => `<li><span>${date(p.created_at)}</span><b>Printed by collector No. ${p.collector_no}</b><em>${esc([p.size, p.paper, p.made].filter(Boolean).join(', '))}</em></li>`).join('')}${moves.map(m => `<li><span>${date(m.claimed_at)}</span><b>No. ${m.collector_no} passed to a new collector</b><em>Same number, new hands</em></li>`).join('')}</ol>
 <p class="note">Collectors are not named. Each reference can be checked by anyone at <a href="/verify">/verify</a>.</p>
@@ -618,4 +638,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

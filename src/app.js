@@ -9,6 +9,7 @@ const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
 const images = require('./images');
+const CR = require('./credentials');
 const V = require('./views');
 const R = require('./rules');
 const SEAL = require('./seal');
@@ -57,7 +58,7 @@ function createApp(cfg = {}) {
   for (const [t, c, d] of [['licenses', 'buyer_id', 'INTEGER'], ['licenses', 'collector_no', 'INTEGER'], ['buyers', 'code', 'TEXT'], ['buyers', 'name', 'TEXT'], ['buyers', 'public', 'INTEGER NOT NULL DEFAULT 0']])
     if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name=?`).get(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
-  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER'], ['edition_size', 'INTEGER']])
+  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER'], ['edition_size', 'INTEGER'], ['credentials', 'TEXT'], ['copyright_reg', 'TEXT']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   // A photograph may carry its own Share it price; otherwise the maker's standard one.
   // A limited edition: the maker sets how many can ever be collected. Numbers are never reused.
@@ -181,6 +182,7 @@ function createApp(cfg = {}) {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
     const nw = q.work.get(slug);
     db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph'), dhash=? WHERE id=?").run(accession(nw), await images.dhash(dest).catch(() => null), nw.id);
+    const cred = await CR.inspect(dest); if (cred) db.prepare('UPDATE works SET credentials=? WHERE id=?').run(JSON.stringify(cred), nw.id);
     if (store.kind === 's3') fs.unlinkSync(dest); // the vault holds it; the disk is only a cache
     ledger.append(db, 'work.registered', slug, { maker: owner.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
     return q.work.get(slug);
@@ -286,10 +288,17 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
+  // The Watermark Shield: what Watermark can stand behind for a photograph, in one place.
+  function shieldOf(w, maker) {
+    const reg = db.prepare("SELECT seq, hash, at FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq LIMIT 1").get(w.slug);
+    let cred = null; try { cred = w.credentials ? JSON.parse(w.credentials) : null; } catch (e) { /* unreadable */ }
+    return { maker: maker.name, house: maker.house, registered: (reg && reg.at) || w.created_at, seq: reg && reg.seq, hash: reg && reg.hash, accession: w.accession,
+      fingerprint: w.sha256, copyright: w.copyright_reg, cred, signs: CR.enabled(), noAI: R.parse(w.rules).never.includes('ai') };
+  }
   app.get('/w/:slug/life', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -300,7 +309,7 @@ function createApp(cfg = {}) {
     const ids = lic.map(l => l.id);
     const prints = ids.length ? db.prepare(`SELECT p.*, l.collector_no FROM prints p JOIN licenses l ON l.id=p.license_id WHERE p.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY p.id`).all(...ids) : [];
     const moves = ids.length ? db.prepare(`SELECT t.claimed_at, l.collector_no FROM transfers t JOIN licenses l ON l.id=t.license_id WHERE t.claimed_at IS NOT NULL AND t.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY t.claimed_at`).all(...ids) : [];
-    res.send(V.life({ w, maker, lic, reg, rules, ed: edition(w), prints, moves }));
+    res.send(V.life({ w, maker, lic, reg, rules, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
   });
 
   app.get('/img/:slug/:size', async (req, res) => {
@@ -749,7 +758,7 @@ function createApp(cfg = {}) {
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
-    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions });
+    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
   });
 
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
@@ -784,6 +793,16 @@ function createApp(cfg = {}) {
         const u = lu;
         const buf = prov.stampJpeg(file, { ref: l.ref, maker: maker.name, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256, base: C.base, conditions: l.conditions });
         res.set('Content-Disposition', `attachment; filename="${name}"`);
+        // The Shield goes with the file: Content Credentials naming the maker, the copyright holder and this license.
+        if (CR.enabled()) {
+          const tmp = path.join(cache, `deliver-${l.ref}-${Date.now()}.jpg`), outp = tmp.replace(/\.jpg$/, '-cr.jpg');
+          fs.writeFileSync(tmp, buf);
+          const ok = await CR.seal({ input: tmp, output: outp, parent: await originalPath(w), title: w.title, maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, accession: w.accession,
+            url: `${C.base}/w/${w.slug}`, license: `${C.base}/verify?ref=${l.ref}`, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, fingerprint: w.sha256,
+            noAI: R.parse(w.rules).never.includes('ai'), resized: !!(lu && lu.key === 'social') });
+          const sealed = ok ? fs.readFileSync(outp) : buf; for (const f of [tmp, outp]) fs.rmSync(f, { force: true });
+          return res.type('jpg').send(sealed);
+        }
         return res.type('jpg').send(buf);
       } catch (e) { /* fall through to the untouched original */ }
     }
@@ -896,6 +915,7 @@ function createApp(cfg = {}) {
     // Share it price for this photograph alone: whole dollars, $3 at least; empty = the maker's standard price.
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
+    db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
     // Edition size: blank for an open edition. It can never be set below what has already been collected.
     const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });
     db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(es === '' || !(Number(es) > 0) ? null : Math.max(Math.round(Number(es)), ed ? ed.sold : 0), w.id);
@@ -992,6 +1012,7 @@ function createApp(cfg = {}) {
           .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
         for (const sz of Object.keys(images.SIZES)) { const c = path.join(cache, `${w.slug}-${sz}.jpg`); if (fs.existsSync(c)) fs.unlinkSync(c); }
         const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
+        const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
         if (store.kind === 's3') fs.unlinkSync(dest);
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
         return res.json({ ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD });
@@ -1010,6 +1031,17 @@ function createApp(cfg = {}) {
       gone();
       res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
     }
+  });
+  // Read the Content Credentials of every original already held (once; new arrivals are read as they come).
+  let crScan = null;
+  app.post('/studio/credentials/scan', studioOnly, (req, res) => {
+    if (!crScan) crScan = (async () => {
+      for (const w of db.prepare('SELECT * FROM works WHERE credentials IS NULL ORDER BY id').all()) {
+        try { const f = await originalPath(w); const c = await CR.inspect(f); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(JSON.stringify(c || { none: true }), w.id); if (store.kind === 's3' && f.startsWith(originals)) fs.rmSync(f, { force: true }); }
+        catch (e) { /* missing original: try again next time */ }
+      }
+    })().finally(() => { crScan = null; });
+    res.redirect('/studio/masters?ok=' + encodeURIComponent('Reading Content Credentials from every original. It runs in the background.'));
   });
   app.get('/studio/masters', studioOnly, (req, res) => res.send(S.masters({
     upgraded: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NOT NULL').get().n,

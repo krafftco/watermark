@@ -977,3 +977,28 @@ button.h-row:focus-visible{outline:1px solid #f2efe9;outline-offset:4px}
 .h-tags button:hover{border-color:#f2efe9}
 .h-sum{margin:22px 0 0;padding-top:18px;border-top:1px solid #2c2c2c;font-size:13px;line-height:1.55;color:#b5b1a9;min-height:3.1em}
 button.h-row{border-radius:0;padding:13px 0;box-shadow:none}
+
+/* The Watermark Shield */
+.wshield{margin:22px 0 6px;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)}
+.wshield summary{list-style:none;display:flex;align-items:center;gap:14px;padding:14px 0;cursor:pointer}
+.wshield summary::-webkit-details-marker{display:none}
+.sh-m{display:grid;place-items:center;width:34px;height:40px;flex:none;color:var(--ink)}
+.sh-m svg{width:30px;height:35px;display:block;transition:transform .8s var(--e)}
+.wshield summary:hover .sh-m svg{transform:scale(1.06)}
+.sh-t{display:flex;flex-direction:column;gap:3px}
+.sh-t b{font-size:11px;font-weight:500;letter-spacing:.24em;text-transform:uppercase}
+.sh-t small{font-family:var(--read);font-size:15px;color:var(--mu)}
+.sh-x{margin-left:auto;width:9px;height:9px;border-right:1px solid var(--mu);border-bottom:1px solid var(--mu);transform:rotate(45deg) translateY(-3px);transition:transform .4s var(--e)}
+.wshield[open] .sh-x{transform:rotate(225deg) translateY(-3px)}
+.sh-dl{margin:0 0 16px;display:grid;gap:12px}
+.sh-dl div{display:grid;grid-template-columns:150px 1fr;gap:16px}
+.sh-dl dt{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);padding-top:3px}
+.sh-dl dd{margin:0;font-size:14px;line-height:1.55}
+.sh-dl code{font-size:12px;background:var(--soft);padding:1px 5px}
+.sh-dl a,.sh-more a{color:inherit;text-underline-offset:3px}
+.sh-more{margin:0 0 16px;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+.sh-more a{text-decoration:none;color:var(--mu)}
+@media (max-width:640px){.sh-dl div{grid-template-columns:1fr;gap:4px}}
+.sh-m{width:40px;height:46px}.sh-m svg{width:36px;height:42px}
+.sh-dl div{grid-template-columns:120px 1fr}
+@media (max-width:640px){.sh-dl div{grid-template-columns:1fr}}
