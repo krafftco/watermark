@@ -331,6 +331,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
   r = await req(port, 'GET', '/journal'); assert.ok(r.status === 200 && r.body.toString().includes('On patronage'), 'the journal');
   r = await req(port, 'GET', '/patronage'); assert.ok(r.body.toString().includes('Watermark honours both'));
+  // The ladder: as an edition fills, the issue price steps up (1x, 1.5x, 2x, 3x by quarter), so early collectors hold pieces issued above what they paid.
+  { const wl = await registerWork({ file: (await (async () => { const f = path.join(dir, 'inL.jpg'); await require('sharp')(SRC).resize({ width: 1700 }).rotate(180).toFile(f); return f; })()), originalName: 'l.jpg', title: 'Test Ladder' });
+    db.prepare("UPDATE works SET status='held', edition_size=8 WHERE id=?").run(wl.id);
+    const L0 = app.locals.ladder(db.prepare('SELECT * FROM works WHERE id=?').get(wl.id), 500); assert.deepStrictEqual([L0.price, L0.step, L0.next, L0.at], [500, 0, 800, 2], 'first quarter at the base price');
+    const uid = db.prepare("SELECT id FROM uses WHERE key='social'").get().id;
+    for (let i = 1; i <= 3; i++) db.prepare("INSERT INTO licenses (ref, work_id, use_id, licensee_name, licensee_email, price_cents, status, collector_no, starts_at) VALUES (?,?,?,?,?,?,'active',?,datetime('now'))").run(`WM-2026-9000${i}`, wl.id, uid, 'x', 'x@y.z', 500, i);
+    const L3 = app.locals.ladder(db.prepare('SELECT * FROM works WHERE id=?').get(wl.id), 500); assert.equal(L3.price, 800, 'second quarter: 1.5x');
+    r = await req(port, 'GET', `/w/${wl.slug}`); assert.ok(r.body.toString().includes('issued at $5 to No.&nbsp;1, $8 now'), 'the ladder shown on the work');
+    r = await req(port, 'GET', `/license/${wl.slug}`); assert.ok(r.body.toString().includes('Collect for $8'), 'the next number is sold at the step'); }
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');

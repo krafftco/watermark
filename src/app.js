@@ -91,7 +91,11 @@ function createApp(cfg = {}) {
   db.exec(`CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, seat_id INTEGER, size TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='dl_extra'").get()) db.exec('ALTER TABLE licenses ADD COLUMN dl_extra INTEGER NOT NULL DEFAULT 0');
   const dlOf = l => { const u = q.useById.get(l.use_id); const limit = (DL[u ? u.key : 'social'] || 5) + (l.dl_extra || 0); const used = db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(l.id).n; return { limit, used, left: Math.max(0, limit - used) }; };
-  const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social' && w.share_cents) v.price_cents = w.share_cents; return v; };
+  // The ladder: as a limited edition fills, its issue price rises, so every collector before the step
+  // holds a piece now issued above what they paid. Quarters of the edition at 1x, 1.5x, 2x, 3x (drafts).
+  const LADDER = [1, 1.5, 2, 3];
+  const ladder = (w, base) => { const e = edition(w); if (!e || base == null) return { price: base, step: 0, base }; const step = Math.min(LADDER.length - 1, Math.floor(e.sold / (e.size / LADDER.length))); return { price: Math.round(base * LADDER[step] / 100) * 100, step, base, next: step < LADDER.length - 1 ? Math.round(base * LADDER[step + 1] / 100) * 100 : null, at: step < LADDER.length - 1 ? Math.ceil(e.size / LADDER.length) * (step + 1) : null }; };
+  const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social') { const base = w.share_cents || u.price_cents; const L = ladder(w, base); v.price_cents = L.price; v.ladder = L; } return v; };
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
@@ -213,7 +217,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
-  app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf;
+  app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
