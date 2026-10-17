@@ -63,9 +63,9 @@
     var card = document.createElement('ul'); card.className = 'wk-c'; card.setAttribute('role', 'menu');
     var html = '<li class="wk-h" role="presentation">' + (uses.length ? 'Have this photograph' : 'Held privately') + '</li>';
     if (uses.length) {
-      k.href = WM + '/w/' + w.slug + '?via=studios';
-      uses.forEach(function (u) { html += '<li role="none"><button type="button" role="menuitem" data-k="' + u.k + '"><b>' + u.l + '</b>' + (u.p ? '<em>' + money(u.p) + '</em>' : '') + '<i>&rsaquo;</i></button></li>'; });
-      html += '<li role="none"><a role="menuitem" href="' + WM + '/w/' + w.slug + '?via=studios"><b>See it on Watermark</b><i>&rsaquo;</i></a></li>';
+      k.href = (w.page || (WM + '/w/' + w.slug)) + '?via=studios';
+      uses.forEach(function (u) { html += '<li role="none"><button type="button" role="menuitem" data-k="' + u.k + '"><b>' + u.l + '</b>' + (u.p ? '<em>' + money(u.p) + '</em>' : u.ask ? '<em>Ask</em>' : '') + '<i>&rsaquo;</i></button></li>'; });
+      html += '<li role="none"><a role="menuitem" href="' + k.href + '"><b>See it on Watermark</b><i>&rsaquo;</i></a></li>';
     } else {
       var u = new URL(lic); u.searchParams.set('image', (img.currentSrc || img.src).replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').split('?')[0]); u.searchParams.set('title', document.title); u.searchParams.set('from', location.href.split('#')[0]);
       k.href = u.toString();
@@ -116,7 +116,7 @@
     });
     window.addEventListener('resize', function () { fits.forEach(function (f) { f(); }); });
     var cr = data.credits, tipUrl = cr && cr.tip ? cr.tip + '?back=' + encodeURIComponent(location.href.split('#')[0]) : null;
-    if (!data.room && !tipUrl) return;
+    if (!data.room && !tipUrl && !data.wander) return;
     var esc = function (t) { return String(t).replace(/[<>&"]/g, ''); };
     var names = cr ? cr.people.map(function (p) { return '<span class="wk-cr"><em>' + esc(p.label) + '</em> ' + esc(p.name) + '</span>'; }).join('') : '';
     var ROLE = { Words: 'writer', Photographs: 'photographer', Narration: 'narrator', Film: 'filmmaker', Music: 'composer' };
@@ -125,7 +125,7 @@
     end.innerHTML = '<span class="wk-m">' + GLYPH + '</span><div>'
       + (names ? '<p class="wk-crs">' + names + '</p>' : '')
       + (tipUrl ? '<p><a class="wk-tip" href="' + tipUrl + '">Tip ' + esc(who) + '</a></p>' : '')
-      + '<small>' + (data.room ? '<a href="' + data.room.url + '">Walk the room: ' + esc(data.room.title) + '</a>' : '')
+      + '<small>' + (data.wander ? '<a href="' + data.wander + '">Wander from here</a>' + (data.room || data.patron ? ' &nbsp;&middot;&nbsp; ' : '') : '') + (data.room ? '<a href="' + data.room.url + '">Walk the room: ' + esc(data.room.title) + '</a>' : '')
       + (data.room && data.patron ? ' &nbsp;&middot;&nbsp; ' : '') + (data.patron ? '<a href="' + data.patron + '">Become a patron</a>' : '') + '</small></div>';
     var content = root.querySelector('.gh-content, .post-content, .article-content, .k-content') || root;
     content.appendChild(end);

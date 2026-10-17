@@ -513,10 +513,13 @@ function createApp(cfg = {}) {
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
       collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
-      uses: r.status === 'held' ? allUses.filter(u => offered(R.parse(r.rules), u.key, r)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name, p: u.key === 'social' ? null : u.price_cents })) : [] })).filter(x => x.path);
+      page: r.status === 'held' ? `${C.base}/m/${V.makerSlug(maker)}/${r.slug}` : null,
+      // Every use the work allows, as on its page: instant ones priced, the rest asked of the maker (the file is too small, or the maker approves by hand).
+      uses: r.status === 'held' ? allUses.filter(u => listed(R.parse(r.rules), u.key, r)).map(u => { const pr = priced(u, r); const ask = !offered(R.parse(r.rules), u.key, r) || pr.price_cents == null; return { k: u.key, l: u.key === 'social' ? 'Collect' : u.name, p: ask ? null : pr.price_cents, ask }; }) : [] })).filter(x => x.path);
     const shown = works.filter(w => !w.ask).length;
     let credits = null; try { const cr = app.locals.creditsOf ? await app.locals.creditsOf(post) : null; if (cr && cr.people.length) credits = { people: cr.people.map(p => ({ name: p.name, label: p.label })), tip: stripe ? `${C.base}/tip/${post}` : null }; } catch (e) { /* none */ }
-    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works, credits,
+    const firstHeld = works.find(x => x.slug);
+    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, wander: firstHeld ? `${C.base}/wander/room?at=${firstHeld.slug}` : null, works, credits,
       patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, license: 'https://www.krafftco.com/license', mark: 'K' });
   });
   // A Krafft image anywhere (krafftco.com/license?image=…): which work is it?
