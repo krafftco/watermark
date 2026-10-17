@@ -62,7 +62,12 @@ function createApp(cfg = {}) {
   // A photograph may carry its own Share it price; otherwise the maker's standard one.
   // A limited edition: the maker sets how many can ever be collected. Numbers are never reused.
   const edition = w => { if (!w || !w.edition_size) return null; const sold = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status IN ('active','expired')").get(w.id).n; return { size: w.edition_size, sold, left: Math.max(0, w.edition_size - sold) }; };
-  const soldOut = w => { const e = edition(w); return !!(e && e.left <= 0); };
+  // Checkouts still open (under 30 minutes) hold their number, so two buyers can't both take the last one.
+  const soldOut = w => { const e = edition(w); if (!e) return false; const held = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status='awaiting_payment' AND created_at > datetime('now','-30 minutes')").get(w.id).n; return e.left - held <= 0; };
+  // Founding Collectors: the first hundred people to collect on Watermark, numbered in the order they arrived.
+  const FOUNDING = 100;
+  const foundingNo = b => { if (!b) return null; const rows = db.prepare("SELECT buyer_id FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY buyer_id ORDER BY MIN(starts_at), buyer_id LIMIT ?").all(FOUNDING); const i = rows.findIndex(r => r.buyer_id === b.id); return i < 0 ? null : i + 1; };
+  const foundingLeft = () => Math.max(0, FOUNDING - db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n);
   const priced = (u, w) => (u && w && u.key === 'social' && w.share_cents ? { ...u, price_cents: w.share_cents } : u);
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
@@ -490,7 +495,7 @@ function createApp(cfg = {}) {
   app.get('/yours', (req, res) => {
     const b = buyerOf(req);
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
-    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null }));
+    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft() }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -606,12 +611,13 @@ function createApp(cfg = {}) {
       WHERE b.public=1 AND b.code IS NOT NULL GROUP BY b.id ORDER BY works DESC, b.id LIMIT 200`).all();
     const thumbs = db.prepare(`SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id AND w.status='held' WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY w.id ORDER BY MAX(l.starts_at) DESC LIMIT 4`);
     list.forEach(c => { c.thumbs = thumbs.all(c.id); });
-    res.send(V.collectors({ list }));
+    list.forEach(c => { c.founding = foundingNo(c); });
+    res.send(V.collectors({ list, left: foundingLeft() }));
   });
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
-    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social') }));
+    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b) }));
   });
 
   app.get('/buy/:slug', (req, res) => {

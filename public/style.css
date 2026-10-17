@@ -697,3 +697,9 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .cl-no{font-family:var(--read);font-style:italic;font-size:18px;margin:14px 0 26px}
 .cl-f .seal{width:88px;height:88px}
 @media (min-width:900px){.cl{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:center}}
+/* Founding Collectors */
+.fc-k{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:50%;background:#0e0e0e;color:#f7f6f3;padding:8px;box-sizing:border-box}
+.fc-k svg{display:block;width:100%;height:100%}
+.fc-mark{display:inline-flex;align-items:center;gap:12px;margin:10px 0 0;font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.fc-call{display:flex;align-items:center;gap:14px;max-width:40em;margin:22px 0 0;font-family:var(--read);font-style:italic;font-size:17px;line-height:1.5;color:#333}
+.fc-tag{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);margin:2px 0}
