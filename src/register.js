@@ -72,11 +72,26 @@ function mountRegister(app, { db, V, ledger }) {
     }
   }
 
+  // Chapters of the register, so the stream can be read in scope and scale.
+  const CHAPTERS = {
+    arrivals: { name: 'Arrivals', types: ['work.registered', 'work.published', 'maker.joined', 'work.master', 'work.guide'] },
+    applause: { name: 'Applause', types: ['work.applauded', 'gallery.signed', 'house.signed', 'tip.given', 'work.voice'] },
+    collected: { name: 'Collected & licensed', types: ['license.granted', 'license.checkout', 'license.requested', 'license.quoted', 'license.declined', 'file.delivered', 'print.recorded', 'seal.created'] },
+    trades: { name: 'Trades', types: ['license.transferred', 'market.offered', 'market.withdrawn', 'market.bid', 'market.offer', 'market.accepted', 'market.traded', 'swap.offered', 'swap.declined', 'swap.traded', 'payout.sent'] },
+    patrons: { name: 'Patrons', types: ['friend.joined', 'friend.gave', 'keeping.begun'] },
+    office: { name: 'Copyright Office', types: ['copyright.prepared', 'copyright.filed', 'copyright.registered'] },
+  };
+  const SPANS = { today: ['Today', '-1 day'], week: ['This week', '-7 days'], month: ['This month', '-30 days'], year: ['This year', '-365 days'], all: ['All time', null] };
   app.get('/ledger', (req, res) => {
-    const entries = db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 400').all();
+    const chapter = CHAPTERS[req.query.chapter] ? req.query.chapter : null, span = SPANS[req.query.span] ? req.query.span : 'all', order = req.query.order === 'oldest' ? 'ASC' : 'DESC';
+    const where = [], args = [];
+    if (chapter) { where.push(`type IN (${CHAPTERS[chapter].types.map(() => '?').join(',')})`); args.push(...CHAPTERS[chapter].types); }
+    if (SPANS[span][1]) { where.push("at > datetime('now', ?)"); args.push(SPANS[span][1]); }
+    const entries = db.prepare(`SELECT * FROM ledger ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY seq ${order} LIMIT 400`).all(...args);
     const told = entries.map(e => ({ e, line: tell(e) })).filter(x => x.line);
+    const tally = Object.fromEntries(Object.entries(CHAPTERS).map(([k, c]) => [k, db.prepare(`SELECT COUNT(*) n FROM ledger WHERE type IN (${c.types.map(() => '?').join(',')})${SPANS[span][1] ? " AND at > datetime('now', ?)" : ''}`).get(...c.types, ...(SPANS[span][1] ? [SPANS[span][1]] : [])).n]));
     const counts = { all: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, works: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get().n, collected: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('license.granted')").get().n, hats: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.applauded'").get().n };
-    res.send(V.registerPage({ told, check: ledger.verify(db), counts }));
+    res.send(V.registerPage({ told, check: ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
   });
   return { tell };
 }

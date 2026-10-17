@@ -1608,3 +1608,9 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .rg-m{display:grid;justify-items:end;gap:4px;font-size:11px;color:var(--mu);letter-spacing:.04em}.rg-m code{font-size:10px;color:#b8b3aa;letter-spacing:.06em}
 .rg-foot{margin-top:40px}
 @media (max-width:600px){.rg-i{grid-template-columns:56px 1fr}.rg-im{width:56px;height:40px}.rg-m{grid-column:2;justify-items:start;grid-auto-flow:column;gap:12px}}
+.rg-nav{max-width:900px;margin:8px auto 0;padding:0 clamp(16px,4vw,56px);display:grid;gap:10px}
+.rg-ch,.rg-sp{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.rg-ch a,.rg-sp a{color:var(--mu);text-decoration:none;padding:6px 0;border-bottom:1px solid transparent}
+.rg-ch a[aria-current],.rg-sp a[aria-current]{color:var(--ink);border-color:var(--ink)}
+.rg-ch a small{font-size:10px;margin-left:5px;color:#b8b3aa;letter-spacing:0}
+.rg-sp{font-size:11px}.rg-sep{flex:1}

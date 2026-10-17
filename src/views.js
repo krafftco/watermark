@@ -907,7 +907,8 @@ ${lic ? `<p class="lede">License <a href="/c/${esc(lic.ref)}">${esc(lic.ref)}</a
 
 // The register: the life of the house, day by day. A photograph enters, is seen, is tipped a hat, is
 // collected, is licensed, changes hands. The hash of each entry is kept small at the end of the line.
-function registerPage({ told, check, counts }) {
+function registerPage({ told, check, counts, chapters = {}, chapter = null, spans = {}, span = 'all', order = 'newest', tally = {} }) {
+  const q = (c, sp, o) => `/ledger?${[c ? `chapter=${c}` : '', sp && sp !== 'all' ? `span=${sp}` : '', o === 'oldest' ? 'order=oldest' : ''].filter(Boolean).join('&')}`.replace(/\?$/, '');
   const dayOf = at => new Date(at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
   const timeOf = at => new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
   const days = [];
@@ -919,7 +920,9 @@ function registerPage({ told, check, counts }) {
     body: `<section class="cx-intro rg-intro"><p class="k">The register</p><h1>The life of the house, written once.</h1>
 <p class="lede">Every photograph that enters, every hat tipped, every piece collected, licensed or passed on, every name on the wall: recorded here as it happens, each entry chained to the one before it so the past cannot be quietly changed. ${check.ok ? `<b>${check.checked} entries, intact.</b>` : `<b class="err">The chain is broken at entry ${check.broken_at}.</b>`}</p>
 <p class="rg-n"><span><b>${counts.works}</b> photographs entered</span><span><b>${counts.collected}</b> collected or licensed</span><span><b>${counts.hats}</b> tips of the hat</span><span><b>${counts.all}</b> entries in all</span></p></section>
-<section class="rg">${days.map(d => `<div class="rg-day"><h2>${esc(d.day)}</h2><ol>${d.items.map(row).join('')}</ol></div>`).join('') || '<p class="nt-0">The first entry is still to be written.</p>'}
+<nav class="rg-nav"><div class="rg-ch"><a href="${q(null, span, order)}"${chapter ? '' : ' aria-current="page"'}>Everything</a>${Object.entries(chapters).map(([k, c]) => `<a href="${q(k, span, order)}"${chapter === k ? ' aria-current="page"' : ''}>${esc(c.name)}<small>${tally[k] || 0}</small></a>`).join('')}</div>
+<div class="rg-sp">${Object.entries(spans).map(([k, v]) => `<a href="${q(chapter, k, order)}"${span === k ? ' aria-current="page"' : ''}>${esc(v[0])}</a>`).join('')}<span class="rg-sep"></span><a href="${q(chapter, span, order === 'newest' ? 'oldest' : 'newest')}">${order === 'newest' ? 'Oldest first' : 'Newest first'}</a></div></nav>
+<section class="rg">${days.map(d => `<div class="rg-day"><h2>${esc(d.day)}</h2><ol>${d.items.map(row).join('')}</ol></div>`).join('') || `<p class="nt-0">${chapter || span !== 'all' ? 'Nothing in this chapter yet, in this span.' : 'The first entry is still to be written.'}</p>`}
 <p class="note rg-foot">Sign-ins, keys and the people behind each entry are kept off this page. The full chain, with every hash, is at <a href="/ledger.json">/ledger.json</a>.</p></section>`
   });
 }
