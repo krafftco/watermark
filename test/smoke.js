@@ -430,7 +430,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/account/requests/${rq2.ref}/decline`, { cookie: ck, body: { word: 'Not for billboards; a story is open.' } }); assert.equal(r.status, 302);
   { const d = db.prepare('SELECT status, conditions FROM licenses WHERE ref=?').get(rq2.ref); assert.equal(d.status, 'declined'); assert.ok(d.conditions.includes('Not for billboards'), 'the word kept'); }
   r = await req(port, 'POST', `/account/requests/${rq2.ref}/decline`, { cookie: ck }); assert.ok(r.headers.location.includes('no%20longer%20open'), 'answered once');
-  r = await req(port, 'GET', `/account/requests?maker=${mh}`, { cookie: ck }); assert.ok(r.body.toString().includes('Answered') && r.body.toString().includes('Declined'), 'the answered list');
+  r = await req(port, 'GET', `/account/requests?maker=${mh}`, { cookie: ck }); assert.ok(r.body.toString().includes('Licensed, and answered') && r.body.toString().includes('Declined'), 'the answered list');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
