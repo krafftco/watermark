@@ -608,7 +608,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/collector/${sf.code}/notes/${nid}/remove`, { cookie: sck }); r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(!r.body.toString().includes('You have a great eye.'), 'owner removed it'); }
   r = await req(port, 'GET', '/artists'); assert.ok(r.status === 200 && r.body.toString().includes('Will Fullerton') && r.body.toString().includes('/m/will-fullerton'), 'the artists page lists the makers');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
-  db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verify(db).ok, false, 'tamper detected');
-  r = await req(port, 'GET', '/ledger'); assert.ok(r.body.includes('broken'));
+  db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verifyAll(db).ok, false, 'tamper detected'); assert.equal(ledger.verify(db).ok, true, 'the quick check trusts its head for an hour');
+  r = await req(port, 'GET', '/ledger?check=full'); assert.ok(r.body.includes('broken'));
   server.close(); console.log(`ok: ${n} ledger entries, all flows pass`);
 })().catch(e => { console.error(e); process.exit(1); });

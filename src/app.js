@@ -235,7 +235,9 @@ function createApp(cfg = {}) {
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${['/', '/makers', '/collection', '/collectors', '/journal', '/patronage', '/series/the-great-rooms', '/about', '/terms', '/verify', '/ledger'].map(u).join('')}${ws.map(img).join('')}${ws.map(w => u(`/w/${w.slug}/life`)).join('')}${rooms.map(r => u(`/rooms/${r.slug}`)).join('')}</urlset>`);
   });
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
-  app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
+  // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
+  app.use(require('compression')({ threshold: 1024 }));
+  app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
 
   // Stripe webhook needs the raw body, so it comes before the body parsers.
@@ -310,6 +312,21 @@ function createApp(cfg = {}) {
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
     res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [] }));
+  });
+  // The collection's search index, apart from the page so the page stays light as the library grows;
+  // cached by the browser and refreshed when a work changes (the ETag is the newest change).
+  app.get('/api/index.json', (req, res) => {
+    const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
+    const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
+    const stamp = db.prepare("SELECT MAX(COALESCE(updated_at, created_at)) m, COUNT(*) n FROM works WHERE status='held'").get();
+    const tag = `"${crypto.createHash('sha1').update(String(stamp.m) + ':' + stamp.n).digest('hex').slice(0, 16)}"`;
+    res.set('ETag', tag).set('Cache-Control', 'public, max-age=300');
+    if (req.headers['if-none-match'] === tag) return res.status(304).end();
+    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all().map(w => ({ ...w, maker: makers[w.maker_id] || maker, share_cents: w.maker_id !== maker.id && !w.share_cents ? socialOf[w.maker_id] || null : w.share_cents }));
+    let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none */ }
+    const rooms = db.prepare('SELECT c.slug, cw.work_id FROM collections c JOIN collection_works cw ON cw.collection_id=c.id WHERE c.public=1').all();
+    const roomOf = {}; rooms.forEach(r => { (roomOf[r.work_id] = roomOf[r.work_id] || []).push(r.slug); });
+    res.json(works.map(w => V.indexRow(w, w.maker, { voiced: heard.has(w.id), rooms: roomOf[w.id] || [] })));
   });
 
   // Makers apply to hold their work here. Read in the Studio.

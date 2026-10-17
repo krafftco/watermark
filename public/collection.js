@@ -2,6 +2,10 @@
    Every photograph is one click from filling the screen; arrow keys, swipe or the edges move through
    whatever is showing; Esc returns you where you were. #slug in the address opens a photograph directly. */
 (function () {
+  // The index comes with the page while the library is small; past a few hundred works it is fetched
+  // apart and cached, so the page itself stays light.
+  if (!window.__WM && window.__WM_INDEX) { fetch(window.__WM_INDEX).then(function (r) { return r.json(); }).then(function (j) { window.__WM = j; init(); }).catch(function () { window.__WM = []; init(); }); } else init();
+  function init() {
   var W = window.__WM || [], bySlug = {};
   // ---------- search: forgiving, ranked, every field ----------
   // Accents and case don't matter, a typo is forgiven, short forms are understood, titles rank first.
@@ -151,4 +155,5 @@
     else if (/^room-/.test(h)) { var r = h.slice(5); if (roomsEl.querySelector('[data-r="' + r + '"]')) { if (!lb.hidden) close(); state.room = r; render(); } }
   }
   window.addEventListener('hashchange', fromHash); fromHash();
+  }
 })();

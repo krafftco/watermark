@@ -91,7 +91,7 @@ function mountRegister(app, { db, V, ledger }) {
     const told = entries.map(e => ({ e, line: tell(e) })).filter(x => x.line);
     const tally = Object.fromEntries(Object.entries(CHAPTERS).map(([k, c]) => [k, db.prepare(`SELECT COUNT(*) n FROM ledger WHERE type IN (${c.types.map(() => '?').join(',')})${SPANS[span][1] ? " AND at > datetime('now', ?)" : ''}`).get(...c.types, ...(SPANS[span][1] ? [SPANS[span][1]] : [])).n]));
     const counts = { all: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, works: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get().n, collected: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('license.granted')").get().n, hats: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.applauded'").get().n };
-    res.send(V.registerPage({ told, check: ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
+    res.send(V.registerPage({ told, check: req.query.check === 'full' ? ledger.verifyAll(db) : ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
   });
   // The last few moments in the house, for the front door.
   app.locals.lately = (n = 6) => db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 60').all().map(e => ({ e, line: tell(e) })).filter(x => x.line).slice(0, n);
