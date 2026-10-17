@@ -31,5 +31,15 @@ function chronology(db, works) {
   for (const w of works) { const y = String(w.taken_at || w.created_at || '').slice(0, 4) || 'Undated'; if (!years.has(y)) years.set(y, []); years.get(y).push(w); }
   return [...years.entries()].sort((a, b) => (b[0] > a[0] ? 1 : -1)).map(([year, ws]) => ({ year, n: ws.length, works: ws.sort((a, b) => (m.get(b.id) || 0) - (m.get(a.id) || 0)) }));
 }
+// Standing: how a maker ranks in the house. Not the sum of regard (which rewards hanging everything) but the
+// regard of what is shown, divided by the square root of how much is shown: a tight edit of strong work
+// outranks a long wall of the same work with the weak hung beside it. The great collectors culled; so does the house.
+function standing(db, makerId, { from = null } = {}) {
+  const m = regardMap(db);
+  const rows = db.prepare('SELECT id, stars, status FROM works WHERE maker_id=?').all(makerId);
+  const shown = rows.filter(w => (from == null ? w.status === 'held' : (w.stars || 0) >= from && w.status !== 'withdrawn'));
+  const sum = shown.reduce((a, w) => a + (m.get(w.id) || 0), 0);
+  return { n: shown.length, held: rows.length, sum, standing: shown.length ? Math.round(sum / Math.sqrt(shown.length) * 10) / 10 : 0 };
+}
 const touch = () => { cache.at = 0; };
-module.exports = { regardMap, regardOf, byRegard, chronology, touch };
+module.exports = { regardMap, regardOf, byRegard, chronology, standing, touch };

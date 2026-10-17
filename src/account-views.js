@@ -68,7 +68,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option><option value="institution">Institution: a museum, a library, an archive</option></select></label><button>Create the account</button></form></section>${intros}` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0 }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, edit = null }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
@@ -105,6 +105,9 @@ ${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-
 <div><span class="k">Archive value</span><b>${totals.value != null ? money(totals.value) : '&mdash;'}</b><small>${totals.value != null ? `${multiple}&times; the last twelve months; an illustration, not an appraisal` : 'Appears once you have sales'}</small></div></div>
 <div class="hd-held"><span><b>${totals.works}</b> works held</span><span><b>${totals.public}</b> public</span><span><b>${totals.jewels}</b> jewels</span><span><b>${totals.shares}</b> collected</span><span>You keep <b>${pct}%</b> of every sale</span></div></div>
 ${needs.length ? `<section class="hd-need"><h2>Needs you</h2><ul>${needs.join('')}</ul></section>` : ''}
+${edit ? `<section class="hd-list ed"><div class="hd-h"><h2>The edit</h2><span class="hd-n">standing ${edit.now.standing}</span></div>
+<p class="ed-l">The great collectors culled without mercy and their collections got better every year. Your standing in the house is the regard of what you show, divided by the square root of how much: a tight edit of strong work outranks a long wall. You show <b>${edit.now.n}</b> of <b>${edit.now.held}</b> held.${edit.best ? ` Keep public from ${'&#9733;'.repeat(edit.best.from)} and it rises to <b>${edit.best.standing}</b> (${edit.best.n} shown).` : ' Your edit is as tight as your grades allow; grade more, then cull again.'}</p>
+<div class="ed-row">${edit.at.map(x => `<span class="ed-c${edit.best && x.from === edit.best.from ? ' on' : ''}">${'&#9733;'.repeat(x.from)}<b>${x.standing}</b><small>${x.n} shown</small></span>`).join('')}</div></section>` : ''}
 ${jewels.length ? `<section class="hd-list"><div class="hd-h"><h2>Your jewels</h2></div><div class="ac-js">${jewels.map(jewel).join('')}</div></section>` : ''}
 <section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${all.length ? `<span class="hd-n">${works.length === all.length ? `${all.length} work${all.length === 1 ? '' : 's'}` : `${works.length} of ${all.length}`}</span>` : ''}</div>
 ${all.length ? `<div class="st-bar"><nav class="st-f" aria-label="By stars"><a href="/account#holdings"${stars ? '' : ' aria-current="page"'}>All</a>${counts.map(([n, c]) => `<a href="/account?stars=${n}#holdings"${stars === n ? ' aria-current="page"' : ''}${c ? '' : ' class="is-0"'}>${n ? '&#9733;'.repeat(n) : 'Ungraded'}<small>${c}</small></a>`).join('')}</nav>
