@@ -5,7 +5,7 @@
   var W = window.__WM || [], bySlug = {};
   // ---------- search: forgiving, ranked, every field ----------
   // Accents and case don't matter, a typo is forgiven, short forms are understood, titles rank first.
-  function norm(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['\u2019`]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function norm(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['\u2019`]s\b/g, '').replace(/['\u2019`]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
   var SYN = { nyc: 'new york', ny: 'new york', manhattan: 'new york', la: 'los angeles', sf: 'san francisco', dc: 'washington', uk: 'united kingdom', england: 'united kingdom', britain: 'united kingdom', usa: 'united states', us: 'united states', america: 'united states', italia: 'italy', firenze: 'florence', roma: 'rome', venezia: 'venice', milano: 'milan', munchen: 'munich', koln: 'cologne', bw: 'black and white', mono: 'black and white', duomo: 'dome', church: 'cathedral' };
   var ROOMT = {}; [].forEach.call(document.querySelectorAll('#cxRooms button[data-r]'), function (b) { if (b.dataset.r) ROOMT[b.dataset.r] = b.textContent; });
   W.forEach(function (w, i) {
