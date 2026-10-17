@@ -119,10 +119,11 @@ function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [
   const life = lic.map(l => `<tr><td><a href="${licBase}/${esc(l.ref)}">${esc(l.ref)}</a></td><td>${date(l.starts_at || l.created_at)}</td><td>${esc(l.licensee_company || l.licensee_name)}</td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></td></tr>`).join('');
   const sg = seen.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a> &middot; ${date(x.created_at)} &middot; ${esc(x.status)}</li>`).join('');
   return layout({ studio: true, title: `${w.title} · ${studio ? 'Studio' : 'Your studio'}`, body: `<section class="studio-wrap${studio ? '' : ' hd'}">${studio ? nav('/studio/works') : '<p class="k"><a href="/account">Your studio</a> · the record</p>'}
-<div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">${esc(w.accession || 'Catalogue')}</p><h1>${esc(w.title)}</h1>
-<div class="stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${seen.length}</b><span>sightings</span></div></div></div></div>
+<div class="wt wt-card"><a class="wt-plate" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><img src="/img/${esc(w.slug)}/screen" alt=""></a><div class="wt-side"><p class="k">${esc(w.accession || 'Catalogue')} · ${w.status === 'held' ? 'Public' : 'Private'}${w.open ? ' · Free and clear' : ''}</p><h1>${esc(w.title)}</h1><p class="wt-pl">${esc(w.place || '')}${w.taken_at ? ` · ${date(w.taken_at)}` : ''}${w.width && w.height ? ` · ${Math.round(w.width * w.height / 1e5) / 10} MP` : ''}</p>
+<div class="stats wt-stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${lic.filter(l => l.status === 'requested').length}</b><span>waiting</span></div><div><b>${seen.length}</b><span>sightings</span></div></div>
+<p class="wt-links"><a href="/w/${esc(w.slug)}">Its page</a><a href="/w/${esc(w.slug)}/life">Its life</a><a href="/voices/${esc(w.slug)}">Voices</a><a href="/closer/${esc(w.slug)}">Look closer</a>${studio ? `<a href="/w/${esc(w.slug)}/archive.wmark">The archive (.wmark)</a>` : ''}</p></div></div>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
-<p class="vo-link"><a href="/voices/${esc(w.slug)}">Voices: record what you think of this photograph, or add an art historian or a note &rarr;</a></p>
+<div data-desk-tabs>
 <h2>Catalogue record</h2>
 <div class="cat"><dl class="facts cat-fixed">
 <div><dt>Accession</dt><dd>${esc(w.accession || '')}</dd></div><div><dt>Maker</dt><dd>${esc(makerName)}</dd></div>
@@ -164,7 +165,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <table class="tbl"><thead><tr><th>For</th><th>Sealed</th><th>Size</th><th>Open until</th><th>Opened</th><th>Status</th><th></th></tr></thead><tbody>${seals.map(s => `<tr><td>${esc(s.label || '—')}</td><td>${date(s.created_at)}</td><td>${s.size === 'original' ? 'Full' : 'Large'}</td><td>${s.expires_at ? date(s.expires_at) : 'Until closed'}</td><td>${s.opens}${s.last_opened_at ? `<br><small>last ${date(s.last_opened_at)}</small>` : ''}</td><td>${s.status === 'open' ? 'Open' : 'Closed'}</td>
 <td><a href="/studio/seals/${esc(s.id)}.wmk">Download</a> &middot; <form method="post" action="/studio/seals/${esc(s.id)}/${s.status === 'open' ? 'close' : 'open'}" class="inline"><button class="link">${s.status === 'open' ? 'Close it' : 'Reopen'}</button></form></td></tr>`).join('') || '<tr><td colspan="7">Nothing sealed yet.</td></tr>'}</tbody></table>
 <h2>Sightings</h2><ul class="plain">${sg || '<li>None reported.</li>'}</ul>
-<p class="note">Fingerprint <code>${esc(w.sha256)}</code></p></section>` });
+<p class="note">Fingerprint <code>${esc(w.sha256)}</code></p></div><script src="/static/desk-tabs.js" defer></script></section>` });
 }
 
 function sightings({ list, embeds, base }) {

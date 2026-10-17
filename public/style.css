@@ -1988,3 +1988,16 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .cov-st{justify-self:end;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;padding:5px 10px;border:1px solid currentColor;border-radius:999px}
 .cov-live .cov-st{color:#2d5a27}.cov-soon .cov-st{color:#8a6a1e}.cov-ended .cov-st{color:#9a9a97}.cov-ended{opacity:.7}
 @media (max-width:900px){.cov-row{grid-template-columns:48px minmax(0,1fr) auto}.cov-u,.cov-n{display:none}.cov-a{grid-column:2/-1}}
+/* The catalogue card: the plate in its case at the left, the numbers at the right, the record in tabs. */
+.wt-card{display:grid;grid-template-columns:minmax(220px,340px) minmax(0,1fr);gap:clamp(24px,4vw,48px);align-items:start;margin:8px 0 28px}
+.wt-plate{display:block;background:radial-gradient(ellipse 62% 55% at 50% 30%,#2a2521 0%,#1a1714 45%,#13110f 100%);padding:clamp(16px,3vw,32px)}
+.wt-plate img{display:block;width:100%;aspect-ratio:var(--r);object-fit:contain;box-shadow:0 30px 60px -16px rgba(0,0,0,.85)}
+.wt-side h1{margin:4px 0 6px;font-size:clamp(30px,3.4vw,44px)}.wt-pl{margin:0 0 10px;font-family:var(--read);font-size:16px;color:var(--mu)}
+.wt-stats{grid-template-columns:repeat(4,minmax(0,1fr));margin:14px 0 14px}
+.wt-links{display:flex;flex-wrap:wrap;gap:16px;margin:0;font-size:12.5px}.wt-links a{color:var(--ink)}
+.wk-tabs{display:flex;gap:0;border-bottom:1px solid var(--ink);margin:8px 0 26px;overflow-x:auto;scrollbar-width:none}.wk-tabs::-webkit-scrollbar{display:none}
+.wk-tabs a{padding:12px 16px 10px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.wk-tabs a[aria-current]{color:var(--ink);border-bottom-color:var(--ink)}
+.wk-panel>h2:first-child{margin-top:0}
+.ac-row{grid-template-columns:56px minmax(0,1fr) 150px 60px 80px 100px 118px}
+@media (max-width:860px){.wt-card{grid-template-columns:1fr}.wt-stats{grid-template-columns:repeat(2,1fr)}}
