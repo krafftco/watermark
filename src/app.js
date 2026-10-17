@@ -289,6 +289,11 @@ function createApp(cfg = {}) {
   app.get('/about', (req, res) => res.send(V.about()));
   app.get('/terms', (req, res) => res.send(V.terms()));
 
+  // What the visitor already holds of a work: one row per active licence, with its use and any open offer.
+  const heldBy = (req, w) => { const b = buyerOf(req); if (!b || !w) return [];
+    return db.prepare(`SELECT l.ref, l.collector_no, l.ends_at, l.download_token, l.status, u.key, u.name, u.kind, (SELECT ask_cents FROM listings s WHERE s.license_id=l.id AND s.status='open') listed
+      FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) ORDER BY l.id`).all(w.id, b.id); };
+  app.locals.heldBy = heldBy;
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -298,7 +303,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -403,7 +408,7 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
-    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -415,6 +420,8 @@ function createApp(cfg = {}) {
     const u = priced(q.use.get(maker.id, String(req.body.use || '')), w);
     const rules = R.parse(w.rules);
     if (!u || !offered(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
+    // Already held: not sold twice (a renewal is the exception).
+    if (!req.body.renews && heldBy(req, w).some(h => h.key === u.key)) return res.redirect(`/w/${w.slug}#yours`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
@@ -468,6 +475,7 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
+    if (heldBy(req, w).some(h => h.key === 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
     const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
     const ref = nextRef();
@@ -507,6 +515,7 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
+    if (heldBy(req, w).some(h => h.key === 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")

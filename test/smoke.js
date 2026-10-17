@@ -94,14 +94,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/pay/${pj.ref}/done`, { cookie: bck }); let dj = JSON.parse(r.body);
   assert.ok(dj.ok && dj.download.startsWith('/d/'), 'handed over'); assert.ok(r.headers['set-cookie'].some(c => c.startsWith('wm_tap=1')), 'one tap next time');
   r = await req(port, 'POST', `/pay/${w.slug}/tap`); assert.strictEqual(JSON.parse(r.body).sheet, true, 'no remembered card, no tap');
-  r = await req(port, 'POST', `/pay/${w.slug}/tap`, { cookie: bck }); const tj = JSON.parse(r.body);
+  r = await req(port, 'POST', `/pay/${w.slug}/tap`, { cookie: bck }); assert.ok(JSON.parse(r.body).held, 'what you hold is not sold to you again');
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: bck }); { const wb = r.body.toString(); assert.ok(wb.includes('In your collection') && !wb.includes('class="share-buy"'), 'your copy shown, not the Collect button'); }
+  r = await req(port, 'POST', `/buy/${w.slug}`, { cookie: bck, body: { use: 'social' } }); assert.ok(r.headers.location.endsWith('#yours'), 'no second sale through checkout either');
+  const tmpT = path.join(dir, 'inT.jpg'); await require('sharp')(SRC).flip().toFile(tmpT);
+  const wT = await registerWork({ file: tmpT, originalName: 't.jpg', title: 'Test Tap', place: 'Rome' }); db.prepare("UPDATE works SET status='held' WHERE id=?").run(wT.id);
+  r = await req(port, 'POST', `/pay/${wT.slug}/tap`, { cookie: bck }); const tj = JSON.parse(r.body);
   assert.ok(tj.ok && tj.undo && tj.download, 'one tap: paid and handed over');
   assert.strictEqual(Object.values(pis).find(p => p.metadata.ref === tj.ref).payment_method, 'pm_card_1');
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 200);
   r = await req(port, 'POST', `/pay/${tj.ref}/undo`, { cookie: bck }); assert.ok(JSON.parse(r.body).ok && refunds.length === 1, 'undo refunds');
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 404, 'undone file stops working');
   // collectors: numbered, hung in their own collection, private until they open it
-  assert.ok(dj.no >= 1 && tj.no === dj.no + 1, 'collector numbers count up: ' + dj.no + ',' + tj.no);
+  assert.ok(dj.no >= 1 && tj.no >= 1, 'collector numbers: ' + dj.no + ',' + tj.no);
   r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your collection'), 'a new visitor is invited to start');
   r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
   assert.ok(yb.includes(`No. ${dj.no}`) && yb.includes('The collection'), 'it hangs, numbered');
@@ -318,6 +323,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // The market: the collector offers the piece, someone asks to buy it, the Studio settles, it moves with its price.
   r = await req(port, 'POST', '/yours/offer', { cookie: nck, body: { ref: held2.ref, ask: '40' } }); assert.ok(r.headers.location.includes('offer=1'), 'offered');
   r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('class="pf"'), 'offered, and the portfolio shows');
+  r = await req(port, 'GET', `/w/${w2.slug}`, { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('Withdraw'), 'the holder sees their offer on the work');
   r = await req(port, 'GET', '/market'); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('$40'), 'on the market');
   const lst = db.prepare("SELECT id FROM listings WHERE status='open'").get().id;
   r = await req(port, 'GET', `/w/${w2.slug}`); assert.ok(r.body.toString().includes('On the market'), 'on its page');

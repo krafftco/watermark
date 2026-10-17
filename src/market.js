@@ -68,19 +68,21 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours');
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w.edition_size) return res.redirect('/yours#files');
     const ask = Math.round(Number(String(x.ask || '').replace(/[^0-9.]/g, '')) * 100);
-    if (!(ask >= 100 && ask <= 100000000)) return res.redirect('/yours?offer=price#files');
+    const back = /^\/w\/[a-z0-9-]+$/.test(String(x.back || '')) ? String(x.back) : null;
+    if (!(ask >= 100 && ask <= 100000000)) return res.redirect(back ? back + '?up=price#yours' : '/yours?offer=price#files');
     const cur = openListing(l.id);
     if (cur) db.prepare('UPDATE listings SET ask_cents=? WHERE id=?').run(ask, cur.id);
     else db.prepare('INSERT INTO listings (license_id, seller, ask_cents) VALUES (?,?,?)').run(l.id, b.id, ask);
     ledger.append(db, 'market.offered', l.ref, { work: w.slug, collector_no: l.collector_no, ask });
-    res.redirect('/yours?offer=1#files');
+    res.redirect(back ? back + '?up=1#yours' : '/yours?offer=1#files');
   });
   app.post('/yours/offer/withdraw', (req, res) => {
     const b = buyerOf(req); const l = b && db.prepare('SELECT * FROM licenses WHERE ref=?').get(String((req.body || {}).ref || ''));
     const s = l && openListing(l.id); if (!s || s.seller !== b.id) return res.redirect('/yours');
     db.prepare("UPDATE listings SET status='withdrawn', closed_at=datetime('now') WHERE id=?").run(s.id);
     ledger.append(db, 'market.withdrawn', l.ref, {});
-    res.redirect('/yours#files');
+    const back = /^\/w\/[a-z0-9-]+$/.test(String((req.body || {}).back || '')) ? String(req.body.back) : null;
+    res.redirect(back ? back + '#yours' : '/yours#files');
   });
 
   // ---------- someone asks to buy it ----------

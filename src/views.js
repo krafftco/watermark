@@ -143,7 +143,10 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false }) {
+function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null }) {
+  // What this visitor already holds is not offered to them again; everything else still is.
+  const owns = new Set(mine.map(m => m.key));
+  const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -200,6 +203,13 @@ ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.le
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors${mkt && mkt.open.length ? '' : '; none is offered just now'}.</p>` : ''}
 ${ed && mkt && (mkt.open.length || mkt.p.trades || mkt.held) ? `<div class="lot-mk" id="market"><p class="k">On the market</p>${mkt.open.map(o => `<a href="/market/${o.id}"><span>No.&nbsp;${o.collector_no} of ${ed.size}</span><b>${money(o.ask_cents)}</b><i>&rsaquo;</i></a>`).join('')}${mkt.p.trades ? `<p class="lot-mk-h">Last traded at ${money(mkt.p.last)}, ${date(mkt.p.lastAt)}${mkt.p.issue != null ? `; issued at ${money(mkt.p.issue)}` : ''}. <a href="/w/${esc(w.slug)}/life">Its history</a></p>` : ''}
 ${mkt.held ? (mkt.sent === 'sent' ? '<p class="ok">Your offer is with its collectors. If one accepts, Watermark writes to you to settle it.</p>' : `<details class="lot-of"${mkt.sent ? ' open' : ''}><summary>Make an offer to its collectors</summary><form method="post" action="/w/${esc(w.slug)}/offer" class="form">${mkt.sent === 'check' ? '<p class="err">An email and an amount, please.</p>' : mkt.sent === 'none' ? '<p class="err">No collector holds that number.</p>' : ''}<label>Your offer, in dollars<input name="offer" inputmode="decimal" required placeholder="${mkt.p.value ? (mkt.p.value / 100).toFixed(0) : ''}"></label><label>For number<select name="no"><option value="">Any number</option>${mkt.nos.map(n => `<option value="${n}">No. ${n}</option>`).join('')}</select></label><label>Your name<input name="name" autocomplete="name"></label><label>Email<input name="email" type="email" required autocomplete="email"></label><button>Send the offer</button><small>${mkt.held} collector${mkt.held === 1 ? ' holds' : 's hold'} a number. Nothing is charged now.</small></form></details>`) : ''}</div>` : ''}
+${mine.length ? `<section class="lot-yours" id="yours"><p class="k">In your collection</p>
+${up === '1' ? '<p class="ok">It is on the market. It stays in your collection until it sells.</p>' : up === 'price' ? '<p class="err">Give it a price of at least $1.</p>' : ''}
+${mine.map(m => `<div class="ly-row"><div class="ly-t"><b>${m.key === 'social' ? 'Collected' : esc(m.name)}</b><span>${m.collector_no ? `No.&nbsp;${m.collector_no}${ed ? ` of ${ed.size}` : ''}` : ''}${m.collector_no && (m.ends_at || m.kind === 'print') ? ' &middot; ' : ''}${m.ends_at ? `until ${date(m.ends_at)}` : m.kind === 'print' ? 'a print, yours to keep' : m.collector_no ? '' : 'yours to keep'}</span></div>
+<div class="ly-a">${m.download_token && m.kind !== 'print' ? `<a href="/d/${esc(m.download_token)}">Download</a>` : ''}<a href="/c/${esc(m.ref)}${m.download_token ? `?k=${esc(m.download_token)}` : ''}">Licence</a></div>
+${ed && m.collector_no ? (m.listed != null ? `<form method="post" action="/yours/offer/withdraw" class="ly-up"><input type="hidden" name="ref" value="${esc(m.ref)}"><input type="hidden" name="back" value="/w/${esc(w.slug)}"><span>Offered at <b>${money(m.listed)}</b></span><button class="link">Withdraw</button></form>`
+  : `<details class="ly-up"><summary>Put it up for sale</summary><form method="post" action="/yours/offer" class="ly-f"><input type="hidden" name="ref" value="${esc(m.ref)}"><input type="hidden" name="back" value="/w/${esc(w.slug)}"><label>Your asking price<span class="ly-in"><i>$</i><input name="ask" inputmode="decimal" required placeholder="${mkt && mkt.p && mkt.p.value ? (mkt.p.value / 100).toFixed(0) : ''}"></span></label><button class="btn">Offer it on the market</button><p class="note">It stays in your collection until it sells. The photographer receives 10% of the price; Watermark keeps 5%.</p></form></details>`) : ''}</div>`).join('')}
+${uses.length ? `<p class="ly-more">Also available to you: ${uses.map(u => `<a href="/license/${esc(w.slug)}?use=${esc(u.key)}">${esc(u.name)}</a>`).join(', ')}.</p>` : ''}</section>` : ''}
 ${share && !(ed && !ed.left) ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><div class="seal-row">${toggle}${seal(maker, `Collect ${title}`)}<div class="seal-t"><b>${ed ? `Collect No.&nbsp;${ed.sold + 1}` : 'Collect'}</b><span>Yours to keep and to share, credited. 85% goes to the photographer.</span>${tUses.length > 1 ? `<button type="button" class="sm-more" data-sm aria-haspopup="menu">${tUses.length} ways to have it<i aria-hidden="true"></i></button>` : ''}</div></div></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
 ${patron ? `<p class="pat-line"><a href="/m/${esc(patron)}#patron">Become a patron of ${esc(maker.name)}</a><span>Keep the work going, monthly or once.</span></p>` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
@@ -414,10 +424,14 @@ function rightsPanel(uses, rules) {
 
 // The license page. One photograph, four uses, every price in plain sight, one button.
 // Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
-function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false } }) {
-  const pick = uses.find(u => u.key === chosen) || uses.find(u => u.key === 'social' && u.price_cents != null) || uses.find(u => u.key === 'commercial') || uses[0];
+function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false }, mine = [] }) {
+  const held = Object.fromEntries((renews ? [] : mine).map(m => [m.key, m]));
+  const open = uses.filter(u => !held[u.key]);
+  const pick = open.find(u => u.key === chosen) || open.find(u => u.key === 'social' && u.price_cents != null) || open.find(u => u.key === 'commercial') || open[0] || uses[0];
   const label = u => u.price_cents == null || !instant ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Share it' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
-  const row = u => `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
+  const row = u => held[u.key] ? `<label class="bu is-mine"><input type="radio" name="use" value="${esc(u.key)}" disabled>
+<span class="bu-n">${esc(u.name)}</span><span class="bu-p">Yours</span>
+<span class="bu-d">${held[u.key].ends_at ? `Licensed to you until ${date(held[u.key].ends_at)}.` : 'In your collection.'} <a href="/c/${esc(held[u.key].ref)}${held[u.key].download_token ? `?k=${esc(held[u.key].download_token)}` : ''}">Your licence</a></span></label>` : `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
 <span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em></span></label>`;
   // Share it leads; the larger uses wait behind one line until someone asks for them.

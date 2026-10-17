@@ -1324,3 +1324,21 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .pf-dl dt{color:var(--mu);font-size:13px}.pf-dl dd{margin:0}.pf-dl a{color:var(--ink)}
 .pf-n{grid-column:1/-1;margin:0;font-size:12.5px;line-height:1.55;color:var(--mu);max-width:56em}
 @media (max-width:760px){.pf{grid-template-columns:1fr}}
+/* What you already hold of a work. */
+.lot-yours{margin:26px 0 18px;padding:18px 0 4px;border-top:1px solid var(--ink)}
+.lot-yours .k{margin-bottom:10px}
+.ly-row{display:grid;grid-template-columns:1fr auto;gap:6px 16px;padding:12px 0;border-bottom:1px solid var(--ln);align-items:baseline}
+.ly-t b{display:block;font-family:var(--read);font-weight:400;font-size:19px}
+.ly-t span{font-size:13px;color:var(--mu)}
+.ly-a{display:flex;gap:16px;font-size:13px}.ly-a a{color:var(--ink)}
+.ly-up{grid-column:1/-1;font-size:13px}
+.ly-up summary{cursor:pointer;color:var(--ink);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--ln)}
+form.ly-up{display:flex;gap:14px;align-items:baseline;color:var(--mu)}form.ly-up b{color:var(--ink);font-weight:500}
+form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink);text-decoration:underline;cursor:pointer}
+.ly-f{display:grid;gap:10px;margin-top:12px;max-width:340px}
+.ly-f label{font-size:12px;color:var(--mu);display:grid;gap:6px}
+.ly-in{display:flex;align-items:center;border-bottom:1px solid var(--ink)}.ly-in i{font-style:normal;color:var(--ink);font-size:18px;padding-right:4px}
+.ly-in input{border:0;background:none;padding:6px 0;font:inherit;font-size:20px;font-family:var(--read);width:100%;outline:none;color:var(--ink)}
+.ly-f .note{margin:0;font-size:12px}
+.ly-more{margin:12px 0 0;font-size:13px;color:var(--mu)}.ly-more a{color:var(--ink)}
+.bu.is-mine{cursor:default;background:var(--soft)}.bu.is-mine .bu-p{font-size:12px;letter-spacing:.04em;color:#2f6b3a}.bu.is-mine a{color:var(--ink)}
