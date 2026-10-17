@@ -115,7 +115,8 @@ ${row('Paid out', money(st.paid))}
 ${ready ? `<p class="ok">Your bank is with Stripe; the house never sees it. ${on ? 'Payouts go on the first of the month, or now:' : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Send ${money(st.owed)} to my bank</button></form>` : ''}`
   : `<p class="note">Add your bank through Stripe (a few minutes; the house never sees your details). ${on ? 'From then on what you are owed goes out on the first of the month, or whenever you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each month from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}
 ${st.rows.length ? `<h2>Payments to you</h2><table class="tbl"><thead><tr><th>Date</th><th>Amount</th><th>How</th><th>Note</th></tr></thead><tbody>${st.rows.map(r => `<tr><td>${date(r.at)}</td><td>${money(r.amount_cents)}</td><td>${r.how === 'stripe' ? 'To your bank' : 'By hand'}</td><td>${esc(r.note || r.stripe_transfer || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="note">Nothing paid out yet.</p>'}
-<p class="note">${first}, this statement is yours to keep and to show an accountant: every line on it is on the register.</p></section>` });
+<p class="note">${first}, this statement is yours to keep and to show an accountant: every line on it is on the register.</p>
+<p class="sr-also"><a href="/account/keeping">Keeping: what the archive holds, and the tiers</a></p></section>` });
 }
 
 module.exports = { mountPayouts, payoutsPage };

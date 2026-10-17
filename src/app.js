@@ -1365,6 +1365,7 @@ function createApp(cfg = {}) {
   require('./open').mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./payouts').mountPayouts(app, { db, C, stripe, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger, mail });
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
+  require('./atelier').mountAtelier(app, { db, isStudio, makerOf: req => app.locals.accounts.makerOf(req), V });
   require('./introductions').mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, setMaker: app.locals.accounts.setMaker, setBuyer, slugify, DEFAULT_USES });
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });

@@ -609,6 +609,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account/claims/999', { headers: { accept: 'text/html' } }); assert.ok(r.body.toString().includes('nf-t') || r.status === 302, 'a private door is a sign too');
   r = await req(port, 'GET', '/api/wander?from=zzz', { headers: { accept: 'application/json' } }); assert.equal(r.status, 200, 'JSON keeps its shape');
   r = await req(port, 'GET', '/img/no-such/thumb'); assert.ok(r.status === 404 && !r.body.toString().includes('<html'), 'images keep a plain status');
+  // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
+  r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
+  r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');
+  r = await req(port, 'GET', '/account/atelier/cataloguing-an-archive', { cookie: gck }); assert.ok(r.body.toString().includes('accession number') && r.body.toString().includes('A draft by the house'), 'a guide reads');
+  r = await req(port, 'POST', '/studio/atelier/cataloguing-an-archive', { cookie: ck, body: { title: 'Cataloguing an archive', section: 'archive', body: 'Edited.', status: 'confirmed', by: 'Will Fullerton' } }); r = await req(port, 'GET', '/account/atelier/cataloguing-an-archive', { cookie: gck }); assert.ok(r.body.toString().includes('By Will Fullerton') && r.body.toString().includes('Edited.'), 'edited and confirmed');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

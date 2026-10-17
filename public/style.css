@@ -2111,3 +2111,8 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 /* The edit: standing by what is shown, not how much. */
 .ed-l{font-family:var(--read);font-size:16px;line-height:1.55;max-width:70ch;margin:0 0 14px}.ed-l b{font-weight:500}
 .ed-row{display:flex;gap:8px;flex-wrap:wrap}.ed-c{display:grid;gap:2px;padding:10px 14px;border:1px solid var(--ln);min-width:110px;font-size:12px;color:var(--mu)}.ed-c b{font-family:var(--read);font-size:20px;color:var(--ink);font-weight:400}.ed-c.on{border-color:var(--ink)}
+/* The atelier. */
+.at-sec{margin-top:28px}.at-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.at-card{display:grid;gap:6px;padding:18px 18px 16px;border:1px solid var(--ln);text-decoration:none;color:var(--ink);background:var(--bg)}.at-card:hover{border-color:var(--ink)}.at-card b{font-family:var(--read);font-size:19px;font-weight:400}.at-card span{font-size:13.5px;color:var(--mu);line-height:1.45}.at-card small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);margin-top:4px}
+.at-body{max-width:66ch;font-family:var(--read);font-size:17.5px;line-height:1.6;margin:22px 0 28px}.at-body p{margin:0 0 16px}.at-body b{font-weight:600}.at-body code{font-size:14px;background:var(--soft);padding:1px 5px}
+.at-foot{font-size:13px;color:var(--mu);max-width:66ch}.at-g .hg-edit{max-width:66ch}
