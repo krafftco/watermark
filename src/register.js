@@ -4,7 +4,7 @@
 // it, grouped by day. Private things (sign-ins, keys, seats' emails) are kept off the public stream;
 // nothing on it names a person who did not choose to be named. The hash stays, small, for those who look.
 const USE = { social: 'collected', reference: 'collected as the Reference', editorial: 'licensed for a story', commercial: 'licensed to a company', campaign: 'licensed for a campaign', print: 'ordered as a print' };
-const HIDDEN = new Set(['introduction.issued', 'cabinet.kept', 'showing.opened', 'curation.earned', 'pocket.cashed', 'dispute.opened', 'dispute.answered', 'dispute.dismissed', 'dispute.withdrawn', 'signin.email', 'collector.passkey', 'maker.passkey', 'license.seat', 'license.seat.claimed', 'license.seat.file', 'license.seat.removed', 'license.seats.added', 'market.refunded', 'license.undone', 'patron.ending', 'license.renewal_offered']);
+const HIDDEN = new Set(['representation.earned', 'representation.ended', 'introduction.issued', 'cabinet.kept', 'showing.opened', 'curation.earned', 'pocket.cashed', 'dispute.opened', 'dispute.answered', 'dispute.dismissed', 'dispute.withdrawn', 'signin.email', 'collector.passkey', 'maker.passkey', 'license.seat', 'license.seat.claimed', 'license.seat.file', 'license.seat.removed', 'license.seats.added', 'market.refunded', 'license.undone', 'patron.ending', 'license.renewal_offered']);
 
 function mountRegister(app, { db, V, ledger }) {
   const workBySlug = db.prepare("SELECT id, slug, title, maker_id, width, height, status FROM works WHERE slug=?");
@@ -68,6 +68,8 @@ function mountRegister(app, { db, V, ledger }) {
       case 'friend.gave': return { ...k, kind: 'patron', text: `A gift${d.amount ? ` of ${money(d.amount)}` : ''} was made to ${HOUSE[d.house] || 'the house'}.` };
       case 'keeping.begun': return { ...k, text: 'A maker entrusted a larger archive to the vault.' };
       case 'maker.introduced': return { ...k, kind: 'birth', text: `A new maker entered the house${d.by && /^maker:/.test(d.by) ? `, introduced by ${esc(d.by.slice(6))}` : d.by === 'house' ? ', introduced by the house' : ''}.` };
+      case 'representation.began': return { ...k, kind: 'life', text: `${esc(d.gallery || 'A gallery')} now represents <a href="/m/${esc(e.ref)}">a maker of the house</a>.` };
+      case 'show.opening': return { ...k, kind: 'life', text: `A show opens ${esc(d.opens || '')}: <a href="/hang/${esc(d.slug || '')}">${esc(d.title || 'a show')}</a>${d.venue ? ', at ' + esc(d.venue) : ''}.` };
       case 'hang.opened': return { ...k, kind: 'life', text: `A curator hung a wall: <a href="/hang/${esc(d.slug || '')}">${esc(d.title || 'a hang')}</a>.` };
       case 'dispute.upheld': return { ...k, kind: 'life', text: 'A claim about a photograph was upheld by the house; it came down, and its holders were told.' };
       case 'keeping.moved': return { ...k, text: 'A maker moved their archive to a larger shelf.' };

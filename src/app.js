@@ -200,6 +200,7 @@ function createApp(cfg = {}) {
     // Collector No. n of this work: numbers are never reused, so an early number stays early.
     if (extra.paid) db.prepare('UPDATE licenses SET collector_no=(SELECT COALESCE(MAX(collector_no),0)+1 FROM licenses WHERE work_id=?) WHERE ref=? AND collector_no IS NULL').run(l.work_id, ref);
     if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
+    if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85); } catch (e) { console.error('[representation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     const g = q.lic.get(ref);
     if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
@@ -294,7 +295,7 @@ function createApp(cfg = {}) {
   });
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
-  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); } catch (e) { /* before the Studio exists */ } next(); });
+  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
 
@@ -753,8 +754,9 @@ function createApp(cfg = {}) {
     let b = buyerOf(req);
     // A maker signed in without a gallery yet is given one: every maker is a collector.
     // A visitor who opens their cabinet or hangs is given a gallery on the spot: both are theirs to begin before they collect.
+    // A signed-in maker's gallery is their own (by makers.buyer_id or email), made if they have none: every maker is a collector.
+    if (!b) { const m = app.locals.accounts.makerOf(req); if (m) { b = (m.buyer_id && db.prepare('SELECT * FROM buyers WHERE id=?').get(m.buyer_id)) || (m.email && db.prepare('SELECT * FROM buyers WHERE email=?').get(m.email)) || null; if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email, name, code) VALUES ('', ?, ?, ?)").run(m.email || null, m.name, nanoid(10)).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); } db.prepare('UPDATE makers SET buyer_id=COALESCE(buyer_id, ?) WHERE id=?').run(b.id, m.id); setBuyer(res, b); } }
     if (!b && ['cabinet', 'hangs'].includes(String(req.query.tab))) { const id = db.prepare("INSERT INTO buyers (customer, email, code) VALUES ('', NULL, ?)").run(nanoid(10)).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
-    if (!b) { const m = app.locals.accounts.makerOf(req); if (m) { const id = db.prepare("INSERT INTO buyers (customer, email, name, code) VALUES ('', ?, ?, ?)").run(m.email || null, m.name, nanoid(10)).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); db.prepare('UPDATE makers SET buyer_id=COALESCE(buyer_id, ?) WHERE id=?').run(b.id, m.id); setBuyer(res, b); } }
     if (b && !b.code) { db.prepare('UPDATE buyers SET code=? WHERE id=?').run(nanoid(10), b.id); b = buyerOf(req); }
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
@@ -960,7 +962,8 @@ function createApp(cfg = {}) {
     list.forEach(c => { c.thumbs = thumbs.all(c.id); });
     list.forEach(c => { c.founding = foundingNo(c); });
     list.forEach(c => { c.statement = (db.prepare('SELECT statement FROM buyers WHERE id=?').get(c.id) || {}).statement; });
-    res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [] }));
+    const G = app.locals.galleries; if (G) list.forEach(c => { c.eye = G.eye(c); });
+    res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [], shows: G ? G.onNow().map(h => ({ ...h, thumbs: db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id AND w.status='held' WHERE hw.hang_id=? ORDER BY hw.pos LIMIT 3").all(h.id) })) : [] }));
   });
   app.get('/g/:code', (req, res, next) => { req.url = `/collector/${req.params.code}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/collector/:code', (req, res) => {
@@ -1371,6 +1374,7 @@ function createApp(cfg = {}) {
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });
   require('./frame').mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket: app.locals.pocket, nextRef, grant, SERIES: require('./series'), collectUse: w => { if (!w) return null; const m = mk(w); const u = q.uses.all(m.id).find(x => x.key === 'social'); return u && u.price_cents > 0 && offered(R.parse(w.rules), 'social', w) ? u : null; } });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
+  require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });

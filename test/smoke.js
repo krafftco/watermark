@@ -609,6 +609,38 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account/claims/999', { headers: { accept: 'text/html' } }); assert.ok(r.body.toString().includes('nf-t') || r.status === 302, 'a private door is a sign too');
   r = await req(port, 'GET', '/api/wander?from=zzz', { headers: { accept: 'application/json' } }); assert.equal(r.status, 200, 'JSON keeps its shape');
   r = await req(port, 'GET', '/img/no-such/thumb'); assert.ok(r.status === 404 && !r.body.toString().includes('<html'), 'images keep a plain status');
+  // Galleries: a gallery represents a maker, takes its agreed share of the maker's side, mounts a show; the eye is told on the wall.
+  r = await req(port, 'POST', '/studio/accounts', { cookie: ck, body: { name: 'Meatpacking Pictures', email: 'desk@meatpacking.example', kind: 'gallery', house: 'New York', invite: '0' } }); assert.equal(r.status, 302);
+  { const gal = db.prepare("SELECT * FROM makers WHERE handle='meatpacking-pictures'").get(); assert.ok(gal && gal.kind === 'gallery', 'a gallery account');
+    r = await req(port, 'GET', `/account/join/${gal.invite_token}`); const galck = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'GET', '/account/gallery', { cookie: galck }); assert.ok(r.body.toString().includes('Meatpacking Pictures') && r.body.toString().includes('Offer representation') && r.body.toString().includes('>The gallery<'), 'the gallery desk and its rail');
+    const tmp5 = path.join(dir, 'in5.jpg'); await require('sharp')(SRC).resize({ width: 1500 }).modulate({ brightness: .9, hue: 120 }).toFile(tmp5);
+    const w5 = await registerWork({ file: tmp5, originalName: 'r.jpg', title: 'Test Rialto', place: 'Venice' });
+    const art = db.prepare('SELECT m.* FROM makers m JOIN works w ON w.maker_id=m.id WHERE w.slug=?').get(w5.slug);
+    r = await req(port, 'POST', '/account/gallery/offer', { cookie: galck, body: { handle: art.handle, pct: '40', note: 'We would like to show the Venice work.' } }); assert.ok(decodeURIComponent(r.headers.location).includes('Offered to'), 'offered');
+    r = await req(port, 'GET', `/account?maker=${art.handle}`, { cookie: ck }); const asck2 = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_as=')).split(';')[0]; const artck = `${ck}; ${asck2}`;
+    r = await req(port, 'GET', '/account', { cookie: artck }); assert.ok(r.body.toString().includes('offers to represent you'), 'Needs you: the offer');
+    const rep = db.prepare("SELECT * FROM representation WHERE gallery_id=? AND maker_id=?").get(gal.id, art.id);
+    r = await req(port, 'POST', `/account/representation/${rep.id}`, { cookie: artck, body: { answer: 'accept' } }); assert.ok(decodeURIComponent(r.headers.location).includes('represents you now'), 'accepted');
+    r = await req(port, 'GET', `/m/${art.handle}`); assert.ok(r.body.toString().includes('Represented by') && r.body.toString().includes('Meatpacking Pictures'), 'the maker page says so');
+    const pb = db.prepare("SELECT b.* FROM buyers b WHERE b.id=(SELECT buyer_id FROM pocket WHERE kind='topup' ORDER BY id DESC LIMIT 1)").get(); db.prepare("INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)").run(pb.id, 1000, 'topup', 'test', 'for the show');
+    r = await req(port, 'POST', `/buy/${w5.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(r.headers.location.includes('collected=1'), 'collected');
+    const cutRow = db.prepare('SELECT * FROM gallery_cuts WHERE gallery_id=?').get(gal.id); assert.ok(cutRow && cutRow.cents === Math.round(500 * ((art.share_pct || 85) / 100) * .4), `the gallery's cut: ${cutRow && cutRow.cents}`);
+    r = await req(port, 'GET', '/account/payouts', { cookie: galck }); assert.ok(r.body.toString().includes('Representation') && r.body.toString().includes(require('../src/views').money(cutRow.cents)), 'on the gallery statement');
+    r = await req(port, 'GET', '/account/payouts', { cookie: artck }); assert.ok(r.body.toString().includes('To your gallery'), 'and on the maker\'s');
+    // A show: the gallery hangs a wall, dates it, shows it.
+    const gb = app.locals.galleries.galleryBuyer(gal); r = await req(port, 'GET', '/yours?tab=hangs', { cookie: galck }); const gbck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_b=')); const showck = gbck ? `${galck}; ${gbck.split(';')[0]}` : galck;
+    r = await req(port, 'POST', '/hangs/new', { cookie: showck, body: { title: 'Venice, in Winter', line: 'Three weeks of fog.' } }); assert.equal(r.status, 302);
+    const sh2 = db.prepare("SELECT * FROM hangs WHERE title='Venice, in Winter'").get(); assert.ok(sh2, 'the show exists');
+    r = await req(port, 'POST', '/hang/add', { cookie: showck, body: { work: w5.slug, hang: String(sh2.id) } });
+    r = await req(port, 'POST', `/hang/${sh2.id}/edit`, { cookie: showck, body: { title: sh2.title, line: 'Three weeks of fog.', public: '1' } });
+    const today = new Date().toISOString().slice(0, 10);
+    r = await req(port, 'POST', `/hang/${sh2.id}/show`, { cookie: showck, body: { opens_at: today, closes_at: '2099-01-01', venue: 'Little West 12th' } }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', `/hang/${sh2.slug}`); { const h = r.body.toString(); assert.ok(h.includes('A show') && h.includes('now showing') && h.includes('Little West 12th'), 'the wall reads as a show'); }
+    r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('>Shows<') && r.body.toString().includes('Venice, in Winter'), 'Galleries leads with shows');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='show.opening'").get(), 'the opening is on the register');
+    r = await req(port, 'GET', `/m/${gal.handle}`);  assert.ok(r.body.toString().includes('Represents') && r.body.toString().includes('Venice, in Winter'), 'the gallery page: artists and shows'); }
+  console.log('ok: galleries');
   // The frame: a screen pairs by code; the phone is the remote; the set can be collected in one tap from the pocket.
   r = await req(port, 'GET', '/frame'); assert.ok(r.body.toString().includes('Pair a screen') && r.body.toString().includes('How it is licensed'), 'the frame\'s door');
   r = await req(port, 'GET', '/frame/tv'); { const h = r.body.toString(); const fcode = (h.match(/data-code="([A-Z]{5})"/) || [])[1]; assert.ok(fcode && h.includes(fcode) && h.includes('data-waiting="1"'), 'the screen shows its code');

@@ -61,6 +61,7 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
       const m = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
       setMaker(res, m);
       ledger.append(db, 'maker.introduced', handle, { by: who ? who.line : i.by_kind, label: i.label });
+      if (i.by_kind === 'maker') { const by = db.prepare('SELECT * FROM makers WHERE id=?').get(i.by_id); if (by && by.kind === 'gallery' && app.locals.galleries) { db.prepare("INSERT INTO representation (gallery_id, maker_id, pct, status, since) VALUES (?,?,?,'on',datetime('now'))").run(by.id, id, app.locals.galleries.DEFAULT_PCT); ledger.append(db, 'representation.began', handle, { gallery: by.handle, pct: app.locals.galleries.DEFAULT_PCT }); } }
       mail.send({ to: email, subject: 'Welcome to Watermark', text: `${name.split(' ')[0]},\n\n${who ? who.name : 'Someone'} introduced you to the house, and the door is open: your studio is ready. Put your work in; it is fingerprinted, registered and protected the moment it arrives, and shown when you say.\n\n${C.base}/account`, feature: 'Introduced', cta: { label: 'Open your studio', url: `${C.base}/account` } });
       if (who && i.by_kind === 'maker') { const by = db.prepare('SELECT * FROM makers WHERE id=?').get(i.by_id); if (by && by.email) mail.send({ to: by.email, subject: `${name} has joined on your introduction`, text: `${name} took up your introduction and has a studio in the house now. The register records that you introduced them.` }); }
       return res.redirect('/account?welcome=1');
@@ -74,7 +75,9 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
   });
 
   // Who introduced whom, for the maker page.
-  app.locals.introductions = { mine, make, url, live, introducer, yearUsed, MAKER_INTROS_A_YEAR, all: () => db.prepare('SELECT * FROM introductions ORDER BY closed, id DESC').all().map(i => ({ ...i, url: url(i), who: introducer(i) })),
+  // A standing link for a gallery: one open introduction, good any number of times, that represents whoever comes through it.
+  const linkFor = ({ by_kind, by_id, opens }) => { let i = db.prepare("SELECT * FROM introductions WHERE by_kind=? AND by_id=? AND opens=? AND max_uses IS NULL AND closed=0 ORDER BY id LIMIT 1").get(by_kind, by_id, opens); if (!i) i = make({ by_kind, by_id, opens, label: 'The gallery', max_uses: null }); return url(i).replace(/^https?:\/\/[^/]+/, ''); };
+  app.locals.introductions = { mine, make, url, live, introducer, yearUsed, MAKER_INTROS_A_YEAR, linkFor, all: () => db.prepare('SELECT * FROM introductions ORDER BY closed, id DESC').all().map(i => ({ ...i, url: url(i), who: introducer(i) })),
     introducedBy: line => ({ makers: db.prepare('SELECT handle, name FROM makers WHERE introduced_by=?').all(line), collectors: db.prepare('SELECT COUNT(*) n FROM buyers WHERE introduced_by=?').get(line).n }),
     whoIntroduced: line => { if (!line) return null; const [k, v] = String(line).split(':'); if (k === 'maker') { const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(v); return m ? { name: m.name, href: `/m/${V.makerSlug(m)}` } : null; } if (k === 'house') return { name: 'the house', href: '/about' }; const b = db.prepare('SELECT * FROM buyers WHERE code=?').get(v); return b ? { name: b.name || 'a collector', href: b.public ? `/collector/${b.code}` : null } : null; } };
   return app.locals.introductions;
