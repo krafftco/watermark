@@ -45,7 +45,7 @@
     var swap = function () { next.classList.add('on'); prev.classList.remove('on'); cur = 1 - cur; next.onload = null; R.classList.remove('drift'); void R.offsetWidth; R.classList.add('drift'); };
     if (instant || next.src === location.origin + w.img || (aheadImg && aheadImg.src === location.origin + w.img && aheadImg.complete)) { next.src = w.img; next.alt = w.title; swap(); }
     else { next.onload = swap; next.src = w.img; next.alt = w.title; }
-    plate(w);
+    plate(w); showPlate();
     if (saying) say(w);
     fetchAhead();
   }
@@ -66,7 +66,7 @@
       if (!w || w.none) return; seen.push(w.slug); hist.push(w); at = hist.length - 1; show(w); dwell();
     }).catch(function () {});
   }
-  function pause(on) { paused = on; if (on) { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - t0)); bar.style.transition = 'none'; bar.style.width = getComputedStyle(bar).width; } else dwell(); R.classList.toggle('paused', on); }
+  function pause(on) { paused = on; R.classList.toggle('labeled', on || R.classList.contains('awake')); if (on) { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - t0)); bar.style.transition = 'none'; bar.style.width = getComputedStyle(bar).width; } else dwell(); R.classList.toggle('paused', on); }
   // The sale: from the pocket it is posted at once and the room says so; otherwise the form goes to Checkout (Apple Pay, Link, a card) and returns here.
   cf.addEventListener('submit', function (e) {
     var w = hist[at]; if (!w || !w.collect) return;
@@ -78,17 +78,27 @@
   });
   hatB.addEventListener('click', function () { var w = hist[at]; if (!w) return; fetch('/w/' + w.slug + '/applaud', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) { if (!j) return; w.hat = { n: j.n, mine: !!j.mine }; plate(w); say_(j.mine ? 'A tip of the hat.' : 'Hat back on.'); }).catch(function () {}); });
   hangB.addEventListener('click', function () { var w = hist[at]; if (!w) return; fetch('/hang/add', { method: 'post', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'work=' + encodeURIComponent(w.slug) + '&hang=wander&title=From+my+wandering&json=1' }).then(function (r) { return r.json(); }).then(function (j) { say_(j && j.ok ? 'Hung on your wall, From my wandering.' : 'Could not hang it just now.'); }).catch(function () {}); });
+  // Full screen: the photograph alone, edge to edge. Asked for on Wander, or F, or the button; Esc leaves it the browser's way.
+  var fullB = $('[data-vr-full]');
+  function full(on) { var d = document; try { if (on && !d.fullscreenElement && d.documentElement.requestFullscreen) d.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(function () {}); else if (!on && d.fullscreenElement) d.exitFullscreen(); } catch (e) {} }
+  if (fullB) fullB.addEventListener('click', function () { full(!document.fullscreenElement); });
+  document.addEventListener('fullscreenchange', function () { R.classList.toggle('full', !!document.fullscreenElement); });
+  // The plate rises with each photograph, holds, and recedes; a touch of the mouse brings it back.
+  var plateT; function showPlate() { R.classList.add('labeled'); clearTimeout(plateT); plateT = setTimeout(function () { if (!saying && !paused) R.classList.remove('labeled'); }, 4200); }
+  var pauseB = $('[data-vr-pause]'), pauseL = $('[data-vr-pause-l]');
+  function pauseLabel() { pauseL.textContent = !auto ? 'Wander' : paused ? 'Resume' : 'Pause'; pauseB.setAttribute('aria-pressed', String(auto && !paused)); }
+  pauseB.addEventListener('click', function () { if (!auto) { autoB.click(); full(true); } else pause(!paused); pauseLabel(); });
   $('[data-vr-next]').addEventListener('click', function () { go(1); });
   $('[data-vr-prev]').addEventListener('click', function () { go(-1); });
-  autoB.addEventListener('click', function () { auto = !auto; autoB.setAttribute('aria-pressed', String(auto)); autoB.querySelector('span').textContent = auto ? 'Wandering' : 'Standing'; if (auto) dwell(); else { clearTimeout(timer); bar.style.width = '0%'; } });
+  autoB.addEventListener('click', function () { auto = !auto; autoB.setAttribute('aria-pressed', String(auto)); autoB.querySelector('span').textContent = auto ? 'Wandering' : 'Standing'; if (auto) dwell(); else { clearTimeout(timer); bar.style.width = '0%'; } pauseLabel(); });
   sayB.addEventListener('click', function () { if (saying) { stopSay(); dwell(); } else { clearTimeout(timer); bar.style.width = '0%'; say(hist[at]); } });
   document.addEventListener('keydown', function (e) {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     var k = e.key.toLowerCase();
-    if (e.key === ' ') { e.preventDefault(); pause(!paused); } else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
+    if (e.key === ' ') { e.preventDefault(); if (!auto) autoB.click(); else pause(!paused); pauseLabel(); } else if (k === 'f') { full(!document.fullscreenElement); } else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
     else if (k === 'g') sayB.click(); else if (k === 'w') autoB.click(); else if (k === 'c' && !cf.hidden) colEl.click(); else if (k === 'h') hatB.click(); else if (k === 's') hangB.click(); else if (e.key === 'Escape') location.href = '/collection';
   });
-  var hideT; function wake() { R.classList.add('awake'); clearTimeout(hideT); hideT = setTimeout(function () { R.classList.remove('awake'); }, 2600); }
+  var hideT; function wake() { R.classList.add('awake'); R.classList.add('labeled'); clearTimeout(plateT); clearTimeout(hideT); hideT = setTimeout(function () { R.classList.remove('awake'); if (!saying && !paused) R.classList.remove('labeled'); }, 2600); }
   ['mousemove', 'touchstart', 'keydown'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });
   $('.vr-fig').addEventListener('click', function () { if (saying) return; if (R.classList.contains('awake') && window.matchMedia('(hover:none)').matches) { go(1); } else go(1); });
   setTimeout(function () { hint.classList.add('gone'); }, 7000);
