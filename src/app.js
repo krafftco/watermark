@@ -78,6 +78,9 @@ function createApp(cfg = {}) {
   const refOK = w => !!(w && w.width && w.height && w.width * w.height >= 40e6);
   // A use is offered only when the maker allows it and the file held is good enough for it (see MIN_MP).
   const offered = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
+  // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
+  const listed = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -384,7 +387,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -500,7 +503,7 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
-    res.send(V.buy({ w, maker, rules, mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -511,7 +514,7 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = priced(q.use.get(maker.id, String(req.body.use || '')), w);
     const rules = R.parse(w.rules);
-    if (!u || !offered(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
+    if (!u || !listed(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
     // Already held: not sold twice (a renewal is the exception).
     if (!req.body.renews && covers(heldBy(req, w), u.key)) return res.redirect(`/w/${w.slug}#yours`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
