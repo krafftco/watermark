@@ -7,6 +7,14 @@ const LEVELS = [
   { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of friends, and the friend’s mark on your gallery.' },
   { key: 'patron', name: 'Patron', cents: 5000, gives: 'All of that, and first sight of every new series before it opens.' },
   { key: 'benefactor', name: 'Benefactor', cents: 25000, gives: 'All of that, a signed print from the Krafft Collection each year, and a seat at the table when the collection acquires.' },
+  // The Medici: a name on something, not a subscription. Monthly or once a year; above this, the house takes letters.
+  { key: 'medici', name: 'Medici', cents: 250000, year: 2500000, gives: 'Your name at the head of the wall. First sight of every series, a signed print each year, a seat at every acquisition, and a photograph commissioned in your name.' },
+];
+// Above the Medici there is no price on the page: a room, a series, an acquisition fund are arranged by letter.
+const LETTER = [
+  { name: 'Found a room', what: 'A named room in the collection, kept in your name for good, and the acquisitions that fill it.' },
+  { name: 'Commission a series', what: 'A photographer sent somewhere, for a season, with the series carrying your name as its patron.' },
+  { name: 'Endow an estate', what: 'An acquisition fund that brings a photographer\u2019s estate into the archive, registered and kept.' },
 ];
 const ONCE = [2500, 10000, 50000];
 const HOUSES = { watermark: 'Watermark', krafft: 'Krafft' };
@@ -16,28 +24,29 @@ const KEEPING = { freeGB: 5, freeWorks: 200, cents: 1500, name: 'Keeping', gives
 function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, V }) {
   db.exec(`CREATE TABLE IF NOT EXISTS friends (id INTEGER PRIMARY KEY, house TEXT NOT NULL, buyer_id INTEGER, maker_id INTEGER, kind TEXT NOT NULL DEFAULT 'friend', level TEXT NOT NULL, amount_cents INTEGER NOT NULL,
     recurring INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', name TEXT, email TEXT, note TEXT, stripe_session TEXT, stripe_sub TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, ended_at TEXT)`);
-  const wall = house => db.prepare("SELECT name, level, recurring, amount_cents, started_at FROM friends WHERE house=? AND kind='friend' AND status IN ('active','given') AND name IS NOT NULL ORDER BY CASE level WHEN 'benefactor' THEN 0 WHEN 'patron' THEN 1 WHEN 'friend' THEN 2 ELSE 3 END, started_at").all(house);
+  const wall = house => db.prepare("SELECT name, level, recurring, amount_cents, started_at FROM friends WHERE house=? AND kind='friend' AND status IN ('active','given') AND name IS NOT NULL ORDER BY CASE level WHEN 'medici' THEN 0 WHEN 'benefactor' THEN 1 WHEN 'patron' THEN 2 WHEN 'friend' THEN 3 ELSE 4 END, started_at").all(house);
   const count = house => db.prepare("SELECT COUNT(*) n FROM friends WHERE house=? AND kind='friend' AND status IN ('active','given')").get(house).n;
   const mine = (b, house) => (b ? db.prepare("SELECT * FROM friends WHERE house=? AND buyer_id=? AND kind='friend' AND status IN ('active','given') ORDER BY id DESC").all(house, b.id) : []);
   app.locals.friendsOf = b => (b ? db.prepare("SELECT house, level, recurring, started_at FROM friends WHERE buyer_id=? AND kind='friend' AND status='active'").all(b.id) : []);
 
   app.get('/friends', (req, res) => {
     const b = buyerOf(req);
-    res.send(V.friends({ levels: LEVELS, once: ONCE, houses: HOUSES, open: !!stripe, walls: { watermark: wall('watermark'), krafft: wall('krafft') }, counts: { watermark: count('watermark'), krafft: count('krafft') }, mine: { watermark: mine(b, 'watermark'), krafft: mine(b, 'krafft') }, unavailable: req.query.unavailable }));
+    res.send(V.friends({ levels: LEVELS, letter: LETTER, once: ONCE, houses: HOUSES, open: !!stripe, walls: { watermark: wall('watermark'), krafft: wall('krafft') }, counts: { watermark: count('watermark'), krafft: count('krafft') }, mine: { watermark: mine(b, 'watermark'), krafft: mine(b, 'krafft') }, unavailable: req.query.unavailable }));
   });
   app.post('/friends', async (req, res) => {
     const x = req.body || {}; const house = HOUSES[x.house] ? x.house : 'watermark';
     if (!stripe) return res.redirect('/friends?unavailable=1');
     const lv = LEVELS.find(l => l.key === x.level);
+    const yearly = !!(lv && lv.year && x.interval === 'year');
     const onceCents = !lv ? Math.round(Number(String(x.once || x.amount || '').replace(/[^0-9.]/g, ''))) * 100 : 0;
     if (!lv && !(onceCents >= 500 && onceCents <= 5000000)) return res.redirect('/friends#give');
-    const amount = lv ? lv.cents : onceCents, b = buyerOf(req);
+    const amount = lv ? (yearly ? lv.year : lv.cents) : onceCents, b = buyerOf(req);
     const id = db.prepare('INSERT INTO friends (house, buyer_id, level, amount_cents, recurring, note) VALUES (?,?,?,?,?,?)').run(house, b ? b.id : null, lv ? lv.key : 'once', amount, lv ? 1 : 0, String(x.note || '').trim().slice(0, 280) || null).lastInsertRowid;
     const name = lv ? `${lv.name} of ${HOUSES[house]}` : `A gift to ${HOUSES[house]}`;
     try {
       const s = await stripe.checkout.sessions.create({
         mode: lv ? 'subscription' : 'payment', submit_type: lv ? undefined : 'donate',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: amount, ...(lv ? { recurring: { interval: 'month' } } : {}), product_data: { name, description: lv ? lv.gives : `In support of ${HOUSES[house]} and the collection it keeps.` } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: amount, ...(lv ? { recurring: { interval: yearly ? 'year' : 'month' } } : {}), product_data: { name, description: lv ? lv.gives : `In support of ${HOUSES[house]} and the collection it keeps.` } } }],
         ...(b && b.customer ? { customer: b.customer } : lv ? {} : { customer_creation: 'always' }),
         metadata: { friend: String(id) }, ...(lv ? { subscription_data: { metadata: { friend: String(id) } } } : { payment_intent_data: { metadata: { friend: String(id) } } }),
         success_url: `${C.base}/friends/${id}/thanks?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/friends#give`,
@@ -105,4 +114,4 @@ function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, 
   return { LEVELS, ONCE, KEEPING, wall };
 }
 
-module.exports = { mountFriends, LEVELS, ONCE, KEEPING, HOUSES };
+module.exports = { mountFriends, LEVELS, LETTER, ONCE, KEEPING, HOUSES };

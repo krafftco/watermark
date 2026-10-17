@@ -1572,3 +1572,17 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .ar-t{display:flex;align-items:center;gap:12px}.ar-por{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none}
 .ar-t b{font-family:var(--read);font-weight:400;font-size:21px;display:block;line-height:1.15}.ar-t small{font-size:12px;letter-spacing:.04em;color:var(--mu)}
 .ar-join{margin-top:40px}
+/* The Medici, and the letter. */
+.fr-lv.fr-med{margin-top:10px;padding:18px 18px 16px;background:#141414;color:#f2efe9;border-bottom:0;grid-template-columns:auto 1fr auto}
+.fr-lv.fr-med b{font-size:24px;letter-spacing:.01em}.fr-lv.fr-med em,.fr-lv.fr-med span{color:#bdb9b1}
+.fr-lv em small{display:block;font-size:11px;letter-spacing:.04em;margin-top:2px}
+.fr-yr{grid-column:2/4;font-size:12px;color:#bdb9b1;display:flex;align-items:center;gap:8px;margin-top:6px}.fr-yr input{margin:0}
+.fr-wall .fr-medici{border-bottom:1px solid var(--ink);column-span:all}.fr-wall .fr-medici b{font-size:28px;letter-spacing:-.01em}.fr-wall .fr-medici span{letter-spacing:.14em;text-transform:uppercase;font-size:10px}
+.fr-letter{background:#141414;color:#f2efe9;padding:clamp(48px,7vw,96px) clamp(16px,4vw,56px);margin:48px 0}
+.fr-letter-in{max-width:880px;margin:0 auto}
+.fr-letter .k{color:#bdb9b1}.fr-letter h2{font-family:var(--disp);font-weight:400;text-transform:none;color:#f2efe9;font-size:clamp(30px,4.4vw,52px);line-height:1.02;letter-spacing:-.015em;margin:6px 0 16px}
+.fr-letter .lede{color:#d9d5cd;max-width:36em}
+.fr-lt{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin:36px 0 32px;padding-top:24px;border-top:1px solid rgba(242,239,233,.2)}
+.fr-lt b{font-family:var(--read);font-weight:400;font-size:21px;display:block;margin-bottom:8px}.fr-lt p{font-size:14px;line-height:1.55;color:#bdb9b1;margin:0}
+.fr-write{font-family:var(--read);font-size:18px;color:#f2efe9}.fr-write a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.5)}
+@media (max-width:760px){.fr-lt{grid-template-columns:1fr}}
