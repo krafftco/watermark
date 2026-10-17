@@ -285,7 +285,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/account/works/${w.slug}/show`, { cookie: mck, body: { attest: '1' } }); assert.equal(r.status, 404, 'not someone else\'s');
   // Will's own dashboard, as he sees it: the sales so far, at 85%
   const me = db.prepare('SELECT handle FROM makers WHERE id=1').get().handle;
-  r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); ab = r.body.toString(); assert.ok(ab.includes('Share it') && ab.includes('Everything you hold'));
+  r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); ab = r.body.toString(); assert.ok(ab.includes('Your studio') && ab.includes('The holdings'));
   r = await req(port, 'GET', `/account?maker=${me}`); assert.equal(r.status, 401, 'only the Studio can look over a shoulder');
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: ck, body: { maker: me } }); assert.equal(db.prepare('SELECT curated FROM works WHERE id=?').get(w.id).curated, 1, 'a jewel');
   r = await req(port, 'GET', `/account?maker=${me}`, { cookie: ck }); assert.ok(r.body.toString().includes('class="ac-j"'), 'jewels lead');

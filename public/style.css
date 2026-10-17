@@ -920,3 +920,35 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .hd h2{font-family:var(--read);font-weight:400;font-size:24px;letter-spacing:0;text-transform:none;color:var(--ink);margin:0}
 .hd-head span{font:inherit!important;color:inherit!important}
 .hd .snav{margin-bottom:28px}
+
+/* The maker's studio: the same statement, their share */
+.ac-bar{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:32px}
+.ac-bar h1{margin:0}
+.ac-bar nav{display:flex;align-items:center;gap:24px;font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.ac-bar nav a:not(.buy-btn){color:var(--mu);text-decoration:none}
+.ac .ac-up{margin:0}
+.ac-row{grid-template-columns:56px minmax(0,1fr) 170px 70px 90px 100px 32px}
+.ac-row .hd-t a{color:inherit;text-decoration:none}.ac-row .hd-t small a{color:var(--mu);text-decoration:underline;text-underline-offset:3px}
+.ac-st{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+.ac-pub{display:flex;flex-direction:column;align-items:flex-start;gap:6px}.ac-pub .chk{font-size:11px;line-height:1.35;color:var(--mu)}.ac-pub button{font-size:11px;padding:6px 14px}
+.ac-star .jw{font-size:18px}
+.ac-js{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:28px}
+.ac-js .ac-j{display:flex;flex-direction:column;gap:6px;text-decoration:none;color:var(--ink)}
+.ac-js .ac-jf{aspect-ratio:4/5;overflow:hidden;background:var(--soft);display:block}.ac-js .ac-jf img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 1.2s var(--e)}
+.ac-js .ac-j:hover img{transform:scale(1.03)}
+.ac-js .ac-j b{font-family:var(--read);font-weight:400;font-size:17px}.ac-js .ac-j>span:last-child{font-size:12px;color:var(--mu)}
+.hd-n{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu)}
+@media (max-width:820px){.ac-bar{flex-direction:column;align-items:flex-start}.ac-row{grid-template-columns:48px minmax(0,1fr) auto}.ac-row>span:nth-child(3),.ac-row .ac-star{display:block}.ac-row>span:nth-child(3){grid-column:2/4}.ac-row .ac-star{display:none}}
+.ac-bar nav a{white-space:nowrap}
+.ac .pk{min-height:0;padding:22px 24px;margin:0 0 40px}
+.ac-pub summary{list-style:none;cursor:pointer;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}.ac-pub summary::-webkit-details-marker{display:none}
+.ac-pub summary u{color:var(--ink);text-underline-offset:3px}
+.ac-pub form{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
+.ac-pub label{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.4;color:var(--mu);text-transform:none;letter-spacing:0}
+.ac-pub button{font-size:11px;padding:7px 16px}
+@media (max-width:820px){
+  .ac-js{grid-template-columns:repeat(2,1fr);gap:16px}
+  .ac-row{grid-template-columns:48px minmax(0,1fr) auto;row-gap:6px}
+  .ac-row>a{grid-row:1/3}.ac-row>span:nth-child(3){grid-column:2;grid-row:2}.ac-row .hd-v{grid-column:3;grid-row:1}
+}
+.ac .pk .pk-msg:empty{display:none}

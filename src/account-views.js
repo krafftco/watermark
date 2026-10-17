@@ -30,26 +30,36 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true }) {
   const hidden = viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : '';
   const star = w => `<form method="post" action="/account/works/${esc(w.slug)}/jewel" class="inline">${hidden}<button class="jw${w.curated ? ' on' : ''}" title="${w.curated ? 'Remove from your jewels' : 'Mark as a jewel'}" aria-pressed="${w.curated ? 'true' : 'false'}">${w.curated ? '&#9733;' : '&#9734;'}</button></form>`;
-  const jewel = w => `<div class="ac-j" id="w-${esc(w.slug)}"><a href="/w/${esc(w.slug)}" class="ac-jf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></a>
-<div class="ac-jt"><b>${esc(w.title)}</b>${star(w)}</div><dl class="ac-jm"><div><dt>To you</dt><dd>${money(toMaker(w.gross))}</dd></div><div><dt>Shares</dt><dd>${w.shares}</dd></div><div><dt>Licenses</dt><dd>${w.licenses}</dd></div><div><dt>Seen, 30 days</dt><dd>${w.seen30}</dd></div><div><dt>Sightings</dt><dd>${w.sightings}</dd></div><div><dt>Share it</dt><dd>${w.share_cents ? money(w.share_cents) : 'Standard'}</dd></div></dl></div>`;
-  const kinds = byUse.map(u => `<tr><td>${esc(u.name)}</td><td>${u.n}</td><td>${money(u.gross)}</td><td><b>${money(toMaker(u.gross))}</b></td></tr>`).join('');
-  const sales = recent.map(l => `<tr><td>${date(l.starts_at)}</td><td><a href="/w/${esc(l.slug)}">${esc(l.title)}</a></td><td>${esc(l.use_name)}</td><td>${money(l.price_cents)}</td><td><b>${money(toMaker(l.price_cents))}</b></td></tr>`).join('');
-  const pub = w => viewing ? (w.status === 'held' ? 'Public' : 'Private') : w.status === 'held'
-    ? `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline"><button class="link">Public &middot; make private</button></form>`
-    : `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline ac-pub"><label class="chk"><input type="checkbox" name="attest" value="1" required> I hold the rights, and releases for anyone identifiable</label><button>Publish</button></form>`;
-  const all = works.map(w => `<tr id="w-${esc(w.slug)}"><td>${star(w)}</td><td><img src="/img/${esc(w.slug)}/thumb" alt="" width="56" loading="lazy" draggable="false"></td><td><a href="/w/${esc(w.slug)}">${esc(w.title)}</a><br><small>${esc(w.place || '')} &middot; <a href="/voices/${esc(w.slug)}">Add your voice</a></small></td><td>${pub(w)}</td><td>${w.seen30}</td><td>${w.shares}</td><td>${w.licenses}</td><td>${money(toMaker(w.gross))}</td></tr>`).join('');
-  return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap ac">
-${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s dashboard as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
-<p class="k">${m.kind === 'estate' ? 'Estate' : 'Your Watermark'}${m.house ? ' · ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1>
-${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) lets you come back to your room from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
-<div class="stats ac-stats"><div><b>${money(totals.earned)}</b><span>earned, all time</span></div><div><b>${money(totals.earned30)}</b><span>last 30 days</span></div><div><b>${totals.shares}</b><span>shares sold</span></div><div><b>${totals.jewels}</b><span>jewels</span></div><div><b>${totals.works}</b><span>works held (${totals.public} public)</span></div>
-<div><b>${totals.value != null ? money(totals.value) : '&mdash;'}</b><span>archive value, estimate</span></div></div>
-<p class="note">You keep ${pct}% of every sale; figures here are your share. Archive value is ${multiple}&times; your last twelve months of earnings, an illustration rather than an appraisal${totals.value == null ? '; it appears once you have sales' : ''}.</p>
-<h2>Your jewels</h2>${jewels.length ? `<div class="ac-js">${jewels.map(jewel).join('')}</div>` : '<p class="note">Mark the works that matter most with the star; they lead this page and are the first we show collectors.</p>'}
-<h2>What is selling</h2><table class="tbl"><thead><tr><th>Use</th><th>Sold</th><th>Paid</th><th>To you</th></tr></thead><tbody>${kinds}</tbody></table>
-<h2>Recent sales</h2><table class="tbl"><thead><tr><th>Date</th><th>Work</th><th>Use</th><th>Paid</th><th>To you</th></tr></thead><tbody>${sales || '<tr><td colspan="5">No sales yet.</td></tr>'}</tbody></table>
-<h2>Everything you hold</h2>${viewing ? '' : '<p><a class="buy-btn ac-up" href="/account/upload">Add photographs</a></p>'}${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : ''}<table class="tbl ac-all"><thead><tr><th></th><th></th><th>Work</th><th>On Watermark</th><th>Seen, 30 days</th><th>Shares</th><th>Licenses</th><th>To you</th></tr></thead><tbody>${all || '<tr><td colspan="8">Nothing here yet.</td></tr>'}</tbody></table>
-<p class="note"><a href="/account/logout">Sign out</a></p></section>` });
+  const jewel = w => `<a class="ac-j" id="j-${esc(w.slug)}" href="/w/${esc(w.slug)}"><span class="ac-jf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></span><b>${esc(w.title)}</b><span>${money(toMaker(w.gross))} &middot; ${w.seen30} seen</span></a>`;
+  const pub = w => viewing ? `<span class="ac-st">${w.status === 'held' ? 'Public' : 'Private'}</span>` : w.status === 'held'
+    ? `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline"><button class="link ac-st">Public</button></form>`
+    : `<details class="ac-pub"><summary>Private &middot; <u>Publish</u></summary><form method="post" action="/account/works/${esc(w.slug)}/show"><label><input type="checkbox" name="attest" value="1" required> I hold the rights, and releases for anyone identifiable</label><button>Publish</button></form></details>`;
+  const row = w => `<div class="hd-row ac-row" id="w-${esc(w.slug)}"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"></a>
+<span class="hd-t"><b><a href="/w/${esc(w.slug)}">${esc(w.title)}</a></b><small>${esc(w.place || '')}${viewing ? '' : `${w.place ? ' &middot; ' : ''}<a href="/voices/${esc(w.slug)}">Add your voice</a>`}</small></span>
+<span>${pub(w)}</span><span class="hd-c">${w.shares + w.licenses}</span><span class="hd-c">${w.seen30}</span><span class="hd-v">${money(toMaker(w.gross))}</span><span class="ac-star">${star(w)}</span></div>`;
+  const collected = byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.gross, 0), licensed = byUse.filter(u => u.key !== 'social').reduce((a, u) => a + u.gross, 0);
+  const share = c => (collected + licensed ? Math.round(100 * c / (collected + licensed)) : 0);
+  const privateN = works.filter(w => w.status !== 'held').length;
+  const needs = viewing ? [] : [
+    privateN ? `<li><a href="#holdings"><b>${privateN}</b> photograph${privateN === 1 ? '' : 's'} waiting to be published<span>&rarr;</span></a></li>` : '',
+    !jewels.length && works.length ? `<li><a href="#holdings"><b>&#9734;</b> Star the works that matter most; collectors see them first<span>&rarr;</span></a></li>` : '',
+  ].filter(Boolean);
+  return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap hd ac">
+${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s studio as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
+<header class="ac-bar"><div><p class="k">${m.kind === 'estate' ? 'The estate' : 'Your studio'}${m.house ? ' &middot; ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1></div>
+${viewing ? '' : `<nav><a class="buy-btn ac-up" href="/account/upload">Add photographs</a><a href="/account/logout">Sign out</a></nav>`}</header>
+${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) brings you back to your studio from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
+<div class="hd-top"><div class="hd-big"><b>${money(totals.earned)}</b><span>to you, all time${totals.earned30 ? ` &middot; ${money(totals.earned30)} in the last 30 days` : ''}</span></div>
+<div class="hd-mix"><div><span class="k">Collected</span><b>${money(toMaker(collected))}</b><i style="--p:${share(collected)}%"></i></div><div><span class="k">Licensed</span><b>${money(toMaker(licensed))}</b><i style="--p:${share(licensed)}%"></i></div>
+<div><span class="k">Archive value</span><b>${totals.value != null ? money(totals.value) : '&mdash;'}</b><small>${totals.value != null ? `${multiple}&times; the last twelve months; an illustration, not an appraisal` : 'Appears once you have sales'}</small></div></div>
+<div class="hd-held"><span><b>${totals.works}</b> works held</span><span><b>${totals.public}</b> public</span><span><b>${totals.jewels}</b> jewels</span><span><b>${totals.shares}</b> collected</span><span>You keep <b>${pct}%</b> of every sale</span></div></div>
+${needs.length ? `<section class="hd-need"><h2>Needs you</h2><ul>${needs.join('')}</ul></section>` : ''}
+${jewels.length ? `<section class="hd-list"><div class="hd-h"><h2>Your jewels</h2></div><div class="ac-js">${jewels.map(jewel).join('')}</div></section>` : ''}
+<section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${works.length ? `<span class="hd-n">${works.length} work${works.length === 1 ? '' : 's'}</span>` : ''}</div>
+${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : ''}
+${works.length ? `<div class="hd-head ac-row"><span></span><span>Work</span><span>On Watermark</span><span class="hd-c">Sold</span><span class="hd-c">Seen, 30d</span><span class="hd-v">To you</span><span></span></div>${works.map(row).join('')}` : `<p class="hd-calm">Nothing here yet. ${viewing ? '' : '<a href="/account/upload">Add your first photographs</a>; they stay private until you publish them.'}</p>`}</section>
+${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2></div>${recent.map(l => `<a class="hd-ev" href="/w/${esc(l.slug)}"><span>${date(l.starts_at)}</span><b>${esc(l.title)}</b><span>${esc(l.use_name)}</span><span class="hd-v">${money(toMaker(l.price_cents))}</span></a>`).join('')}</section>` : ''}
+</section>` });
 }
 
 function upload({ m }) {
