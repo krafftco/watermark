@@ -5,21 +5,28 @@ function signedOut() {
   return layout({ title: 'Your room · Watermark', studio: true, body: `<section class="narrow"><p class="k">For makers</p><h1>Sign in to your room.</h1>
 <p class="lede">The email your studio is under, and a six-digit code comes back; or the passkey you saved. No password.</p>
 <p><a class="buy-btn" href="/signin?next=/account">Sign in</a></p>
-<p class="note">Not a Watermark maker yet? <a href="/join">Open your studio</a>.</p></section>` });
+<p class="note">Not a Watermark maker yet? Watermark is by invitation; <a href="/join">apply with the work</a>.</p></section>` });
 }
 
 // Open a studio: a name and an email, and you are in.
-function join({ err = null, name = '', email = '' }) {
-  const msg = { name: 'Your name, as it should appear beside your work.', email: 'An email address, so your studio can find you again.', known: 'There is already a studio under that email. <a href="/signin?next=/account">Sign in</a> and it opens.' }[err];
-  return layout({ title: 'Open your studio · Watermark', body: `<section class="narrow jn"><p class="k">For makers</p><h1>Open your studio.</h1>
-<p class="lede">Hold your photographs on Watermark: fingerprinted on arrival, shown on your own page, collected and licensed at the source. You keep the copyright; 85% of every sale is yours. It takes a minute.</p>
-${msg ? `<p class="err">${esc(msg)}</p>` : ''}
-<form method="post" action="/join" class="form">
+// By invitation. Watermark shows work a curator has looked at; the door is an application, read by the house.
+function join({ err = null, sent = false, name = '', email = '' }) {
+  const msg = { name: 'Your name, as it would appear beside your work.', email: 'An email address we can write to.', known: 'There is already a studio under that email. <a href="/signin?next=/account">Sign in</a> and it opens.', work: 'Show us where the work can be seen: a site, a book, a gallery, an Instagram.' }[err];
+  if (sent) return layout({ title: 'Received · Watermark', body: `<section class="narrow jn"><p class="k">For makers</p><h1>Received.</h1>
+<p class="lede">Thank you. Every application is read by the house, in the order it arrives, with the work in front of us. If the work is ready, an invitation comes by mail; if not yet, a word on why. We do not hurry this.</p>
+<p class="sr-also"><a href="/artists">The artists whose work hangs here</a> · <a href="/collection">The collection</a></p></section>` });
+  return layout({ title: 'By invitation · Watermark', desc: 'Watermark holds work a curator has looked at. Apply with yours.', path: '/join', body: `<section class="narrow jn"><p class="k">For makers</p><h1>By invitation.</h1>
+<p class="lede">Watermark is not a place to upload. It is a house that holds photographs the way a gallery or a museum does: looked at first, then kept, shown, collected and licensed at the source, with the maker's copyright intact and 85% of every sale theirs. An invitation means a curator has stood in front of your work and said it is ready to be shown. You have to work for it; that is the point.</p>
+<h2>Apply with the work</h2>
+${msg ? `<p class="err">${msg}</p>` : ''}
+<form method="post" action="/apply" class="form">
 <label>Your name<input name="name" value="${esc(name)}" required autocomplete="name" autofocus></label>
 <label>Email<input name="email" type="email" value="${esc(email)}" required autocomplete="email"></label>
-<label>Studio or house <small>optional</small><input name="house" placeholder="If you work under a name"></label>
-<button class="buy-btn">Open my studio</button>
-<p class="note">By opening a studio you confirm that the photographs you upload are your own and that you hold the rights to them. Nothing is public until you publish it, and each publication is your word on that. <a href="/terms">The terms</a>.</p></form>
+<label>Where the work can be seen<input name="portfolio" placeholder="A site, a book, a gallery, an Instagram" required></label>
+<label>Your practice <small>a few words</small><input name="practice" placeholder="Documentary; architecture; the street; an estate"></label>
+<label>What you would bring<textarea name="note" rows="4" placeholder="What the work is, how much of it there is, and why it should be kept."></textarea></label>
+<button class="buy-btn">Apply</button>
+<p class="note">Applications are read by people. If an invitation comes, your studio opens from the letter; nothing is public until you publish it, and each publication is your word that the work is yours. <a href="/terms">The terms</a>.</p></form>
 <p class="sr-also">Already a maker? <a href="/account">Sign in</a>.</p></section>` });
 }
 // The maker's profile: what their page says about them.
@@ -51,7 +58,7 @@ function studioAccounts({ list, base, notice }) {
   return layout({ studio: true, title: 'Accounts · Watermark', body: `<section class="studio-wrap">${require('./studio-views').nav('/studio/accounts')}
 <p class="k">Accounts</p><h1>Every maker, their own Watermark.</h1>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
-<p class="lede">Anyone can open a studio at /join and is listed here as they arrive. You can also invite a maker or an estate with a sign-in link. Hold a maker and their work goes private until you release them. They keep 85% of every sale.</p>
+<p class="lede">Watermark is by invitation: applications arrive at Studio → Makers; approving one opens an account here and mails the invitation. You can also invite a maker or an estate with a sign-in link. Hold a maker and their work goes private until you release them. They keep 85% of every sale.</p>
 <table class="tbl"><thead><tr><th>Account</th><th>Kind</th><th>Works</th><th>Status</th><th>Sign-in link</th><th></th></tr></thead><tbody>${rows}</tbody></table>
 <h2>Invite a maker or an estate</h2>
 <form method="post" action="/studio/accounts" class="form inline-form"><label>Name<input name="name" required placeholder="Greg Williams"></label><label>Email<input name="email" type="email" placeholder="Optional"></label><label>Studio or estate<input name="house" placeholder="Optional"></label>

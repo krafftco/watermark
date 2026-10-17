@@ -7,7 +7,7 @@ const A = require('./account-views');
 
 const MULTIPLE = 3; // draft: an archive valued at three times its last twelve months of earnings to the maker
 
-function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork, upload, ledger }) {
+function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork, upload, ledger, mail }) {
   const fs = require('fs');
   for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT'], ['bio', 'TEXT'], ['place', 'TEXT'], ['site', 'TEXT'], ['instagram', 'TEXT'], ['portrait', 'TEXT'], ['buyer_id', 'INTEGER'], ['standing', "TEXT NOT NULL DEFAULT 'open'"]])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
@@ -44,7 +44,10 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
     DEFAULT_USES.forEach(u => ins.run(id, ...u));
     if (req.body.application) db.prepare("UPDATE applications SET status='invited' WHERE id=?").run(+req.body.application);
-    res.redirect(`/studio/accounts?ok=${encodeURIComponent(`${name} has an account. Send them their invitation link.`)}`);
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
+    if (email && req.body.invite !== '0') mail.send({ to: email, subject: 'An invitation to Watermark', feature: null, cta: { label: 'Open your studio', url: inviteLink(m) }, text: `${name.split(' ')[0]},\n\nWe have stood in front of your work, and it is ready to be shown. This is an invitation to hold it on Watermark: fingerprinted on arrival, shown on your own page, collected and licensed at the source, your copyright intact and 85% of every sale yours.\n\nYour studio opens from this link, once, on the device you open it on:\n\n${inviteLink(m)}\n\nAfterwards you sign in with your email. Welcome to the house.` });
+    ledger.append(db, 'maker.invited', handle, { application: req.body.application ? +req.body.application : null });
+    res.redirect(`/studio/accounts?ok=${encodeURIComponent(`${name} has an account.${email && req.body.invite !== '0' ? ' The invitation is on its way.' : ' Send them their invitation link.'}`)}`);
   });
   app.post('/studio/accounts/:id/link', studioOnly, (req, res) => { // a fresh link, e.g. for a new device
     db.prepare('UPDATE makers SET invite_token=? WHERE id=?').run(nanoid(32), +req.params.id);
@@ -66,22 +69,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- open a studio: anyone, in a minute ----------
   // A name and an email make a maker. They are signed in at once and can upload; what they publish is
   // their word (the attestation) and the Studio sees every new maker on Accounts, and can hold one.
-  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); res.send(A.join({ err: req.query.err || null, name: req.query.name || '', email: req.query.email || '' })); });
-  app.post('/join', (req, res) => {
-    const b = req.body || {}, name = String(b.name || '').trim().slice(0, 120), email = String(b.email || '').trim().toLowerCase().slice(0, 160);
-    const back = e => res.redirect(`/join?err=${e}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`);
-    if (name.length < 2) return back('name'); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return back('email');
-    if (db.prepare('SELECT 1 FROM makers WHERE lower(email)=?').get(email)) return back('known');
-    let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
-    const buyer = app.locals.buyerOf ? app.locals.buyerOf(req) : null;
-    const id = db.prepare("INSERT INTO makers (handle,name,email,house,kind,joined_at,buyer_id) VALUES (?,?,?,?,'maker',datetime('now'),?)").run(handle, name, email, String(b.house || '').trim().slice(0, 120) || null, buyer ? buyer.id : null).lastInsertRowid;
-    const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
-    DEFAULT_USES.forEach(u => ins.run(id, ...u));
-    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
-    ledger.append(db, 'maker.joined', handle, {});
-    setMaker(res, m);
-    res.redirect('/account?welcome=1');
-  });
+  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); res.send(A.join({ err: req.query.err || null, sent: req.query.sent === '1', name: req.query.name || '', email: req.query.email || '' })); });
+  // Studios are opened by invitation (Studio → Makers approves an application; the letter opens the studio). The old instant door is closed.
+  app.post('/join', (req, res) => res.redirect(303, '/join'));
 
   // ---------- the maker's profile: who they are, on their page ----------
   const portraits = require('path').join(C.dataDir, 'portraits'); fs.mkdirSync(portraits, { recursive: true });

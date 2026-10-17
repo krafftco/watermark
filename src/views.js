@@ -705,7 +705,7 @@ function artists({ artists }) {
   return layout({ title: 'The artists · Watermark', desc: 'The photographers whose work is held on Watermark.', path: '/artists', body: `<section class="cx-intro ar-intro"><p class="k">The artists</p><h1>Whose work hangs here.</h1>
 <p class="lede">Watermark holds photographs for the people who made them. The Krafft Collection was the first; every maker who joins keeps their copyright, sets their own terms and takes 85% of every sale. Open a name to see the work.</p></section>
 <section class="ar-wall"><div class="ar-grid">${artists.map(card).join('')}</div></section>
-<section class="gal"><p class="note ar-join">A photographer, or an estate? <a href="/join">Open your studio</a>; it takes a minute.</p></section>` });
+<section class="gal"><p class="note ar-join">Watermark is by invitation. A photographer, or an estate, with work that is ready? <a href="/join">Apply with the work</a>.</p></section>` });
 }
 
 // The door out. A traveller's farewell, said once and meant: see you down the road; the doors are always open.

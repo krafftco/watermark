@@ -274,7 +274,7 @@ function createApp(cfg = {}) {
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   // Every maker and estate has their own account and dashboard.
-  app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger });
+  app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger, mail });
 
   // --- public pages ---
   // The front door is the collection; makers have their own entrance.
@@ -350,10 +350,11 @@ function createApp(cfg = {}) {
   app.get('/apply', (req, res) => res.redirect(301, '/join'));
   app.post('/apply', (req, res) => {
     const b = req.body; const email = String(b.email || '').trim();
-    if (!b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/makers#apply');
+    const back = e => res.redirect(`/join?err=${e}&name=${encodeURIComponent(String(b.name || ''))}&email=${encodeURIComponent(email)}`);
+    if (!b.name || String(b.name).trim().length < 2) return back('name'); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return back('email'); if (!String(b.portfolio || '').trim()) return back('work');
     db.prepare('INSERT INTO applications (name,email,portfolio,practice,note) VALUES (?,?,?,?,?)').run(String(b.name).slice(0, 120), email.slice(0, 160), String(b.portfolio || '').slice(0, 300) || null, String(b.practice || '').slice(0, 80) || null, String(b.note || '').slice(0, 2000) || null);
     mail.send({ to: maker.email, ...mail.templates.applicationToMaker({ name: b.name, email, portfolio: b.portfolio, practice: b.practice, base: C.base }) });
-    res.redirect(303, '/makers?sent=1#apply');
+    res.redirect(303, '/join?sent=1');
   });
 
   // Anyone can tell a maker where their work turned up. The maker decides what to do about it.

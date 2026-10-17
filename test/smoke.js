@@ -364,9 +364,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`, { cookie: ck }); assert.equal(r.status, 302); assert.ok(db.prepare('SELECT removed_at FROM notes WHERE id=?').get(nid).removed_at, 'the Studio can'); }
   r = await req(port, 'GET', '/studio/trove?sort=standing', { cookie: ck }); assert.ok(r.body.toString().includes('1 applauded'), 'standing in the Studio');
   // Open a studio: anyone, with a name and an email; signed in at once; profile on their page; the Studio can hold them.
-  r = await req(port, 'POST', '/join', { body: { name: 'Greta Lund', email: 'greta@lund.example', house: 'Lund Studio' } }); assert.ok(r.headers.location.includes('welcome=1'), 'joined');
+  // By invitation: Greta applies with the work; the Studio approves; the letter opens her studio.
+  r = await req(port, 'POST', '/join', { body: { name: 'Greta Lund', email: 'greta@lund.example' } }); assert.equal(r.status, 303, 'the instant door is closed');
+  r = await req(port, 'POST', '/apply', { body: { name: 'Greta Lund', email: 'greta@lund.example', practice: 'Architecture' } }); assert.ok(r.headers.location.includes('err=work'), 'the work must be shown');
+  r = await req(port, 'POST', '/apply', { body: { name: 'Greta Lund', email: 'greta@lund.example', portfolio: 'https://lund.example', practice: 'Architecture', note: 'Twenty years of churches.' } }); assert.ok(r.headers.location.includes('sent=1'), 'applied');
+  r = await req(port, 'GET', '/join?sent=1'); assert.ok(r.body.toString().includes('Received.'));
+  const ap = db.prepare("SELECT id FROM applications WHERE email='greta@lund.example'").get();
+  r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.toString().includes('Greta Lund') && r.body.toString().includes('lund.example'), 'read in the Studio');
+  r = await req(port, 'POST', '/studio/accounts', { cookie: ck, body: { name: 'Greta Lund', email: 'greta@lund.example', house: 'Lund Studio', application: String(ap.id) } }); assert.ok(r.headers.location.includes('invitation'), 'invited');
+  assert.equal(db.prepare('SELECT status FROM applications WHERE id=?').get(ap.id).status, 'invited');
+  const gtok0 = db.prepare("SELECT invite_token FROM makers WHERE email='greta@lund.example'").get().invite_token; assert.ok(gtok0);
+  r = await req(port, 'GET', `/account/join/${gtok0}`); assert.equal(r.status, 302, 'the letter opens the studio');
   const gck = r.headers['set-cookie'].find(c => c.startsWith('wm_m=')).split(';')[0];
-  r = await req(port, 'POST', '/join', { body: { name: 'Greta Again', email: 'greta@lund.example' } }); assert.ok(r.headers.location.includes('err=known'), 'one studio per email');
+  assert.ok(db.prepare("SELECT joined_at FROM makers WHERE email='greta@lund.example'").get().joined_at, 'joined');
   r = await req(port, 'GET', '/account?welcome=1', { cookie: gck }); assert.ok(r.body.toString().includes('Your studio is open'), 'in their studio');
   r = await req(port, 'POST', '/account/profile', { cookie: gck, body: mp('p.jpg', theirs, { name: 'Greta Lund', place: 'Oslo', bio: 'Light, mostly. Harbours when I can.', site: 'lund.example', instagram: '@gretalund' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
   assert.ok(String(r.headers.location || '').includes('ok=1'), 'profile saved');
