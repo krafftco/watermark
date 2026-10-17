@@ -1668,3 +1668,14 @@ body.bare .vr{position:fixed;inset:0;background:#0a0a09;color:#f2efe9;overflow:h
 .vr-im{padding-bottom:clamp(96px,14vh,150px)}
 .vr-side::before{content:"";position:absolute;left:-40px;right:-60px;top:-60px;bottom:-60px;background:radial-gradient(ellipse at 20% 80%,rgba(10,10,9,.78),rgba(10,10,9,0) 70%);z-index:-1;pointer-events:none}
 .lc-src{font-size:12.5px;color:var(--mu);line-height:1.6;margin:10px 0 4px}.lc-src b{font-weight:500;color:var(--ink);margin-right:4px}.lc-src a{color:inherit}
+/* Lately, in the house. */
+.lt{border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);background:#fff}
+.lt-in{max-width:1180px;margin:0 auto;padding:18px clamp(16px,4vw,56px);display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center}
+.lt .k{margin:0;white-space:nowrap}
+.lt-l{list-style:none;margin:0;padding:0;display:flex;gap:28px;overflow-x:auto;scrollbar-width:none;min-width:0}.lt-l::-webkit-scrollbar{display:none}
+.lt-l li{display:flex;align-items:center;gap:10px;white-space:nowrap;font-family:var(--read);font-size:15px;color:var(--ink)}
+.lt-im{display:block;width:38px;height:26px;overflow:hidden;background:#0b0a09;flex:none}.lt-im img{width:100%;height:100%;object-fit:cover;display:block}
+.lt-none{display:grid;place-items:center;background:var(--soft);color:var(--ink)}.lt-none svg{width:20px;height:6px}
+.lt-t a{color:inherit;text-decoration:none;border-bottom:1px solid var(--ln)}
+.lt-more{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);text-decoration:none;white-space:nowrap}
+@media (max-width:760px){.lt-in{grid-template-columns:1fr;gap:10px}.lt-more{justify-self:start}}

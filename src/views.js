@@ -68,7 +68,7 @@ ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://kraff
 </body></html>`;
 }
 
-function collection({ maker, works, rooms = [], share = null, pay = null }) {
+function collection({ maker, works, rooms = [], share = null, pay = null, lately = [] }) {
   const mOf = w => w.maker || maker;
   // The collection is an archive you can walk: rooms as galleries, an index to search, and every
   // photograph a click from filling the screen.
@@ -96,6 +96,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
     path: '/', image: works[0] ? `/img/${works[0].slug}/screen` : null,
     body: `${cover ? `<section class="cx-cover"><img src="/img/${esc(cover.slug)}/large" alt="${esc(cover.title)}" fetchpriority="high" draggable="false"><div class="cx-hero"><h1>Those who make need those who collect.</h1><a class="btn" href="#rooms">Walk the collection</a><a class="cx-wander" href="#" data-wander>Or wander</a></div><span class="cx-cap">${esc(tidy(cover.title))}${cover.place ? ` &middot; ${esc(cover.place)}` : ''}</span></section>` : ''}<section class="cx-intro"><p class="k">${makerList.length > 1 ? `${makerList.length} makers` : esc(maker.house || maker.name)}</p>
 ${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection.</h1>'}<p class="cx-count">${total} photographs · ${shown.length} rooms${makerList.length > 1 ? ` · ${makerList.length} makers` : ''} · each registered to its maker and licensed at the source</p></section>
+${lately.length ? `<section class="lt"><div class="lt-in"><p class="k">Lately, in the house</p><ul class="lt-l">${lately.map(({ e, line }) => `<li>${line.work ? `<a class="lt-im" href="/w/${esc(line.work.slug)}"><img src="/img/${esc(line.work.slug)}/thumb" alt="" loading="lazy" draggable="false"></a>` : `<span class="lt-im lt-none">${WAVE_MARK}</span>`}<span class="lt-t">${line.text}</span></li>`).join('')}</ul><a class="lt-more" href="/ledger">The register</a></div></section>` : ''}
 <a class="sr-band" href="/series/the-great-rooms"><span class="sr-band-im"><img src="/img/the-library-stacks/thumb" alt="" loading="lazy" draggable="false"><img src="/img/behind-the-clock-at-the-musee-d-orsay/thumb" alt="" loading="lazy" draggable="false"><img src="/img/under-the-gallery-dome/thumb" alt="" loading="lazy" draggable="false"></span><span class="sr-band-t"><small>A series by Will Fullerton &middot; Krafft Studios</small><b>The Great Rooms</b><span>Domes, libraries and the light inside them. See the series &rarr;</span></span></a>
 <div class="cx-bar" id="cxBar"><label class="cx-q"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="cxQ" type="search" placeholder="Search ${total} photographs" aria-label="Search the collection" autocomplete="off" spellcheck="false"></label>
 <div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>

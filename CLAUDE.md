@@ -44,6 +44,16 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Trades in kind: `src/swaps.js` (/swap/new?work=slug, /swap/:id). One numbered piece for another, no money; the holder accepts; both move with fresh keys, transfers + `swap.traded` on the register, makers told. Work page: "Offer a trade for one".
 - The guard (`public/guard.js`): the photograph is shown clean, nothing laid over it. Only in the capture moment (blur, visibilitychange, Print Screen, Cmd+Shift+3/4/5, copy) does the plate dim and the wave come up large with one line (accession · address) for a few seconds.
 - Maker page (/m/:slug, `makerPage`): the cinematic profile after wrkfullerton.com: who, one plate, stats, Latest from Studios (`storiesBy`, Ghost by author), Series, Recent photographs, guest-book lines, the house.
+- The viewing room: /wander/room (`viewingRoom`, `public/room.js`, `/api/wander` JSON). The nav's top-right Wander pill opens it: the photograph alone on a dark wall, the guide read aloud (G), slow auto-advance (space pauses, arrows, Esc). /wander redirects to a random held work (curated and stars weigh more) with ?wander=1, which shows a floating "Wander on".
+- The register page (/ledger, `src/register.js`, `registerPage`): every ledger entry told as a sentence with the photograph beside it, by day; chapters (Arrivals, Applause, Collected & licensed, Trades, Patrons, Copyright Office), spans (today … all time), oldest first. Private events are never shown. `app.locals.lately` feeds "Lately, in the house" on the home page.
+- Yours in rooms: /yours?tab= gallery | files | market | books | patronage | settings (`collector`, .yt).
+- /artists: every maker with held work (cover, portrait, counts); first in the nav. /copyright: the public account of the Office bridge; `copyrightState(w)` gives each work's line (registered, filed, prepared, not yet) on the work page and the Shield.
+- Friends and patronage both end with the Medici ($2,500 a month or $25,000 a year, drafts) set apart, and "by letter" above it (LETTER in friends.js; the maker's email on /m/:slug).
+- The door out: POST /signout → /farewell ("Fair travels. See you down the road."; words a draft). /account/logout no longer signs out on GET.
+- The Shield mark (SHIELD in views.js): solid, a hairline sliver inside, the wave knocked out.
+- Look closer guides carry `sources` (one a line) and `by` (credit), set on /closer/:slug; shown under the text. The system prompt writes museum wall text for first-time lookers.
+- The house bar is quiet: K + current house + your door; opens on hover or a tap on the K.
+- /healthz reports which services are on by name (mail, closer, stripe, signing). render.yaml declares RESEND_API_KEY, ANTHROPIC_API_KEY, STRIPE_PUBLISHABLE_KEY, MAIL_FROM.
 
 ## Rules (from Will)
 - Restrained, precise voice; no hype. Anything written in Will's voice is a draft until he confirms.

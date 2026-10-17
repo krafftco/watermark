@@ -61,7 +61,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}`)}`, cookieOpts);
     res.redirect('/account');
   });
-  app.get('/account/logout', (req, res) => { res.clearCookie('wm_m'); res.redirect('/'); });
+  app.get('/account/logout', (req, res) => res.redirect('/signin')); // signing out is a POST (/signout), never a link a crawler can follow
 
   // ---------- open a studio: anyone, in a minute ----------
   // A name and an email make a maker. They are signed in at once and can upload; what they publish is

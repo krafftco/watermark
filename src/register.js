@@ -93,6 +93,8 @@ function mountRegister(app, { db, V, ledger }) {
     const counts = { all: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, works: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get().n, collected: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('license.granted')").get().n, hats: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.applauded'").get().n };
     res.send(V.registerPage({ told, check: ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
   });
+  // The last few moments in the house, for the front door.
+  app.locals.lately = (n = 6) => db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 60').all().map(e => ({ e, line: tell(e) })).filter(x => x.line).slice(0, n);
   return { tell };
 }
 
