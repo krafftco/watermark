@@ -284,6 +284,18 @@ function createApp(cfg = {}) {
     res.set('Cache-Control', 'no-store').json({ slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
       img: `/img/${w.slug}/large`, guide: c ? c.text : null, approved: !!(c && c.state === 'approved'), collect: u && u.price_cents != null && offered(R.parse(w.rules), 'social', w) ? { url: `/license/${w.slug}`, price: V.money(priced(u, w).price_cents) } : null });
   });
+  // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
+  // reason to come back in the morning and something to talk about. /today opens it.
+  function todays() {
+    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const rows = db.prepare("SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND (curated=1 OR stars>=4) ORDER BY id").all();
+    const pool = rows.length >= 7 ? rows : db.prepare("SELECT id, slug, title, place, width, height FROM works WHERE status='held' ORDER BY id").all();
+    if (!pool.length) return null;
+    const h = crypto.createHash('sha1').update('today:' + day).digest(); const i = h.readUInt32BE(0) % pool.length;
+    return { ...pool[i], day };
+  }
+  app.locals.todays = todays;
+  app.get('/today', (req, res) => { const t = todays(); res.redirect(t ? `/w/${t.slug}?today=1` : '/collection'); });
   // Wander: a photograph you did not go looking for. The best work weighs more; what you just saw is left out.
   app.get('/wander', (req, res) => {
     const from = String(req.query.from || '');
@@ -311,7 +323,7 @@ function createApp(cfg = {}) {
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
-    res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [] }));
+    res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: todays() }));
   });
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
