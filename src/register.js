@@ -106,4 +106,4 @@ function mountRegister(app, { db, V, ledger }) {
   return { tell };
 }
 
-module.exports = { mountRegister };
+module.exports = { mountRegister, HIDDEN };
