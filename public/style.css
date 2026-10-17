@@ -653,3 +653,12 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 @keyframes stamp{0%{opacity:0;transform:scale(1.5) rotate(-8deg)}60%{opacity:1}100%{transform:none}}
 .pt-k{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#f7f6f3;color:#0e0e0e;padding:5px;box-sizing:border-box}
 @media (prefers-reduced-motion:reduce){.seal *,.seal,.pb svg,.ps-stamp{transition:none!important;animation:none!important}}
+/* The seal wins over the older bar-button rules */
+.share-buy button.seal{display:inline-grid;width:88px;max-width:88px;height:88px;padding:0;gap:0;border:1px solid rgba(14,14,14,.18);border-radius:50%;background:#fff;color:#0e0e0e;box-shadow:none;overflow:visible}
+.share-buy button.seal::after{display:none}
+.share-buy button.seal:hover{background:#fff;border-color:#0e0e0e;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.share-buy button.seal.is-down{background:#f7f6f3}
+.share-buy button.seal.is-up,.share-buy .seal-row.is-yours button.seal{background:#0e0e0e;color:#f7f6f3;border-color:#0e0e0e}
+.share-buy .seal-t span{font-size:13px;letter-spacing:0;text-transform:none;font-weight:400}
+.share-buy .seal-k{width:34px;height:34px}
+.share-buy p{margin:0}
