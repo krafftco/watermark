@@ -333,6 +333,13 @@ function createApp(cfg = {}) {
     res.json({ base: C.base, room: room && room.public && works.length ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: works.length } : null, works,
       patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, mark: 'K' });
   });
+  // A Krafft image anywhere (krafftco.com/license?image=…): which work is it?
+  app.get('/api/match', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
+    const p = imgPath(req.query.src); if (!p) return res.json({ work: null });
+    let r = null; try { r = db.prepare("SELECT w.slug, w.title, w.rules FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE w.status='held' AND s.src LIKE ?").get('%' + p); } catch (e) { /* none */ }
+    res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: R.allows(R.parse(r.rules), 'social') } : null });
+  });
   app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript'); res.sendFile(path.join(__dirname, '..', 'public', 'k.js')); });
   app.post('/api/seen', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
