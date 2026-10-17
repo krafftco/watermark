@@ -18,9 +18,9 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
   const work = slug => db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(slug));
   const count = id => db.prepare('SELECT COUNT(*) n FROM applause WHERE work_id=?').get(id).n;
   const mine = (id, b) => !!(b && db.prepare('SELECT 1 FROM applause WHERE work_id=? AND buyer_id=?').get(id, b.id));
-  // A line in the book is signed by a person: when their collection is public, the signature opens it.
-  const notesOf = id => db.prepare('SELECT n.*, b.code, b.public, (SELECT COUNT(*) FROM notes x WHERE x.buyer_id=n.buyer_id AND x.seen_at IS NOT NULL AND x.removed_at IS NULL) AS regard FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id WHERE n.work_id=? AND n.removed_at IS NULL ORDER BY n.id DESC LIMIT 40').all(id);
-  // What a person has written in the books, for their collection page.
+  // A line in the book is signed by a person: when their gallery is public, the signature opens it.
+  const notesOf = id => db.prepare('SELECT n.*, b.code, b.public, (SELECT COUNT(*) FROM notes x WHERE x.buyer_id=n.buyer_id AND x.seen_at IS NOT NULL AND x.removed_at IS NULL) AS regard FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id WHERE n.work_id=? AND n.gallery_id IS NULL AND n.removed_at IS NULL ORDER BY n.id DESC LIMIT 40').all(id);
+  // What a person has written in the books, for their gallery page.
   app.locals.linesBy = b => (b ? db.prepare('SELECT n.body, n.at, w.slug, w.title, m.name AS maker FROM notes n JOIN works w ON w.id=n.work_id JOIN makers m ON m.id=w.maker_id WHERE n.buyer_id=? AND n.removed_at IS NULL AND w.status=\'held\' ORDER BY n.id DESC LIMIT 60').all(b.id) : []);
   // A person's standing in the books: lines written, and how many makers marked them well seen.
   app.locals.regardOf = b => (b ? db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN seen_at IS NOT NULL THEN 1 ELSE 0 END) seen, COUNT(DISTINCT CASE WHEN n.seen_at IS NOT NULL THEN w.maker_id END) makers FROM notes n JOIN works w ON w.id=n.work_id WHERE n.buyer_id=? AND n.removed_at IS NULL").get(b.id) : { n: 0, seen: 0, makers: 0 });
@@ -42,6 +42,47 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
     const kind = ['printscreen', 'copy'].includes(b.kind) ? b.kind : 'other';
     db.prepare('INSERT INTO captures (work_id, kind, viewer) VALUES (?,?,?)').run(w.id, kind, String(b.v || '').slice(0, 16) || null);
     res.sendStatus(204);
+  });
+  // The gallery's own book and hat. A collector's gallery is a home; visitors sign its book (a line for the
+  // gallery, or for one piece in it) and tip the hat to the whole. The owner may remove a line.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('notes') WHERE name='gallery_id'").get()) db.exec('ALTER TABLE notes ADD COLUMN gallery_id INTEGER');
+  db.exec(`CREATE TABLE IF NOT EXISTS gallery_hats (gallery_id INTEGER NOT NULL, buyer_id INTEGER NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (gallery_id, buyer_id))`);
+  const gallery = code => db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(code));
+  app.locals.galleryBook = (g, req) => ({
+    lines: db.prepare(`SELECT n.*, b.code, b.public, w.slug AS wslug, w.title AS wtitle FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id LEFT JOIN works w ON w.id=n.work_id AND w.status='held'
+      WHERE n.gallery_id=? AND n.removed_at IS NULL ORDER BY n.id DESC LIMIT 60`).all(g.id),
+    hats: db.prepare('SELECT COUNT(*) n FROM gallery_hats WHERE gallery_id=?').get(g.id).n,
+    mine: !!(buyerOf(req) && db.prepare('SELECT 1 FROM gallery_hats WHERE gallery_id=? AND buyer_id=?').get(g.id, buyerOf(req).id)),
+  });
+  app.post('/collector/:code/hat', (req, res) => {
+    const g = gallery(req.params.code); if (!g) return res.sendStatus(404);
+    const b = person(req, res); if (b.id === g.id) return res.redirect(`/collector/${g.code}`);
+    const had = db.prepare('SELECT 1 FROM gallery_hats WHERE gallery_id=? AND buyer_id=?').get(g.id, b.id);
+    if (had) db.prepare('DELETE FROM gallery_hats WHERE gallery_id=? AND buyer_id=?').run(g.id, b.id); else db.prepare('INSERT OR IGNORE INTO gallery_hats (gallery_id, buyer_id) VALUES (?,?)').run(g.id, b.id);
+    const n = db.prepare('SELECT COUNT(*) n FROM gallery_hats WHERE gallery_id=?').get(g.id).n;
+    res.format({ json: () => res.json({ ok: true, on: !had, n }), html: () => res.redirect(`/collector/${g.code}#book`) });
+  });
+  app.post('/collector/:code/notes', (req, res) => {
+    const g = gallery(req.params.code); if (!g) return res.sendStatus(404);
+    const x = req.body || {}, body = String(x.body || '').trim().replace(/\s+/g, ' ').slice(0, 280), name = String(x.name || '').trim().slice(0, 60) || null;
+    const back = q => res.redirect(`/collector/${g.code}?note=${q}#book`);
+    if (body.length < 2 || !name || /https?:\/\/|www\./i.test(body)) return back('check');
+    if (UNKIND.test(body) || UNKIND.test(name)) return back('kind');
+    const b = person(req, res);
+    if (db.prepare("SELECT COUNT(*) n FROM notes WHERE buyer_id=? AND at > datetime('now','-10 minutes')").get(b.id).n >= 3) return back('slow');
+    // A line may be for one piece in the gallery: the work must hang there.
+    const w = x.work ? db.prepare("SELECT w.id FROM works w JOIN licenses l ON l.work_id=w.id WHERE w.slug=? AND l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND w.status='held'").get(String(x.work), g.id) : null;
+    db.prepare("INSERT INTO notes (work_id, buyer_id, name, body, chapter, gallery_id) VALUES (?,?,?,?,'gallery',?)").run(w ? w.id : 0, b.id, name, body, g.id);
+    if (!b.name) db.prepare('UPDATE buyers SET name=? WHERE id=?').run(name, b.id);
+    ledger.append(db, 'gallery.signed', g.code, {});
+    back('1');
+  });
+  app.post('/collector/:code/notes/:id/remove', (req, res) => {
+    const g = gallery(req.params.code); if (!g) return res.sendStatus(404);
+    const n = db.prepare('SELECT * FROM notes WHERE id=? AND gallery_id=?').get(Number(req.params.id), g.id); if (!n) return res.redirect(`/collector/${g.code}#book`);
+    const b = buyerOf(req); if (!(isStudio(req) || (b && (b.id === g.id || b.id === n.buyer_id)))) return res.sendStatus(403);
+    db.prepare("UPDATE notes SET removed_at=datetime('now') WHERE id=?").run(n.id);
+    res.redirect(`/collector/${g.code}#book`);
   });
   app.locals.capturesOf = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM captures GROUP BY work_id').all().map(r => [r.work_id, r.n]));
   app.locals.applauseOf = (w, req) => ({ n: count(w.id), mine: mine(w.id, buyerOf(req)), notes: notesOf(w.id) });
@@ -72,7 +113,7 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
   });
   // The maker (or the Studio) may remove a note; the writer may remove their own.
   // The house book, read and signed.
-  const houseLines = () => db.prepare("SELECT n.*, b.code, b.public, w.slug AS wslug, w.title AS wtitle, m.name AS maker FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id LEFT JOIN works w ON w.id=n.work_id AND w.status='held' LEFT JOIN makers m ON m.id=w.maker_id WHERE n.removed_at IS NULL AND (n.work_id=0 OR w.id IS NOT NULL) ORDER BY n.id DESC LIMIT 200").all();
+  const houseLines = () => db.prepare("SELECT n.*, b.code, b.public, w.slug AS wslug, w.title AS wtitle, m.name AS maker FROM notes n LEFT JOIN buyers b ON b.id=n.buyer_id LEFT JOIN works w ON w.id=n.work_id AND w.status='held' LEFT JOIN makers m ON m.id=w.maker_id WHERE n.removed_at IS NULL AND n.gallery_id IS NULL AND (n.work_id=0 OR w.id IS NOT NULL) ORDER BY n.id DESC LIMIT 200").all();
   app.get('/guestbook', (req, res) => res.send(V.guestbook({ lines: houseLines(), chapters: CHAPTERS, chapter: CHAPTERS[req.query.chapter] ? req.query.chapter : null, note: req.query.note || null, from: /^https:\/\/([a-z0-9-]+\.)?(krafftco|wrkfullerton)\.com\//.test(String(req.query.from || '')) ? String(req.query.from) : null, canModerate: isStudio(req), me: (buyerOf(req) || {}).id || null })));
   app.post('/guestbook', (req, res) => {
     const x = req.body || {}, body = String(x.body || '').trim().replace(/\s+/g, ' ').slice(0, 280), name = String(x.name || '').trim().slice(0, 60) || null;

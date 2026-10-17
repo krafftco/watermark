@@ -8,7 +8,7 @@
     var o = await post(base + '/register/options'); if (!o.ok) return msg(el, 'Not available just now. Try again in a moment.');
     var att; try { att = await W.startRegistration({ optionsJSON: o.j }); } catch (e) { return msg(el, e && e.name === 'InvalidStateError' ? 'This device already holds your passkey.' : 'Not saved. Nothing has changed.'); }
     var v = await post(base + '/register/verify', att);
-    if (v.ok) { msg(el, who === 'maker' ? 'Saved. Sign in to your room with it from any device.' : 'Saved. Your collection now follows you to every device you sign in on.'); setTimeout(function () { location.reload(); }, 1200); } else msg(el, 'Not saved. Try again.');
+    if (v.ok) { msg(el, who === 'maker' ? 'Saved. Sign in to your room with it from any device.' : 'Saved. Your gallery now follows you to every device you sign in on.'); setTimeout(function () { location.reload(); }, 1200); } else msg(el, 'Not saved. Try again.');
   }
   async function signin(el, who) {
     var base = who === 'maker' ? '/auth/maker' : '/auth/passkey';

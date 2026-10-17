@@ -74,7 +74,7 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
     res.redirect(`/c/${l.ref}?k=${l.download_token}#seats`);
   });
 
-  // The person with a seat: see it, keep it in their collection, take the file while the license lasts.
+  // The person with a seat: see it, keep it in their gallery, take the file while the license lasts.
   const seatOf = t => db.prepare('SELECT * FROM seats WHERE token=? AND revoked_at IS NULL').get(String(t));
   app.get('/seat/:token', (req, res) => {
     const s = seatOf(req.params.token); if (!s) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>This seat is no longer open.</h1><p class="lede">Ask the person who shared it with you.</p></section>' }));

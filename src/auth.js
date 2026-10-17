@@ -1,4 +1,4 @@
-// Signing in, the way a good house does it: no password. A collector saves their collection with a
+// Signing in, the way a good house does it: no password. A collector saves their gallery with a
 // passkey (Face ID, Touch ID, a phone), which their phone or computer keeps in sync, so the
 // collection follows them to every device. Email sign-in can join once the mail service is on.
 const crypto = require('crypto');

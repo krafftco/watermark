@@ -97,7 +97,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(dj.ok && dj.download.startsWith('/d/'), 'handed over'); assert.ok(r.headers['set-cookie'].some(c => c.startsWith('wm_tap=1')), 'one tap next time');
   r = await req(port, 'POST', `/pay/${w.slug}/tap`); assert.strictEqual(JSON.parse(r.body).sheet, true, 'no remembered card, no tap');
   r = await req(port, 'POST', `/pay/${w.slug}/tap`, { cookie: bck }); assert.ok(JSON.parse(r.body).held, 'what you hold is not sold to you again');
-  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: bck }); { const wb = r.body.toString(); assert.ok(wb.includes('In your collection') && !wb.includes('class="share-buy"'), 'your copy shown, not the Collect button'); }
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: bck }); { const wb = r.body.toString(); assert.ok(wb.includes('In your gallery') && !wb.includes('class="share-buy"'), 'your copy shown, not the Collect button'); }
   r = await req(port, 'POST', `/buy/${w.slug}`, { cookie: bck, body: { use: 'social' } }); assert.ok(r.headers.location.endsWith('#yours'), 'no second sale through checkout either');
   const tmpT = path.join(dir, 'inT.jpg'); await require('sharp')(SRC).resize({ width: 1800 }).flip().toFile(tmpT);
   const wT = await registerWork({ file: tmpT, originalName: 't.jpg', title: 'Test Tap', place: 'Rome' }); db.prepare("UPDATE works SET status='held' WHERE id=?").run(wT.id);
@@ -109,9 +109,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 404, 'undone file stops working');
   // collectors: numbered, hung in their own collection, private until they open it
   assert.ok(dj.no >= 1 && tj.no >= 1, 'collector numbers: ' + dj.no + ',' + tj.no);
-  r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your collection'), 'a new visitor is invited to start');
+  r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your gallery'), 'a new visitor is invited to start');
   r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
-  assert.ok(yb.includes(`No. ${dj.no}`) && yb.includes('The collection'), 'it hangs, numbered');
+  assert.ok(yb.includes(`No. ${dj.no}`) && yb.includes('The gallery'), 'it hangs, numbered');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
@@ -254,11 +254,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: l1.download_token, name: 'Desk Editor', email: 'desk@mag.com' } });
   const seatTok = decodeURIComponent(r.headers.location).match(/seat=([A-Za-z0-9_-]{20,})/)[1];
   r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: 'wrong', email: 'x@y.z' } }); assert.equal(db.prepare('SELECT COUNT(*) n FROM seats').get().n, 1, 'only the holder adds seats');
-  r = await req(port, 'GET', `/seat/${seatTok}`); assert.ok(r.body.toString().includes('Shared with you') && r.body.toString().includes('Keep it in my collection'));
+  r = await req(port, 'GET', `/seat/${seatTok}`); assert.ok(r.body.toString().includes('Shared with you') && r.body.toString().includes('Keep it in my gallery'));
   r = await req(port, 'POST', `/seat/${seatTok}`); const seatCk = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
   r = await req(port, 'GET', `/seat/${seatTok}/file`); assert.equal(r.status, 200, 'the seat takes the file'); assert.ok(!String(r.headers.location || '').includes(l1.download_token), 'without the holder\'s key');
   r = await req(port, 'GET', '/yours', { cookie: seatCk }); assert.ok(r.body.toString().includes('Shared with you'), 'in their collection');
-  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 3 seats') && r.body.toString().includes('In their collection'));
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 3 seats') && r.body.toString().includes('In their gallery'));
   r = await req(port, 'POST', `/c/${ref1}/seats/buy`, { body: { k: l1.download_token, n: '2' } }); assert.equal(r.status, 303, 'more seats through checkout');
   { const so = sessions[r.headers.location.split('/').pop()]; assert.equal(so.line_items[0].quantity, 2); assert.equal(so.line_items[0].price_data.unit_amount, 5000);
     Object.assign(so, { payment_status: 'paid', status: 'complete' });
@@ -531,7 +531,22 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/api/k?post=lake-garda'); assert.ok(JSON.parse(r.body.toString()).credits.tip.endsWith('/tip/lake-garda'), 'the K knows where to tip');
   r = await req(port, 'GET', '/w/' + w.slug); assert.ok(r.body.toString().includes('Become a patron of'), 'offered on the work');
   // Signing in: passkeys, and the menu.
-  r = await req(port, 'GET', '/signin'); assert.ok(r.status === 200 && r.body.toString().includes('Sign in with a passkey'), 'sign in');
+  r = await req(port, 'GET', '/signin'); assert.ok(r.status === 200 && r.body.toString().includes('Send the code') && r.body.toString().includes('passkey instead'), 'sign in page');
+  db.prepare("UPDATE makers SET email='ada@example.com' WHERE id=?").run(writer);
+  // Email sign-in: a code goes out (logged in test), comes back, and the maker's email opens the room and the collection together.
+  r = await req(port, 'POST', '/signin/code', { body: JSON.stringify({ email: 'bad' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'bad email refused');
+  r = await req(port, 'POST', '/signin/code', { body: JSON.stringify({ email: 'ada@example.com' }), headers: { 'content-type': 'application/json' } }); assert.ok(r.status === 200 && JSON.parse(r.body).to.startsWith('a•'), 'code sent');
+  const lc = app.locals.lastCode; assert.ok(lc && lc.code.length === 6, 'code known to the test');
+  r = await req(port, 'POST', '/signin/verify', { body: JSON.stringify({ email: 'ada@example.com', code: '000000' === lc.code ? '000001' : '000000' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'wrong code refused');
+  r = await req(port, 'POST', '/signin/verify', { body: JSON.stringify({ email: 'ada@example.com', code: lc.code }), headers: { 'content-type': 'application/json' } }); const sj = JSON.parse(r.body);
+  assert.ok(r.status === 200 && sj.ok && sj.maker && sj.to === '/account' && sj.name === 'Ada', 'maker signed in by code: ' + r.body);
+  const siCookie = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; '); assert.ok(/wm_m=/.test(siCookie) && /wm_b=/.test(siCookie), 'both cookies set');
+  r = await req(port, 'GET', '/account', { cookie: siCookie }); assert.equal(r.status, 200, 'room opens by email');
+  r = await req(port, 'GET', '/signin', { cookie: siCookie }); assert.ok(r.body.toString().includes('Good to see you, Ada'), 'signed-in page greets');
+  r = await req(port, 'POST', '/signin/verify', { body: JSON.stringify({ email: 'ada@example.com', code: lc.code }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'code is single use');
+  r = await req(port, 'POST', '/signin/code', { body: JSON.stringify({ email: 'new@example.com' }), headers: { 'content-type': 'application/json' } }); const lc2 = app.locals.lastCode;
+  r = await req(port, 'GET', '/signin/' + lc2.link); assert.ok(r.status === 302 && r.headers.location === '/yours', 'link signs a new collector in');
+  r = await req(port, 'GET', '/signin/' + lc2.link); assert.equal(r.status, 410, 'link works once');
   r = await req(port, 'POST', '/auth/passkey/register/options', { body: '{}', headers: { 'content-type': 'application/json' }, cookie: bck });
   const ro = JSON.parse(r.body); assert.ok(ro.challenge && ro.rp.id === 'localhost' && ro.authenticatorSelection.residentKey === 'required', 'passkey options');
   r = await req(port, 'POST', '/auth/passkey/login/options', { body: '{}', headers: { 'content-type': 'application/json' } }); assert.ok(JSON.parse(r.body).challenge, 'sign-in options');
@@ -557,13 +572,39 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: mck, body: { body: 'nor theirs' } }); assert.equal(r.status, 403, 'not another maker');
   // Makers: the front door is the collection; makers apply, Will approves in one step, and they sign in with a passkey.
   r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.toString().includes('Approve and invite'), 'one-step approval');
-  r = await req(port, 'GET', '/account'); assert.ok(r.body.toString().includes('data-passkey="maker-signin"'), 'makers sign in with a passkey');
+  r = await req(port, 'GET', '/account'); assert.ok(r.body.toString().includes('/signin?next=/account'), 'makers are sent to the one door');
   r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('data-passkey="maker-save"'), 'and save one from their room');
   r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' }, cookie: mck }); assert.ok(JSON.parse(r.body).challenge, 'maker passkey options');
   r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 401, 'only for a maker');
   r = await req(port, 'GET', '/makers'); assert.ok(r.body.toString().includes('Sign in to your room'));
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
+  // Trades in kind: Set Fan holds two numbered pieces; the ladder's No. 2 belongs to a second collector; they swap.
+  { const wl = db.prepare("SELECT * FROM works WHERE title='Test Ladder'").get();
+    const b2 = db.prepare("INSERT INTO buyers (customer, email, name) VALUES ('', 'rem@brandt.nl', 'Rembrandt')").run().lastInsertRowid;
+    db.prepare("UPDATE licenses SET buyer_id=?, download_token='tok-l2' WHERE ref='WM-2026-90002'").run(b2);
+    const b2ck = 'wm_b=' + b2 + '.' + require('crypto').createHmac('sha256', 's').update('b' + b2).digest('hex');
+    const give = setLs[0];
+    r = await req(port, 'GET', `/w/${wl.slug}`); assert.ok(r.body.toString().includes('Offer a trade for one'), 'the work offers a trade');
+    r = await req(port, 'GET', `/swap/new?work=${wl.slug}`, { cookie: sck }); assert.ok(r.status === 200 && r.body.toString().includes('No.&nbsp;2'), 'pieces held by others listed');
+    r = await req(port, 'POST', '/swap', { cookie: sck, body: { want: String(db.prepare("SELECT id FROM licenses WHERE ref='WM-2026-90002'").get().id), give: String(give.id), note: 'I have wanted this one.' } });
+    assert.ok(r.status === 302 && /^\/swap\/\d+$/.test(r.headers.location), 'trade offered: ' + r.headers.location); const sid = r.headers.location.split('/').pop();
+    r = await req(port, 'GET', `/swap/${sid}`, { cookie: sck }); assert.ok(r.body.toString().includes('Your trade is offered') && r.body.toString().includes('I have wanted this one.'), 'offerer sees it');
+    r = await req(port, 'GET', '/yours', { cookie: b2ck }); assert.ok(r.body.toString().includes('Trades offered to you'), 'holder sees it in the gallery');
+    r = await req(port, 'POST', `/swap/${sid}/accept`, { cookie: sck }); assert.ok(!db.prepare('SELECT status FROM swaps WHERE id=?').get(sid).status.match(/accepted/), 'only the holder may accept');
+    r = await req(port, 'POST', `/swap/${sid}/accept`, { cookie: b2ck }); assert.ok(r.headers.location.includes('ok=traded'), 'accepted');
+    assert.equal(db.prepare('SELECT buyer_id FROM licenses WHERE id=?').get(give.id).buyer_id, b2, 'the given piece moved');
+    const got = db.prepare("SELECT buyer_id, download_token FROM licenses WHERE ref='WM-2026-90002'").get(); assert.ok(got.buyer_id === setLs[0].buyer_id && got.download_token !== 'tok-l2', 'the wanted piece moved with a fresh key');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='swap.traded'").get().n, 1, 'on the register'); }
+  // A gallery's own book and hat: a visitor signs Set Fan's gallery, about one piece; the owner may remove it.
+  { r = await req(port, 'POST', '/yours', { cookie: sck, body: { name: 'Set Fan', public: '1' } }); const sf = db.prepare('SELECT * FROM buyers WHERE id=?').get(setLs[0].buyer_id); assert.ok(sf.public && sf.code, 'gallery opened');
+    r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(r.body.toString().includes('Tip your hat to this gallery') && r.body.toString().includes('Sign the book'), 'book and hat on the gallery');
+    r = await req(port, 'POST', `/collector/${sf.code}/hat`, { headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).n, 1, 'hat tipped'); const vck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+    r = await req(port, 'POST', `/collector/${sf.code}/notes`, { cookie: vck, body: { body: 'You have a great eye.', name: 'Henry', work: setLs[1].slug || '' } }); assert.ok(r.headers.location.includes('note=1'), 'signed');
+    r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(r.body.toString().includes('You have a great eye.') && r.body.toString().includes('1 tip of the hat'), 'line and hat shown');
+    r = await req(port, 'GET', '/guestbook'); assert.ok(!r.body.toString().includes('You have a great eye.'), 'gallery lines stay in the gallery');
+    const nid = db.prepare('SELECT id FROM notes WHERE gallery_id=?').get(sf.id).id;
+    r = await req(port, 'POST', `/collector/${sf.code}/notes/${nid}/remove`, { cookie: sck }); r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(!r.body.toString().includes('You have a great eye.'), 'owner removed it'); }
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verify(db).ok, false, 'tamper detected');
   r = await req(port, 'GET', '/ledger'); assert.ok(r.body.includes('broken'));

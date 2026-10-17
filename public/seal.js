@@ -65,6 +65,6 @@
     var f = document.querySelector('form[data-share="' + slug + '"]'); if (!f) return;
     var r = f.querySelector('.seal-row'); if (r) r.classList.add('is-yours');
     var t = f.querySelector('.seal-t b'); if (t) t.textContent = no ? 'Yours. No. ' + no + (of ? ' of ' + of : '') : 'Yours.';
-    var p = f.querySelector('.seal-t span'); if (p) p.innerHTML = 'It hangs in <a href="/yours">your collection</a>.';
+    var p = f.querySelector('.seal-t span'); if (p) p.innerHTML = 'It hangs in <a href="/yours">your gallery</a>.';
   };
 })();

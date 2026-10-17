@@ -1,22 +1,18 @@
-/* The trace: every photograph shown on Watermark carries a faint lattice naming the work and the viewer.
-   Invisible at reading distance, it survives a screenshot, so a copy can be traced to the page it was
-   taken from. A screenshot key (Print Screen) is noted and answered with an invitation, not a wall:
-   browsers cannot see the Mac's capture keys, and no lock on the web holds; honour, not locks. */
+/* The guard. While you look, the photograph is shown clean: nothing laid over it, ever. The protections
+   live in the application, not on the picture. Only in the capture moment (the page loses the eye to a
+   capture tool, Print Screen, the Mac's capture keys, a copy out of the page) does the mark come up for
+   a few seconds, so what is taken carries the work's name and address; then it goes again. Honour, not locks. */
 (function () {
   var W = window.__WM_GUARD; if (!W) return;
   function code() { try { var k = localStorage.getItem('wm_v'); if (!k) { k = Math.random().toString(36).slice(2, 8); localStorage.setItem('wm_v', k); } return k; } catch (e) { return 'anon'; } }
   var v = code(), text = (W.accession || W.slug) + ' · ' + v + ' · watermark';
-  // A tiled SVG of near-invisible text, laid over every protected image.
+  // A tiled SVG naming the work and the viewer: the veil that comes up in the capture moment.
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140"><text x="6" y="40" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="white" transform="rotate(-18 130 70)">' + text.replace(/[<>&]/g, '') + '</text><text x="6" y="118" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="black" transform="rotate(-18 130 70)">' + text.replace(/[<>&]/g, '') + '</text></svg>';
   var url = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
   var st = document.createElement('style');
-  st.textContent = '.wm-trace{position:absolute;inset:0;pointer-events:none;background-image:' + url + ';background-size:260px 140px;opacity:.045;mix-blend-mode:overlay;z-index:3}'
-    + '.wm-nudge{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);max-width:min(520px,calc(100vw - 32px));padding:14px 18px;background:#0e0e0e;color:#f6f5f2;font:14px/1.5 "Helvetica Neue",Helvetica,Arial,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.35);opacity:0;transition:opacity .4s,transform .5s cubic-bezier(.16,1,.3,1);z-index:2147483000}'
+  st.textContent = '.wm-nudge{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);max-width:min(520px,calc(100vw - 32px));padding:14px 18px;background:#0e0e0e;color:#f6f5f2;font:14px/1.5 "Helvetica Neue",Helvetica,Arial,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.35);opacity:0;transition:opacity .4s,transform .5s cubic-bezier(.16,1,.3,1);z-index:2147483000}'
     + '.wm-nudge.on{opacity:1;transform:translate(-50%,0)}.wm-nudge a{color:#fff;margin-left:10px;white-space:nowrap}';
   document.head.appendChild(st);
-  function lay(host) { if (!host || host.querySelector(':scope > .wm-trace')) return; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; var t = document.createElement('span'); t.className = 'wm-trace'; t.setAttribute('aria-hidden', 'true'); host.appendChild(t); }
-  function all() { var hs = document.querySelectorAll('.plate, .wv, .lic-fig, .lb-stage, .buy-plate, .tc-win, .cf'); for (var i = 0; i < hs.length; i++) lay(hs[i]); }
-  all(); new MutationObserver(all).observe(document.body, { childList: true, subtree: true });
 
   // Print Screen (Windows, Linux) is the one capture key a page can hear. The Mac's are not ours to see.
   var said = false;
@@ -28,18 +24,17 @@
     document.body.appendChild(n); requestAnimationFrame(function () { n.classList.add('on'); });
     setTimeout(function () { n.classList.remove('on'); setTimeout(function () { n.remove(); }, 600); }, 7000);
   }
-  // The watermark itself: the wave and the address, laid over every protected image. Quiet while you look;
-  // when the page loses the eye (a capture tool taking focus, a switch away), it comes up at once, so what is
-  // taken carries the name. Print Screen brings it up too.
+  // The mark, for the capture moment only: the picture dims, the wave comes up large and single, and one
+  // line names the work and its address. Nothing tiled, nothing busy; it should look like the house's own seal.
   var mark = '<svg viewBox="1.5 14.2 41 11" fill="currentColor"><path d="' + W.wave + '"/></svg><span>' + (W.accession ? W.accession + ' \u00b7 ' : '') + 'watermark.krafftco.com/w/' + W.slug + '</span>';
   var st2 = document.createElement('style');
-  st2.textContent = '.wm-mark{position:absolute;right:14px;bottom:12px;display:inline-flex;align-items:center;gap:8px;color:#fff;font:11px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.08em;opacity:.55;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none;z-index:4;transition:opacity .3s}'
-    + '.wm-mark svg{width:26px;height:7px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}'
-    + '.wm-up .wm-mark{opacity:1}'
-    + '.wm-veil{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .15s;background:' + url.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;utf8,') + ';background-size:260px 140px;mix-blend-mode:normal}'
-    + '.wm-up .wm-veil{opacity:.35}'
-    + '.wm-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-18deg);width:62%;color:#fff;opacity:0;pointer-events:none;z-index:5;filter:drop-shadow(0 2px 18px rgba(0,0,0,.5));transition:opacity .15s}'
-    + '.wm-up .wm-big{opacity:.55}';
+  st2.textContent = '.wm-mark{position:absolute;left:0;right:0;bottom:7%;display:flex;justify-content:center;align-items:center;gap:10px;color:#fff;font:12px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:0;pointer-events:none;z-index:6;transition:opacity .25s ease .05s;text-shadow:0 1px 12px rgba(0,0,0,.5)}'
+    + '.wm-mark svg{display:none}'
+    + '.wm-up .wm-mark{opacity:.92}'
+    + '.wm-veil{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .2s ease;background:radial-gradient(ellipse at center,rgba(8,8,8,.38) 0%,rgba(8,8,8,.66) 100%)}'
+    + '.wm-up .wm-veil{opacity:1}'
+    + '.wm-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);width:min(46%,420px);color:#fff;opacity:0;pointer-events:none;z-index:5;filter:drop-shadow(0 6px 30px rgba(0,0,0,.55));transition:opacity .25s ease,transform .6s cubic-bezier(.16,1,.3,1)}'
+    + '.wm-up .wm-big{opacity:.96;transform:translate(-50%,-50%) scale(1)}';
   document.head.appendChild(st2);
   function dress(host) {
     if (!host || host.querySelector(':scope > .wm-mark')) return;

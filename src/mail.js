@@ -1,5 +1,6 @@
 // Email. Uses Resend's HTTP API when RESEND_API_KEY is set; otherwise logs to the console,
 // so the app works fully without a mail provider.
+const on = () => !!process.env.RESEND_API_KEY;
 async function send({ to, subject, text, from }) {
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <license@krafftco.com>';
@@ -49,4 +50,4 @@ const templates = {
   }),
 };
 
-module.exports = { send, templates };
+module.exports = { on, send, templates };

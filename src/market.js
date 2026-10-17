@@ -98,12 +98,12 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     const email = String(x.email || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect(`/market/${s.id}?sent=email`);
     if (b && b.id === s.seller) return res.redirect(`/market/${s.id}`);
     const offer = String(x.offer || '').trim() ? Math.round(Number(String(x.offer).replace(/[^0-9.]/g, '')) * 100) : null;
-    if (AUTO()) { // the collector decides: the offer goes to them, in their collection
+    if (AUTO()) { // the collector decides: the offer goes to them, in their gallery
       if (!(offer >= 100)) return res.redirect(`/market/${s.id}?sent=offer`);
       db.prepare('INSERT INTO offers (license_id, buyer_id, name, email, offer_cents) VALUES (?,?,?,?,?)').run(s.license_id, b ? b.id : null, String(x.name || '').trim().slice(0, 80) || null, email.slice(0, 160), offer);
       ledger.append(db, 'market.offer', `listing-${s.id}`, { offer });
       const sl = db.prepare('SELECT email FROM buyers WHERE id=?').get(s.seller); const l = lic(s.license_id);
-      if (mail && sl && sl.email) mail.send({ to: sl.email, subject: `An offer: ${tidy(l.title)}, No. ${l.collector_no}`, text: `Someone offers ${money(offer)} for your piece (you ask ${money(s.ask_cents)}). Accept or decline it in your collection: ${C.base}/yours#files` });
+      if (mail && sl && sl.email) mail.send({ to: sl.email, subject: `An offer: ${tidy(l.title)}, No. ${l.collector_no}`, text: `Someone offers ${money(offer)} for your piece (you ask ${money(s.ask_cents)}). Accept or decline it in your gallery: ${C.base}/yours#files` });
       return res.redirect(`/market/${s.id}?sent=1`);
     }
     db.prepare('INSERT INTO bids (listing_id, buyer_id, name, email, offer_cents) VALUES (?,?,?,?,?)').run(s.id, b ? b.id : null, String(x.name || '').trim().slice(0, 80) || null, email.slice(0, 160), offer && offer > 0 ? offer : null);
@@ -138,7 +138,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
       else { db.prepare('INSERT INTO listings (license_id, seller, ask_cents) VALUES (?,?,?)').run(o.license_id, b.id, o.offer_cents); s = openListing(o.license_id); }
       const tok = nanoid(20);
       db.prepare('INSERT INTO bids (listing_id, buyer_id, name, email, offer_cents, token) VALUES (?,?,?,?,?,?)').run(s.id, o.buyer_id, o.name, o.email, o.offer_cents, tok);
-      if (AUTO() && mail) { const l = lic(o.license_id); mail.send({ to: o.email, subject: `Your offer was accepted: ${tidy(l.title)}, No. ${l.collector_no}`, text: `The collector accepted your offer of ${money(o.offer_cents)}. Pay here and the piece moves to your collection at once:\n${C.base}/market/${s.id}?bid=${tok}` }); }
+      if (AUTO() && mail) { const l = lic(o.license_id); mail.send({ to: o.email, subject: `Your offer was accepted: ${tidy(l.title)}, No. ${l.collector_no}`, text: `The collector accepted your offer of ${money(o.offer_cents)}. Pay here and the piece moves to your gallery at once:\n${C.base}/market/${s.id}?bid=${tok}` }); }
       db.prepare("UPDATE offers SET status='accepted', closed_at=datetime('now') WHERE id=?").run(o.id);
       ledger.append(db, 'market.accepted', `listing-${s.id}`, { offer: o.offer_cents });
       return res.redirect('/yours?accepted=1#files');
@@ -255,7 +255,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     })();
     ledger.append(db, 'market.traded', l.ref, { work: l.slug, collector_no: l.collector_no, price, royalty: sp.royalty, fee: sp.fee, settled: 'stripe' });
     ledger.append(db, 'license.transferred', l.ref, { work: l.slug, collector_no: l.collector_no });
-    if (mail && d.email) mail.send({ to: d.email, subject: `Yours: ${tidy(l.title)}, No. ${l.collector_no}`, text: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}, is now in your collection.\n\nThe full file: ${C.base}/d/${token}\nIts certificate: ${C.base}/c/${l.ref}?k=${token}\nIts history: ${C.base}/w/${l.slug}/life` });
+    if (mail && d.email) mail.send({ to: d.email, subject: `Yours: ${tidy(l.title)}, No. ${l.collector_no}`, text: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}, is now in your gallery.\n\nThe full file: ${C.base}/d/${token}\nIts certificate: ${C.base}/c/${l.ref}?k=${token}\nIts history: ${C.base}/w/${l.slug}/life` });
     const seller = db.prepare('SELECT * FROM buyers WHERE id=?').get(s.seller);
     if (mail && seller && seller.email) mail.send({ to: seller.email, subject: `Sold: ${tidy(l.title)}, No. ${l.collector_no}`, text: `Your piece sold for ${money(price)}. Your share is ${money(sp.seller)}${seller.stripe_account ? '; it is on its way to your bank.' : `. To be paid, add your bank details: ${C.base}/yours/payouts`}` });
     await payOwed();
@@ -329,7 +329,7 @@ ${open.length ? `<div class="mk-grid">${open.map(r => `<a class="mk-c" href="/ma
 <span class="mk-no">${no(r)}</span><b>${esc(tidy(r.title))}</b><span class="mk-by">${esc(r.maker)}</span><span class="mk-px"><em>${money(r.ask_cents)}</em>${r.p.last != null ? `<small>last traded ${money(r.p.last)}</small>` : r.p.issue != null ? `<small>issued at ${money(r.p.issue)}</small>` : ''}</span></a>`).join('')}</div>` : '<p class="hd-calm">Nothing is offered just now. When a collector offers a piece, it appears here.</p>'}</section>
 ${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>most recent first</span></header>${recent.map(t => `<a class="hd-ev" href="/w/${esc(t.slug)}/life"><span>${date(t.at)}</span><b>${esc(tidy(t.title))}</b><span>${no(t)} &middot; ${esc(t.maker)}</span><span class="hd-v">${money(t.price_cents)}</span></a>`).join('')}</section>` : ''}
 <section class="gal mk-how"><header class="gh"><h2>How it works</h2></header><ol class="mk-steps">
-<li><b>A collector offers a piece.</b> From their collection, at a price they choose. They can withdraw it at any time.</li>
+<li><b>A collector offers a piece.</b> From their gallery, at a price they choose. They can withdraw it at any time.</li>
 <li><b>You ask to buy it.</b> At the asking price, or with an offer of your own.</li>
 <li><b>Watermark settles it.</b> You pay Watermark; the piece moves to you with its number; the collector is paid out, and the photographer receives ${Math.round(ROYALTY * 100)}% of every resale. Watermark keeps ${Math.round(FEE * 100)}%. Neither side has to trust the other.</li>
 <li><b>It hangs on your wall.</b> With its number, its certificate and its history, written to the ledger.</li></ol>
@@ -339,13 +339,13 @@ ${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>
 <a class="mk-im mk-big" href="/w/${esc(l.slug)}" style="--r:${ratio(l)}"><img src="/img/${esc(l.slug)}/large" alt="${esc(tidy(l.title))}" draggable="false"></a>
 <div class="mk-side"><p class="k">Offered by its collector</p><h1>${esc(tidy(l.title))}</h1><p class="mk-no mk-no-big">${no(l)}</p><p class="mk-by"><a href="/m/${esc(V.makerSlug ? V.makerSlug(m) : '')}">${esc(m.name)}</a>${l.place ? ` &middot; ${esc(l.place)}` : ''}</p>
 <dl class="sh-dl mk-dl"><div><dt>Asking</dt><dd class="mk-ask">${money(s.ask_cents)}</dd></div>${p.issue != null ? `<div><dt>Issued at</dt><dd>${money(p.issue)}</dd></div>` : ''}${p.last != null ? `<div><dt>Last traded</dt><dd>${money(p.last)}, ${date(p.lastAt)}</dd></div>` : ''}<div><dt>To the photographer</dt><dd>${Math.round(ROYALTY * 100)}% of the price, ${money(Math.round(s.ask_cents * ROYALTY))} at the asking price</dd></div></dl>
-${s.status !== 'open' ? '<p class="note">This piece is no longer offered.</p>' : mine ? '<p class="note">This is your offer. Change or withdraw it from <a href="/yours#files">your collection</a>.</p>'
-  : auto ? (sent === '1' ? '<p class="ok">Your offer is with the collector. If they accept, you will have a link to pay, and the piece moves to your collection the moment you do.</p>' : '')
-    + (sent === 'held' ? '<p class="note">Someone is paying for this piece right now. If they do not finish, it is offered again within half an hour.</p>' : sent === 'pending' ? '<p class="note">Your payment is being confirmed. The piece appears in your collection within a minute.</p>' : sent === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : sent === 'offer' || sent === 'email' ? '<p class="err">An email address and an offer, so the collector can answer.</p>' : '')
+${s.status !== 'open' ? '<p class="note">This piece is no longer offered.</p>' : mine ? '<p class="note">This is your offer. Change or withdraw it from <a href="/yours#files">your gallery</a>.</p>'
+  : auto ? (sent === '1' ? '<p class="ok">Your offer is with the collector. If they accept, you will have a link to pay, and the piece moves to your gallery the moment you do.</p>' : '')
+    + (sent === 'held' ? '<p class="note">Someone is paying for this piece right now. If they do not finish, it is offered again within half an hour.</p>' : sent === 'pending' ? '<p class="note">Your payment is being confirmed. The piece appears in your gallery within a minute.</p>' : sent === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : sent === 'offer' || sent === 'email' ? '<p class="err">An email address and an offer, so the collector can answer.</p>' : '')
     + `<form method="post" action="/market/${s.id}/buy" class="mk-buy">${bid ? `<input type="hidden" name="bid" value="${esc(bid.token)}"><p class="ok">The collector accepted your offer.</p>` : ''}<button class="jewel"${held && !bid ? ' disabled' : ''}><span>${bid ? 'Pay and take it' : 'Buy it now'}</span><b>${money(bid ? bid.offer_cents : s.ask_cents)}</b></button>
-<p class="note">Apple Pay, Google Pay or card. The piece moves to your collection with its number the moment you pay; the collector is paid, and the photographer receives ${Math.round(ROYALTY * 100)}%.</p></form>`
+<p class="note">Apple Pay, Google Pay or card. The piece moves to your gallery with its number the moment you pay; the collector is paid, and the photographer receives ${Math.round(ROYALTY * 100)}%.</p></form>`
     + (bid ? '' : `<details class="mk-off"><summary>Make an offer</summary><form method="post" action="/market/${s.id}/bid" class="form mk-f"><label>Your name<input name="name" autocomplete="name"></label><label>Email<input name="email" type="email" required autocomplete="email"></label><label>Your offer<input name="offer" inputmode="decimal" required placeholder="${esc(money(Math.round(s.ask_cents * 0.85 / 100) * 100))}"></label><button class="btn">Send it to the collector</button><p class="note">Nothing is charged unless they accept and you pay.</p></form></details>`)
-  : sent === '1' ? '<p class="ok">Your request is with Watermark. We will write to you to settle it: payment first, then the piece moves to your collection with its number.</p>'
+  : sent === '1' ? '<p class="ok">Your request is with Watermark. We will write to you to settle it: payment first, then the piece moves to your gallery with its number.</p>'
   : `<form method="post" action="/market/${s.id}/bid" class="form mk-f">${sent === 'email' ? '<p class="err">An email address, so we can settle it with you.</p>' : ''}<label>Your name<input name="name" autocomplete="name"></label><label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Your offer, if not the asking price<input name="offer" inputmode="decimal" placeholder="${esc(money(s.ask_cents))}"></label><button class="jewel"><span>Ask to buy it</span><b>${money(s.ask_cents)}</b></button>
 <p class="note">Nothing is charged now. Watermark settles each trade with both collectors.</p></form>`}
@@ -356,7 +356,7 @@ ${s.status !== 'open' ? '<p class="note">This piece is no longer offered.</p>' :
 <p class="lede">When a piece you offer sells, your share is paid to your bank through Stripe, Watermark's payment provider. You add your details once; Watermark never sees them.</p>
 ${ready ? '<p class="ok">Payouts are on. Each sale is paid out as it settles.</p>' : on ? `<form method="post" action="/yours/payouts/connect"><button class="btn">${linked ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>` : '<p class="note">Payouts open when the market settles through Stripe.</p>'}
 ${rows.length ? `<section class="hd-list"><div class="hd-h"><h2>Your shares</h2></div>${rows.map(r => `<div class="hd-ev"><span>${date(r.created_at)}</span><b>${esc(tidy(r.title))}</b><span>No.&nbsp;${r.collector_no} &middot; ${r.status === 'paid' ? 'paid' : 'waiting for your bank'}</span><span class="hd-v">${money(r.amount_cents)}</span></div>`).join('')}</section>` : ''}
-<p class="sr-also"><a href="/yours">Your collection</a></p></section>` }),
+<p class="sr-also"><a href="/yours">Your gallery</a></p></section>` }),
     studio: ({ bids, open, done, owed = [], auto = false, notice }) => layout({ studio: true, title: 'Market · Watermark', body: `<section class="studio-wrap hd">${require('./studio-views').nav('/studio/market')}
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}<p class="k">The market</p><h1>Trades to settle.</h1>
 <p class="lede">${auto ? 'Trades settle on their own: the buyer pays through Stripe, the piece moves at once, and each share is paid out through Stripe Connect as soon as its owner has added a bank account. Anything brokered by hand still appears below.' : 'Settlement through Stripe is off (MARKET_SETTLEMENT). Until it is on, each trade is brokered here: take payment from the buyer, pay the collector their share, then record it. The piece moves when the buyer opens their claim link.'}</p>

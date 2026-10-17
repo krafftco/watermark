@@ -87,9 +87,9 @@
     try {
       fetch(WM + '/api/me', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (me) {
         if (!me || !me.in) return;
-        you.textContent = me.name || 'You'; you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your collection';
+        you.textContent = me.name || 'You'; you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your gallery';
         var menu = document.createElement('span'); menu.className = 'kh-me';
-        menu.innerHTML = (me.maker ? '<a href="' + WM + '/account">Your studio</a><a href="' + WM + '/m/' + me.maker.slug + '">Your page</a>' : '') + '<a href="' + WM + '/yours">Your collection</a><a href="' + WM + '/guestbook">Guest book</a>';
+        menu.innerHTML = (me.maker ? '<a href="' + WM + '/account">Your studio</a><a href="' + WM + '/m/' + me.maker.slug + '">Your page</a>' : '') + '<a href="' + WM + '/yours">Your gallery</a><a href="' + WM + '/guestbook">Guest book</a>';
         you.insertAdjacentElement('afterend', menu);
       }).catch(function () {});
     } catch (e) {}

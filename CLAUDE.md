@@ -39,6 +39,12 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - The house bar's far right is the visitor's door: `/api/me` (CORS for *.krafftco.com and wrkfullerton.com, credentials) tells house.js who is signed in (maker, collector); the bar shows their name linking to their studio or collection, else Sign in. Will's site stays in the bar as the example of what every maker's page can be.
 - Your collection shows pieces as cards (`card` in views.js; .tc in style.css).
 
+- Sign in: `src/signin.js` (/signin). One field: email → six-digit code by mail (and a one-time link, /signin/:link), ten minutes, five tries; passkeys offered in the same field (conditional UI) and as a fallback button. The same email opens a collector's gallery and a maker's room together (`admit`), so every maker is a collector. `wm_hi` cookie shows a one-line welcome on landing. Needs RESEND_API_KEY live; without it the code is logged (tests read `app.locals.lastCode`). /signout clears all.
+- Galleries: a person's collection is called their gallery everywhere in copy (/yours, /collector/:code). Each public gallery has its own guest book and hat (`gallery_hats`, notes.gallery_id; lines may be about one piece; owner removes). The house guest book excludes gallery lines.
+- Trades in kind: `src/swaps.js` (/swap/new?work=slug, /swap/:id). One numbered piece for another, no money; the holder accepts; both move with fresh keys, transfers + `swap.traded` on the register, makers told. Work page: "Offer a trade for one".
+- The guard (`public/guard.js`): the photograph is shown clean, nothing laid over it. Only in the capture moment (blur, visibilitychange, Print Screen, Cmd+Shift+3/4/5, copy) does the plate dim and the wave come up large with one line (accession · address) for a few seconds.
+- Maker page (/m/:slug, `makerPage`): the cinematic profile after wrkfullerton.com: who, one plate, stats, Latest from Studios (`storiesBy`, Ghost by author), Series, Recent photographs, guest-book lines, the house.
+
 ## Rules (from Will)
 - Restrained, precise voice; no hype. Anything written in Will's voice is a draft until he confirms.
 - Draft prices: In a story $350, For a company $750, Before an audience $2,500, On a wall $250. "85% to the maker" on the home page is a draft.

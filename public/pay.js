@@ -73,7 +73,7 @@
     sheet.querySelector('.ps-dt').textContent += ' Next time, one tap.';
     if (d.no) sheet.querySelector('.ps-done h2').textContent = 'Collector No. ' + d.no + (d.of ? ' of ' + d.of : '') + '.';
     window.WMSealed && window.WMSealed(cur.slug, d.no, d.of);
-    sheet.querySelector('.ps-lic').textContent = 'Your collection'; sheet.querySelector('.ps-lic').href = '/yours';
+    sheet.querySelector('.ps-lic').textContent = 'Your gallery'; sheet.querySelector('.ps-lic').href = '/yours';
   }
 
   function checkout(slug) {

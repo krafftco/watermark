@@ -2,16 +2,15 @@
 const { layout, esc, money, date } = require('./views');
 
 function signedOut() {
-  return layout({ title: 'Your account · Watermark', studio: true, body: `<section class="narrow" data-passkey-box><p class="k">For makers</p><h1>Sign in to your room.</h1>
-<p class="lede">With the passkey you saved: Face ID, Touch ID or your phone. The first time, open the invitation link we sent you.</p>
-<p><button class="buy-btn" data-passkey="maker-signin">Sign in with a passkey</button></p><p class="pk-msg" data-passkey-msg></p>
-<p class="note">Not a Watermark maker yet? <a href="/join">Open your studio</a>. Lost everything? Write to us and we will send a fresh invitation.</p></section>
-<script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` });
+  return layout({ title: 'Your room · Watermark', studio: true, body: `<section class="narrow"><p class="k">For makers</p><h1>Sign in to your room.</h1>
+<p class="lede">The email your studio is under, and a six-digit code comes back; or the passkey you saved. No password.</p>
+<p><a class="buy-btn" href="/signin?next=/account">Sign in</a></p>
+<p class="note">Not a Watermark maker yet? <a href="/join">Open your studio</a>.</p></section>` });
 }
 
 // Open a studio: a name and an email, and you are in.
 function join({ err = null, name = '', email = '' }) {
-  const msg = { name: 'Your name, as it should appear beside your work.', email: 'An email address, so your studio can find you again.', known: 'There is already a studio under that email. Sign in with your passkey, or write to us for a fresh link.' }[err];
+  const msg = { name: 'Your name, as it should appear beside your work.', email: 'An email address, so your studio can find you again.', known: 'There is already a studio under that email. <a href="/signin?next=/account">Sign in</a> and it opens.' }[err];
   return layout({ title: 'Open your studio · Watermark', body: `<section class="narrow jn"><p class="k">For makers</p><h1>Open your studio.</h1>
 <p class="lede">Hold your photographs on Watermark: fingerprinted on arrival, shown on your own page, collected and licensed at the source. You keep the copyright; 85% of every sale is yours. It takes a minute.</p>
 ${msg ? `<p class="err">${esc(msg)}</p>` : ''}
@@ -81,7 +80,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
   return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap hd ac">
 ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s studio as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
 <header class="ac-bar"><div><p class="k">${m.kind === 'estate' ? 'The estate' : 'Your studio'}${m.house ? ' &middot; ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1></div>
-${viewing ? '' : `<nav><a class="buy-btn ac-up" href="/account/upload">Add photographs</a><a href="/account/logout">Sign out</a></nav>`}</header>
+${viewing ? '' : `<nav><a class="buy-btn ac-up" href="/account/upload">Add photographs</a><form method="post" action="/signout" class="ac-out"><button>Sign out</button></form></nav>`}</header>
 ${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) brings you back to your studio from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
 <div class="hd-top"><div class="hd-big"><b>${money(totals.earned + (totals.tips || 0) + (totals.royalties || 0))}</b><span>to you, all time${totals.earned30 ? ` &middot; ${money(totals.earned30)} in the last 30 days` : ''}</span></div>
 <div class="hd-mix"><div><span class="k">Collected</span><b>${money(toMaker(collected))}</b><i style="--p:${share(collected)}%"></i></div><div><span class="k">Licensed</span><b>${money(toMaker(licensed))}</b><i style="--p:${share(licensed)}%"></i></div>

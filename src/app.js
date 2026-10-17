@@ -609,7 +609,7 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ b, ...col, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -629,6 +629,7 @@ function createApp(cfg = {}) {
   // Seats: the people at a licensee who hold the license too, each with their own link.
   require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
+  require('./swaps').mountSwaps(app, { db, C, buyerOf, ledger, V, mail });
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
@@ -640,6 +641,8 @@ function createApp(cfg = {}) {
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
+  // Signing in by email: a six-digit code or the link in the message; the same email opens a maker's room.
+  require('./signin').mountSignin(app, { db, C, buyerOf, setBuyer, ledger, V, mail, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
   // A collector records a print they have made of a work they hold. It shows on their wall and in the work's life.
   app.post('/yours/print', (req, res) => {
     const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));
@@ -714,7 +717,7 @@ function createApp(cfg = {}) {
     try {
       const ss = await stripe.checkout.sessions.create({
         mode: 'payment', submit_type: 'pay',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: label, description: `${items.length} photographs by ${s.maker}, each yours to keep and share, each numbered in your collection. ${V.money(full)} if collected one by one.`, images: items.slice(0, 3).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: label, description: `${items.length} photographs by ${s.maker}, each yours to keep and share, each numbered in your gallery. ${V.money(full)} if collected one by one.`, images: items.slice(0, 3).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
         metadata: { ref: refs[0], set: setRef },
         success_url: `${C.base}/thanks/${refs[0]}?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${C.base}/series/${s.slug}${c ? '#ch-' + c.i : ''}`,
@@ -730,6 +733,20 @@ function createApp(cfg = {}) {
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };
+  // Stories by a maker, from Krafft Studios (Ghost), by author slug; ten minutes' cache per maker.
+  const storiesCache = new Map();
+  async function storiesBy(m) {
+    const slug = slugify(m.name); const hit = storiesCache.get(slug); if (hit && Date.now() - hit.at < 10 * 60e3) return hit.posts;
+    let posts = [];
+    try {
+      const API = process.env.GHOST_CONTENT_API || 'https://krafftstudios.ghost.io/ghost/api/content';
+      const KEY = process.env.GHOST_CONTENT_KEY || '8198cc66daa230f254acfaf9d5';
+      const r = await (cfg.fetchImpl || fetch)(`${API}/posts/?key=${KEY}&filter=authors:${slug}&limit=6&include=tags&fields=title,slug,url,custom_excerpt,excerpt,feature_image,published_at,reading_time&order=published_at%20desc`, { signal: AbortSignal.timeout(4000) });
+      if (r.ok) posts = ((await r.json()).posts || []);
+    } catch (e) { /* none */ }
+    storiesCache.set(slug, { at: Date.now(), posts }); return posts;
+  }
+  app.locals.storiesBy = storiesBy;
   async function journalPosts() {
     if (Date.now() - journal.at < 10 * 60e3) return journal.posts;
     try {
@@ -753,7 +770,7 @@ function createApp(cfg = {}) {
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
-    res.send(V.collector({ b, ...collected(b), lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
+    res.send(V.collector({ b, ...collected(b), book: app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, note: req.query.note || null, me: (buyerOf(req) || {}).id || null, lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
   });
 
   app.get('/buy/:slug', (req, res) => {

@@ -4,7 +4,7 @@
 // carry Keeping: what a maker pays for the archive to hold, serve and protect a large body of work.
 // All amounts are drafts until Will confirms them. Money lands in the house's Stripe.
 const LEVELS = [
-  { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of friends, and the friend’s mark on your collection.' },
+  { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of friends, and the friend’s mark on your gallery.' },
   { key: 'patron', name: 'Patron', cents: 5000, gives: 'All of that, and first sight of every new series before it opens.' },
   { key: 'benefactor', name: 'Benefactor', cents: 25000, gives: 'All of that, a signed print from the Krafft Collection each year, and a seat at the table when the collection acquires.' },
 ];

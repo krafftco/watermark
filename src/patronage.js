@@ -3,7 +3,7 @@
 // their own collection, their name in the credits of new series, and for the Medici a signed print.
 // Levels and prices are drafts until Will confirms them. 85% to the maker, as with everything else.
 const LEVELS = [
-  { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of patrons, and the patron’s mark on your collection.' },
+  { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of patrons, and the patron’s mark on your gallery.' },
   { key: 'patron', name: 'Patron', cents: 5000, gives: 'All of that, and your name in the credits of every new series: made possible by its patrons.' },
   { key: 'medici', name: 'Medici', cents: 25000, gives: 'All of that, and each year a signed print, chosen with the maker.' },
 ];
@@ -22,12 +22,15 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
   const credits = m => db.prepare("SELECT name FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL AND level IN ('patron','medici') ORDER BY CASE level WHEN 'medici' THEN 0 ELSE 1 END, started_at").all(m.id).map(p => p.name);
   const of = b => (b ? db.prepare("SELECT p.*, m.name AS maker_name FROM patrons p JOIN makers m ON m.id=p.maker_id WHERE p.buyer_id=? AND p.status IN ('active','ending') ORDER BY p.started_at").all(b.id) : []);
 
-  app.get('/m/:slug', (req, res) => {
+  app.get('/m/:slug', async (req, res) => {
     const m = makerBySlug(req.params.slug); if (!m) return res.sendStatus(404);
     const works = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, id").all(m.id);
     const collectors = db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.collector_no IS NOT NULL AND l.status IN ('active','expired')").get(m.id).n;
     const series = require('./series').filter(s => s.maker === m.name);
-    res.send(V.makerPage({ m, slug: slugOf(m), works, collectors, patrons: count(m), wall: wall(m), series, levels: LEVELS, once: ONCE, open: open(m), mine: of(buyerOf(req)).filter(p => p.maker_id === m.id) }));
+    const stories = app.locals.storiesBy ? await app.locals.storiesBy(m) : [];
+    const lines = db.prepare("SELECT n.body, n.name, n.at, w.slug, w.title FROM notes n JOIN works w ON w.id=n.work_id WHERE w.maker_id=? AND n.removed_at IS NULL AND w.status='held' ORDER BY CASE WHEN n.seen_at IS NULL THEN 1 ELSE 0 END, n.id DESC LIMIT 3").all(m.id);
+    const ap = db.prepare('SELECT COUNT(*) n FROM applause a JOIN works w ON w.id=a.work_id WHERE w.maker_id=?').get(m.id).n;
+    res.send(V.makerPage({ m, slug: slugOf(m), works, collectors, patrons: count(m), wall: wall(m), series, levels: LEVELS, once: ONCE, open: open(m), mine: of(buyerOf(req)).filter(p => p.maker_id === m.id), stories, lines, applause: ap }));
   });
 
   app.post('/m/:slug/patron', async (req, res) => {
