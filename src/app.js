@@ -50,6 +50,7 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='bytes'").get()) db.exec('ALTER TABLE works ADD COLUMN bytes INTEGER');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='rights'").get()) db.exec('ALTER TABLE licenses ADD COLUMN rights TEXT'); // the contract's terms, as paid for
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='set_ref'").get()) db.exec('ALTER TABLE licenses ADD COLUMN set_ref TEXT'); // bought together as a set
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
@@ -208,7 +209,7 @@ function createApp(cfg = {}) {
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
     const nw = q.work.get(slug);
-    db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph'), dhash=? WHERE id=?").run(accession(nw), await images.dhash(dest).catch(() => null), nw.id);
+    db.prepare("UPDATE works SET accession=?, medium=COALESCE(medium, 'Digital photograph'), dhash=?, bytes=? WHERE id=?").run(accession(nw), await images.dhash(dest).catch(() => null), (() => { try { return fs.statSync(dest).size; } catch (e) { return null; } })(), nw.id);
     const cred = await CR.inspect(dest); if (cred) db.prepare('UPDATE works SET credentials=? WHERE id=?').run(JSON.stringify(cred), nw.id);
     if (store.kind === 's3') fs.unlinkSync(dest); // the vault holds it; the disk is only a cache
     ledger.append(db, 'work.registered', slug, { maker: owner.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
@@ -612,6 +613,8 @@ function createApp(cfg = {}) {
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
   // Applause and notes: a tip of the hat, and a sentence, held with the work.
   require('./applause').mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V });
+  // Friends of the house, and Keeping for makers' archives.
+  require('./friends').mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf: app.locals.accounts.makerOf, ledger, V });
   // Seats: the people at a licensee who hold the license too, each with their own link.
   require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
@@ -1172,6 +1175,7 @@ function createApp(cfg = {}) {
         fs.mkdirSync(originals, { recursive: true });
         try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
         await store.put('originals/' + name, dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
+        db.prepare('UPDATE works SET bytes=? WHERE id=?').run((() => { try { return fs.statSync(dest).size; } catch (e) { return null; } })(), w.id);
         db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
           camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
           .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);

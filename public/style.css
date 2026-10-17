@@ -1438,3 +1438,23 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .pf-up{position:relative;display:inline-block;padding:8px 14px;border:1px solid var(--ink);font-size:13px;cursor:pointer}.pf-up input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .jn .form label small{color:var(--mu);margin-left:6px;font-size:12px}
 @media (max-width:560px){.mk-who{grid-template-columns:1fr}}
+.mk-split b{font-weight:500}
+/* Friends of the house. */
+.fr-two{display:grid;grid-template-columns:1fr 1fr;gap:48px;padding-top:0}
+.fr-what{font-family:var(--read);font-size:17px;line-height:1.5;margin:0 0 18px;color:var(--ink)}
+.fr-lvs{display:grid;gap:0;border-top:1px solid var(--ink);margin-bottom:16px}
+.fr-lv{display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;padding:14px 0;border-bottom:1px solid var(--ln);cursor:pointer;align-items:baseline}
+.fr-lv input{margin:0}.fr-lv b{font-family:var(--read);font-weight:400;font-size:19px}.fr-lv em{font-style:normal;font-size:13px;color:var(--mu);white-space:nowrap}
+.fr-lv span{grid-column:2/4;font-size:13px;color:var(--mu);line-height:1.45}
+.fr-once{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 18px;font-size:13px;color:var(--mu)}
+.fr-once>span{flex:1 1 100%}
+.fr-once button[name=once]{border:1px solid var(--ln);background:none;padding:8px 12px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;border-radius:0;box-shadow:none}
+.fr-once button[name=once]:hover{border-color:var(--ink)}
+.fr-own{display:flex;align-items:center;border-bottom:1px solid var(--ink)}.fr-own i{font-style:normal;color:var(--ink);padding-right:3px}.fr-own input{border:0;background:none;padding:6px 0;font:inherit;width:110px;outline:none}
+.fr-join{width:100%}
+.fr-walls{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+.fr-wall{list-style:none;margin:0;padding:0;columns:2;column-gap:28px}
+.fr-wall li{break-inside:avoid;padding:8px 0;border-bottom:1px solid var(--ln);font-size:14px}
+.fr-wall b{display:block;font-family:var(--read);font-weight:400;font-size:17px}.fr-wall span{font-size:12px;color:var(--mu)}
+.fr-wall .fr-benefactor b{font-size:21px}
+@media (max-width:760px){.fr-two,.fr-walls{grid-template-columns:1fr}.fr-wall{columns:1}}

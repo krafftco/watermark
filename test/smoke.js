@@ -374,6 +374,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/portrait/greta-lund'); assert.equal(r.status, 200);
     r = await req(port, 'POST', `/studio/accounts/${gm.id}/standing`, { cookie: ck }); assert.equal(db.prepare('SELECT standing FROM makers WHERE id=?').get(gm.id).standing, 'held', 'held by the Studio');
     r = await req(port, 'POST', `/studio/accounts/${gm.id}/standing`, { cookie: ck }); assert.equal(db.prepare('SELECT standing FROM makers WHERE id=?').get(gm.id).standing, 'open'); }
+  // Friends of the house: a monthly friend of Watermark, a one-off gift to Krafft; the wall; Keeping for a maker.
+  r = await req(port, 'GET', '/friends'); assert.ok(r.body.toString().includes('Friends of Watermark') && r.body.toString().includes('Friends of Krafft') && r.body.toString().includes('Benefactor'), 'the friends page');
+  r = await req(port, 'POST', '/friends', { cookie: bck, body: { house: 'watermark', level: 'patron' } }); assert.equal(r.status, 303);
+  { const fs1 = sessions[r.headers.location.split('/').pop()]; assert.equal(fs1.mode, 'subscription'); assert.equal(fs1.line_items[0].price_data.unit_amount, 5000);
+    Object.assign(fs1, { status: 'complete', payment_status: 'paid', subscription: 'sub_fr1', customer_details: { name: 'Tap Fan', email: 'tap@me.com' } });
+    r = await req(port, 'GET', `/friends/${fs1.metadata.friend}/thanks?session_id=${fs1.id}`); assert.ok(r.body.toString().includes('You are a Patron of Watermark'));
+    r = await req(port, 'POST', `/friends/${fs1.metadata.friend}/name`, { cookie: bck, body: { name: 'The Tap Family' } }); }
+  r = await req(port, 'POST', '/friends', { body: { house: 'krafft', amount: '250' } }); { const fs2 = sessions[r.headers.location.split('/').pop()]; assert.equal(fs2.mode, 'payment'); assert.equal(fs2.line_items[0].price_data.unit_amount, 25000); }
+  r = await req(port, 'GET', '/friends'); assert.ok(r.body.toString().includes('The Tap Family') && r.body.toString().includes('1 friend'), 'on the wall');
+  r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('Keeping') && r.body.toString().includes('Begin Keeping'));
+  r = await req(port, 'POST', '/account/keeping', { cookie: gck }); { const ks = sessions[r.headers.location.split('/').pop()]; assert.equal(ks.line_items[0].price_data.unit_amount, 1500); Object.assign(ks, { status: 'complete', payment_status: 'paid', subscription: 'sub_kp1' });
+    r = await req(port, 'GET', `/friends/${ks.metadata.friend}/thanks?session_id=${ks.id}`); assert.ok(r.headers.location.includes('ok=begun'));
+    r = await req(port, 'GET', '/account/keeping', { cookie: gck }); assert.ok(r.body.toString().includes('On, $15 a month'), 'keeping on'); }
+  r = await req(port, 'GET', '/m/greta-lund'); assert.ok(r.body.toString().includes('of every sale is Greta'), 'the split on her page');
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');
