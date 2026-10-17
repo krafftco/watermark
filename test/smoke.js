@@ -108,7 +108,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/series/test-set/collect', { body: { part: '1' } }); assert.equal(r.status, 303);
   const setS = sessions[r.headers.location.split('/').pop()]; assert.equal(setS.line_items[0].price_data.unit_amount, 800, 'two at $5, a quarter off, whole dollars');
   setS.payment_status = 'paid'; setS.customer_details = { email: 'set@me.com', name: 'Set Fan' };
-  r = await req(port, 'GET', setS.success_url.replace('{CHECKOUT_SESSION_ID}', setS.id).replace('http://localhost', ''));
+  r = await req(port, 'GET', setS.success_url.replace('{CHECKOUT_SESSION_ID}', setS.id).replace('http://localhost', '')); const sck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_b=')).split(';')[0];
   assert.ok(r.body.toString().includes('yours.') || r.body.toString().includes('They&rsquo;re yours'), 'the set is granted');
   const setLs = db.prepare("SELECT * FROM licenses WHERE set_ref LIKE 'test-set:%'").all();
   assert.equal(setLs.length, 2); assert.ok(setLs.every(l => l.status === 'active' && l.collector_no && l.download_token), 'each numbered, each with its file');
@@ -289,6 +289,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
   r = await req(port, 'GET', '/journal'); assert.ok(r.status === 200 && r.body.toString().includes('On patronage'), 'the journal');
   r = await req(port, 'GET', '/patronage'); assert.ok(r.body.toString().includes('Watermark honours both'));
+  // Editions: a limited number, never more; prints recorded; a work passed on with its number.
+  r = await req(port, 'POST', `/studio/works/${w2.slug}/catalogue`, { cookie: ck, body: { title: 'Test Stacks', edition: '1' } });
+  r = await req(port, 'GET', `/w/${w2.slug}`); assert.ok(r.body.toString().includes('Edition of 1') && r.body.toString().includes('This edition is complete'), 'complete edition shown');
+  r = await req(port, 'POST', `/pay/${w2.slug}`, { body: '{}', headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 409, 'no more than the edition');
+  const held2 = db.prepare("SELECT ref FROM licenses WHERE work_id=? AND set_ref IS NOT NULL").get(w2.id);
+  r = await req(port, 'POST', '/yours/print', { cookie: sck, body: { ref: held2.ref, size: '16 × 20 in', paper: 'Hahnemühle' } });
+  r = await req(port, 'GET', `/w/${w2.slug}/life`); assert.ok(r.body.toString().includes('Printed by collector No. 1'), 'the print is in its life');
+  r = await req(port, 'POST', '/yours/give', { cookie: sck, body: { ref: held2.ref } }); const gtok = decodeURIComponent(r.headers.location.match(/give=([^#&]+)/)[1]);
+  r = await req(port, 'GET', `/claim/${gtok}`); assert.ok(r.body.toString().includes('Collector No. 1 of 1'), 'the claim page');
+  r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.status, 302); const nck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+  r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('No. 1 of 1'), 'it hangs on the new wall');
+  r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(!r.body.toString().includes('Test Stacks</i>'), 'and has left the old one');
+  r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.headers.location, '/yours', 'a claim link works once');
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);

@@ -113,6 +113,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Place<input name="place" value="${esc(w.place || '')}" placeholder="Florence, Italy"></label>
 <label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
 <label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="Will Fullerton / Krafft Studios"></label>
+<label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition"></label>
 <label>Share it price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
 <label class="chk"><input type="checkbox" name="noshare" value="1" ${w.rules && /"social":false/.test(w.rules) ? 'checked' : ''}> License only: no Share it on this photograph</label>
 <label class="wide">Keywords<input name="keywords" value="${esc(w.keywords || '')}" placeholder="architecture, cathedral, fresco, Renaissance"></label>

@@ -49,14 +49,20 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='set_ref'").get()) db.exec('ALTER TABLE licenses ADD COLUMN set_ref TEXT'); // bought together as a set
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
+  // Editions: what a collector has printed, and works passed from one collector to another.
+  db.exec(`CREATE TABLE IF NOT EXISTS prints (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, size TEXT, paper TEXT, made TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  db.exec(`CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, token TEXT UNIQUE NOT NULL, from_buyer INTEGER, to_buyer INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), claimed_at TEXT)`);
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   // Collectors: every purchase is numbered and hangs in the buyer's own collection.
   for (const [t, c, d] of [['licenses', 'buyer_id', 'INTEGER'], ['licenses', 'collector_no', 'INTEGER'], ['buyers', 'code', 'TEXT'], ['buyers', 'name', 'TEXT'], ['buyers', 'public', 'INTEGER NOT NULL DEFAULT 0']])
     if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name=?`).get(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
-  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER']])
+  for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER'], ['edition_size', 'INTEGER']])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   // A photograph may carry its own Share it price; otherwise the maker's standard one.
+  // A limited edition: the maker sets how many can ever be collected. Numbers are never reused.
+  const edition = w => { if (!w || !w.edition_size) return null; const sold = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status IN ('active','expired')").get(w.id).n; return { size: w.edition_size, sold, left: Math.max(0, w.edition_size - sold) }; };
+  const soldOut = w => { const e = edition(w); return !!(e && e.left <= 0); };
   const priced = (u, w) => (u && w && u.key === 'social' && w.share_cents ? { ...u, price_cents: w.share_cents } : u);
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
@@ -267,7 +273,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown } }));
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w) }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -276,9 +282,12 @@ function createApp(cfg = {}) {
     const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const rules = R.parse(w.rules);
-    const lic = db.prepare("SELECT l.ref, l.starts_at, l.ends_at, l.status, l.price_cents, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.status IN ('active','expired') ORDER BY l.starts_at").all(w.id);
+    const lic = db.prepare("SELECT l.id, l.ref, l.starts_at, l.ends_at, l.status, l.price_cents, l.collector_no, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.status IN ('active','expired') ORDER BY l.starts_at").all(w.id);
     const reg = db.prepare("SELECT * FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq LIMIT 1").get(w.slug);
-    res.send(V.life({ w, maker, lic, reg, rules }));
+    const ids = lic.map(l => l.id);
+    const prints = ids.length ? db.prepare(`SELECT p.*, l.collector_no FROM prints p JOIN licenses l ON l.id=p.license_id WHERE p.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY p.id`).all(...ids) : [];
+    const moves = ids.length ? db.prepare(`SELECT t.claimed_at, l.collector_no FROM transfers t JOIN licenses l ON l.id=t.license_id WHERE t.claimed_at IS NOT NULL AND t.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY t.claimed_at`).all(...ids) : [];
+    res.send(V.life({ w, maker, lic, reg, rules, ed: edition(w), prints, moves }));
   });
 
   app.get('/img/:slug/:size', async (req, res) => {
@@ -343,6 +352,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     if (!u || !R.allows(rules, u.key)) return res.redirect(`/license/${w.slug}`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
+    if (u.key === 'social' && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     if (rules.approve) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews, approve: true }));
     if (req.body.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews }));
     const ref = nextRef();
@@ -385,6 +395,7 @@ function createApp(cfg = {}) {
   app.post('/pay/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
     const name = String(req.body.name || '').trim().slice(0, 120) || (email ? email.split('@')[0] : 'Buyer');
     const ref = nextRef();
@@ -423,6 +434,7 @@ function createApp(cfg = {}) {
   app.post('/pay/:slug/tap', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
     if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
@@ -456,17 +468,17 @@ function createApp(cfg = {}) {
     res.clearCookie('wm_b'); res.clearCookie('wm_tap'); res.json({ ok: true });
   });
   function handover(l) {
-    const w = db.prepare('SELECT title, slug FROM works WHERE id=?').get(l.work_id);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
     l = q.lic.get(l.ref);
-    return { ok: true, ref: l.ref, no: l.collector_no, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
+    return { ok: true, ref: l.ref, no: l.collector_no, of: w.edition_size || null, price: V.money(l.price_cents), download: `/d/${l.download_token}`, page: `/c/${l.ref}?k=${l.download_token}`, credit: `Photograph by ${maker.name}${maker.house ? ' · ' + maker.house : ''}`, title: w.title };
   }
 
   // ---------- Collectors: everyone's own Watermark ----------
   // Every purchase hangs in the buyer's collection, numbered, room by room. Private by default;
   // the collector can open it to the world under a name of their choosing.
   function collected(b) {
-    const items = db.prepare(`SELECT l.ref, l.collector_no, l.starts_at, l.download_token, l.status, u.name AS use_name, u.key AS use_key, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
+    const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.download_token, l.status, u.name AS use_name, u.key AS use_key, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
       WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 ORDER BY l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
@@ -477,7 +489,8 @@ function createApp(cfg = {}) {
   }
   app.get('/yours', (req, res) => {
     const b = buyerOf(req);
-    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base }));
+    const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
+    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -486,13 +499,45 @@ function createApp(cfg = {}) {
     db.prepare('UPDATE buyers SET name=?, public=?, code=? WHERE id=?').run(name, pub, code, b.id);
     res.redirect('/yours');
   });
+  // A collector records a print they have made of a work they hold. It shows on their wall and in the work's life.
+  app.post('/yours/print', (req, res) => {
+    const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));
+    if (!l || l.buyer_id !== b.id || l.status !== 'active') return res.redirect('/yours');
+    const t = (v, n) => String(v || '').trim().slice(0, n) || null;
+    db.prepare('INSERT INTO prints (license_id, size, paper, made) VALUES (?,?,?,?)').run(l.id, t(x.size, 60), t(x.paper, 80), t(x.made, 40));
+    ledger.append(db, 'print.recorded', l.ref, { size: t(x.size, 60), paper: t(x.paper, 80) });
+    res.redirect('/yours#files');
+  });
+  // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
+  // with the same collector number. The old file link stops; the new holder gets their own.
+  app.post('/yours/give', (req, res) => {
+    const b = buyerOf(req); const l = b && q.lic.get(String((req.body || {}).ref || ''));
+    if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours');
+    let tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id);
+    if (!tr) { db.prepare('INSERT INTO transfers (license_id, token, from_buyer) VALUES (?,?,?)').run(l.id, nanoid(24), b.id); tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id); }
+    res.redirect(`/yours?give=${encodeURIComponent(tr.token)}#files`);
+  });
+  const claimOf = token => { const tr = db.prepare('SELECT * FROM transfers WHERE token=? AND claimed_at IS NULL').get(String(token)); if (!tr) return null; const l = db.prepare('SELECT * FROM licenses WHERE id=?').get(tr.license_id); if (!l || l.status !== 'active' || l.buyer_id !== tr.from_buyer) return null; return { tr, l, w: db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id) }; };
+  app.get('/claim/:token', (req, res) => { const c = claimOf(req.params.token); res.status(c ? 200 : 404).send(V.claim({ c, maker: c ? mk(c.w) : null, mine: !!(c && buyerOf(req) && buyerOf(req).id === c.tr.from_buyer) })); });
+  app.post('/claim/:token', (req, res) => {
+    const c = claimOf(req.params.token); if (!c) return res.redirect('/yours');
+    let b = buyerOf(req);
+    if (b && b.id === c.tr.from_buyer) return res.redirect(`/claim/${req.params.token}`); // can't give it to yourself
+    if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', NULL)").run().lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
+    const token = nanoid(32);
+    db.prepare("UPDATE licenses SET buyer_id=?, download_token=?, updated_at=datetime('now') WHERE id=?").run(b.id, token, c.l.id);
+    db.prepare("UPDATE transfers SET to_buyer=?, claimed_at=datetime('now') WHERE id=?").run(b.id, c.tr.id);
+    ledger.append(db, 'license.transferred', c.l.ref, { work: c.w.slug, collector_no: c.l.collector_no });
+    res.redirect('/yours?got=' + encodeURIComponent(c.l.ref));
+  });
+
   // The collectors: walls their owners chose to show. Taste is what makes others want the work.
   app.get('/patronage', (req, res) => res.send(V.patronage()));
   // Series: the maker's photographs hung in order, in parts.
   const SERIES = require('./series');
   // Collecting more than one: a part of a series at a quarter off, the whole series at 40% off. Whole dollars. (Draft rates.)
   const SET_OFF = { part: 0.25, all: 0.40 };
-  const collectable = slugs => slugs.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social'))
+  const collectable = slugs => slugs.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social') && !soldOut(w))
     .map(w => ({ w, u: priced(q.use.get(mk(w).id, 'social'), w) })).filter(x => x.u && x.u.price_cents != null);
   const setPrice = (items, off) => { const full = items.reduce((a, x) => a + x.u.price_cents, 0); return { full, price: Math.max(100, Math.round(full * (1 - off) / 100) * 100) }; };
   const seriesParts = s => {
@@ -771,6 +816,9 @@ function createApp(cfg = {}) {
     // Share it price for this photograph alone: whole dollars, $3 at least; empty = the maker's standard price.
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
+    // Edition size: blank for an open edition. It can never be set below what has already been collected.
+    const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });
+    db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(es === '' || !(Number(es) > 0) ? null : Math.max(Math.round(Number(es)), ed ? ed.sold : 0), w.id);
     // A work too important to share at any price: license only.
     const rl = R.parse(w.rules); rl.social = b.noshare === '1' ? false : undefined; db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rl), w.id);
     const ids = (b.rooms == null ? [] : Array.isArray(b.rooms) ? b.rooms : [b.rooms]).map(Number).filter(Boolean);

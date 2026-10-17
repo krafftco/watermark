@@ -25,10 +25,10 @@
     setTimeout(function () { f.dataset.go = '1'; f.requestSubmit ? f.requestSubmit(s) : f.submit(); }, 260);
   }, true);
   // Called by the payment sheet when a photograph is collected.
-  window.WMSealed = function (slug, no) {
+  window.WMSealed = function (slug, no, of) {
     var f = document.querySelector('form[data-share="' + slug + '"]'); if (!f) return;
     var r = f.querySelector('.seal-row'); if (r) r.classList.add('is-yours');
-    var t = f.querySelector('.seal-t b'); if (t) t.textContent = no ? 'Yours. Collector No. ' + no : 'Yours.';
+    var t = f.querySelector('.seal-t b'); if (t) t.textContent = no ? 'Yours. No. ' + no + (of ? ' of ' + of : '') : 'Yours.';
     var p = f.querySelector('.seal-t span'); if (p) p.innerHTML = 'It hangs in <a href="/yours">your collection</a>.';
   };
 })();
