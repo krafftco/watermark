@@ -126,6 +126,12 @@ function createApp(cfg = {}) {
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
+  // Cards always (wallets ride on them): a live account with no payment methods switched on would otherwise refuse
+  // every Checkout. Will can add more in Stripe → Settings → Payment methods; an explicit list is honoured.
+  if (stripe && stripe.checkout && stripe.checkout.sessions && !cfg.stripeClient) {
+    const create = stripe.checkout.sessions.create.bind(stripe.checkout.sessions);
+    stripe.checkout.sessions.create = (params, ...rest) => create(params && !params.payment_method_types && !process.env.STRIPE_PAYMENT_METHODS_DASHBOARD ? { ...params, payment_method_types: ['card'] } : params, ...rest);
+  }
   const originals = path.join(C.dataDir, 'originals'); // a cache when the vault is S3
   ledger.setKey(cfg.signingSeed || process.env.REGISTER_SEED || process.env.VAULT_KEY || cfg.secret); ledger.ensureSig(db);
   const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, vaultKey: cfg.vaultKey !== undefined ? cfg.vaultKey : process.env.VAULT_KEY, localRoot: path.join(C.dataDir, 'vault') });
