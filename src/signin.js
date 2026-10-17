@@ -91,7 +91,17 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     res.redirect(r.to);
   });
 
-  app.post('/signout', (req, res) => { for (const c of ['wm_b', 'wm_tap', 'wm_m']) res.clearCookie(c); res.redirect('/signin?out=1'); });
+  // Leaving: the house says goodbye the way a good host does, at the door.
+  app.post('/signout', (req, res) => {
+    const b = buyerOf(req), m = makerOf(req); const name = ((m && m.name) || (b && b.name) || '').split(' ')[0] || null;
+    for (const c of ['wm_b', 'wm_tap', 'wm_m']) res.clearCookie(c);
+    res.redirect(`/farewell${name ? `?to=${encodeURIComponent(name)}` : ''}`);
+  });
+  app.get('/farewell', (req, res) => {
+    const name = String(req.query.to || '').slice(0, 40).replace(/[^\p{L}\p{M}' .-]/gu, '') || null;
+    const cover = db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.3 ORDER BY curated DESC, stars DESC, RANDOM() LIMIT 1").get();
+    res.send(V.farewell({ name, cover }));
+  });
   setInterval(() => db.prepare('DELETE FROM signins WHERE created_at<?').run(Date.now() - 24 * 60 * 60 * 1000), 60 * 60 * 1000).unref();
   return { admit, whois };
 }

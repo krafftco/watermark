@@ -678,6 +678,18 @@ function artists({ artists }) {
 <p class="note ar-join">A photographer, or an estate? <a href="/join">Open your studio</a>; it takes a minute.</p></section>` });
 }
 
+// The door out. A traveller's farewell, said once and meant: see you down the road; the doors are always open.
+// The words are a draft in Will's voice.
+function farewell({ name = null, cover = null }) {
+  return layout({ title: 'See you down the road · Watermark', desc: 'The doors are always open.', path: '/farewell', body: `<section class="fw">${cover ? `<img class="fw-im" src="/img/${esc(cover.slug)}/large" alt="${esc(tidy(cover.title))}" fetchpriority="high" draggable="false">` : ''}
+<div class="fw-in"><span class="fw-k" aria-hidden="true">${WAVE_MARK}</span>
+<p class="k">${name ? `Until next time, ${esc(name)}` : 'Until next time'}</p>
+<h1>Fair travels.<br>See you down the road.</h1>
+<p class="fw-l">You are signed out of this device. The doors are always open: your gallery, your numbers and everything you have written here are kept, and will be here when you come back.</p>
+<p class="fw-row"><a class="fw-btn" href="/signin">Come back in</a><a class="fw-alt" href="/collection">Walk the collection as a visitor</a></p>
+${cover ? `<p class="fw-cap">${esc(tidy(cover.title))}${cover.place ? `, ${esc(cover.place)}` : ''}</p>` : ''}</div></section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -1067,4 +1079,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
