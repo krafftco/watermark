@@ -50,7 +50,7 @@ const NEVER_TEXT = {
 };
 
 // Normalise a request into the rights the contract will carry, and price it.
-function terms({ use, add = [], extras = [], never = [], base }) {
+function terms({ use, add = [], extras = [], never = [], base, transfer = null }) {
   const bundle = BUNDLES[use.key] || [];
   const personal = PERSONAL.has(use.key);
   const addable = personal || use.kind === 'print' ? [] : RIGHTS.filter(r => !bundle.includes(r.key)).map(r => r.key);
@@ -61,7 +61,11 @@ function terms({ use, add = [], extras = [], never = [], base }) {
   const priced = ex.map(k => EXTRAS.find(e => e.key === k));
   const ask = priced.some(e => e.price == null);
   const price = base == null ? null : base + added.length * ADD_RIGHT + priced.reduce((s, e) => s + (e.price || 0), 0);
-  return { use: use.key, kind: use.kind, personal, rights, added, extras: ex, never, ask, price, addable, term_months: use.term_months };
+  // Transferable: a numbered personal piece (Collect, the Reference, a print) may pass to another person, whole,
+  // through a transfer recorded on the register; a working license (story, company, campaign) may not,
+  // unless the maker's terms for the work say so. Counsel reviews the wording (docs/CONTRACT.md).
+  const transferable = transfer != null ? !!transfer : (personal || use.kind === 'print');
+  return { use: use.key, kind: use.kind, personal, rights, added, extras: ex, never, ask, price, addable, term_months: use.term_months, transferable };
 }
 
 const list = a => (a.length <= 1 ? a.join('') : a.length === 2 ? a.join(' and ') : `${a.slice(0, -1).join(', ')}, and ${a[a.length - 1]}`);
@@ -72,7 +76,7 @@ const termPhrase = m => (m ? `for a term of ${dur(m)} from the date of your orde
 function assemble({ t, work, maker, licensee, ref, price, date, entity = 'Watermark Ventures, Inc.' }) {
   const s = [];
   const perpetual = !t.term_months;
-  const kinds = ['non-exclusive', perpetual ? 'perpetual' : null, 'non-transferable', 'non-sublicensable'].filter(Boolean);
+  const kinds = ['non-exclusive', perpetual ? 'perpetual' : null, t.transferable ? 'transferable only as set out in Section 9.3' : 'non-transferable', 'non-sublicensable'].filter(Boolean);
   if (t.extras.includes('exclusive')) kinds[0] = 'exclusive';
   s.push({ n: '', h: '', p: [`This AGREEMENT (the “Agreement”) between you${licensee ? ` (${licensee})` : ''} and ${maker ? `${maker}, ` : ''}the creator of the content that you have selected to access (“Licensor”) governs your use of the Licensor content identified in your order${work ? ` (${work}${ref ? `, order ${ref}` : ''})` : ''} (the “Content”). By copying or downloading content from Licensor through the content licensing platform provided by ${entity} (“Watermark”), you accept the terms of this Agreement. If you do not agree with the terms of this Agreement, you may not copy or download the Content. You and Licensor each hereby agree as follows:`] });
   s.push({ n: '1', h: 'Content License; Ownership', p: [`Subject to the terms and conditions of this Agreement, Licensor hereby grants to you a ${kinds.join(', ')} license${perpetual ? '' : ` ${termPhrase(t.term_months)}`}, solely to reproduce, perform publicly, display, transmit, and distribute the Content in all media solely for the purposes set forth herein. Licensor reserves all rights not expressly granted to you under this Agreement. Except for the licenses expressly granted to you in this Agreement, you acknowledge that all right, title, and interest in and to the Content is controlled by Licensor.`] });
@@ -126,7 +130,7 @@ function assemble({ t, work, maker, licensee, ref, price, date, entity = 'Waterm
   s.push({ n: '9', h: 'General', sub: [
     { n: '9.1', h: 'Entire Agreement; Amendment', p: ['This Agreement, including and together with any related attachments, constitutes the sole and entire agreement of the parties with respect to the subject matter contained herein. No amendment or modification to this Agreement is effective unless it is in writing and signed by an authorized representative of each party.'] },
     { n: '9.2', h: 'Severability', p: ['If any term or provision of this Agreement is invalid, illegal, or unenforceable in any jurisdiction, such invalidity, illegality, or unenforceability will not affect the enforceability of any other term or provision of this Agreement, or invalidate or render unenforceable such term or provision in any other jurisdiction.'] },
-    { n: '9.3', h: 'Assignment', p: ['You shall not assign any of your rights or delegate any of your obligations under this Agreement without the prior written consent of Licensor. Any purported assignment or delegation in violation of this Section 9.3 is null and void. Licensor may freely assign or otherwise transfer any of its rights or delegate any of its obligations under this Agreement. This Agreement is binding upon and inures to the benefit of the parties hereto and their respective permitted successors and assigns.'] },
+    { n: '9.3', h: 'Assignment', p: [(t.transferable ? 'You may transfer this license, in whole and not in part, to one other person by a transfer recorded on the Watermark register, whereupon your rights under this Agreement end and the transferee holds them subject to all of its terms; Licensor consents in advance to transfers so recorded. Otherwise, you' : 'You') + ' shall not assign any of your rights or delegate any of your obligations under this Agreement without the prior written consent of Licensor. Any purported assignment or delegation in violation of this Section 9.3 is null and void. Licensor may freely assign or otherwise transfer any of its rights or delegate any of its obligations under this Agreement. This Agreement is binding upon and inures to the benefit of the parties hereto and their respective permitted successors and assigns.'] },
     { n: '9.4', h: 'Choice of Law; Venue', p: ['This Agreement and all matters arising out of or relating to this Agreement are governed by the laws of Texas, without giving effect to any conflict of laws provisions thereof that would result in the application of the laws of a different jurisdiction. Either party shall institute any legal suit, action, or proceeding arising out of or relating to this Agreement in the federal or state courts in each case located in Dallas, Texas, and each party irrevocably submits to the exclusive jurisdiction of such courts in any legal suit, action, or proceeding.'] },
     { n: '9.5', h: 'Relationship of the Parties', p: ['The relationship between the parties is that of independent contractors. Nothing contained in this Agreement will be construed as creating any agency, partnership, joint venture, or other form of joint enterprise, employment, or fiduciary relationship between the parties, and neither party has authority to contract for or bind the other party in any manner whatsoever.'] },
     { n: '9.6', h: 'Third Party Beneficiaries', p: ['Except as set forth in this Section 9.6, the parties do not confer any rights or remedies upon any person other than the parties to this Agreement and their respective successors and permitted assigns. Notwithstanding the foregoing, the parties hereby designate Watermark as a third party beneficiary of this Agreement having the right to enforce the terms and conditions herein.'] },
@@ -152,7 +156,7 @@ const REVIEW = [
   ['OPEN', '9.4', 'Texas law, Dallas courts. Confirm, given New York.'],
   ['OPEN', '8.2', 'Liability cap $1,000 is below some fees ($2,500). Consider "the fees paid under this order".'],
   ['OPEN', '6', 'No statement on model or property releases, and no indemnity. Getty-style tiers offer indemnity; decide what Watermark offers.'],
-  ['OPEN', '9.3', 'Non-transferable conflicts with resale of numbered editions on the market. Needs a carve-out for Watermark-recorded transfers.'],
+  ['DRAFTED', '9.3', 'Numbered personal licenses (Collect, Reference, print) are transferable in whole through a register-recorded transfer, with Licensor\'s advance consent; working licenses stay non-transferable unless the maker\'s terms say so. Wording for counsel.'],
   ['OPEN', 'Acceptance', 'Click-through acceptance at checkout; confirm this is enough for exclusivity and merchandise orders, or require a signature.'],
 ];
 

@@ -67,6 +67,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     const b = buyerOf(req), x = req.body || {}; const l = b && db.prepare('SELECT * FROM licenses WHERE ref=?').get(String(x.ref || ''));
     if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours');
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w.edition_size) return res.redirect('/yours#files');
+    if (app.locals.canTransfer && !app.locals.canTransfer(l)) return res.redirect('/yours?tab=files&sent=locked');
     const ask = Math.round(Number(String(x.ask || '').replace(/[^0-9.]/g, '')) * 100);
     const back = /^\/w\/[a-z0-9-]+$/.test(String(x.back || '')) ? String(x.back) : null;
     if (!(ask >= 100 && ask <= 100000000)) return res.redirect(back ? back + '?up=price#yours' : '/yours?offer=price#files');

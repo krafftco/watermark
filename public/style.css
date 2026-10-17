@@ -1777,3 +1777,6 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 @media (max-width:860px){.td{grid-template-columns:1fr}}
 .lot-stood{display:grid;gap:4px;margin:14px 0 0;font-size:13px}.lot-stood span{font-family:var(--read);font-style:italic;font-size:16px;color:var(--ink)}.lot-stood small{color:var(--mu);font-size:12px}
 .lk{padding:18px clamp(16px,4vw,56px);border-bottom:1px solid var(--ln)}.lk .k small{text-transform:none;letter-spacing:0;color:#b8b3aa}.lk-l{font-family:var(--read);font-size:17px;margin:4px 0 0;color:var(--ink)}.lk-l a{color:inherit}
+.yf-send summary{cursor:pointer;font-size:13px;color:var(--ink)}.yf-send .yf-f{margin-top:8px}.yf-send small{display:block;font-size:11.5px;color:var(--mu);margin-top:4px}
+.yf-lock{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b8b3aa}
+.yc-wallet{display:grid;gap:6px;margin:0 0 18px}.yc-wallet code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;letter-spacing:.06em;color:var(--ink)}.yc-wallet small{font-size:12px;color:var(--mu)}

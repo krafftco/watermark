@@ -7,7 +7,7 @@ const NEVER = {
   alter: 'Altering the photograph beyond cropping and resizing',
   sensitive: 'Tobacco, firearms or gambling',
 };
-const DEFAULT = { uses: null, approve: false, never: ['ai', 'alter'], credit: true, showEarned: false };
+const DEFAULT = { uses: null, approve: false, never: ['ai', 'alter'], credit: true, showEarned: false, transfer: false }; // transfer: working licenses may pass to another company too
 
 function parse(json) {
   let r = {}; try { r = JSON.parse(json || '{}') || {}; } catch (e) { r = {}; }

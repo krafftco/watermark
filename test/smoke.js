@@ -613,6 +613,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'def456', s: 0 }), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body).n, 2, 'the second');
   r = await req(port, 'GET', `/w/${w.slug}`, { cookie: 'wm_v=abc123' }); assert.ok(r.body.toString().includes('You were the 1st person to stand in front of this') && r.body.toString().includes('2 people have stood'), 'told on the page');
   r = await req(port, 'GET', '/yours', { cookie: 'wm_v=abc123; ' + bck }); assert.ok(r.body.toString().includes('Your looking, this month'), 'looking shown privately on Yours');
+  // Wallets: a piece is sent to another wallet by address; the register signs every entry with the house key.
+  { const hb = db.prepare("INSERT INTO buyers (customer, email, name, code) VALUES ('', 'hal@frick.org', 'Hal', 'halwallet')").run().lastInsertRowid;
+    const mine = db.prepare("SELECT l.ref FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.buyer_id=? AND l.status='active' AND l.collector_no IS NOT NULL AND u.key='social' LIMIT 1").get(setLs[0].buyer_id);
+    assert.ok(mine, 'a numbered piece to send');
+    r = await req(port, 'POST', '/yours/send', { cookie: sck, body: { ref: mine.ref, to: 'WM-halwallet' } }); assert.ok(r.headers.location.includes('sent=done'), 'sent to a wallet: ' + r.headers.location);
+    assert.equal(db.prepare('SELECT buyer_id FROM licenses WHERE ref=?').get(mine.ref).buyer_id, hb, 'it moved');
+    const sig = db.prepare('SELECT hash, sig FROM ledger ORDER BY seq DESC LIMIT 1').get(); assert.ok(sig.sig && ledger.checkSig(sig.hash, sig.sig, ledger.publicKey()), 'the house signed it');
+    assert.ok(!ledger.checkSig(sig.hash, sig.sig.replace(/^../, '00'), ledger.publicKey()), 'a forged signature fails');
+    // A working license stays put: the agreement does not allow transfer.
+    const edl = db.prepare("SELECT l.ref FROM licenses l JOIN uses u ON u.id=l.use_id WHERE u.key='editorial' AND l.status='active' LIMIT 1").get();
+    if (edl) { db.prepare('UPDATE licenses SET buyer_id=?, collector_no=COALESCE(collector_no, 1) WHERE ref=?').run(setLs[0].buyer_id, edl.ref); r = await req(port, 'POST', '/yours/send', { cookie: sck, body: { ref: edl.ref, to: 'WM-halwallet' } }); assert.ok(r.headers.location.includes('sent=locked'), 'a working license is locked'); } }
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verifyAll(db).ok, false, 'tamper detected'); assert.equal(ledger.verify(db).ok, true, 'the quick check trusts its head for an hour');
   r = await req(port, 'GET', '/ledger?check=full'); assert.ok(r.body.includes('broken'));

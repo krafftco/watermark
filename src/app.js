@@ -101,6 +101,7 @@ function createApp(cfg = {}) {
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
   const originals = path.join(C.dataDir, 'originals'); // a cache when the vault is S3
+  ledger.setKey(cfg.signingSeed || process.env.REGISTER_SEED || process.env.VAULT_KEY || cfg.secret); ledger.ensureSig(db);
   const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, vaultKey: cfg.vaultKey !== undefined ? cfg.vaultKey : process.env.VAULT_KEY, localRoot: path.join(C.dataDir, 'vault') });
   // The original, from the local cache or, if this server is new, from the vault.
   async function originalPath(w) {
@@ -515,7 +516,7 @@ function createApp(cfg = {}) {
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
-    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents });
+    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
     const noteAll = [wants, note].filter(Boolean).join('\n') || null;
     if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true }));
@@ -660,11 +661,12 @@ function createApp(cfg = {}) {
     return { items, rooms, works: ids.length, makers: new Set(items.map(i => i.handle)).size };
   }
   app.get('/yours', (req, res) => {
-    const b = buyerOf(req);
+    let b = buyerOf(req);
+    if (b && !b.code) { db.prepare('UPDATE buyers SET code=? WHERE id=?').run(nanoid(10), b.id); b = buyerOf(req); }
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -710,9 +712,50 @@ function createApp(cfg = {}) {
   });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
+  // May this license pass to another wallet? The agreement decides: a numbered personal piece may; a working
+  // license may only when the maker's terms say so. Stored on the license when it was made; judged by use before that.
+  function canTransfer(l0) {
+    const l = l0 && l0.use_id ? l0 : db.prepare('SELECT * FROM licenses WHERE id=?').get(l0 && l0.id); if (!l) return false;
+    try { const r = JSON.parse(l.rights || 'null'); if (r && typeof r.transferable === 'boolean') return r.transferable; } catch (e) { /* older license */ }
+    const u = db.prepare('SELECT key, kind FROM uses WHERE id=?').get(l.use_id); if (!u) return false;
+    const w = db.prepare('SELECT rules FROM works WHERE id=?').get(l.work_id);
+    return ['social', 'reference'].includes(u.key) || u.kind === 'print' || !!R.parse(w && w.rules).transfer;
+  }
+  app.locals.canTransfer = canTransfer;
+  // Send a piece to another wallet: by its address (the code on their gallery) or by email. A known wallet
+  // takes it at once; an unknown email gets the claim link. Either way a fresh key, a transfer on the register.
+  app.post('/yours/send', (req, res) => {
+    const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));
+    if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours?tab=files');
+    if (!canTransfer(l)) return res.redirect('/yours?tab=files&sent=locked');
+    if (db.prepare("SELECT 1 FROM listings WHERE license_id=? AND status='open'").get(l.id)) return res.redirect('/yours?tab=files&sent=listed');
+    const to = String(x.to || '').trim().toLowerCase().replace(/^wm-/, ''); if (!to) return res.redirect('/yours?tab=files&sent=who');
+    const email = /@/.test(to) ? to : null;
+    let dest = email ? db.prepare('SELECT * FROM buyers WHERE lower(email)=? ORDER BY CASE WHEN customer<>\'\' THEN 0 ELSE 1 END, id LIMIT 1').get(email) : db.prepare('SELECT * FROM buyers WHERE lower(code)=?').get(to);
+    if (dest && dest.id === b.id) return res.redirect('/yours?tab=files&sent=self');
+    const w = db.prepare('SELECT slug, title FROM works WHERE id=?').get(l.work_id);
+    if (dest) {
+      const token = nanoid(32);
+      db.transaction(() => {
+        db.prepare("INSERT INTO transfers (license_id, token, from_buyer, to_buyer, claimed_at) VALUES (?,?,?,?,datetime('now'))").run(l.id, nanoid(24), b.id, dest.id);
+        db.prepare("UPDATE licenses SET buyer_id=?, download_token=?, licensee_name=COALESCE(?, licensee_name), licensee_email=COALESCE(?, licensee_email), updated_at=datetime('now') WHERE id=?").run(dest.id, token, dest.name || null, dest.email || null, l.id);
+        db.prepare("UPDATE offers SET status='closed', closed_at=datetime('now') WHERE license_id=? AND status='open'").run(l.id);
+      })();
+      ledger.append(db, 'license.transferred', l.ref, { work: w.slug, collector_no: l.collector_no, how: 'sent', to: dest.code || null });
+      if (dest.email) mail.send({ to: dest.email, subject: `Sent to you: ${V.tidy(w.title)}, No. ${l.collector_no}`, text: `${b.name || 'A collector'} sent ${V.tidy(w.title)}, No. ${l.collector_no}, to your gallery on Watermark. It is there now, with its file and its license.\n\n${C.base}/yours` });
+      return res.redirect('/yours?tab=files&sent=done');
+    }
+    if (!email) return res.redirect('/yours?tab=files&sent=unknown');
+    let tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id);
+    if (!tr) { db.prepare('INSERT INTO transfers (license_id, token, from_buyer) VALUES (?,?,?)').run(l.id, nanoid(24), b.id); tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id); }
+    mail.send({ to: email, subject: `${b.name || 'A collector'} is sending you ${V.tidy(w.title)}, No. ${l.collector_no}`, text: `A numbered photograph is being passed to you on Watermark: ${V.tidy(w.title)}, No. ${l.collector_no}.\n\nTake it into your gallery: ${C.base}/claim/${tr.token}` });
+    ledger.append(db, 'license.transfer.offered', l.ref, { work: w.slug, collector_no: l.collector_no });
+    res.redirect('/yours?tab=files&sent=mailed');
+  });
   app.post('/yours/give', (req, res) => {
     const b = buyerOf(req); const l = b && q.lic.get(String((req.body || {}).ref || ''));
     if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours');
+    if (!canTransfer(l)) return res.redirect('/yours?tab=files&sent=locked');
     let tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id);
     if (!tr) { db.prepare('INSERT INTO transfers (license_id, token, from_buyer) VALUES (?,?,?)').run(l.id, nanoid(24), b.id); tr = db.prepare('SELECT * FROM transfers WHERE license_id=? AND claimed_at IS NULL').get(l.id); }
     res.redirect(`/yours?give=${encodeURIComponent(tr.token)}#files`);
@@ -946,7 +989,7 @@ function createApp(cfg = {}) {
     let u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w);
     if (!u || !offered(rules, u.key, w)) { const on = q.uses.all(maker.id).filter(x => offered(rules, x.key, w)); u = (on.find(x => x.key !== 'social') || on[0] || null) && priced(on.find(x => x.key !== 'social') || on[0], w); } // the first use on offer
     if (!u) return res.sendStatus(404);
-    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents });
+    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
     const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
     res.send(req.query.frag ? V.contractBody(sections) : V.contractPage({ sections, w, maker, u, t, preview: true }));
   });
@@ -1007,7 +1050,8 @@ function createApp(cfg = {}) {
 
   // The register, told in plain words with the photographs beside it.
   require('./register').mountRegister(app, { db, V, ledger });
-  app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
+  // The register, whole, with the house's public key: anyone can check the chain and every signature offline.
+  app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), house: ledger.publicKey(), signature: 'ed25519 over the entry hash, hex', entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
 
   // --- Studio ---
   app.get('/studio/login', (req, res) => res.send(S.login({})));

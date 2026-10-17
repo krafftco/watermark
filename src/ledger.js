@@ -4,12 +4,32 @@ const crypto = require('crypto');
 
 const GENESIS = '0'.repeat(64);
 
+// The house's signature. Every entry's hash is signed with an Ed25519 key derived from the vault key, so
+// a copy of the register (ledger.json) can be checked by anyone, anywhere, without asking Watermark:
+// the chain proves nothing was changed; the signature proves the house wrote it.
+let signer = null;
+function setKey(seed) {
+  if (!seed) { signer = null; return; }
+  const raw = crypto.createHash('sha256').update('watermark-register:' + seed).digest();
+  const der = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), raw]);
+  const priv = crypto.createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+  const pub = crypto.createPublicKey(priv).export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
+  signer = { priv, pub };
+}
+const publicKey = () => (signer ? signer.pub : null);
+function sign(hash) { return signer ? crypto.sign(null, Buffer.from(hash, 'hex'), signer.priv).toString('hex') : null; }
+function checkSig(hash, sig, pubHex) {
+  try { const spki = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(pubHex, 'hex')]); return crypto.verify(null, Buffer.from(hash, 'hex'), crypto.createPublicKey({ key: spki, format: 'der', type: 'spki' }), Buffer.from(sig, 'hex')); } catch (e) { return false; }
+}
+
 function digest(e) {
   return crypto.createHash('sha256')
     .update([e.seq, e.at, e.type, e.subject, e.data, e.prev_hash].join('|'))
     .digest('hex');
 }
 
+const sigReady = new WeakSet();
+function ensureSig(db) { if (sigReady.has(db)) return; if (!db.prepare("SELECT 1 FROM pragma_table_info('ledger') WHERE name='sig'").get()) db.exec('ALTER TABLE ledger ADD COLUMN sig TEXT'); sigReady.add(db); }
 function append(db, type, subject, data) {
   const last = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get();
   const e = {
@@ -20,7 +40,9 @@ function append(db, type, subject, data) {
     prev_hash: last ? last.hash : GENESIS,
   };
   e.hash = digest(e);
-  db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash)').run(e);
+  e.sig = sign(e.hash);
+  ensureSig(db);
+  db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash, sig) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash,@sig)').run(e);
   return e;
 }
 
@@ -48,4 +70,4 @@ function verify(db) {
   const r = { ok: true, checked: n, head: prev }; heads.set(db, { ...r, at: Date.now(), seq: n }); return r;
 }
 
-module.exports = { append, verify, verifyAll, digest };
+module.exports = { append, verify, verifyAll, digest, setKey, publicKey, sign, checkSig, ensureSig };

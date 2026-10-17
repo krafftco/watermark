@@ -35,6 +35,7 @@ function mountSwaps(app, { db, C, buyerOf, ledger, V, mail = null }) {
     const back = e => res.redirect(`/swap/new?work=${want ? want.slug : ''}${want ? `&want=${want.id}` : ''}&err=${e}`);
     if (!tradable(want) || want.buyer_id === b.id || !want.buyer_id) return back('want');
     if (!tradable(give) || give.buyer_id !== b.id) return back('give');
+    if (app.locals.canTransfer && (!app.locals.canTransfer(give) || !app.locals.canTransfer(want))) return back('locked');
     if (give.id === want.id) return back('same');
     if (listed(give.id)) return back('listed');
     if (db.prepare("SELECT 1 FROM swaps WHERE from_buyer=? AND want_id=? AND status='open'").get(b.id, want.id)) return back('open');
