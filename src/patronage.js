@@ -26,6 +26,7 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
 
   app.get('/m/:slug', async (req, res) => {
     const m = makerBySlug(req.params.slug); if (!m) return res.sendStatus(404);
+    if (app.locals.walk) app.locals.walk.set(res, `maker:${m.handle}`);
     const RG = require('./regard');
     const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, id").all(m.id));
     const years = RG.chronology(db, works);

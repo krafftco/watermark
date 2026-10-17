@@ -63,6 +63,7 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
     const b = buyerOf(req), isOwn = !!own(req, h.id);
     if (!h.public && !isOwn) return res.sendStatus(404);
     if (h.public) via(res, `hang:${h.id}`);
+    if (app.locals.walk) app.locals.walk.set(res, `hang:${h.slug}`);
     const G = app.locals.galleries; res.send(hangPage({ h, works: worksOf(h), own: !!isOwn, thanks: thanksOf(h), state: req.query.thanks || null, pocket: b && pocket ? pocket.balance(b) : 0, on: !!stripe, pct: CURATOR_PCT, base: C.base, show: G ? G.showOf(h) : null, eye: G ? G.eye(db.prepare('SELECT * FROM buyers WHERE id=?').get(h.buyer_id)) : null }));
   });
   // Making one, and hanging work on it.

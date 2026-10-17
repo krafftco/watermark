@@ -2229,3 +2229,9 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 /* Arranging the wall by hand. */
 .hg-own .hg-pl{position:relative}.hg-grip{position:absolute;left:12px;top:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.75);cursor:grab;font-size:11px;letter-spacing:.14em;background:rgba(10,10,9,.5);padding:6px 10px 6px 6px;border-radius:2px;touch-action:none}.hg-grip .ic{width:18px;height:18px}.hg-grip i{font-style:normal}
 .hg-pl.lift{opacity:.45;outline:1px dashed rgba(255,255,255,.5)}.hg-own.saved .hg-grip{color:#9fd9ae}.hg-pl[draggable=true]{cursor:default}
+/* The walk: before, where you are, next. */
+.wk{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:16px;margin:14px 0 0;padding:12px 0 0;border-top:1px solid rgba(255,255,255,.08)}
+.wk-go{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:rgba(255,255,255,.72);font-size:11px;letter-spacing:.16em;text-transform:uppercase}.wk-go img{width:56px;height:42px;object-fit:cover;display:block;background:#1a1816;opacity:.85;transition:opacity .3s,transform .4s var(--e)}.wk-go:hover img{opacity:1;transform:translateY(-2px)}.wk-go span{display:inline-flex;align-items:center;gap:6px}.wk-go .ic{width:16px;height:16px}.wk-go i{font-style:normal}.wk-next{flex-direction:row-reverse}.wk-next span{flex-direction:row-reverse}
+.wk-where{margin:0;text-align:center;font-size:12px;color:rgba(255,255,255,.55);display:grid;gap:3px}.wk-where a{color:rgba(255,255,255,.85);text-decoration:none;border-bottom:1px solid rgba(255,255,255,.25)}.wk-where b{font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:.14em;font-size:11px}
+@media(max-width:600px){.wk-go i{display:none}.wk-go img{width:44px;height:33px}}
+.lot-wall .wk{width:100%;max-width:900px;margin-left:auto;margin-right:auto}
