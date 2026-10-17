@@ -347,7 +347,7 @@ function createApp(cfg = {}) {
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1></section>' }));
+    if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.notFound({ cover: db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get() }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
@@ -1471,9 +1471,14 @@ function createApp(cfg = {}) {
     return deskLine;
   });
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: !!stripe, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY) }));
-  app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
+  // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.
+  app.use((req, res) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/img/') || req.path.startsWith('/static/')) return res.sendStatus(404);
+    const w = db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get();
+    res.status(404).send(V.notFound({ cover: w }));
+  });
   return app;
 }
 

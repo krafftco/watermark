@@ -727,6 +727,13 @@ function viewingRoom({ from = '' }) {
 </main><script src="/static/room.js?v=${VER}" defer></script>` });
 }
 
+// Nothing hangs here.
+function notFound({ cover = null }) {
+  return layout({ title: 'Nothing hangs here · Watermark', desc: 'There is no page at this address.', body: `<section class="nf">${cover ? `<a class="nf-im" href="/w/${esc(cover.slug)}" style="--r:${cover.width && cover.height ? (cover.width / cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(cover.slug)}/screen" alt="${esc(tidy(cover.title))}" draggable="false"></a>` : ''}
+<div class="nf-t"><p class="k">Nothing hangs here</p><h1>There is no page at this address.</h1><p class="lede">It may have moved, or the link was copied short. The house is all around you${cover ? `; this is <a href="/w/${esc(cover.slug)}"><i>${esc(tidy(cover.title))}</i></a>, in the collection` : ''}.</p>
+<p class="nf-row"><a class="buy-btn" href="/collection">Walk the collection</a><a class="nf-alt" href="/wander/room">Or wander</a><a class="nf-alt" href="/artists">The artists</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -1124,4 +1131,4 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
