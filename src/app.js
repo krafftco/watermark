@@ -894,7 +894,9 @@ function createApp(cfg = {}) {
     const w = q.work.get(req.params.slug); const maker = mk(w);
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const rules = R.parse(w.rules);
-    const u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w); if (!u || !offered(rules, u.key, w)) return res.sendStatus(404);
+    let u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w);
+    if (!u || !offered(rules, u.key, w)) { const on = q.uses.all(maker.id).filter(x => offered(rules, x.key, w)); u = (on.find(x => x.key !== 'social') || on[0] || null) && priced(on.find(x => x.key !== 'social') || on[0], w); } // the first use on offer
+    if (!u) return res.sendStatus(404);
     const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents });
     const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
     res.send(req.query.frag ? V.contractBody(sections) : V.contractPage({ sections, w, maker, u, t, preview: true }));

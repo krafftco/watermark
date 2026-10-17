@@ -26,7 +26,7 @@ function mountRegister(app, { db, V, ledger }) {
     let w = d.work ? workBySlug.get(d.work) : null;
     if (!w && /^WM-/.test(e.subject)) w = workByRef.get(e.subject);
     if (!w) { const ws = workBySlug.get(e.subject); if (ws) w = ws; }
-    if (w && w.status !== 'held' && !['work.registered'].includes(t)) w = null; // private work stays unnamed
+    if (w && w.status !== 'held') w = null; // a private or withdrawn work stays unnamed
     const k = { kind: 'life' };
     switch (t) {
       case 'work.registered': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} entered the archive${d.accession ? `, ${esc(d.accession)}` : ''}.` };
