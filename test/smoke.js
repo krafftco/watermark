@@ -364,7 +364,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   delete process.env.MARKET_SETTLEMENT;
 
 
-  r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(/Founding Collector &middot; No\. \d+ of 100/.test(r.body.toString()), 'a founding collector');
+  r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(/Founding Collector, No\.&nbsp;\d+ of 100/.test(r.body.toString()), 'a founding collector');
   r = await req(port, 'GET', '/collectors'); assert.ok(/of 100 places remain/.test(r.body.toString()), 'places remain');
   // Patronage: a monthly patron, named on the wall, ended with one press; a one-off gift.
   r = await req(port, 'GET', '/m/will-fullerton'); assert.ok(r.body.toString().includes('Keep the work going') && r.body.toString().includes('Medici'), 'the patronage page');
