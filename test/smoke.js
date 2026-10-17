@@ -340,6 +340,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const L3 = app.locals.ladder(db.prepare('SELECT * FROM works WHERE id=?').get(wl.id), 500); assert.equal(L3.price, 800, 'second quarter: 1.5x');
     r = await req(port, 'GET', `/w/${wl.slug}`); assert.ok(r.body.toString().includes('issued at $5 to No.&nbsp;1, $8 now'), 'the ladder shown on the work');
     r = await req(port, 'GET', `/license/${wl.slug}`); assert.ok(r.body.toString().includes('Collect for $8'), 'the next number is sold at the step'); }
+  // Applause and notes: one tip of the hat per person, taken back with a second press; a note held with the work; the maker may remove it.
+  r = await req(port, 'POST', `/w/${w.slug}/applaud`, { headers: { accept: 'application/json' } }); { const aj = JSON.parse(r.body); assert.ok(aj.on && aj.n === 1, 'applauded'); }
+  const apck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+  r = await req(port, 'POST', `/w/${w.slug}/applaud`, { cookie: apck, headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).n, 0, 'taken back');
+  r = await req(port, 'POST', `/w/${w.slug}/applaud`, { cookie: apck, headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).n, 1, 'one hand per person');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('tip of the hat'), 'shown on the work');
+  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'The light on the ribs of the dome.', name: 'A visitor from Siena' } }); assert.ok(r.headers.location.includes('note=1'));
+  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'see http://spam.example' } }); assert.ok(r.headers.location.includes('note=check'), 'no links');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('ribs of the dome') && r.body.toString().includes('A visitor from Siena'), 'the note is there');
+  { const nid = db.prepare('SELECT id FROM notes WHERE removed_at IS NULL').get().id;
+    r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`); assert.equal(r.status, 403, 'a stranger cannot remove it');
+    r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`, { cookie: ck }); assert.equal(r.status, 302); assert.ok(db.prepare('SELECT removed_at FROM notes WHERE id=?').get(nid).removed_at, 'the Studio can'); }
+  r = await req(port, 'GET', '/studio/trove?sort=standing', { cookie: ck }); assert.ok(r.body.toString().includes('1 applauded'), 'standing in the Studio');
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');

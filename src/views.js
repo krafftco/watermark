@@ -5,6 +5,7 @@ const money = (c, cur = 'usd') => c == null ? 'On request' : new Intl.NumberForm
 const tidy = s => String(s == null ? '' : s).trim().replace(/\.$/, '').replace(/(\w)'(\w)/g, '$1\u2019$2').replace(/'/g, '\u2019');
 // The maker's mark, used as the Collect seal. Krafft makers carry the hand-made K; others the Watermark wave.
 const K_MARK = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
+const HAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17.5c2.2 1 5 1.5 8 1.5s5.8-.5 8-1.5"/><path d="M7.5 16.5V7.2c0-1.1 2-2 4.5-2s4.5.9 4.5 2v9.3"/><path d="M7.5 11.5c1.2.7 2.7 1 4.5 1s3.3-.3 4.5-1"/><path d="M19.5 16.5l1.5-1.2M4.5 16.5L3 15.3"/></svg>';
 const WAVE_MARK = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden="true"><path d="M40.9019,20.248c.0496.0348.1284.1018.21.14.0392.0183.1355.0555.1748.0725.142.0613.2106.0623.2106.0623.4242.1069.61-.0405.61-.0405,0,0,.0188-.0104.0372-.0243.0184-.014.0363-.0314.0458-.0406.0151-.0146.0539-.0644.0539-.0644,0,0,.052-.0909.0637-.1237.0071-.0198.024-.0795.024-.0795.0222-.0965.0109-.1126.0246-.2317.0093-.0811-.0287-.3268-.0598-.4078-.0365-.0952-.1166-.3107-.1703-.4046-.0609-.1065-.288-.3048-.3726-.4039-.0684-.0801-.1447-.1568-.2296-.2285-.1278-.108-.4529-.423-.699-.5881-.1149-.077-.4531-.3086-.661-.3576-.1954-.0461-.5058-.1799-.7093-.2207-.1562-.0313-.3892-.0664-.5873-.0663-.1141.0029-1.5885.0597-2.7094,1.0659-.3753.3369-.3855.3946-.8039.8574-1.32,1.4605-2.8991,1.493-4.248.0839-2.6425-2.7603-4.3029-2.7712-7.0126-.0458-1.4491,1.4575-2.8945,1.5826-4.2166-.0527-2.0205-2.4992-5.04-2.4249-6.9906-.0205-1.4506,1.788-2.9277,1.5387-4.6146-.3402-1.5584-1.7356-3.6345-2.0457-5.3761-.7779-.3208.2335-.6042.5574-.9828.9127-.3769.3368-.7879,2.0455.8259,1.4273.2077-.0796.4772-.3289.6437-.4599,1.37-1.0769,2.6549-.9274,3.9243.3511,2.7283,2.7477,4.1663,2.7285,6.9293-.0031,1.449-1.4325,2.9109-1.5845,4.2323.0157,2.0744,2.512,4.8342,2.5441,6.9759.0433,1.4851-1.7342,2.9311-1.5102,4.6445.3102,1.7438,1.8528,3.6846,2.1267,5.4476.7528.2651-.2066.5093-.4648.7507-.7199.9751-1.0303,1.776-1.4668,2.6072-1.416,0-.052.6333.1119.8306.2146.0961.05.3577.1959.4835.268.0829.0476.2447.1927.3365.2464l.1702.1427.1157.0958.071.0558Z"/></svg>';
 // Each maker's own mark on the Collect seal: Krafft's makers carry the hand-made K, every other maker the Watermark wave.
 const isKrafft = m => !!m && (/krafft/i.test(m.house || '') || m.handle === 'krafft');
@@ -144,7 +145,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null }) {
+function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -194,6 +195,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
+${ap ? `<div class="ap" id="applause"><form method="post" action="/w/${esc(w.slug)}/applaud" data-ap><button type="button" class="ap-b${ap.mine ? ' on' : ''}" aria-pressed="${ap.mine ? 'true' : 'false'}" aria-label="${ap.mine ? 'Applauded' : 'Applaud'}">${HAT}<span class="ap-r"></span></button></form><span class="ap-t" data-ap-t><b data-ap-n>${ap.n}</b> ${ap.n === 1 ? 'tip of the hat' : 'tips of the hat'}</span></div>` : ''}
 ${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered with the U.S. Copyright Office. Search the public record at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.</p></div>` : ''}
 ${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
 ${closerBlock(closer, w, edit)}
@@ -217,6 +219,10 @@ ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for 
 </div></article>
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
+${ap ? `<div class="lot-sec nt" id="notes"><h2>Notes</h2>
+${note === '1' ? '<p class="ok">Left with the photograph.</p>' : note === 'check' ? '<p class="err">A sentence, please, without links.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}
+${ap.notes.length ? `<ul class="nt-l">${ap.notes.map(n => `<li><p>${esc(n.body)}</p><small>${esc(n.name || 'A visitor')} &middot; ${date(n.at)}${canModerate || (me && n.buyer_id === me) ? ` &middot; <form method="post" action="/w/${esc(w.slug)}/notes/${n.id}/remove" class="inline"><button class="link">Remove</button></form>` : ''}</small></li>`).join('')}</ul>` : '<p class="nt-0">Nothing yet. The first note sets the tone.</p>'}
+<form method="post" action="/w/${esc(w.slug)}/notes" class="nt-f"><textarea name="body" rows="2" maxlength="280" placeholder="What you see in it, or where it took you." required></textarea><div><input name="name" placeholder="Your name" maxlength="60"><button class="btn">Leave a note</button></div></form></div>` : ''}
 <div class="lot-sec"><h2>Provenance and record</h2><dl class="facts">${facts}</dl>
 <p class="note"><a href="/w/${esc(w.slug)}/life">The life of this photograph</a>: its registration and every license since, recorded in the <a href="/ledger">register</a>.</p>
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}</div>
@@ -226,7 +232,7 @@ ${rules && rules.never.length ? `<p class="never"><span>The maker says never</sp
 <form method="post" action="/report/${esc(w.slug)}" class="form"><label>Where you saw it<input name="url" type="url" required placeholder="https://"></label>
 <label>A note (optional)<input name="note"></label><label>Your email, if the maker may write back (optional)<input name="email" type="email"></label><button>Tell the maker</button></form></details>
 </section>
-<script src="/static/viewer.js" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
+<script src="/static/viewer.js" defer></script><script src="/static/applause.js?v=${VER}" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
   });
 }
 

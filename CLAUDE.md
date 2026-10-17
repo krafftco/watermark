@@ -28,6 +28,7 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Downloads: counted per license (DL in app.js: collect 5, story 10, company 25, audience 50, print 5; drafts; `dl_extra` on the license), shared with seats, recorded in `downloads`; 410 when used up. Every license includes the share-size copy (/d/:token?size=share) and the right to share; holding any license covers Collect (`covers`).
 - The ladder (`ladder` in app.js, LADDER = [1, 1.5, 2, 3]; drafts): a limited edition's Collect price steps up by quarter as it sells; the work page shows it; the market's issue price (last numbered sale) follows, so holders' values rise. Cards show value vs paid.
 - The $5 piece is called Collect everywhere (use key stays `social`).
+- Applause and notes: `src/applause.js`. One tip of the hat per person per work (toggle; POST /w/:slug/applaud, JSON for the page, `public/applause.js`), shown only on the work ("N tips of the hat"); Studio → Works sorts by Most applauded and Seen, never applauded (the duds, 20+ views). Notes: a sentence with a name, no links, 3 per 10 min; the maker, the Studio or the writer can remove.
 - Your collection shows pieces as cards (`card` in views.js; .tc in style.css).
 
 ## Rules (from Will)

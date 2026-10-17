@@ -169,11 +169,11 @@ function makers({ list }) {
 // The Trove. The maker's private gallery: every work, what it is, and what it has done.
 function trove({ maker, rows, totals, sort, room, rooms, untapped, notice }) {
   const q = (o) => { const p = new URLSearchParams({ ...(room ? { room: room.slug } : {}), sort, ...o }); return '/studio/trove?' + p; };
-  const sorts = [['earned', 'Most earned'], ['seen', 'Most seen'], ['untapped', 'Seen, never licensed'], ['taken', 'Date made'], ['newest', 'Newest in'], ['unfinished', 'Needs cataloguing']];
+  const sorts = [['earned', 'Most earned'], ['standing', 'Most applauded'], ['duds', 'Seen, never applauded'], ['seen', 'Most seen'], ['untapped', 'Seen, never licensed'], ['taken', 'Date made'], ['newest', 'Newest in'], ['unfinished', 'Needs cataloguing']];
   const tiles = rows.map(w => `<a class="tv-w" href="/studio/works/${esc(w.slug)}">
 <span class="tv-f"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">${w.sealed ? '<i class="tv-s" title="Sealed copies out">Sealed</i>' : ''}</span>
 <span class="tv-acc">${esc(w.accession || '')}</span><b>${esc(w.title)}</b><span class="tv-pl">${esc([w.place, w.taken_at ? String(w.taken_at).slice(0, 4) : ''].filter(Boolean).join(', '))}</span>
-<span class="tv-n"><em>${money(w.earned)}</em><span>${w.licensed} licensed · ${w.seen} seen${w.sites ? ` · ${w.sites} site${w.sites > 1 ? 's' : ''}` : ''}</span></span>
+<span class="tv-n"><em>${money(w.earned)}</em><span>${w.licensed} licensed · ${w.seen} seen${w.applause ? ` · ${w.applause} applauded` : ''}${w.sites ? ` · ${w.sites} site${w.sites > 1 ? 's' : ''}` : ''}</span></span>
 ${w.missing.length ? `<span class="tv-miss">Record ${w.complete}% · add ${esc(w.missing.join(', '))}</span>` : '<span class="tv-ok">Record complete</span>'}</a>`).join('');
   return layout({ studio: true, title: 'Works · Watermark', body: `<section class="studio-wrap tv">${nav('/studio/trove')}
 <div class="tv-head"><div><p class="k">${esc(maker.house || maker.name)}</p><h1>${room ? esc(room.title) : 'The works.'}</h1>

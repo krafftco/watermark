@@ -1380,3 +1380,26 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .tc-ins{text-decoration:none;color:inherit}
 .tc-win{text-decoration:none}
 .tc:has(.tc-win:hover),.tc:has(.tc-ins:hover){transform:rotate(0deg) translateY(-6px);box-shadow:0 2px 2px rgba(40,30,20,.1),0 26px 40px -16px rgba(40,30,20,.4),inset 0 0 0 1px rgba(255,255,255,.6)}
+/* Applause: a tip of the hat. */
+.ap{display:flex;align-items:center;gap:12px;margin:14px 0 4px}
+.ap form{margin:0}
+.ap-b{position:relative;flex:none;width:44px;height:44px;padding:0;box-shadow:none;border:1px solid var(--ln);border-radius:50%!important;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:border-color .4s var(--e),background .4s var(--e),transform .4s var(--e)}
+.ap-b svg{width:24px;height:24px;transition:transform .5s var(--e)}
+.ap-b:hover{border-color:var(--ink)}
+.ap-b.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ap-b.tip svg{animation:apTip .7s var(--e)}
+@keyframes apTip{0%{transform:none}30%{transform:translateY(-4px) rotate(-14deg)}60%{transform:translateY(-2px) rotate(8deg)}100%{transform:none}}
+.ap-r{position:absolute;inset:-1px;border-radius:50%;border:1px solid var(--ink);opacity:0;pointer-events:none}
+.ap-b.tip .ap-r{animation:apRing .9s var(--e)}
+@keyframes apRing{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(2.2)}}
+.ap-t{font-size:13px;color:var(--mu)}.ap-t b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.ap-b.tip svg,.ap-b.tip .ap-r{animation:none}}
+/* Notes: a sentence, held with the work. */
+.nt-l{list-style:none;margin:0 0 18px;padding:0}
+.nt-l li{padding:12px 0;border-bottom:1px solid var(--ln)}
+.nt-l p{margin:0 0 4px;font-family:var(--read);font-size:17px;line-height:1.5}
+.nt-l small{font-size:12px;color:var(--mu)}.nt-l .link{border:0;background:none;padding:0;font:inherit;color:var(--mu);text-decoration:underline;cursor:pointer}
+.nt-0{font-size:14px;color:var(--mu);margin:0 0 14px}
+.nt-f textarea{width:100%;border:0;border-bottom:1px solid var(--ink);background:none;padding:8px 0;font-family:var(--read);font-size:17px;line-height:1.5;resize:vertical;outline:none}
+.nt-f div{display:flex;gap:12px;align-items:center;margin-top:10px}
+.nt-f input{flex:1;border:0;border-bottom:1px solid var(--ln);background:none;padding:8px 0;font:inherit;font-size:14px;outline:none}
