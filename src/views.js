@@ -503,7 +503,7 @@ function rightsPanel(uses, rules) {
   return `<div class="rt" data-rt hidden><p class="rt-h">The rights in your contract <a href="#" data-rt-read>Read the agreement</a></p>
 <div class="rt-g" role="group" aria-label="Permitted uses">${C.RIGHTS.map(r => `<label class="rt-c" data-r="${r.key}"><input type="checkbox" name="add" value="${r.key}"><span>${esc(r.label)}</span><em></em></label>`).join('')}</div>
 <div class="rt-x" role="group" aria-label="Extended rights">${C.EXTRAS.map(e => { const off = e.key === 'derivative' && noAdapt; return `<label class="rt-e${off ? ' is-never' : ''}" title="${esc(e.note)}"><input type="checkbox" name="x" value="${e.key}"${off ? ' disabled' : ''}><span><b>${esc(e.label)}</b>${esc(e.note)}</span><em>${off ? 'The maker says never' : e.price == null ? 'Ask the maker' : '+' + money(e.price)}</em></label>`; }).join('')}</div>
-<dialog class="rt-d" data-rt-d><form method="dialog"><button class="rt-close" aria-label="Close">&times;</button></form><div data-rt-body></div></dialog>
+<dialog class="rt-d" data-rt-d><button type="button" class="rt-close" aria-label="Close" data-rt-close>&times;</button><div data-rt-body></div></dialog>
 <script src="/static/rights.js?v=${VER}" defer></script><script>window.__WM_RT=${JSON.stringify({ uses: data, add: C.ADD_RIGHT, extras: Object.fromEntries(C.EXTRAS.map(e => [e.key, e.price])) }).replace(/</g, '\\u003c')};</script></div>`;
 }
 

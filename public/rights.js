@@ -45,6 +45,6 @@
     if (dlg.showModal) dlg.showModal(); else { location.href = '/contract/' + slug + '?' + q.replace('frag=1&', ''); return; }
     fetch('/contract/' + slug + '?' + q).then(function (r) { return r.text(); }).then(function (h) { body.innerHTML = '<p class="k">The agreement, as it would read</p>' + h + '<p class="rt-full"><a href="/contract/' + slug + '?' + q.replace('frag=1&', '') + '" target="_blank">Open it in full</a></p>'; });
   });
-  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg || e.target.closest('[data-rt-close]')) dlg.close(); });
   setUse(false);
 })();

@@ -649,6 +649,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/api/for-you?n=2', { cookie: `wm_v=${vcode}` }); const b2 = JSON.parse(r.body); assert.ok(b2.picks.length === 2 && !b2.picks.some(p => a.picks.some(q => q.slug === p.slug)), 'never the same twice');
     r = await req(port, 'GET', '/yours/looking', { cookie: `wm_v=${vcode}` }); { const h = r.body.toString(); assert.ok(h.includes('Your looking') && h.includes('The one that held you') && h.includes('Longest in front of'), 'the record'); assert.ok(h.includes('You keep coming back to'), 'visits counted'); } }
   console.log('ok: looking');
+  // The buy button must sit inside its form (a nested <form> once closed it early).
+  r = await req(port, 'GET', `/license/${w.slug}?use=social`); { const h = r.body.toString(); const a = h.indexOf('class="buy-form"'), b = h.indexOf('id="buyBtn"'); const between = h.slice(a, b); assert.ok(a > 0 && b > a && !/<\/form>/.test(between) && !/<form\b/.test(between), 'nothing closes the buy form before its button'); }
   // The frame: a screen pairs by code; the phone is the remote; the set can be collected in one tap from the pocket.
   r = await req(port, 'GET', '/frame'); assert.ok(r.body.toString().includes('Pair a screen') && r.body.toString().includes('How it is licensed'), 'the frame\'s door');
   r = await req(port, 'GET', '/frame/tv'); { const h = r.body.toString(); const fcode = (h.match(/data-code="([A-Z]{5})"/) || [])[1]; assert.ok(fcode && h.includes(fcode) && h.includes('data-waiting="1"'), 'the screen shows its code');
