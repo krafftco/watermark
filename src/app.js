@@ -296,7 +296,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -573,6 +573,9 @@ function createApp(cfg = {}) {
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
   try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
+  // Look closer: a guide written by AI on every photograph, which the maker can correct, approve or hide.
+  require('./closer').mountCloser(app, { db, C, studioOnly, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V,
+    imageOf: async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen')) });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
@@ -941,7 +944,8 @@ function createApp(cfg = {}) {
       { group: 'The vault', items: [
         { ok: store.kind === 's3', name: 'Originals held off the server', detail: store.kind === 's3' ? 'S3' : 'Local disk only' },
         { ok: !!process.env.VAULT_KEY, name: 'Sealed with Watermark\'s own key', detail: process.env.VAULT_KEY ? 'VAULT_KEY set' : 'Provider encryption only' },
-        { ok: CR.enabled(), name: 'Content Credentials on every delivered file', detail: CR.enabled() ? 'Signing' : 'Needs a C2PA certificate (DigiCert, SSL.com and others) as C2PA_CERT and C2PA_KEY' } ] },
+        { ok: CR.enabled(), name: 'Content Credentials on every delivered file', detail: CR.enabled() ? 'Signing' : 'Needs a C2PA certificate (DigiCert, SSL.com and others) as C2PA_CERT and C2PA_KEY' },
+        (() => { const n = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, g = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held' AND closer IS NOT NULL").get().n; return { ok: !!process.env.ANTHROPIC_API_KEY && g >= n, name: 'Look closer: a guide on every photograph', detail: process.env.ANTHROPIC_API_KEY ? `${g} of ${n} written` + (g < n ? '; the rest are being written' : '') : 'Needs ANTHROPIC_API_KEY (console.anthropic.com)' }; })() ] },
       { group: 'The collection', items: [
         { ok: held > 0, name: 'Photographs public', detail: `${held}` },
         { ok: n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL") > 0, name: 'Numbered as editions', detail: `${n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL")} of ${held}. Studio, Editions.` },

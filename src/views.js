@@ -111,12 +111,39 @@ ${makerList.length > 1 ? `<div class="cx-makers" id="cxMakers"><button type="but
 
 const VKIND = { maker: 'The maker', historian: 'Art history', note: 'A note' };
 const mmss = n => n ? `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}` : '';
+// Look closer: the guide on a photograph, read on the page or heard aloud. Always says it was written by AI,
+// and whether the maker has read and approved it.
+const closerBlock = (c, w, edit) => {
+  if (!c) return edit ? `<p class="lc-edit"><a href="/closer/${esc(w.slug)}">Look closer: write a guide for this photograph</a></p>` : '';
+  const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
+  return `<section class="lc" id="closer"><div class="lc-h"><p class="k">Look closer</p><button type="button" class="lc-say" data-say aria-label="Hear it"><i></i><span>Hear it</span></button></div>
+<div class="lc-t" data-say-text>${paras}</div>
+<p class="lc-by">${c.state === 'approved' ? 'Written with AI from the photograph and its record; read and approved by the maker.' : 'Written by AI from the photograph and its record. The maker may correct it.'}${edit ? ` <a href="/closer/${esc(w.slug)}">Edit</a>` : ''}</p></section>
+<script src="/static/closer.js?v=${VER}" defer></script>`;
+};
+function closerEdit({ w, c, on, ok }) {
+  const msg = { written: 'Written.', saved: 'Saved.', failed: 'The guide could not be written just now. Try again in a minute.' }[ok];
+  return layout({ title: `Look closer · ${tidy(w.title)}`, body: `<section class="narrow lc-ed">
+<p class="k">Look closer</p><h1>${esc(tidy(w.title))}</h1>
+<figure class="lc-fig"><img src="/img/${esc(w.slug)}/screen" alt=""></figure>
+${msg ? `<p class="ok">${msg}</p>` : ''}
+${!on ? `<p class="note">Guides are written once ANTHROPIC_API_KEY is set in Render.</p>` : ''}
+${c ? `<form method="post" class="form"><input type="hidden" name="act" value="save">
+<label>The guide, as visitors will read and hear it<textarea name="text" rows="12">${esc(c.text)}</textarea></label>
+<p class="note">${c.state === 'hidden' ? 'Hidden from the page.' : c.state === 'approved' ? 'Approved by you.' : 'Shown as written by AI; not yet approved.'} Saving approves it.</p>
+<button class="btn">Save and approve</button></form>
+<div class="lc-acts"><form method="post"><input type="hidden" name="act" value="${c.state === 'hidden' ? 'show' : 'hide'}"><button class="link">${c.state === 'hidden' ? 'Show it again' : 'Hide it'}</button></form>
+${on ? `<form method="post"><input type="hidden" name="act" value="write"><button class="link">Write it again</button></form>` : ''}</div>`
+  : on ? `<form method="post"><input type="hidden" name="act" value="write"><button class="btn">Write the guide</button></form>` : ''}
+<p class="sr-also"><a href="/w/${esc(w.slug)}">Back to the photograph</a></p></section>` });
+}
+
 // One voice on a photograph: a round play button, who is speaking, and what they said.
 const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo-play" data-voice="/listen/${esc(v.key)}" aria-label="Listen to ${esc(v.speaker || VKIND[v.kind])}"><i></i></button>` : `<span class="vo-play vo-quiet" aria-hidden="true">&ldquo;</span>`}
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [] }) {
+function work({ mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false }) {
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -165,6 +192,7 @@ ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 ${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered with the U.S. Copyright Office. Search the public record at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.</p></div>` : ''}
 ${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
+${closerBlock(closer, w, edit)}
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
 ${shieldBlock(shield, { slug: w.slug })}
 <p class="lot-keep">${keepers}</p>
@@ -706,4 +734,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

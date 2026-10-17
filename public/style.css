@@ -1219,3 +1219,23 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .seal-row:not(.is-open) .seal-menu{visibility:hidden;pointer-events:none;transition:clip-path .45s cubic-bezier(.16,1,.3,1),visibility 0s linear .45s}
 .seal-row.is-open .seal-menu{visibility:visible;transition:clip-path .55s cubic-bezier(.16,1,.3,1),visibility 0s}
 .pb.is-going{opacity:1;transform:scale(1.06);transition:transform .22s var(--e)}
+/* Look closer: the guide on a photograph. */
+.lc{margin:34px 0 8px;padding-top:22px;border-top:1px solid var(--ln)}
+.lc-h{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.lc-h .k{margin:0}
+.lc-say{display:inline-flex;align-items:center;gap:10px;border:0;background:none;padding:4px 0;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.lc-say i{position:relative;width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--ink);transition:background .4s var(--e)}
+.lc-say i::after{content:"";position:absolute;left:12px;top:10px;border-left:8px solid currentColor;border-top:5px solid transparent;border-bottom:5px solid transparent}
+.lc-say.on i{background:var(--ink)}
+.lc-say.on i::after{left:11px;top:11px;border:0;width:8px;height:8px;background:#fff}
+.lc-say:hover i{background:rgba(14,14,14,.06)}.lc-say.on:hover i{background:var(--ink)}
+.lc-t p{font-family:var(--read);font-size:18px;line-height:1.6;color:var(--ink);margin:0 0 .9em;max-width:36em;transition:color .5s var(--e)}
+.lc-t:has(.lc-now) p{color:var(--mu)}
+.lc-t p.lc-now{color:var(--ink)}
+.lc-by{font-size:12px;color:var(--mu);margin:6px 0 0;line-height:1.5}
+.lc-by a,.lc-edit a{color:var(--ink)}
+.lc-edit{font-size:13px;margin:22px 0 0}
+.lc-ed .lc-fig{margin:18px 0 22px}.lc-ed .lc-fig img{max-width:100%;max-height:52vh;display:block}
+.lc-ed textarea{font-family:var(--read);font-size:17px;line-height:1.55}
+.lc-acts{display:flex;gap:22px;margin-top:14px}
+.lc-acts .link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--mu);text-decoration:underline;cursor:pointer}
