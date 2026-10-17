@@ -662,3 +662,5 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .share-buy .seal-t span{font-size:13px;letter-spacing:0;text-transform:none;font-weight:400}
 .share-buy .seal-k{width:34px;height:34px}
 .share-buy p{margin:0}
+.share-buy button.seal{justify-content:center;align-content:center;place-items:center}
+.share-buy .seal-t b{padding-left:0;border-left:0;font-size:30px}
