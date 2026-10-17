@@ -207,7 +207,7 @@ ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for 
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
 <div class="lot-sec"><h2>Provenance and record</h2><dl class="facts">${facts}</dl>
-<p class="note"><a href="/w/${esc(w.slug)}/life">The life of this photograph</a>: its registration and every license since, recorded on the <a href="/ledger">ledger</a>.</p>
+<p class="note"><a href="/w/${esc(w.slug)}/life">The life of this photograph</a>: its registration and every license since, recorded in the <a href="/ledger">register</a>.</p>
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}</div>
 <details class="lot-fold"><summary>For publishers</summary><p class="note">Embed it with credit. Every license is written in plain language, carries its own reference, and is recorded on the ledger.</p><pre class="code">${embed}</pre>
 <p class="fp">Fingerprint <code>${esc(w.sha256.slice(0, 16))}&hellip;</code>${w.source_url ? ` &middot; <a href="${esc(w.source_url)}" target="_blank" rel="noopener">See where it was published</a>` : ''}</p></details>
