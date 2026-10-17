@@ -1915,3 +1915,27 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 @media (display-mode:standalone){.kh{padding-top:env(safe-area-inset-top)}.top{-webkit-app-region:drag}.top a,.top nav,.top button{-webkit-app-region:no-drag}}
 .ap-act{margin:22px 0}.ap-how dt{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}.ap-how dd b{font-weight:500}
 .of h1{font-family:var(--read);font-weight:300}
+/* The price is not on the wall. It comes in when you reach for the work, and goes when you let go. */
+.seal-t b em{display:inline-block;opacity:0;transform:translateY(5px);transition:opacity .5s var(--e),transform .5s var(--e)}
+.share-buy:hover .seal-t b em,.share-buy:focus-within .seal-t b em,.share-buy.px-on .seal-t b em,.seal-row.is-yours .seal-t b em{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.seal-t b em{transition:none}}
+/* The thank-you card. */
+.ty{margin:30px 0 6px;max-width:440px}
+.ty-card{padding:20px 22px 18px;background:linear-gradient(160deg,#fbf9f4,#f1ede4);box-shadow:0 1px 1px rgba(40,30,20,.12),0 14px 30px -14px rgba(40,30,20,.35),inset 0 0 0 1px rgba(255,255,255,.6)}
+.ty-card .k{margin-bottom:8px}
+.ty-say{margin:0 0 12px;font-family:var(--read);font-size:22px;line-height:1.2}
+.ty-amts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.ty-amts label{cursor:pointer}.ty-amts input[type=radio]{position:absolute;opacity:0;pointer-events:none}
+.ty-amts span{display:inline-flex;align-items:center;gap:2px;padding:8px 14px;border:1px solid #cfc8bb;font-family:var(--read);font-size:17px;background:#fff;transition:border-color .3s,background .3s,color .3s}
+.ty-amts input:checked+span{background:var(--ink);color:#f7f6f3;border-color:var(--ink)}
+.ty-own span input{width:6.5em;border:0;background:transparent;font:inherit;color:inherit;outline:0}.ty-own span input::placeholder{color:inherit;opacity:.5}
+.ty-word{display:block;width:100%;border:0;border-bottom:1px solid #cfc8bb;background:transparent;padding:8px 0;font-family:var(--read);font-style:italic;font-size:16px;margin:4px 0 14px;outline:0}
+.ty-go{font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:12px 22px;background:var(--ink);color:#f7f6f3;border:0;cursor:pointer}.ty-go[disabled]{opacity:.4;cursor:not-allowed}
+.ty-card small{display:block;margin-top:12px;font-size:12px;line-height:1.5;color:var(--mu)}
+.ty-done{margin:0 0 12px;font-family:var(--read);font-style:italic;font-size:17px}
+.ty-pk{display:block;margin-top:10px;font-size:12.5px;color:var(--mu);font-style:normal}.ty-pk a{color:var(--ink)}
+/* The pocket. */
+.pocket .gh span{font-family:var(--disp);font-size:24px;letter-spacing:0;text-transform:none;color:var(--ink)}
+.pk-lede{max-width:40em}
+.pk-add{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}.pk-add button{font:inherit;font-size:13px;padding:12px 18px;border:1px solid var(--ink);background:#fff;cursor:pointer}.pk-add button[disabled]{opacity:.4;cursor:not-allowed}
+.pk-hist{list-style:none;margin:0 0 14px;padding:0;max-width:560px}.pk-hist li{display:grid;grid-template-columns:11ch 1fr auto;gap:14px;padding:8px 0;border-bottom:1px solid var(--ln);font-size:13.5px}.pk-hist li span:first-child{color:var(--mu)}.pk-hist b{font-weight:500;font-variant-numeric:tabular-nums}.pk-hist b.out{color:var(--mu)}

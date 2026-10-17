@@ -89,12 +89,53 @@ function mountTips(app, { db, C, stripe, maker, slugify, ledger, V, ghost = {}, 
     } catch (e) { console.error('[tip]', e.message); db.prepare("DELETE FROM tips WHERE grp=? AND status='pending'").run(grp); res.redirect(`/tip/${c.post}?unavailable=1`); }
   });
 
+  // The thank-you card. Ninety-nine cents, or more, to the person who made a photograph, with a word if you
+  // like: an expression, not a purchase. iTunes taught people to spend a dollar on a thing they loved; this
+  // is that, for a photograph. The house keeps none of it; the card fee comes out and the rest is theirs.
+  const THANKS = [99, 499, 999];
+  app.post('/w/:slug/thanks', async (req, res) => {
+    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return res.sendStatus(404);
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || maker;
+    const x = req.body || {};
+    const cents = x.amount === 'own' ? Math.round(Number(String(x.own || '').replace(/[^0-9.]/g, '')) * 100) : Math.round(Number(x.amount));
+    if (!(cents >= 99 && cents <= 500000)) return res.redirect(`/w/${w.slug}#thanks`);
+    const grp = require('crypto').randomBytes(9).toString('base64url');
+    const word = String(x.word || '').trim().slice(0, 280) || null;
+    // From the pocket, when it covers the card: posted at once, no checkout.
+    const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null;
+    if (b && app.locals.pocket && app.locals.pocket.spend(b, cents, 'thanks', grp, `${m.name.split(' ')[0]}, for ${String(w.title).replace(/[.\s]+$/, '')}`)) {
+      db.prepare("INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note, status, name, email, paid_at) VALUES (?,?,?,?,?,?,'paid',?,?,datetime('now'))").run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word, b.name || null, b.email || null);
+      ledger.append(db, 'thanks.given', `tip-${grp}`, { work: w.slug, to: m.handle, amount: cents, from: 'pocket' });
+      return res.redirect(`/w/${w.slug}?thanks=given#thanks`);
+    }
+    if (!stripe) return res.redirect(`/w/${w.slug}?thanks=off#thanks`);
+    db.prepare('INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note) VALUES (?,?,?,?,?,?)').run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word);
+    try {
+      const s = await stripe.checkout.sessions.create({
+        mode: 'payment', submit_type: 'donate', customer_creation: 'always',
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: cents, product_data: { name: `Thank you, ${m.name}`, description: `For ${String(w.title).replace(/[.\s]+$/, '')}. The house keeps nothing of this; after the card fee it is ${m.name.split(' ')[0]}'s.` } } }],
+        metadata: { tip: grp }, payment_intent_data: { metadata: { tip: grp } },
+        success_url: `${C.base}/w/${w.slug}/thanked?grp=${grp}&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/w/${w.slug}#thanks`,
+      });
+      db.prepare('UPDATE tips SET stripe_session=? WHERE grp=?').run(s.id, grp);
+      res.redirect(303, s.url);
+    } catch (e) { console.error('[thanks]', e.message); db.prepare("DELETE FROM tips WHERE grp=? AND status='pending'").run(grp); res.redirect(`/w/${w.slug}?thanks=unavailable#thanks`); }
+  });
+  app.get('/w/:slug/thanked', async (req, res) => {
+    const rows = db.prepare('SELECT * FROM tips WHERE grp=?').all(String(req.query.grp || ''));
+    if (rows.length && rows[0].stripe_session === req.query.session_id && rows[0].status === 'pending' && stripe) { try { settle(rows[0].grp, await stripe.checkout.sessions.retrieve(req.query.session_id)); } catch (e) { /* the webhook will */ } }
+    res.redirect(`/w/${req.params.slug}?thanks=given#thanks`);
+  });
+  // Thank-yous on a work: how many, and the words left with them (shown to the maker; the count to all).
+  app.locals.thanksOf = w => ({ n: db.prepare("SELECT COUNT(*) n FROM tips WHERE post_slug=? AND status='paid'").get(`work:${w.slug}`).n, amounts: THANKS,
+    words: db.prepare("SELECT note, name, amount_cents, paid_at FROM tips WHERE post_slug=? AND status='paid' AND note IS NOT NULL ORDER BY id DESC LIMIT 12").all(`work:${w.slug}`) });
+
   function settle(grp, s) {
     const rows = db.prepare('SELECT * FROM tips WHERE grp=?').all(grp); if (!rows.length || rows[0].stripe_session !== s.id || rows[0].status !== 'pending') return rows;
     if (s.status !== 'complete' && s.payment_status !== 'paid') return rows;
     const d = s.customer_details || {};
     db.prepare("UPDATE tips SET status='paid', name=?, email=?, paid_at=datetime('now') WHERE grp=?").run(d.name || null, d.email || null, grp);
-    for (const t of rows) ledger.append(db, 'tip.given', `tip-${t.id}`, { story: t.post_slug, to: db.prepare('SELECT handle FROM makers WHERE id=?').get(t.maker_id).handle, role: t.role, amount: t.amount_cents });
+    for (const t of rows) ledger.append(db, t.role === 'thanks' ? 'thanks.given' : 'tip.given', `tip-${t.id}`, { story: t.post_slug, work: t.role === 'thanks' ? String(t.post_slug).replace(/^work:/, '') : undefined, to: db.prepare('SELECT handle FROM makers WHERE id=?').get(t.maker_id).handle, role: t.role, amount: t.amount_cents });
     return db.prepare('SELECT * FROM tips WHERE grp=?').all(grp);
   }
   const prevEvent = app.locals.patronEvent;

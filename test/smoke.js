@@ -468,6 +468,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/app'); assert.ok(r.body.toString().includes('Add to Dock'));
   r = await req(port, 'GET', '/offline'); assert.ok(r.body.toString().includes('cannot be reached'));
   r = await req(port, 'GET', '/collection'); assert.ok(r.body.toString().includes('rel="manifest"') && r.body.toString().includes('speculationrules'), 'the app in every page');
+  // The pocket and the thank-you card: ten dollars in once (a Checkout, settled by the webhook); a 99-cent card with a word goes with one tap, lands on the maker, and is on the register.
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('A thank-you card') && r.body.toString().includes('Fill a pocket'), 'the card, and the pocket offered');
+  r = await req(port, 'POST', '/pocket/add', { cookie: bck, body: { amount: '1000' } }); assert.equal(r.status, 303); const pks = sessions[r.headers.location.split('/').pop()]; assert.equal(pks.line_items[0].price_data.unit_amount, 1000);
+  { const payload = JSON.stringify({ id: 'evt_pocket', type: 'checkout.session.completed', data: { object: { ...pks, payment_status: 'paid', amount_total: 1000, customer: 'cus_pocket', customer_details: { email: 'tap@example.com' } } } });
+    const sg = stripe.webhooks.generateTestHeaderString({ payload, secret: 'whsec_test' }); r = await req(port, 'POST', '/stripe/webhook', { body: payload, headers: { 'content-type': 'application/json', 'stripe-signature': sg } }); assert.equal(r.status, 200); }
+  r = await req(port, 'GET', '/yours?tab=settings', { cookie: bck }); assert.ok(r.body.toString().includes('Your pocket') && r.body.toString().includes('$10<'), 'the pocket holds ten dollars');
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: bck }); assert.ok(r.body.toString().includes('From your pocket, $10 in it'), 'the card knows the pocket');
+  r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: '99', word: 'For the light in it.' } }); assert.ok(r.headers.location.includes('thanks=given'), 'sent with one tap');
+  r = await req(port, 'GET', '/yours?tab=settings', { cookie: bck }); assert.ok(r.body.toString().includes('$9.01'), 'ninety-nine cents out');
+  { const t = db.prepare("SELECT * FROM tips WHERE role='thanks' ORDER BY id DESC LIMIT 1").get(); assert.equal(t.status, 'paid'); assert.equal(t.amount_cents, 99); assert.equal(t.note, 'For the light in it.'); assert.ok(app.locals.tipsTo(t.maker_id).s >= 99, 'on the maker'); }
+  r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: 'own', own: '12' } }); assert.equal(r.status, 303, 'more than the pocket holds goes to Checkout'); assert.ok(r.headers.location.includes('checkout'));
+  r = await req(port, 'GET', `/w/${w.slug}?thanks=given`); assert.ok(r.body.toString().includes('1 person has said thank you'), 'counted on the work');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
@@ -580,7 +592,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.deepEqual(db.prepare('SELECT amount_cents FROM tips WHERE grp=? ORDER BY id').all(ts.metadata.tip).map(t => t.amount_cents), [500, 500], 'shared evenly');
   Object.assign(ts, { status: 'complete', payment_status: 'paid', customer_details: { email: 't@me.com', name: 'Reader' } });
   r = await req(port, 'GET', ts.success_url.replace('{CHECKOUT_SESSION_ID}', ts.id).replace('http://localhost', '')); assert.ok(r.body.toString().includes('will know'), 'thanked');
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM tips WHERE status='paid'").get().n, 2);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM tips WHERE status='paid' AND role<>'thanks'").get().n, 2);
   r = await req(port, 'GET', '/api/k?post=lake-garda'); assert.ok(JSON.parse(r.body.toString()).credits.tip.endsWith('/tip/lake-garda'), 'the K knows where to tip');
   r = await req(port, 'GET', '/w/' + w.slug); assert.ok(r.body.toString().includes('Become a patron of'), 'offered on the work');
   // Signing in: passkeys, and the menu.
