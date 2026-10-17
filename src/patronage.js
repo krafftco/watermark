@@ -5,7 +5,9 @@
 const LEVELS = [
   { key: 'friend', name: 'Friend', cents: 1000, gives: 'Your name on the wall of patrons, and the patron’s mark on your gallery.' },
   { key: 'patron', name: 'Patron', cents: 5000, gives: 'All of that, and your name in the credits of every new series: made possible by its patrons.' },
-  { key: 'medici', name: 'Medici', cents: 25000, gives: 'All of that, and each year a signed print, chosen with the maker.' },
+  { key: 'benefactor', name: 'Benefactor', cents: 25000, gives: 'All of that, and each year a signed print, chosen with the maker.' },
+  // The Medici: a name on the work, not a subscription. Monthly or once a year. Above it, the maker takes letters.
+  { key: 'medici', name: 'Medici', cents: 250000, year: 2500000, gives: 'All of that, your name at the head of the wall, and a photograph made in your name each year, where you choose.' },
 ];
 const ONCE = [2000, 5000, 10000];
 
@@ -17,9 +19,9 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
   // Patronage pays the maker directly, so for now it is open only for the house's own maker; others once payouts exist.
   const makerBySlug = s => [maker, ...db.prepare('SELECT * FROM makers').all()].find(m => slugOf(m) === s || m.handle === s) || null;
   const open = m => !!(stripe && m && m.id === maker.id);
-  const wall = m => db.prepare("SELECT name, level, started_at FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL ORDER BY CASE level WHEN 'medici' THEN 0 WHEN 'patron' THEN 1 WHEN 'friend' THEN 2 ELSE 3 END, started_at").all(m.id);
+  const wall = m => db.prepare("SELECT name, level, started_at FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL ORDER BY CASE level WHEN 'medici' THEN 0 WHEN 'benefactor' THEN 1 WHEN 'patron' THEN 2 WHEN 'friend' THEN 3 ELSE 4 END, started_at").all(m.id);
   const count = m => db.prepare("SELECT COUNT(*) n FROM patrons WHERE maker_id=? AND status IN ('active','ending')").get(m.id).n;
-  const credits = m => db.prepare("SELECT name FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL AND level IN ('patron','medici') ORDER BY CASE level WHEN 'medici' THEN 0 ELSE 1 END, started_at").all(m.id).map(p => p.name);
+  const credits = m => db.prepare("SELECT name FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL AND level IN ('patron','benefactor','medici') ORDER BY CASE level WHEN 'medici' THEN 0 WHEN 'benefactor' THEN 1 ELSE 2 END, started_at").all(m.id).map(p => p.name);
   const of = b => (b ? db.prepare("SELECT p.*, m.name AS maker_name FROM patrons p JOIN makers m ON m.id=p.maker_id WHERE p.buyer_id=? AND p.status IN ('active','ending') ORDER BY p.started_at").all(b.id) : []);
 
   app.get('/m/:slug', async (req, res) => {
@@ -37,16 +39,17 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
     const m = makerBySlug(req.params.slug); if (!open(m)) return res.redirect(`/m/${req.params.slug}`);
     const x = req.body || {};
     const lv = LEVELS.find(l => l.key === x.level);
+    const yearly = !!(lv && lv.year && x.interval === 'year');
     const onceCents = !lv ? Math.round(Number(String(x.once || x.amount || '').replace(/[^0-9.]/g, ''))) * 100 : 0;
     if (!lv && !(onceCents >= 500 && onceCents <= 1000000)) return res.redirect(`/m/${slugOf(m)}#patron`);
-    const amount = lv ? lv.cents : onceCents;
+    const amount = lv ? (yearly ? lv.year : lv.cents) : onceCents;
     const b = buyerOf(req);
     const id = db.prepare('INSERT INTO patrons (maker_id, buyer_id, level, amount_cents, recurring) VALUES (?,?,?,?,?)').run(m.id, b ? b.id : null, lv ? lv.key : 'once', amount, lv ? 1 : 0).lastInsertRowid;
     const name = lv ? `Patron of ${m.name}: ${lv.name}` : `In support of ${m.name}`;
     try {
       const s = await stripe.checkout.sessions.create({
         mode: lv ? 'subscription' : 'payment', submit_type: lv ? undefined : 'donate',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: amount, ...(lv ? { recurring: { interval: 'month' } } : {}), product_data: { name, description: lv ? `${lv.gives} 85% goes to ${m.name}. End it any time from Yours on Watermark.` : `Thank you. 85% goes to ${m.name}.` } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: amount, ...(lv ? { recurring: { interval: yearly ? 'year' : 'month' } } : {}), product_data: { name, description: lv ? `${lv.gives} 85% goes to ${m.name}. End it any time from Yours on Watermark.` : `Thank you. 85% goes to ${m.name}.` } } }],
         ...(b && b.customer ? { customer: b.customer } : lv ? {} : { customer_creation: 'always' }),
         metadata: { patron: String(id) }, ...(lv ? { subscription_data: { metadata: { patron: String(id) } } } : {}),
         success_url: `${C.base}/patron/${id}/thanks?session_id={CHECKOUT_SESSION_ID}`,
