@@ -345,6 +345,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/patron/${pid}/end`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM patrons WHERE id=?').get(pid).status, 'ending', 'ended with one press');
   r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { once: '50' } }); const po = sessions[r.headers.location.split('/').pop()]; assert.equal(po.mode, 'payment'); assert.equal(po.line_items[0].price_data.unit_amount, 5000);
 
+  // The Reference: a photograph held at reference quality carries the badge and can be collected as the full original.
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'reference' } }); assert.ok(r.headers.location.startsWith('/license/'), 'no Reference below reference quality');
+  db.prepare('UPDATE works SET width=11656, height=8742 WHERE id=?').run(w.id);
+  r = await req(port, 'GET', `/w/${w.slug}`); let rb = r.body.toString(); assert.ok(rb.includes('A reference image') && rb.includes('102 MP') && rb.includes('Collect the Reference'), 'the Reference badge and option');
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'reference' } }); assert.equal(r.status, 303, 'the Reference goes to checkout');
   // Tips: a reader pays the writer and the photographer of a story, shared evenly.
   db.prepare("INSERT INTO stories (slug, title, url, fetched_at) VALUES ('lake-garda','Lake Garda','https://studios.krafftco.com/lake-garda/',datetime('now'))").run();
   const writer = db.prepare("INSERT INTO makers (handle, name, kind) VALUES ('ada-writer','Ada Lovelace','writer')").run().lastInsertRowid;

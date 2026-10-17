@@ -29,6 +29,12 @@ function shieldBlock(sh, { open = false, slug = '' } = {}) {
   return `<details class="wshield"${open ? ' open' : ''}><summary><span class="sh-m">${SHIELD}</span><span class="sh-t"><b>Watermark Shield</b><small>Registered to ${esc(sh.maker)} &middot; ${date(sh.registered)}</small></span><span class="sh-x" aria-hidden="true"></span></summary>
 <dl class="sh-dl">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${slug ? `<p class="sh-more"><a href="/w/${esc(slug)}/life">The life of this photograph &rarr;</a></p>` : ''}</details>`;
 }
+// Reference: a photograph held at reference quality, the full original straight from the camera file,
+// 40 megapixels or more (a Leica Q3 at 60, a Hasselblad X2D at 100).
+const megapixels = w => (w && w.width && w.height ? Math.round(w.width * w.height / 1e6) : 0);
+const isReference = w => megapixels(w) >= 40;
+const REF_MARK = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8 11.2 6 6 11.2.8 6Z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M6 3.6 8.4 6 6 8.4 3.6 6Z" fill="currentColor"/></svg>';
+const refTag = (w, cls = '') => isReference(w) ? `<span class="mst${cls ? ' ' + cls : ''}" title="Reference image: the full original, ${megapixels(w)} megapixels">${REF_MARK}<b>Reference</b>${cls === 'mst-lg' ? `<i>${megapixels(w)} MP</i>` : ''}</span>` : '';
 const date = s => s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 const { NEVER } = require('./rules');
 const termText = u => u.kind === 'print' ? 'Yours to keep' : u.term_months ? (u.term_months % 12 ? `${u.term_months} months` : `${u.term_months / 12} year${u.term_months > 12 ? 's' : ''}`) : 'Perpetual';
@@ -65,7 +71,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
   const data = works.map(w => ({ v: w.voiced ? 1 : 0, cp: (w.caption || '').slice(0, 240), mk: mOf(w).name, ms: makerSlug(mOf(w)), kk: isKrafft(mOf(w)) ? 1 : 0, s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
   const sp = share && share.price_cents != null ? money(share.price_cents) : null;
-  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b><i>${esc([mOf(w).name, w.place].filter(Boolean).join(', '))}</i></span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${markOf(mOf(w))}<i class="seal-r"></i></span>` : ''}</a>`;
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false">${refTag(w, 'mst-pl')}<span class="pc"><b>${esc(tidy(w.title))}</b><i>${esc([mOf(w).name, w.place].filter(Boolean).join(', '))}</i></span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${markOf(mOf(w))}<i class="seal-r"></i></span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
   const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
@@ -154,6 +160,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
+${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
 ${shieldBlock(shield, { slug: w.slug })}
 <p class="lot-keep">${keepers}</p>
@@ -673,4 +680,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

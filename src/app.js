@@ -24,6 +24,8 @@ const DEFAULT_USES = [
   ['editorial', 'In a story', 'A feature, a book, an essay or a report, with the maker named beside it.', 12, 'license', 1, 35000],
   ['commercial', 'For a company', 'The face of a website, a presentation, a letter to investors. Non-exclusive.', 12, 'license', 2, 75000],
   ['campaign', 'Before an audience', 'A campaign, a film, a billboard, a package. Non-exclusive; exclusivity on request.', 12, 'license', 3, 250000],
+  // The Reference: the full original, for photographs held at reference quality (40 megapixels or more). Draft price.
+  ['reference', 'Collect the Reference', 'The full original at reference quality, straight from the camera file. Yours to keep, to print large and to share, credited. Personal, not for a business.', null, 'license', 0, 2500],
   ['print', 'On a wall', 'An archival print, signed by the photographer, to live with for good.', null, 'print', 4, 25000],
 ];
 
@@ -69,6 +71,8 @@ function createApp(cfg = {}) {
   const FOUNDING = 100;
   const foundingNo = b => { if (!b) return null; const rows = db.prepare("SELECT buyer_id FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY buyer_id ORDER BY MIN(starts_at), buyer_id LIMIT ?").all(FOUNDING); const i = rows.findIndex(r => r.buyer_id === b.id); return i < 0 ? null : i + 1; };
   const foundingLeft = () => Math.max(0, FOUNDING - db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n);
+  const refOK = w => !!(w && w.width && w.height && w.width * w.height >= 40e6);
+  const offered = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w));
   const priced = (u, w) => (u && w && u.key === 'social' && w.share_cents ? { ...u, price_cents: w.share_cents } : u);
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
@@ -251,7 +255,7 @@ function createApp(cfg = {}) {
     const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all()
       .map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w)
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
-    let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
+    let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
     res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg() }));
   });
@@ -289,7 +293,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -345,7 +349,7 @@ function createApp(cfg = {}) {
     res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
     const post = String(req.query.post || '').replace(/[^a-z0-9-]/gi, '').slice(0, 160);
     let rows = [];
-    try { rows = db.prepare("SELECT s.src, w.slug, w.title, w.rules, w.status FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE s.post_slug=? AND w.status IN ('held','hidden')").all(post); } catch (e) { /* no imports yet */ }
+    try { rows = db.prepare("SELECT s.src, w.slug, w.title, w.rules, w.status, w.width, w.height FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE s.post_slug=? AND w.status IN ('held','hidden')").all(post); } catch (e) { /* no imports yet */ }
     const room = db.prepare('SELECT slug, title, public FROM collections WHERE slug=?').get(post);
     const allUses = q.uses.all(maker.id);
     // Every photograph carries the K. Public ones are collected at once; ones held privately (people,
@@ -353,7 +357,7 @@ function createApp(cfg = {}) {
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
       collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
-      uses: r.status === 'held' ? allUses.filter(u => R.allows(R.parse(r.rules), u.key)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name, p: u.key === 'social' ? null : u.price_cents })) : [] })).filter(x => x.path);
+      uses: r.status === 'held' ? allUses.filter(u => offered(R.parse(r.rules), u.key, r)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name, p: u.key === 'social' ? null : u.price_cents })) : [] })).filter(x => x.path);
     const shown = works.filter(w => !w.ask).length;
     let credits = null; try { const cr = app.locals.creditsOf ? await app.locals.creditsOf(post) : null; if (cr && cr.people.length) credits = { people: cr.people.map(p => ({ name: p.name, label: p.label })), tip: stripe ? `${C.base}/tip/${post}` : null }; } catch (e) { /* none */ }
     res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works, credits,
@@ -394,7 +398,7 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
-    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, uses: q.uses.all(maker.id).filter(u => offered(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -405,9 +409,9 @@ function createApp(cfg = {}) {
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = priced(q.use.get(maker.id, String(req.body.use || '')), w);
     const rules = R.parse(w.rules);
-    if (!u || !R.allows(rules, u.key)) return res.redirect(`/license/${w.slug}`);
+    if (!u || !offered(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
-    if (u.key === 'social' && soldOut(w)) return res.redirect(`/w/${w.slug}`);
+    if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     if (rules.approve) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews, approve: true }));
     if (req.body.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews }));
     const ref = nextRef();
@@ -419,7 +423,7 @@ function createApp(cfg = {}) {
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: u.key === 'social' ? `${w.title.replace(/[.\s]+$/, '')}` : `${w.title.replace(/[.\s]+$/, '')}: ${u.name}`, description: u.key === 'social' ? `Yours to share. Photograph by ${maker.name}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: u.key === 'social' ? `${w.title.replace(/[.\s]+$/, '')}` : `${w.title.replace(/[.\s]+$/, '')}: ${u.name}`, description: u.key === 'social' ? `Yours to share. Photograph by ${maker.name}.` : u.key === 'reference' ? `The full original at reference quality, ${Math.round(w.width * w.height / 1e6)} megapixels. Photograph by ${maker.name}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
         // Share it: nothing but Apple Pay / Google Pay, card or Link (which remembers returning buyers).
         ...(u.key === 'social' ? { submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),

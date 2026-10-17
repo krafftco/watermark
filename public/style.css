@@ -983,8 +983,8 @@ button.h-row{border-radius:0;padding:13px 0;box-shadow:none}
 .wshield summary{list-style:none;display:flex;align-items:center;gap:14px;padding:14px 0;cursor:pointer}
 .wshield summary::-webkit-details-marker{display:none}
 .sh-m{display:grid;place-items:center;width:34px;height:40px;flex:none;color:var(--ink)}
-.sh-m svg{width:30px;height:35px;display:block;transition:transform .8s var(--e)}
-.wshield summary:hover .sh-m svg{transform:scale(1.06)}
+.sh-m>svg{width:30px;height:35px;display:block;transition:transform .8s var(--e)}
+.wshield summary:hover .sh-m>svg{transform:scale(1.06)}
 .sh-t{display:flex;flex-direction:column;gap:3px}
 .sh-t b{font-size:11px;font-weight:500;letter-spacing:.24em;text-transform:uppercase}
 .sh-t small{font-family:var(--read);font-size:15px;color:var(--mu)}
@@ -999,7 +999,7 @@ button.h-row{border-radius:0;padding:13px 0;box-shadow:none}
 .sh-more{margin:0 0 16px;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
 .sh-more a{text-decoration:none;color:var(--mu)}
 @media (max-width:640px){.sh-dl div{grid-template-columns:1fr;gap:4px}}
-.sh-m{width:40px;height:46px}.sh-m svg{width:36px;height:42px}
+.sh-m{width:40px;height:46px}.sh-m>svg{width:36px;height:42px}
 .sh-dl div{grid-template-columns:120px 1fr}
 @media (max-width:640px){.sh-dl div{grid-template-columns:1fr}}
 .hd-mix{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
@@ -1104,3 +1104,14 @@ div.yf-mk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
 .ed-go{position:sticky;bottom:0;padding:18px 0;background:linear-gradient(transparent,var(--bg) 30%);margin:0}
 @media (max-width:760px){.ed-row{grid-template-columns:20px 48px minmax(0,1fr);}.ed-why{grid-column:3}.ed-in{grid-column:3;text-align:left}}
 .ed-row input[type=checkbox]{accent-color:var(--ink);width:16px;height:16px}
+
+/* Reference: the full original, at reference quality */
+.mst{display:inline-flex;align-items:center;gap:6px;font:500 9px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--ink)}
+.mst svg{width:10px;height:10px;display:block}
+.mst i{font-style:normal;color:var(--mu);letter-spacing:.12em;padding-left:8px;margin-left:2px;border-left:1px solid var(--ln)}
+.mst-pl{position:absolute;left:10px;top:10px;z-index:2;padding:6px 8px;border-radius:999px;background:rgba(14,14,14,.55);color:#f7f6f3;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:.85;transition:opacity .4s var(--e)}
+.pl:hover .mst-pl{opacity:1}
+.mst-lg{font-size:10px;padding:8px 12px;border:1px solid var(--ink);border-radius:999px}
+.mst-lg svg{width:11px;height:11px}
+.lot-mst{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:16px 0 4px}
+.lot-mst p{margin:0;font-size:13px;line-height:1.55;color:var(--mu);max-width:30em}
