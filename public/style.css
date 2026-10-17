@@ -760,3 +760,13 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .lot-story a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ln)}
 .lot-story a:hover{border-color:var(--ink)}
 .lot-story i{font-family:var(--disp);font-size:17px}
+/* Signing in */
+.pk{display:flex;gap:16px;align-items:flex-start;margin:22px 0;padding:22px 24px;background:var(--soft)}
+.pk b{font-family:var(--disp);font-weight:400;font-size:24px}
+.pk p{margin:6px 0 12px;font-size:14px;color:#333;max-width:36em}
+.pk-go{padding:13px 20px;border:0;background:#0e0e0e;color:#f7f6f3;font:inherit;font-size:12px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.pk-msg{font-size:13px;color:var(--mu);min-height:1.2em}
+.pk-in{text-align:center;max-width:680px;margin:0 auto}
+.pk-in .ps-stamp{margin-bottom:18px}
+.pk-out{margin-top:18px;border:0;background:none;font:inherit;font-size:12px;color:var(--mu);text-decoration:underline;cursor:pointer}
+.yc-signin{margin-top:18px;font-size:14px;color:var(--mu)}

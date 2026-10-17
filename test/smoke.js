@@ -319,6 +319,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/patron/${pid}/end`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM patrons WHERE id=?').get(pid).status, 'ending', 'ended with one press');
   r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { once: '50' } }); const po = sessions[r.headers.location.split('/').pop()]; assert.equal(po.mode, 'payment'); assert.equal(po.line_items[0].price_data.unit_amount, 5000);
   r = await req(port, 'GET', '/w/' + w.slug); assert.ok(r.body.toString().includes('Become a patron of'), 'offered on the work');
+  // Signing in: passkeys, and the menu.
+  r = await req(port, 'GET', '/signin'); assert.ok(r.status === 200 && r.body.toString().includes('Sign in with a passkey'), 'sign in');
+  r = await req(port, 'POST', '/auth/passkey/register/options', { body: '{}', headers: { 'content-type': 'application/json' }, cookie: bck });
+  const ro = JSON.parse(r.body); assert.ok(ro.challenge && ro.rp.id === 'localhost' && ro.authenticatorSelection.residentKey === 'required', 'passkey options');
+  r = await req(port, 'POST', '/auth/passkey/login/options', { body: '{}', headers: { 'content-type': 'application/json' } }); assert.ok(JSON.parse(r.body).challenge, 'sign-in options');
+  r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
+  r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
+  r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);

@@ -523,7 +523,7 @@ function createApp(cfg = {}) {
   app.get('/yours', (req, res) => {
     const b = buyerOf(req);
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
-    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker) }));
+    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -534,6 +534,8 @@ function createApp(cfg = {}) {
   });
   // Patronage: keep a maker working, monthly or once.
   const pat = app.locals.patronage = require('./patronage').mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer, ledger, V });
+  // Signing in with a passkey: the collection follows the collector to every device.
+  const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V });
   // A collector records a print they have made of a work they hold. It shows on their wall and in the work's life.
   app.post('/yours/print', (req, res) => {
     const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));

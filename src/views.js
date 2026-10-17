@@ -29,9 +29,9 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css?v=${VER}"><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/collection">Collection</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours">Yours</a><a href="/#makers" class="nv-m">For makers</a><a href="/verify" class="nv-h">Verify</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(K_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
-${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/patronage">On patronage</a> &middot; <a href="/about">About</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/terms">Terms</a></p></footer>`}
+${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/m/will-fullerton#patron">Patronage</a> &middot; <a href="/#makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
 }
 
@@ -350,6 +350,14 @@ ${done && own ? `<form method="post" action="/patron/${p.id}/name" class="form p
 <p class="sr-also"><a href="/m/${esc(slug)}">Back to ${esc(m.name)}</a> &middot; <a href="/yours">Your collection</a></p></section>` });
 }
 
+function signin({ b, has }) {
+  return layout({ title: 'Sign in · Watermark', body: `<section class="cx-intro pk-in" data-passkey-box><span class="ps-stamp" aria-hidden="true">${K_MARK}</span><p class="k">Your collection</p>
+<h1>${has ? 'You are signed in.' : 'Sign in.'}</h1>
+<p class="lede">${has ? 'Your collection is saved to your passkey, and follows you to every device you sign in on.' : 'With the passkey you saved on Watermark: Face ID, Touch ID or your phone. No password, nothing to remember.'}</p>
+${has ? '<p><a class="buy-btn" href="/yours">Go to your collection</a></p><form method="post" action="/auth/signout"><button class="pk-out">Sign out of this device</button></form>' : '<p><button class="buy-btn" data-passkey="signin">Sign in with a passkey</button></p><p class="pk-msg" data-passkey-msg></p><p class="note">New here? Collect a photograph and it hangs in <a href="/yours">your collection</a>; save it with a passkey from there.</p>'}
+</section><script src="/static/webauthn.js" defer></script><script src="/static/auth.js?v=${VER}" defer></script>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -467,13 +475,13 @@ function terms() {
 }
 
 // A collector's own Watermark: every work they have collected, numbered, room by room.
-function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null }) {
+function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null, keyed = true }) {
   const who = b && b.name ? b.name : own ? 'Your collection' : 'A collection';
   if (!b || !items.length) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
 <h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
 <p class="lede">${own ? 'Every photograph you collect on Watermark hangs here, numbered: you are collector No. 1, No. 12, No. 37 of the work. It stays private unless you choose to show it.' : 'This collection is private, or no longer exists.'}</p>
 ${own && left ? `<p class="fc-call"><span class="fc-k">${K_MARK}</span>The first hundred people to collect on Watermark are its Founding Collectors, marked so on their wall for good. ${left} of 100 places remain.</p>` : ''}
-${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p>' : ''}</section>` });
+${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p><p class="yc-signin">Already a collector? <a href="/signin">Sign in with your passkey</a>.</p>' : ''}</section>` });
   const plate = i => `<a class="pl yc-pl" href="/w/${esc(i.slug)}" data-s="${esc(i.slug)}" style="--r:${(i.width && i.height ? i.width / i.height : 1.5).toFixed(3)}"><img src="/img/${esc(i.slug)}/thumb" alt="${esc(i.title)}" loading="lazy" draggable="false"><span class="yc-no">No. ${i.collector_no || '—'}${i.edition_size ? `<small>/${i.edition_size}</small>` : ''}</span><span class="pc"><b>${esc(i.title)}</b><i>${esc(i.maker)}</i></span>${!own && pay ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${K_MARK}<i class="seal-r"></i></span>` : ''}${i.printed ? `<span class="yc-pr">Printed</span>` : ''}</a>`;
   const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
   const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
@@ -489,6 +497,7 @@ ${own ? `<section class="gal yc-own"><header class="gh"><h2>Show it, or keep it<
 <label class="chk"><input type="checkbox" name="public" value="1" ${b.public ? 'checked' : ''}> Open my collection to anyone with the link</label><button>Save</button></form>
 ${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${esc(b.code)}">${esc(base)}/collector/${esc(b.code)}</a></p>` : '<p class="note">Private: only this device sees it.</p>'}
 ${give ? `<div class="yc-give" id="give"><p class="k">To pass on <em>${esc(tidy(give.title))}</em></p><p>Send this link to the person you are giving it to. When they accept, it hangs on their wall with your number, and leaves yours.</p><input readonly value="${esc(base)}/claim/${esc(give.token)}" onclick="this.select()"></div>` : ''}
+${keyed ? '' : `<div class="pk" data-passkey-box><span class="fc-k">${K_MARK}</span><div><b>Keep your collection on every device.</b><p>Save it with a passkey: Face ID or Touch ID, no password. Then sign in on any phone or computer and it is there.</p><button class="pk-go" data-passkey="save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js?v=${VER}" defer></script>`}
 <div id="patronage">${patronOf.length ? patronOf.map(p => `<div class="yc-pat"><span><b>Patron of ${esc(p.maker_name)}</b> &middot; ${esc(p.level.charAt(0).toUpperCase() + p.level.slice(1))}, ${money(p.amount_cents)} a month${p.status === 'ending' ? ' &middot; ends at the close of this month' : ''}</span>${p.status === 'active' ? `<form method="post" action="/patron/${p.id}/end"><button class="yf-give">End patronage</button></form>` : ''}</div>`).join('') : patronSlug ? `<p class="note">Keep a maker working: <a href="/m/${esc(patronSlug)}#patron">become a patron</a>.</p>` : ''}</div>
 ${got ? `<p class="yc-got">It&rsquo;s yours now. It hangs below, with its number.</p>` : ''}
 <div class="yc-files" id="files">${items.map(i => `<div class="yf"><img src="/img/${esc(i.slug)}/thumb" alt="" loading="lazy" draggable="false"><div class="yf-t"><i>${esc(tidy(i.title))}</i><small>${esc(i.maker)} &middot; No. ${i.collector_no || '—'}${i.edition_size ? ` of ${i.edition_size}` : ''} &middot; ${date(i.starts_at)}</small>${i.printed ? `<small class="yf-pr">Printed: ${esc(i.printed)}</small>` : ''}</div>
@@ -551,4 +560,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
