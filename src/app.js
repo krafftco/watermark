@@ -255,6 +255,7 @@ function createApp(cfg = {}) {
   });
 
   // Makers apply to hold their work here. Read in the Studio.
+  app.get('/apply', (req, res) => res.redirect(301, '/makers#apply'));
   app.post('/apply', (req, res) => {
     const b = req.body; const email = String(b.email || '').trim();
     if (!b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/makers#apply');
