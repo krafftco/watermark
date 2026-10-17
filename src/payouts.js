@@ -59,6 +59,17 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
       res.redirect(303, link.url);
     } catch (e) { console.error('[connect]', e.message); res.redirect('/account/payouts?ok=err'); }
   });
+  // Keep the money in the house: what is owed goes into the maker's pocket instead of to a bank, to collect
+  // other makers' work, take Library copies, send cards. Recorded as paid, how 'pocket'.
+  app.post('/account/payouts/pocket', (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const st = statement(m); if (st.owed < 100) return res.redirect('/account/payouts?ok=small');
+    const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; if (!b || !app.locals.pocket) return res.redirect('/account/payouts?ok=err');
+    db.prepare("INSERT INTO pocket (buyer_id, cents, kind, note) VALUES (?,?,'earnings',?)").run(b.id, st.owed, 'Your earnings, kept in the house');
+    db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, note) VALUES (?,?,'paid','pocket','Into your pocket')").run(m.id, st.owed);
+    ledger.append(db, 'maker.paid', m.handle, { amount: st.owed, by: 'pocket' });
+    res.redirect(`/account/payouts?ok=pocket&n=${st.owed}`);
+  });
   app.post('/account/payouts/pay', async (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     const r = await pay(m, { by: 'maker' });
@@ -84,7 +95,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
 function payoutsPage({ m, st, ready, on, ok, viewing = false }) {
   setDeskPath('/account/payouts');
   const first = m.name.split(' ')[0];
-  const notice = { bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.' }[ok];
+  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.' }[ok];
   const row = (k, v, small) => `<div><dt>${k}</dt><dd>${v}${small ? `<small>${small}</small>` : ''}</dd></div>`;
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
 <p class="lede">Every dollar that reaches you, and where it came from. ${st.pct}% of every license is yours; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
@@ -97,6 +108,9 @@ ${row('Royalties', money(st.royalties.s), `${st.royalties.n} resale${st.royaltie
 ${row('Earned, all time', money(st.earned))}
 ${row('Paid out', money(st.paid))}
 </dl>
+<h2>Keep it in the house</h2>
+<p class="note">Every maker is a collector. Put what you are owed in your pocket instead, and spend it here: on other makers' work, on the Library, on thank-you cards. Rembrandt collected; so can you.</p>
+<form method="post" action="/account/payouts/pocket"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Put ${money(st.owed)} in my pocket</button></form>
 <h2>Your bank</h2>
 ${ready ? `<p class="ok">Your bank is with Stripe; the house never sees it. ${on ? 'Payouts go on the first of the month, or now:' : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Send ${money(st.owed)} to my bank</button></form>` : ''}`
   : `<p class="note">Add your bank through Stripe (a few minutes; the house never sees your details). ${on ? 'From then on what you are owed goes out on the first of the month, or whenever you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each month from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}

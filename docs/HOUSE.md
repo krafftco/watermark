@@ -5,7 +5,8 @@ Will's words, 17 October 2026, kept as the standard. Drafts in his voice until h
 ## What it is
 - The digital Met: the house holds the object, not a picture of it (the archival master, fixity, the register, the papers).
 - The digital Magnum: a curated house of artists with a platform, in the tradition of Cartier-Bresson. By invitation. It is an honour to hang here; you have to work for it. Not a place anyone uploads from a phone.
-- The Library: books, journals, essays, papers, important digital copies; art history and art culture. Read in the house for nothing; pay to take or use.
+- The Library: books, journals, essays, papers, important digital copies; art history and art culture. Read in the house for nothing; pay to take or use. The Library of Alexandria: a shelf of work that is free and clear (public domain, Creative Commons), beautiful imagery anyone may use; and the museums' portal: a museum can put its whole collection here, the open part open, the rest licensed at the source. (To build: an `open` rule on works — pd, cc0, cc-by — shown as a shelf, taken without a license; institution accounts.)
+- The nav stays short. The Library lives inside the Collection.
 - A place to wander: StumbleUpon for beautiful things. Curiosity satisfied: learn the work, the maker, their other media (writing, film, music).
 - The essential studio tool: the whole of an artist's working life (the vault, the register, licenses, contracts, requests, taxes, the Copyright Office), so what is left is the work.
 - A walled garden. No advertising, ever. Kept by members and the friends of the house.

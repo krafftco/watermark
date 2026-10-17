@@ -1945,3 +1945,9 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .gp-pay{font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:16px 24px;cursor:pointer}.gp-pay[disabled]{opacity:.45;cursor:not-allowed}
 .ac-doors a{margin-right:10px;white-space:nowrap}
 .ac-viewing{margin:0 0 18px;padding:10px 14px;background:#fbf6ea;border:1px solid #e9dcbd;font-size:13px}.ac-viewing a{margin-left:8px}
+/* Studio | Gallery: every maker is a collector. */
+.dk-sw{display:inline-flex;border:1px solid var(--ln);border-radius:999px;padding:2px;margin:0 18px 0 6px;flex:none}
+.dk-sw a{padding:5px 14px;border-radius:999px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--mu)}
+.dk-sw a[aria-current=page]{background:var(--ink);color:#f7f6f3}
+.yc-sw{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px clamp(16px,4vw,56px) 0;font-size:13px;color:var(--mu)}.yc-sw .dk-sw{margin:0}.yc-sw a:not(.dk-sw a){color:var(--ink)}
+.cx-lib{font:inherit;font-size:12px;letter-spacing:.06em;color:var(--mu);text-decoration:none;padding:0 10px;border-right:1px solid var(--ln);margin-right:6px}.cx-lib:hover{color:var(--ink)}

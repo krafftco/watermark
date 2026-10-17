@@ -486,6 +486,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const r2 = await app.locals.payouts.pay(mw); assert.equal(r2.ok, false); assert.equal(r2.why, 'off', 'no transfer until the house is set to pay');
     r = await req(port, 'POST', `/studio/payouts/${mw.handle}`, { cookie: ck, body: { amount: '1', note: 'By cheque' } }); assert.equal(r.status, 302);
     assert.equal(app.locals.payouts.statement(mw).paid, 100, 'recorded'); }
+  // Every maker is a collector: the switch on both sides; the pocket pays for a Collect with one tap; the money stays in the house.
+  r = await req(port, 'GET', '/account', { cookie: gck }); assert.ok(r.body.toString().includes('dk-sw') && r.body.toString().includes('>Gallery<'), 'the switch in the studio');
+  const tmp4 = path.join(dir, 'in4.jpg'); await require('sharp')(SRC).resize({ width: 1700 }).rotate(90).modulate({ brightness: 1.15, hue: 40 }).toFile(tmp4);
+  const w4 = await registerWork({ file: tmp4, originalName: 'q.jpg', title: 'Test Quay', place: 'Venice' });
+  r = await req(port, 'GET', `/w/${w4.slug}`, { cookie: bck }); assert.ok(r.body.toString().includes('data-pocket="1"') && r.body.toString().includes('From your pocket, one tap'), 'the pocket covers the Collect');
+  { const pb = db.prepare("SELECT b.* FROM buyers b WHERE b.id=(SELECT buyer_id FROM pocket WHERE kind='topup' ORDER BY id DESC LIMIT 1)").get(); const before = app.locals.pocket.balance(pb);
+    r = await req(port, 'POST', `/buy/${w4.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(r.headers.location.includes('collected=1'), 'collected from the pocket, no checkout');
+    const after = app.locals.pocket.balance(pb);
+    const lic = db.prepare("SELECT * FROM licenses WHERE ref=(SELECT subject FROM ledger WHERE type='license.paid.pocket' ORDER BY seq DESC LIMIT 1)").get(); assert.equal(lic.status, 'active'); assert.ok(lic.collector_no, 'numbered'); assert.equal(before - after, lic.price_cents, 'the pocket paid exactly the price'); }
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
@@ -624,7 +633,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/library">Library<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');

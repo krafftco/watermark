@@ -57,7 +57,7 @@ function pocketBlock({ balance, history, state, on }) {
 <p class="lede pk-lede">Small money for small things: ninety-nine-cent thank-you cards to the people who made what you love, sent with one tap, no checkout each time. Put a little in; it is spent here and only here.</p>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form method="post" action="/pocket/add" class="pk-add">${TOPUPS.map(c => `<button name="amount" value="${c}" ${on ? '' : 'disabled'}>Add ${money(c)}</button>`).join('')}</form>
-${history.length ? `<ul class="pk-hist">${history.map(h => `<li><span>${esc(h.at.slice(0, 10))}</span><span>${h.kind === 'topup' ? 'Put in' : h.kind === 'thanks' ? `Thank you${h.note ? `: ${esc(h.note)}` : ''}` : esc(h.kind)}</span><b class="${h.cents < 0 ? 'out' : 'in'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></li>`).join('')}</ul>` : ''}
+${history.length ? `<ul class="pk-hist">${history.map(h => `<li><span>${esc(h.at.slice(0, 10))}</span><span>${h.kind === 'topup' ? 'Put in' : h.kind === 'earnings' ? 'Your earnings, kept in the house' : h.kind === 'thanks' ? `Thank you${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'collect' ? `Collected${h.note ? `: ${esc(h.note)}` : ''}` : esc(h.kind)}</span><b class="${h.cents < 0 ? 'out' : 'in'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></li>`).join('')}</ul>` : ''}
 <p class="note">What is in the pocket is the house's debt to you, spent in the house; it is never cashed out. The makers are paid what their cards add up to, with the rest of their earnings.</p></section>`;
 }
 

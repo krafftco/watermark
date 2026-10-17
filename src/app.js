@@ -544,6 +544,16 @@ function createApp(cfg = {}) {
       .run(ref, w.id, u.id, 'Buyer', '', noteAll, u.price_cents, R.conditions(rules) || null, JSON.stringify(t));
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
+    // From the pocket: money already in the house, spent in the house, one tap, no checkout.
+    if (req.body.from === 'pocket' && app.locals.pocket) {
+      const pb = buyerOf(req);
+      if (pb && app.locals.pocket.spend(pb, u.price_cents, 'collect', ref, `${w.title.replace(/[.\s]+$/, '')}, No. ${(edition(w) || {}).sold + 1 || ''}`.replace(/, No\. $/, ''))) {
+        db.prepare('UPDATE licenses SET buyer_id=?, licensee_name=?, licensee_email=? WHERE ref=?').run(pb.id, pb.name || 'Collector', pb.email || '', ref);
+        grant(ref, { paid: true, price_cents: u.price_cents });
+        ledger.append(db, 'license.paid.pocket', ref, { work: w.slug, use: u.key, amount: u.price_cents });
+        return res.redirect(`/w/${w.slug}?collected=1#yours`);
+      }
+    }
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
     try {
       const s = await stripe.checkout.sessions.create({
@@ -681,7 +691,7 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(buyerOf(req)), history: app.locals.pocket.history(buyerOf(req)), state: req.query.pocket || null, on: !!stripe }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ isMaker: !!app.locals.accounts.makerOf(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ balance: app.locals.pocket.balance(buyerOf(req)), history: app.locals.pocket.history(buyerOf(req)), state: req.query.pocket || null, on: !!stripe }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
