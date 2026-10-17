@@ -72,10 +72,11 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   });
   app.post('/hang/add', (req, res) => {
     const b = ensure(req, res), x = req.body || {}; const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(x.work || '')); if (!w) return res.sendStatus(404);
-    let h = x.hang === 'new' ? null : own(req, x.hang);
+    let h = x.hang === 'new' ? null : x.hang === 'wander' ? (db.prepare("SELECT * FROM hangs WHERE buyer_id=? AND title='From my wandering'").get(b.id) || null) : own(req, x.hang);
     if (!h) { const title = String(x.title || '').trim().slice(0, 80) || 'A hang'; const id = db.prepare('INSERT INTO hangs (buyer_id, slug, title) VALUES (?,?,?)').run(b.id, slugOf(title, b.id), title).lastInsertRowid; h = byId(id); }
     const pos = db.prepare('SELECT COALESCE(MAX(pos),0)+1 p FROM hang_works WHERE hang_id=?').get(h.id).p;
     db.prepare('INSERT OR IGNORE INTO hang_works (hang_id, work_id, pos) VALUES (?,?,?)').run(h.id, w.id, pos); touch(h.id);
+    if (x.json) return res.json({ ok: true, hang: h.id, slug: h.slug });
     res.redirect(`/w/${w.slug}?hung=${h.id}`);
   });
   app.post('/hang/:id/edit', (req, res) => {

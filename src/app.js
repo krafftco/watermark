@@ -286,16 +286,32 @@ function createApp(cfg = {}) {
   // --- public pages ---
   // The front door is the collection; makers have their own entrance.
   // The viewing room: the picture alone on a dark wall, the guide read aloud, and on to the next by itself.
-  app.get('/wander/room', (req, res) => res.send(V.viewingRoom({ from: String(req.query.from || '') })));
+  app.get('/wander/room', (req, res) => {
+    const from = String(req.query.from || '').split(',').filter(Boolean).slice(-12);
+    const start = req.query.at ? q.work.get(String(req.query.at)) : null;
+    const w = (start && start.status === 'held' ? start : null) || db.prepare(`SELECT * FROM works WHERE status='held'${from.length ? ` AND slug NOT IN (${from.map(() => '?').join(',')})` : ''} ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(...from);
+    res.set('Cache-Control', 'no-store').send(V.viewingRoom({ from: String(req.query.from || ''), first: w ? wanderJSON(w, req) : null }));
+  });
   app.get('/api/wander', (req, res) => {
     const from = String(req.query.from || '').split(',').filter(Boolean).slice(-12);
     const w = db.prepare(`SELECT * FROM works WHERE status='held'${from.length ? ` AND slug NOT IN (${from.map(() => '?').join(',')})` : ''} ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(...from)
       || db.prepare("SELECT * FROM works WHERE status='held' ORDER BY RANDOM() LIMIT 1").get();
     if (!w) return res.json({ none: true });
-    const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
-    res.set('Cache-Control', 'no-store').json({ slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
-      img: `/img/${w.slug}/large`, guide: c ? c.text : null, approved: !!(c && c.state === 'approved'), collect: u && u.price_cents != null && offered(R.parse(w.rules), 'social', w) ? { url: `/license/${w.slug}`, price: V.money(priced(u, w).price_cents) } : null });
+    res.set('Cache-Control', 'no-store').json(wanderJSON(w, req));
   });
+  // What the room needs of a photograph: the picture, the plate, the guide, and the sale: one tap, from the pocket when it covers.
+  function wanderJSON(w, req) {
+    const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
+    const b = buyerOf(req); const held = heldBy(req, w).length > 0; const pr = u ? priced(u, w) : null;
+    const can = u && u.price_cents != null && offered(R.parse(w.rules), 'social', w);
+    const pocket = b && app.locals.pocket ? app.locals.pocket.balance(b) : 0;
+    const ap = app.locals.applauseOf ? app.locals.applauseOf(w, req) : null;
+    return { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
+      img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : null, approved: !!(c && c.state === 'approved'), held,
+      collect: can && !held ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: pocket >= pr.price_cents, edition: (() => { const e = edition(w); return e ? { size: e.size, sold: e.sold } : null; })() } : null,
+      hat: ap ? { n: ap.n, mine: !!ap.mine } : null };
+  }
+  app.locals.wanderJSON = wanderJSON;
   // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
   // reason to come back in the morning and something to talk about. /today opens it.
   function todays() {
@@ -560,8 +576,10 @@ function createApp(cfg = {}) {
         db.prepare('UPDATE licenses SET buyer_id=?, licensee_name=?, licensee_email=? WHERE ref=?').run(pb.id, pb.name || 'Collector', pb.email || '', ref);
         grant(ref, { paid: true, price_cents: u.price_cents });
         ledger.append(db, 'license.paid.pocket', ref, { work: w.slug, use: u.key, amount: u.price_cents });
+        if (req.body.json) return res.json({ ok: true, no: (db.prepare('SELECT collector_no FROM licenses WHERE ref=?').get(ref) || {}).collector_no || null });
         return res.redirect(`/w/${w.slug}?collected=1#yours`);
       }
+      if (req.body.json) return res.json({ ok: false, why: 'Your pocket does not cover it.' });
     }
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
     try {
@@ -574,7 +592,7 @@ function createApp(cfg = {}) {
         metadata: { ref },
         custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for this order (${ref}), with the rights shown on Watermark: ${C.base}/contract/${w.slug}?use=${u.key}${t.added.map(a => '&add=' + a).join('')}${t.extras.map(a => '&x=' + a).join('')}` } },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : `${C.base}/license/${w.slug}?use=${u.key}`,
+        cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : /^\/wander\/room/.test(String(req.query.back || '')) ? `${C.base}${String(req.query.back).slice(0, 200)}` : `${C.base}/license/${w.slug}?use=${u.key}`,
       });
       db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
       res.redirect(303, s.url);

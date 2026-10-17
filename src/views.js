@@ -772,15 +772,16 @@ ${cover ? `<p class="fw-cap">${esc(tidy(cover.title))}${cover.place ? `, ${esc(c
 
 // The viewing room. Nothing but the photograph on a dark wall, its title small beneath, the guide read
 // aloud if you like, and the next one after a slow count unless you touch it. The museum, for an afternoon.
-function viewingRoom({ from = '' }) {
-  return layout({ title: 'The viewing room · Watermark', desc: 'Wander through the collection, one photograph at a time, with a guide beside each.', path: '/wander/room', bare: true, body: `<main class="vr" data-vr data-from="${esc(from)}">
-<figure class="vr-fig"><img class="vr-im" alt="" draggable="false"><img class="vr-im vr-next" alt="" draggable="false"></figure>
+function viewingRoom({ from = '', first = null }) {
+  return layout({ title: 'The viewing room · Watermark', desc: 'Wander through the collection, one photograph at a time, with a guide beside each.', path: '/wander/room', bare: true, image: first ? first.img : null, body: `<main class="vr" data-vr data-from="${esc(from)}">
+<figure class="vr-fig"><img class="vr-im" alt="" draggable="false" decoding="async"${first ? ` src="${esc(first.img)}" fetchpriority="high"` : ''}><img class="vr-im vr-next" alt="" draggable="false" decoding="async"></figure>
+<div class="vr-toast" data-vr-toast hidden></div>
 <header class="vr-top"><a class="vr-home" href="/collection" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark"></a><div class="vr-ctl"><button type="button" class="vr-b" data-vr-say aria-pressed="false"><i></i><span>Guide</span></button><button type="button" class="vr-b" data-vr-auto aria-pressed="false"><span>Standing</span></button><a class="vr-b vr-x" href="/collection" aria-label="Leave the room">&times;</a></div></header>
-<aside class="vr-side"><p class="vr-k" data-vr-k></p><h1 class="vr-t" data-vr-t></h1><p class="vr-by" data-vr-by></p><div class="vr-guide" data-vr-guide hidden></div><p class="vr-row"><a class="vr-go" data-vr-page href="#">See the photograph</a><a class="vr-go vr-collect" data-vr-collect href="#" hidden></a></p></aside>
+<aside class="vr-side"><p class="vr-k" data-vr-k></p><h1 class="vr-t" data-vr-t></h1><p class="vr-by" data-vr-by></p><div class="vr-guide" data-vr-guide hidden></div><div class="vr-row"><form method="post" class="vr-cf" data-vr-cf hidden><input type="hidden" name="use" value="social"><input type="hidden" name="from" value="" data-vr-from><button class="vr-collect" data-vr-collect type="submit"></button></form><button type="button" class="vr-go vr-act" data-vr-hat title="Tip your hat (H)">Hat</button><button type="button" class="vr-go vr-act" data-vr-hang title="Hang it on your wall (S)">Hang it</button><a class="vr-go" data-vr-page href="#">The photograph</a></div></aside>
 <div class="vr-bar"><i data-vr-bar></i></div>
 <button type="button" class="vr-nav vr-prev" data-vr-prev aria-label="Back">&larr;</button><button type="button" class="vr-nav vr-nxt" data-vr-next aria-label="Next">&rarr;</button>
-<p class="vr-hint" data-vr-hint>Stand as long as you like. Arrows move. G reads the guide. W wanders. Esc leaves.</p>
-</main><script src="/static/room.js?v=${VER}" defer></script>` });
+<p class="vr-hint" data-vr-hint>Stand as long as you like. Arrows move · G reads the guide · W wanders · C collects · H tips your hat · S hangs it · Esc leaves.</p>
+</main><script>window.__WM_FIRST=${first ? JSON.stringify(first).replace(/</g, '\\u003c') : 'null'};</script><script src="/static/room.js?v=${VER}" defer></script>` });
 }
 
 // Nothing hangs here.

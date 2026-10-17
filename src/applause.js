@@ -96,8 +96,8 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
     if (had) db.prepare('DELETE FROM applause WHERE work_id=? AND buyer_id=?').run(w.id, b.id);
     else { db.prepare('INSERT OR IGNORE INTO applause (work_id, buyer_id) VALUES (?,?)').run(w.id, b.id); ledger.append(db, 'work.applauded', w.slug, {}); }
     const n = count(w.id);
-    if (req.accepts('json') && !req.accepts('html')) return res.json({ ok: true, on: !had, n });
-    res.format({ json: () => res.json({ ok: true, on: !had, n }), html: () => res.redirect(`/w/${w.slug}#applause`) });
+    if (req.accepts('json') && !req.accepts('html')) return res.json({ ok: true, on: !had, mine: !had, n });
+    res.format({ json: () => res.json({ ok: true, on: !had, mine: !had, n }), html: () => res.redirect(`/w/${w.slug}#applause`) });
   });
   app.post('/w/:slug/notes', (req, res) => {
     const w = work(req.params.slug); if (!w) return res.sendStatus(404);
