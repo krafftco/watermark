@@ -332,8 +332,8 @@ function createApp(cfg = {}) {
   app.get('/api/index.json', (req, res) => {
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
-    const stamp = db.prepare("SELECT MAX(COALESCE(updated_at, created_at)) m, COUNT(*) n FROM works WHERE status='held'").get();
-    const tag = `"${crypto.createHash('sha1').update(String(stamp.m) + ':' + stamp.n).digest('hex').slice(0, 16)}"`;
+    const stamp = db.prepare("SELECT MAX(created_at) m, MAX(id) i, COUNT(*) n FROM works WHERE status='held'").get(); const last = db.prepare('SELECT MAX(seq) s FROM ledger').get().s;
+    const tag = `"${crypto.createHash('sha1').update([stamp.m, stamp.i, stamp.n, last].join(':')).digest('hex').slice(0, 16)}"`;
     res.set('ETag', tag).set('Cache-Control', 'public, max-age=300');
     if (req.headers['if-none-match'] === tag) return res.status(304).end();
     const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all().map(w => ({ ...w, maker: makers[w.maker_id] || maker, share_cents: w.maker_id !== maker.id && !w.share_cents ? socialOf[w.maker_id] || null : w.share_cents }));
