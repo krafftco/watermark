@@ -416,6 +416,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     for (const g of [g1, g2]) r = await req(port, 'POST', `/account/works/${g}/show`, { cookie: gck, body: { attest: '1' } });
     r = await req(port, 'POST', `/account/works/${g1}/stars`, { cookie: gck, body: { n: '5' }, headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).stars, 5);
     assert.equal(db.prepare('SELECT curated FROM works WHERE slug=?').get(g1).curated, 1, 'five stars is a jewel');
+    // Rembrandt's room: the five hangs in the maker's own gallery, the artist's copy, beside what they collect.
+    r = await req(port, 'GET', '/yours', { cookie: gck }); assert.ok(r.body.toString().includes('own hand') && r.body.toString().includes(`/w/${g1}`), 'the jewel in the gallery');
     r = await req(port, 'POST', `/account/works/${g2}/stars`, { cookie: gck, body: { n: '2' } });
     r = await req(port, 'GET', '/account?stars=5', { cookie: gck }); assert.ok(r.body.toString().includes('Harbour One') && !r.body.toString().includes('Harbour Two'), 'filter by stars');
     r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '3' } }); assert.ok(r.headers.location.includes('down=1'));
