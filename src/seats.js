@@ -6,15 +6,47 @@ const { nanoid } = require('nanoid');
 
 const SEATS = { social: 1, reference: 1, editorial: 3, commercial: 5, campaign: 10, print: 0 }; // drafts
 
-function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail }) {
+const SEAT_PRICE = 5000; // each extra seat (draft)
+
+function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = null }) {
   db.exec(`CREATE TABLE IF NOT EXISTS seats (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, token TEXT UNIQUE NOT NULL, name TEXT, email TEXT,
     buyer_id INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), claimed_at TEXT, revoked_at TEXT)`);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='extra_seats'").get()) db.exec('ALTER TABLE licenses ADD COLUMN extra_seats INTEGER NOT NULL DEFAULT 0');
+  db.exec(`CREATE TABLE IF NOT EXISTS seat_orders (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, n INTEGER NOT NULL, amount_cents INTEGER NOT NULL, stripe_session TEXT UNIQUE, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT)`);
   const lic = ref => db.prepare('SELECT l.*, u.key AS use_key, u.name AS use_name, w.slug, w.title FROM licenses l JOIN uses u ON u.id=l.use_id JOIN works w ON w.id=l.work_id WHERE l.ref=?').get(String(ref));
   const live = l => l && l.status === 'active' && (!l.ends_at || new Date(l.ends_at) > new Date());
   const seatsOf = licenseId => db.prepare('SELECT * FROM seats WHERE license_id=? AND revoked_at IS NULL ORDER BY id').all(licenseId);
   // The holder counts as the first seat.
-  const capacity = l => SEATS[l.use_key] != null ? SEATS[l.use_key] : 1;
-  app.locals.seatsOf = l => ({ list: seatsOf(l.id), capacity: capacity(l) });
+  const capacity = l => (SEATS[l.use_key] != null ? SEATS[l.use_key] : 1) + (Number(l.extra_seats) || 0);
+  app.locals.seatsOf = l => ({ list: seatsOf(l.id), capacity: capacity(l), price: SEAT_PRICE, canBuy: !!stripe && SEATS[l.use_key] > 1 });
+
+  // More seats, bought by the holder: Stripe Checkout, then added the moment payment lands.
+  app.post('/c/:ref/seats/buy', async (req, res) => {
+    const l = lic(req.params.ref), x = req.body || {};
+    if (!l || !x.k || x.k !== l.download_token || !stripe || !live(l) || !(SEATS[l.use_key] > 1)) return res.redirect(`/c/${encodeURIComponent(req.params.ref)}`);
+    const n = Math.max(1, Math.min(25, Math.round(Number(x.n) || 1)));
+    try {
+      const cs = await stripe.checkout.sessions.create({ mode: 'payment', line_items: [{ quantity: n, price_data: { currency: 'usd', unit_amount: SEAT_PRICE, product_data: { name: `Seat on licence ${l.ref}`, description: `${String(l.title).replace(/[.\s]+$/, '')}: ${l.use_name}. One more person at ${l.licensee_company || l.licensee_name || 'the licensee'}.` } } }],
+        metadata: { seats: l.ref, n: String(n) }, success_url: `${C.base}/c/${l.ref}/seats/added?session_id={CHECKOUT_SESSION_ID}&k=${l.download_token}`, cancel_url: `${C.base}/c/${l.ref}?k=${l.download_token}#seats` });
+      db.prepare('INSERT INTO seat_orders (license_id, n, amount_cents, stripe_session) VALUES (?,?,?,?)').run(l.id, n, n * SEAT_PRICE, cs.id);
+      res.redirect(303, cs.url);
+    } catch (e) { console.error('[seats]', e.message); res.redirect(`/c/${l.ref}?k=${l.download_token}&seat=unavailable#seats`); }
+  });
+  function addSeats(cs) {
+    const o = db.prepare("SELECT * FROM seat_orders WHERE stripe_session=?").get(cs.id); if (!o || o.status !== 'pending' || cs.payment_status !== 'paid') return o;
+    db.prepare("UPDATE seat_orders SET status='paid', paid_at=datetime('now') WHERE id=?").run(o.id);
+    db.prepare('UPDATE licenses SET extra_seats=extra_seats+? WHERE id=?').run(o.n, o.license_id);
+    const l = db.prepare('SELECT ref FROM licenses WHERE id=?').get(o.license_id);
+    ledger.append(db, 'license.seats.added', l.ref, { n: o.n, amount: o.amount_cents });
+    return o;
+  }
+  app.get('/c/:ref/seats/added', async (req, res) => {
+    const l = lic(req.params.ref); if (!l || req.query.k !== l.download_token) return res.redirect('/');
+    try { addSeats(await stripe.checkout.sessions.retrieve(String(req.query.session_id || ''))); } catch (e) { /* the webhook will add them */ }
+    res.redirect(`/c/${l.ref}?k=${l.download_token}&seat=added#seats`);
+  });
+  const prevEvent = app.locals.patronEvent;
+  app.locals.patronEvent = event => { if (prevEvent) prevEvent(event); const o = event.data.object; if (event.type === 'checkout.session.completed' && o.metadata && o.metadata.seats) addSeats(o); };
   app.locals.seatsFor = b => (b ? db.prepare(`SELECT s.token, s.claimed_at, l.ref, l.ends_at, l.status, u.name AS use_name, w.slug, w.title, w.width, w.height, l.licensee_company, l.licensee_name
     FROM seats s JOIN licenses l ON l.id=s.license_id JOIN uses u ON u.id=l.use_id JOIN works w ON w.id=l.work_id WHERE s.buyer_id=? AND s.revoked_at IS NULL ORDER BY s.id DESC`).all(b.id) : []);
 
@@ -68,4 +100,4 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail }) {
   return { SEATS, seatsOf };
 }
 
-module.exports = { mountSeats, SEATS };
+module.exports = { mountSeats, SEATS, SEAT_PRICE };

@@ -259,6 +259,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/seat/${seatTok}/file`); assert.equal(r.status, 200, 'the seat takes the file'); assert.ok(!String(r.headers.location || '').includes(l1.download_token), 'without the holder\'s key');
   r = await req(port, 'GET', '/yours', { cookie: seatCk }); assert.ok(r.body.toString().includes('Shared with you'), 'in their collection');
   r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 3 seats') && r.body.toString().includes('In their collection'));
+  r = await req(port, 'POST', `/c/${ref1}/seats/buy`, { body: { k: l1.download_token, n: '2' } }); assert.equal(r.status, 303, 'more seats through checkout');
+  { const so = sessions[r.headers.location.split('/').pop()]; assert.equal(so.line_items[0].quantity, 2); assert.equal(so.line_items[0].price_data.unit_amount, 5000);
+    Object.assign(so, { payment_status: 'paid', status: 'complete' });
+    r = await req(port, 'GET', `/c/${ref1}/seats/added?session_id=${so.id}&k=${l1.download_token}`); r = await req(port, 'GET', `/c/${ref1}/seats/added?session_id=${so.id}&k=${l1.download_token}`); }
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 5 seats'), 'seats added once');
   r = await req(port, 'GET', `/d/${l1.download_token}`);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');

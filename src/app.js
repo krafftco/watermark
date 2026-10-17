@@ -595,7 +595,7 @@ function createApp(cfg = {}) {
   // Voices: the maker, an art historian, a note, held with each photograph.
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
   // Seats: the people at a licensee who hold the licence too, each with their own link.
-  require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail });
+  require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
