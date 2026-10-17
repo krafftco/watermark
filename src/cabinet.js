@@ -24,13 +24,14 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
   const dir = path.join(C.dataDir, 'cabinet'), cache = path.join(C.dataDir, 'cache-cabinet'); fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(cache, { recursive: true });
   const multer = require('multer');
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: MAX_MB * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
-  const slugOf = t => (String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'showing') + '-' + nanoid(6).toLowerCase();
+  const slugOf = t => { const base = String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'showing'; let s = base, k = 2; while (db.prepare('SELECT 1 FROM showings WHERE slug=?').get(s)) s = `${base}-${k++}`; return s; };
+  const href = s => `/g/${s.owner_code || (db.prepare('SELECT code FROM buyers WHERE id=?').get(s.buyer_id) || {}).code || ''}/show/${s.slug}`;
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('base64url').slice(0, 24);
 
   const holding = id => db.prepare('SELECT * FROM cabinet WHERE id=?').get(Number(id));
   const holdings = b => (b ? db.prepare('SELECT * FROM cabinet WHERE buyer_id=? ORDER BY id DESC').all(b.id) : []);
   const showing = (k, by = 'slug') => db.prepare(`SELECT s.*, b.name AS owner, b.code AS owner_code, b.public AS owner_public FROM showings s JOIN buyers b ON b.id=s.buyer_id WHERE s.${by}=?`).get(by === 'id' ? Number(k) : String(k));
-  const showings = b => (b ? db.prepare('SELECT s.*, (SELECT COUNT(*) FROM showing_works sw WHERE sw.showing_id=s.id) AS n, (SELECT COUNT(*) FROM showing_guests g WHERE g.showing_id=s.id) AS guests FROM showings s WHERE buyer_id=? ORDER BY updated_at DESC').all(b.id) : []);
+  const showings = b => (b ? db.prepare('SELECT s.*, (SELECT code FROM buyers WHERE id=s.buyer_id) AS owner_code, (SELECT COUNT(*) FROM showing_works sw WHERE sw.showing_id=s.id) AS n, (SELECT COUNT(*) FROM showing_guests g WHERE g.showing_id=s.id) AS guests FROM showings s WHERE buyer_id=? ORDER BY updated_at DESC').all(b.id) : []);
   const worksOf = s => db.prepare('SELECT c.*, sw.pos, sw.note AS wall_note FROM showing_works sw JOIN cabinet c ON c.id=sw.cabinet_id WHERE sw.showing_id=? ORDER BY sw.pos, c.id').all(s.id);
   const guestsOf = s => db.prepare('SELECT * FROM showing_guests WHERE showing_id=? ORDER BY id').all(s.id);
   const open = s => { const now = new Date().toISOString(); return (!s.opens_at || s.opens_at <= now) && (!s.closes_at || s.closes_at >= now); };
@@ -66,7 +67,7 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
     try { await store.put('cabinet/' + file, path.join(dir, file)); } catch (e) { console.error('[cabinet vault]', e.message); }
     db.prepare('UPDATE cabinet SET file=? WHERE id=?').run(file, id);
     ledger.append(db, 'cabinet.kept', `cabinet-${id}`, { fingerprint: info.sha256 });                   // hidden on the register: the cabinet is private
-    if (x.showing) { const s = mine(req, x.showing); if (s) { const pos = db.prepare('SELECT COALESCE(MAX(pos),0)+1 p FROM showing_works WHERE showing_id=?').get(s.id).p; db.prepare('INSERT OR IGNORE INTO showing_works (showing_id, cabinet_id, pos) VALUES (?,?,?)').run(s.id, id, pos); touch(s.id); return res.redirect(`/show/${s.slug}`); } }
+    if (x.showing) { const s = mine(req, x.showing); if (s) { const pos = db.prepare('SELECT COALESCE(MAX(pos),0)+1 p FROM showing_works WHERE showing_id=?').get(s.id).p; db.prepare('INSERT OR IGNORE INTO showing_works (showing_id, cabinet_id, pos) VALUES (?,?,?)').run(s.id, id, pos); touch(s.id); return res.redirect(`${href(s)}`); } }
     res.redirect('/yours?tab=cabinet&cab=kept');
   });
   app.post('/cabinet/:id/edit', (req, res) => {
@@ -91,8 +92,9 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
   app.post('/showings/new', (req, res) => {
     const b = ensure(req, res), x = req.body || {}; const title = String(x.title || '').trim().slice(0, 80); if (!title) return res.redirect('/yours?tab=cabinet');
     const id = db.prepare('INSERT INTO showings (buyer_id, slug, title, line) VALUES (?,?,?,?)').run(b.id, slugOf(title), title, String(x.line || '').trim().slice(0, 600) || null).lastInsertRowid;
-    res.redirect(`/show/${showing(id, 'id').slug}`);
+    res.redirect(href(showing(id, 'id')));
   });
+  app.get('/g/:code/show/:slug', (req, res, next) => { req.url = `/show/${req.params.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/show/:slug', (req, res) => {
     const s = showing(req.params.slug); if (!s) return res.sendStatus(404);
     const see = canSee(req, s); if (!see) return res.status(404).send(closedPage({ s, b: buyerOf(req) }));
@@ -104,7 +106,7 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
   app.get('/show/:slug/g/:token', (req, res) => {
     const s = showing(req.params.slug); if (!s) return res.sendStatus(404);
     const g = db.prepare('SELECT * FROM showing_guests WHERE showing_id=? AND token=?').get(s.id, String(req.params.token)); if (!g) return res.status(404).send(closedPage({ s, b: buyerOf(req) }));
-    admitGuest(req, res, s, g); res.redirect(`/show/${s.slug}`);
+    admitGuest(req, res, s, g); res.redirect(`${href(s)}`);
   });
   app.post('/show/:id/edit', (req, res) => {
     const s = mine(req, req.params.id); if (!s) return res.sendStatus(404); const x = req.body || {};
@@ -112,20 +114,20 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
     const d = v => { const t = String(v || '').trim(); if (!t) return null; const dt = new Date(t); return isNaN(dt) ? null : dt.toISOString(); };
     db.prepare("UPDATE showings SET title=?, line=?, access=?, opens_at=?, closes_at=?, updated_at=datetime('now') WHERE id=?").run(String(x.title || s.title).trim().slice(0, 80) || s.title, String(x.line || '').trim().slice(0, 600) || null, access, d(x.opens_at), d(x.closes_at), s.id);
     if (access === 'public' && s.access !== 'public') ledger.append(db, 'showing.opened', `showing-${s.id}`, { title: s.title, slug: s.slug });
-    res.redirect(`/show/${s.slug}?ok=saved`);
+    res.redirect(`${href(s)}?ok=saved`);
   });
   app.post('/show/:id/work', (req, res) => {
-    const s = mine(req, req.params.id); if (!s) return res.sendStatus(404); const x = req.body || {}; const c = holding(x.cabinet); if (!c || c.buyer_id !== s.buyer_id) return res.redirect(`/show/${s.slug}`);
+    const s = mine(req, req.params.id); if (!s) return res.sendStatus(404); const x = req.body || {}; const c = holding(x.cabinet); if (!c || c.buyer_id !== s.buyer_id) return res.redirect(`${href(s)}`);
     if (x.do === 'add') { const pos = db.prepare('SELECT COALESCE(MAX(pos),0)+1 p FROM showing_works WHERE showing_id=?').get(s.id).p; db.prepare('INSERT OR IGNORE INTO showing_works (showing_id, cabinet_id, pos) VALUES (?,?,?)').run(s.id, c.id, pos); }
     else if (x.do === 'remove') db.prepare('DELETE FROM showing_works WHERE showing_id=? AND cabinet_id=?').run(s.id, c.id);
     else if (x.do === 'note') db.prepare('UPDATE showing_works SET note=? WHERE showing_id=? AND cabinet_id=?').run(String(x.note || '').trim().slice(0, 400) || null, s.id, c.id);
     else if (x.do === 'up' || x.do === 'down') { const rows = db.prepare('SELECT cabinet_id, pos FROM showing_works WHERE showing_id=? ORDER BY pos, cabinet_id').all(s.id); const i = rows.findIndex(r => r.cabinet_id === c.id), j = x.do === 'up' ? i - 1 : i + 1; if (i >= 0 && j >= 0 && j < rows.length) { [rows[i], rows[j]] = [rows[j], rows[i]]; const up = db.prepare('UPDATE showing_works SET pos=? WHERE showing_id=? AND cabinet_id=?'); rows.forEach((r, k) => up.run(k, s.id, r.cabinet_id)); } }
-    touch(s.id); res.redirect(`/show/${s.slug}`);
+    touch(s.id); res.redirect(`${href(s)}`);
   });
   // Guests: a letter each, by mail, with their own link; removable; the owner sees who has come.
   app.post('/show/:id/guests', (req, res) => {
     const s = mine(req, req.params.id); if (!s) return res.sendStatus(404); const x = req.body || {};
-    if (x.do === 'remove') { db.prepare('DELETE FROM showing_guests WHERE id=? AND showing_id=?').run(Number(x.guest), s.id); return res.redirect(`/show/${s.slug}?ok=removed`); }
+    if (x.do === 'remove') { db.prepare('DELETE FROM showing_guests WHERE id=? AND showing_id=?').run(Number(x.guest), s.id); return res.redirect(`${href(s)}?ok=removed`); }
     const lines = String(x.guests || '').split(/\n|,|;/).map(t => t.trim()).filter(Boolean).slice(0, 50); let n = 0;
     for (const line of lines) {
       const m = line.match(/^(?:(.*?)\s*<)?([^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)>?$/); if (!m) continue;
@@ -137,7 +139,7 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
       mail.send({ to: email, subject: `${s.owner || 'A collector'} invites you to a private showing: ${s.title}`, text: `${s.owner || 'A collector'} has opened a private showing on Watermark, "${s.title}", to a few people, and you are one of them.${s.line ? `\n\n${s.line}` : ''}${s.closes_at ? `\n\nIt runs until ${date(s.closes_at)}.` : ''}\n\nThis letter is yours alone; the link admits you and no one else: ${url}\n\nWhat you see is private to the room. The house never says where a work hangs.`, feature: 'A private showing', cta: { label: 'Enter the showing', url } });
     }
     if (n && s.access === 'private') db.prepare("UPDATE showings SET access='guests' WHERE id=?").run(s.id);
-    res.redirect(`/show/${s.slug}?ok=invited&n=${n}`);
+    res.redirect(`${href(s)}?ok=invited&n=${n}`);
   });
   app.post('/show/:id/delete', (req, res) => { const s = mine(req, req.params.id); if (!s) return res.sendStatus(404); db.prepare('DELETE FROM showing_works WHERE showing_id=?').run(s.id); db.prepare('DELETE FROM showing_guests WHERE showing_id=?').run(s.id); db.prepare('DELETE FROM showings WHERE id=?').run(s.id); res.redirect('/yours?tab=cabinet'); });
 
@@ -152,7 +154,7 @@ function showingPage({ s, works, own, see, guests, cabinet, ok, base, running, A
   const inShow = new Set(works.map(w => w.id));
   const dt = v => (v ? new Date(v).toISOString().slice(0, 16) : '');
   return layout({ title: `${s.title} · a showing · Watermark`, bare: s.access !== 'public', body: `<section class="cx-intro hg-head"><p class="k">A showing${s.access === 'public' ? '' : ' · private'}${!running ? ' · not running' : ''}</p><h1>${esc(s.title)}.</h1>
-<p class="hg-by">From the cabinet of ${s.owner_public && s.owner_code ? `<a href="/collector/${esc(s.owner_code)}">${esc(s.owner || 'a collector')}</a>` : esc(s.owner || 'a collector')} · ${works.length} work${works.length === 1 ? '' : 's'}${s.closes_at ? ` · until ${date(s.closes_at)}` : ''}${see.who === 'guest' ? ` · opened to you${see.guest.name ? `, ${esc(see.guest.name)}` : ''}` : ''}</p>
+<p class="hg-by">From the cabinet of ${s.owner_public && s.owner_code ? `<a href="/g/${esc(s.owner_code)}">${esc(s.owner || 'a collector')}</a>` : esc(s.owner || 'a collector')} · ${works.length} work${works.length === 1 ? '' : 's'}${s.closes_at ? ` · until ${date(s.closes_at)}` : ''}${see.who === 'guest' ? ` · opened to you${see.guest.name ? `, ${esc(see.guest.name)}` : ''}` : ''}</p>
 ${s.line ? `<p class="lede">${esc(s.line)}</p>` : ''}
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 ${own ? `<details class="hg-edit"><summary>The showing: who may come, and when</summary>
@@ -182,7 +184,7 @@ ${notice ? `<p class="${state === 'kept' ? 'ok' : 'err'}">${esc(notice)}</p>` : 
 ${holdings.length ? `<div class="cb-grid">${holdings.map(c => `<details class="cb-it"><summary><img src="/cab/${c.id}/thumb" alt="" loading="lazy" draggable="false"><b>${esc(tidy(c.title))}</b><small>${esc([c.artist, c.year].filter(Boolean).join(', '))}</small></summary><form method="post" action="/cabinet/${c.id}/edit" class="cl-f"><label><span>Title</span><input name="title" value="${esc(c.title)}" maxlength="160" required></label><label><span>Artist</span><input name="artist" value="${esc(c.artist || '')}" maxlength="120"></label><div class="cb-run"><label><span>Year</span><input name="year" value="${esc(c.year || '')}" maxlength="20"></label><label><span>Medium</span><input name="medium" value="${esc(c.medium || '')}" maxlength="120"></label><label><span>Dimensions</span><input name="dims" value="${esc(c.dims || '')}" maxlength="80"></label></div><label><span>Provenance, a note</span><textarea name="note" rows="2" maxlength="1000">${esc(c.note || '')}</textarea></label><button class="link">Keep</button> <button class="link hg-rm" name="do" value="remove" onclick="return confirm('Take it out of the cabinet?')">Take it out</button></form></details>`).join('')}</div>` : ''}
 <form method="post" action="/cabinet/add" enctype="multipart/form-data" class="cl-f cb-add"><h3>Put a work in</h3><label><span>The photograph (JPEG, PNG or TIFF, ${MAX_MB} MB at most)</span><input type="file" name="file" accept="image/*" required></label><label><span>Title</span><input name="title" maxlength="160" required></label><div class="cb-run"><label><span>Artist</span><input name="artist" maxlength="120"></label><label><span>Year</span><input name="year" maxlength="20"></label><label><span>Medium</span><input name="medium" maxlength="120"></label></div><label><span>Dimensions</span><input name="dims" maxlength="80" placeholder="61 × 46 cm"></label><label><span>Provenance, a note (private)</span><textarea name="note" rows="2" maxlength="1000"></textarea></label><button class="buy-btn">Put it in</button></form>
 <header class="gh" style="margin-top:36px"><h2>Showings</h2><span>${showings.length}</span></header>
-${showings.length ? `<div class="hg-list">${showings.map(s => `<a class="hd-ev" href="/show/${esc(s.slug)}"><span>${esc(ACCESS[s.access] || s.access)}</span><b>${esc(s.title)}</b><span>${s.n} work${s.n === 1 ? '' : 's'}${s.guests ? ` · ${s.guests} guest${s.guests === 1 ? '' : 's'}` : ''}${s.closes_at ? ` · until ${date(s.closes_at)}` : ''}</span><span class="hd-v">Open</span></a>`).join('')}</div>` : ''}
+${showings.length ? `<div class="hg-list">${showings.map(s => `<a class="hd-ev" href="/g/${esc(s.owner_code || '')}/show/${esc(s.slug)}"><span>${esc(ACCESS[s.access] || s.access)}</span><b>${esc(s.title)}</b><span>${s.n} work${s.n === 1 ? '' : 's'}${s.guests ? ` · ${s.guests} guest${s.guests === 1 ? '' : 's'}` : ''}${s.closes_at ? ` · until ${date(s.closes_at)}` : ''}</span><span class="hd-v">Open</span></a>`).join('')}</div>` : ''}
 <form method="post" action="/showings/new" class="cl-f hg-new"><label><span>A new showing</span><input name="title" placeholder="Its title" maxlength="80" required></label><label><span>A line at the door (optional)</span><input name="line" maxlength="600"></label><button class="buy-btn">Open it</button></form></section>`;
 }
 

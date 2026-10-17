@@ -37,7 +37,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the Studio side: invite a maker or an estate ----------
   app.get('/studio/accounts', studioOnly, (req, res) => {
     const list = db.prepare(`SELECT m.*, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id) AS works FROM makers m ORDER BY m.id`).all();
-    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok }));
+    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
   });
   app.post('/studio/accounts', studioOnly, (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
@@ -79,7 +79,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
 
   // ---------- the maker's profile: who they are, on their page ----------
   const portraits = require('path').join(C.dataDir, 'portraits'); fs.mkdirSync(portraits, { recursive: true });
-  app.get('/account/profile', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.profile({ m, saved: req.query.ok || null, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle })); });
+  app.get('/account/profile', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.profile({ m, intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.mine('maker', m.id), used: app.locals.introductions.yearUsed(m).c, limit: app.locals.introductions.MAKER_INTROS_A_YEAR, base: C.base, action: '/account/introductions' }) : '', saved: req.query.ok || null, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle })); });
   app.post('/account/profile', (req, res, next) => upload().fields([{ name: 'portrait', maxCount: 1 }, { name: 'file', maxCount: 1 }])(req, res, next), async (req, res) => {
     req.file = (req.files && ((req.files.portrait || [])[0] || (req.files.file || [])[0])) || null;
     const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.sendStatus(401); }
@@ -212,7 +212,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
 
   // The maker, or (for the Studio, with ?maker=handle) any maker: the Studio can open every room of a studio.
   const asMaker = req => makerOf(req) || (req.query && req.query.maker && isStudio(req) ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.query.maker)) : null);
-  return { makerOf, asMaker, setMaker, dashboard, inviteLink };
+  return { makerOf, asMaker, setMaker, dashboard, inviteLink, slugify, DEFAULT_USES };
 }
 
 module.exports = { mountAccounts, MULTIPLE };

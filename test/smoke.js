@@ -131,7 +131,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const setLs = db.prepare("SELECT * FROM licenses WHERE set_ref LIKE 'test-set:%'").all();
   assert.equal(setLs.length, 2); assert.ok(setLs.every(l => l.status === 'active' && l.collector_no && l.download_token), 'each numbered, each with its file');
   assert.equal(setLs.reduce((a, l) => a + l.price_cents, 0), 800, 'the price shared out');
-  r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('/collector/' + code), 'shown among the collectors');
+  r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('/g/' + code), 'shown among the collectors');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/In \d+ collections?, among them/.test(r.body.toString()), 'in the collections of');
   r = await req(port, 'GET', `/collector/${code}`); assert.ok(r.body.toString().includes('data-buy') && r.body.toString().includes('/static/pay.js'), 'collect it from their wall');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection" } });
@@ -544,7 +544,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours?tab=hangs', { cookie: sck }); assert.ok(r.body.toString().includes('1 collected'), 'the hang keeps its score');
     r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('A curator hung a wall'), 'told on the register'); }
   // The house hangs a wall of its own and features it; it leads the front door.
-  r = await req(port, 'POST', '/studio/hangs/new', { cookie: ck, body: { title: 'The House Hang', line: 'Chosen by the house.', works: `${w.slug}\n${w2.slug}`, public: '1' } }); assert.ok(r.headers.location.startsWith('/hang/'), 'house hang');
+  r = await req(port, 'POST', '/studio/hangs/new', { cookie: ck, body: { title: 'The House Hang', line: 'Chosen by the house.', works: `${w.slug}\n${w2.slug}`, public: '1' } }); assert.ok(/^\/g\/[^/]+\/hang\//.test(r.headers.location), 'house hang');
   const hh = db.prepare("SELECT * FROM hangs WHERE title='The House Hang'").get(); assert.equal(db.prepare('SELECT COUNT(*) n FROM hang_works WHERE hang_id=?').get(hh.id).n, 2);
   r = await req(port, 'POST', `/studio/hangs/${hh.id}`, { cookie: ck, body: { do: 'feature' } }); r = await req(port, 'GET', '/'); assert.ok(r.body.toString().indexOf('The House Hang') < r.body.toString().indexOf('Stone and Light'), 'featured leads');
   r = await req(port, 'GET', '/studio/hangs', { cookie: ck }); assert.ok(r.body.toString().includes('Featured') && r.body.toString().includes('Stone and Light'), 'the desk');
@@ -570,6 +570,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/show/${sh.slug}`, { cookie: gck2 }); assert.equal(r.status, 404, 'a removed guest is out');
     r = await req(port, 'GET', '/yours?tab=cabinet', { cookie: sck }); assert.ok(r.body.toString().includes('Your cabinet') && r.body.toString().includes('The Lund Room'), 'the cabinet room');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('Lund Room') && !r.body.toString().includes('Harbour at Dusk'), 'nothing of the cabinet on the public register'); }
+  // Addresses belong to people: a photograph under its maker, a wall under its curator; the old short forms still answer.
+  const meSlug = require('../src/views').makerSlug(db.prepare('SELECT * FROM makers WHERE id=1').get());
+  r = await req(port, 'GET', `/m/${meSlug}/${w.slug}`); assert.equal(r.status, 200); assert.ok(new RegExp(`rel="canonical" href="[^"]*/m/${meSlug}/${w.slug}"`).test(r.body.toString()), 'canonical under the maker');
+  r = await req(port, 'GET', `/m/not-the-maker/${w.slug}`); assert.equal(r.status, 301, 'wrong maker corrected');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200, 'the short form still answers');
+  { const hh2 = db.prepare('SELECT h.*, b.code FROM hangs h JOIN buyers b ON b.id=h.buyer_id ORDER BY h.id LIMIT 1').get(); r = await req(port, 'GET', `/g/${hh2.code}/hang/${hh2.slug}`); assert.equal(r.status, 200, 'the wall under its curator'); const pubc = db.prepare('SELECT code FROM buyers WHERE public=1 AND code IS NOT NULL LIMIT 1').get().code; r = await req(port, 'GET', `/g/${pubc}`); assert.equal(r.status, 200, 'the gallery at /g'); }
+  // Introductions: the house issues a partner link that opens studios; a maker introduces one maker; the register says who introduced whom.
+  r = await req(port, 'POST', '/studio/introductions', { cookie: ck, body: { label: 'The Fogg Museum', opens: 'maker', max_uses: '2' } }); assert.ok(decodeURIComponent(r.headers.location).includes('/i/'), 'partner link');
+  const pl = db.prepare("SELECT * FROM introductions WHERE label='The Fogg Museum'").get();
+  r = await req(port, 'GET', `/i/${pl.token}`); assert.ok(r.body.toString().includes('The house opens its door') && r.body.toString().includes('Open my studio'));
+  r = await req(port, 'POST', `/i/${pl.token}`, { body: { name: 'Ines Vardar', email: 'ines@example.com' } }); assert.equal(r.headers.location, '/account?welcome=1'); const ick2 = r.headers['set-cookie'].find(c => c.startsWith('wm_m=')).split(';')[0];
+  const ines = db.prepare("SELECT * FROM makers WHERE email='ines@example.com'").get(); assert.ok(ines && ines.joined_at && ines.introduced_by === 'house', 'studio opened at once, introduced by the house');
+  r = await req(port, 'GET', '/account', { cookie: ick2 }); assert.equal(r.status, 200, 'signed in');
+  r = await req(port, 'GET', '/account/profile', { cookie: ick2 }); assert.ok(r.body.toString().includes('Introductions') && r.body.toString().includes('0 of 5 this year'), 'her own introductions');
+  r = await req(port, 'POST', '/account/introductions', { cookie: ick2, body: { label: 'For Teo', opens: 'maker' } }); const mi = db.prepare("SELECT * FROM introductions WHERE label='For Teo'").get(); assert.equal(mi.max_uses, 1);
+  r = await req(port, 'POST', `/i/${mi.token}`, { body: { name: 'Teo Marsh', email: 'teo@example.com' } }); assert.equal(db.prepare("SELECT introduced_by FROM makers WHERE email='teo@example.com'").get().introduced_by, `maker:${ines.handle}`);
+  r = await req(port, 'GET', `/i/${mi.token}`); assert.equal(r.status, 404, 'good once');
+  r = await req(port, 'GET', '/m/teo-marsh'); assert.ok(r.body.toString().includes('Introduced to the house by') && r.body.toString().includes('Ines Vardar'), 'the maker page says who');
+  r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes(`introduced by ${ines.handle}`), 'on the register');
+  r = await req(port, 'POST', `/i/${pl.token}`, { body: { name: 'A Collector', email: 'col@example.com' } }); r = await req(port, 'GET', `/i/${pl.token}`); assert.equal(r.status, 404, 'two of two taken');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

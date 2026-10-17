@@ -388,6 +388,9 @@ function createApp(cfg = {}) {
   // Holding any license includes the right to share the photograph: Collect is not sold to someone who already holds a larger use.
   const covers = (held, key) => held.some(h => h.key === key || (key === 'social' && h.kind !== 'print'));
   app.locals.heldBy = heldBy;
+  // Every address is the person's: a photograph lives under its maker (/m/<maker>/<slug>; /w/<slug> still answers),
+  // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
+  app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -908,6 +911,7 @@ function createApp(cfg = {}) {
     list.forEach(c => { c.statement = (db.prepare('SELECT statement FROM buyers WHERE id=?').get(c.id) || {}).statement; });
     res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [] }));
   });
+  app.get('/g/:code', (req, res, next) => { req.url = `/collector/${req.params.code}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
@@ -1306,6 +1310,7 @@ function createApp(cfg = {}) {
   require('./open').mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./payouts').mountPayouts(app, { db, C, stripe, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger, mail });
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
+  require('./introductions').mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, setMaker: app.locals.accounts.setMaker, setBuyer, slugify, DEFAULT_USES });
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
