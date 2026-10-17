@@ -72,7 +72,7 @@ ${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection
   });
 }
 
-function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null }) {
+function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null }) {
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -110,6 +110,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-maker">${esc(maker.name)}${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
 <h1 class="lot-t">${esc(title)}</h1>
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
+${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}</span></p>` : ''}

@@ -46,6 +46,15 @@ const { photosIn } = require('../src/studios-sync');
   assert.deepStrictEqual([r2.added, r2.held_private, r2.known], [0, 0, 3], 'second run adds nothing');
   const ledger = db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get();
   assert.strictEqual(ledger.n, 3, 'each on the ledger once');
+  // The K on Krafft Studios: the story's photographs, matched by path whatever size Ghost serves.
+  const srv = app.listen(0); const port = srv.address().port;
+  const kj = await new Promise(res => require('http').get({ port, path: '/api/k?post=florence' }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(JSON.parse(b))); }));
+  assert.strictEqual(kj.works.length, 2); assert.ok(kj.works.every(w => w.path.startsWith('/content/images/')), 'paths'); assert.ok(kj.room && kj.room.n === 2, 'the room');
+  const kp = await new Promise(res => require('http').get({ port, path: '/api/k?post=journey-out-west-the-people' }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(JSON.parse(b))); }));
+  assert.strictEqual(kp.works.length, 0, 'private photographs carry no K');
+  const wp = await new Promise(res => require('http').get({ port, path: '/w/' + works[0].slug }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(b)); }));
+  assert.ok(wp.includes('lot-story') && wp.includes('https://studios.test/florence/'), 'the work leads back to its story');
+  srv.close();
   console.log('ok: studios sync');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

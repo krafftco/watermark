@@ -756,3 +756,7 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .sr-cn{font-family:var(--disp);font-size:26px;margin:10px 0 16px}
 .sr-cn-empty{color:var(--mu);font-style:italic}
 .sr-credits a{color:var(--ink);font-size:13px}
+.lot-story{margin:8px 0 0;font-size:13px;color:var(--mu)}
+.lot-story a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ln)}
+.lot-story a:hover{border-color:var(--ink)}
+.lot-story i{font-family:var(--disp);font-size:17px}

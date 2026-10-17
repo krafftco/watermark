@@ -279,7 +279,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -318,6 +318,22 @@ function createApp(cfg = {}) {
     res.json({ slug: w.slug, title: w.title, maker: maker.name, house: maker.house, width: w.width, height: w.height,
       image: `${C.base}/img/${w.slug}/screen`, page: `${C.base}/w/${w.slug}`, license: `${C.base}/license/${w.slug}`, source: w.source_url });
   });
+  // Krafft Studios ↔ Watermark: which photographs in a Studios story are held here, so the K on each
+  // one can open it on Watermark. Matched by the image's path, whatever size Ghost serves.
+  const imgPath = s => { const m = String(s || '').split('?')[0].replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').replace(/_o(\.[a-z]+)$/i, '$1').match(/\/content\/images\/.+$/); return m ? m[0] : null; };
+  const storyOf = w => { try { const r = db.prepare("SELECT c.title, c.slug FROM studios_imports s JOIN collections c ON c.slug=s.post_slug WHERE s.work_id=? LIMIT 1").get(w.id); return r && w.source_url ? { title: r.title, url: w.source_url, room: r.slug } : null; } catch (e) { return null; } };
+  app.locals.storyOf = storyOf;
+  app.get('/api/k', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
+    const post = String(req.query.post || '').replace(/[^a-z0-9-]/gi, '').slice(0, 160);
+    let rows = [];
+    try { rows = db.prepare("SELECT s.src, w.slug, w.title, w.rules FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE s.post_slug=? AND w.status='held'").all(post); } catch (e) { /* no imports yet */ }
+    const room = db.prepare('SELECT slug, title, public FROM collections WHERE slug=?').get(post);
+    const works = rows.map(r => ({ path: imgPath(r.src), slug: r.slug, title: r.title, collect: R.allows(R.parse(r.rules), 'social') })).filter(x => x.path);
+    res.json({ base: C.base, room: room && room.public && works.length ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: works.length } : null, works,
+      patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, mark: 'K' });
+  });
+  app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript'); res.sendFile(path.join(__dirname, '..', 'public', 'k.js')); });
   app.post('/api/seen', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     const w = q.work.get(String(req.body.work || req.query.work || ''));
