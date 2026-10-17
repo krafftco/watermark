@@ -1429,7 +1429,8 @@ function createApp(cfg = {}) {
   app.post('/studio/sync', studioOnly, (req, res) => { sync.run().catch(e => console.error('[studios-sync]', e.message)); res.redirect('/studio?ok=' + encodeURIComponent('Pulling new photographs from Krafft Studios. They appear as they arrive.')); });
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
+  // Readiness, names only: which services are switched on. No values ever.
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: !!stripe, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY) }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
