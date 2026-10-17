@@ -100,6 +100,7 @@ function payoutsPage({ m, st, ready, on, ok, viewing = false }) {
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
 <p class="lede">Every dollar that reaches you, and where it came from. ${st.pct}% of every license is yours; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
 ${notice ? `<p class="${/paid|bank/.test(ok) ? 'ok' : 'note'}">${esc(notice)}</p>` : ''}
+<div class="gp-cols"><div class="gp-main">
 <div class="gp-big"><span>Owed to you now</span><b>${money(st.owed)}</b></div>
 <dl class="facts gp-st">
 ${row('Licensed', money(st.licensed.s), `${st.licensed.n} sale${st.licensed.n === 1 ? '' : 's'}; your ${st.pct}% is ${money(st.share)}`)}
@@ -108,15 +109,14 @@ ${row('Royalties', money(st.royalties.s), `${st.royalties.n} resale${st.royaltie
 ${row('Earned, all time', money(st.earned))}
 ${row('Paid out', money(st.paid))}
 </dl>
-<h2>Keep it in the house</h2>
-<p class="note">Every maker is a collector. Put what you are owed in your pocket instead, and spend it here: on other makers' work, on the Library, on thank-you cards. Rembrandt collected; so can you.</p>
-<form method="post" action="/account/payouts/pocket"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Put ${money(st.owed)} in my pocket</button></form>
-<h2>Your bank</h2>
-${ready ? `<p class="ok">Your bank is with Stripe; the house never sees it. ${on ? 'Payouts go on the first of the month, or now:' : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Send ${money(st.owed)} to my bank</button></form>` : ''}`
-  : `<p class="note">Add your bank through Stripe (a few minutes; the house never sees your details). ${on ? 'From then on what you are owed goes out on the first of the month, or whenever you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each month from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}
-${st.rows.length ? `<h2>Payments to you</h2><table class="tbl"><thead><tr><th>Date</th><th>Amount</th><th>How</th><th>Note</th></tr></thead><tbody>${st.rows.map(r => `<tr><td>${date(r.at)}</td><td>${money(r.amount_cents)}</td><td>${r.how === 'stripe' ? 'To your bank' : 'By hand'}</td><td>${esc(r.note || r.stripe_transfer || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="note">Nothing paid out yet.</p>'}
-<p class="note">${first}, this statement is yours to keep and to show an accountant: every line on it is on the register.</p>
-<p class="sr-also"><a href="/account/keeping">Keeping: what the archive holds, and the tiers</a></p></section>` });
+${st.rows.length ? `<h2>Payments to you</h2><table class="tbl"><thead><tr><th>Date</th><th>Amount</th><th>How</th><th>Note</th></tr></thead><tbody>${st.rows.map(r => `<tr><td>${date(r.at)}</td><td>${money(r.amount_cents)}</td><td>${r.how === 'stripe' ? 'To your bank' : 'By hand'}</td><td>${esc(r.note || r.stripe_transfer || '')}</td></tr>`).join('')}</tbody></table>` : ''}
+<p class="note gp-foot">${first}, this statement is yours to keep and to show an accountant: every line on it is on the register. <a href="/account/keeping">Keeping: what the archive holds, and the tiers.</a></p>
+</div><aside class="gp-side">
+<section class="gp-door"><p class="k">Keep it in the house</p><h2>Into your pocket.</h2><p>Every maker is a collector. Put what you are owed in your pocket and spend it here: on other makers' work, on the Library, on thank-you cards. Rembrandt collected; so can you.</p><form method="post" action="/account/payouts/pocket"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Put ${money(st.owed)} in my pocket</button></form></section>
+<section class="gp-door"><p class="k">Your bank</p><h2>${ready ? 'Connected.' : 'Out, to your bank.'}</h2>${ready ? `<p>Your bank is with Stripe; the house never sees it. ${on ? 'Payouts go on the first of the month, or now.' : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Send ${money(st.owed)} to my bank</button></form>` : ''}`
+  : `<p>Add your bank through Stripe, a few minutes; the house never sees your details. ${on ? 'From then on what you are owed goes out on the first of the month, or whenever you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each month from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}</section>
+</aside></div>
+</section>` });
 }
 
 module.exports = { mountPayouts, payoutsPage };
