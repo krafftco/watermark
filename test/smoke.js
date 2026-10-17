@@ -480,6 +480,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const t = db.prepare("SELECT * FROM tips WHERE role='thanks' ORDER BY id DESC LIMIT 1").get(); assert.equal(t.status, 'paid'); assert.equal(t.amount_cents, 99); assert.equal(t.note, 'For the light in it.'); assert.ok(app.locals.tipsTo(t.maker_id).s >= 99, 'on the maker'); }
   r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: 'own', own: '12' } }); assert.equal(r.status, 303, 'more than the pocket holds goes to Checkout'); assert.ok(r.headers.location.includes('checkout'));
   r = await req(port, 'GET', `/w/${w.slug}?thanks=given`); assert.ok(r.body.toString().includes('1 person has said thank you'), 'counted on the work');
+  // Getting paid: the maker's statement is exact (85% of licenses, cards whole), payouts through Stripe wait for PAYOUTS=stripe; a payment by hand is recorded.
+  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank'), 'the statement');
+  { const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw); assert.ok(st.thanks.s >= 99 && st.share === Math.round(st.licensed.s * 85 / 100) && st.owed === st.earned - st.paid, 'the sums');
+    const r2 = await app.locals.payouts.pay(mw); assert.equal(r2.ok, false); assert.equal(r2.why, 'off', 'no transfer until the house is set to pay');
+    r = await req(port, 'POST', `/studio/payouts/${mw.handle}`, { cookie: ck, body: { amount: '1', note: 'By cheque' } }); assert.equal(r.status, 302);
+    assert.equal(app.locals.payouts.statement(mw).paid, 100, 'recorded'); }
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
