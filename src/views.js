@@ -54,7 +54,7 @@ function headMeta({ title, desc, path, image, type = 'website', jsonld }) {
 }
 // The house bar (Krafft · Krafft Studios · Watermark), rendered here so it never flashes in;
 // public/house.js then points each link back to the page last open on that property.
-const HOUSE = '<nav class="kh" aria-label="Krafft"><a data-p="krafft" href="https://www.krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a><a data-p="dgc" href="https://www.krafftco.com/dallas-golf-club">Dallas Golf Club</a><a data-p="will" class="kh-own" href="https://www.wrkfullerton.com/">Will Fullerton</a></nav>';
+const HOUSE = `<nav class="kh" aria-label="Krafft"><button class="kh-k" type="button" aria-label="The houses of Krafft">${K_MARK}</button><span class="kh-h"><a data-p="krafft" href="https://www.krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a><a data-p="dgc" href="https://www.krafftco.com/dallas-golf-club">Dallas Golf Club</a><a data-p="will" href="https://www.wrkfullerton.com/">Will Fullerton</a></span></nav>`;
 function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld, mark = null }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
@@ -62,7 +62,7 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css?v=${VER}"><script>(function(){var m=document.cookie.match(/(?:^|; )wm_hi=([^;]*)/);if(!m)return;document.cookie='wm_hi=; Max-Age=0; path=/';var n=decodeURIComponent(m[1]);addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.className='wm-hi';d.textContent=n&&n!=='·'?'Welcome back, '+n+'.':'You are signed in.';document.body.appendChild(d);requestAnimationFrame(function(){d.classList.add('on')});setTimeout(function(){d.classList.remove('on');setTimeout(function(){d.remove()},600)},3200)})})()</script><link rel="icon" href="/static/wave.svg">${bare ? '' : '<meta name="kh" content="page"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
+<nav><a href="/artists">Artists</a><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/market" class="nv-m">Market</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/guestbook">Guest book</a> &middot; <a href="/friends">Friends of the house</a> &middot; <a href="/makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Register</a> &middot; <a href="/copyright">Copyright Office</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
@@ -667,6 +667,16 @@ function copyrightPage({ n, fee, max }) {
 </section>` });
 }
 
+// The artists: who holds work here. Each name opens their page; each page opens their work.
+function artists({ artists }) {
+  const card = m => `<a class="ar" href="/m/${esc(m.slug)}">${m.cover ? `<span class="ar-im" style="--r:${m.cover.width && m.cover.height ? (m.cover.width / m.cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(m.cover.slug)}/screen" alt="${esc(tidy(m.cover.title))}" loading="lazy" draggable="false"></span>` : '<span class="ar-im"></span>'}
+<span class="ar-t">${m.portrait ? `<img class="ar-por" src="/portrait/${esc(m.handle)}" alt="">` : ''}<span><b>${esc(m.name)}</b><small>${m.house ? esc(m.house) + ' &middot; ' : ''}${m.n} photograph${m.n === 1 ? '' : 's'}${m.collectors ? ` &middot; ${m.collectors} collector${m.collectors === 1 ? '' : 's'}` : ''}${m.kind === 'estate' ? ' &middot; Estate' : ''}</small></span></span></a>`;
+  return layout({ title: 'The artists · Watermark', desc: 'The photographers whose work is held on Watermark.', path: '/artists', body: `<section class="cx-intro ar-intro"><p class="k">The artists</p><h1>Whose work hangs here.</h1>
+<p class="lede">Watermark holds photographs for the people who made them. The Krafft Collection was the first; every maker who joins keeps their copyright, sets their own terms and takes 85% of every sale. Open a name to see the work.</p></section>
+<section class="gal"><div class="ar-grid">${artists.map(card).join('')}</div>
+<p class="note ar-join">A photographer, or an estate? <a href="/join">Open your studio</a>; it takes a minute.</p></section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -1034,4 +1044,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

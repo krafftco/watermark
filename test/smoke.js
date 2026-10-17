@@ -553,7 +553,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/series\/the-great-rooms"[^>]*>Series<\/a><a href="\/collectors">Collectors<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/journal">Journal<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');
@@ -605,6 +605,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/guestbook'); assert.ok(!r.body.toString().includes('You have a great eye.'), 'gallery lines stay in the gallery');
     const nid = db.prepare('SELECT id FROM notes WHERE gallery_id=?').get(sf.id).id;
     r = await req(port, 'POST', `/collector/${sf.code}/notes/${nid}/remove`, { cookie: sck }); r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(!r.body.toString().includes('You have a great eye.'), 'owner removed it'); }
+  r = await req(port, 'GET', '/artists'); assert.ok(r.status === 200 && r.body.toString().includes('Will Fullerton') && r.body.toString().includes('/m/will-fullerton'), 'the artists page lists the makers');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verify(db).ok, false, 'tamper detected');
   r = await req(port, 'GET', '/ledger'); assert.ok(r.body.includes('broken'));

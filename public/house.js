@@ -37,20 +37,30 @@
   if (keep && !SKIP.test(location.pathname)) {
     try { document.cookie = 'kh_' + keep + '=' + encodeURIComponent(location.pathname + location.search) + '; max-age=1800; path=/; SameSite=Lax; Secure' + DOMAIN; } catch (e) {}
   }
-  var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:clamp(18px,2.6vw,36px);height:32px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.24em;text-transform:uppercase;-webkit-font-smoothing:antialiased;overflow-x:auto;scrollbar-width:none;white-space:nowrap;box-sizing:border-box}'
-    + '.kh::-webkit-scrollbar{display:none}'
-    + '.kh a{position:relative;color:inherit;text-decoration:none;padding:6px 0;transition:color .5s cubic-bezier(.16,1,.3,1)}'
+  // Quiet by default: a thin strip with the K and the house you are in, and your own door at the right.
+  // On hover (or a tap on the K) it opens and shows every house by name. Nothing jumps: the height is fixed.
+  var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:0;height:30px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;-webkit-font-smoothing:antialiased;overflow:hidden;box-sizing:border-box;width:100%}'
+    + '.kh .kh-k{display:grid;place-items:center;width:14px;height:14px;margin-right:clamp(14px,2vw,24px);color:#f6f5f2;background:none;border:0;padding:0;cursor:pointer;flex:none;opacity:.9}.kh .kh-k svg{width:11px;height:11px;display:block}'
+    + '.kh .kh-h{display:flex;align-items:center;gap:0;min-width:0}'
+    + '.kh a{position:relative;display:inline-block;color:inherit;text-decoration:none;padding:6px 0;transition:color .5s cubic-bezier(.16,1,.3,1),max-width .55s cubic-bezier(.16,1,.3,1),opacity .4s,margin .55s cubic-bezier(.16,1,.3,1);overflow:hidden}'
     + '.kh a:hover,.kh a:focus-visible{color:#f6f5f2;outline:none}'
-    + '.kh a[aria-current]{color:#f6f5f2}'
-    + '.kh a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
-    + '.kh .kh-own{margin-left:auto}'
-    + '.kh .kh-gb{opacity:.75}'
-    + '.kh .kh-you{color:#f6f5f2;opacity:.9}.kh .kh-me{display:none}'
-    + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
+    + '.kh .kh-h a{max-width:0;opacity:0;margin-right:0}'
+    + '.kh .kh-h a[aria-current]{max-width:240px;opacity:1;color:#f6f5f2}'
+    + '.kh.open .kh-h a,.kh:focus-within .kh-h a{max-width:240px;opacity:1;margin-right:clamp(18px,2.6vw,36px)}'
+    + '@media (hover:hover){.kh:hover .kh-h a{max-width:240px;opacity:1;margin-right:clamp(18px,2.6vw,36px)}}'
+    + '.kh .kh-h a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
+    + '.kh .kh-r{margin-left:auto;display:flex;align-items:center;gap:clamp(14px,2vw,24px)}'
+    + '.kh .kh-gb{opacity:0;max-width:0;overflow:hidden;transition:opacity .4s,max-width .55s cubic-bezier(.16,1,.3,1)}.kh.open .kh-gb,.kh:focus-within .kh-gb{opacity:.75;max-width:120px}@media (hover:hover){.kh:hover .kh-gb{opacity:.75;max-width:120px}}'
+    + '.kh .kh-you{color:#f6f5f2;opacity:.9;display:inline-flex;align-items:center;gap:8px;max-width:none}'
+    + '.kh .kh-you .kh-in{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#f6f5f2;color:#111;font-size:8.5px;letter-spacing:.04em;font-weight:600;flex:none}'
+    + '.kh .kh-you .kh-nm{max-width:0;opacity:0;overflow:hidden;transition:max-width .55s cubic-bezier(.16,1,.3,1),opacity .4s}'
+    + '.kh.open .kh-you .kh-nm,.kh:focus-within .kh-you .kh-nm{max-width:200px;opacity:1}@media (hover:hover){.kh:hover .kh-you .kh-nm{max-width:200px;opacity:1}}'
+    + '.kh .kh-me{display:none}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
-    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-own{margin-left:0;padding-left:0}.kh .kh-own::before{left:-8px}}'
+    + '@media (max-width:600px){.kh{letter-spacing:.12em;padding:0 16px;font-size:10px}.kh.open .kh-h a,.kh:focus-within .kh-h a{margin-right:14px}}'
     + '@media print{.kh{display:none}}';
+  var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="51.66 0 .14 51.88 .14 51.67 .14 32.28 28.16 0 51.66 0"/></svg>';
   function link(p) {
     var a = document.createElement('a');
     var other = fam(p.host) !== F;           // another domain: its cookie can't be read from here
@@ -59,7 +69,6 @@
     var short = p.short || (p.id === 'studios' ? 'Studios' : '');
     if (short) { var f1 = document.createElement('span'); f1.className = 'kh-fl'; f1.textContent = p.name; var f2 = document.createElement('span'); f2.className = 'kh-sh'; f2.textContent = short; a.appendChild(f1); a.appendChild(f2); }
     else a.textContent = p.name;
-    if (p.own) a.className = 'kh-own';
     if (p.id === here) a.setAttribute('aria-current', 'site');
     var done = false;
     function pre() { if (done || p.id === here) return; done = true; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.href; document.head.appendChild(l); }
@@ -68,29 +77,33 @@
   }
   // Styles go in at once, so a bar the page renders itself is never seen unstyled.
   if (!document.getElementById('kh-css')) { var st = document.createElement('style'); st.id = 'kh-css'; st.textContent = css; (document.head || document.documentElement).appendChild(st); }
+  function initials(n) { return String(n || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (x) { return x.charAt(0).toUpperCase(); }).join('') || 'Y'; }
   function build() {
-    var bar = document.querySelector('.kh');
-    if (bar) { // rendered by the page itself (Watermark): refresh its links so "back to where you were" works
-      var as = bar.querySelectorAll('a[data-p]');
-      for (var j = 0; j < as.length; j++) for (var k = 0; k < P.length; k++) if (as[j].getAttribute('data-p') === P[k].id) as[j].replaceWith(link(P[k]));
-      return;
-    }
-    bar = document.createElement('nav'); bar.className = 'kh'; bar.setAttribute('aria-label', 'Krafft');
-    for (var n = 0; n < P.length; n++) bar.appendChild(link(P[n]));
+    var bar = document.querySelector('.kh'), houses, pre = !!bar;
+    if (pre) { // rendered by the page itself (Watermark): keep its links, refresh them so "back to where you were" works
+      if (bar.querySelector('.kh-r')) return;
+      var as = bar.querySelectorAll('a[data-p]'); houses = bar.querySelector('.kh-h') || document.createElement('span'); houses.className = 'kh-h';
+      for (var j = 0; j < as.length; j++) for (var k = 0; k < P.length; k++) if (as[j].getAttribute('data-p') === P[k].id) { var nl = link(P[k]); if (as[j].parentNode === houses) as[j].replaceWith(nl); else { houses.appendChild(nl); as[j].remove(); } }
+    } else { bar = document.createElement('nav'); bar.className = 'kh'; bar.setAttribute('aria-label', 'Krafft'); houses = document.createElement('span'); houses.className = 'kh-h'; for (var n = 0; n < P.length; n++) houses.appendChild(link(P[n])); }
+    var kb = bar.querySelector('.kh-k');
+    if (!kb) { kb = document.createElement('button'); kb.className = 'kh-k'; kb.type = 'button'; kb.setAttribute('aria-label', 'The houses of Krafft'); kb.innerHTML = KM; bar.appendChild(kb); }
+    kb.addEventListener('click', function () { bar.classList.toggle('open'); });
+    if (houses.parentNode !== bar) bar.appendChild(houses);
+    var right = document.createElement('span'); right.className = 'kh-r';
     // The house guest book, from every door: a quiet line at the end of the bar.
     var gb = document.createElement('a'); gb.className = 'kh-gb'; gb.textContent = 'Guest book';
     var ch = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : here === 'will' ? 'krafft' : 'krafft';
     gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
-    bar.appendChild(gb);
-    var you = document.createElement('a'); you.className = 'kh-you'; you.textContent = 'Sign in'; you.href = WM + '/signin'; bar.appendChild(you);
-    document.body.insertBefore(bar, document.body.firstChild);
+    right.appendChild(gb);
+    var you = document.createElement('a'); you.className = 'kh-you'; you.innerHTML = '<span class="kh-nm">Sign in</span>'; you.href = WM + '/signin'; right.appendChild(you);
+    you.querySelector('.kh-nm').style.maxWidth = 'none'; you.querySelector('.kh-nm').style.opacity = '1';
+    bar.appendChild(right);
+    if (!pre) document.body.insertBefore(bar, document.body.firstChild);
     try {
       fetch(WM + '/api/me', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (me) {
         if (!me || !me.in) return;
-        you.textContent = me.name || 'You'; you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your gallery';
-        var menu = document.createElement('span'); menu.className = 'kh-me';
-        menu.innerHTML = (me.maker ? '<a href="' + WM + '/account">Your studio</a><a href="' + WM + '/m/' + me.maker.slug + '">Your page</a>' : '') + '<a href="' + WM + '/yours">Your gallery</a><a href="' + WM + '/guestbook">Guest book</a>';
-        you.insertAdjacentElement('afterend', menu);
+        you.innerHTML = '<span class="kh-in">' + initials(me.name) + '</span><span class="kh-nm">' + (me.name || 'You').replace(/[<>&]/g, '') + '</span>';
+        you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your gallery';
       }).catch(function () {});
     } catch (e) {}
   }

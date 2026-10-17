@@ -271,6 +271,13 @@ function createApp(cfg = {}) {
 
   // --- public pages ---
   // The front door is the collection; makers have their own entrance.
+  // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
+  app.get('/artists', (req, res) => {
+    const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate') GROUP BY m.id ORDER BY n DESC, m.id`).all();
+    const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
+      collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
+    res.send(V.artists({ artists }));
+  });
   app.get('/makers', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
   app.get(['/', '/collection'], (req, res) => {
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
