@@ -8,7 +8,7 @@ const { layout, esc, money, date, tidy } = require('./views');
 const CURATOR_PCT = 5;      // of the sale price, paid from the house's share; confirmed by Will, 17 Oct 2026
 const VIA_DAYS = 30;
 
-function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, mk }) {
+function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, mk, isStudio = () => false, houseMaker = null }) {
   db.exec(`CREATE TABLE IF NOT EXISTS hangs (id INTEGER PRIMARY KEY, buyer_id INTEGER NOT NULL, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, line TEXT, public INTEGER NOT NULL DEFAULT 0,
       sales INTEGER NOT NULL DEFAULT 0, earned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS hang_works (hang_id INTEGER NOT NULL, work_id INTEGER NOT NULL, pos INTEGER NOT NULL DEFAULT 0, note TEXT, PRIMARY KEY (hang_id, work_id));
@@ -23,9 +23,9 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   const bySlug = s => db.prepare('SELECT h.*, b.name AS curator, b.code AS curator_code, b.public AS curator_public FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.slug=?').get(String(s));
   const worksOf = h => db.prepare("SELECT w.*, hw.pos, hw.note, m.name AS maker, m.handle FROM hang_works hw JOIN works w ON w.id=hw.work_id JOIN makers m ON m.id=w.maker_id WHERE hw.hang_id=? AND w.status='held' ORDER BY hw.pos, w.id").all(h.id);
   const mine = b => (b ? db.prepare('SELECT h.*, (SELECT COUNT(*) FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=h.id AND w.status=\'held\') AS n FROM hangs h WHERE buyer_id=? ORDER BY updated_at DESC').all(b.id) : []);
-  const publicHangs = () => db.prepare("SELECT h.*, b.name AS curator, b.code AS curator_code, (SELECT COUNT(*) FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=h.id AND w.status='held') AS n FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.public=1 ORDER BY h.sales DESC, h.updated_at DESC LIMIT 100").all().filter(h => h.n > 0).map(h => ({ ...h, thumbs: worksOf(h).slice(0, 5) }));
+  const publicHangs = () => db.prepare("SELECT h.*, b.name AS curator, b.code AS curator_code, (SELECT COUNT(*) FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=h.id AND w.status='held') AS n FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.public=1 ORDER BY h.featured DESC, h.sales DESC, h.updated_at DESC LIMIT 100").all().filter(h => h.n > 0).map(h => ({ ...h, thumbs: worksOf(h).slice(0, 5) }));
   const touch = id => db.prepare("UPDATE hangs SET updated_at=datetime('now') WHERE id=?").run(id);
-  const own = (req, id) => { const b = buyerOf(req), h = b && byId(id); return h && h.buyer_id === b.id ? h : null; };
+  const own = (req, id) => { const h = byId(id); if (!h) return null; const b = buyerOf(req); if (b && h.buyer_id === b.id) return h; if (isStudio(req)) { const hb = houseBuyer(); if (hb && hb.id === h.buyer_id) return h; } return null; };
   const ensure = (req, res) => { let b = buyerOf(req); if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email, code) VALUES ('', NULL, ?)").run(nanoid(10)).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); } return b; };
 
   // Whose wall brought the visitor: a hang or a gallery, remembered for thirty days.
@@ -53,7 +53,7 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   app.get('/hangs', (req, res) => res.send(hangsPage({ hangs: publicHangs(), me: buyerOf(req) })));
   app.get('/hang/:slug', (req, res) => {
     const h = bySlug(req.params.slug); if (!h) return res.sendStatus(404);
-    const b = buyerOf(req), isOwn = b && b.id === h.buyer_id;
+    const b = buyerOf(req), isOwn = !!own(req, h.id);
     if (!h.public && !isOwn) return res.sendStatus(404);
     if (h.public) via(res, `hang:${h.id}`);
     res.send(hangPage({ h, works: worksOf(h), own: !!isOwn, thanks: thanksOf(h), state: req.query.thanks || null, pocket: b && pocket ? pocket.balance(b) : 0, on: !!stripe, pct: CURATOR_PCT, base: C.base }));
@@ -134,7 +134,42 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   });
   app.locals.hangEvent = event => { if (event.type === 'checkout.session.completed') { const s = event.data.object; if (s.metadata && s.metadata.hangthanks) settleThanks(s.metadata.hangthanks, s); } };
 
-  app.locals.hangs = { mine, publicHangs, reward, stampVia, viaOf, byId, bySlug, worksOf, CURATOR_PCT };
+  // The house hangs walls of its own (as its maker's gallery), and sees every wall: Studio → Back office → Hangs.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('hangs') WHERE name='featured'").get()) db.exec('ALTER TABLE hangs ADD COLUMN featured INTEGER NOT NULL DEFAULT 0');
+  const houseBuyer = () => {
+    const m = houseMaker ? houseMaker() : null; if (!m) return null;
+    let b = m.buyer_id ? db.prepare('SELECT * FROM buyers WHERE id=?').get(m.buyer_id) : null;
+    if (!b && m.email) b = db.prepare('SELECT * FROM buyers WHERE email=?').get(m.email);
+    if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email, name, code, public) VALUES ('', ?, ?, ?, 1)").run(m.email || null, m.name, nanoid(10)).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); }
+    if (!m.buyer_id) db.prepare('UPDATE makers SET buyer_id=? WHERE id=?').run(b.id, m.id);
+    return b;
+  };
+  app.get('/studio/hangs', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const rows = db.prepare("SELECT h.*, b.name AS curator, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) AS n FROM hangs h JOIN buyers b ON b.id=h.buyer_id ORDER BY h.featured DESC, h.public DESC, h.sales DESC, h.updated_at DESC").all();
+    const works = db.prepare("SELECT w.slug, w.title, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' ORDER BY w.stars DESC, w.title").all();
+    res.send(hangsDesk({ rows, works, ok: req.query.ok || null, pct: CURATOR_PCT }));
+  });
+  app.post('/studio/hangs/new', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const b = houseBuyer(); if (!b) return res.redirect('/studio/hangs?ok=nohouse');
+    const x = req.body || {}; const title = String(x.title || '').trim().slice(0, 80); if (!title) return res.redirect('/studio/hangs');
+    const id = db.prepare('INSERT INTO hangs (buyer_id, slug, title, line, public) VALUES (?,?,?,?,?)').run(b.id, slugOf(title), title, String(x.line || '').trim().slice(0, 600) || null, x.public === '1' ? 1 : 0).lastInsertRowid;
+    const slugs = String(x.works || '').split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    let pos = 0; for (const sl of slugs) { const w = db.prepare("SELECT id FROM works WHERE slug=? AND status='held'").get(sl); if (w) db.prepare('INSERT OR IGNORE INTO hang_works (hang_id, work_id, pos) VALUES (?,?,?)').run(id, w.id, pos++); }
+    if (x.public === '1') ledger.append(db, 'hang.opened', `hang-${id}`, { title, slug: byId(id).slug });
+    res.redirect(`/hang/${byId(id).slug}`);
+  });
+  app.post('/studio/hangs/:id', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const h = byId(req.params.id); if (!h) return res.sendStatus(404); const x = req.body || {};
+    if (x.do === 'feature') db.prepare('UPDATE hangs SET featured=CASE WHEN featured=1 THEN 0 ELSE 1 END WHERE id=?').run(h.id);
+    if (x.do === 'hide') db.prepare('UPDATE hangs SET public=0 WHERE id=?').run(h.id);
+    if (x.do === 'show') { db.prepare('UPDATE hangs SET public=1 WHERE id=?').run(h.id); if (!h.public) ledger.append(db, 'hang.opened', `hang-${h.id}`, { title: h.title, slug: h.slug }); }
+    res.redirect('/studio/hangs?ok=done');
+  });
+  // The house, signed in as the Studio, may edit any wall it hung.
+  app.locals.hangs = { mine, publicHangs, reward, stampVia, viaOf, byId, bySlug, worksOf, CURATOR_PCT, houseBuyer };
   return app.locals.hangs;
 }
 
@@ -178,4 +213,18 @@ function hangIt({ w, hangs, hung }) {
   return `<div class="hg-it" id="hang">${hung ? `<p class="ok">Hung. <a href="/hang/${esc(hung.slug)}">See the wall</a>.</p>` : ''}<form method="post" action="/hang/add" class="hg-itf"><input type="hidden" name="work" value="${esc(w.slug)}"><label>Hang it <select name="hang">${hangs.map(h => `<option value="${h.id}">${esc(h.title)}</option>`).join('')}<option value="new">On a new wall…</option></select></label><input name="title" placeholder="Title of the new wall" maxlength="80"><button class="link">Hang</button></form><p class="note">A hang is a wall you curate from the whole collection, yours to show; ${CURATOR_PCT}% of what is collected through it is yours.</p></div>`;
 }
 
-module.exports = { mountHangs, hangsPage, hangPage, hangsBlock, hangIt, hangCard, CURATOR_PCT };
+// Studio → Hangs: every wall in the house, and the house's own.
+function hangsDesk({ rows, works, ok, pct }) {
+  const { setDeskPath } = require('./views'); setDeskPath('/studio/hangs');
+  return layout({ title: 'Hangs · Watermark', studio: true, body: `<section class="studio-wrap"><p class="k">The house</p><h1>Hangs.</h1>
+<p class="lede">Every wall curated in the house, the shown ones first. Feature a wall and it leads the front door. The house hangs walls of its own below; they are curated under the house's name and earn nothing (the ${pct}% stays in the house).</p>
+${ok === 'nohouse' ? '<p class="err">The house has no maker of record yet.</p>' : ''}
+${rows.length ? `<div class="tbl cl-tbl">${rows.map(h => `<div class="tbl-r"><span></span><span><b><a href="/hang/${esc(h.slug)}">${esc(h.title)}</a></b><small>${esc(h.curator || 'a curator')} · ${h.n} photograph${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected, ${money(h.earned)} earned` : ''}</small></span><span class="cl-st">${h.featured ? 'Featured · ' : ''}${h.public ? 'Shown' : 'Private'}</span><span>${date(h.updated_at)}</span><form method="post" action="/studio/hangs/${h.id}" class="hg-desk-f"><button name="do" value="feature" class="link">${h.featured ? 'Unfeature' : 'Feature'}</button>${h.public ? '<button name="do" value="hide" class="link">Hide</button>' : '<button name="do" value="show" class="link">Show</button>'}</form></div>`).join('')}</div>` : '<p class="nt-0">No wall is hung yet.</p>'}
+<h2 style="margin-top:36px">Hang a wall for the house</h2>
+<form method="post" action="/studio/hangs/new" class="cl-f hg-new"><label><span>Title</span><input name="title" maxlength="80" required></label><label><span>A line on the wall</span><textarea name="line" rows="2" maxlength="600"></textarea></label>
+<label><span>Photographs, by slug, in order (one a line or comma-separated)</span><textarea name="works" rows="5" placeholder="the-lamb\nduomo-dusk"></textarea></label>
+<label class="cl-oath"><input type="checkbox" name="public" value="1" checked> Show it at once</label><button class="buy-btn">Hang it</button></form>
+<details class="hg-slugs"><summary>Every held photograph, by slug</summary><ul>${works.map(w => `<li><code>${esc(w.slug)}</code> ${esc(w.title)} <small>${esc(w.maker)}</small></li>`).join('')}</ul></details></section>` });
+}
+
+module.exports = { hangsDesk, mountHangs, hangsPage, hangPage, hangsBlock, hangIt, hangCard, CURATOR_PCT };

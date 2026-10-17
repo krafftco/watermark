@@ -2046,3 +2046,4 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .hg-share{margin:14px 0 0;font-size:13px}.hg-share .k{display:block;margin:0 0 4px}.hg-share code{font-size:12.5px;background:var(--soft);padding:4px 8px;margin-right:8px}.hg-share small{display:block;margin-top:6px;color:var(--mu)}
 .hg-band{padding:40px 0 8px}.hg-band-in{max-width:1400px;margin:0 auto;padding:0 24px}.hg-band .note{margin-top:18px}
 .hg-card>span.hg-th{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}
+.hg-desk-f{display:flex;gap:12px}.hg-slugs{margin-top:24px;font-size:13px}.hg-slugs ul{columns:2;list-style:none;padding:0;margin:10px 0 0}.hg-slugs li{margin:0 0 4px}.hg-slugs code{background:var(--soft);padding:1px 5px}.hg-slugs small{color:var(--mu)}

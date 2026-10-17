@@ -543,6 +543,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(app.locals.pocket.cashable(db.prepare('SELECT * FROM buyers WHERE id=?').get(hg.buyer_id)), 0, 'cashed out, by hand until payouts are on');
     r = await req(port, 'GET', '/yours?tab=hangs', { cookie: sck }); assert.ok(r.body.toString().includes('1 collected'), 'the hang keeps its score');
     r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('A curator hung a wall'), 'told on the register'); }
+  // The house hangs a wall of its own and features it; it leads the front door.
+  r = await req(port, 'POST', '/studio/hangs/new', { cookie: ck, body: { title: 'The House Hang', line: 'Chosen by the house.', works: `${w.slug}\n${w2.slug}`, public: '1' } }); assert.ok(r.headers.location.startsWith('/hang/'), 'house hang');
+  const hh = db.prepare("SELECT * FROM hangs WHERE title='The House Hang'").get(); assert.equal(db.prepare('SELECT COUNT(*) n FROM hang_works WHERE hang_id=?').get(hh.id).n, 2);
+  r = await req(port, 'POST', `/studio/hangs/${hh.id}`, { cookie: ck, body: { do: 'feature' } }); r = await req(port, 'GET', '/'); assert.ok(r.body.toString().indexOf('The House Hang') < r.body.toString().indexOf('Stone and Light'), 'featured leads');
+  r = await req(port, 'GET', '/studio/hangs', { cookie: ck }); assert.ok(r.body.toString().includes('Featured') && r.body.toString().includes('Stone and Light'), 'the desk');
+  r = await req(port, 'GET', `/hang/${hh.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('Edit the hang'), 'the house edits its own wall');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();
