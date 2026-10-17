@@ -34,7 +34,7 @@
     if (w.collect) { cf.hidden = false; cf.action = w.collect.url; fromEl.value = w.collect.pocket ? 'pocket' : ''; colEl.innerHTML = (w.collect.pocket ? 'Collect it, ' + esc(w.collect.price) + ' <small>from your pocket, one tap</small>' : 'Collect it, ' + esc(w.collect.price)) + (w.collect.edition ? ' <small>No. ' + (w.collect.edition.sold + 1) + ' of ' + w.collect.edition.size + '</small>' : ''); }
     else { cf.hidden = true; }
     if (w.held) { cf.hidden = true; }
-    hatB.setAttribute('aria-pressed', String(!!(w.hat && w.hat.mine))); hatB.textContent = w.hat && w.hat.n ? 'Hat · ' + w.hat.n : 'Hat';
+    hatB.setAttribute('aria-pressed', String(!!(w.hat && w.hat.mine))); (hatB.querySelector('span') || hatB).textContent = w.hat && w.hat.n ? 'Hat · ' + w.hat.n : 'Hat';
     gEl.innerHTML = w.guide ? w.guide.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '<small>' + (w.approved ? 'Written with AI, approved by the maker.' : 'Written by AI from the photograph and its record.') + '</small>' : '';
     gEl.hidden = !w.guide || !saying; sayB.hidden = !w.guide;
     document.title = w.title + ' · The viewing room';
@@ -96,7 +96,7 @@
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     var k = e.key.toLowerCase();
     if (e.key === ' ') { e.preventDefault(); if (!auto) autoB.click(); else pause(!paused); pauseLabel(); } else if (k === 'f') { full(!document.fullscreenElement); } else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
-    else if (k === 'g') sayB.click(); else if (k === 'w') autoB.click(); else if (k === 'c' && !cf.hidden) colEl.click(); else if (k === 'h') hatB.click(); else if (k === 's') hangB.click(); else if (e.key === 'Escape') location.href = '/collection';
+    else if (k === 'g') sayB.click(); else if (k === 'w') autoB.click(); else if (k === 'c' && !cf.hidden) colEl.click(); else if (k === 'h') hatB.click(); else if (k === 's') hangB.click(); else if (e.key === 'Escape') location.href = (root.getAttribute('data-from') || '/collection');
   });
   var hideT; function wake() { R.classList.add('awake'); R.classList.add('labeled'); clearTimeout(plateT); clearTimeout(hideT); hideT = setTimeout(function () { R.classList.remove('awake'); if (!saying && !paused) R.classList.remove('labeled'); }, 2600); }
   ['mousemove', 'touchstart', 'keydown'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });

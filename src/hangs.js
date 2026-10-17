@@ -4,6 +4,7 @@
 // a gallery), likes what they see and collects from it, the curator earns a share of that sale from the
 // house's side (CURATOR_PCT, a draft), credited to their pocket at once; and anyone may thank a curator with a
 // card. What a curator earns can be spent in the house or cashed out (pocket.js). The maker's 85% is untouched.
+const I = require('./icons');
 const { layout, esc, money, date, tidy } = require('./views');
 const CURATOR_PCT = 5;      // of the sale price, paid from the house's share; confirmed by Will, 17 Oct 2026
 const VIA_DAYS = 30;
@@ -98,6 +99,16 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
     }
     touch(h.id); res.redirect(`${href(h)}`);
   });
+  // The sheet: my walls, for the Hang-it sheet on any photograph.
+  app.get('/api/hangs/mine', (req, res) => { const b = buyerOf(req); res.set('Cache-Control', 'private, no-store'); res.json({ hangs: (b ? mine(b) : []).map(h => ({ id: h.id, title: h.title, n: h.n, public: !!h.public, href: href(h), thumb: (db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? ORDER BY hw.pos LIMIT 1").get(h.id) || {}).slug || null })) }); });
+  // Arranged by hand: the order of the wall, as dragged.
+  app.post('/hang/:id/order', (req, res) => {
+    const h = own(req, req.params.id); if (!h) return res.status(404).json({ ok: false });
+    const slugs = String((req.body || {}).order || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 500);
+    const up = db.prepare('UPDATE hang_works SET pos=? WHERE hang_id=? AND work_id=(SELECT id FROM works WHERE slug=?)');
+    const tx = db.transaction(() => slugs.forEach((sl, i) => up.run(i, h.id, sl))); tx(); touch(h.id);
+    res.json({ ok: true });
+  });
   app.post('/hang/:id/delete', (req, res) => { const h = own(req, req.params.id); if (!h) return res.sendStatus(404); db.prepare('DELETE FROM hang_works WHERE hang_id=?').run(h.id); db.prepare('DELETE FROM hangs WHERE id=?').run(h.id); res.redirect('/yours?tab=hangs'); });
   app.post('/yours/statement', (req, res) => { const b = buyerOf(req); if (!b) return res.redirect('/yours'); db.prepare('UPDATE buyers SET statement=? WHERE id=?').run(String((req.body || {}).statement || '').trim().slice(0, 400) || null, b.id); res.redirect('/yours?tab=hangs'); });
 
@@ -187,7 +198,7 @@ const plate = (w, note, i) => `<figure class="hg-fig"><a class="hg-im" href="/w/
 function hangsPage({ hangs, me }) {
   return layout({ title: 'Hangs · Watermark', desc: 'Walls hung by people with an eye: photographs from the collection, chosen and ordered.', path: '/hangs', body: `<section class="cx-intro"><p class="k">Hangs</p><h1>Walls hung by people with an eye.</h1>
 <p class="lede">A curator need not own a thing. They choose, and order, and say why. Walk a hang; collect from it, and the curator earns a share of that sale from the house, never from the maker. <a href="/yours?tab=hangs">Hang a wall of your own.</a></p></section>
-<section class="gal">${hangs.length ? `<div class="hg-cards">${hangs.map(hangCard).join('')}</div>` : '<p class="note">No wall is hung yet. Yours could be the first.</p>'}</section>` });
+<section class="gal">${hangs.length ? `<div class="hg-cards">${hangs.map(hangCard).join('')}</div>` : '<p class="note">No wall is hung yet. Yours could be the first.</p>'}</section><script src="/static/hang.js" defer></script>` });
 }
 const hangCard = h => `<a class="hg-card" href="${esc(href(h))}"><span class="hg-th">${h.thumbs.map(w => `<img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span><b>${esc(h.title)}</b><span>Hung by ${esc(h.curator || 'a curator')} · ${h.n} photograph${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected from it` : ''}</span>${h.line ? `<small>${esc(h.line)}</small>` : ''}</a>`;
 
@@ -200,7 +211,7 @@ ${eye && eye.line ? `<p class="hg-eye">${esc(eye.line)}</p>` : ''}
 ${h.line ? `<p class="lede">${esc(h.line)}</p>` : ''}
 ${own && h.public ? `<p class="hg-share"><span class="k">Share this wall</span><code>${esc(base)}${esc(href(h))}</code><button type="button" class="link" data-copy="${esc(base)}/hang/${esc(h.slug)}">Copy</button><small>Whoever comes through this link and collects within thirty days earns you ${pct}% of the sale.</small></p>` : ''}
 ${own ? `<details class="hg-show"><summary>Make it a show: an opening, a close, a venue</summary><form method="post" action="/hang/${h.id}/show" class="cl-f hg-showf"><label><span>Opens</span><input type="date" name="opens_at" value="${esc(h.opens_at || '')}"></label><label><span>Closes</span><input type="date" name="closes_at" value="${esc(h.closes_at || '')}"></label><label><span>Venue</span><input name="venue" value="${esc(h.venue || '')}" maxlength="120" placeholder="Where it hangs, if it hangs anywhere"></label><button class="buy-btn">Set the run</button></form><p class="note">While a show runs it leads the front door and the Galleries page; the opening is told on the register.</p></details><details class="hg-edit"><summary>Edit the hang</summary><form method="post" action="/hang/${h.id}/edit" class="cl-f"><label><span>Title</span><input name="title" value="${esc(h.title)}" maxlength="80" required></label><label><span>A line on the wall</span><textarea name="line" rows="3" maxlength="600">${esc(h.line || '')}</textarea></label><label class="cl-oath"><input type="checkbox" name="public" value="1" ${h.public ? 'checked' : ''}> Show it: list it with the galleries, and earn ${pct}% of what is collected through it</label><button class="buy-btn">Save</button></form><form method="post" action="/hang/${h.id}/delete" onsubmit="return confirm('Take this wall down? The photographs stay in the collection.')"><button class="link">Take the wall down</button></form></details>` : ''}</section>
-<section class="hg-wall">${works.map((w, i) => `<div class="hg-pl">${plate(w, w.note, i)}${own ? `<form method="post" action="/hang/${h.id}/work" class="hg-ctl"><input type="hidden" name="work" value="${esc(w.slug)}"><button name="do" value="up">Earlier</button><button name="do" value="down">Later</button><input name="note" placeholder="A line on this one, for the wall" value="${esc(w.note || '')}" maxlength="400"><button name="do" value="note">Keep the line</button><button name="do" value="remove" class="hg-rm">Take it down</button></form>` : ''}</div>`).join('') || '<p class="note hg-empty">Nothing on the wall yet. On any photograph, choose <i>Hang it</i>.</p>'}</section>
+<section class="hg-wall${own ? ' hg-own' : ''}" ${own ? `data-arrange="/hang/${h.id}/order"` : ''}>${works.map((w, i) => `<div class="hg-pl" data-slug="${esc(w.slug)}"${own ? ' draggable="true"' : ''}>${own ? `<span class="hg-grip" title="Drag to arrange">${I.grip}<i>${i + 1}</i></span>` : ''}${plate(w, w.note, i)}${own ? `<form method="post" action="/hang/${h.id}/work" class="hg-ctl"><input type="hidden" name="work" value="${esc(w.slug)}"><input name="note" placeholder="A line on this one, for the wall" value="${esc(w.note || '')}" maxlength="400"><button name="do" value="note">Keep the line</button><button name="do" value="remove" class="hg-rm">Take it down</button></form>` : ''}</div>`).join('') || '<p class="note hg-empty">Nothing on the wall yet. On any photograph, choose <i>Hang it</i>.</p>'}</section>
 ${h.public && !own ? `<section class="ty hg-ty" id="thanks"><div class="ty-in"><p class="k">A card for ${esc(first)}</p><h2>Thank the eye.</h2><p class="lede">Curators are not paid to hang a wall. If this one gave you something, send ${esc(first)} a card: ninety-nine cents, or what you like, with a word. The house keeps nothing of it.${thanks.n ? ` ${thanks.n} card${thanks.n === 1 ? '' : 's'} so far.` : ''}</p>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form method="post" action="/hang/${h.id}/thanks" class="ty-f"${pocket >= 99 ? ' data-pocket="1"' : ''}><div class="ty-amts">${[99, 499, 999].map((c, i) => `<label><input type="radio" name="amount" value="${c}" ${i === 0 ? 'checked' : ''}><span>${money(c)}</span></label>`).join('')}<label class="ty-own"><input type="radio" name="amount" value="own"><span>Or</span><input name="own" inputmode="decimal" placeholder="$"></label></div><input name="word" placeholder="A word, if you like" maxlength="280"><button class="buy-btn" ${on || pocket >= 99 ? '' : 'disabled'}>Send the card</button></form></div></section>` : ''}<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)})})</script>` });
@@ -218,7 +229,9 @@ ${hangs.length ? `<div class="hg-list">${hangs.map(h => `<a class="hd-ev" href="
 
 // On the work page: hang it on one of mine.
 function hangIt({ w, hangs, hung }) {
-  return `<div class="hg-it" id="hang">${hung ? `<p class="ok">Hung. <a href="${esc(hangHref(hung))}">See the wall</a>.</p>` : ''}<form method="post" action="/hang/add" class="hg-itf"><input type="hidden" name="work" value="${esc(w.slug)}"><label>Hang it <select name="hang">${hangs.map(h => `<option value="${h.id}">${esc(h.title)}</option>`).join('')}<option value="new">On a new wall…</option></select></label><input name="title" placeholder="Title of the new wall" maxlength="80"><button class="link">Hang</button></form><p class="note">A hang is a wall you curate from the whole collection, yours to show; ${CURATOR_PCT}% of what is collected through it is yours.</p></div>`;
+  return `<div class="hg-it" id="hang" data-hangit="${esc(w.slug)}">${hung ? `<p class="ok">Hung. <a href="${esc(hangHref(hung))}">See the wall</a>.</p>` : ''}<button type="button" class="hg-open" data-hang-open>${I.hang}<span>Hang it</span></button>
+<noscript><form method="post" action="/hang/add" class="hg-itf"><input type="hidden" name="work" value="${esc(w.slug)}"><select name="hang">${hangs.map(h => `<option value="${h.id}">${esc(h.title)}</option>`).join('')}<option value="new">On a new wall…</option></select><input name="title" placeholder="Title of the new wall" maxlength="80"><button class="link">Hang</button></form></noscript>
+<p class="note">A wall you curate from the whole collection, yours to show; ${CURATOR_PCT}% of what is collected through it is yours.</p></div>`;
 }
 
 // Studio → Hangs: every wall in the house, and the house's own.
