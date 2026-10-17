@@ -371,7 +371,7 @@ function createApp(cfg = {}) {
         mode: 'payment',
         line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: u.key === 'social' ? `${w.title.replace(/[.\s]+$/, '')}` : `${w.title.replace(/[.\s]+$/, '')}: ${u.name}`, description: u.key === 'social' ? `Yours to share. Photograph by ${maker.name}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
         // Share it: nothing but Apple Pay / Google Pay, card or Link (which remembers returning buyers).
-        ...(u.key === 'social' ? { payment_method_types: ['card', 'link'], submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
+        ...(u.key === 'social' ? { submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
         metadata: { ref },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
@@ -577,7 +577,7 @@ function createApp(cfg = {}) {
     ledger.append(db, 'license.checkout', refs[0], { set: setRef, works: items.map(x => x.w.slug) });
     try {
       const ss = await stripe.checkout.sessions.create({
-        mode: 'payment', payment_method_types: ['card', 'link'], submit_type: 'pay',
+        mode: 'payment', submit_type: 'pay',
         line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: label, description: `${items.length} photographs by ${s.maker}, each yours to keep and share, each numbered in your collection. ${V.money(full)} if collected one by one.`, images: items.slice(0, 3).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
         metadata: { ref: refs[0], set: setRef },
         success_url: `${C.base}/thanks/${refs[0]}?session_id={CHECKOUT_SESSION_ID}`,
