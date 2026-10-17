@@ -27,7 +27,7 @@
   }, true);
   // The seal on a photograph's page opens its card: Collect first, then the licenses. A line commits.
   function menuOf(f) { return f && f.querySelector('.seal-menu'); }
-  function setMenu(f, on) { var m = menuOf(f); if (!m) return; var row = f.querySelector('.seal-row'); if (on) { m.hidden = false; requestAnimationFrame(function () { row.classList.add('is-open'); }); var first = m.querySelector('button'); if (first) first.focus({ preventScroll: true }); } else { row.classList.remove('is-open'); setTimeout(function () { if (!row.classList.contains('is-open')) m.hidden = true; }, 350); } }
+  function setMenu(f, on) { var m = menuOf(f); if (!m) return; var row = f.querySelector('.seal-row'); if (on) { m.hidden = false; void m.offsetWidth; row.classList.add('is-open'); var first = m.querySelector('button'); if (first) first.focus({ preventScroll: true }); } else { row.classList.remove('is-open'); setTimeout(function () { if (!row.classList.contains('is-open')) m.hidden = true; }, 350); } }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.seal-menu button[data-k]');
     if (b) {
@@ -45,6 +45,9 @@
     var m = e.target.closest && e.target.closest('[data-sm]'); if (!m) return;
     e.preventDefault(); e.stopPropagation(); var f = m.closest('form'), row = f.querySelector('.seal-row'); setMenu(f, !row.classList.contains('is-open'));
   }, true);
+  // Arriving from the K on a plate (?have=1): the card is already open.
+  var openOnArrival = function () { if (!/[?&]have=1/.test(location.search)) return; var f = document.querySelector('form.share-buy'); if (!f || !menuOf(f)) return; f.scrollIntoView({ block: 'center' }); setTimeout(function () { setMenu(f, true); }, 350); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openOnArrival); else openOnArrival();
   if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (!en.isIntersecting) return; io.unobserve(en.target); setTimeout(function () { en.target.classList.add('sm-hint'); setTimeout(function () { en.target.classList.remove('sm-hint'); }, 1800); }, 700); }); }, { threshold: .8 });
     var watch = function () { [].forEach.call(document.querySelectorAll('form.share-buy .seal-row'), function (r) { if (r.querySelector('.seal-menu')) io.observe(r); }); };

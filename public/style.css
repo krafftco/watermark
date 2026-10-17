@@ -1162,3 +1162,7 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .ln-dot{width:9px;height:9px;border-radius:50%;display:inline-block;transform:translateY(1px)}
 .ln-ok{background:#2f5d3a}.ln-no{background:#8a3b2e}.ln-man{border:1px solid var(--mu)}
 @media (max-width:760px){.ln-row{grid-template-columns:14px 1fr}.ln-row span:last-child{grid-column:2}}
+/* Closed card: fully gone once the circle has shut (no leftover shape behind the seal). */
+.seal-row:not(.is-open) .seal-menu{visibility:hidden;pointer-events:none;transition:clip-path .45s cubic-bezier(.16,1,.3,1),visibility 0s linear .45s}
+.seal-row.is-open .seal-menu{visibility:visible;transition:clip-path .55s cubic-bezier(.16,1,.3,1),visibility 0s}
+.pb.is-going{opacity:1;transform:scale(1.06);transition:transform .22s var(--e)}
