@@ -54,6 +54,14 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - Look closer guides carry `sources` (one a line) and `by` (credit), set on /closer/:slug; shown under the text. The system prompt writes museum wall text for first-time lookers.
 - The house bar is quiet: K + current house + your door; opens on hover or a tap on the K.
 - /healthz reports which services are on by name (mail, closer, stripe, signing). render.yaml declares RESEND_API_KEY, ANTHROPIC_API_KEY, STRIPE_PUBLISHABLE_KEY, MAIL_FROM.
+- Wallets: every gallery has an address (`buyers.code`, shown as WM-code on Yours → Show it, or keep it). POST /yours/send {ref, to: address|email} moves a numbered piece wallet to wallet at once (fresh key, transfer, `license.transferred` how:'sent'), or mails a claim link to an unknown email. `canTransfer(l)` (app.locals) reads `licenses.rights.transferable`, else: Collect/Reference/print yes, working licenses only when the work's rules say `transfer`. Enforced on send, give, swaps, market. Contract 9.3 carries the carve-out (counsel; docs/CONTRACT.md DRAFTED).
+- The register is signed: `ledger.js` derives an Ed25519 key from REGISTER_SEED (else VAULT_KEY, else the session secret) and signs every entry's hash (`ledger.sig`); /ledger.json publishes the house public key; `checkSig`. `verify` checks only entries after the last verified head (full walk hourly; `verifyAll` for tests).
+- Standing: `src/firsts.js` (`stood` table). The guard posts /w/:slug/stood with the viewer code (also mirrored to the `wm_v` cookie); the first hundred are told on the page; Yours → Gallery shows "Your looking, this month" privately; sign-in claims earlier looking.
+- Today's photograph: `todays()` in app.js (deterministic by date from curated/4-star works), on the front door and at /today.
+- The Hall of Patrons: `src/hall.js` (/patrons; Studio → Back office → Hall of Patrons). A portrait is a held work hung by slug with name, founded, year, note; brass plate beneath. No token, no cryptocurrency: rights are tracked and traded in dollars.
+- The desk: `deskHeader` in views.js (Studio shell; maker rail for /account*); `setDeskPath`, `setDeskStatus`. Studio → Works has The register (table) beside The wall. The vault (/account/upload) is the ceremony of putting work in.
+- The jewel box: plates sit in a pool of light on a near-black wall with a hairline edge; lights come up on load. The viewing room stands first (W to wander). /patrons, /farewell, the 404 (`notFound`).
+- Efficiency: compression on; /api/index.json serves the collection's search index with an ETag once the library passes 300 works (collection.js fetches it); below that it ships inline.
 
 ## Rules (from Will)
 - Restrained, precise voice; no hype. Anything written in Will's voice is a draft until he confirms.

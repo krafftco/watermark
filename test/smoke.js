@@ -624,6 +624,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     // A working license stays put: the agreement does not allow transfer.
     const edl = db.prepare("SELECT l.ref FROM licenses l JOIN uses u ON u.id=l.use_id WHERE u.key='editorial' AND l.status='active' LIMIT 1").get();
     if (edl) { db.prepare('UPDATE licenses SET buyer_id=?, collector_no=COALESCE(collector_no, 1) WHERE ref=?').run(setLs[0].buyer_id, edl.ref); r = await req(port, 'POST', '/yours/send', { cookie: sck, body: { ref: edl.ref, to: 'WM-halwallet' } }); assert.ok(r.headers.location.includes('sent=locked'), 'a working license is locked'); } }
+  // The Hall of Patrons: the Studio hangs a portrait by the work's slug; the hall shows it with its plate.
+  r = await req(port, 'POST', '/studio/hall', { cookie: ck, body: { name: 'Henry Clay Frick', founded: 'The Great Rooms', year: '2026', work: w.slug, note: 'He kept the doors open.', public: '1' } }); assert.equal(r.status, 302, 'hung');
+  r = await req(port, 'GET', '/patrons'); assert.ok(r.body.toString().includes('Henry Clay Frick') && r.body.toString().includes('The Great Rooms') && r.body.toString().includes(`/img/${w.slug}/large`), 'the hall shows the portrait and the plate');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verifyAll(db).ok, false, 'tamper detected'); assert.equal(ledger.verify(db).ok, true, 'the quick check trusts its head for an hour');
   r = await req(port, 'GET', '/ledger?check=full'); assert.ok(r.body.includes('broken'));

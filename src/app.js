@@ -686,6 +686,7 @@ function createApp(cfg = {}) {
   // Seats: the people at a licensee who hold the license too, each with their own link.
   require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
+  require('./hall').mountHall(app, { db, studioOnly, V });
   require('./firsts').mountFirsts(app, { db, buyerOf, V });
   require('./swaps').mountSwaps(app, { db, C, buyerOf, ledger, V, mail });
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });

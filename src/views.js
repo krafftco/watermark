@@ -61,7 +61,7 @@ let deskStatus = () => '', deskPath = '';
 const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
 const MAKER_MAIN = [['/account', 'Your studio'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
 function deskHeader(path = '') {
   path = path || deskPath;
@@ -738,6 +738,29 @@ function notFound({ cover = null }) {
 <p class="nf-row"><a class="buy-btn" href="/collection">Walk the collection</a><a class="nf-alt" href="/wander/room">Or wander</a><a class="nf-alt" href="/artists">The artists</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
 }
 
+// The Hall of Patrons. Portraits, made by the house, hung large in a dark room, a brass plate beneath each:
+// the name, what they founded, the year. The way the Frick hangs its founders; the way Gainsborough painted his.
+function hall({ patrons }) {
+  const plate = p => `<figure class="hp${p.slug ? '' : ' hp-empty'}">${p.slug ? `<a class="hp-im" href="/w/${esc(p.slug)}" style="--r:${p.width && p.height ? (p.width / p.height).toFixed(3) : 0.8}"><img src="/img/${esc(p.slug)}/large" alt="${esc(p.name)}" loading="lazy" draggable="false"></a>` : '<span class="hp-im hp-blank"><i>Portrait to be made</i></span>'}
+<figcaption class="hp-plate"><b>${esc(p.name)}</b>${p.founded ? `<span>${esc(p.founded)}</span>` : ''}${p.year ? `<small>${p.year}</small>` : ''}${p.note ? `<em>${esc(p.note)}</em>` : ''}</figcaption></figure>`;
+  return layout({ title: 'The Hall of Patrons · Watermark', desc: 'The people who founded things here, honoured in portrait.', path: '/patrons', body: `<section class="hh"><div class="hh-in"><p class="k">The Hall of Patrons</p><h1>Those who kept the doors open.</h1>
+<p class="lede">Every house worth visiting was founded by someone. The Frick was Frick&rsquo;s; the Morgan was Morgan&rsquo;s. Here the people who founded a room, a series or an estate are honoured the old way: a portrait, made by the house, hung in a room of its own, with their name beneath it for good.</p></div>
+${patrons.length ? `<div class="hh-room">${patrons.map(plate).join('')}</div>` : '<div class="hh-room hh-none"><p>The first portrait in this hall is still to be made.</p></div>'}
+<div class="hh-in hh-foot"><p>To found something here: <a href="/friends#letter">write to the house</a>. Each portrait is a photograph in the collection, held in the vault and on the register like any other.</p></div></section>` });
+}
+function hallDesk({ patrons, ok }) {
+  setDeskPath('/studio/hall');
+  const form = (p = {}) => `<form method="post" action="/studio/hall" class="form hd-f">${p.id ? `<input type="hidden" name="id" value="${p.id}">` : ''}
+<div class="hd-row"><label>Name<input name="name" value="${esc(p.name || '')}" required></label><label>Founded (what they gave)<input name="founded" value="${esc(p.founded || '')}" placeholder="The Great Rooms; a seat at acquisitions"></label><label>Year<input name="year" value="${p.year || ''}" inputmode="numeric" size="6"></label></div>
+<div class="hd-row"><label>Portrait: the work&rsquo;s slug<input name="work" value="${esc(p.slug || '')}" placeholder="portrait-of-…"></label><label>House<select name="house"><option value="watermark"${p.house !== 'krafft' ? ' selected' : ''}>Watermark</option><option value="krafft"${p.house === 'krafft' ? ' selected' : ''}>Krafft</option></select></label><label>Order<input name="sort" value="${p.sort || 0}" size="4"></label><label class="chk"><input type="checkbox" name="public" value="1"${p.id ? (p.public ? ' checked' : '') : ' checked'}> Shown</label></div>
+<label>A line beneath the plate<input name="note" value="${esc(p.note || '')}" maxlength="400"></label><div class="hd-acts"><button class="btn">${p.id ? 'Save' : 'Hang the portrait'}</button>${p.id ? `</form><form method="post" action="/studio/hall/${p.id}/remove"><button class="link">Take down</button>` : ''}</form></div>`;
+  return layout({ studio: true, title: 'The Hall of Patrons · Studio', body: `<section class="studio-wrap"><p class="k">Back office</p><h1>The Hall of Patrons.</h1>
+<p class="lede">A portrait for each person who founded something here. Make the portrait, put it in the vault as a work (its own title, private or public), then hang it here by its slug. The sitter&rsquo;s consent to be shown is yours to hold. <a href="/patrons">See the hall</a>.</p>
+${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
+<h2>Hang a portrait</h2>${form()}
+${patrons.length ? `<h2>In the hall</h2>${patrons.map(p => `<div class="hd-one">${p.slug ? `<img src="/img/${esc(p.slug)}/thumb" alt="">` : '<span class="hd-blank"></span>'}${form(p)}</div>`).join('')}` : ''}</section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -814,7 +837,7 @@ ${unavailable ? '<p class="err">Giving is unavailable for a moment. Try again sh
 ${letter.length ? `<section class="fr-letter" id="letter"><div class="fr-letter-in"><p class="k">By letter</p><h2>Above the Medici, there is no price on the page.</h2>
 <p class="lede">Some gifts are a name on something that lasts. These are arranged in a letter and a conversation, the way the great houses have always done it.</p>
 <div class="fr-lt">${letter.map(l => `<div><b>${esc(l.name)}</b><p>${esc(l.what)}</p></div>`).join('')}</div>
-<p class="fr-write">Write to the house: <a href="mailto:will@krafftco.com?subject=A%20letter%20to%20the%20house">will@krafftco.com</a>. Every letter is answered by Will Fullerton.</p></div></section>` : ''}
+<p class="fr-write"><a href="/patrons">The Hall of Patrons</a> &middot; Write to the house: <a href="mailto:will@krafftco.com?subject=A%20letter%20to%20the%20house">will@krafftco.com</a>. Every letter is answered by Will Fullerton.</p></div></section>` : ''}
 <section class="gal" id="wall"><header class="gh"><h2>The wall</h2><span>friends of the house</span></header><div class="fr-walls"><div><p class="k">Watermark</p>${wallOf('watermark')}</div><div><p class="k">Krafft</p>${wallOf('krafft')}</div></div>
 <p class="note">Gifts to Watermark and Krafft support two companies, not a charity; they are not tax-deductible. A foundation for the collection is the plan, once there is a collection to found it on.</p></section>` });
 }
@@ -1137,4 +1160,4 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
