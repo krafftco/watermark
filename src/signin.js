@@ -83,6 +83,25 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     res.json({ ok: true, ...r, to: safeNext(x.next) || r.to });
   });
 
+  // Hand it to another device (Will, 17 Oct: seamless between phone and computer). A signed-in person asks for a
+  // code to scan: one link, ten minutes, once; the phone that opens it is signed in as them, nothing typed.
+  const myEmail = req => { const m = makerOf(req), b = buyerOf(req); return (m && m.email) || (b && b.email) || null; };
+  app.get('/signin/hand', (req, res) => {
+    const email = myEmail(req); if (!email) return res.redirect('/signin?next=/signin/hand');
+    const link = crypto.randomBytes(24).toString('base64url'), salt = crypto.randomBytes(8).toString('hex');
+    db.prepare('INSERT INTO signins (email, code_hash, salt, link, created_at, tries) VALUES (?,?,?,?,?,?)').run(email, hash(crypto.randomBytes(8).toString('hex'), salt), salt, link, Date.now(), TRIES); // no code: the link alone
+    const url = `${C.base}/signin/${link}`;
+    if (req.query.json) return res.json({ ok: true, url, svg: require('./qr').svg(url, { size: 240 }) });
+    res.send(V.handPage({ url, svg: require('./qr').svg(url, { size: 260 }), mailOn: mail.on(), email: mask(email), next: safeNext(req.query.next) }));
+  });
+  app.post('/signin/hand/mail', async (req, res) => {
+    const email = myEmail(req); if (!email) return res.redirect('/signin');
+    const link = crypto.randomBytes(24).toString('base64url'), salt = crypto.randomBytes(8).toString('hex');
+    db.prepare('INSERT INTO signins (email, code_hash, salt, link, created_at, tries) VALUES (?,?,?,?,?,?)').run(email, hash(crypto.randomBytes(8).toString('hex'), salt), salt, link, Date.now(), TRIES);
+    await mail.send({ to: email, subject: 'Open Watermark on your other device', cta: { label: 'Open Watermark here', url: `${C.base}/signin/${link}` }, text: `Open this on the phone or computer you want signed in:\n\n${C.base}/signin/${link}\n\nGood for ten minutes, once.\n\nWatermark` });
+    if (!mail.on()) console.log(`[hand] ${C.base}/signin/${link}`);
+    res.redirect('/signin/hand?ok=mailed');
+  });
   // The link in the message does the same, on whatever device opens it.
   app.get('/signin/:link', (req, res) => {
     const row = db.prepare('SELECT * FROM signins WHERE link=?').get(String(req.params.link));

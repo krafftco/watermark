@@ -641,6 +641,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='show.opening'").get(), 'the opening is on the register');
     r = await req(port, 'GET', `/m/${gal.handle}`);  assert.ok(r.body.toString().includes('Represents') && r.body.toString().includes('Venice, in Winter'), 'the gallery page: artists and shows'); }
   console.log('ok: galleries');
+  // Your looking: the record of standing; for you, never the same twice.
+  { const vcode = 'tester12345'; const slugs = db.prepare("SELECT slug FROM works WHERE status='held' AND slug NOT IN ('test-dome') ORDER BY id DESC LIMIT 3").all().map(x => x.slug);
+    for (const [i, sl] of slugs.entries()) { await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 0 }) }); await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 40 * (i + 1) }) }); }
+    await req(port, 'POST', `/w/${slugs[0]}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 0 }) });
+    r = await req(port, 'GET', '/api/for-you?n=2', { cookie: `wm_v=${vcode}` }); const a = JSON.parse(r.body); assert.ok(a.picks.length === 2 && a.picks.every(p => !slugs.includes(p.slug)), 'never what they have seen');
+    r = await req(port, 'GET', '/api/for-you?n=2', { cookie: `wm_v=${vcode}` }); const b2 = JSON.parse(r.body); assert.ok(b2.picks.length === 2 && !b2.picks.some(p => a.picks.some(q => q.slug === p.slug)), 'never the same twice');
+    r = await req(port, 'GET', '/yours/looking', { cookie: `wm_v=${vcode}` }); { const h = r.body.toString(); assert.ok(h.includes('Your looking') && h.includes('The one that held you') && h.includes('Longest in front of'), 'the record'); assert.ok(h.includes('You keep coming back to'), 'visits counted'); } }
+  console.log('ok: looking');
   // The frame: a screen pairs by code; the phone is the remote; the set can be collected in one tap from the pocket.
   r = await req(port, 'GET', '/frame'); assert.ok(r.body.toString().includes('Pair a screen') && r.body.toString().includes('How it is licensed'), 'the frame\'s door');
   r = await req(port, 'GET', '/frame/tv'); { const h = r.body.toString(); const fcode = (h.match(/data-code="([A-Z]{5})"/) || [])[1]; assert.ok(fcode && h.includes(fcode) && h.includes('data-waiting="1"'), 'the screen shows its code');
@@ -803,6 +811,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account', { cookie: siCookie }); assert.equal(r.status, 200, 'room opens by email');
   r = await req(port, 'GET', '/signin', { cookie: siCookie }); assert.ok(r.body.toString().includes('Good to see you, Ada'), 'signed-in page greets');
   r = await req(port, 'POST', '/signin/verify', { body: JSON.stringify({ email: 'ada@example.com', code: lc.code }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'code is single use');
+  // Hand it to your phone: a signed-in person gets a code to scan; the device that opens it is them.
+  r = await req(port, 'GET', '/signin/hand', { cookie: siCookie }); { const h = r.body.toString(); assert.ok(h.includes('Hand it to your phone') && h.includes('<svg') && h.includes('/signin/'), 'the QR page');
+    const link = (h.match(/\/signin\/([A-Za-z0-9_-]{20,})/) || [])[1]; assert.ok(link, 'a link in the code');
+    r = await req(port, 'GET', `/signin/${link}`); assert.ok(r.status === 302 && (r.headers['set-cookie'] || []).some(c => c.startsWith('wm_b=')), 'the other device is signed in');
+    r = await req(port, 'GET', `/signin/${link}`); assert.equal(r.status, 410, 'once'); }
+  r = await req(port, 'GET', '/signin/hand'); assert.equal(r.status, 302, 'needs a signed-in person');
+  console.log('ok: hand-off');
   r = await req(port, 'POST', '/signin/code', { body: JSON.stringify({ email: 'new@example.com' }), headers: { 'content-type': 'application/json' } }); const lc2 = app.locals.lastCode;
   r = await req(port, 'GET', '/signin/' + lc2.link); assert.ok(r.status === 302 && r.headers.location === '/yours', 'link signs a new collector in');
   r = await req(port, 'GET', '/signin/' + lc2.link); assert.equal(r.status, 410, 'link works once');
