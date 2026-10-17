@@ -347,9 +347,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/applaud`, { cookie: apck, headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).n, 1, 'one hand per person');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('tip of the hat'), 'shown on the work');
   r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'The light on the ribs of the dome.', name: 'A visitor from Siena' } }); assert.ok(r.headers.location.includes('note=1'));
-  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'see http://spam.example' } }); assert.ok(r.headers.location.includes('note=check'), 'no links');
+  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'see http://spam.example', name: 'x' } }); assert.ok(r.headers.location.includes('note=check'), 'no links');
+  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'this is garbage', name: 'x' } }); assert.ok(r.headers.location.includes('note=kind'), 'turned away at the door');
+  r = await req(port, 'POST', `/w/${w.slug}/notes`, { cookie: apck, body: { body: 'Lovely light.' } }); assert.ok(r.headers.location.includes('note=check'), 'a name is required');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('ribs of the dome') && r.body.toString().includes('A visitor from Siena'), 'the note is there');
   { const nid = db.prepare('SELECT id FROM notes WHERE removed_at IS NULL').get().id;
+    r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/seen`, { cookie: apck }); assert.equal(r.status, 403, 'only the maker marks a line well seen');
+    r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/seen`, { cookie: ck }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('Well seen, says') && r.body.toString().includes('1 well seen'), 'the maker\'s regard, on the line and beside the name');
+    r = await req(port, 'POST', '/yours', { cookie: apck, body: { name: 'A visitor from Siena', public: '1' } });
+    r = await req(port, 'GET', '/yours', { cookie: apck }); assert.ok(r.body.toString().includes('In the guest books') && r.body.toString().includes('marked well seen by 1 maker'), 'their lines and regard on their page');
+    const vcode = db.prepare("SELECT code FROM buyers WHERE name='A visitor from Siena'").get().code;
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes(`/collector/${vcode}`), 'the signature opens their collection');
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`); assert.equal(r.status, 403, 'a stranger cannot remove it');
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`, { cookie: ck }); assert.equal(r.status, 302); assert.ok(db.prepare('SELECT removed_at FROM notes WHERE id=?').get(nid).removed_at, 'the Studio can'); }
   r = await req(port, 'GET', '/studio/trove?sort=standing', { cookie: ck }); assert.ok(r.body.toString().includes('1 applauded'), 'standing in the Studio');

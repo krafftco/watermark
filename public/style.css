@@ -1403,3 +1403,29 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .nt-f textarea{width:100%;border:0;border-bottom:1px solid var(--ink);background:none;padding:8px 0;font-family:var(--read);font-size:17px;line-height:1.5;resize:vertical;outline:none}
 .nt-f div{display:flex;gap:12px;align-items:center;margin-top:10px}
 .nt-f input{flex:1;border:0;border-bottom:1px solid var(--ln);background:none;padding:8px 0;font:inherit;font-size:14px;outline:none}
+.nt-h{margin:0 0 16px;font-size:14px;line-height:1.55;color:var(--mu);max-width:40em}
+.nt-l small b{font-weight:500;color:var(--ink);font-variant:small-caps;letter-spacing:.04em}
+/* The guest book: a page from a bound book, lined, signed in a hand, dated in the margin. */
+.gb{list-style:none;margin:0 0 26px;padding:0;background:#fbfaf6;border:1px solid #e6e1d6;box-shadow:inset 0 0 0 6px #fbfaf6,inset 0 0 0 7px #ece7dc}
+.gb li{position:relative;display:grid;grid-template-columns:92px 1fr;gap:4px 18px;padding:18px 22px 16px;border-bottom:1px solid #e6e1d6;background-image:repeating-linear-gradient(transparent 0 30px,#eee9df 30px 31px);background-position:0 12px}
+.gb li:last-child{border-bottom:0}
+.gb-d{grid-row:1/3;font-size:11px;letter-spacing:.06em;color:#9a9185;padding-top:6px}
+.gb-p{margin:0;font-family:var(--read);font-size:19px;line-height:31px;color:#2a2723}
+.gb-s{font-family:var(--disp);font-style:italic;font-size:21px;line-height:31px;color:#1d1a16;justify-self:end;padding-right:6px}
+.gb-rm{position:absolute;right:14px;top:10px;opacity:0;transition:opacity .3s}.gb li:hover .gb-rm,.gb li:focus-within .gb-rm{opacity:1}
+.gb-rm .link{border:0;background:none;padding:0;font:11px/1 var(--sans);color:#9a9185;text-decoration:underline;cursor:pointer}
+.gb-f{display:grid;gap:14px;max-width:46em}
+.gb-l{display:grid;gap:6px;font-size:11px;letter-spacing:.06em;color:var(--mu)}
+.gb-l textarea,.gb-l input{border:0;border-bottom:1px solid var(--ink);background:none;padding:8px 0;font-family:var(--read);font-size:19px;line-height:1.5;outline:none;resize:vertical;width:100%}
+.gb-l input{font-family:var(--disp);font-style:italic;font-size:21px}
+.gb-row{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end}
+.gb-row .btn{white-space:nowrap}
+@media (max-width:560px){.gb li{grid-template-columns:1fr}.gb-d{grid-row:auto}.gb-s{justify-self:start}.gb-row{grid-template-columns:1fr}}
+.gb-rg{display:block;font:11px/1.3 var(--sans);letter-spacing:.04em;color:#9a9185;font-style:normal;text-align:right}
+.gb-ws{grid-column:2;justify-self:end;display:inline-flex;align-items:center;gap:6px;margin-top:2px;font:11px/1 var(--sans);letter-spacing:.06em;color:#2f6b3a}.gb-ws svg{width:14px;height:14px}
+.gb-sn{right:76px}
+.gb-mine .gb-w{font-family:var(--sans);font-style:normal;font-size:12px;color:#9a9185}.gb-mine .gb-w a{color:var(--ink)}
+.yc-apg{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+.yc-apg img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.gb-s a{color:inherit;text-decoration:none;border-bottom:1px solid rgba(0,0,0,.25)}
+.nt-ep{margin:0 0 20px;font-family:var(--read);font-style:italic;font-size:16px;line-height:1.55;color:var(--ink);max-width:40em;padding-left:14px;border-left:1px solid var(--ink)}

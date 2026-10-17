@@ -596,7 +596,7 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ b, ...col, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ b, ...col, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -738,7 +738,7 @@ function createApp(cfg = {}) {
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
-    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
+    res.send(V.collector({ b, ...collected(b), lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
   });
 
   app.get('/buy/:slug', (req, res) => {
