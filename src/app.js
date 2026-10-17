@@ -480,11 +480,13 @@ function createApp(cfg = {}) {
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size]) return res.sendStatus(404);
     try {
-      const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size);
-      res.set('Cache-Control', 'public, max-age=86400');
+      const fmt = images.pick(req.headers.accept);
+      const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
+      res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.type('jpg').sendFile(file);
+      res.type(images.FORMATS[fmt][1]).sendFile(file);
     } catch (e) { res.sendStatus(500); }
   });
 
@@ -1439,7 +1441,7 @@ function createApp(cfg = {}) {
         db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
           camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
           .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
-        for (const sz of Object.keys(images.SIZES)) { const c = path.join(cache, `${w.slug}-${sz}.jpg`); if (fs.existsSync(c)) fs.unlinkSync(c); }
+        for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) { const c = path.join(cache, `${w.slug}-${sz}.${f}`); if (fs.existsSync(c)) fs.unlinkSync(c); }
         const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
         const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
         if (store.kind === 's3') fs.unlinkSync(dest);
@@ -1657,6 +1659,16 @@ function createApp(cfg = {}) {
     return due.length;
   }
   if (!cfg.noTimers) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
+  // The renditions are made ahead of the first visitor: every held work, every size, JPEG and WebP, one at a time.
+  let warming = false;
+  async function warmAll() {
+    if (warming) return 0; warming = true; let n = 0;
+    try { for (const w of db.prepare("SELECT * FROM works WHERE status='held' ORDER BY curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
+    finally { warming = false; }
+    return n;
+  }
+  app.locals.warmAll = warmAll;
+  if (!cfg.noTimers) { setTimeout(() => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); }).catch(e => console.error('[warm]', e.message)), 15e3).unref(); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }

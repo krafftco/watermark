@@ -36,19 +36,30 @@ async function inspect(file) {
 }
 
 // Display copies are cached on disk; sizes are fixed so nobody can ask for the original by size.
-async function derivative(original, cacheDir, slug, size) {
+// Each size is kept as JPEG and, when the browser accepts it, WebP (about a third smaller at the same look).
+const FORMATS = { jpg: ['jpg', 'image/jpeg'], webp: ['webp', 'image/webp'] };
+async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
+  if (!FORMATS[fmt]) fmt = 'jpg';
   fs.mkdirSync(cacheDir, { recursive: true });
-  const out = path.join(cacheDir, `${slug}-${size}.jpg`);
+  const out = path.join(cacheDir, `${slug}-${size}.${fmt}`);
   if (!fs.existsSync(out)) {
-    await sharp(original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: size === 'thumb' ? 78 : 84, mozjpeg: true })
-      .withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } })
-      .toFile(out);
+    const tmp = `${out}.${process.pid}.${Date.now()}.tmp`;
+    const base = sharp(original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
+    if (fmt === 'webp') await base.webp({ quality: size === 'thumb' ? 70 : size === 'large' ? 78 : 76, effort: 4 }).toFile(tmp);
+    else await base.jpeg({ quality: size === 'thumb' ? 78 : 84, mozjpeg: true }).withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } }).toFile(tmp);
+    try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
   }
   return out;
 }
+// The format a request will take: WebP when the browser says so, else JPEG.
+function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
+// Make every size in both formats ahead of the first visitor (one work at a time, in the background).
+async function warm(original, cacheDir, slug) {
+  for (const size of Object.keys(SIZES)) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
+}
+const warmed = (cacheDir, slug) => Object.keys(SIZES).every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(path.join(cacheDir, `${slug}-${size}.${fmt}`))));
 
 // A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
 // so a full-resolution master can be matched to the web copy already held.
@@ -60,4 +71,4 @@ async function dhash(file) {
 }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { inspect, derivative, dhash, hamming, SIZES };
+module.exports = { inspect, derivative, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };
