@@ -72,7 +72,7 @@ ${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection
   });
 }
 
-function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null }) {
+function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null }) {
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -115,6 +115,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}</span></p>` : ''}
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors.</p>` : ''}
 ${share && !(ed && !ed.left) ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><div class="seal-row">${seal(maker, `Collect ${title}`)}<div class="seal-t"><b>${ed ? `Collect No.&nbsp;${ed.sold + 1}` : 'Collect'}</b><span>Yours to keep and to share, credited. 85% goes to the photographer.</span></div></div></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
+${patron ? `<p class="pat-line"><a href="/m/${esc(patron)}#patron">Become a patron of ${esc(maker.name)}</a><span>Keep the work going, monthly or once.</span></p>` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 </div></article>
 <section class="lot-rec">
@@ -320,6 +321,34 @@ ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 }
 
 // The moment after paying.
+function makerPage({ m, slug, works, collectors, patrons, wall, series, levels, once, open, mine = [] }) {
+  const wide = w => (w.width || 0) >= 1800 && w.width > w.height * 1.3;
+  const cover = works.find(w => w.slug === 'inside-brunelleschi-s-dome') || works.find(w => w.curated && wide(w)) || works.find(wide) || works[0];
+  const pick = works.filter(w => w.curated).concat(works).filter((w, i, a) => a.indexOf(w) === i).slice(0, 6);
+  const lvName = k => ({ medici: 'Medici', patron: 'Patrons', friend: 'Friends' }[k] || 'Patrons');
+  const groups = ['medici', 'patron', 'friend'].map(k => [k, wall.filter(p => p.level === k)]).filter(g => g[1].length);
+  return layout({ title: `${m.name} · Watermark`, desc: `${m.name}${m.house ? ', ' + m.house : ''}. ${works.length} photographs held on Watermark. Become a patron.`, path: `/m/${slug}`, image: cover ? `/img/${cover.slug}/screen` : null,
+    body: `${cover ? pageHero(cover.slug, `${tidy(cover.title)}${cover.place ? ', ' + cover.place : ''}`, `<div><p class="sr-k">${esc(m.house || 'Maker')}</p><h1>${esc(m.name)}</h1></div>${open ? '<a class="btn" href="#patron">Become a patron</a>' : ''}`) : ''}
+<section class="mk-intro"><p class="mk-stats"><span><b>${works.length}</b> photographs</span><span><b>${collectors}</b> collector${collectors === 1 ? '' : 's'}</span><span><b>${patrons}</b> patron${patrons === 1 ? '' : 's'}</span></p>
+${series.length ? `<p class="mk-series">${series.map(x => `<a href="/series/${esc(x.slug)}"><small>A series</small><i>${esc(x.title)}</i></a>`).join('')}<a href="/collection"><small>The archive</small><i>The collection</i></a></p>` : ''}</section>
+<section class="mk-pick">${pick.map(w => `<a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(tidy(w.title))}" loading="lazy" draggable="false"></a>`).join('')}</section>
+${open ? `<section class="pat" id="patron"><header><p class="k">Patronage</p><h2>Keep the work going.</h2><p>In Florence, Lorenzo de&rsquo; Medici kept a young Michelangelo at his own table. Patronage is how great work has always been made. Here anyone can do it: monthly, or once. Patrons come closer to the work, never to the person. 85% goes to ${esc(m.name)}.</p></header>
+${mine.length ? `<p class="pat-mine">You are a patron of ${esc(m.name)}. Thank you.</p>` : ''}
+<div class="pat-levels">${levels.map(l => `<form method="post" action="/m/${esc(slug)}/patron" class="pat-l${l.key === 'patron' ? ' pat-mid' : ''}"><input type="hidden" name="level" value="${l.key}"><p class="pat-n">${esc(l.name)}</p><p class="pat-p">${money(l.cents)}<small> a month</small></p><p class="pat-g">${esc(l.gives)}</p><div class="seal-row">${seal(m, `Become a ${l.name}`)}<span class="pat-go">Become a ${esc(l.name)}</span></div></form>`).join('')}</div>
+<form method="post" action="/m/${esc(slug)}/patron" class="pat-once"><p class="pat-n">Or once</p><div class="pat-ch">${once.map((c, i) => `<label><input type="radio" name="once" value="${c / 100}" ${i === 1 ? 'checked' : ''}><span>${money(c)}</span></label>`).join('')}<label class="pat-own"><span>$</span><input name="amount" inputmode="numeric" placeholder="Your amount" aria-label="Your own amount, in dollars"></label></div>${seal(m, 'Give once')}</form>
+<p class="note pat-fine">Monthly patronage can be ended any time from <a href="/yours">Yours</a>. Prices are drafts.</p></section>` : ''}
+<section class="pat-wall" id="wall"><p class="k">The patrons of ${esc(m.name)}</p>${groups.length ? groups.map(([k, ps]) => `<div><h3>${lvName(k)}</h3><p>${ps.map(p => esc(p.name)).join(' &middot; ')}</p></div>`).join('') : `<p class="pat-first">The first name on this wall is still to be written.</p>`}</section>` });
+}
+
+function patronThanks({ p, m, slug, level, own, session }) {
+  const done = p.status !== 'pending';
+  return layout({ title: 'Thank you · Watermark', body: `<section class="cx-intro pat-ty">${done ? `<span class="ps-stamp" aria-hidden="true">${K_MARK}</span>` : ''}<p class="k">${p.recurring ? 'Patronage' : 'Support'}</p>
+<h1>${done ? (p.recurring ? `You are a patron of ${esc(m.name)}.` : `Thank you. ${esc(m.name)} will know.`) : 'One moment. Your patronage is being confirmed.'}</h1>
+${done && level ? `<p class="lede">${esc(level.name)}. ${esc(level.gives)}</p>` : done ? '<p class="lede">85% of it goes to the maker.</p>' : `<p class="lede"><a href="/patron/${p.id}/thanks?session_id=${esc(session)}">Refresh</a> in a few seconds.</p>`}
+${done && own ? `<form method="post" action="/patron/${p.id}/name" class="form pat-nm"><label>Your name on the wall<input name="name" value="${esc(p.name || '')}" placeholder="As you would like it written"></label><label class="chk"><input type="checkbox" name="public" value="1" ${p.public ? 'checked' : ''}> Show my name among the patrons</label><button class="buy-btn">Save</button></form>` : ''}
+<p class="sr-also"><a href="/m/${esc(slug)}">Back to ${esc(m.name)}</a> &middot; <a href="/yours">Your collection</a></p></section>` });
+}
+
 function claim({ c, maker, mine }) {
   if (!c) return layout({ title: 'Watermark', body: '<section class="cx-intro"><p class="k">Passed on</p><h1>This link has been used, or has expired.</h1><p><a class="buy-btn" href="/collection">Walk the collection</a></p></section>' });
   const { w, l } = c;
@@ -437,7 +466,7 @@ function terms() {
 }
 
 // A collector's own Watermark: every work they have collected, numbered, room by room.
-function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null }) {
+function collector({ b, items, rooms, works, makers, own, base, pay = null, share = null, give = null, got = null, founding = null, left = null, patronOf = [], patronSlug = null }) {
   const who = b && b.name ? b.name : own ? 'Your collection' : 'A collection';
   if (!b || !items.length) return layout({ title: `${who} · Watermark`, body: `<section class="cx-intro yc-empty"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
 <h1>${own ? 'Start your collection.' : 'Nothing to see here.'}</h1>
@@ -448,7 +477,7 @@ ${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p>' :
   const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
   const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
   return layout({ title: `${who} · Watermark`, desc: `${works} photographs collected on Watermark.`, body: `<section class="cx-intro"><p class="k">${own ? 'Your collection' : 'Collection'}</p>
-<h1>${esc(who)}${b.name ? '.' : ''}</h1>${founding ? `<p class="fc-mark"><span class="fc-k">${K_MARK}</span>Founding Collector &middot; No. ${founding} of 100</p>` : ''}
+<h1>${esc(who)}${b.name ? '.' : ''}</h1>${founding ? `<p class="fc-mark"><span class="fc-k">${K_MARK}</span>Founding Collector &middot; No. ${founding} of 100</p>` : ''}${patronOf.map(p => `<p class="fc-mark pat-mark"><span class="fc-k">${K_MARK}</span>Patron of ${esc(p.maker_name)} &middot; since ${esc(new Date(p.started_at + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))}</p>`).join('')}
 <p class="cx-count">${works} work${works === 1 ? '' : 's'} · ${makers} photographer${makers === 1 ? '' : 's'} · ${rooms.filter(r => r.have === r.total).length} room${rooms.filter(r => r.have === r.total).length === 1 ? '' : 's'} complete${lowest ? ` · earliest: collector No. ${lowest.collector_no} of <em>${esc(lowest.title)}</em>` : ''}</p></section>
 ${rooms.length ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
 <section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header><div class="plates">${items.map(plate).join('')}</div>
@@ -459,6 +488,7 @@ ${own ? `<section class="gal yc-own"><header class="gh"><h2>Show it, or keep it<
 <label class="chk"><input type="checkbox" name="public" value="1" ${b.public ? 'checked' : ''}> Open my collection to anyone with the link</label><button>Save</button></form>
 ${b.public && b.code ? `<p class="note">Your public link: <a href="/collector/${esc(b.code)}">${esc(base)}/collector/${esc(b.code)}</a></p>` : '<p class="note">Private: only this device sees it.</p>'}
 ${give ? `<div class="yc-give" id="give"><p class="k">To pass on <em>${esc(tidy(give.title))}</em></p><p>Send this link to the person you are giving it to. When they accept, it hangs on their wall with your number, and leaves yours.</p><input readonly value="${esc(base)}/claim/${esc(give.token)}" onclick="this.select()"></div>` : ''}
+<div id="patronage">${patronOf.length ? patronOf.map(p => `<div class="yc-pat"><span><b>Patron of ${esc(p.maker_name)}</b> &middot; ${esc(p.level.charAt(0).toUpperCase() + p.level.slice(1))}, ${money(p.amount_cents)} a month${p.status === 'ending' ? ' &middot; ends at the close of this month' : ''}</span>${p.status === 'active' ? `<form method="post" action="/patron/${p.id}/end"><button class="yf-give">End patronage</button></form>` : ''}</div>`).join('') : patronSlug ? `<p class="note">Keep a maker working: <a href="/m/${esc(patronSlug)}#patron">become a patron</a>.</p>` : ''}</div>
 ${got ? `<p class="yc-got">It&rsquo;s yours now. It hangs below, with its number.</p>` : ''}
 <div class="yc-files" id="files">${items.map(i => `<div class="yf"><img src="/img/${esc(i.slug)}/thumb" alt="" loading="lazy" draggable="false"><div class="yf-t"><i>${esc(tidy(i.title))}</i><small>${esc(i.maker)} &middot; No. ${i.collector_no || '—'}${i.edition_size ? ` of ${i.edition_size}` : ''} &middot; ${date(i.starts_at)}</small>${i.printed ? `<small class="yf-pr">Printed: ${esc(i.printed)}</small>` : ''}</div>
 <div class="yf-a">${i.download_token ? `<a href="/d/${esc(i.download_token)}">Save</a>` : ''}
@@ -471,7 +501,7 @@ ${i.collector_no && i.status === 'active' ? `<form method="post" action="/yours/
 const pageHero = (slug, cap, h) => `<section class="cx-cover pg-hero"><img src="/img/${esc(slug)}/large" alt="${esc(cap)}" fetchpriority="high" draggable="false">${h ? `<div class="cx-hero">${h}</div>` : ''}<span class="cx-cap">${esc(cap)} &middot; Will Fullerton</span></section>`;
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 
-function series({ s, chapters, whole = null, buy = false }) {
+function series({ s, chapters, whole = null, buy = false, credits = [], patronSlug = null }) {
   const plate = (w, big) => `<a class="sr-pl${big ? ' sr-big' : ''}" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><span class="sr-im"><img src="/img/${esc(w.slug)}/${big ? 'large' : 'screen'}" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async" draggable="false"></span><span class="sr-lb"><i>${esc(tidy(w.title))}</i><small>${esc(w.place || '')}${w.accession ? ` &middot; ${esc(w.accession)}` : ''}</small></span></a>`;
   const cover = chapters.flatMap(c => c.works).find(w => w.slug === s.cover);
   const n = chapters.reduce((a, c) => a + c.works.length, 0);
@@ -483,6 +513,7 @@ ${chapters.map((c, i) => `<section class="sr-ch" id="ch-${i + 1}"><header><span 
 ${buy && c.items && c.items.length > 1 ? `<form method="post" action="/series/${esc(s.slug)}/collect" class="sr-set"><input type="hidden" name="part" value="${c.i}"><button class="jewel"><span>Collect all ${c.items.length} of ${esc(c.title)}</span><b>${money(c.price)}</b></button><p>${money(c.full)} one by one. Each photograph is numbered in your collection.</p></form>` : ''}</section>`).join('')}
 <section class="sr-end"><p>${esc(s.title)} is a series by ${esc(s.maker)} for ${esc(s.house)}. Every photograph in it is held on Watermark, and every one can hang in your collection.</p>
 ${buy && whole && whole.n > 1 ? `<form method="post" action="/series/${esc(s.slug)}/collect" class="sr-set sr-set-all"><input type="hidden" name="part" value="all"><button class="jewel"><span>Collect the whole series &middot; ${whole.n} photographs</span><b>${money(whole.price)}</b></button><p>${money(whole.full)} one by one. The complete series, numbered on your wall.</p></form>` : ''}
+<div class="sr-credits"><p class="k">Made possible by its patrons</p>${credits.length ? `<p class="sr-cn">${credits.map(esc).join(' &middot; ')}</p>` : '<p class="sr-cn sr-cn-empty">The next series could carry your name.</p>'}${patronSlug ? `<a href="/m/${esc(patronSlug)}#patron">Become a patron of ${esc(s.maker)}</a>` : ''}</div>
 <p class="sr-also"><a href="/collection">Walk the whole collection</a></p></section>` });
 }
 
@@ -506,7 +537,7 @@ function patronage() {
 <p>Collectors are not customers. They are the reason the rest of us get to see great work at all. Their taste becomes our inheritance.</p>
 <p>The makers of our time are photographers, filmmakers and image makers, and most of them are paid nothing when their work is used. Watermark exists to change that: every image held, credited and paid for at the source. And it exists to bring back the oldest arrangement in art, the one between those who make and those who collect.</p>
 <p class="essay-end">Those who make and those who collect. Watermark honours both.</p>
-<p class="essay-go"><a class="buy-btn" href="/collection">Walk the collection</a> <a href="/collectors">See the collectors</a></p>
+<p class="essay-go"><a class="buy-btn" href="/m/will-fullerton#patron">Become a patron</a> <a href="/collection">Walk the collection</a> <a href="/collectors">See the collectors</a></p>
 </article>` });
 }
 
@@ -519,4 +550,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { series, setThanks, claim, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

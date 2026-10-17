@@ -219,6 +219,7 @@ function createApp(cfg = {}) {
       if (s.metadata && s.metadata.set && s.payment_status === 'paid') grantSet(s.metadata.set, s);
       else if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
     }
+    if (app.locals.patronEvent) app.locals.patronEvent(event); // patronage: joined, or ended
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
       if (ref && q.lic.get(ref)) grant(ref, { paid: true, price_cents: pi.amount_received });
@@ -278,7 +279,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w) }));
+    res.send(V.work({ w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -495,7 +496,7 @@ function createApp(cfg = {}) {
   app.get('/yours', (req, res) => {
     const b = buyerOf(req);
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
-    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft() }));
+    res.send(V.collector({ b, ...(b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 }), own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker) }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -504,6 +505,8 @@ function createApp(cfg = {}) {
     db.prepare('UPDATE buyers SET name=?, public=?, code=? WHERE id=?').run(name, pub, code, b.id);
     res.redirect('/yours');
   });
+  // Patronage: keep a maker working, monthly or once.
+  const pat = app.locals.patronage = require('./patronage').mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer, ledger, V });
   // A collector records a print they have made of a work they hold. It shows on their wall and in the work's life.
   app.post('/yours/print', (req, res) => {
     const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));
@@ -554,7 +557,7 @@ function createApp(cfg = {}) {
   app.get('/series/:slug', (req, res) => {
     const s = SERIES.find(x => x.slug === req.params.slug); if (!s) return res.sendStatus(404);
     const { chapters, whole } = seriesParts(s);
-    res.send(V.series({ s, chapters, whole, buy: !!stripe }));
+    res.send(V.series({ s, chapters, whole, buy: !!stripe, credits: app.locals.patronage.credits(), patronSlug: app.locals.patronage.slugOf(maker) }));
   });
   app.post('/series/:slug/collect', async (req, res) => {
     const s = SERIES.find(x => x.slug === req.params.slug); if (!s || !stripe) return res.redirect(`/series/${req.params.slug}`);
@@ -617,7 +620,7 @@ function createApp(cfg = {}) {
   app.get('/collector/:code', (req, res) => {
     const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
-    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b) }));
+    res.send(V.collector({ b, ...collected(b), own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
   });
 
   app.get('/buy/:slug', (req, res) => {
@@ -1093,7 +1096,7 @@ function createApp(cfg = {}) {
   app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok }));
   app.use((req, res) => res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>Nothing is held here.</h1><p><a href="/">See the collection</a></p></section>' })));
 
-  app.locals = { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync };
+  Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   return app;
 }
 

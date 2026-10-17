@@ -25,6 +25,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   stripeClient.customers.create = async o => ({ id: 'cus_' + (++cus), ...o });
   stripeClient.paymentIntents.create = async o => { const id = 'pi_mock_' + Object.keys(pis).length; pis[id] = { id, client_secret: id + '_secret', status: o.confirm ? 'succeeded' : 'requires_payment_method', amount_received: o.confirm ? o.amount : 0, payment_method: o.payment_method || null, ...o }; return pis[id]; };
   stripeClient.paymentIntents.retrieve = async id => pis[id];
+  stripeClient.subscriptions.update = async (id, o) => ({ id, ...o });
   stripeClient.refunds.create = async o => { refunds.push(o); return { id: 're_1', ...o }; };
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
   const server = app.listen(0); const port = server.address().port;
@@ -304,6 +305,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.headers.location, '/yours', 'a claim link works once');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(/Founding Collector &middot; No\. \d+ of 100/.test(r.body.toString()), 'a founding collector');
   r = await req(port, 'GET', '/collectors'); assert.ok(/of 100 places remain/.test(r.body.toString()), 'places remain');
+  // Patronage: a monthly patron, named on the wall, ended with one press; a one-off gift.
+  r = await req(port, 'GET', '/m/will-fullerton'); assert.ok(r.body.toString().includes('Keep the work going') && r.body.toString().includes('Medici'), 'the patronage page');
+  r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { level: 'friend' }, cookie: bck }); assert.equal(r.status, 303);
+  const ps = sessions[r.headers.location.split('/').pop()]; assert.equal(ps.mode, 'subscription'); assert.equal(ps.line_items[0].price_data.recurring.interval, 'month');
+  Object.assign(ps, { status: 'complete', subscription: 'sub_1', customer: 'cus_1', customer_details: { email: 'p@me.com', name: 'Lorenzo' } });
+  r = await req(port, 'GET', ps.success_url.replace('{CHECKOUT_SESSION_ID}', ps.id).replace('http://localhost', ''), { cookie: bck }); assert.ok(r.body.toString().includes('You are a patron of Will Fullerton'), 'a patron');
+  const pid = ps.metadata.patron;
+  r = await req(port, 'POST', `/patron/${pid}/name`, { cookie: bck, body: { name: 'Lorenzo M.', public: '1' } });
+  r = await req(port, 'GET', '/m/will-fullerton'); assert.ok(r.body.toString().includes('Lorenzo M.'), 'on the wall');
+  r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Patron of Will Fullerton'), 'the mark on the collection');
+  r = await req(port, 'POST', `/patron/${pid}/end`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM patrons WHERE id=?').get(pid).status, 'ending', 'ended with one press');
+  r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { once: '50' } }); const po = sessions[r.headers.location.split('/').pop()]; assert.equal(po.mode, 'payment'); assert.equal(po.line_items[0].price_data.unit_amount, 5000);
+  r = await req(port, 'GET', '/w/' + w.slug); assert.ok(r.body.toString().includes('Become a patron of'), 'offered on the work');
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
