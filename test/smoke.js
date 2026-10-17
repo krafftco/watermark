@@ -111,7 +111,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(dj.no >= 1 && tj.no >= 1, 'collector numbers: ' + dj.no + ',' + tj.no);
   r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your gallery'), 'a new visitor is invited to start');
   r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
-  assert.ok(yb.includes(`No. ${dj.no}`) && yb.includes('The gallery'), 'it hangs, numbered');
+  assert.ok(yb.includes(`No.&nbsp;${dj.no}`) && yb.includes('The gallery'), 'it hangs, numbered');
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: bck }); assert.ok(r.body.toString().includes('id="files"') && r.body.toString().includes(`No. ${dj.no}`), 'the files room');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
@@ -257,7 +258,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/seat/${seatTok}`); assert.ok(r.body.toString().includes('Shared with you') && r.body.toString().includes('Keep it in my gallery'));
   r = await req(port, 'POST', `/seat/${seatTok}`); const seatCk = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
   r = await req(port, 'GET', `/seat/${seatTok}/file`); assert.equal(r.status, 200, 'the seat takes the file'); assert.ok(!String(r.headers.location || '').includes(l1.download_token), 'without the holder\'s key');
-  r = await req(port, 'GET', '/yours', { cookie: seatCk }); assert.ok(r.body.toString().includes('Shared with you'), 'in their collection');
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: seatCk }); assert.ok(r.body.toString().includes('Shared with you'), 'in their collection');
   r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('2 of 3 seats') && r.body.toString().includes('In their gallery'));
   r = await req(port, 'POST', `/c/${ref1}/seats/buy`, { body: { k: l1.download_token, n: '2' } }); assert.equal(r.status, 303, 'more seats through checkout');
   { const so = sessions[r.headers.location.split('/').pop()]; assert.equal(so.line_items[0].quantity, 2); assert.equal(so.line_items[0].price_data.unit_amount, 5000);
@@ -356,7 +357,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/seen`, { cookie: ck }); assert.equal(r.status, 302);
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('Well seen, says') && r.body.toString().includes('1 well seen'), 'the maker\'s regard, on the line and beside the name');
     r = await req(port, 'POST', '/yours', { cookie: apck, body: { name: 'A visitor from Siena', public: '1' } });
-    r = await req(port, 'GET', '/yours', { cookie: apck }); assert.ok(r.body.toString().includes('In the guest books') && r.body.toString().includes('marked well seen by 1 maker'), 'their lines and regard on their page');
+    r = await req(port, 'GET', '/yours?tab=books', { cookie: apck }); assert.ok(r.body.toString().includes('In the guest books') && r.body.toString().includes('marked well seen by 1 maker'), 'their lines and regard on their page');
     const vcode = db.prepare("SELECT code FROM buyers WHERE name='A visitor from Siena'").get().code;
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes(`/collector/${vcode}`), 'the signature opens their collection');
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`); assert.equal(r.status, 403, 'a stranger cannot remove it');
@@ -433,12 +434,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/yours/give', { cookie: sck, body: { ref: held2.ref } }); const gtok = decodeURIComponent(r.headers.location.match(/give=([^#&]+)/)[1]);
   r = await req(port, 'GET', `/claim/${gtok}`); assert.ok(r.body.toString().includes('Collector No. 1 of 1'), 'the claim page');
   r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.status, 302); const nck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
-  r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('No. 1 of 1'), 'it hangs on the new wall');
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('No. 1 of 1'), 'it hangs on the new wall');
   r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(!r.body.toString().includes('Test Stacks</i>'), 'and has left the old one');
   r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.headers.location, '/yours', 'a claim link works once');
   // The market: the collector offers the piece, someone asks to buy it, the Studio settles, it moves with its price.
   r = await req(port, 'POST', '/yours/offer', { cookie: nck, body: { ref: held2.ref, ask: '40' } }); assert.ok(r.headers.location.includes('offer=1'), 'offered');
-  r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('class="pf"'), 'offered, and the portfolio shows');
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>'), 'offered'); r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('class="pf"'), 'the portfolio shows');
   r = await req(port, 'GET', `/w/${w2.slug}`, { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('Withdraw'), 'the holder sees their offer on the work');
   r = await req(port, 'GET', '/market'); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('$40'), 'on the market');
   const lst = db.prepare("SELECT id FROM listings WHERE status='open'").get().id;
@@ -454,7 +455,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(r.body.toString().includes('class="mk-chart"'), 'with its price chart');
   // An offer for a piece not on the market: its collector accepts, and it goes to the Studio to settle.
   r = await req(port, 'POST', `/w/${w2.slug}/offer`, { body: { offer: '70', email: 'f@frick.org', name: 'Henry' } }); assert.ok(r.headers.location.includes('offer=sent'));
-  r = await req(port, 'GET', '/yours', { cookie: ick }); assert.ok(r.body.toString().includes('Offers for your pieces') && r.body.toString().includes('$70'), 'the collector sees the offer');
+  r = await req(port, 'GET', '/yours?tab=market', { cookie: ick }); assert.ok(r.body.toString().includes('Offers for your pieces') && r.body.toString().includes('$70'), 'the collector sees the offer');
   const ofr = db.prepare("SELECT id FROM offers WHERE status='open'").get().id;
   r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('accepted=1'));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM bids WHERE status='new' AND offer_cents=7000").get().n, 1, 'accepted offers go to the Studio');
@@ -497,7 +498,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const pid = ps.metadata.patron;
   r = await req(port, 'POST', `/patron/${pid}/name`, { cookie: bck, body: { name: 'Lorenzo M.', public: '1' } });
   r = await req(port, 'GET', '/m/will-fullerton'); assert.ok(r.body.toString().includes('Lorenzo M.'), 'on the wall');
-  r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Patron of Will Fullerton'), 'the mark on the collection');
+  r = await req(port, 'GET', '/yours?tab=patronage', { cookie: bck }); assert.ok(r.body.toString().includes('Patron of Will Fullerton'), 'the mark on the collection');
   r = await req(port, 'POST', `/patron/${pid}/end`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM patrons WHERE id=?').get(pid).status, 'ending', 'ended with one press');
   r = await req(port, 'POST', '/m/will-fullerton/patron', { body: { once: '50' } }); const po = sessions[r.headers.location.split('/').pop()]; assert.equal(po.mode, 'payment'); assert.equal(po.line_items[0].price_data.unit_amount, 5000);
 
@@ -590,7 +591,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/swap', { cookie: sck, body: { want: String(db.prepare("SELECT id FROM licenses WHERE ref='WM-2026-90002'").get().id), give: String(give.id), note: 'I have wanted this one.' } });
     assert.ok(r.status === 302 && /^\/swap\/\d+$/.test(r.headers.location), 'trade offered: ' + r.headers.location); const sid = r.headers.location.split('/').pop();
     r = await req(port, 'GET', `/swap/${sid}`, { cookie: sck }); assert.ok(r.body.toString().includes('Your trade is offered') && r.body.toString().includes('I have wanted this one.'), 'offerer sees it');
-    r = await req(port, 'GET', '/yours', { cookie: b2ck }); assert.ok(r.body.toString().includes('Trades offered to you'), 'holder sees it in the gallery');
+    r = await req(port, 'GET', '/yours?tab=market', { cookie: b2ck }); assert.ok(r.body.toString().includes('Trades offered to you'), 'holder sees it in the gallery');
     r = await req(port, 'POST', `/swap/${sid}/accept`, { cookie: sck }); assert.ok(!db.prepare('SELECT status FROM swaps WHERE id=?').get(sid).status.match(/accepted/), 'only the holder may accept');
     r = await req(port, 'POST', `/swap/${sid}/accept`, { cookie: b2ck }); assert.ok(r.headers.location.includes('ok=traded'), 'accepted');
     assert.equal(db.prepare('SELECT buyer_id FROM licenses WHERE id=?').get(give.id).buyer_id, b2, 'the given piece moved');
