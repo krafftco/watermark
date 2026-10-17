@@ -206,7 +206,7 @@ ${mkt.held ? (mkt.sent === 'sent' ? '<p class="ok">Your offer is with its collec
 ${mine.length ? `<section class="lot-yours" id="yours"><p class="k">In your collection</p>
 ${up === '1' ? '<p class="ok">It is on the market. It stays in your collection until it sells.</p>' : up === 'price' ? '<p class="err">Give it a price of at least $1.</p>' : ''}
 ${mine.map(m => `<div class="ly-row"><div class="ly-t"><b>${m.key === 'social' ? 'Collected' : esc(m.name)}</b><span>${m.collector_no ? `No.&nbsp;${m.collector_no}${ed ? ` of ${ed.size}` : ''}` : ''}${m.collector_no && (m.ends_at || m.kind === 'print') ? ' &middot; ' : ''}${m.ends_at ? `until ${date(m.ends_at)}` : m.kind === 'print' ? 'a print, yours to keep' : m.collector_no ? '' : 'yours to keep'}</span></div>
-<div class="ly-a">${m.download_token && m.kind !== 'print' ? `<a href="/d/${esc(m.download_token)}">Download</a>` : ''}<a href="/c/${esc(m.ref)}${m.download_token ? `?k=${esc(m.download_token)}` : ''}">Licence</a></div>
+<div class="ly-a">${m.download_token && m.kind !== 'print' ? `<a href="/d/${esc(m.download_token)}">Download</a>` : ''}<a href="/c/${esc(m.ref)}${m.download_token ? `?k=${esc(m.download_token)}` : ''}">License</a></div>
 ${ed && m.collector_no ? (m.listed != null ? `<form method="post" action="/yours/offer/withdraw" class="ly-up"><input type="hidden" name="ref" value="${esc(m.ref)}"><input type="hidden" name="back" value="/w/${esc(w.slug)}"><span>Offered at <b>${money(m.listed)}</b></span><button class="link">Withdraw</button></form>`
   : `<details class="ly-up"><summary>Put it up for sale</summary><form method="post" action="/yours/offer" class="ly-f"><input type="hidden" name="ref" value="${esc(m.ref)}"><input type="hidden" name="back" value="/w/${esc(w.slug)}"><label>Your asking price<span class="ly-in"><i>$</i><input name="ask" inputmode="decimal" required placeholder="${mkt && mkt.p && mkt.p.value ? (mkt.p.value / 100).toFixed(0) : ''}"></span></label><button class="btn">Offer it on the market</button><p class="note">It stays in your collection until it sells. The photographer receives 10% of the price; Watermark keeps 5%.</p></form></details>`) : ''}</div>`).join('')}
 ${uses.length ? `<p class="ly-more">Also available to you: ${uses.map(u => `<a href="/license/${esc(w.slug)}?use=${esc(u.key)}">${esc(u.name)}</a>`).join(', ')}.</p>` : ''}</section>` : ''}
@@ -431,7 +431,7 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
   const label = u => u.price_cents == null || !instant || u.needsMaster ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Share it' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
   const row = u => held[u.key] ? `<label class="bu is-mine"><input type="radio" name="use" value="${esc(u.key)}" disabled>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">Yours</span>
-<span class="bu-d">${held[u.key].ends_at ? `Licensed to you until ${date(held[u.key].ends_at)}.` : 'In your collection.'} <a href="/c/${esc(held[u.key].ref)}${held[u.key].download_token ? `?k=${esc(held[u.key].download_token)}` : ''}">Your licence</a></span></label>` : `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
+<span class="bu-d">${held[u.key].ends_at ? `Licensed to you until ${date(held[u.key].ends_at)}.` : 'In your collection.'} <a href="/c/${esc(held[u.key].ref)}${held[u.key].download_token ? `?k=${esc(held[u.key].download_token)}` : ''}">Your license</a></span></label>` : `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
 <span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em>${u.needsMaster ? ' <span class="bu-nm">The maker supplies the full-resolution file for this use; they reply within the day.</span>' : ''}</span></label>`;
   // Share it leads; the larger uses wait behind one line until someone asks for them.
@@ -454,7 +454,7 @@ ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name=
 ${rightsPanel(uses, rules)}
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 <button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
-<p class="buy-assent">By paying you accept the <a href="/contract/${esc(w.slug)}?use=${esc(pick ? pick.key : '')}" target="_blank" data-assent>licence agreement</a> for the rights you chose. It is binding on both sides, and a copy is yours with the certificate.</p>
+<p class="buy-assent">By paying you accept the <a href="/contract/${esc(w.slug)}?use=${esc(pick ? pick.key : '')}" target="_blank" data-assent>license agreement</a> for the rights you chose. It is binding on both sides, and a copy is yours with the certificate.</p>
 ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="buy-how">${rules.approve ? 'The maker approves each license personally, usually within the day. You pay only once it is approved.' : instant ? (pick && pick.key === 'social' ? 'Apple Pay, Google Pay or card. The file is yours the moment you pay, ready to post.' : 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.') : 'The maker replies with terms and a payment link, usually within the day.'}</p>
 <ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded in Watermark&rsquo;s <a href="/ledger">register</a></li></ul>
@@ -614,24 +614,24 @@ function requested({ lic, w }) {
   });
 }
 
-// A seat on someone's licence: the person it was shared with sees what it covers and keeps it.
+// A seat on someone's license: the person it was shared with sees what it covers and keeps it.
 function seat({ s, l, live, mine }) {
-  const who = l.licensee_company || l.licensee_name || 'A licence holder';
-  return layout({ title: `${tidy(l.title)} · A seat on licence ${l.ref} · Watermark`, body: `<section class="lc2 seat-pg">
+  const who = l.licensee_company || l.licensee_name || 'A license holder';
+  return layout({ title: `${tidy(l.title)} · A seat on license ${l.ref} · Watermark`, body: `<section class="lc2 seat-pg">
 <figure class="lc2-fig"><img src="/img/${esc(l.slug)}/screen" alt="${esc(tidy(l.title))}" draggable="false"></figure>
 <div class="lc2-side"><p class="lc2-st s-${live ? 'active' : 'expired'}"><i></i>${live ? 'Shared with you' : 'Ended'}</p>
 <h1>${esc(tidy(l.title))}</h1>
-<p class="lc2-says">${esc(who)} holds this photograph for ${esc(l.use_name.toLowerCase())}${l.ends_at ? `, until ${date(l.ends_at)}` : ''}, and has given you a seat on the licence${s.name ? `, ${esc(s.name)}` : ''}.</p>
-<dl class="lc2-dl"><div><dt>Licence</dt><dd>${esc(l.ref)}</dd></div><div><dt>For</dt><dd>${esc(l.use_name)}</dd></div><div><dt>Your seat</dt><dd>Inside ${esc(who)}&rsquo;s use; it does not pass to another company.</dd></div></dl>
+<p class="lc2-says">${esc(who)} holds this photograph for ${esc(l.use_name.toLowerCase())}${l.ends_at ? `, until ${date(l.ends_at)}` : ''}, and has given you a seat on the license${s.name ? `, ${esc(s.name)}` : ''}.</p>
+<dl class="lc2-dl"><div><dt>License</dt><dd>${esc(l.ref)}</dd></div><div><dt>For</dt><dd>${esc(l.use_name)}</dd></div><div><dt>Your seat</dt><dd>Inside ${esc(who)}&rsquo;s use; it does not pass to another company.</dd></div></dl>
 <div class="lc2-acts">${mine ? (live ? `<a class="buy-btn" href="/seat/${esc(s.token)}/file">Download the photograph</a>` : '') + `<a href="/yours">Your collection</a>`
   : s.buyer_id ? '<p class="note">This seat has been taken. Ask the person who shared it with you.</p>'
   : live ? `<form method="post" action="/seat/${esc(s.token)}" style="flex:1 1 100%"><button class="buy-btn" style="width:100%">Keep it in my collection</button></form>` : ''}
-<a href="/c/${esc(l.ref)}">The licence</a></div></div></section>` });
+<a href="/c/${esc(l.ref)}">The license</a></div></div></section>` });
 }
 
-// The licence, as the person who holds it should see it: the photograph, what they may do with it, until
+// The license, as the person who holds it should see it: the photograph, what they may do with it, until
 // when, and what to keep in mind. The proof (fingerprint, register entry) is there for anyone who asks,
-// folded away; nobody needs to read a hash to trust a licence.
+// folded away; nobody needs to read a hash to trust a license.
 const USE_SAYS = {
   social: 'on their own accounts, credited',
   reference: 'as their own: to keep, to print large and to share, credited',
@@ -643,7 +643,7 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
   const active = lic.status === 'active';
   const who = lic.licensee_company || lic.licensee_name || 'The holder';
   const C = require('./contract');
-  let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older licence */ }
+  let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older license */ }
   const added = t ? C.RIGHTS.filter(r => t.added.includes(r.key)).map(r => r.label.toLowerCase()) : [];
   const extras = t ? t.extras.map(k => (C.EXTRAS.find(e => e.key === k) || {}).label).filter(Boolean) : [];
   const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended' }[lic.status] || lic.status;
@@ -671,7 +671,7 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
   }
   if (use.kind !== 'print') {
     if (tt.extras.includes('derivative')) can.push('Adapt it: retouch, recolour, combine'); else { can.push('Resize it and crop it lightly'); cannot.push('Change the picture itself'); }
-    cannot.push('Let others download it as a file', 'Pass the licence to someone else');
+    cannot.push('Let others download it as a file', 'Pass the license to someone else');
   }
   if (never.includes('ai')) cannot.push('Train or test AI with it');
   if (never.includes('political')) cannot.push('Use it in politics or advocacy');
@@ -679,7 +679,7 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
   cannot.push('Say you made it');
   const keep = cond.split(/\.\s*/).map(x => x.trim()).filter(Boolean);
   return layout({
-    title: `${tidy(w.title)}: licence ${lic.ref} · Watermark`,
+    title: `${tidy(w.title)}: license ${lic.ref} · Watermark`,
     body: `<section class="lc2">
 <figure class="lc2-fig"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></a></figure>
 <div class="lc2-side">
@@ -702,28 +702,28 @@ ${active ? `<a href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a>` : ''}
 <a href="/verify?ref=${esc(lic.ref)}">Anyone can check it</a>
 </div>
 <div class="lc2-coa">${SHIELD}<div><p class="lc2-h">Certificate of authenticity</p>
-<p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the licence set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
+<p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the license set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
 <p class="lc2-sig"><span>${esc(maker.name)}</span><small>The maker, through Watermark</small></p>
 ${t && t.hash && active ? `<p class="lc2-acc">Agreement accepted by ${esc(who)} at payment on ${date(lic.starts_at)}. Order ${esc(lic.ref)}.</p>` : ''}</div></div>
-${owner && seats && seats.capacity > 1 && lic.download_token ? `<section class="lc2-seats" id="seats"><p class="lc2-h">People on this licence <span>${seats.list.length + 1} of ${seats.capacity} seats</span></p>
-<p class="lc2-sn">Everyone at ${esc(who)} who works with the photograph can hold the licence too: the file, the agreement and the dates, in their own collection. Each seat is recorded.</p>
-${seat && seat.length > 12 ? `<p class="ok">Seat added. Their link: <input class="lc2-link" readonly value="${esc(base)}/seat/${esc(seat)}" onclick="this.select()"></p>` : seat === 'full' ? '<p class="err">Every seat is in use. Remove one, or add more below.</p>' : seat === 'added' ? '<p class="ok">Seats added.</p>' : seat === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : seat === 'email' ? '<p class="err">An email address, so they can be sent their link.</p>' : seat === 'ended' ? '<p class="err">This licence has ended.</p>' : ''}
+${owner && seats && seats.capacity > 1 && lic.download_token ? `<section class="lc2-seats" id="seats"><p class="lc2-h">People on this license <span>${seats.list.length + 1} of ${seats.capacity} seats</span></p>
+<p class="lc2-sn">Everyone at ${esc(who)} who works with the photograph can hold the license too: the file, the agreement and the dates, in their own collection. Each seat is recorded.</p>
+${seat && seat.length > 12 ? `<p class="ok">Seat added. Their link: <input class="lc2-link" readonly value="${esc(base)}/seat/${esc(seat)}" onclick="this.select()"></p>` : seat === 'full' ? '<p class="err">Every seat is in use. Remove one, or add more below.</p>' : seat === 'added' ? '<p class="ok">Seats added.</p>' : seat === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : seat === 'email' ? '<p class="err">An email address, so they can be sent their link.</p>' : seat === 'ended' ? '<p class="err">This license has ended.</p>' : ''}
 <ul class="lc2-sl"><li><b>${esc(who)}</b><span>Holder</span></li>${seats.list.map(x => `<li><b>${esc(x.name || x.email)}</b><span>${x.claimed_at ? 'In their collection' : 'Link sent'}</span><form method="post" action="/c/${esc(lic.ref)}/seats/${x.id}/remove"><input type="hidden" name="k" value="${esc(lic.download_token)}"><button class="link">Remove</button></form></li>`).join('')}</ul>
 ${seats.canBuy && active ? `<form method="post" action="/c/${esc(lic.ref)}/seats/buy" class="lc2-sb"><input type="hidden" name="k" value="${esc(lic.download_token)}"><span>More people?</span><select name="n" aria-label="Seats to add">${[1, 2, 3, 5, 10].map(n => `<option value="${n}">${n} seat${n === 1 ? '' : 's'}, ${money(n * seats.price)}</option>`).join('')}</select><button class="link">Add seats</button></form>` : ''}
 ${seats.list.length + 1 < seats.capacity && active ? `<form method="post" action="/c/${esc(lic.ref)}/seats" class="lc2-sf"><input type="hidden" name="k" value="${esc(lic.download_token)}"><input name="name" placeholder="Name" autocomplete="off"><input name="email" type="email" placeholder="Email" required autocomplete="off"><button class="btn">Add a seat</button></form>` : ''}</section>` : ''}
 <details class="lc2-proof"><summary>How we know it&rsquo;s genuine</summary>
-<p>Every licence is written into Watermark&rsquo;s permanent record the moment it is granted, and each entry is sealed to the one before it, so nothing can be changed afterwards without it showing. The photograph is identified by its fingerprint, so this licence belongs to this exact picture and no other.</p>
-<dl class="lc2-dl lc2-tech"><div><dt>Licence</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
+<p>Every license is written into Watermark&rsquo;s permanent record the moment it is granted, and each entry is sealed to the one before it, so nothing can be changed afterwards without it showing. The photograph is identified by its fingerprint, so this license belongs to this exact picture and no other.</p>
+<dl class="lc2-dl lc2-tech"><div><dt>License</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
 <p class="note">The full record is public at <a href="/ledger">the register</a>.</p></details>
 </div></section>
 <section class="lc2-learn"><p class="k">Licensing, simply</p><div class="lc2-cards">
 <div><b>The photographer keeps the copyright.</b><p>Owning a file, or even a print, doesn&rsquo;t give you the right to copy it. The copyright stays with the person who made the picture.</p></div>
-<div><b>A licence is permission for a use.</b><p>It says what you may do, where, and for how long. Pay for the use you need; anything more is a new licence.</p></div>
+<div><b>A license is permission for a use.</b><p>It says what you may do, where, and for how long. Pay for the use you need; anything more is a new license.</p></div>
 <div><b>Credit is part of the price.</b><p>Name the photographer wherever the use allows: &ldquo;Photograph by ${esc(maker.name)}.&rdquo; It is how their work finds its next buyer.</p></div>
 <div><b>When it ends, it ends.</b><p>${lic.ends_at ? 'At the end of the term, take it down or renew. Watermark reminds you a month before.' : 'This one has no end date. Keep it within its use and it is yours to keep.'}</p></div>
 </div></section>
 <section class="lc2-plain"><p class="k">In plain language</p>
-<p>${esc(maker.name)} keeps the copyright and grants ${esc(who)} this licence for the use above${lic.intended_use ? `, described as &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}. Credit ${esc(maker.name)} wherever the use allows. Anything beyond it needs a new licence, which takes a minute on Watermark. The full agreement is ${owner && lic.download_token ? `<a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">here</a>` : `at <a href="/terms">the terms</a>`}.</p></section>`
+<p>${esc(maker.name)} keeps the copyright and grants ${esc(who)} this license for the use above${lic.intended_use ? `, described as &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}. Credit ${esc(maker.name)} wherever the use allows. Anything beyond it needs a new license, which takes a minute on Watermark. The full agreement is ${owner && lic.download_token ? `<a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">here</a>` : `at <a href="/terms">the terms</a>`}.</p></section>`
   });
 }
 
@@ -801,7 +801,7 @@ ${own && pf ? `<section class="pf"><div class="pf-v"><span>Value of your collect
 <dl class="pf-dl"><div><dt>You paid</dt><dd>${money(pf.paid)}</dd></div><div><dt>Change</dt><dd class="${change > 0 ? 'pf-up' : change < 0 ? 'pf-dn' : ''}">${change === 0 ? 'No change' : `${change > 0 ? '+' : '&minus;'}${money(Math.abs(change))} (${(Math.abs(pf.change) * 100).toFixed(1)}%)`}</dd></div><div><dt>Market</dt><dd><a href="/market">See what is offered</a></dd></div></dl>
 <p class="pf-n">Limited editions are valued at their last trade, or at their issue price until they trade; open editions at what you paid. These are prices, not appraisals.</p></section>` : ''}
 ${rooms.length ? `<section class="gal"><header class="gh"><h2>Rooms</h2><span>collected of each</span></header><div class="yc-rooms">${rooms.map(roomRow).join('')}</div></section>` : ''}
-${own && shared.length ? `<section class="gal yc-shared"><header class="gh"><h2>Shared with you</h2><span>seats on licences held by others</span></header>${shared.map(x => `<a class="hd-ev" href="/seat/${esc(x.token)}"><span>${esc(x.use_name)}</span><b>${esc(tidy(x.title))}</b><span>${esc(x.licensee_company || x.licensee_name || '')}${x.ends_at ? ` &middot; until ${date(x.ends_at)}` : ''}</span><span class="hd-v">Seat</span></a>`).join('')}</section>` : ''}
+${own && shared.length ? `<section class="gal yc-shared"><header class="gh"><h2>Shared with you</h2><span>seats on licenses held by others</span></header>${shared.map(x => `<a class="hd-ev" href="/seat/${esc(x.token)}"><span>${esc(x.use_name)}</span><b>${esc(tidy(x.title))}</b><span>${esc(x.licensee_company || x.licensee_name || '')}${x.ends_at ? ` &middot; until ${date(x.ends_at)}` : ''}</span><span class="hd-v">Seat</span></a>`).join('')}</section>` : ''}
 <section class="gal"><header class="gh"><h2>The collection</h2><span>newest first</span></header>${own ? `<div class="tc-grid">${items.map(card).join('')}</div>` : `<div class="plates">${items.map(plate).join('')}</div>`}
 ${!own && pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}
 ${!own && share && share.price_cents != null ? `<p class="yc-cta">Like what ${esc(b.name || 'this collector')} collects? Every work here can be yours too, from ${money(share.price_cents)}: open one and press Share it.</p>` : ''}</section>

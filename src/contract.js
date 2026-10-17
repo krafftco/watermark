@@ -25,7 +25,7 @@ const RIGHTS = [
 // Extended rights: each changes a clause. price: draft add-on in cents; null = only by asking the maker.
 const EXTRAS = [
   { key: 'derivative', label: 'Adapt it', note: 'Change the creative expression: retouch, composite, colour, make derivative works.', price: 50000 },
-  { key: 'entities', label: 'More than one company', note: 'Use by or for several companies or clients under one licence.', price: 75000 },
+  { key: 'entities', label: 'More than one company', note: 'Use by or for several companies or clients under one license.', price: 75000 },
   { key: 'merchandise', label: 'On merchandise', note: 'Cards, posters, apparel, calendars and other goods for resale.', price: null },
   { key: 'exclusive', label: 'Exclusively', note: 'No one else may license it for the same use during the term.', price: null },
 ];
@@ -141,13 +141,13 @@ const REVIEW = [
   ['FIX', '7.2', '"confirm to License in writing" → "Licensor".'],
   ['FIX', '9.3', '"any of its rights … its obligations" (of the licensee) → "your".'],
   ['FIX', '9.6', '"up on" → "upon".'],
-  ['ADDED', '1, 7.1', 'Term: draft grants a perpetual licence; Watermark sells 1-year licences for most uses. Grant and 7.1 now state the term of the order.'],
+  ['ADDED', '1, 7.1', 'Term: draft grants a perpetual license; Watermark sells 1-year licenses for most uses. Grant and 7.1 now state the term of the order.'],
   ['ADDED', '2.1', 'Permitted uses assembled from what was paid for (the nine categories of the draft). Personal uses (Share it, the Reference) and prints have their own 2.1 text.'],
   ['ADDED', '2.4', 'The maker\'s restrictions: no AI training or synthetic media; no political use; no tobacco, firearms, gambling (each only if the maker sets it).'],
   ['ADDED', '2.4(e), (g), 2.5, 4', 'Lifted or changed only when the licensee pays for More than one company, On merchandise, or Adapt it.'],
   ['ADDED', '2.6', 'Content Credentials: the licensee may not strip the embedded provenance.'],
   ['ADDED', '2.7', 'Exclusivity, when agreed with the maker.'],
-  ['ADDED', '7.4', 'Draft would end the licence the moment a buyer posts to Instagram (platforms take a licence to host posts). Narrowed to use beyond the ordinary hosting licence.'],
+  ['ADDED', '7.4', 'Draft would end the license the moment a buyer posts to Instagram (platforms take a license to host posts). Narrowed to use beyond the ordinary hosting license.'],
   ['OPEN', 'Parties', 'Licensing platform named as Watermark Ventures, Inc. Confirm the entity, and whether Krafft is Licensor for the Krafft Collection.'],
   ['OPEN', '9.4', 'Texas law, Dallas courts. Confirm, given New York.'],
   ['OPEN', '8.2', 'Liability cap $1,000 is below some fees ($2,500). Consider "the fees paid under this order".'],

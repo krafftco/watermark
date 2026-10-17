@@ -11,13 +11,13 @@ Source: Watermark Ventures Standard Content License Agreement Terms DRAFT (24074
 
 ## Added
 
-- **1, 7.1**: Term: draft grants a perpetual licence; Watermark sells 1-year licences for most uses. Grant and 7.1 now state the term of the order.
+- **1, 7.1**: Term: draft grants a perpetual license; Watermark sells 1-year licenses for most uses. Grant and 7.1 now state the term of the order.
 - **2.1**: Permitted uses assembled from what was paid for (the nine categories of the draft). Personal uses (Share it, the Reference) and prints have their own 2.1 text.
 - **2.4**: The maker's restrictions: no AI training or synthetic media; no political use; no tobacco, firearms, gambling (each only if the maker sets it).
 - **2.4(e), (g), 2.5, 4**: Lifted or changed only when the licensee pays for More than one company, On merchandise, or Adapt it.
 - **2.6**: Content Credentials: the licensee may not strip the embedded provenance.
 - **2.7**: Exclusivity, when agreed with the maker.
-- **7.4**: Draft would end the licence the moment a buyer posts to Instagram (platforms take a licence to host posts). Narrowed to use beyond the ordinary hosting licence.
+- **7.4**: Draft would end the license the moment a buyer posts to Instagram (platforms take a license to host posts). Narrowed to use beyond the ordinary hosting license.
 
 ## For counsel
 

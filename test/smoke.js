@@ -249,8 +249,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);
-  // Seats: the holder shares the licence with a colleague, who keeps it and takes the file.
-  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('1 of 3 seats'), 'seats on a story licence');
+  // Seats: the holder shares the license with a colleague, who keeps it and takes the file.
+  r = await req(port, 'GET', `/c/${ref1}?k=${l1.download_token}`); assert.ok(r.body.toString().includes('1 of 3 seats'), 'seats on a story license');
   r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: l1.download_token, name: 'Desk Editor', email: 'desk@mag.com' } });
   const seatTok = decodeURIComponent(r.headers.location).match(/seat=([A-Za-z0-9_-]{20,})/)[1];
   r = await req(port, 'POST', `/c/${ref1}/seats`, { body: { k: 'wrong', email: 'x@y.z' } }); assert.equal(db.prepare('SELECT COUNT(*) n FROM seats').get().n, 1, 'only the holder adds seats');

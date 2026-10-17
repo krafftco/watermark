@@ -795,11 +795,6 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .pd-top i{width:4.2cqw;height:4.2cqw;border-radius:50%;background:conic-gradient(#f5b54d,#e2457a,#7b4fe0,#f5b54d);box-shadow:inset 0 0 0 .4cqw #fff}
 .pd-top em{margin-left:auto;font-style:normal;letter-spacing:.1em}
 .ls-social .ph{aspect-ratio:4/5}
-.pd-act{display:flex;gap:2.6cqw;padding:2.2cqw 3cqw 1cqw}
-.pd-act i{width:3.2cqw;height:3.2cqw;border:.32cqw solid #111;border-radius:50%}
-.pd-act .h{border-radius:50% 50% 0 50%;transform:rotate(45deg) scale(.82);border-color:#e2364a;background:#e2364a}
-.pd-act .s{border-radius:.3cqw;transform:skewX(-14deg)}
-.pd-act .b{margin-left:auto;border-radius:.3cqw .3cqw 0 0;width:2.6cqw}
 .pd-cap{padding:0 3cqw;font:1.85cqw/1.45 -apple-system,Arial,sans-serif;color:#111}
 .pd-cap p{margin:.6cqw 0}
 .pd-cap span{display:block;color:#8a8a8a}
@@ -1093,11 +1088,6 @@ form.share-buy .seal-menu b{padding:0;margin:0;border:0;font-family:var(--sans);
 .mk-set{display:flex;gap:8px}.mk-set input{width:90px;padding:8px 10px;border:1px solid var(--ln);font:inherit}
 /* The collection's value */
 .pf{margin:28px 0 8px;padding:24px 0 0;border-top:1px solid var(--ink)}
-.pf-big{display:flex;flex-direction:column;gap:8px}
-.pf-big b{font-family:var(--disp);font-weight:400;font-size:clamp(48px,8vw,96px);line-height:.95;font-variant-numeric:tabular-nums}
-.pf-big span{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}
-.pf-row{display:flex;flex-wrap:wrap;gap:8px 28px;align-items:baseline;margin:18px 0 0;padding:14px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);font-size:14px;color:var(--mu)}
-.pf-row b{color:var(--ink);font-weight:500}.pf-row a{margin-left:auto;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);text-decoration:none}
 .pf-up{color:#2f5d3a}.pf-dn{color:#8a3b2e}
 .yf-mk{margin-top:8px;font-size:13px}.yf-mk summary{cursor:pointer;color:var(--mu);font-size:12px}
 div.yf-mk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
@@ -1216,7 +1206,7 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .lc-ed textarea{font-family:var(--read);font-size:17px;line-height:1.55}
 .lc-acts{display:flex;gap:22px;margin-top:14px}
 .lc-acts .link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--mu);text-decoration:underline;cursor:pointer}
-/* The rights in the contract (licence page). */
+/* The rights in the contract (license page). */
 .rt{margin:18px 0 6px;padding:18px 0 4px;border-top:1px solid var(--ln)}
 .rt-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 12px;font-size:13px;font-weight:500;color:var(--ink)}
 .rt-h a{font-weight:400;color:var(--mu)}
@@ -1258,7 +1248,7 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .ct-items{list-style:lower-alpha;margin:4px 0 12px;padding-left:2.6em}
 .ct-items li{margin:0 0 6px;padding-left:.3em}
 .ct-items li::marker{content:"(" counter(list-item, lower-alpha) ")  "}
-/* The licence: the most readable receipt there is. */
+/* The license: the most readable receipt there is. */
 .lc2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:clamp(28px,5vw,80px);padding:clamp(28px,5vw,72px) clamp(16px,4vw,56px) 24px;align-items:start}
 .lc2-fig{margin:0;position:sticky;top:96px;background:#f2f0eb;padding:clamp(18px,4vw,52px);display:grid;place-items:center}
 .lc2-fig img{display:block;max-width:100%;max-height:68vh;width:auto;box-shadow:0 24px 60px -24px rgba(0,0,0,.35)}

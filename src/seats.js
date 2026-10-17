@@ -1,7 +1,7 @@
-// Seats: the people at a licensee who may hold the licence too. A licence for a company covers the company,
-// so its team (and, for a campaign, the agency and the client) each get their own link: the licence, the file
-// and the agreement in their own collection, each seat recorded against the licence. Seats are people inside
-// the licensed use, not new licensees; passing it to another company is a new licence.
+// Seats: the people at a licensee who may hold the license too. A license for a company covers the company,
+// so its team (and, for a campaign, the agency and the client) each get their own link: the license, the file
+// and the agreement in their own collection, each seat recorded against the license. Seats are people inside
+// the licensed use, not new licensees; passing it to another company is a new license.
 const { nanoid } = require('nanoid');
 
 const SEATS = { social: 1, reference: 1, editorial: 3, commercial: 5, campaign: 10, print: 0 }; // drafts
@@ -26,7 +26,7 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
     if (!l || !x.k || x.k !== l.download_token || !stripe || !live(l) || !(SEATS[l.use_key] > 1)) return res.redirect(`/c/${encodeURIComponent(req.params.ref)}`);
     const n = Math.max(1, Math.min(25, Math.round(Number(x.n) || 1)));
     try {
-      const cs = await stripe.checkout.sessions.create({ mode: 'payment', line_items: [{ quantity: n, price_data: { currency: 'usd', unit_amount: SEAT_PRICE, product_data: { name: `Seat on licence ${l.ref}`, description: `${String(l.title).replace(/[.\s]+$/, '')}: ${l.use_name}. One more person at ${l.licensee_company || l.licensee_name || 'the licensee'}.` } } }],
+      const cs = await stripe.checkout.sessions.create({ mode: 'payment', line_items: [{ quantity: n, price_data: { currency: 'usd', unit_amount: SEAT_PRICE, product_data: { name: `Seat on license ${l.ref}`, description: `${String(l.title).replace(/[.\s]+$/, '')}: ${l.use_name}. One more person at ${l.licensee_company || l.licensee_name || 'the licensee'}.` } } }],
         metadata: { seats: l.ref, n: String(n) }, success_url: `${C.base}/c/${l.ref}/seats/added?session_id={CHECKOUT_SESSION_ID}&k=${l.download_token}`, cancel_url: `${C.base}/c/${l.ref}?k=${l.download_token}#seats` });
       db.prepare('INSERT INTO seat_orders (license_id, n, amount_cents, stripe_session) VALUES (?,?,?,?)').run(l.id, n, n * SEAT_PRICE, cs.id);
       res.redirect(303, cs.url);
@@ -62,8 +62,8 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
     const token = nanoid(24);
     db.prepare('INSERT INTO seats (license_id, token, name, email) VALUES (?,?,?,?)').run(l.id, token, name, email);
     ledger.append(db, 'license.seat', l.ref, { seats: seatsOf(l.id).length + 1, of: capacity(l) });
-    if (mail) mail.send({ to: email, subject: `${l.licensee_company || l.licensee_name || 'Your team'} shared a licence with you: ${String(l.title).replace(/[.\s]+$/, '')}`,
-      text: `You have a seat on licence ${l.ref} (${l.use_name}${l.ends_at ? `, until ${new Date(l.ends_at).toDateString()}` : ''}).\n\nThe photograph, the file and the agreement: ${C.base}/seat/${token}` });
+    if (mail) mail.send({ to: email, subject: `${l.licensee_company || l.licensee_name || 'Your team'} shared a license with you: ${String(l.title).replace(/[.\s]+$/, '')}`,
+      text: `You have a seat on license ${l.ref} (${l.use_name}${l.ends_at ? `, until ${new Date(l.ends_at).toDateString()}` : ''}).\n\nThe photograph, the file and the agreement: ${C.base}/seat/${token}` });
     back(`&seat=${token}`);
   });
   app.post('/c/:ref/seats/:id/remove', (req, res) => {
@@ -74,7 +74,7 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
     res.redirect(`/c/${l.ref}?k=${l.download_token}#seats`);
   });
 
-  // The person with a seat: see it, keep it in their collection, take the file while the licence lasts.
+  // The person with a seat: see it, keep it in their collection, take the file while the license lasts.
   const seatOf = t => db.prepare('SELECT * FROM seats WHERE token=? AND revoked_at IS NULL').get(String(t));
   app.get('/seat/:token', (req, res) => {
     const s = seatOf(req.params.token); if (!s) return res.status(404).send(V.layout({ title: 'Not found · Watermark', body: '<section class="narrow"><h1>This seat is no longer open.</h1><p class="lede">Ask the person who shared it with you.</p></section>' }));

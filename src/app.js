@@ -297,7 +297,7 @@ function createApp(cfg = {}) {
   app.get('/about', (req, res) => res.send(V.about()));
   app.get('/terms', (req, res) => res.send(V.terms()));
 
-  // What the visitor already holds of a work: one row per active licence, with its use and any open offer.
+  // What the visitor already holds of a work: one row per active license, with its use and any open offer.
   const heldBy = (req, w) => { const b = buyerOf(req); if (!b || !w) return [];
     return db.prepare(`SELECT l.ref, l.collector_no, l.ends_at, l.download_token, l.status, u.key, u.name, u.kind, (SELECT ask_cents FROM listings s WHERE s.license_id=l.id AND s.status='open') listed
       FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) ORDER BY l.id`).all(w.id, b.id); };
@@ -594,7 +594,7 @@ function createApp(cfg = {}) {
   const pat = app.locals.patronage = require('./patronage').mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer, ledger, V });
   // Voices: the maker, an art historian, a note, held with each photograph.
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
-  // Seats: the people at a licensee who hold the licence too, each with their own link.
+  // Seats: the people at a licensee who hold the license too, each with their own link.
   require('./seats').mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
@@ -831,7 +831,7 @@ function createApp(cfg = {}) {
   });
 
   // ---------- The contract ----------
-  // Preview while choosing (no names), and the signed copy for each licence.
+  // Preview while choosing (no names), and the signed copy for each license.
   const contractFor = (w, maker, u, t, extra = {}) => K.assemble({ t, work: tidyTitle(w.title), maker: maker.name, ...extra });
   const tidyTitle = s => String(s || '').replace(/[.\s]+$/, '');
   app.get('/contract/:slug', (req, res) => {
@@ -855,7 +855,7 @@ function createApp(cfg = {}) {
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
   app.get('/d/:token', (req, res) => deliver(db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token), res));
-  // The licensed file, stamped and sealed: for the holder's link, and for each seat on the licence.
+  // The licensed file, stamped and sealed: for the holder's link, and for each seat on the license.
   async function deliver(l, res) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
@@ -1007,9 +1007,9 @@ function createApp(cfg = {}) {
         { ok: n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL") > 0, name: 'Numbered as editions', detail: `${n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL")} of ${held}. Studio, Editions.` },
         { ok: n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''") > 0, name: 'Registered with the U.S. Copyright Office', detail: `${n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''")} of ${held}. Studio, Copyright.` } ] },
       { group: 'Words and terms (yours to confirm)', items: [
-        { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licences and prints are drafts' },
+        { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licenses and prints are drafts' },
         { ok: false, manual: true, name: 'Shares', detail: '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
-        { ok: false, manual: true, name: 'Terms for resale', detail: 'The licence says non-transferable; counsel to revise it before the market opens' } ] },
+        { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
     res.send(S.launch({ checks, live }));
   });
