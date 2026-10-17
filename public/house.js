@@ -37,28 +37,22 @@
   if (keep && !SKIP.test(location.pathname)) {
     try { document.cookie = 'kh_' + keep + '=' + encodeURIComponent(location.pathname + location.search) + '; max-age=1800; path=/; SameSite=Lax; Secure' + DOMAIN; } catch (e) {}
   }
-  // Quiet by default: a thin strip with the K and the house you are in, and your own door at the right.
-  // On hover (or a tap on the K) it opens and shows every house by name. Nothing jumps: the height is fixed.
-  var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:0;height:30px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;-webkit-font-smoothing:antialiased;overflow:hidden;box-sizing:border-box;width:100%}'
-    + '.kh .kh-k{display:grid;place-items:center;width:14px;height:14px;margin-right:clamp(14px,2vw,24px);color:#f6f5f2;background:none;border:0;padding:0;cursor:pointer;flex:none;opacity:.9}.kh .kh-k svg{width:11px;height:11px;display:block}'
-    + '.kh .kh-h{display:flex;align-items:center;gap:0;min-width:0}'
-    + '.kh a{position:relative;display:inline-block;color:inherit;text-decoration:none;padding:6px 0;transition:color .5s cubic-bezier(.16,1,.3,1),max-width .55s cubic-bezier(.16,1,.3,1),opacity .4s,margin .55s cubic-bezier(.16,1,.3,1);overflow:hidden}'
+  // One calm strip: every house by name, your own door at the right. Nothing moves, nothing snaps.
+  var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:clamp(18px,2.6vw,36px);height:30px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;-webkit-font-smoothing:antialiased;overflow-x:auto;scrollbar-width:none;box-sizing:border-box;width:100%}'
+    + '.kh::-webkit-scrollbar{display:none}'
+    + '.kh .kh-k{display:none}'
+    + '.kh .kh-h{display:flex;align-items:center;gap:clamp(18px,2.6vw,36px)}'
+    + '.kh a{position:relative;display:inline-block;color:inherit;text-decoration:none;padding:6px 0;transition:color .4s ease}'
     + '.kh a:hover,.kh a:focus-visible{color:#f6f5f2;outline:none}'
-    + '.kh .kh-h a{max-width:0;opacity:0;margin-right:0}'
-    + '.kh .kh-h a[aria-current]{max-width:240px;opacity:1;color:#f6f5f2}'
-    + '.kh.open .kh-h a,.kh:focus-within .kh-h a{max-width:240px;opacity:1;margin-right:clamp(18px,2.6vw,36px)}'
-    + '@media (hover:hover){.kh:hover .kh-h a{max-width:240px;opacity:1;margin-right:clamp(18px,2.6vw,36px)}}'
+    + '.kh .kh-h a[aria-current]{color:#f6f5f2}'
     + '.kh .kh-h a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
     + '.kh .kh-r{margin-left:auto;display:flex;align-items:center;gap:clamp(14px,2vw,24px)}'
-    + '.kh .kh-gb{opacity:0;max-width:0;overflow:hidden;transition:opacity .4s,max-width .55s cubic-bezier(.16,1,.3,1)}.kh.open .kh-gb,.kh:focus-within .kh-gb{opacity:.75;max-width:120px}@media (hover:hover){.kh:hover .kh-gb{opacity:.75;max-width:120px}}'
-    + '.kh .kh-you{color:#f6f5f2;opacity:.9;display:inline-flex;align-items:center;gap:8px;max-width:none}'
-    + '.kh .kh-you .kh-in{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#f6f5f2;color:#111;font-size:8.5px;letter-spacing:.04em;font-weight:600;flex:none}'
-    + '.kh .kh-you .kh-nm{max-width:0;opacity:0;overflow:hidden;transition:max-width .55s cubic-bezier(.16,1,.3,1),opacity .4s}'
-    + '.kh.open .kh-you .kh-nm,.kh:focus-within .kh-you .kh-nm{max-width:200px;opacity:1}@media (hover:hover){.kh:hover .kh-you .kh-nm{max-width:200px;opacity:1}}'
+    + '.kh .kh-gb{opacity:.7}'
+    + '.kh .kh-you{color:#f6f5f2;opacity:.9}.kh .kh-you .kh-in{display:none}'
     + '.kh .kh-me{display:none}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
-    + '@media (max-width:600px){.kh{letter-spacing:.12em;padding:0 16px;font-size:10px}.kh.open .kh-h a,.kh:focus-within .kh-h a{margin-right:14px}}'
+    + '@media (max-width:600px){.kh{gap:13px;letter-spacing:.12em;padding:0 16px;font-size:10px}.kh .kh-h{gap:13px}.kh .kh-gb{display:none}}'
     + '@media print{.kh{display:none}}';
   var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="51.66 0 .14 51.88 .14 51.67 .14 32.28 28.16 0 51.66 0"/></svg>';
   function link(p) {
@@ -96,13 +90,12 @@
     gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
     right.appendChild(gb);
     var you = document.createElement('a'); you.className = 'kh-you'; you.innerHTML = '<span class="kh-nm">Sign in</span>'; you.href = WM + '/signin'; right.appendChild(you);
-    you.querySelector('.kh-nm').style.maxWidth = 'none'; you.querySelector('.kh-nm').style.opacity = '1';
     bar.appendChild(right);
     if (!pre) document.body.insertBefore(bar, document.body.firstChild);
     try {
       fetch(WM + '/api/me', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (me) {
         if (!me || !me.in) return;
-        you.innerHTML = '<span class="kh-in">' + initials(me.name) + '</span><span class="kh-nm">' + (me.name || 'You').replace(/[<>&]/g, '') + '</span>';
+        you.innerHTML = '<span class="kh-nm">' + ((me.name || 'You').split(' ')[0]).replace(/[<>&]/g, '') + '</span>';
         you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your gallery';
       }).catch(function () {});
     } catch (e) {}

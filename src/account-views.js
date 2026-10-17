@@ -1,5 +1,5 @@
 // What a maker sees in their own Watermark account, and the Studio page that invites them.
-const { layout, esc, money, date } = require('./views');
+const { layout, esc, money, date, setDeskPath } = require('./views');
 
 function signedOut() {
   return layout({ title: 'Your room · Watermark', studio: true, body: `<section class="narrow"><p class="k">For makers</p><h1>Sign in to your room.</h1>
@@ -24,6 +24,7 @@ ${msg ? `<p class="err">${esc(msg)}</p>` : ''}
 }
 // The maker's profile: what their page says about them.
 function profile({ m, saved = null, slug }) {
+  setDeskPath('/account/profile');
   return layout({ title: 'Your profile · Watermark', studio: true, body: `<section class="narrow pf-ed"><p class="k">Your studio</p><h1>Your page.</h1>
 <p class="lede">This is what people find at <a href="/m/${esc(slug)}">watermark.krafftco.com/m/${esc(slug)}</a>: who you are, where you work, and your photographs.</p>
 ${saved ? '<p class="ok">Saved.</p>' : ''}
@@ -58,6 +59,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null }) {
+  setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
   const counts = [5, 4, 3, 2, 1, 0].map(n => [n, all.filter(w => w.stars === n).length]);
@@ -101,16 +103,25 @@ ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2></d
 </section><script src="/static/stars.js" defer></script>` });
 }
 
+// Into the vault. Putting finished work here should feel like hanging it: each photograph is shown as it
+// arrives, fingerprinted, given its accession number and its entry on the register, one plate after another.
+// Only the best belongs here; the page says so.
 function upload({ m }) {
-  return layout({ title: 'Add photographs · Watermark', studio: true, body: `<section class="studio-wrap"><p class="k"><a href="/account">${esc(m.name)}</a></p><h1>Add photographs.</h1>
-<p class="lede">Full-resolution files: JPEG, TIFF or PNG. Each is fingerprinted, sealed in the vault and written to the ledger the moment it arrives. They stay private until you publish them from your account.</p>
-<form class="form upload bulk" onsubmit="return false"><label class="drop"><input type="file" id="aFiles" accept="image/jpeg,image/png,image/tiff" multiple><b>Choose photographs or a folder&rsquo;s worth</b><span>Titles come from the file names; refine them later.</span></label>
-<label>Place, for all<input id="aPlace" placeholder="Florence, Italy"></label><button type="button" id="aGo" disabled>Choose photographs</button><ol class="bulk-list" id="aList"></ol></form>
-<script>(function(){var inp=document.getElementById('aFiles'),go=document.getElementById('aGo'),list=document.getElementById('aList'),files=[];
-inp.onchange=function(){files=[].slice.call(inp.files);go.disabled=!files.length;go.textContent='Hold '+files.length+' photograph'+(files.length===1?'':'s')};
-go.onclick=async function(){go.disabled=true;var ok=0,i=0;async function one(){while(i<files.length){var f=files[i++],li=document.createElement('li');li.textContent=f.name;list.appendChild(li);var fd=new FormData();fd.append('file',f);fd.append('place',document.getElementById('aPlace').value);
-try{var j=await (await fetch('/account/works/one',{method:'POST',body:fd,credentials:'same-origin'})).json();li.className=j.ok?'done':'skip';li.textContent=f.name+(j.ok?' · held':' · '+j.error);if(j.ok)ok++}catch(e){li.className='skip';li.textContent=f.name+' · connection lost'}go.textContent=i+' of '+files.length}}
-await Promise.all([one(),one()]);go.textContent=ok+' held';setTimeout(function(){location.href='/account'},1200)};})();</script></section>` });
+  setDeskPath('/account/upload');
+  return layout({ title: 'Into the vault · Watermark', studio: true, body: `<section class="studio-wrap vt" data-vault>
+<div class="vt-head"><div><p class="k"><a href="/account">${esc(m.name)}</a> &middot; The vault</p><h1>Put your best work in the vault.</h1>
+<p class="lede">This is where your finished photographs live: fingerprinted the moment they arrive, sealed with their masters, numbered, written to the register, and held for as long as there is a Watermark. Bring the work you would hang. The rest stays on your drive.</p></div>
+<ul class="vt-rules"><li><b>Full-resolution masters.</b> JPEG, TIFF or PNG, straight from your edit. 12 MP and up licenses for stories and companies; 24 for campaigns and walls; 40 earns the Reference.</li><li><b>Private until you hang it.</b> Every arrival is held privately; you publish each one from your studio when it is ready.</li><li><b>Your word stands behind it.</b> Publishing is your attestation that you made it, hold the rights, and have releases for anyone identifiable.</li></ul></div>
+<form class="vt-form" onsubmit="return false"><label class="vt-door"><input type="file" id="aFiles" accept="image/jpeg,image/png,image/tiff" multiple><span class="vt-door-in"><b>Open the vault</b><span>Choose photographs, or a folder&rsquo;s worth. Titles come from the file names; you refine them after.</span></span></label>
+<div class="vt-row"><label class="vt-place">Place, for all<input id="aPlace" placeholder="Florence, Italy"></label><button type="button" class="buy-btn vt-go" id="aGo" disabled>Choose photographs</button></div></form>
+<ol class="vt-list" id="aList"></ol>
+<div class="vt-done" id="aDone" hidden><p class="k">Held</p><h2 id="aDoneT"></h2><p class="lede">Each one is in the vault with its number and its entry on the register. Hang them when they are ready: a title, a place, a date, a sentence, then publish.</p><p class="vt-acts"><a class="buy-btn" href="/account">Go to your studio</a><a class="vt-more" href="/account/upload">Bring more</a></p></div>
+<script>(function(){var inp=document.getElementById('aFiles'),go=document.getElementById('aGo'),list=document.getElementById('aList'),done=document.getElementById('aDone'),doneT=document.getElementById('aDoneT'),files=[];
+function esc(s){return String(s).replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]})}
+inp.onchange=function(){files=[].slice.call(inp.files);go.disabled=!files.length;go.textContent=files.length?'Put '+files.length+' photograph'+(files.length===1?'':'s')+' in the vault':'Choose photographs';list.innerHTML='';files.forEach(function(f){var li=document.createElement('li');li.className='vt-i';var url=URL.createObjectURL(f);li.innerHTML='<span class="vt-pl"><img src="'+url+'" alt=""></span><span class="vt-t"><b>'+esc(f.name.replace(/\\.[a-z0-9]+$/i,'').replace(/[_-]+/g,' '))+'</b><span class="vt-s"><i data-s="1">Fingerprint</i><i data-s="2">Sealed</i><i data-s="3">Register</i></span><small class="vt-m"></small></span>';list.appendChild(li);f._li=li})};
+go.onclick=async function(){go.disabled=true;inp.disabled=true;var ok=0,i=0;async function one(){while(i<files.length){var f=files[i++],li=f._li,st=li.querySelectorAll('[data-s]'),m=li.querySelector('.vt-m');li.classList.add('busy');st[0].classList.add('on');var fd=new FormData();fd.append('file',f);fd.append('place',document.getElementById('aPlace').value);
+try{var j=await (await fetch('/account/works/one',{method:'POST',body:fd,credentials:'same-origin'})).json();if(j.ok){ok++;li.classList.remove('busy');li.classList.add('held');st[1].classList.add('on');setTimeout(function(){st[2].classList.add('on')},300);m.innerHTML=(j.accession?'<code>'+esc(j.accession)+'</code> &middot; ':'')+(j.mp?j.mp+' MP &middot; ':'')+(j.fingerprint?'sha256 '+esc(j.fingerprint)+'&hellip;':'')+(j.entry?' &middot; entry '+j.entry:'');li.querySelector('b').textContent=j.title}else{li.classList.remove('busy');li.classList.add('skip');m.textContent=j.error||'Not held.'}}catch(e){li.classList.remove('busy');li.classList.add('skip');m.textContent='Connection lost; try again.'}go.textContent=i+' of '+files.length}}
+await Promise.all([one(),one()]);go.textContent=ok+' held';done.hidden=false;doneT.textContent=ok===1?'One photograph is in the vault.':ok+' photographs are in the vault.';done.scrollIntoView({behavior:'smooth',block:'start'})};})();</script></section>` });
 }
 
 module.exports = { join, profile, signedOut, gone, studioAccounts, dashboard, upload };

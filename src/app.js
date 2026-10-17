@@ -783,7 +783,7 @@ function createApp(cfg = {}) {
     } catch (e) { /* keep what we had */ }
     return journal.posts;
   }
-  app.get('/journal', async (req, res) => res.send(V.journal({ posts: await journalPosts() })));
+  app.get('/journal', async (req, res) => res.send(V.journal({ posts: await journalPosts(), study: db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND (curated=1 OR stars>=4) ORDER BY RANDOM() LIMIT 3").all() })));
   app.get('/collectors', (req, res) => {
     const list = db.prepare(`SELECT b.id, b.code, b.name, COUNT(DISTINCT l.work_id) AS works, MIN(l.collector_no) AS earliest FROM buyers b
       JOIN licenses l ON l.buyer_id=b.id AND l.status IN ('active','expired') AND l.price_cents > 0 JOIN works w ON w.id=l.work_id AND w.status='held'

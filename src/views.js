@@ -62,9 +62,14 @@ const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
 const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MAKER_MAIN = [['/account', 'Your studio'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
 function deskHeader(path = '') {
   path = path || deskPath;
-  const cur = h => (path === h || (h !== '/studio' && path && path.startsWith(h))) ? ' aria-current="page"' : '';
+  const maker = /^\/(account|yours|closer)/.test(path);
+  const cur = h => (path === h || (!['/studio', '/account'].includes(h) && path && path.startsWith(h))) ? ' aria-current="page"' : '';
+  if (maker) return `<header class="dk"><div class="dk-row"><a class="dk-brand" href="/account"><img src="/static/watermark-logo.svg" alt="Watermark"><span>Studio</span></a>
+<nav class="dk-nav" aria-label="Your rooms">${MAKER_MAIN.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</nav>
+<div class="dk-right"><a href="/" class="dk-out">The collection</a><form method="post" action="/signout" class="dk-form"><button class="dk-out">Sign out</button></form></div></div></header>`;
   return `<header class="dk"><div class="dk-row"><a class="dk-brand" href="/studio"><img src="/static/watermark-logo.svg" alt="Watermark"><span>Studio</span></a>
 <nav class="dk-nav" aria-label="The rooms">${DESK_MAIN.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}<details class="dk-more"><summary>Back office</summary><div>${DESK_MORE.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</div></details></nav>
 <div class="dk-right"><a href="/" class="dk-out">The collection</a><a href="/studio/logout" class="dk-out">Sign out</a></div></div>
@@ -811,6 +816,7 @@ ${f.status !== 'pending' && f.buyer_id ? `<form method="post" action="/friends/$
 }
 // Keeping: what the archive holds for a maker, and what it costs beyond the free line.
 function keeping({ m, works, gb, over, plan, terms, open, ok }) {
+  setDeskPath('/account/keeping');
   return layout({ title: 'Keeping · Watermark', studio: true, body: `<section class="narrow kp"><p class="k">Your studio</p><h1>Keeping.</h1>
 <p class="lede">Watermark is an archive. Every photograph you hold here is fingerprinted, kept in the vault with its master, served at every size, protected by the Shield and written into the register. Up to ${terms.freeWorks} photographs or ${terms.freeGB} GB, that is free. Beyond it, Keeping is ${money(terms.cents)} a month.</p>
 ${ok === 'begun' ? '<p class="ok">Keeping has begun. Thank you for trusting the archive with your work.</p>' : ok === 'ending' ? '<p class="ok">Keeping ends at the close of this period.</p>' : ok === 'unavailable' ? '<p class="err">Payment is unavailable for a moment.</p>' : ''}
@@ -1103,12 +1109,19 @@ function patronage() {
 }
 
 // The Journal: what Krafft Studios writes about Watermark, art history and the people who make and collect.
-function journal({ posts }) {
+// The journal, kept the way the old notebooks were kept: studies, plans, the process behind a picture,
+// and the long habit of sitting in front of a master's work and making it again for yourself. Copy a draft.
+function journal({ posts, study = [] }) {
   const item = (p, lead) => `<a class="jr${lead ? ' jr-lead' : ''}" href="${esc(p.url)}">${p.feature_image ? `<span class="jr-f"><img src="${esc(p.feature_image)}" alt="${esc(p.feature_image_alt || '')}"${lead ? ' fetchpriority="high"' : ' loading="lazy"'} draggable="false"></span>` : ''}
 <span class="jr-t"><small>${date(p.published_at)}${p.reading_time ? ` &middot; ${p.reading_time} min` : ''}</small><b>${esc(p.title)}</b><span>${esc(p.custom_excerpt || (p.excerpt || '').slice(0, 220))}</span>${lead ? '<span class="jr-go">Read on Krafft Studios &rarr;</span>' : ''}</span></a>`;
-  return layout({ title: 'Journal · Watermark', desc: 'Watermark news, art history and patronage, written by Krafft Studios.', path: '/journal', body: `${pageHero('under-the-gallery-dome', 'The National Gallery, London')}<section class="cx-intro"><p class="k">Journal</p>
-<h1>On making, collecting and keeping.</h1><p class="lede">News from Watermark, the history of art and patronage, and the people who make and collect. Written and published by <a href="https://studios.krafftco.com">Krafft Studios</a>.</p></section>
-<section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
+  return layout({ title: 'Journal · Watermark', desc: 'A working notebook: studies, plans, the process behind the pictures, and the practice of studying the masters.', path: '/journal', body: `${pageHero('under-the-gallery-dome', 'The National Gallery, London')}<section class="cx-intro jn-intro"><p class="k">Journal</p>
+<h1>A working notebook.</h1><p class="lede">Leonardo filled thousands of pages: studies of water and hands, plans for machines, notes on how a painting should be made and what he had learned from looking. The notebook was the work before the work. This journal is kept the same way: studies, plans, the process behind each photograph, and the old habit of sitting in front of a master&rsquo;s picture and making it again for yourself.</p></section>
+<section class="gal jn-prac"><header class="gh"><h2>The practice</h2><span>three habits of the notebook</span></header><div class="jn-three">
+<a class="jn-p" href="/wander/room"><span class="jn-n">I</span><b>Study.</b><p>Stand in front of one photograph for ten minutes, longer than feels reasonable. Read the guide, then look again without it. The viewing room is made for this.</p><span class="jn-go">Open the viewing room</span></a>
+<a class="jn-p" href="/collection"><span class="jn-n">II</span><b>Copy.</b><p>Every record here names the place, the hour, the camera and the light. That is the recipe. Go and make the picture yourself; the masters learned by copying, and so does everyone.</p><span class="jn-go">Walk the collection</span></a>
+<a class="jn-p" href="/guestbook"><span class="jn-n">III</span><b>Keep a record.</b><p>Write down what you saw and what you would do differently. On Watermark the record is the notebook: a caption, a place, a date, how it was made. Sign the guest book with what you learned.</p><span class="jn-go">The guest book</span></a></div></section>
+${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth studying this week</h2><span>from the collection</span></header><div class="jn-grid">${study.map(w => `<a class="jn-w" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" draggable="false"><span><b>${esc(tidy(w.title))}</b>${w.place ? `<small>${esc(w.place)}</small>` : ''}</span></a>`).join('')}</div></section>` : ''}
+<section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
 module.exports = { setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
