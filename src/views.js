@@ -219,10 +219,10 @@ ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for 
 </div></article>
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
-${ap ? `<div class="lot-sec nt" id="notes"><h2>Notes</h2>
-${note === '1' ? '<p class="ok">Left with the photograph.</p>' : note === 'check' ? '<p class="err">A sentence, please, without links.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}
-${ap.notes.length ? `<ul class="nt-l">${ap.notes.map(n => `<li><p>${esc(n.body)}</p><small>${esc(n.name || 'A visitor')} &middot; ${date(n.at)}${canModerate || (me && n.buyer_id === me) ? ` &middot; <form method="post" action="/w/${esc(w.slug)}/notes/${n.id}/remove" class="inline"><button class="link">Remove</button></form>` : ''}</small></li>`).join('')}</ul>` : '<p class="nt-0">Nothing yet. The first note sets the tone.</p>'}
-<form method="post" action="/w/${esc(w.slug)}/notes" class="nt-f"><textarea name="body" rows="2" maxlength="280" placeholder="What you see in it, or where it took you." required></textarea><div><input name="name" placeholder="Your name" maxlength="60"><button class="btn">Leave a note</button></div></form></div>` : ''}
+${ap ? `<div class="lot-sec nt" id="notes"><h2>Guest book</h2>
+${note === '1' ? '<p class="ok">Signed.</p>' : note === 'check' ? '<p class="err">A sentence, please, without links.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}
+${ap.notes.length ? `<ul class="nt-l">${ap.notes.map(n => `<li><p>${esc(n.body)}</p><small>${esc(n.name || 'A visitor')} &middot; ${date(n.at)}${canModerate || (me && n.buyer_id === me) ? ` &middot; <form method="post" action="/w/${esc(w.slug)}/notes/${n.id}/remove" class="inline"><button class="link">Remove</button></form>` : ''}</small></li>`).join('')}</ul>` : '<p class="nt-0">No one has signed yet.</p>'}
+<form method="post" action="/w/${esc(w.slug)}/notes" class="nt-f"><textarea name="body" rows="2" maxlength="280" placeholder="A line for the book: what you saw in it, or where it took you." required></textarea><div><input name="name" placeholder="Your name" maxlength="60"><button class="btn">Sign the book</button></div></form></div>` : ''}
 <div class="lot-sec"><h2>Provenance and record</h2><dl class="facts">${facts}</dl>
 <p class="note"><a href="/w/${esc(w.slug)}/life">The life of this photograph</a>: its registration and every license since, recorded in the <a href="/ledger">register</a>.</p>
 ${rules && rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}</div>
