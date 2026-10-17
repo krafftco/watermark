@@ -53,6 +53,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   for (const p of ['$350', '$750', '$2,500', '$250', 'License for $750']) assert.ok(page.includes(p), 'price visible: ' + p);
   assert.ok(!/name="email"/.test(page), 'no form fields before payment');
 
+  // the contract: rights added at a price, extended rights, and asks for what the maker must agree
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: 'use=commercial&add=audiovisual&add=editorial&x=entities', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  assert.equal(r.status, 303); { const cs = sessions[r.headers.location.split('/').pop()]; assert.equal(cs.line_items[0].price_data.unit_amount, 75000 + 2 * 15000 + 75000, 'priced from the rights'); assert.ok(/audiovisual works/.test(cs.line_items[0].price_data.product_data.description));
+    const lr = db.prepare('SELECT rights FROM licenses WHERE ref=?').get(cs.metadata.ref); const lt = JSON.parse(lr.rights); assert.ok(lt.rights.includes('audiovisual') && lt.extras.includes('entities')); }
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: 'use=commercial&x=merchandise', headers: { 'content-type': 'application/x-www-form-urlencoded' } }); assert.ok(r.body.toString().includes('Send to the maker'), 'merchandise is asked of the maker');
+  r = await req(port, 'GET', `/contract/${w.slug}?use=commercial&add=audiovisual`); { const b = r.body.toString(); assert.ok(b.includes('websites, social media, marketing materials, presentations, and audiovisual works') && b.includes('artificial intelligence') && b.includes('shall not modify'), 'contract assembled'); }
+  r = await req(port, 'GET', `/contract/${w.slug}?use=commercial&x=merchandise`); assert.ok(!r.body.toString().includes('on-demand merchandise printing'), 'merchandise lifts restriction (g)');
   // one tap: use -> Checkout -> paid -> it's yours, with buyer details from Stripe
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'commercial', note: 'Homepage hero' } });
   assert.equal(r.status, 303); assert.ok(r.headers.location.startsWith('https://checkout.stripe.test/'));

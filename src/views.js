@@ -384,6 +384,38 @@ function scenes(w, maker) {
 <i class="base"></i><i class="fl"></i><i class="bench"></i></div>`;
 }
 
+// The contract, as numbered sections (src/contract.js), set like a printed agreement.
+const contractBody = sections => `<div class="ct">${sections.map(x => `<section class="ct-s">${x.h ? `<h3><span>${esc(x.n)}.</span> ${esc(x.h)}</h3>` : ''}${(x.p || []).map(p => `<p${x.caps ? ' class="ct-caps"' : ''}>${esc(p)}</p>`).join('')}
+${(x.sub || []).map(y => `<div class="ct-sub"><p${y.caps ? ' class="ct-caps"' : ''}><b>${esc(y.n)}&ensp;${esc(y.h)}.</b> ${esc((y.p || []).join(' '))}</p>${y.items ? `<ol class="ct-items">${y.items.map(i => `<li>${esc(i)}</li>`).join('')}</ol>` : ''}</div>`).join('')}</section>`).join('')}</div>`;
+function contractPage({ sections, w, maker, u, t, preview = false, lic = null }) {
+  const C = require('./contract');
+  const has = C.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label);
+  return layout({ title: `${preview ? 'The agreement' : 'Agreement ' + lic.ref} · ${tidy(w.title)}`, body: `<section class="ct-wrap">
+<p class="k">${preview ? 'The agreement, as it would read' : `Agreement ${esc(lic.ref)}`}</p>
+<h1>Standard Content License Agreement</h1>
+<p class="ct-for"><i>${esc(tidy(w.title))}</i>, photograph by ${esc(maker.name)} &middot; ${esc(u.name)}${t.price != null && !t.ask ? ` &middot; ${money(t.price)}` : ''}</p>
+<div class="ct-sum"><div><span>Granted</span>${has.length ? has.map(esc).join(', ') : u.kind === 'print' ? 'A physical print' : 'Personal use'}${t.extras.length ? `; ${t.extras.map(k => esc(C.EXTRAS.find(e => e.key === k).label)).join(', ')}` : ''}</div>
+<div><span>Term</span>${t.term_months ? `${t.term_months / 12 === 1 ? '1 year' : t.term_months + ' months'}` : 'Perpetual'}</div>
+<div><span>Never</span>${t.never.length ? t.never.map(k => esc(require('./rules').NEVER[k])).join('; ') : 'No further restrictions'}</div></div>
+${contractBody(sections)}
+<p class="note">${preview ? 'Assembled from the rights chosen. The agreement you accept at checkout is this text, with your name and order added.' : 'Accepted at checkout and recorded on the ledger.'} Drafted with counsel; under review.</p>
+<p class="sr-also"><a href="/w/${esc(w.slug)}">The photograph</a></p></section>` });
+}
+
+// The rights in the contract: what the chosen use carries, what can be added (priced), what needs the
+// maker (asked), and what the maker never allows. Changing any of them changes the price and the text.
+function rightsPanel(uses, rules) {
+  const C = require('./contract');
+  const data = {};
+  for (const u of uses) { const t = C.terms({ use: u, never: rules.never, base: u.price_cents }); data[u.key] = { has: t.rights, addable: t.addable, personal: t.personal, print: u.kind === 'print', base: u.price_cents }; }
+  const noAdapt = rules.never.includes('alter');
+  return `<div class="rt" data-rt hidden><p class="rt-h">The rights in your contract <a href="#" data-rt-read>Read the agreement</a></p>
+<div class="rt-g" role="group" aria-label="Permitted uses">${C.RIGHTS.map(r => `<label class="rt-c" data-r="${r.key}"><input type="checkbox" name="add" value="${r.key}"><span>${esc(r.label)}</span><em></em></label>`).join('')}</div>
+<div class="rt-x" role="group" aria-label="Extended rights">${C.EXTRAS.map(e => { const off = e.key === 'derivative' && noAdapt; return `<label class="rt-e${off ? ' is-never' : ''}" title="${esc(e.note)}"><input type="checkbox" name="x" value="${e.key}"${off ? ' disabled' : ''}><span><b>${esc(e.label)}</b>${esc(e.note)}</span><em>${off ? 'The maker says never' : e.price == null ? 'Ask the maker' : '+' + money(e.price)}</em></label>`; }).join('')}</div>
+<dialog class="rt-d" data-rt-d><form method="dialog"><button class="rt-close" aria-label="Close">&times;</button></form><div data-rt-body></div></dialog>
+<script src="/static/rights.js?v=${VER}" defer></script><script>window.__WM_RT=${JSON.stringify({ uses: data, add: C.ADD_RIGHT, extras: Object.fromEntries(C.EXTRAS.map(e => [e.key, e.price])) }).replace(/</g, '\\u003c')};</script></div>`;
+}
+
 // The license page. One photograph, four uses, every price in plain sight, one button.
 // Payment (Apple Pay, Google Pay, Link, card) collects name and email; nothing is asked twice.
 function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], approve: false } }) {
@@ -409,6 +441,7 @@ ${scenes(w, maker)}</div>
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Share it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <fieldset class="bus"><legend class="vh">How it will be used</legend>${rows}</fieldset>
+${rightsPanel(uses, rules)}
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 <button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
 ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
@@ -593,6 +626,7 @@ ${entry ? `<div><dt>Ledger</dt><dd>Entry ${entry.seq} &middot; <code>${esc(entry
 <div class="terms"><h2>In plain language</h2>
 <p>${esc(maker.name)} grants ${esc(lic.licensee_company || lic.licensee_name)} a non-exclusive, non-transferable license to use the photograph above for ${esc(use.name.toLowerCase())} use as described${lic.intended_use ? `: &ldquo;${esc(lic.intended_use)}&rdquo;` : ''}, for the term shown, with credit to ${esc(maker.name)} where the use allows. ${lic.conditions ? esc(lic.conditions) + '. ' : ''}Copyright stays with the maker. Any other use needs a new license. The full terms are at <a href="${esc(base)}/terms">${esc(base.replace(/^https?:\/\//, ''))}/terms</a>.</p></div>
 ${owner && active && lic.download_token ? `<p><a class="btn" href="/d/${esc(lic.download_token)}">Download the full file</a></p>` : ''}
+${owner && lic.download_token ? `<p><a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">The agreement</a>, with the rights you hold.</p>` : ''}
 ${active ? `<p><a href="/c/${esc(lic.ref)}.pdf">Certificate as PDF</a></p>` : ''}
 <p class="note">Anyone can check this license at <a href="/verify?ref=${esc(lic.ref)}">/verify</a>.</p>
 </section>`
@@ -734,4 +768,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };

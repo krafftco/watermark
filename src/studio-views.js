@@ -3,7 +3,7 @@ const { layout, esc, money, date, termText } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
 const nav = active => `<nav class="snav">${MAIN.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="snav-more">${MORE.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</span></nav>`;
 
 function login({ error }) {
@@ -267,6 +267,19 @@ ${groups.length ? `<section class="hd-list"><div class="hd-h"><h2>Groups</h2></d
 }
 
 // Launch: the rails, checked.
+function contract({ review, rights, extras, bundles, add }) {
+  const tag = { FIX: 'Corrected', ADDED: 'Added', OPEN: 'For counsel' };
+  const U = { social: 'Share it', reference: 'Collect the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
+  return layout({ studio: true, title: 'Contract · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/contract')}
+<p class="k">Contract</p><h1>The Standard Content License Agreement</h1>
+<p class="lede">Counsel's 2021 draft for Watermark Ventures, now assembled for each order from the rights the licensee pays for. Each use carries its rights; anything else can be added at a price or asked of the maker; the maker's never list is written in.</p>
+<section class="hd-list"><div class="hd-h"><h2>What each use carries</h2></div>${Object.entries(bundles).map(([k, v]) => `<div class="ln-row"><span class="ln-dot ln-ok"></span><b>${esc(U[k] || k)}</b><span>${v.length ? v.map(r => esc(rights.find(x => x.key === r).label)).join(', ') : k === 'print' ? 'A physical print; no reproduction rights' : ''}${k === 'social' || k === 'reference' ? ' (personal only)' : ''}</span></div>`).join('')}
+<div class="ln-row"><span class="ln-dot ln-man"></span><b>Each use added</b><span>+${money(add)} (draft)</span></div>
+${extras.map(e => `<div class="ln-row"><span class="ln-dot ln-man"></span><b>${esc(e.label)}</b><span>${e.price == null ? 'Asked of the maker' : '+' + money(e.price) + ' (draft)'}. ${esc(e.note)}</span></div>`).join('')}</section>
+<section class="hd-list"><div class="hd-h"><h2>For review with counsel</h2></div>${review.map(([k, where, what]) => `<div class="ln-row"><span class="ln-dot ${k === 'OPEN' ? 'ln-no' : 'ln-man'}"></span><b>${esc(tag[k])} &middot; ${esc(where)}</b><span>${esc(what)}</span></div>`).join('')}</section>
+<p class="note">Read the live text for any photograph at /contract/&lt;photograph&gt;. Not legal advice; confirm with counsel before taking live payments on it.</p></section>` });
+}
+
 function launch({ checks, live }) {
   const all = checks.flatMap(g => g.items), ready = all.filter(i => i.ok).length;
   return layout({ studio: true, title: 'Launch · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/launch')}
@@ -276,4 +289,4 @@ ${checks.map(g => `<section class="hd-list"><div class="hd-h"><h2>${esc(g.group)
 <p class="note">Keys and passwords go in Render's environment settings only, never in chat, Notion or email.</p></section>` });
 }
 
-module.exports = { launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+module.exports = { contract, launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

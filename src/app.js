@@ -5,6 +5,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const K = require('./contract');
 const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
@@ -49,6 +50,7 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='rights'").get()) db.exec('ALTER TABLE licenses ADD COLUMN rights TEXT'); // the contract's terms, as paid for
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='set_ref'").get()) db.exec('ALTER TABLE licenses ADD COLUMN set_ref TEXT'); // bought together as a set
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
   // Buyers who chose one-tap: Stripe customer and saved payment method, nothing else.
@@ -415,18 +417,23 @@ function createApp(cfg = {}) {
     if (!u || !offered(rules, u.key, w)) return res.redirect(`/license/${w.slug}`);
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
-    if (rules.approve) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews, approve: true }));
-    if (req.body.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note, renews: req.body.renews }));
+    // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
+    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents });
+    const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
+    const noteAll = [wants, note].filter(Boolean).join('\n') || null;
+    if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true }));
+    if (req.body.ask || t.ask || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews }));
+    u.price_cents = t.price;
     const ref = nextRef();
-    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?)")
-      .run(ref, w.id, u.id, 'Buyer', '', note, u.price_cents, R.conditions(rules) || null);
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
+      .run(ref, w.id, u.id, 'Buyer', '', noteAll, u.price_cents, R.conditions(rules) || null, JSON.stringify(t));
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment',
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: u.key === 'social' ? `${w.title.replace(/[.\s]+$/, '')}` : `${w.title.replace(/[.\s]+$/, '')}: ${u.name}`, description: u.key === 'social' ? `Yours to share. Photograph by ${maker.name}.` : u.key === 'reference' ? `The full original at reference quality, ${Math.round(w.width * w.height / 1e6)} megapixels. Photograph by ${maker.name}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u)}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: u.price_cents, product_data: { name: u.key === 'social' ? `${w.title.replace(/[.\s]+$/, '')}` : `${w.title.replace(/[.\s]+$/, '')}: ${u.name}`, description: u.key === 'social' ? `Yours to share. Photograph by ${maker.name}.` : u.key === 'reference' ? `The full original at reference quality, ${Math.round(w.width * w.height / 1e6)} megapixels. Photograph by ${maker.name}.` : `${u.kind === 'print' ? 'Archival print, signed' : 'License, ' + V.termText(u) + ': ' + K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label.toLowerCase()).join(', ') + (t.extras.length ? '; ' + t.extras.map(k => K.EXTRAS.find(e => e.key === k).label.toLowerCase()).join(', ') : '')}. Photograph by ${maker.name}. Watermark ${ref}.`, images: [`${C.base}/img/${w.slug}/thumb`] } } }],
         // Share it: nothing but Apple Pay / Google Pay, card or Link (which remembers returning buyers).
         ...(u.key === 'social' ? { submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
@@ -800,6 +807,30 @@ function createApp(cfg = {}) {
     const maker = mk(w); // the work's own maker
     res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner }));
   });
+
+  // ---------- The contract ----------
+  // Preview while choosing (no names), and the signed copy for each licence.
+  const contractFor = (w, maker, u, t, extra = {}) => K.assemble({ t, work: tidyTitle(w.title), maker: maker.name, ...extra });
+  const tidyTitle = s => String(s || '').replace(/[.\s]+$/, '');
+  app.get('/contract/:slug', (req, res) => {
+    const w = q.work.get(req.params.slug); const maker = mk(w);
+    if (!w || w.status !== 'held') return res.sendStatus(404);
+    const rules = R.parse(w.rules);
+    const u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w); if (!u || !offered(rules, u.key, w)) return res.sendStatus(404);
+    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents });
+    const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
+    res.send(req.query.frag ? V.contractBody(sections) : V.contractPage({ sections, w, maker, u, t, preview: true }));
+  });
+  app.get('/c/:ref/contract', (req, res) => {
+    const l = q.lic.get(req.params.ref); if (!l) return res.sendStatus(404);
+    if (!(isStudio(req) || (req.query.k && req.query.k === l.download_token))) return res.redirect(`/c/${l.ref}`);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w), u = q.useById.get(l.use_id);
+    let t; try { t = l.rights ? JSON.parse(l.rights) : null; } catch (e) { t = null; }
+    if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: l.price_cents });
+    const sections = contractFor(w, maker, u, t, { licensee: l.licensee_company || l.licensee_name, ref: l.ref, price: l.price_cents != null ? V.money(l.price_cents, l.currency) : null });
+    res.send(V.contractPage({ sections, w, maker, u, t, lic: l }));
+  });
+  app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
   app.get('/d/:token', async (req, res) => {
     const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
