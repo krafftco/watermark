@@ -1464,3 +1464,17 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .gb-d small{font-size:10px;letter-spacing:.04em;color:#b0a899}
 .gb-on{display:block;font-family:var(--sans);font-style:normal;font-size:11px;color:#9a9185}.gb-on a{color:var(--ink);text-decoration:none;border-bottom:1px solid rgba(0,0,0,.2)}
 .gb-l select{border:0;border-bottom:1px solid var(--ink);background:none;padding:8px 0;font:inherit;font-size:15px;outline:none}
+/* Stars: the maker's grade. */
+.st{display:inline-flex;gap:1px}
+.st button{border:0;background:none;padding:2px 1px;font-size:15px;line-height:1;color:var(--ln);cursor:pointer;border-radius:0;box-shadow:none;transition:color .2s,transform .2s var(--e)}
+.st button.on{color:var(--ink)}
+.st:hover button{color:var(--ln)}.st button:hover,.st button:has(~ button:hover){color:var(--ink)}
+.st.tick button.on{transform:scale(1.18)}
+.st-bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 24px;margin:0 0 10px}
+.st-f{display:flex;flex-wrap:wrap;gap:2px 16px;font-size:13px}
+.st-f a{color:var(--mu);text-decoration:none;padding:4px 0;letter-spacing:.04em}.st-f a[aria-current]{color:var(--ink);border-bottom:1px solid var(--ink)}
+.st-f a.is-0{opacity:.4}.st-f small{margin-left:5px;font-size:11px;color:var(--mu)}
+.st-cull{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mu)}
+.st-cull select{border:0;border-bottom:1px solid var(--ln);background:none;font:inherit;font-size:13px;letter-spacing:.06em;padding:4px 0;color:var(--ink)}
+.st-cull .link{border:0;background:none;padding:0;font:inherit;color:var(--ink);text-decoration:underline;cursor:pointer}
+.st-help{margin:0 0 16px;font-size:12.5px;line-height:1.55;color:var(--mu);max-width:60em}.st-help a{color:var(--ink)}

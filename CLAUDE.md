@@ -34,6 +34,7 @@ Watermark is a Krafft company: hold, show, license and protect photographs at th
 - The maker page states the split: "85% of every sale is <first name>'s".
 - Scope: photographs first. Music and film are earmarked, not built: the schema already keys works by maker and kind; add kinds when the time comes.
 - The house guest book: /guestbook (`guestbook` in views.js; routes in applause.js). One book for all of Krafft in chapters (`notes.chapter`: krafft, studios, advisory, ventures, watermark, dgc; lines on photographs have work_id and count as the Watermark chapter; house lines have work_id=0). Signed from any site through the house bar's 'Guest book' link (house.js), which carries the chapter and a way back. Footer link on Watermark.
+- Stars and the cull: `works.stars` 0–5 (the maker's grade; 5 sets `curated`, the jewel). Graded on the maker's studio (click or keys 1–5, 0 clears; `public/stars.js`; POST /account/works/:slug/stars), filtered by ?stars=N. POST /account/cull {from}: public works below N stars go private (never deleted; still fingerprinted and registered), published works at or above N come back. Culled work weighs a quarter toward Keeping's free line. Studio → Works sorts 'The rubies: by stars'. The standard is the Frick's: the best work in front, the rest kept.
 - Your collection shows pieces as cards (`card` in views.js; .tc in style.css).
 
 ## Rules (from Will)

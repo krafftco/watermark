@@ -58,7 +58,10 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option></select></label><button>Create the account</button></form></section>` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null }) {
+  const all = works; if (stars) works = works.filter(w => w.stars === stars);
+  const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
+  const counts = [5, 4, 3, 2, 1, 0].map(n => [n, all.filter(w => w.stars === n).length]);
   const hidden = viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : '';
   const star = w => `<form method="post" action="/account/works/${esc(w.slug)}/jewel" class="inline">${hidden}<button class="jw${w.curated ? ' on' : ''}" title="${w.curated ? 'Remove from your jewels' : 'Mark as a jewel'}" aria-pressed="${w.curated ? 'true' : 'false'}">${w.curated ? '&#9733;' : '&#9734;'}</button></form>`;
   const jewel = w => `<a class="ac-j" id="j-${esc(w.slug)}" href="/w/${esc(w.slug)}"><span class="ac-jf"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></span><b>${esc(w.title)}</b><span>${money(toMaker(w.gross))} &middot; ${w.seen30} seen</span></a>`;
@@ -67,7 +70,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
     : `<details class="ac-pub"><summary>Private &middot; <u>Publish</u></summary><form method="post" action="/account/works/${esc(w.slug)}/show"><label><input type="checkbox" name="attest" value="1" required> I hold the rights, and releases for anyone identifiable</label><button>Publish</button></form></details>`;
   const row = w => `<div class="hd-row ac-row" id="w-${esc(w.slug)}"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"></a>
 <span class="hd-t"><b><a href="/w/${esc(w.slug)}">${esc(w.title)}</a></b><small>${esc(w.place || '')}${viewing ? '' : `${w.place ? ' &middot; ' : ''}<a href="/voices/${esc(w.slug)}">Add your voice</a>`}</small></span>
-<span>${pub(w)}</span><span class="hd-c">${w.shares + w.licenses}</span><span class="hd-c">${w.seen30}</span><span class="hd-v">${money(toMaker(w.gross))}</span><span class="ac-star">${star(w)}</span></div>`;
+<span>${pub(w)}</span><span class="hd-c">${w.shares + w.licenses}</span><span class="hd-c">${w.seen30}</span><span class="hd-v">${money(toMaker(w.gross))}</span><span class="ac-star">${grade(w)}</span></div>`;
   const collected = byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.gross, 0), licensed = byUse.filter(u => u.key !== 'social').reduce((a, u) => a + u.gross, 0);
   const share = c => (collected + licensed ? Math.round(100 * c / (collected + licensed)) : 0);
   const privateN = works.filter(w => w.status !== 'held').length;
@@ -88,11 +91,15 @@ ${!viewing && !keyed ? `<div class="pk" data-passkey-box><div><b>Save your sign-
 <div class="hd-held"><span><b>${totals.works}</b> works held</span><span><b>${totals.public}</b> public</span><span><b>${totals.jewels}</b> jewels</span><span><b>${totals.shares}</b> collected</span><span>You keep <b>${pct}%</b> of every sale</span></div></div>
 ${needs.length ? `<section class="hd-need"><h2>Needs you</h2><ul>${needs.join('')}</ul></section>` : ''}
 ${jewels.length ? `<section class="hd-list"><div class="hd-h"><h2>Your jewels</h2></div><div class="ac-js">${jewels.map(jewel).join('')}</div></section>` : ''}
-<section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${works.length ? `<span class="hd-n">${works.length} work${works.length === 1 ? '' : 's'}</span>` : ''}</div>
+<section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${all.length ? `<span class="hd-n">${works.length === all.length ? `${all.length} work${all.length === 1 ? '' : 's'}` : `${works.length} of ${all.length}`}</span>` : ''}</div>
+${all.length ? `<div class="st-bar"><nav class="st-f" aria-label="By stars"><a href="/account#holdings"${stars ? '' : ' aria-current="page"'}>All</a>${counts.map(([n, c]) => `<a href="/account?stars=${n}#holdings"${stars === n ? ' aria-current="page"' : ''}${c ? '' : ' class="is-0"'}>${n ? '&#9733;'.repeat(n) : 'Ungraded'}<small>${c}</small></a>`).join('')}</nav>
+${viewing ? '' : `<form method="post" action="/account/cull" class="st-cull"><span>Keep public from</span><select name="from" aria-label="Stars"><option value="3">&#9733;&#9733;&#9733;</option><option value="4">&#9733;&#9733;&#9733;&#9733;</option><option value="5">&#9733;&#9733;&#9733;&#9733;&#9733;</option><option value="2">&#9733;&#9733;</option></select><button class="link">Cull</button></form>`}</div>
+${culled ? `<p class="ok">Culled from ${'&#9733;'.repeat(culled.from)}: ${culled.down} made private, ${culled.up} brought back. Nothing is deleted; every photograph stays fingerprinted and registered, and culled work weighs a quarter toward Keeping.</p>` : ''}
+<p class="st-help">Grade your work as you would in Lightroom: press 1 to 5 on a row, or click the stars. Five is a jewel and leads your page. Culling keeps the archive honest: the rubies in front, the rest kept but out of the way.${keeping ? ` Held: ${keeping.works} photograph${keeping.works === 1 ? '' : 's'}, weighing ${keeping.weighed} toward the free line of ${keeping.terms.freeWorks}. <a href="/account/keeping">Keeping</a>.` : ''}</p>` : ''}
 ${welcome ? `<p class="ok">Your studio is open. <a href="/account/upload">Add your first photographs</a>, then <a href="/account/profile">tell people who you are</a>.</p>` : ''}${m.standing === 'held' ? '<p class="err">Your studio is held by Watermark while we look at something. Your work is private until it is released; write to us if you have questions.</p>' : ''}${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : need === 'held' ? '<p class="err">Your studio is held; nothing can be published until it is released.</p>' : ''}
 ${works.length ? `<div class="hd-head ac-row"><span></span><span>Work</span><span>On Watermark</span><span class="hd-c">Sold</span><span class="hd-c">Seen, 30d</span><span class="hd-v">To you</span><span></span></div>${works.map(row).join('')}` : `<p class="hd-calm">Nothing here yet. ${viewing ? '' : '<a href="/account/upload">Add your first photographs</a>; they stay private until you publish them.'}</p>`}</section>
 ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2></div>${recent.map(l => `<a class="hd-ev" href="/w/${esc(l.slug)}"><span>${date(l.starts_at)}</span><b>${esc(l.title)}</b><span>${esc(l.use_name)}</span><span class="hd-v">${money(toMaker(l.price_cents))}</span></a>`).join('')}</section>` : ''}
-</section>` });
+</section><script src="/static/stars.js" defer></script>` });
 }
 
 function upload({ m }) {

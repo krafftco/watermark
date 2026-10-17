@@ -48,7 +48,8 @@ function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, 
   });
 
   // Keeping: a maker pays for the archive to hold a large body of work. Free up to the line; a notice, not a wall, until Will confirms.
-  const usage = m => { const r = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(COALESCE(bytes, 0)), 0) b FROM works WHERE maker_id=?').get(m.id); return { works: r.n, gb: r.b / 1e9, over: r.n > KEEPING.freeWorks || r.b / 1e9 > KEEPING.freeGB }; };
+  // Culled work (held privately) weighs a quarter: the archive rewards a maker who grades and culls.
+  const usage = m => { const r = db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN status='held' THEN 1 ELSE 0.25 END) wn, SUM(COALESCE(bytes, 0) * CASE WHEN status='held' THEN 1 ELSE 0.25 END) b, SUM(CASE WHEN status='held' THEN 1 ELSE 0 END) pub FROM works WHERE maker_id=?").get(m.id); const gb = (r.b || 0) / 1e9; return { works: r.n, pub: r.pub || 0, weighed: Math.round(r.wn || 0), gb, over: (r.wn || 0) > KEEPING.freeWorks || gb > KEEPING.freeGB }; };
   const keeping = m => db.prepare("SELECT * FROM friends WHERE maker_id=? AND kind='keeping' AND status='active' ORDER BY id DESC").get(m.id) || null;
   app.locals.keepingOf = m => ({ ...usage(m), plan: keeping(m), terms: KEEPING });
   app.get('/account/keeping', (req, res) => { const m = makerOf(req); if (!m) return res.redirect('/account'); res.send(V.keeping({ m, ...usage(m), plan: keeping(m), terms: KEEPING, open: !!stripe, ok: req.query.ok })); });

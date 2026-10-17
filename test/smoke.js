@@ -394,6 +394,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/guestbook?chapter=watermark'); assert.ok(!r.body.toString().includes('Came for the Florence story'), 'chapters filter');
   r = await req(port, 'POST', '/guestbook', { body: { chapter: 'krafft', body: 'you all suck', name: 'x' } }); assert.ok(r.headers.location.includes('note=kind'));
   r = await req(port, 'GET', '/house.js'); assert.ok(r.body.toString().includes('/guestbook?chapter='), 'the bar carries the book');
+  // Stars and the cull: the maker grades; five is a jewel; culling keeps public from N up, deletes nothing.
+  { const theirs1 = await require('sharp')(theirs).rotate(90).toBuffer();
+    r = await req(port, 'POST', '/account/works/one', { cookie: gck, body: mp('g1.jpg', theirs1, { title: 'Harbour One' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); const g1 = JSON.parse(r.body).slug;
+    const theirs2 = await require('sharp')(theirs).rotate(270).toBuffer();
+    r = await req(port, 'POST', '/account/works/one', { cookie: gck, body: mp('g2.jpg', theirs2, { title: 'Harbour Two' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); const g2 = JSON.parse(r.body).slug;
+    for (const g of [g1, g2]) r = await req(port, 'POST', `/account/works/${g}/show`, { cookie: gck, body: { attest: '1' } });
+    r = await req(port, 'POST', `/account/works/${g1}/stars`, { cookie: gck, body: { n: '5' }, headers: { accept: 'application/json' } }); assert.equal(JSON.parse(r.body).stars, 5);
+    assert.equal(db.prepare('SELECT curated FROM works WHERE slug=?').get(g1).curated, 1, 'five stars is a jewel');
+    r = await req(port, 'POST', `/account/works/${g2}/stars`, { cookie: gck, body: { n: '2' } });
+    r = await req(port, 'GET', '/account?stars=5', { cookie: gck }); assert.ok(r.body.toString().includes('Harbour One') && !r.body.toString().includes('Harbour Two'), 'filter by stars');
+    r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '3' } }); assert.ok(r.headers.location.includes('down=1'));
+    assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g2).status, 'hidden', 'culled, not deleted'); assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g1).status, 'held');
+    r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '2' } }); assert.ok(r.headers.location.includes('up=1'), 'brought back when the bar lowers');
+    r = await req(port, 'GET', '/studio/trove?sort=stars', { cookie: ck }); assert.ok(r.body.toString().includes('&#9733;&#9733;&#9733;&#9733;&#9733;'), 'the rubies in the Studio'); }
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');

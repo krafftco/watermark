@@ -12,6 +12,8 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT'], ['bio', 'TEXT'], ['place', 'TEXT'], ['site', 'TEXT'], ['instagram', 'TEXT'], ['portrait', 'TEXT'], ['buyer_id', 'INTEGER'], ['standing', "TEXT NOT NULL DEFAULT 'open'"]])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='curated'").get()) db.exec('ALTER TABLE works ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
+  // Stars: the maker's own grade, one to five, as in Lightroom. Five is a jewel. Zero is ungraded.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='stars'").get()) { db.exec('ALTER TABLE works ADD COLUMN stars INTEGER NOT NULL DEFAULT 0'); db.exec('UPDATE works SET stars=5 WHERE curated=1'); }
 
   const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 90 };
   const makerOf = req => {
@@ -121,13 +123,13 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   function dashboard(m) {
     const pct = m.share_pct || 85;
     const paid = "l.status IN ('active','expired') AND l.price_cents > 0";
-    const works = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.status, w.curated, w.share_cents, w.width, w.height, w.accession,
+    const works = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.status, w.curated, w.stars, w.share_cents, w.width, w.height, w.accession, w.bytes,
       (SELECT COALESCE(SUM(l.price_cents),0) FROM licenses l WHERE l.work_id=w.id AND ${paid}) AS gross,
       (SELECT COUNT(*) FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=w.id AND ${paid} AND u.key='social') AS shares,
       (SELECT COUNT(*) FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=w.id AND ${paid} AND u.key!='social') AS licenses,
       (SELECT COALESCE(SUM(count),0) FROM views v WHERE v.work_id=w.id AND v.day >= date('now','-30 day')) AS seen30,
       (SELECT COUNT(*) FROM sightings s WHERE s.work_id=w.id) AS sightings
-      FROM works w WHERE w.maker_id=? ORDER BY w.curated DESC, gross DESC, seen30 DESC, w.id`).all(m.id);
+      FROM works w WHERE w.maker_id=? ORDER BY w.stars DESC, gross DESC, seen30 DESC, w.id`).all(m.id);
     const byUse = db.prepare(`SELECT u.key, u.name, u.kind, COUNT(l.id) AS n, COALESCE(SUM(l.price_cents),0) AS gross FROM uses u
       LEFT JOIN licenses l ON l.use_id=u.id AND ${paid} WHERE u.maker_id=? GROUP BY u.id ORDER BY u.sort`).all(m.id);
     const recent = db.prepare(`SELECT l.ref, l.price_cents, l.starts_at, u.name AS use_name, u.key, w.title, w.slug FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
@@ -149,7 +151,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account', (req, res) => {
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
-    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
+    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their collection; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {
@@ -158,6 +160,28 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404);
     db.prepare('UPDATE works SET curated=? WHERE id=?').run(w.curated ? 0 : 1, w.id);
     res.redirect('/account' + ((req.body || {}).maker ? '?maker=' + encodeURIComponent(req.body.maker) : '') + '#w-' + w.slug);
+  });
+
+  // ---------- stars and the cull ----------
+  // Grade a work. Five stars makes it a jewel; the grade is the maker's, never the public's.
+  app.post('/account/works/:slug/stars', (req, res) => {
+    const m = makerOf(req) || (isStudio(req) && (req.body || {}).maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.body.maker)) : null);
+    if (!m) return res.sendStatus(401);
+    const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404);
+    const n = Math.max(0, Math.min(5, Math.round(Number((req.body || {}).n)) || 0));
+    db.prepare('UPDATE works SET stars=?, curated=? WHERE id=?').run(n, n === 5 ? 1 : 0, w.id);
+    if (req.accepts('json') && !req.accepts('html')) return res.json({ ok: true, stars: n });
+    res.format({ json: () => res.json({ ok: true, stars: n }), html: () => res.redirect('/account' + ((req.body || {}).maker ? '?maker=' + encodeURIComponent(req.body.maker) : '') + '#w-' + w.slug) });
+  });
+  // The cull: keep public from N stars up. Everything below stays held, fingerprinted and registered, but
+  // private: proof it exists, out of the way. Works the maker has not yet published are left alone.
+  app.post('/account/cull', (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const from = Math.max(1, Math.min(5, Math.round(Number((req.body || {}).from)) || 3));
+    const down = db.prepare("UPDATE works SET status='hidden' WHERE maker_id=? AND status='held' AND stars>0 AND stars<?").run(m.id, from).changes;
+    const up = m.standing === 'held' ? 0 : db.prepare("UPDATE works SET status='held' WHERE maker_id=? AND status='hidden' AND stars>=? AND id IN (SELECT w.id FROM works w JOIN ledger g ON g.subject=w.slug AND g.type='work.published' WHERE w.maker_id=?)").run(m.id, from, m.id).changes;
+    ledger.append(db, 'maker.culled', m.handle, { from, down, up });
+    res.redirect(`/account?culled=${from}&down=${down}&up=${up}#holdings`);
   });
 
   // ---------- the maker's own uploads: private until they publish ----------
