@@ -104,6 +104,10 @@ function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [
   ].filter(f => f[1]).map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
   const embed = `&lt;script src="${esc(base)}/embed.js" defer&gt;&lt;/script&gt;\n&lt;watermark-image work="${esc(w.slug)}"&gt;&lt;/watermark-image&gt;`;
   const share = uses.find(u => u.key === 'social' && u.price_cents != null);
+  // The K toggles between uses: Collect is the default; the others are a tap away, and the seal commits.
+  const tUses = share ? [{ k: 'social', l: 'Collect', b: ed ? `Collect No.\u00a0${ed.sold + 1}` : 'Collect', d: 'Yours to keep and to share, credited. 85% goes to the photographer.' },
+    ...uses.filter(u => u !== share).map(u => ({ k: u.key, l: u.name, b: u.name, d: `${u.description} ${termText(u)}. ${u.price_cents == null ? 'Price on request.' : money(u.price_cents) + '.'}` }))] : [];
+  const toggle = tUses.length > 1 ? `<div class="use-tg" role="radiogroup" aria-label="How you want it" data-uses='${esc(JSON.stringify(tUses))}'>${tUses.map((u, i) => `<button type="button" role="radio" aria-checked="${i ? 'false' : 'true'}" data-k="${esc(u.k)}">${esc(u.l)}</button>`).join('')}</div>` : '';
   const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   const keepers = held.n
     ? `In ${held.n} collection${held.n === 1 ? '' : 's'}${held.shown.length ? ', among them ' + held.shown.map(c => `<a href="/collector/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No.&nbsp;${c.no}</small>`).join(', ') : ''}.`
@@ -133,7 +137,7 @@ ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : '
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}</span></p>` : ''}
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors.</p>` : ''}
-${share && !(ed && !ed.left) ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><div class="seal-row">${seal(maker, `Collect ${title}`)}<div class="seal-t"><b>${ed ? `Collect No.&nbsp;${ed.sold + 1}` : 'Collect'}</b><span>Yours to keep and to share, credited. 85% goes to the photographer.</span></div></div></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
+${share && !(ed && !ed.left) ? `<form method="post" action="/buy/${esc(w.slug)}" class="share-buy" data-share="${esc(w.slug)}" data-title="${esc(title)}" data-amount="${share.price_cents}"><input type="hidden" name="use" value="social"><div class="seal-row">${seal(maker, `Collect ${title}`)}<div class="seal-t">${toggle}<b>${ed ? `Collect No.&nbsp;${ed.sold + 1}` : 'Collect'}</b><span>Yours to keep and to share, credited. 85% goes to the photographer.</span></div></div></form>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}` : ''}
 ${patron ? `<p class="pat-line"><a href="/m/${esc(patron)}#patron">Become a patron of ${esc(maker.name)}</a><span>Keep the work going, monthly or once.</span></p>` : ''}
 ${share ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
 </div></article>
@@ -201,16 +205,20 @@ ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.
 <section class="h-sec h-dark"><p class="k">The maker&rsquo;s say</p><h2 class="h2">Your work. Your terms. Written into every license.</h2>
 <div class="h-say">
 <div class="h-card"><p class="h-ck">Lake Como, Morning</p>
-<div class="h-row"><span>In a story</span><i class="on"></i></div><div class="h-row"><span>For a company</span><i class="on"></i></div><div class="h-row"><span>Before an audience</span><i></i></div><div class="h-row"><span>On a wall</span><i class="on"></i></div>
-<div class="h-row h-sep"><span>Approve each license myself</span><i></i></div>
-<p class="h-ck">Never for</p><div class="h-tags"><b>Training AI</b><b>Political campaigns</b><b>Altering the image</b></div></div>
+<button type="button" class="h-row" role="switch" aria-checked="true"><span>In a story</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="true"><span>For a company</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="false"><span>Before an audience</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="true"><span>On a wall</span><i></i></button><button type="button" class="h-row h-sep" role="switch" aria-checked="false" data-approve><span>Approve each license myself</span><i></i></button>
+<p class="h-ck">Never for</p><div class="h-tags"><button type="button" aria-pressed="true">Training AI</button><button type="button" aria-pressed="true">Political campaigns</button><button type="button" aria-pressed="true">Altering the image</button><button type="button" aria-pressed="false">Tobacco, firearms or gambling</button></div>
+<p class="h-sum" aria-live="polite"></p></div>
 <ul class="h-list">
 <li><b>Choose the uses.</b> Open a photograph to stories and companies and close it to campaigns. Each work can have its own terms.</li>
 <li><b>Set the price.</b> Public, fixed and yours. Collectors see it before they decide, so nobody has to ask.</li>
 <li><b>Approve every sale, or none.</b> Let licenses happen on their own, or see each one before it is granted.</li>
 <li><b>Say never.</b> Not for AI training. Not for politics. Not altered. Your conditions are written into the license, the certificate and the file itself.</li>
 <li><b>Credit, always.</b> Your name travels with the photograph wherever it is embedded or delivered.</li>
-</ul></div></section>
+</ul><script>(function(){var c=document.querySelector('.h-card');if(!c)return;var sum=c.querySelector('.h-sum');
+function lst(a){return a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1]}
+function say(){var on=[].map.call(c.querySelectorAll('.h-row[aria-checked=true]:not([data-approve])'),function(b){return b.textContent.trim().toLowerCase()}),no=[].map.call(c.querySelectorAll('.h-tags [aria-pressed=true]'),function(b){var t=b.textContent.trim();return t.charAt(0).toLowerCase()+t.slice(1)}),ap=c.querySelector('[data-approve]').getAttribute('aria-checked')==='true';
+sum.textContent=(on.length?'Open '+lst(on)+'. ':'Closed to every use. ')+(on.length?(ap?'You approve each license. ':'Licenses happen on their own. '):'')+(no.length?'Never for '+lst(no)+'.':'')}
+c.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.getAttribute('role')==='switch')b.setAttribute('aria-checked',b.getAttribute('aria-checked')==='true'?'false':'true');else b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')==='true'?'false':'true');say()});say()})();</script></div></section>
 
 <section class="h-sec"><p class="k">Protection</p><h2 class="h2">Protected by design, not by a stamp across the middle.</h2>
 <div class="h-6">

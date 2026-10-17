@@ -952,3 +952,28 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
   .ac-row>a{grid-row:1/3}.ac-row>span:nth-child(3){grid-column:2;grid-row:2}.ac-row .hd-v{grid-column:3;grid-row:1}
 }
 .ac .pk .pk-msg:empty{display:none}
+
+/* The use toggle beside the seal */
+.use-tg{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 4px}
+.use-tg button{appearance:none;border:1px solid var(--ln);background:transparent;color:var(--mu);font:500 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:7px 10px;border-radius:999px;cursor:pointer;transition:color .3s,border-color .3s,background .3s}
+.use-tg button:hover{color:var(--ink);border-color:var(--ink)}
+.use-tg button[aria-checked=true]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.seal-t.tg-in b,.seal-t.tg-in>span{animation:tgIn .5s var(--e) both}
+@keyframes tgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.seal-t.tg-in b,.seal-t.tg-in>span{animation:none}}
+form.share-buy .use-tg button{display:inline-flex;width:auto;max-width:none;align-items:center;justify-content:center;gap:0;padding:7px 11px;border:1px solid var(--ln);border-radius:999px;background:transparent;color:var(--mu);box-shadow:none;font:500 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;transform:none}
+form.share-buy .use-tg button::after{display:none}
+form.share-buy .use-tg button:hover{background:transparent;color:var(--ink);border-color:var(--ink);box-shadow:none}
+form.share-buy .use-tg button[aria-checked=true]{background:var(--ink);border-color:var(--ink);color:#f7f6f3}
+
+/* The maker's say: the card is live */
+button.h-row{appearance:none;width:100%;background:none;border:0;border-bottom:1px solid #2c2c2c;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}
+button.h-row:hover span{color:#fff}
+button.h-row:focus-visible{outline:1px solid #f2efe9;outline-offset:4px}
+.h-row i{flex:none;transition:background .3s var(--e)}
+.h-row[aria-checked=true] i{background:#f2efe9}.h-row[aria-checked=true] i::after{background:#121212;transform:translateX(16px)}
+.h-tags button{appearance:none;font:inherit;font-size:13px;padding:7px 12px;border:1px solid #3a3a3a;border-radius:999px;background:none;color:#7d7a74;cursor:pointer;text-decoration:line-through;transition:color .3s,border-color .3s,background .3s}
+.h-tags button[aria-pressed=true]{color:#f2efe9;border-color:#5a5852;text-decoration:none}
+.h-tags button:hover{border-color:#f2efe9}
+.h-sum{margin:22px 0 0;padding-top:18px;border-top:1px solid #2c2c2c;font-size:13px;line-height:1.55;color:#b5b1a9;min-height:3.1em}
+button.h-row{border-radius:0;padding:13px 0;box-shadow:none}

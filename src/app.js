@@ -336,10 +336,13 @@ function createApp(cfg = {}) {
     let rows = [];
     try { rows = db.prepare("SELECT s.src, w.slug, w.title, w.rules, w.status FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE s.post_slug=? AND w.status IN ('held','hidden')").all(post); } catch (e) { /* no imports yet */ }
     const room = db.prepare('SELECT slug, title, public FROM collections WHERE slug=?').get(post);
+    const allUses = q.uses.all(maker.id);
     // Every photograph carries the K. Public ones are collected at once; ones held privately (people,
     // other artists' work) are licensed on request, so nothing is sold without consent.
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
-      collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held' })).filter(x => x.path);
+      collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
+      // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
+      uses: r.status === 'held' ? allUses.filter(u => R.allows(R.parse(r.rules), u.key)).map(u => ({ k: u.key, l: u.key === 'social' ? 'Collect' : u.name })) : [] })).filter(x => x.path);
     const shown = works.filter(w => !w.ask).length;
     res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, works,
       patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, license: 'https://www.krafftco.com/license', mark: 'K' });

@@ -24,6 +24,18 @@
     if (!s.classList.contains('is-up')) { down(s); requestAnimationFrame(function () { up(s); }); }
     setTimeout(function () { f.dataset.go = '1'; f.requestSubmit ? f.requestSubmit(s) : f.submit(); }, 260);
   }, true);
+  // The toggle beside the seal: choose how you want the photograph; the seal then commits that choice.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.use-tg button'); if (!b) return;
+    e.preventDefault();
+    var g = b.parentNode, f = g.closest('form'), uses = JSON.parse(g.dataset.uses || '[]'), u = uses.filter(function (x) { return x.k === b.dataset.k; })[0]; if (!u || !f) return;
+    [].forEach.call(g.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+    var t = f.querySelector('.seal-t'), h = f.querySelector('.seal-t b'), p = f.querySelector('.seal-t > span'), inp = f.querySelector('input[name=use]');
+    if (inp) inp.value = u.k;
+    t.classList.remove('tg-in'); void t.offsetWidth; t.classList.add('tg-in');
+    if (h) h.textContent = u.b; if (p) p.textContent = u.d;
+    var s = f.querySelector('.seal'); if (s) s.setAttribute('aria-label', u.b);
+  });
   // Called by the payment sheet when a photograph is collected.
   window.WMSealed = function (slug, no, of) {
     var f = document.querySelector('form[data-share="' + slug + '"]'); if (!f) return;

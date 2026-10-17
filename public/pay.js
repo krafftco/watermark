@@ -132,6 +132,7 @@
   // The Share it form on a work page opens the sheet instead of leaving.
   document.addEventListener('submit', function (e) {
     var f = e.target.closest && e.target.closest('form[data-share], form.lb-share'); if (!f) return;
+    var uin = f.querySelector('input[name=use]'); if (uin && uin.value !== 'social') return; // a license goes straight to checkout
     e.preventDefault();
     var slug = f.dataset.share || (f.action.split('/buy/')[1] || '').split(/[?#]/)[0];
     var title = f.dataset.title || (document.getElementById('lbT') || {}).textContent || '';
