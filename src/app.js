@@ -244,7 +244,10 @@ function createApp(cfg = {}) {
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
-    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all().map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w);
+    const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
+    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all()
+      .map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w)
+      .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg() }));
   });
 
@@ -1042,7 +1045,7 @@ function createApp(cfg = {}) {
     const seals = db.prepare('SELECT * FROM seals WHERE work_id=? ORDER BY created_at DESC').all(w.id);
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
-    res.send(S.workTerms({ rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
+    res.send(S.workTerms({ makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(maker.id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok }));
   });
   app.post('/studio/works/:slug', studioOnly, (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);

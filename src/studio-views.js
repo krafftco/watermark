@@ -91,7 +91,7 @@ function uses({ list, notice }) {
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice }) {
+function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice }) {
   const open = k => !rules.uses || rules.uses.includes(k);
   const paid = lic.filter(l => ['active', 'expired'].includes(l.status));
   const earned = paid.reduce((a, l) => a + (l.price_cents || 0), 0);
@@ -103,7 +103,7 @@ function workTerms({ w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], v
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <h2>Catalogue record</h2>
 <div class="cat"><dl class="facts cat-fixed">
-<div><dt>Accession</dt><dd>${esc(w.accession || '')}</dd></div><div><dt>Maker</dt><dd>Will Fullerton</dd></div>
+<div><dt>Accession</dt><dd>${esc(w.accession || '')}</dd></div><div><dt>Maker</dt><dd>${esc(makerName)}</dd></div>
 <div><dt>Date made</dt><dd>${w.taken_at ? date(w.taken_at) : 'Unknown'}</dd></div><div><dt>Registered</dt><dd>${date(w.created_at)}</dd></div>
 <div><dt>Dimensions</dt><dd>${w.width && w.height ? `${w.width} × ${w.height} px · prints to ${Math.round(w.width / 300 * 2.54)} × ${Math.round(w.height / 300 * 2.54)} cm at 300 dpi` : ''}</dd></div>
 <div><dt>Camera</dt><dd>${esc([w.camera, w.lens].filter(Boolean).join(', '))}</dd></div>
@@ -112,7 +112,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Title<input name="title" value="${esc(w.title)}" required></label>
 <label>Place<input name="place" value="${esc(w.place || '')}" placeholder="Florence, Italy"></label>
 <label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
-<label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="Will Fullerton / Krafft Studios"></label>
+<label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="${esc(makerName)}"></label>
 <label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition"></label>
 <label>Share it price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
 <label class="chk"><input type="checkbox" name="noshare" value="1" ${w.rules && /"social":false/.test(w.rules) ? 'checked' : ''}> License only: no Share it on this photograph</label>

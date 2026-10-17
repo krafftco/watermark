@@ -5,7 +5,11 @@ const money = (c, cur = 'usd') => c == null ? 'On request' : new Intl.NumberForm
 const tidy = s => String(s == null ? '' : s).trim().replace(/\.$/, '').replace(/(\w)'(\w)/g, '$1\u2019$2').replace(/'/g, '\u2019');
 // The maker's mark, used as the Collect seal. Krafft makers carry the hand-made K; others the Watermark wave.
 const K_MARK = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
-const markOf = m => K_MARK; // one mark for now; each maker can have their own later
+const WAVE_MARK = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden="true"><path d="M40.9019,20.248c.0496.0348.1284.1018.21.14.0392.0183.1355.0555.1748.0725.142.0613.2106.0623.2106.0623.4242.1069.61-.0405.61-.0405,0,0,.0188-.0104.0372-.0243.0184-.014.0363-.0314.0458-.0406.0151-.0146.0539-.0644.0539-.0644,0,0,.052-.0909.0637-.1237.0071-.0198.024-.0795.024-.0795.0222-.0965.0109-.1126.0246-.2317.0093-.0811-.0287-.3268-.0598-.4078-.0365-.0952-.1166-.3107-.1703-.4046-.0609-.1065-.288-.3048-.3726-.4039-.0684-.0801-.1447-.1568-.2296-.2285-.1278-.108-.4529-.423-.699-.5881-.1149-.077-.4531-.3086-.661-.3576-.1954-.0461-.5058-.1799-.7093-.2207-.1562-.0313-.3892-.0664-.5873-.0663-.1141.0029-1.5885.0597-2.7094,1.0659-.3753.3369-.3855.3946-.8039.8574-1.32,1.4605-2.8991,1.493-4.248.0839-2.6425-2.7603-4.3029-2.7712-7.0126-.0458-1.4491,1.4575-2.8945,1.5826-4.2166-.0527-2.0205-2.4992-5.04-2.4249-6.9906-.0205-1.4506,1.788-2.9277,1.5387-4.6146-.3402-1.5584-1.7356-3.6345-2.0457-5.3761-.7779-.3208.2335-.6042.5574-.9828.9127-.3769.3368-.7879,2.0455.8259,1.4273.2077-.0796.4772-.3289.6437-.4599,1.37-1.0769,2.6549-.9274,3.9243.3511,2.7283,2.7477,4.1663,2.7285,6.9293-.0031,1.449-1.4325,2.9109-1.5845,4.2323.0157,2.0744,2.512,4.8342,2.5441,6.9759.0433,1.4851-1.7342,2.9311-1.5102,4.6445.3102,1.7438,1.8528,3.6846,2.1267,5.4476.7528.2651-.2066.5093-.4648.7507-.7199.9751-1.0303,1.776-1.4668,2.6072-1.416,0-.052.6333.1119.8306.2146.0961.05.3577.1959.4835.268.0829.0476.2447.1927.3365.2464l.1702.1427.1157.0958.071.0558Z"/></svg>';
+// Each maker's own mark on the Collect seal: Krafft's makers carry the hand-made K, every other maker the Watermark wave.
+const isKrafft = m => !!m && (/krafft/i.test(m.house || '') || m.handle === 'krafft');
+const markOf = m => (isKrafft(m) ? K_MARK : WAVE_MARK);
+const makerSlug = m => String((m && m.name) || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const seal = (m, label = 'Collect', cls = '') => `<button class="seal${cls ? ' ' + cls : ''}" aria-label="${esc(label)}"><span class="seal-k">${markOf(m)}</span><span class="seal-r" aria-hidden="true"></span></button>`;
 const date = s => s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 const { NEVER } = require('./rules');
@@ -22,7 +26,7 @@ function headMeta({ title, desc, path, image, type = 'website', jsonld }) {
 // The house bar (Krafft · Krafft Studios · Watermark), rendered here so it never flashes in;
 // public/house.js then points each link back to the page last open on that property.
 const HOUSE = '<nav class="kh" aria-label="Krafft"><a data-p="krafft" href="https://www.krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a><a data-p="dgc" href="https://www.krafftco.com/dallas-golf-club">Dallas Golf Club</a><a data-p="will" class="kh-own" href="https://www.wrkfullerton.com/">Will Fullerton</a></nav>';
-function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld }) {
+function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld, mark = null }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="${studio ? 'noindex, nofollow, ' : ''}noai, noimageai"><meta name="tdm-reservation" content="1">${studio ? '' : headMeta({ title, desc, path, image, type, jsonld })}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,300..500&display=swap">
@@ -30,39 +34,45 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : `${HOUSE}<header class="top"><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
 <nav><a href="/collection">Collection</a><a href="/series/the-great-rooms" class="nv-m">Series</a><a href="/collectors">Collectors</a><a href="/journal">Journal</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav></header>`}
-<main>${body}</main><script>window.__WM_MARK=${JSON.stringify(K_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
+<main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || K_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
 ${bare ? '' : `<footer class="foot"><p>Watermark &middot; <a href="https://krafftco.com">a Krafft company</a> &middot; Leave your mark.</p><p><a href="/m/will-fullerton#patron">Patronage</a> &middot; <a href="/#makers">For makers</a> &middot; <a href="/verify">Verify a license</a> &middot; <a href="/ledger">Ledger</a> &middot; <a href="/about">About</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/signin">Sign in</a></p></footer>`}
 </body></html>`;
 }
 
 function collection({ maker, works, rooms = [], share = null, pay = null }) {
+  const mOf = w => w.maker || maker;
   // The collection is an archive you can walk: rooms as galleries, an index to search, and every
   // photograph a click from filling the screen.
   const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
-  const data = works.map(w => ({ s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
+  const data = works.map(w => ({ cp: (w.caption || '').slice(0, 240), mk: mOf(w).name, ms: makerSlug(mOf(w)), kk: isKrafft(mOf(w)) ? 1 : 0, s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
   const sp = share && share.price_cents != null ? money(share.price_cents) : null;
-  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${K_MARK}<i class="seal-r"></i></span>` : ''}</a>`;
+  const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b><i>${esc([mOf(w).name, w.place].filter(Boolean).join(', '))}</i></span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${markOf(mOf(w))}<i class="seal-r"></i></span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
   const shown = rooms.filter(r => (r.ids || []).filter(id => byId[id]).length >= 3);
   const seen = new Set();
   const galleries = shown.map(r => { const ws = (r.ids || []).map(id => byId[id]).filter(Boolean); ws.forEach(w => seen.add(w.id)); return ws.length ? `<section class="gal" id="room-${esc(r.slug)}" data-room="${esc(r.slug)}"><header class="gh"><h2><a href="/rooms/${esc(r.slug)}">${esc(r.title)}</a></h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>` : ''; }).join('');
   const rest = works.filter(w => !seen.has(w.id));
+  // Other makers hang beside the house's own work, each in a gallery of their own, newest maker last.
+  const restByMaker = []; rest.forEach(w => { const m = mOf(w); let g = restByMaker.find(x => x[0].id === m.id); if (!g) restByMaker.push(g = [m, []]); g[1].push(w); });
+  restByMaker.sort((a, b) => (a[0].id === maker.id ? -1 : b[0].id === maker.id ? 1 : 0));
+  const makerList = []; works.forEach(w => { const m = mOf(w); if (!makerList.find(x => x.id === m.id)) makerList.push(m); });
   const total = works.length;
   // The cover: a jewel if one is marked, else a large landscape frame.
   const wide = w => (w.width || 0) >= 1800 && w.width > w.height * 1.3;
   const cover = works.find(w => w.curated && wide(w)) || works.filter(wide).find(w => /florence|paris|como|zurich/i.test(w.place || '')) || works.find(wide) || null;
   return layout({
-    title: `${maker ? maker.name + ' · ' : ''}Watermark`,
+    title: 'The collection · Watermark',
     desc: `${total} photographs held, credited and licensed on Watermark.`,
     path: '/collection', image: works[0] ? `/img/${works[0].slug}/screen` : null,
-    body: `${cover ? `<section class="cx-cover"><img src="/img/${esc(cover.slug)}/large" alt="${esc(cover.title)}" fetchpriority="high" draggable="false"><div class="cx-hero"><h1>Those who make need those who collect.</h1><a class="btn" href="#rooms">Walk the collection</a></div><span class="cx-cap">${esc(tidy(cover.title))}${cover.place ? ` &middot; ${esc(cover.place)}` : ''}</span></section>` : ''}<section class="cx-intro"><p class="k">${maker ? esc(maker.house || maker.name) : 'The collection'}</p>
-${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection.</h1>'}<p class="cx-count">${total} photographs · ${shown.length} rooms · each registered to its maker and licensed at the source</p></section>
+    body: `${cover ? `<section class="cx-cover"><img src="/img/${esc(cover.slug)}/large" alt="${esc(cover.title)}" fetchpriority="high" draggable="false"><div class="cx-hero"><h1>Those who make need those who collect.</h1><a class="btn" href="#rooms">Walk the collection</a><a class="cx-wander" href="#" data-wander>Or wander</a></div><span class="cx-cap">${esc(tidy(cover.title))}${cover.place ? ` &middot; ${esc(cover.place)}` : ''}</span></section>` : ''}<section class="cx-intro"><p class="k">${makerList.length > 1 ? `${makerList.length} makers` : esc(maker.house || maker.name)}</p>
+${cover ? '<h2 id="rooms">The collection.</h2>' : '<h1 id="rooms">The collection.</h1>'}<p class="cx-count">${total} photographs · ${shown.length} rooms${makerList.length > 1 ? ` · ${makerList.length} makers` : ''} · each registered to its maker and licensed at the source</p></section>
 <a class="sr-band" href="/series/the-great-rooms"><span class="sr-band-im"><img src="/img/the-library-stacks/thumb" alt="" loading="lazy" draggable="false"><img src="/img/behind-the-clock-at-the-musee-d-orsay/thumb" alt="" loading="lazy" draggable="false"><img src="/img/under-the-gallery-dome/thumb" alt="" loading="lazy" draggable="false"></span><span class="sr-band-t"><small>A series by Will Fullerton &middot; Krafft Studios</small><b>The Great Rooms</b><span>Domes, libraries and the light inside them. See the series &rarr;</span></span></a>
 <div class="cx-bar" id="cxBar"><label class="cx-q"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg><input id="cxQ" type="search" placeholder="Search ${total} photographs" aria-label="Search the collection" autocomplete="off" spellcheck="false"></label>
 <div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
-<div class="cx-view"><button type="button" data-v="plates" aria-pressed="true" title="Plates">Plates</button><button type="button" data-v="index" title="Index">Index</button></div><span class="cx-n" id="cxN" hidden></span></div>
-<div class="cx" id="cx">${galleries}${rest.length ? `<section class="gal" data-room=""><header class="gh"><h2>${shown.length ? 'Also held' : 'Every photograph'}</h2><span>${rest.length}</span></header><div class="plates">${rest.map(plate).join('')}</div></section>` : ''}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
+${makerList.length > 1 ? `<div class="cx-makers" id="cxMakers"><button type="button" data-mk="" aria-pressed="true">All makers</button>${makerList.map(m => `<button type="button" data-mk="${esc(makerSlug(m))}">${esc(m.name)}</button>`).join('')}</div>` : ''}
+<div class="cx-view"><button type="button" data-wander title="A photograph at random, then another">Wander</button><button type="button" data-v="plates" aria-pressed="true" title="Plates">Plates</button><button type="button" data-v="index" title="Index">Index</button></div><span class="cx-n" id="cxN" hidden></span></div>
+<div class="cx" id="cx">${galleries}${restByMaker.map(([m, ws]) => `<section class="gal" data-room="" data-maker="${esc(makerSlug(m))}"><header class="gh"><h2>${m.id === maker.id ? (shown.length ? 'Also held' : 'Every photograph') : `<a href="/m/${esc(makerSlug(m))}">${esc(m.name)}</a>`}</h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>`).join('')}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
@@ -94,7 +104,7 @@ function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [
   return layout({
     title: `${title} · ${maker.name} · Watermark`,
     desc: `${title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; collect it at the source.`,
-    path: `/w/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article',
+    path: `/w/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article', mark: markOf(maker),
     // Google Images shows a "Licensable" badge when an image carries these fields.
     jsonld: { '@context': 'https://schema.org', '@type': 'ImageObject', name: title, caption: w.caption || undefined, contentUrl: `${BASE()}/img/${w.slug}/screen`, thumbnailUrl: `${BASE()}/img/${w.slug}/thumb`,
       creator: { '@type': 'Person', name: maker.name }, creditText: `Photograph by ${maker.name}${maker.house ? ', ' + maker.house : ''}`, copyrightNotice: `© ${maker.name}`,
@@ -107,7 +117,7 @@ function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [
 <p class="lot-hint">Click the photograph to see it whole.</p></div>
 <div class="meta lot-entry">
 ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
-<p class="lot-maker">${esc(maker.name)}${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
+<p class="lot-maker"><a href="/m/${esc(makerSlug(maker))}">${esc(maker.name)}</a>${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
 <h1 class="lot-t">${esc(title)}</h1>
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
@@ -343,7 +353,7 @@ function makerPage({ m, slug, works, collectors, patrons, wall, series, levels, 
   const lvName = k => ({ medici: 'Medici', patron: 'Patrons', friend: 'Friends' }[k] || 'Patrons');
   const groups = ['medici', 'patron', 'friend'].map(k => [k, wall.filter(p => p.level === k)]).filter(g => g[1].length);
   return layout({ title: `${m.name} · Watermark`, desc: `${m.name}${m.house ? ', ' + m.house : ''}. ${works.length} photographs held on Watermark. Become a patron.`, path: `/m/${slug}`, image: cover ? `/img/${cover.slug}/screen` : null,
-    body: `${cover ? pageHero(cover.slug, `${tidy(cover.title)}${cover.place ? ', ' + cover.place : ''}`, `<div><p class="sr-k">${esc(m.house || 'Maker')}</p><h1>${esc(m.name)}</h1></div>${open ? '<a class="btn" href="#patron">Become a patron</a>' : ''}`) : ''}
+    body: `${cover ? pageHero(cover.slug, `${tidy(cover.title)}${cover.place ? ', ' + cover.place : ''}`, `<div><p class="sr-k">${esc(m.house || 'Maker')}</p><h1>${esc(m.name)}</h1></div>${open ? '<a class="btn" href="#patron">Become a patron</a>' : ''}`, m.name) : ''}
 <section class="mk-intro"><p class="mk-stats"><span><b>${works.length}</b> photographs</span><span><b>${collectors}</b> collector${collectors === 1 ? '' : 's'}</span><span><b>${patrons}</b> patron${patrons === 1 ? '' : 's'}</span></p>
 ${series.length ? `<p class="mk-series">${series.map(x => `<a href="/series/${esc(x.slug)}"><small>A series</small><i>${esc(x.title)}</i></a>`).join('')}<a href="/collection"><small>The archive</small><i>The collection</i></a></p>` : ''}</section>
 <section class="mk-pick">${pick.map(w => `<a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(tidy(w.title))}" loading="lazy" draggable="false"></a>`).join('')}</section>
@@ -522,7 +532,7 @@ ${i.collector_no && i.status === 'active' ? `<form method="post" action="/yours/
 
 // The collectors: the walls people chose to show, so others can see what taste looks like here.
 // A photograph across the top of a page, captioned like a wall label.
-const pageHero = (slug, cap, h) => `<section class="cx-cover pg-hero"><img src="/img/${esc(slug)}/large" alt="${esc(cap)}" fetchpriority="high" draggable="false">${h ? `<div class="cx-hero">${h}</div>` : ''}<span class="cx-cap">${esc(cap)} &middot; Will Fullerton</span></section>`;
+const pageHero = (slug, cap, h, by = 'Will Fullerton') => `<section class="cx-cover pg-hero"><img src="/img/${esc(slug)}/large" alt="${esc(cap)}" fetchpriority="high" draggable="false">${h ? `<div class="cx-hero">${h}</div>` : ''}<span class="cx-cap">${esc(cap)}${by ? ` &middot; ${esc(by)}` : ''}</span></section>`;
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 
 function series({ s, chapters, whole = null, buy = false, credits = [], patronSlug = null }) {
