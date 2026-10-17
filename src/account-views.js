@@ -17,7 +17,7 @@ function studioAccounts({ list, base, notice }) {
   const rows = list.map(m => `<tr><td><b>${esc(m.name)}</b>${m.house ? `<br><small>${esc(m.house)}</small>` : ''}</td><td>${m.kind === 'estate' ? 'Estate' : 'Maker'}</td><td>${m.works}</td><td>${m.joined_at ? 'Joined ' + date(m.joined_at) : 'Invited'}</td>
 <td>${m.invite_token ? `<input class="copy" readonly value="${esc(base)}/account/join/${esc(m.invite_token)}" onclick="this.select()">` : `<form method="post" action="/studio/accounts/${m.id}/link" class="inline"><button class="link">New sign-in link</button></form>`}</td>
 <td><a href="/account?maker=${esc(m.handle)}">Their dashboard</a></td></tr>`).join('');
-  return layout({ studio: true, title: 'Accounts · Watermark', body: `<section class="studio-wrap"><nav class="snav"><a href="/studio">Trove</a><a href="/studio/activity">Activity</a><a href="/studio/works">Vault</a><a href="/studio/masters">Masters</a><a href="/studio/licenses">Licenses</a><a href="/studio/sightings">Sightings</a><a href="/studio/uses">Uses &amp; prices</a><a href="/studio/accounts" aria-current="page">Accounts</a><a href="/studio/makers">Makers</a></nav>
+  return layout({ studio: true, title: 'Accounts · Watermark', body: `<section class="studio-wrap">${require('./studio-views').nav('/studio/accounts')}
 <p class="k">Accounts</p><h1>Every maker, their own Watermark.</h1>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <p class="lede">Each maker or estate gets an account and a sign-in link. Send the link yourself; it works once and signs them in on that device. They keep 85% of every sale.</p>

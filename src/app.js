@@ -828,7 +828,7 @@ function createApp(cfg = {}) {
         return { ...w, missing, complete: Math.round(100 * (5 - missing.length) / 5) };
       });
   }
-  app.get('/studio', studioOnly, (req, res) => {
+  app.get('/studio/trove', studioOnly, (req, res) => {
     let rows = troveRows();
     const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
     if (room) { const ids = new Set(db.prepare('SELECT work_id FROM collection_works WHERE collection_id=?').all(room.id).map(r => r.work_id)); rows = rows.filter(w => ids.has(w.id)); }
@@ -841,12 +841,42 @@ function createApp(cfg = {}) {
     res.send(S.trove({ maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
   });
 
+  // Holdings: the Studio's front page.
+  app.get('/studio', studioOnly, (req, res) => {
+    const all = troveRows();
+    const sum = sql => db.prepare(sql).get().s || 0;
+    const paid = "l.status IN ('active','expired')";
+    const collected = sum(`SELECT SUM(l.price_cents) s FROM licenses l JOIN uses u ON u.id=l.use_id WHERE ${paid} AND u.key='social'`);
+    const licensed = sum(`SELECT SUM(l.price_cents) s FROM licenses l JOIN uses u ON u.id=l.use_id WHERE ${paid} AND u.key!='social'`);
+    let monthly = 0, gifts = 0, patrons = 0;
+    try { monthly = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=1 AND status IN ('active','ending')"); gifts = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=0 AND status IN ('active','ending')"); patrons = db.prepare("SELECT COUNT(*) n FROM patrons WHERE status IN ('active','ending')").get().n; } catch (e) { /* no patronage */ }
+    const earned = collected + licensed + gifts;
+    const month = sum(`SELECT SUM(l.price_cents) s FROM licenses l WHERE ${paid} AND COALESCE(l.starts_at, l.created_at) >= date('now','start of month')`);
+    const ed = new Map(db.prepare("SELECT work_id, COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY work_id").all().map(r => [r.work_id, r.n]));
+    const t = { earned, month, works: all.length, rooms: db.prepare('SELECT COUNT(*) n FROM collections').get().n,
+      numbered: db.prepare("SELECT COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
+      collectors: db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
+      seen30: all.reduce((a, w) => a + w.seen30, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
+    const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${money(gifts)} in gifts` : ''}` }];
+    const n = sql => db.prepare(sql).get().n;
+    const needs = [
+      { n: n("SELECT COUNT(*) n FROM licenses WHERE status='requested'"), label: ' license requests to answer', href: '/studio/licenses' },
+      { n: n("SELECT COUNT(*) n FROM applications WHERE status='new'"), label: ' makers asking to join', href: '/studio/makers' },
+      { n: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active' AND ends_at IS NOT NULL AND ends_at <= ?").get(new Date(Date.now() + 60 * 864e5).toISOString()).n, label: ' licenses ending within 60 days', href: '/studio/activity' },
+      { n: n("SELECT COUNT(*) n FROM sightings WHERE status='new'"), label: ' sightings of your work to look at', href: '/studio/sightings' },
+      { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
+    ];
+    const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
+    const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();
+    res.send(S.holdings({ maker, t, streams, needs, rows, recent, notice: req.query.ok }));
+  });
+
   // Collections: the maker's rooms. Private by default; a public room has its own page.
   app.post('/studio/collections', studioOnly, (req, res) => {
-    const title = String(req.body.title || '').trim().slice(0, 120); if (!title) return res.redirect('/studio');
+    const title = String(req.body.title || '').trim().slice(0, 120); if (!title) return res.redirect('/studio/trove');
     let slug = slugify(title), i = 2; while (db.prepare('SELECT 1 FROM collections WHERE slug=?').get(slug)) slug = `${slugify(title)}-${i++}`;
     db.prepare('INSERT INTO collections (slug,title,note,public) VALUES (?,?,?,?)').run(slug, title, String(req.body.note || '').slice(0, 2000) || null, req.body.public ? 1 : 0);
-    res.redirect(`/studio?room=${slug}&ok=${encodeURIComponent(`"${title}" is open. Add works to it from their catalogue pages.`)}`);
+    res.redirect(`/studio/trove?room=${slug}&ok=${encodeURIComponent(`"${title}" is open. Add works to it from their catalogue pages.`)}`);
   });
   app.get('/rooms/:slug', (req, res) => {
     const c = db.prepare('SELECT * FROM collections WHERE slug=? AND public=1').get(req.params.slug); if (!c) return res.sendStatus(404);
