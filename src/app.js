@@ -404,13 +404,22 @@ function createApp(cfg = {}) {
   // Holding any license includes the right to share the photograph: Collect is not sold to someone who already holds a larger use.
   const covers = (held, key) => held.some(h => h.key === key || (key === 'social' && h.kind !== 'print'));
   app.locals.heldBy = heldBy;
+  // The signs: any door the app shuts with a bare status (sendStatus, status().end()) is shown to a browser as a
+  // photograph and a way on, never a number. JSON, images and files keep their plain status.
+  const coverFor = () => { try { return db.prepare("SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.width > w.height ORDER BY (CASE WHEN w.curated=1 THEN 3 WHEN w.stars>=4 THEN 2 ELSE 1 END) * RANDOM() DESC LIMIT 1").get() || null; } catch (e) { return null; } };
+  const wantsSign = req => req.method === 'GET' && req.accepts('html') && !/^\/(api|img|cab|static|d|portrait|ledger\.json|healthz|sw\.js)/.test(req.path) && !req.xhr;
+  app.use((req, res, next) => {
+    const sendStatus = res.sendStatus.bind(res);
+    res.sendStatus = code => { if (code >= 400 && wantsSign(req)) return res.status(code).send(V.sign({ code, cover: coverFor() })); return sendStatus(code); };
+    next();
+  });
   // Every address is the person's: a photograph lives under its maker (/m/<maker>/<slug>; /w/<slug> still answers),
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.notFound({ cover: db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get() }));
+    if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.sign({ code: 404, cover: coverFor() }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
@@ -558,8 +567,8 @@ function createApp(cfg = {}) {
     const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
     const noteAll = [wants, note].filter(Boolean).join('\n') || null;
-    if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true }));
-    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews }));
+    if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
+    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
     u.price_cents = t.price;
     const ref = nextRef();
     // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
@@ -596,7 +605,7 @@ function createApp(cfg = {}) {
       });
       db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
       res.redirect(303, s.url);
-    } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
+    } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, uses: usesFor(w, maker), error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
   });
 
   // ---------- Share it, paid in place ----------
@@ -936,12 +945,14 @@ function createApp(cfg = {}) {
     res.send(V.collector({ hand: ownHand(b), b, ...collected(b), book: app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, note: req.query.note || null, me: (buyerOf(req) || {}).id || null, lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), patronOf: pat.of(b) }));
   });
 
+  // Every use a work allows, priced, with whether it goes through at once or is asked of the maker: the menu that stays with the buyer.
+  const usesFor = (w, maker) => (w.open ? [] : q.uses.all(maker.id).filter(u => listed(R.parse(w.rules), u.key, w)).map(u => priced(u, w)));
   app.get('/buy/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
     if (!w || w.status !== 'held') return res.sendStatus(404);
     const u = q.use.get(maker.id, String(req.query.use || 'campaign')) || q.uses.all(maker.id)[0];
-    res.send(V.ask({ w, maker, u }));
+    res.send(V.ask({ w, maker, u, uses: usesFor(w, maker) }));
   });
 
   // The moment after paying: the work is theirs, the file is ready, the email is on its way.
@@ -1636,7 +1647,15 @@ function createApp(cfg = {}) {
   app.use((req, res) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/img/') || req.path.startsWith('/static/')) return res.sendStatus(404);
     const w = db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get();
-    res.status(404).send(V.notFound({ cover: w }));
+    res.status(404).send(V.sign({ code: 404, cover: w ? { ...w, maker: (mk(w) || {}).name } : coverFor() }));
+  });
+  // The last sign: anything that gives way is told to the house and shown as a closed gallery, not a trace.
+  app.use((err, req, res, next) => {
+    const code = err && (err.status || err.statusCode) >= 400 ? (err.status || err.statusCode) : 500;
+    if (code >= 500) console.error('[house]', req.method, req.path, err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : err);
+    if (res.headersSent) return next(err);
+    if (wantsSign(req) || (req.accepts('html') && !req.xhr && !/^\/(api|img|cab)/.test(req.path))) return res.status(code).send(V.sign({ code, cover: coverFor(), detail: code === 413 ? 'The file is larger than the vault takes in one piece.' : null }));
+    res.status(code).json({ ok: false, code });
   });
   return app;
 }

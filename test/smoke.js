@@ -596,6 +596,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/applaud`, { cookie: bck, headers: { accept: 'application/json' } }); { const j = JSON.parse(r.body); assert.ok(j.ok && typeof j.mine === 'boolean', 'hat from the room'); }
   r = await req(port, 'POST', '/hang/add', { cookie: bck, body: { work: w.slug, hang: 'wander', title: 'From my wandering', json: '1' } }); { const j = JSON.parse(r.body); assert.ok(j.ok && j.hang, 'hung from the room'); assert.ok(db.prepare("SELECT 1 FROM hangs WHERE id=? AND title='From my wandering'").get(j.hang)); }
   r = await req(port, 'POST', `/buy/${w.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket', json: '1' } }); assert.ok(r.status === 200 ? typeof JSON.parse(r.body).ok === 'boolean' : r.status < 400, 'the pocket answers');
+  // The Ask page is not a dead end: every other use is a tap away, instant ones by price, and the way back to the photograph.
+  r = await req(port, 'GET', `/buy/${w4.slug}?use=editorial`); { const h = r.body.toString(); assert.ok(h.includes('Tell the maker') && h.includes('buy-menu') && h.includes('Or another use') && h.includes(`/license/${w4.slug}?use=social`) && h.includes(`/w/${w4.slug}`), 'the menu stays'); }
+  // The signs: a closed door shows a photograph and the way on, never a number; a browser never sees "Not Found".
+  r = await req(port, 'GET', '/w/no-such-photograph', { headers: { accept: 'text/html' } }); assert.equal(r.status, 404); assert.ok(r.body.toString().includes('There is no page at this address') && r.body.toString().includes('Wander on') && !/^Not Found/.test(r.body.toString()), 'a sign, not a number');
+  r = await req(port, 'GET', '/hang/no-such-wall', { headers: { accept: 'text/html' } }); assert.equal(r.status, 404); assert.ok(r.body.toString().includes('nf-t'), 'sendStatus becomes a sign');
+  r = await req(port, 'GET', '/account/claims/999', { headers: { accept: 'text/html' } }); assert.ok(r.body.toString().includes('nf-t') || r.status === 302, 'a private door is a sign too');
+  r = await req(port, 'GET', '/api/wander?from=zzz', { headers: { accept: 'application/json' } }); assert.equal(r.status, 200, 'JSON keeps its shape');
+  r = await req(port, 'GET', '/img/no-such/thumb'); assert.ok(r.status === 404 && !r.body.toString().includes('<html'), 'images keep a plain status');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

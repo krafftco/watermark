@@ -2092,3 +2092,9 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 }
 @media (max-width:700px){.vr-side{bottom:88px;left:16px;right:16px}.vr-deck{bottom:16px;gap:8px}.vr-nav{width:42px;height:42px;display:inline-flex}.vr-pause{padding:0 16px}.vr-ctl [data-vr-auto]{display:none}.vr-top{padding:12px 16px}.vr-hint{display:none}.vr-row{gap:12px}}
 @media (max-width:700px){.vr-deck .vr-pause{width:auto;padding:0 16px}}
+/* On the Ask page the other uses stay a tap away. */
+.buy-menu{grid-column:1/-1;margin:28px 0 0;padding-top:20px;border-top:1px solid var(--ln)}.buy-menu ul{list-style:none;padding:0;margin:8px 0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.buy-menu a{display:block;padding:12px 14px;border:1px solid var(--ln);text-decoration:none;color:var(--ink)}.buy-menu li.now a{border-color:var(--ink)}.buy-menu b{display:block;font-weight:500;font-size:14px}.buy-menu span{font-size:12px;color:var(--mu)}
+.buy-back{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);text-decoration:none}.buy-back:hover{color:var(--ink)}.buy-back-p{grid-column:1/-1;margin:20px 0 0}
+.buy-menu a.buy-back{display:inline;border:0;padding:0}
+.nf-blank{background:radial-gradient(ellipse 60% 55% at 50% 45%,#2a2521 0%,#15130f 60%,#0e0c0a 100%);aspect-ratio:1.5;min-height:220px}@media (max-width:760px){.nf{grid-template-columns:1fr}}

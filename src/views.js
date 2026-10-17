@@ -61,9 +61,9 @@ const APP = `<script type="speculationrules">{"prerender":[{"where":{"and":[{"hr
 addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__wmInstall=e;document.documentElement.classList.add('can-install');var b=document.querySelector('[data-install]');if(b)b.hidden=false;});
 document.addEventListener('click',function(e){var b=e.target.closest('[data-install]');if(!b||!window.__wmInstall)return;e.preventDefault();window.__wmInstall.prompt();window.__wmInstall=null;b.hidden=true;});</script>`;
 function offline() {
-  return layout({ title: 'The house cannot be reached · Watermark', bare: false, body: `<section class="narrow of"><p class="k">Offline</p><h1>The house cannot be reached.</h1>
-<p class="lede">You are not connected. The rooms you have already walked are still here; everything else will be when the connection returns.</p>
-<p class="note"><a href="/collection">The collection</a> · <a href="/wander/room">The viewing room</a></p></section>` });
+  return layout({ title: 'The house cannot be reached · Watermark', bare: false, body: `<section class="nf"><span class="nf-im nf-blank"></span><div class="nf-t"><p class="k">Between rooms</p><h1>The house cannot be reached just now.</h1>
+<p class="lede">You may be offline, or a new version is being hung. The rooms you have already walked are still here; everything else will be back in a minute.</p>
+<p class="nf-row"><a class="buy-btn" href="/collection">The collection</a><a class="nf-alt" href="/wander/room">The viewing room</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
 }
 function appPage({ standalone = false }) {
   return layout({ title: 'Watermark, as an app · Watermark', desc: 'Put Watermark on your Dock or your home screen: the house without the browser around it.', path: '/app', body: `<section class="narrow ap"><p class="k">The app</p><h1>${standalone ? 'You are in the app.' : 'Watermark, on your Dock.'}</h1>
@@ -555,7 +555,9 @@ var a=document.querySelector('[data-ask]');a&&a.addEventListener('click',functio
 }
 
 // For anything bespoke: three fields, then the maker answers.
-function ask({ w, maker, u, note, renews, error, approve }) {
+function ask({ w, maker, u, note, renews, error, approve, uses = [] }) {
+  // The menu stays with the buyer: every other use the work allows, a tap away, instant ones marked by price, the rest as Ask.
+  const menu = uses.length > 1 ? `<nav class="buy-menu" aria-label="Other uses"><p class="k">Or another use</p><ul>${uses.map(x => `<li${x.key === u.key ? ' class="now"' : ''}><a href="${x.needsMaster || x.price_cents == null ? `/buy/${esc(w.slug)}?use=${esc(x.key)}` : `/license/${esc(w.slug)}?use=${esc(x.key)}`}"><b>${esc(x.name)}</b><span>${x.needsMaster || x.price_cents == null ? 'Ask the maker' : money(x.price_cents) + ' · at once'}</span></a></li>`).join('')}</ul><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The photograph</a></nav>` : `<p class="buy-back-p"><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The photograph</a></p>`;
   return layout({
     title: `Ask about ${w.title} · Watermark`,
     body: `<section class="buy buy-ask">
@@ -571,7 +573,7 @@ ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <label>The project<textarea name="intended" rows="4" placeholder="Where it will appear, for how long, and whether you need it exclusively.">${esc(note || '')}</textarea></label>
 <button type="submit" class="buy-btn">Send to the maker</button>
 <p class="buy-how">A reply with terms and a one-tap payment link, usually within the day.</p>
-</form></section>`
+</form>${menu}</section>`
   });
 }
 
@@ -784,6 +786,27 @@ function viewingRoom({ from = '', first = null }) {
 </main><script>window.__WM_FIRST=${first ? JSON.stringify(first).replace(/</g, '\\u003c') : 'null'};</script><script src="/static/room.js?v=${VER}" defer></script>` });
 }
 
+// The signs. Whatever has closed, a visitor sees a photograph and the way on, never a number. The way a museum
+// hangs a card on a gallery door: closed for the moment, the rest of the house is open.
+const SIGNS = {
+  400: { k: 'Not quite', h: 'That request could not be read.', p: 'Something in it was not as the house expected. Go back a step and try again.' },
+  401: { k: 'A private room', h: 'This room is for its keeper.', p: 'Sign in and it opens; if it is not yours, the rest of the house is.' , signin: true },
+  403: { k: 'A private room', h: 'This door is not yours to open.', p: 'It belongs to someone else. The rest of the house is open.' },
+  404: { k: 'Nothing hangs here', h: 'There is no page at this address.', p: 'It may have moved, or the link was copied short.' },
+  409: { k: 'Already done', h: 'That has already happened.', p: 'The house recorded it the first time; nothing more is needed.' },
+  410: { k: 'This door has closed', h: 'What was here has run its course.', p: 'A link that opened once, a run that ended, a file whose downloads are spent. The photograph itself is still in the house.' },
+  413: { k: 'Too large', h: 'The vault takes files up to a certain size.', p: 'Make it smaller, or write to the house for a larger door.' },
+  429: { k: 'Slow down', h: 'There is time.', p: 'Too many knocks at once. Stand in front of something for a minute and try again.' },
+  500: { k: 'Being attended to', h: 'Something in this room gave way.', p: 'The house has been told. The rest of the galleries are open; this one will be back shortly.' },
+  502: { k: 'Being attended to', h: 'The house is between rooms.', p: 'A new version is being hung. Give it a minute; everything you have walked is still here.' },
+  503: { k: 'Closed for the moment', h: 'This gallery is closed for a short while.', p: 'It will open again shortly. The rest of the house is open.' },
+};
+function sign({ code = 404, cover = null, detail = null, next = null }) {
+  const S = SIGNS[code] || SIGNS[500];
+  return layout({ title: `${S.h} · Watermark`, desc: S.p, bare: false, body: `<section class="nf">${cover ? `<a class="nf-im" href="/w/${esc(cover.slug)}" style="--r:${cover.width && cover.height ? (cover.width / cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(cover.slug)}/screen" alt="${esc(tidy(cover.title))}" draggable="false"></a>` : '<span class="nf-im nf-blank"></span>'}
+<div class="nf-t"><p class="k">${esc(S.k)}</p><h1>${esc(S.h)}</h1><p class="lede">${esc(detail || S.p)}${cover ? ` Meanwhile, this is <a href="/w/${esc(cover.slug)}"><i>${esc(tidy(cover.title))}</i></a>${cover.maker ? `, by ${esc(cover.maker)}` : ''}.` : ''}</p>
+<p class="nf-row">${S.signin ? '<a class="buy-btn" href="/signin">Sign in</a>' : next ? `<a class="buy-btn" href="${esc(next.href)}">${esc(next.label)}</a>` : '<a class="buy-btn" href="/wander/room">Wander on</a>'}<a class="nf-alt" href="/collection">The collection</a><a class="nf-alt" href="/artists">The artists</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
+}
 // Nothing hangs here.
 function notFound({ cover = null }) {
   return layout({ title: 'Nothing hangs here · Watermark', desc: 'There is no page at this address.', body: `<section class="nf">${cover ? `<a class="nf-im" href="/w/${esc(cover.slug)}" style="--r:${cover.width && cover.height ? (cover.width / cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(cover.slug)}/screen" alt="${esc(tidy(cover.title))}" draggable="false"></a>` : ''}
@@ -1254,4 +1277,4 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { setHouseMaker, setDeskAdmin, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { sign, SIGNS, setHouseMaker, setDeskAdmin, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
