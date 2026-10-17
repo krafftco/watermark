@@ -304,4 +304,15 @@ ${checks.map(g => `<section class="hd-list"><div class="hd-h"><h2>${esc(g.group)
 <p class="note">Keys and passwords go in Render's environment settings only, never in chat, Notion or email.</p></section>` });
 }
 
-module.exports = { contract, launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+// Conservation: the fixity of every original in the vault.
+function fixity({ sum, failing, ok }) {
+  return layout({ studio: true, title: 'Conservation · Watermark', body: `<section class="studio-wrap">${nav('/studio/fixity')}
+<p class="k">Conservation</p><h1>Fixity.</h1>${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
+<p class="lede">Every original in the vault is re-hashed against the fingerprint taken on arrival, a few at a time, around the clock. A master that reads back whole is whole; one that does not is told to the house at once and never to the public.</p>
+<div class="stats"><div><b>${sum.works}</b><span>originals held</span></div><div><b>${sum.checked}</b><span>checked at least once</span></div><div><b>${sum.failing}</b><span>failing</span></div><div><b>${sum.last ? esc(String(sum.last).slice(0, 16).replace('T', ' ')) : '—'}</b><span>last check (UTC)</span></div></div>
+<form method="post" action="/studio/fixity/run" class="form inline"><label>Check now <input name="n" type="number" value="50" min="1" max="500"></label><button>Run</button></form>
+${failing.length ? `<h2>Failing</h2><table class="tbl"><thead><tr><th>Accession</th><th>Work</th><th>Checked</th><th>Note</th></tr></thead><tbody>${failing.map(f => `<tr><td>${esc(f.accession || '')}</td><td><a href="/w/${esc(f.slug)}">${esc(f.title)}</a></td><td>${esc(f.checked_at)}</td><td>${esc(f.note || 'Hash differs from the fingerprint')}</td></tr>`).join('')}</tbody></table>` : '<p class="note">Nothing failing.</p>'}
+<p class="note">A failing original is restored from the vault's earlier version (versioning is on) and checked again; see docs/VAULT.md.</p></section>` });
+}
+
+module.exports = { fixity, contract, launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

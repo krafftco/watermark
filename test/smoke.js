@@ -431,6 +431,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const d = db.prepare('SELECT status, conditions FROM licenses WHERE ref=?').get(rq2.ref); assert.equal(d.status, 'declined'); assert.ok(d.conditions.includes('Not for billboards'), 'the word kept'); }
   r = await req(port, 'POST', `/account/requests/${rq2.ref}/decline`, { cookie: ck }); assert.ok(r.headers.location.includes('no%20longer%20open'), 'answered once');
   r = await req(port, 'GET', `/account/requests?maker=${mh}`, { cookie: ck }); assert.ok(r.body.toString().includes('Licensed, and answered') && r.body.toString().includes('Declined'), 'the answered list');
+  // The archival master (.wmark): the original with its papers, signed by the house; verified by the house or offline; fixity checked.
+  r = await req(port, 'GET', `/w/${w.slug}/archive.wmark`); assert.equal(r.status, 403, 'not for strangers');
+  r = await req(port, 'GET', `/w/${w.slug}/archive.wmark`, { cookie: ck }); assert.equal(r.status, 200); assert.ok(r.headers['content-disposition'].includes('.wmark'));
+  const wmark = Buffer.from(r.body);
+  { const z = await require('unzipper').Open.buffer(wmark); const names = z.files.map(f => f.path); assert.ok(names.includes('manifest.json') && names.includes('manifest.sig') && names.includes('certificate.pdf') && names.some(n => n.startsWith('original/')), 'the papers and the original');
+    const m = JSON.parse((await z.files.find(f => f.path === 'manifest.json').buffer()).toString()); assert.equal(m.accession, w.accession); assert.ok(m.register.length >= 1 && m.house_key.public, 'manifest');
+    const ob = await z.files.find(f => f.path.startsWith('original/')).buffer(); assert.equal(require('crypto').createHash('sha256').update(ob).digest('hex'), w.sha256, 'byte for byte'); }
+  const mpart = (file, name, body) => { const b = `----wm${Date.now()}`; const head = Buffer.from(`--${b}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`); return { body: Buffer.concat([head, body, Buffer.from(`\r\n--${b}--\r\n`)]), headers: { 'content-type': `multipart/form-data; boundary=${b}` } }; };
+  { const f = mpart(null, 'x.wmark', wmark); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(r.body.toString().includes('Genuine.'), 'the house verifies its own archive'); }
+  { const bad = Buffer.from(wmark); const i = bad.indexOf(Buffer.from('"accession"')); bad[i + 20] ^= 1; const f = mpart(null, 'x.wmark', bad); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(!r.body.toString().includes('Genuine.') && r.body.toString().includes('signature'), 'a touched manifest fails the signature'); }
+  { const f = mpart(null, 'orig.jpg', fs.readFileSync(path.join(dir, 'originals', w.original_file))); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(r.body.toString().includes('Genuine.') && r.body.toString().includes('byte for byte'), 'the original itself is known'); }
+  { const fx = await app.locals.archive.fixity(100); assert.ok(fx.ran >= 2 && fx.bad === 0, 'fixity whole'); r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('Fixity verified'), 'said on the shield'); }
+  r = await req(port, 'GET', '/studio/fixity', { cookie: ck }); assert.ok(r.body.toString().includes('Nothing failing'), 'conservation desk');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

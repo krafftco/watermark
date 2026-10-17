@@ -24,8 +24,9 @@ function shieldBlock(sh, { open = false, slug = '' } = {}) {
     ['Authorship', `${esc(sh.maker)} attested at registration to having made this photograph and holding its copyright.`],
     sh.copyright ? ['U.S. copyright', `Registered, ${esc(sh.copyright)}. Search it at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.`] : sh.office ? ['U.S. copyright', `${esc(sh.office.line)} <a href="/copyright">How registration works here</a>.`] : null,
     capture ? ['At capture', capture] : null,
-    ['Fingerprint', `<code>sha256:${esc(String(sh.fingerprint || '').slice(0, 16))}&hellip;</code> The original, sealed in the vault.`],
-    sh.seq ? ['Ledger', `Entry ${sh.seq} in the <a href="/ledger">public ledger</a>, chained to every entry before it.`] : null,
+    ['Archival master', `${sh.mp ? `Held at ${esc(String(sh.mp))} megapixels${sh.mp < 12 ? ' (a web copy; the master is awaited)' : ''}. ` : ''}${sh.fixity ? (sh.fixity.ok ? `Fixity verified ${date(sh.fixity.checked_at)}: the original re-hashed against its fingerprint and found whole.` : 'Under conservation review.') : 'Fixity is checked on a schedule; the first check is due.'}${sh.archive ? ` <a href="/w/${esc(sh.archive)}/archive.wmark">Take the archive (.wmark)</a>.` : ''}`],
+    ['Fingerprint', `<code>sha256:${esc(String(sh.fingerprint || '').slice(0, 16))}&hellip;</code> The original, sealed in the vault. <a href="/verify">Verify a file</a>.`],
+    sh.seq ? ['Ledger', `Entry ${sh.seq} in the <a href="/ledger">register</a>, chained to every entry before it.`] : null,
     sh.signs ? ['Content Credentials', `Every file that leaves Watermark carries them: the maker, the copyright holder, the license${sh.noAI ? ', and that it is not for AI training' : ''}. Inspect any copy at <a href="https://contentcredentials.org/verify" rel="noopener">contentcredentials.org/verify</a>.`] : null,
   ].filter(Boolean);
   return `<details class="wshield"${open ? ' open' : ''}><summary><span class="sh-m">${SHIELD}</span><span class="sh-t"><b>Watermark Shield</b><small>Registered to ${esc(sh.maker)} &middot; ${date(sh.registered)}</small></span><span class="sh-x" aria-hidden="true"></span></summary>
@@ -61,7 +62,7 @@ let deskStatus = () => '', deskPath = '';
 const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
+const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
 const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
 function deskHeader(path = '') {
   path = path || deskPath;
@@ -984,9 +985,25 @@ function verify({ ref, lic, w, notFound }) {
     title: 'Verify a license · Watermark',
     body: `<section class="narrow"><p class="k">Verify</p><h1>Is this use licensed?</h1>
 <form method="get" action="/verify" class="inline"><input name="ref" placeholder="WM-2026-000001" value="${esc(ref)}"><button>Check</button></form>
+<h2>Is this the real thing?</h2>
+<p class="lede">Drop a Watermark archive (<code>.wmark</code>) or any image here. The house checks the signature on its papers, the original inside against its fingerprint, and the register; an image is matched to the vault byte for byte, or by its picture.</p>
+<form method="post" action="/verify" enctype="multipart/form-data" class="vf-drop" data-vf><input type="file" name="file" accept=".wmark,image/*,application/zip" required><span class="vf-say">Choose a file, or drop it here</span><button>Verify</button></form>
+<script>(function(){var f=document.querySelector('[data-vf]');if(!f)return;var i=f.querySelector('input');i.addEventListener('change',function(){if(i.files[0])f.querySelector('.vf-say').textContent=i.files[0].name;});f.addEventListener('dragover',function(e){e.preventDefault();f.classList.add('on')});f.addEventListener('dragleave',function(){f.classList.remove('on')});f.addEventListener('drop',function(e){e.preventDefault();f.classList.remove('on');i.files=e.dataTransfer.files;f.querySelector('.vf-say').textContent=i.files[0]?i.files[0].name:'';});})();</script>
 ${lic ? `<p class="lede">License <a href="/c/${esc(lic.ref)}">${esc(lic.ref)}</a> for <em>${esc(w.title)}</em> is <b>${esc(lic.status === 'active' ? 'active' : lic.status.replace('_', ' '))}</b>${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.</p>` : notFound ? '<p class="lede">No license with that reference. If you have seen this work used, the maker would like to know.</p>' : ''}
 </section>`
   });
+}
+
+// What the house says of a file dropped on /verify.
+function verifyFile({ r, name, maker }) {
+  const w = r.w || null;
+  const plate = w ? `<a class="vf-pl" href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}"><span><b>${esc(tidy(w.title))}</b><small>${esc(w.accession || '')}${maker ? ` · ${esc(maker.name)}` : ''}</small></span></a>` : '';
+  const checks = r.checks ? `<ul class="vf-checks">${r.checks.map(c => `<li class="${c.ok ? 'yes' : 'no'}"><i></i><span><b>${esc(c.k)}</b><small>${esc(c.note)}</small></span></li>`).join('')}</ul>` : '';
+  return layout({ title: 'Verified · Watermark', body: `<section class="narrow vf"><p class="k">Verify · ${esc(name)}</p>
+<h1 class="${r.genuine ? 'vf-yes' : 'vf-no'}">${r.genuine ? 'Genuine.' : r.held ? 'The original; its papers do not fully verify.' : r.w ? 'Not the original.' : 'Unknown to the house.'}</h1>
+<p class="lede">${esc(r.say)}</p>${plate}${checks}
+${r.h ? `<p class="note">SHA-256 of ${r.kind === 'wmark' ? 'the original inside' : 'the file'}: <code>${esc(r.h)}</code></p>` : ''}
+<p class="note"><a href="/verify">Verify another</a>${w ? ` · <a href="/w/${esc(w.slug)}/life">The life of this photograph</a>` : ''}</p></section>` });
 }
 
 // The register: the life of the house, day by day. A photograph enters, is seen, is tipped a hat, is
@@ -1160,4 +1177,4 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };

@@ -1868,3 +1868,14 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .ar-wall .ar-t b{font-family:var(--disp);font-size:26px;letter-spacing:-.005em}.ar-wall .ar-t small{display:block;margin-top:4px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6d655a}
 .ar-wall .ar:hover .ar-im{box-shadow:0 0 0 3px #0b0a09,0 0 0 4px rgba(214,190,140,.6),0 50px 90px -16px rgba(0,0,0,.9)}
 .ar-join{margin-top:40px}
+/* Verify: the drop zone, and what the house says. */
+.vf-drop{position:relative;display:grid;gap:10px;justify-items:center;padding:36px 20px;margin:18px 0 8px;border:1px dashed #b8b3aa;background:var(--soft);text-align:center;transition:border-color .3s,background .3s}
+.vf-drop.on{border-color:var(--ink);background:#ebe9e4}.vf-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.vf-say{font-family:var(--read);font-style:italic;font-size:17px;color:var(--mu)}.vf-drop button{position:relative;z-index:1;font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:12px 20px;background:var(--ink);color:#fff;border:0;cursor:pointer}
+.vf h1.vf-yes{color:#2d6a3e}.vf h1.vf-no{color:#8a2a2a}
+.vf-pl{display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:center;text-decoration:none;color:var(--ink);margin:24px 0;padding:14px;background:radial-gradient(ellipse 70% 60% at 50% 30%,#2a2521,#13110f);color:#f2efe9}
+.vf-pl img{width:160px;display:block;box-shadow:0 0 0 2px #0b0a09,0 0 0 3px rgba(214,190,140,.4),0 20px 40px -10px rgba(0,0,0,.8)}.vf-pl b{font-family:var(--read);font-weight:400;font-size:20px;display:block}.vf-pl small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#bdb9b1}
+.vf-checks{list-style:none;margin:16px 0;padding:0;display:grid;gap:12px}.vf-checks li{display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start}
+.vf-checks i{width:18px;height:18px;border-radius:50%;margin-top:2px;background:#2d6a3e;position:relative}.vf-checks i::after{content:"";position:absolute;left:6px;top:3px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.vf-checks li.no i{background:#8a2a2a}.vf-checks li.no i::after{width:8px;height:0;border-width:0 0 2px 0;left:5px;top:8px;transform:none}
+.vf-checks b{display:block;font-weight:500;font-size:14px}.vf-checks small{color:var(--mu);font-size:13px}

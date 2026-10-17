@@ -387,7 +387,7 @@ function createApp(cfg = {}) {
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -395,7 +395,9 @@ function createApp(cfg = {}) {
   function shieldOf(w, maker) {
     const reg = db.prepare("SELECT seq, hash, at FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq LIMIT 1").get(w.slug);
     let cred = null; try { cred = w.credentials ? JSON.parse(w.credentials) : null; } catch (e) { /* unreadable */ }
+    const fx = app.locals.archive ? app.locals.archive.fixityOf(w) : null;
     return { maker: maker.name, house: maker.house, registered: (reg && reg.at) || w.created_at, seq: reg && reg.seq, hash: reg && reg.hash, accession: w.accession,
+      mp: w.width && w.height ? Math.round(w.width * w.height / 1e5) / 10 : null, fixity: fx, archive: null,
       fingerprint: w.sha256, copyright: w.copyright_reg, office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, cred, signs: CR.enabled(), noAI: R.parse(w.rules).never.includes('ai') };
   }
   app.get('/w/:slug/life', (req, res) => {
@@ -1259,6 +1261,9 @@ function createApp(cfg = {}) {
   });
 
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
+  require('./archive').mountArchive(app, { db, C, q, V, mk, originalPath, images, isStudio, makerOf: req => app.locals.accounts.makerOf(req), heldBy, mail, upload: () => upload, copyrightState: w => (app.locals.copyrightState ? app.locals.copyrightState(w) : null) });
+  app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
+  app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {
@@ -1549,7 +1554,7 @@ function createApp(cfg = {}) {
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: !!stripe, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY) }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: !!stripe, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.
