@@ -39,7 +39,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
     const email = String(req.body.email || '').trim().slice(0, 160) || null;
     let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
-    const kind = req.body.kind === 'estate' ? 'estate' : 'maker';
+    const kind = ['estate', 'institution'].includes(req.body.kind) ? req.body.kind : 'maker';
     const id = db.prepare('INSERT INTO makers (handle,name,email,house,invite_token,kind) VALUES (?,?,?,?,?,?)').run(handle, name, email, String(req.body.house || '').trim().slice(0, 120) || null, nanoid(32), kind).lastInsertRowid;
     const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
     DEFAULT_USES.forEach(u => ins.run(id, ...u));

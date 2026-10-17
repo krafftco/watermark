@@ -138,6 +138,9 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <h2>Its public record</h2><label class="chk"><input type="checkbox" name="showEarned" value="1" ${rules.showEarned ? 'checked' : ''}> Show what this photograph has earned on its public life page</label>
 <h2>Credit</h2><label class="chk"><input type="checkbox" name="credit" value="1" ${rules.credit ? 'checked' : ''}> Require credit wherever the use allows</label>
 <button>Save my terms</button><p class="note">Terms apply to every new license and are written into its certificate and the delivered file. Licenses already granted keep the terms they were sold under.</p></form>
+<h2>Free and clear</h2>
+<form method="post" action="${base}/${esc(w.slug)}/open" class="form inline op-form"><label>Give this photograph to everyone<select name="open"><option value="">No: licensed at the source</option>${Object.entries(require('./open').OPEN).map(([k, o]) => `<option value="${k}" ${w.open === k ? 'selected' : ''}>${esc(o.name)}: ${esc(o.says)}</option>`).join('')}</select></label><button>Set</button>
+<p class="note">A free-and-clear photograph hangs on the <a href="/open">Alexandria shelf</a>, taken at full resolution by anyone for nothing, with the credit the licence asks for. It cannot be sold here while it is open; thank-you cards still reach you. Taking it back stops new takings; nothing already taken is undone.</p></form>
 <h2>The life of this photograph</h2><table class="tbl"><thead><tr><th>Ref</th><th>Date</th><th>Licensee</th><th>Use</th><th>Fee</th><th>Status</th></tr></thead><tbody>${life || '<tr><td colspan="6">Not licensed yet.</td></tr>'}</tbody></table>
 <h2 id="seals">Sealed copies</h2>
 <p class="lede">Send the full photograph to a client, an editor or a printer without letting it go. A sealed file opens only in the Watermark viewer, every opening is counted here, and you can close it at any time.</p>
