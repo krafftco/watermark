@@ -41,6 +41,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     const fresh = db.prepare('SELECT * FROM buyers WHERE id=?').get(buyer.id);
     setBuyer(res, fresh, !!fresh.pm);
     if (maker) setMaker(res, maker);
+    if (app.locals.claimStood) app.locals.claimStood(res, req, fresh);
     const first = ((maker && maker.name) || fresh.name || '').split(' ')[0];
     res.cookie('wm_hi', first || '·', { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 60 * 1000 });
     ledger.append(db, 'signin.email', `buyer-${fresh.id}`, { maker: !!maker });

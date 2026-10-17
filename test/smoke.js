@@ -607,6 +607,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const nid = db.prepare('SELECT id FROM notes WHERE gallery_id=?').get(sf.id).id;
     r = await req(port, 'POST', `/collector/${sf.code}/notes/${nid}/remove`, { cookie: sck }); r = await req(port, 'GET', `/collector/${sf.code}`); assert.ok(!r.body.toString().includes('You have a great eye.'), 'owner removed it'); }
   r = await req(port, 'GET', '/artists'); assert.ok(r.status === 200 && r.body.toString().includes('Will Fullerton') && r.body.toString().includes('/m/will-fullerton'), 'the artists page lists the makers');
+  // Standing in front of a photograph: numbered once per viewer, seconds added after; the first hundred are told.
+  r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'abc123', s: 0 }), headers: { 'content-type': 'application/json' } }); { const sj = JSON.parse(r.body); assert.ok(sj.n === 1 && sj.first && /1st person/.test(sj.line), 'the first to stand: ' + r.body); }
+  r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'abc123', s: 42 }), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body).n, 1, 'still the first');
+  r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'def456', s: 0 }), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body).n, 2, 'the second');
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: 'wm_v=abc123' }); assert.ok(r.body.toString().includes('You were the 1st person to stand in front of this') && r.body.toString().includes('2 people have stood'), 'told on the page');
+  r = await req(port, 'GET', '/yours', { cookie: 'wm_v=abc123; ' + bck }); assert.ok(r.body.toString().includes('Your looking, this month'), 'looking shown privately on Yours');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verifyAll(db).ok, false, 'tamper detected'); assert.equal(ledger.verify(db).ok, true, 'the quick check trusts its head for an hour');
   r = await req(port, 'GET', '/ledger?check=full'); assert.ok(r.body.includes('broken'));

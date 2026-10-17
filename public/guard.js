@@ -5,7 +5,8 @@
 (function () {
   var W = window.__WM_GUARD; if (!W) return;
   function code() { try { var k = localStorage.getItem('wm_v'); if (!k) { k = Math.random().toString(36).slice(2, 8); localStorage.setItem('wm_v', k); } return k; } catch (e) { return 'anon'; } }
-  var v = code(), text = (W.accession || W.slug) + ' · ' + v + ' · watermark';
+  var v = code(); try { document.cookie = 'wm_v=' + v + '; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : ''); } catch (e) {}
+  var text = (W.accession || W.slug) + ' · ' + v + ' · watermark';
   // A tiled SVG naming the work and the viewer: the veil that comes up in the capture moment.
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140"><text x="6" y="40" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="white" transform="rotate(-18 130 70)">' + text.replace(/[<>&]/g, '') + '</text><text x="6" y="118" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="black" transform="rotate(-18 130 70)">' + text.replace(/[<>&]/g, '') + '</text></svg>';
   var url = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
@@ -54,4 +55,17 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || (e.metaKey && e.shiftKey && /^[345]$/.test(e.key))) up(4000); });
   // A copy of the image out of the page (drag, copy) is answered the same way.
   document.addEventListener('copy', function (e) { if (e.target && e.target.closest && e.target.closest('.plate,.wv,.lb-stage,.lic-fig')) note('copy'); });
+  // Standing here: the house is told once (and numbered), and the time spent is added when you leave.
+  var t0 = Date.now(), told = false;
+  function stood(final) {
+    var secs = Math.round((Date.now() - t0) / 1000); if (!final && told) return;
+    try { navigator.sendBeacon(W.stood, new Blob([JSON.stringify({ v: v, s: final ? secs : 0 })], { type: 'application/json' })); } catch (e) {}
+  }
+  if (W.stood) {
+    fetch(W.stood, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: v, s: 0 }), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      told = true; var el = document.querySelector('[data-stood]'); if (!el) return;
+      if (j && j.line) { el.textContent = j.line; el.hidden = false; }
+    }).catch(function () {});
+    window.addEventListener('pagehide', function () { stood(true); });
+  }
 })();
