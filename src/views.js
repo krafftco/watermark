@@ -282,8 +282,15 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
     title: `License ${w.title} · Watermark`,
     desc: `License ${w.title}, a photograph by ${maker.name}.`,
     body: `<section class="buy">
-<figure class="buy-fig"><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
-<figcaption><b>${esc(w.title)}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}</figcaption></figure>
+<figure class="buy-fig"><div class="ls" data-ls style="--img:url('/img/${esc(w.slug)}/screen')">
+<div class="ls-sc on" data-sc=""><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></div></div>
+<div class="ls-sc ls-social" data-sc="social"><div class="ph-dev"><div class="ph-top"><i></i><b>yourname</b></div><div class="ph"></div><div class="ph-cap"><b>yourname</b> Evening light. <span>Photograph by ${esc(maker.name)} &middot; Watermark</span></div></div></div>
+<div class="ls-sc ls-story" data-sc="editorial"><div class="ph"></div><div class="pg"><span class="kk">The feature</span><span class="hh">${esc(tidy(w.title))}</span><span class="ln"></span><span class="ln"></span><span class="ln" style="width:86%"></span><span class="ln"></span><span class="ln" style="width:70%"></span><span class="cr">Photograph by ${esc(maker.name)}</span></div></div>
+<div class="ls-sc ls-co" data-sc="commercial"><div class="bar"><i></i><i></i><i></i><u></u></div><div class="site"><div class="ph"></div><div class="nav"><span></span><span style="width:120px"></span></div><div class="hd">Your company, introduced.</div></div></div>
+<div class="ls-sc ls-aud" data-sc="campaign"><div class="bb"><div class="ph"></div></div><i class="pole p1"></i><i class="pole p2"></i></div>
+<div class="ls-sc ls-wall" data-sc="print"><div class="fr"><div class="mt"><div class="ph"></div></div></div><div class="fl"></div></div>
+</div>
+<figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Share it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
@@ -295,7 +302,14 @@ ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rule
 <ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded on the <a href="/ledger">ledger</a></li></ul>
 <p class="buy-more">Exclusivity, a longer term or something larger? <a href="/buy/${esc(w.slug)}?ask=1" data-ask>Ask the maker</a>. &middot; <a href="/terms" target="_blank">The terms</a>, in plain language.</p>
 </form></section>
-<script>(function(){var b=document.getElementById('buyBtn');document.querySelectorAll('.bu input').forEach(function(i){i.addEventListener('change',function(){b.textContent=i.dataset.label;});});
+<script>(function(){var b=document.getElementById('buyBtn');
+// See it where it will live: each use shows the photograph in its place.
+var st=document.querySelector('[data-ls]'),cap=document.querySelector('[data-ls-cap]'),sc=st?[].slice.call(st.querySelectorAll('[data-sc]')):[];
+var CAPS={'':'Choose where it will live, and see it there.',social:'Share it: on your own accounts, credited.',editorial:'In a story: opening the feature, credited on the page.',commercial:'For a company: the first thing anyone sees.',campaign:'On a billboard, at the scale it deserves.',print:'On a wall: signed, matted, framed, kept.'};
+function show(k){if(!st)return;var has=sc.some(function(x){return x.getAttribute('data-sc')===k;});sc.forEach(function(x){x.classList.toggle('on',x.getAttribute('data-sc')===(has?k:''));});if(cap)cap.textContent=CAPS[has?k:'']||CAPS[''];}
+var cur=(document.querySelector('.bu input:checked')||{}).value||'';show(cur);
+document.querySelectorAll('.bu').forEach(function(l){var i=l.querySelector('input');l.addEventListener('mouseenter',function(){show(i.value);});l.addEventListener('mouseleave',function(){show((document.querySelector('.bu input:checked')||{}).value||'');});});
+document.querySelectorAll('.bu input').forEach(function(i){i.addEventListener('change',function(){b.textContent=i.dataset.label;show(i.value);});});
 var a=document.querySelector('[data-ask]');a&&a.addEventListener('click',function(e){e.preventDefault();var f=document.querySelector('.buy-form');var h=document.createElement('input');h.type='hidden';h.name='ask';h.value='1';f.appendChild(h);f.submit();});})();</script>`
   });
 }
