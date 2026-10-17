@@ -51,7 +51,7 @@ const { photosIn } = require('../src/studios-sync');
   const kj = await new Promise(res => require('http').get({ port, path: '/api/k?post=florence' }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(JSON.parse(b))); }));
   assert.strictEqual(kj.works.length, 2); assert.ok(kj.works.every(w => w.path.startsWith('/content/images/')), 'paths'); assert.ok(kj.room && kj.room.n === 2, 'the room');
   const kp = await new Promise(res => require('http').get({ port, path: '/api/k?post=journey-out-west-the-people' }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(JSON.parse(b))); }));
-  assert.strictEqual(kp.works.length, 0, 'private photographs carry no K');
+  assert.ok(kp.works.length === 1 && kp.works[0].ask && !kp.works[0].collect && !kp.works[0].slug && !kp.room, 'private photographs carry the K, for a license request only');
   const wp = await new Promise(res => require('http').get({ port, path: '/w/' + works[0].slug }, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => res(b)); }));
   assert.ok(wp.includes('lot-story') && wp.includes('https://studios.test/florence/'), 'the work leads back to its story');
   srv.close();

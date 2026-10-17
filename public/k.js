@@ -1,7 +1,7 @@
 /* The K on every Krafft photograph.
    Loaded on Krafft Studios (and any Krafft site). On a story, it asks Watermark which photographs are held
    there, then sets a small K seal in the corner of each one. Pressing it opens that photograph on Watermark,
-   where it can be collected. At the end of the story, a quiet line leads to the room and to patronage.
+   at checkout, to be collected; photographs held privately open a license request to the maker. At the end of the story, a quiet line leads to the room and to patronage.
    Served from watermark.krafftco.com/k.js; change it only here. */
 (function () {
   if (window.__krafftK) return; window.__krafftK = 1;
@@ -30,35 +30,42 @@
   function path(src) { var m = String(src || '').split('?')[0].replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').replace(/_o(\.[a-z]+)$/i, '$1').match(/\/content\/images\/.+$/); return m ? m[0] : null; }
   function slug() { var p = location.pathname.replace(/^\/+|\/+$/g, '').split('/'); return p.length === 1 && p[0] ? p[0] : ''; }
 
-  function seal(w) {
+  // Collect: straight to checkout for this photograph, and back to the story if they change their mind.
+  function pay(w) {
+    var f = document.createElement('form'); f.method = 'post'; f.action = WM + '/buy/' + encodeURIComponent(w.slug); f.style.display = 'none';
+    [['use', 'social'], ['back', location.href.split('#')[0]]].forEach(function (kv) { var i = document.createElement('input'); i.type = 'hidden'; i.name = kv[0]; i.value = kv[1]; f.appendChild(i); });
+    document.body.appendChild(f); f.submit();
+  }
+  function seal(w, img, lic) {
     var a = document.createElement('a');
-    a.className = 'wk'; a.href = WM + '/w/' + w.slug + '?via=studios';
-    a.setAttribute('aria-label', 'Collect ' + w.title + ' on Watermark');
-    a.innerHTML = '<i>' + GLYPH + '</i><b>Collect</b>';
+    a.className = 'wk';
+    if (w.collect) a.href = WM + '/w/' + w.slug + '?via=studios';
+    else { var u = new URL(lic); u.searchParams.set('image', (img.currentSrc || img.src).replace(/\/size\/w\d+(\/format\/\w+)?\//, '/').split('?')[0]); u.searchParams.set('title', document.title); u.searchParams.set('from', location.href.split('#')[0]); a.href = u.toString(); }
+    a.setAttribute('aria-label', (w.collect ? 'Collect ' : 'License ') + w.title);
+    a.innerHTML = '<i>' + GLYPH + '</i><b>' + (w.collect ? 'Collect' : 'License') + '</b>';
     a.addEventListener('pointerdown', function () { a.classList.remove('is-up'); a.classList.add('is-down'); });
     a.addEventListener('pointerleave', function () { a.classList.remove('is-down'); });
     a.addEventListener('click', function (e) {
       e.stopPropagation(); // never open the theme's lightbox instead
-      if (e.metaKey || e.ctrlKey) return;
+      if (e.metaKey || e.ctrlKey) return; // a new tab still opens the photograph's page
       e.preventDefault(); a.classList.remove('is-down'); void a.offsetWidth; a.classList.add('is-up');
       try { navigator.vibrate && navigator.vibrate(8); } catch (x) {}
-      setTimeout(function () { location.href = a.href; }, 280);
+      setTimeout(function () { if (w.collect) pay(w); else location.href = a.href; }, 280);
     });
     return a;
   }
 
   function run(data) {
     if (!data || !data.works || !data.works.length) return;
-    var by = {}; data.works.forEach(function (w) { if (w.collect) by[w.path] = w; });
+    var by = {}; data.works.forEach(function (w) { if (w.collect || w.ask) by[w.path] = w; });
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     var root = document.querySelector('article') || document.querySelector('main') || document.body;
-    var done = {};
     [].forEach.call(root.querySelectorAll('img'), function (img) {
       var w = by[path(img.currentSrc || img.src)] || by[path(img.getAttribute('src'))]; if (!w) return;
       var host = img.closest('figure, .kg-gallery-image, .kg-image-card') || img.parentElement;
       if (!host || host.querySelector(':scope > .wk')) return;
       if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
-      host.classList.add('wk-host'); host.appendChild(seal(w)); done[w.slug] = 1;
+      host.classList.add('wk-host'); host.appendChild(seal(w, img, data.license || 'https://www.krafftco.com/license'));
     });
     if (!data.room) return;
     var end = document.createElement('aside'); end.className = 'wk-end';

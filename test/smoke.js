@@ -68,7 +68,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/thanks/${tref}?session_id=wrong`); assert.equal(r.status, 302, 'thanks page needs its session');
   // Share it: the everyday license. One tap to Checkout, no company field, the file arrives screen-sized and stamped
   r = await req(port, 'GET', `/license/${w.slug}`); assert.ok(r.body.toString().includes('Share it.') && r.body.toString().includes('Share it for $5'), 'Share it leads');
-  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social' } }); assert.equal(r.status, 303);
+  r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'social', back: 'https://studios.krafftco.com/florence/' } }); assert.equal(r.status, 303);
+  assert.equal(sessions[r.headers.location.split('/').pop()].cancel_url, 'https://studios.krafftco.com/florence/', 'back to the story');
   const ss = sessions[r.headers.location.split('/').pop()]; assert.equal(ss.line_items[0].price_data.unit_amount, 500); assert.ok(!ss.custom_fields, 'nothing to fill in');
   Object.assign(ss, { payment_status: 'paid', amount_total: 500, customer_details: { email: 'fan@me.com', name: 'A Fan' } });
   r = await req(port, 'GET', `/thanks/${ss.metadata.ref}?session_id=${ss.id}`); assert.ok(r.body.toString().includes('/d/'));
