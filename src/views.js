@@ -702,8 +702,8 @@ function artists({ artists }) {
 <span class="ar-t">${m.portrait ? `<img class="ar-por" src="/portrait/${esc(m.handle)}" alt="">` : ''}<span><b>${esc(m.name)}</b><small>${m.house ? esc(m.house) + ' &middot; ' : ''}${m.n} photograph${m.n === 1 ? '' : 's'}${m.collectors ? ` &middot; ${m.collectors} collector${m.collectors === 1 ? '' : 's'}` : ''}${m.kind === 'estate' ? ' &middot; Estate' : ''}</small></span></span></a>`;
   return layout({ title: 'The artists · Watermark', desc: 'The photographers whose work is held on Watermark.', path: '/artists', body: `<section class="cx-intro ar-intro"><p class="k">The artists</p><h1>Whose work hangs here.</h1>
 <p class="lede">Watermark holds photographs for the people who made them. The Krafft Collection was the first; every maker who joins keeps their copyright, sets their own terms and takes 85% of every sale. Open a name to see the work.</p></section>
-<section class="gal"><div class="ar-grid">${artists.map(card).join('')}</div>
-<p class="note ar-join">A photographer, or an estate? <a href="/join">Open your studio</a>; it takes a minute.</p></section>` });
+<section class="ar-wall"><div class="ar-grid">${artists.map(card).join('')}</div></section>
+<section class="gal"><p class="note ar-join">A photographer, or an estate? <a href="/join">Open your studio</a>; it takes a minute.</p></section>` });
 }
 
 // The door out. A traveller's farewell, said once and meant: see you down the road; the doors are always open.
