@@ -85,7 +85,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
       jewels: works.filter(w => w.curated),
       totals: { works: works.length, public: works.filter(w => w.status === 'held').length, jewels: works.filter(w => w.curated).length,
         earned: toMaker(gross), earned30: toMaker(gross30), ttm: toMaker(ttm), shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
-        value: ttm ? toMaker(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0 },
+        value: ttm ? toMaker(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0, royalties: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).r : 0, resales: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).n : 0 },
       toMaker,
     };
   }

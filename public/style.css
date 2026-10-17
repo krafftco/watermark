@@ -1086,3 +1086,12 @@ div.yf-mk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
 .mk-f .jewel{display:flex;justify-content:space-between;align-items:center;gap:24px;width:100%;padding:18px 22px}
 .hd-ev .hd-v{font-family:var(--read);font-size:18px;color:var(--ink);text-align:right}
 .mk-side .sr-also{text-align:left}
+/* Offers, and the price chart */
+.lot-of{margin-top:10px}.lot-of summary{cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);padding:6px 0}
+.lot-of .form{display:grid;gap:12px;margin-top:10px}.lot-of small{color:var(--mu);font-size:12px}
+.yc-offers{margin:18px 0;padding:16px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)}
+.yc-of{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:8px 0}.yc-of span{flex:1;min-width:220px}.yc-of b{font-family:var(--read);font-weight:400;font-size:20px}
+.yc-of form button:not(.link){padding:8px 16px;border:0;background:var(--ink);color:#f7f6f3;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.mk-chart{margin:4px 0 18px;color:var(--ink)}.mk-chart svg{display:block;width:100%;height:auto;max-width:640px}
+.mk-chart figcaption{display:flex;justify-content:space-between;max-width:640px;font-size:12px;color:var(--mu);margin-top:6px}
+.lot-of select{appearance:none;width:100%;padding:10px 0;border:0;border-bottom:1px solid var(--ln);background:transparent;font:inherit;font-size:15px;color:var(--ink);border-radius:0}

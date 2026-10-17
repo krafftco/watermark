@@ -319,6 +319,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/claim/${mtok}`); const ick = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
   r = await req(port, 'GET', '/yours', { cookie: ick }); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('$50'), 'it hangs on the buyer\'s wall at its price');
   r = await req(port, 'GET', `/w/${w2.slug}/life`); assert.ok(r.body.toString().includes('Traded between collectors') && r.body.toString().includes('$50'), 'the trade is in its life');
+  assert.ok(r.body.toString().includes('class="mk-chart"'), 'with its price chart');
+  // An offer for a piece not on the market: its collector accepts, and it goes to the Studio to settle.
+  r = await req(port, 'POST', `/w/${w2.slug}/offer`, { body: { offer: '70', email: 'f@frick.org', name: 'Henry' } }); assert.ok(r.headers.location.includes('offer=sent'));
+  r = await req(port, 'GET', '/yours', { cookie: ick }); assert.ok(r.body.toString().includes('Offers for your pieces') && r.body.toString().includes('$70'), 'the collector sees the offer');
+  const ofr = db.prepare("SELECT id FROM offers WHERE status='open'").get().id;
+  r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('accepted=1'));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM bids WHERE status='new' AND offer_cents=7000").get().n, 1, 'accepted offers go to the Studio');
+  r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(r.body.toString().includes('Resale') && r.body.toString().includes('$5 royalties'), 'resale in the holdings');
+
 
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(/Founding Collector &middot; No\. \d+ of 100/.test(r.body.toString()), 'a founding collector');
   r = await req(port, 'GET', '/collectors'); assert.ok(/of 100 places remain/.test(r.body.toString()), 'places remain');

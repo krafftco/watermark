@@ -19,6 +19,8 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     status TEXT NOT NULL DEFAULT 'new', created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, listing_id INTEGER, bid_id INTEGER, seller INTEGER, price_cents INTEGER NOT NULL,
     royalty_cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL, settled TEXT NOT NULL DEFAULT 'brokered', claim TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  db.exec(`CREATE TABLE IF NOT EXISTS offers (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, buyer_id INTEGER, name TEXT, email TEXT NOT NULL, offer_cents INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT)`);
   const { layout, esc, money, date, tidy } = V;
   const lic = id => db.prepare('SELECT l.*, w.slug, w.title, w.place, w.width, w.height, w.edition_size, w.maker_id FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.id=?').get(id);
   const openListing = licId => db.prepare("SELECT * FROM listings WHERE license_id=? AND status='open'").get(licId);
@@ -85,6 +87,58 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     ledger.append(db, 'market.bid', `listing-${s.id}`, { offer: offer || s.ask_cents });
     res.redirect(`/market/${s.id}?sent=1`);
   });
+
+
+  // ---------- an offer for a piece that is not on the market ----------
+  // Anyone can make an offer for a numbered piece of a limited edition; its collector sees it in their
+  // collection and may accept it, which puts the piece on the market at that price with the offer as its buyer.
+  app.post('/w/:slug/offer', (req, res) => {
+    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w || !w.edition_size) return res.sendStatus(404);
+    const x = req.body || {}, b = buyerOf(req);
+    const email = String(x.email || '').trim(), cents = Math.round(Number(String(x.offer || '').replace(/[^0-9.]/g, '')) * 100);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !(cents >= 100)) return res.redirect(`/w/${w.slug}?offer=check#market`);
+    const want = Number(x.no) || null;
+    const held = db.prepare("SELECT * FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL" + (want ? ' AND collector_no=?' : '') + ' ORDER BY collector_no').all(...[w.id, ...(want ? [want] : [])]);
+    const to = held.filter(l => !(b && l.buyer_id === b.id)); if (!to.length) return res.redirect(`/w/${w.slug}?offer=none#market`);
+    for (const l of to) db.prepare('INSERT INTO offers (license_id, buyer_id, name, email, offer_cents) VALUES (?,?,?,?,?)').run(l.id, b ? b.id : null, String(x.name || '').trim().slice(0, 80) || null, email.slice(0, 160), cents);
+    ledger.append(db, 'market.offer', w.slug, { offer: cents, pieces: to.length });
+    res.redirect(`/w/${w.slug}?offer=sent#market`);
+  });
+  const offersFor = b => (b ? db.prepare("SELECT o.*, l.ref, l.collector_no FROM offers o JOIN licenses l ON l.id=o.license_id WHERE l.buyer_id=? AND o.status='open' ORDER BY o.offer_cents DESC").all(b.id) : []);
+  app.locals.offersFor = offersFor;
+  app.post('/yours/offers/:id/:act', (req, res) => {
+    const b = buyerOf(req), o = db.prepare("SELECT o.*, l.buyer_id AS holder FROM offers o JOIN licenses l ON l.id=o.license_id WHERE o.id=? AND o.status='open'").get(Number(req.params.id));
+    if (!b || !o || o.holder !== b.id) return res.redirect('/yours');
+    if (req.params.act === 'accept') {
+      let s = openListing(o.license_id);
+      if (s) db.prepare('UPDATE listings SET ask_cents=? WHERE id=?').run(o.offer_cents, s.id);
+      else { db.prepare('INSERT INTO listings (license_id, seller, ask_cents) VALUES (?,?,?)').run(o.license_id, b.id, o.offer_cents); s = openListing(o.license_id); }
+      db.prepare('INSERT INTO bids (listing_id, buyer_id, name, email, offer_cents) VALUES (?,?,?,?,?)').run(s.id, o.buyer_id, o.name, o.email, o.offer_cents);
+      db.prepare("UPDATE offers SET status='accepted', closed_at=datetime('now') WHERE id=?").run(o.id);
+      ledger.append(db, 'market.accepted', `listing-${s.id}`, { offer: o.offer_cents });
+      return res.redirect('/yours?accepted=1#files');
+    }
+    db.prepare("UPDATE offers SET status='declined', closed_at=datetime('now') WHERE id=?").run(o.id);
+    res.redirect('/yours#files');
+  });
+
+  // What resale has paid makers and the house.
+  const royaltiesTo = makerId => db.prepare(`SELECT COALESCE(SUM(t.royalty_cents),0) r, COALESCE(SUM(t.fee_cents),0) f, COUNT(*) n FROM trades t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id${makerId ? ' WHERE w.maker_id=?' : ''}`).get(...(makerId ? [makerId] : []));
+  app.locals.royaltiesTo = royaltiesTo;
+
+  // A small price chart: issue, then every trade.
+  function chart(workId) {
+    const pts = db.prepare('SELECT t.price_cents c, t.at FROM trades t JOIN licenses l ON l.id=t.license_id WHERE l.work_id=? ORDER BY t.id').all(workId);
+    const p = priceOf(workId); if (!pts.length) return '';
+    const series = [...(p.issue != null ? [{ c: p.issue, at: null }] : []), ...pts];
+    const W = 560, H = 120, pad = 8, max = Math.max(...series.map(s => s.c)), min = Math.min(...series.map(s => s.c));
+    const x = i => pad + (series.length === 1 ? (W - 2 * pad) / 2 : i * (W - 2 * pad) / (series.length - 1));
+    const y = c => H - pad - (max === min ? (H - 2 * pad) / 2 : (c - min) * (H - 2 * pad) / (max - min));
+    const d = series.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(s.c).toFixed(1)}`).join(' ');
+    return `<figure class="mk-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price history: ${series.map(s => money(s.c)).join(', ')}"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5"/>${series.map((s, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(s.c).toFixed(1)}" r="${i === series.length - 1 ? 4 : 2.5}" fill="currentColor"/>`).join('')}</svg>
+<figcaption><span>${p.issue != null ? `Issued at ${money(p.issue)}` : ''}</span><span>Last ${money(series[series.length - 1].c)}</span></figcaption></figure>`;
+  }
+  app.locals.marketChart = chart;
 
   // ---------- the exchange: everything offered, and what has traded ----------
   app.get('/market', (req, res) => {

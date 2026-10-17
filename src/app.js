@@ -288,7 +288,7 @@ function createApp(cfg = {}) {
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    const mkt = app.locals.market ? { p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
+    const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
     res.send(V.work({ mkt, shield: shieldOf(w, maker), w, maker, uses: q.uses.all(maker.id).filter(u => R.allows(rules, u.key)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
@@ -311,7 +311,7 @@ function createApp(cfg = {}) {
     const prints = ids.length ? db.prepare(`SELECT p.*, l.collector_no FROM prints p JOIN licenses l ON l.id=p.license_id WHERE p.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY p.id`).all(...ids) : [];
     const moves = ids.length ? db.prepare(`SELECT t.claimed_at, l.collector_no FROM transfers t JOIN licenses l ON l.id=t.license_id WHERE t.claimed_at IS NOT NULL AND t.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY t.claimed_at`).all(...ids) : [];
     let trades = []; try { trades = db.prepare('SELECT t.price_cents, t.at, l.collector_no FROM trades t JOIN licenses l ON l.id=t.license_id WHERE l.work_id=? ORDER BY t.id').all(w.id); } catch (e) { /* no market yet */ }
-    res.send(V.life({ trades, w, maker, lic, reg, rules, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
+    res.send(V.life({ chart: app.locals.marketChart ? app.locals.marketChart(w.id) : '', trades, w, maker, lic, reg, rules, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
   });
 
   app.get('/img/:slug/:size', async (req, res) => {
@@ -547,7 +547,7 @@ function createApp(cfg = {}) {
     const give = req.query.give && b ? db.prepare('SELECT t.token, w.title FROM transfers t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE t.token=? AND t.from_buyer=? AND t.claimed_at IS NULL').get(String(req.query.give), b.id) : null;
     const col = b ? collected(b) : { items: [], rooms: [], works: 0, makers: 0 };
     const pf = b && col.items.length ? app.locals.market.portfolio(col.items) : null;
-    res.send(V.collector({ b, ...col, pf, offer: req.query.offer || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
+    res.send(V.collector({ b, ...col, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0 }));
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
@@ -881,14 +881,15 @@ function createApp(cfg = {}) {
     let monthly = 0, gifts = 0, patrons = 0;
     try { monthly = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=1 AND status IN ('active','ending')"); gifts = sum("SELECT SUM(amount_cents) s FROM patrons WHERE recurring=0 AND status IN ('active','ending')"); patrons = db.prepare("SELECT COUNT(*) n FROM patrons WHERE status IN ('active','ending')").get().n; } catch (e) { /* no patronage */ }
     const tipped = app.locals.tipsTo ? app.locals.tipsTo(null) : { s: 0, n: 0 };
-    const earned = collected + licensed + gifts + tipped.s;
+    const resale = app.locals.royaltiesTo ? app.locals.royaltiesTo(null) : { r: 0, f: 0, n: 0 };
+    const earned = collected + licensed + gifts + tipped.s + resale.r + resale.f;
     const month = sum(`SELECT SUM(l.price_cents) s FROM licenses l WHERE ${paid} AND COALESCE(l.starts_at, l.created_at) >= date('now','start of month')`);
     const ed = new Map(db.prepare("SELECT work_id, COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY work_id").all().map(r => [r.work_id, r.n]));
     const t = { earned, month, works: all.length, rooms: db.prepare('SELECT COUNT(*) n FROM collections').get().n,
       numbered: db.prepare("SELECT COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
       collectors: db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
       seen30: all.reduce((a, w) => a + w.seen30, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
-    const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Tips', cents: tipped.s, note: `${tipped.n} from readers, to writers and photographers` }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${money(gifts)} in gifts` : ''}` }];
+    const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Resale', cents: resale.r + resale.f, note: `${resale.n} trade${resale.n === 1 ? '' : 's'} · ${V.money(resale.r)} royalties, ${V.money(resale.f)} fees` }, { name: 'Tips', cents: tipped.s, note: `${tipped.n} from readers, to writers and photographers` }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${V.money(gifts)} in gifts` : ''}` }];
     const n = sql => db.prepare(sql).get().n;
     const needs = [
       { n: n("SELECT COUNT(*) n FROM licenses WHERE status='requested'"), label: ' license requests to answer', href: '/studio/licenses' },
