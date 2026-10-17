@@ -925,7 +925,7 @@ function createApp(cfg = {}) {
       return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, renews: b.renews, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
     }
     const ref = nextRef();
-    const needsMaker = u.price_cents == null || rules.approve || !stripe;
+    const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key);
     db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null);
     ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key });
@@ -1259,6 +1259,7 @@ function createApp(cfg = {}) {
   });
 
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
+  require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {
     if (!req.file || !req.body.title) return res.status(400).send(S.works({ list: q.allWorks.all(), error: 'Choose a photograph and give it a title.' }));
@@ -1499,9 +1500,8 @@ function createApp(cfg = {}) {
   });
   app.post('/studio/licenses/:ref/grant', studioOnly, (req, res) => { grant(req.params.ref, { paid: false }); res.redirect(`/studio/licenses/${req.params.ref}?ok=Granted`); });
   app.post('/studio/licenses/:ref/decline', studioOnly, (req, res) => {
-    db.prepare("UPDATE licenses SET status='declined', updated_at=datetime('now') WHERE ref=? AND status!='active'").run(req.params.ref);
-    ledger.append(db, 'license.declined', req.params.ref, {});
-    res.redirect(`/studio/licenses/${req.params.ref}?ok=Declined`);
+    const r = app.locals.requests.decline(req.params.ref, String((req.body || {}).word || '').trim().slice(0, 600) || null, 'studio');
+    res.redirect(`/studio/licenses/${req.params.ref}?ok=${encodeURIComponent(r.ok ? r.note : r.why)}`);
   });
 
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));

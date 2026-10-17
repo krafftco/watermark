@@ -18,11 +18,15 @@ async function send({ to, subject, text, from }) {
 const templates = {
   requestToMaker: ({ ref, title, name, company, email, use, intended, base }) => ({
     subject: `License request ${ref}: ${title}`,
-    text: `${name}${company ? ` (${company})` : ''} <${email}> asked to license "${title}" for ${use}.\n\n${intended ? `How they will use it: ${intended}\n\n` : ''}Quote, grant or decline: ${base}/studio/licenses/${ref}`,
+    text: `${name}${company ? ` (${company})` : ''} <${email}> asked to license "${title}" for ${use}.\n\n${intended ? `How they will use it: ${intended}\n\n` : ''}Accept, or decline with a word: ${base}/account/requests/${ref}`,
   }),
   receivedToLicensee: ({ ref, title, name }) => ({
     subject: `Your request ${ref} for "${title}"`,
     text: `Dear ${name},\n\nThank you. Your request to license "${title}" is with the maker, who will confirm terms in writing, usually within a day.\n\nReference: ${ref}`,
+  }),
+  declinedToLicensee: ({ ref, title, name, word, base, slug }) => ({
+    subject: `About your request ${ref} for "${title}"`,
+    text: `Dear ${name},\n\nThank you for asking. The maker is not able to license "${title}" for this use.${word ? `\n\nThey write: ${word}` : ''}\n\nThe photograph can still be collected, and other uses may be open: ${base}/w/${slug}\n\nReference: ${ref}`,
   }),
   payToLicensee: ({ ref, title, name, fee, url }) => ({
     subject: `Terms for "${title}" (${ref})`,

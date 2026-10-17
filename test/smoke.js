@@ -416,6 +416,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // Quality control: a web-sized photograph is collected instantly; the larger uses are listed but asked of the maker, who supplies the master.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && lb.includes('For a company') && lb.includes('Ask the maker') && lb.includes('full-resolution'), 'web size: larger uses are asked, not sold'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('full-resolution master'), 'a campaign from a web copy is asked of the maker, never sold instantly');
+  // The request desk: what is asked of a web copy lands with the maker, who accepts (free here) or declines with a word; the buyer is written to.
+  r = await req(port, 'POST', `/license/${w2.slug}`, { body: { use: 'campaign', name: 'Ines Vale', email: 'ines@vale.example', agree: '1', intended: 'A billboard in Lisbon' } }); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('with the maker'), 'asked, not sold');
+  const rq1 = db.prepare("SELECT ref, status FROM licenses WHERE licensee_email='ines@vale.example' ORDER BY id DESC LIMIT 1").get(); assert.equal(rq1.status, 'requested');
+  const mh = db.prepare('SELECT handle FROM makers WHERE id=?').get(w2.maker_id).handle;
+  r = await req(port, 'GET', `/account/requests?maker=${mh}`, { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for you') && r.body.toString().includes('Ines Vale') && r.body.toString().includes('Needs the master'), 'on the desk');
+  r = await req(port, 'GET', `/account/requests/${rq1.ref}`); assert.equal(r.status, 302, 'a stranger is sent to sign in');
+  r = await req(port, 'GET', `/account/requests/${rq1.ref}`, { cookie: ck }); assert.ok(r.body.toString().includes('A billboard in Lisbon') && r.body.toString().includes('Add the master'), 'the request, and the master asked for');
+  r = await req(port, 'POST', `/account/requests/${rq1.ref}/accept`, { cookie: ck, body: { free: '1' } }); assert.equal(r.status, 302);
+  assert.equal(db.prepare('SELECT status FROM licenses WHERE ref=?').get(rq1.ref).status, 'active', 'granted');
+  r = await req(port, 'POST', `/license/${w2.slug}`, { body: { use: 'campaign', name: 'Ines Vale', email: 'ines@vale.example', agree: '1' } });
+  const rq2 = db.prepare("SELECT ref FROM licenses WHERE licensee_email='ines@vale.example' ORDER BY id DESC LIMIT 1").get();
+  r = await req(port, 'POST', `/account/requests/${rq2.ref}/decline`, { cookie: ck, body: { word: 'Not for billboards; a story is open.' } }); assert.equal(r.status, 302);
+  { const d = db.prepare('SELECT status, conditions FROM licenses WHERE ref=?').get(rq2.ref); assert.equal(d.status, 'declined'); assert.ok(d.conditions.includes('Not for billboards'), 'the word kept'); }
+  r = await req(port, 'POST', `/account/requests/${rq2.ref}/decline`, { cookie: ck }); assert.ok(r.headers.location.includes('no%20longer%20open'), 'answered once');
+  r = await req(port, 'GET', `/account/requests?maker=${mh}`, { cookie: ck }); assert.ok(r.body.toString().includes('Answered') && r.body.toString().includes('Declined'), 'the answered list');
   r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.toString().includes('Waiting for a master') && r.body.toString().includes('Test Stacks'), 'the maker is shown what is waiting');
   { const bigger = await require('sharp')(SRC).resize({ width: 6100, height: 4100, fit: 'fill' }).flop().modulate({ brightness: 0.8 }).jpeg({ quality: 70 }).toBuffer();
     const wrong = await require('sharp')({ create: { width: 6100, height: 4100, channels: 3, background: '#2a6' } }).jpeg().toBuffer();

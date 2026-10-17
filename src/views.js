@@ -62,7 +62,7 @@ const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
 const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
-const MAKER_MAIN = [['/account', 'Your studio'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
+const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
 function deskHeader(path = '') {
   path = path || deskPath;
   const maker = /^\/(account|yours|closer)/.test(path);

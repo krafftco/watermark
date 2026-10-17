@@ -58,7 +58,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option></select></label><button>Create the account</button></form></section>` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0 }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
@@ -76,6 +76,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
   const share = c => (collected + licensed ? Math.round(100 * c / (collected + licensed)) : 0);
   const privateN = works.filter(w => w.status !== 'held').length;
   const needs = viewing ? [] : [
+    asks ? `<li><a href="/account/requests"><b>${asks}</b> request${asks === 1 ? '' : 's'} waiting for your answer<span>&rarr;</span></a></li>` : '',
     privateN ? `<li><a href="#holdings"><b>${privateN}</b> photograph${privateN === 1 ? '' : 's'} waiting to be published<span>&rarr;</span></a></li>` : '',
     !jewels.length && works.length ? `<li><a href="#holdings"><b>&#9734;</b> Star the works that matter most; collectors see them first<span>&rarr;</span></a></li>` : '',
   ].filter(Boolean);
