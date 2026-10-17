@@ -337,6 +337,31 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('accepted=1'));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM bids WHERE status='new' AND offer_cents=7000").get().n, 1, 'accepted offers go to the Studio');
   r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(r.body.toString().includes('Resale') && r.body.toString().includes('$5 royalties'), 'resale in the holdings');
+  // Settlement through Stripe (MARKET_SETTLEMENT=stripe): the buyer pays, the piece moves at once, shares are paid out through Connect.
+  process.env.MARKET_SETTLEMENT = 'stripe'; const transfers = [];
+  stripeClient.transfers = { create: async o => { transfers.push(o); return { id: 'tr_' + transfers.length, ...o }; } };
+  stripeClient.accounts.create = async o => ({ id: 'acct_seller', ...o }); stripeClient.accounts.retrieve = async id => ({ id, payouts_enabled: true });
+  stripeClient.accountLinks.create = async o => ({ url: 'https://connect.stripe.test/' + o.account });
+  { const ab = db.prepare("SELECT * FROM bids WHERE status='new' AND offer_cents=7000").get(); assert.ok(ab.token, 'an accepted offer carries a pay link');
+    r = await req(port, 'GET', `/market/${ab.listing_id}?bid=${ab.token}`); assert.ok(r.body.toString().includes('Pay and take it') && r.body.toString().includes('$70'), 'the buyer pays the accepted offer');
+    r = await req(port, 'POST', `/market/${ab.listing_id}/buy`, { body: { bid: ab.token } }); assert.equal(r.status, 303);
+    const msid = r.headers.location.split('/').pop(); const ms = sessions[msid]; assert.equal(ms.line_items[0].price_data.unit_amount, 7000); assert.equal(ms.metadata.market, String(ab.listing_id));
+    Object.assign(ms, { payment_status: 'paid', status: 'complete', amount_total: 7000, payment_intent: 'pi_mkt', customer_details: { email: 'f@frick.org', name: 'Henry Frick' } });
+    pis.pi_mkt = { id: 'pi_mkt', latest_charge: 'ch_mkt' };
+    r = await req(port, 'GET', `/market/${ab.listing_id}/done?session_id=${msid}`); assert.ok(r.headers.location.startsWith('/yours?got='), 'settled on return');
+    const hck = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
+    const t2 = db.prepare("SELECT * FROM trades WHERE settled='stripe'").get(); assert.equal(t2.price_cents, 7000); assert.equal(t2.royalty_cents, 700); assert.equal(t2.fee_cents, 350);
+    r = await req(port, 'GET', '/yours', { cookie: hck }); assert.ok(r.body.toString().includes('Test Stacks'), 'it hangs on the buyer\'s wall at once');
+    const po = db.prepare('SELECT kind, status, amount_cents FROM payouts ORDER BY id').all(); assert.deepStrictEqual(po.map(x => [x.kind, x.status, x.amount_cents]), [['seller', 'owed', 5950], ['royalty', 'house', 700]], 'the shares');
+    r = await req(port, 'GET', `/market/${ab.listing_id}/done?session_id=${msid}`); assert.equal(db.prepare("SELECT COUNT(*) n FROM trades WHERE settled='stripe'").get().n, 1, 'settles once');
+    r = await req(port, 'POST', '/yours/payouts/connect', { cookie: ick }); assert.ok(r.headers.location.startsWith('https://connect.stripe.test/acct_seller'), 'the collector adds a bank through Stripe');
+    r = await req(port, 'GET', '/yours/payouts', { cookie: ick }); assert.ok(r.body.toString().includes('Your bank is connected'));
+    assert.equal(transfers.length, 1); assert.equal(transfers[0].amount, 5950); assert.equal(transfers[0].destination, 'acct_seller'); assert.equal(transfers[0].source_transaction, 'ch_mkt');
+    assert.equal(db.prepare("SELECT status FROM payouts WHERE kind='seller'").get().status, 'paid', 'the collector is paid');
+    // Sold already: a second payment for the same piece is refunded.
+    const before = refunds.length; const cs2 = { id: 'cs_late', payment_status: 'paid', amount_total: 7000, payment_intent: 'pi_late', metadata: { market: String(ab.listing_id) }, customer_details: { email: 'x@y.z' } };
+    await app.locals.marketSettle(ab.listing_id, cs2); assert.equal(refunds.length, before + 1, 'refunded'); }
+  delete process.env.MARKET_SETTLEMENT;
 
 
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(/Founding Collector &middot; No\. \d+ of 100/.test(r.body.toString()), 'a founding collector');

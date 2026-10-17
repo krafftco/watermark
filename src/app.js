@@ -575,7 +575,7 @@ function createApp(cfg = {}) {
   // Voices: the maker, an art historian, a note, held with each photograph.
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
-  const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition });
+  const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
@@ -976,6 +976,7 @@ function createApp(cfg = {}) {
         { ok: store.kind === 's3', name: 'Originals held off the server', detail: store.kind === 's3' ? 'S3' : 'Local disk only' },
         { ok: !!process.env.VAULT_KEY, name: 'Sealed with Watermark\'s own key', detail: process.env.VAULT_KEY ? 'VAULT_KEY set' : 'Provider encryption only' },
         { ok: CR.enabled(), name: 'Content Credentials on every delivered file', detail: CR.enabled() ? 'Signing' : 'Needs a C2PA certificate (DigiCert, SSL.com and others) as C2PA_CERT and C2PA_KEY' },
+        { ok: process.env.MARKET_SETTLEMENT === 'stripe', manual: process.env.MARKET_SETTLEMENT !== 'stripe', name: 'The market settles itself', detail: process.env.MARKET_SETTLEMENT === 'stripe' ? 'Buyers pay through Stripe; collectors and photographers paid through Connect' : 'After counsel: turn on Stripe Connect (Express), add account.updated and checkout.session.expired to the webhook, then MARKET_SETTLEMENT=stripe' },
         (() => { const n = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, g = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held' AND closer IS NOT NULL").get().n; return { ok: !!process.env.ANTHROPIC_API_KEY && g >= n, name: 'Look closer: a guide on every photograph', detail: process.env.ANTHROPIC_API_KEY ? `${g} of ${n} written` + (g < n ? '; the rest are being written' : '') : 'Needs ANTHROPIC_API_KEY (console.anthropic.com)' }; })() ] },
       { group: 'The collection', items: [
         { ok: held > 0, name: 'Photographs public', detail: `${held}` },
