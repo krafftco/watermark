@@ -828,3 +828,35 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .cx-hero{align-items:center}
 .ix-n small{display:block;font-size:12px;color:var(--mu);margin-top:2px}
 .empty a{color:var(--ink)}
+
+/* ---- Voices ---- */
+.vo-list{display:grid;gap:14px;margin:22px 0 0}
+.vo{display:grid;grid-template-columns:52px minmax(0,1fr);gap:14px;align-items:start}
+.vo-play{--p:0%;position:relative;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;border:0;padding:0;cursor:pointer;background:conic-gradient(#0e0e0e var(--p),rgba(14,14,14,.14) 0);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
+.vo-play::before{content:"";position:absolute;inset:2px;border-radius:50%;background:#fff}
+.vo-play i{position:relative;width:0;height:0;border-left:13px solid #0e0e0e;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:4px}
+.vo-play.on i{width:12px;height:14px;border:0;margin:0;background:linear-gradient(90deg,#0e0e0e 0 4px,transparent 4px 8px,#0e0e0e 8px)}
+.vo-play:hover{transform:scale(1.05)}
+.vo-quiet{background:var(--soft);font-family:var(--disp);font-size:34px;line-height:1;color:var(--mu);cursor:default}
+.vo-quiet::before{display:none}
+.vo-t small{display:block;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu);margin:4px 0 4px}
+.vo-t b{font-family:var(--disp);font-weight:400;font-size:21px}
+.vo-t b span{font-family:var(--read);font-size:15px;color:var(--mu)}
+.vo-t details{margin-top:6px;font-size:13px}.vo-t summary{cursor:pointer;color:var(--mu)}
+.vo-t details p,.vo-note{margin:6px 0 0;font-family:var(--read);font-style:italic;font-size:16px;line-height:1.55;color:#333}
+.lb .lb-vo{--p:0%;display:inline-flex;align-items:center;gap:8px;border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0}
+.lb .lb-vo i{display:inline-block;width:22px;height:22px;border-radius:50%;background:conic-gradient(currentColor var(--p),rgba(255,255,255,.3) 0);-webkit-mask:radial-gradient(circle,transparent 8px,#000 9px);mask:radial-gradient(circle,transparent 8px,#000 9px)}
+.vo-ed{max-width:760px;margin:0 auto;padding:clamp(32px,5vw,64px) clamp(16px,4vw,32px) 80px}
+.vo-back{font-size:13px;color:var(--mu);text-decoration:none}
+.vo-head{display:grid;grid-template-columns:120px minmax(0,1fr);gap:22px;align-items:center;margin:18px 0 26px}
+.vo-head img{width:120px;height:120px;object-fit:cover}
+.vo-head h1{font-family:var(--disp);font-weight:400;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:4px 0 8px}
+.vo-form{margin-top:28px;padding-top:24px;border-top:1px solid var(--ln)}
+.vo-rec{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:6px 0 10px}
+.vo-recbtn{display:inline-flex;align-items:center;gap:12px;padding:14px 22px;border:1px solid #0e0e0e;background:#fff;font:inherit;font-size:12px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.vo-recbtn i{width:12px;height:12px;border-radius:50%;background:#b3261e}
+.vo-recbtn.on i{animation:voRec 1s ease-in-out infinite}
+@keyframes voRec{50%{opacity:.25}}
+.vo-time{font-variant-numeric:tabular-nums;color:var(--mu)}
+.vo-rm{margin:-6px 0 6px 66px}.vo-rm button{border:0;background:none;color:var(--mu);font:inherit;font-size:12px;text-decoration:underline;cursor:pointer;padding:0}
+.vo-link{margin:10px 0 0}.vo-link a{color:var(--ink)}

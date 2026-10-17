@@ -334,6 +334,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(b.includes('<i>The Ada Estate, Genoa, Italy</i>'), 'their name on the plate'); assert.ok(b.includes('"mk":"The Ada Estate"'), 'searchable by maker'); }
   r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('viewBox="1.5 14.2 41 11"') && r.body.toString().includes('href="/m/the-ada-estate"'), 'their mark, their page');
   r = await req(port, 'GET', '/m/the-ada-estate'); assert.equal(r.status, 200);
+  // Voices: the maker records a word on a photograph; anyone looking hears it; others cannot add to it.
+  r = await req(port, 'GET', `/voices/${w.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('What is said about this photograph'), 'the voices page');
+  { const vb = '----wmvo'; const parts = [['kind', 'maker'], ['speaker', 'Will Fullerton'], ['body', 'I stood under it for an hour.'], ['seconds', '3']].map(([k, v]) => `--${vb}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join('');
+    const body = Buffer.concat([Buffer.from(parts + `--${vb}\r\nContent-Disposition: form-data; name="audio"; filename="note.m4a"\r\nContent-Type: audio/mp4\r\n\r\n`), Buffer.from('fakeaudiodata'), Buffer.from(`\r\n--${vb}--\r\n`)]);
+    r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: ck, body, headers: { 'content-type': 'multipart/form-data; boundary=' + vb } }); assert.equal(r.status, 302, 'saved'); }
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('data-voice="/listen/') && r.body.toString().includes('The maker'), 'heard on the page');
+  const vo1 = JSON.parse((await req(port, "GET", `/api/voices/${w.slug}`)).body).voices[0]; assert.ok(vo1 && vo1.audio && vo1.speaker === "Will Fullerton");
+  r = await req(port, "GET", vo1.audio); assert.equal(r.status, 200); assert.equal(r.body.toString(), "fakeaudiodata");
+  r = await req(port, 'POST', `/voices/${w.slug}`, { body: { body: 'not mine to say' } }); assert.equal(r.status, 403, 'only the maker or the Studio');
+  r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: mck, body: { body: 'nor theirs' } }); assert.equal(r.status, 403, 'not another maker');
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);

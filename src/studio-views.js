@@ -101,6 +101,7 @@ function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [
 <div class="wt"><img src="/img/${esc(w.slug)}/thumb" alt="" width="160"><div><p class="k">${esc(w.accession || 'Catalogue')}</p><h1>${esc(w.title)}</h1>
 <div class="stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${seen.length}</b><span>sightings</span></div></div></div></div>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<p class="vo-link"><a href="/voices/${esc(w.slug)}">Voices: record what you think of this photograph, or add an art historian or a note &rarr;</a></p>
 <h2>Catalogue record</h2>
 <div class="cat"><dl class="facts cat-fixed">
 <div><dt>Accession</dt><dd>${esc(w.accession || '')}</dd></div><div><dt>Maker</dt><dd>${esc(makerName)}</dd></div>

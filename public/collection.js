@@ -100,6 +100,10 @@
     $('lbT').textContent = w.t;
     $('lbM').textContent = [w.mk, w.p, w.d, w.c, w.a].filter(Boolean).join('  ·  ');
     $('lbPos').textContent = (cur + 1) + ' / ' + list.length;
+    var vo = $('lbVo'); if (vo) { vo.hidden = !w.v; vo.classList.remove('on'); vo.style.setProperty('--p', '0%'); vo.onclick = function () {
+      if (vo.dataset.src && vo.dataset.for === w.s) return window.WMVoice && window.WMVoice.play(vo.dataset.src, vo);
+      fetch('/api/voices/' + w.s).then(function (r) { return r.json(); }).then(function (j) { var a = (j.voices || []).find(function (x) { return x.audio; }); if (!a) return; vo.dataset.src = a.audio; vo.dataset.for = w.s; $('lbM').textContent = (a.speaker || a.kind) + (a.role ? ', ' + a.role : '') + '  ·  ' + $('lbM').textContent; window.WMVoice && window.WMVoice.play(a.audio, vo); });
+    }; if (window.WMVoice) window.WMVoice.stop(); }
     $('lbRec').href = '/w/' + w.s; $('lbLic').href = '/license/' + w.s; if ($('lbShare')) { $('lbShare').hidden = !!w.x; $('lbShare').action = '/buy/' + w.s; $('lbShare').dataset.amount = w.$ || ''; }
     [cur - 1, cur + 1].forEach(function (j) { var x = list[(j + list.length) % list.length]; if (x) { var p = new Image(); p.src = '/img/' + x.s + (window.innerWidth * (window.devicePixelRatio || 1) > 1700 ? '/large' : '/screen'); } });
     history.replaceState(null, '', '#' + w.s);

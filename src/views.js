@@ -45,7 +45,7 @@ function collection({ maker, works, rooms = [], share = null, pay = null }) {
   // photograph a click from filling the screen.
   const ratio = w => (w.width && w.height ? w.width / w.height : 1.5);
   const roomOf = {}; rooms.forEach(r => (r.ids || []).forEach(id => { (roomOf[id] = roomOf[id] || []).push(r.slug); }));
-  const data = works.map(w => ({ cp: (w.caption || '').slice(0, 240), mk: mOf(w).name, ms: makerSlug(mOf(w)), kk: isKrafft(mOf(w)) ? 1 : 0, s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
+  const data = works.map(w => ({ v: w.voiced ? 1 : 0, cp: (w.caption || '').slice(0, 240), mk: mOf(w).name, ms: makerSlug(mOf(w)), kk: isKrafft(mOf(w)) ? 1 : 0, s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +ratio(w).toFixed(3), w: w.width, h: w.height, k: w.keywords || '', m: roomOf[w.id] || [], $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 }));
   const sp = share && share.price_cents != null ? money(share.price_cents) : null;
   const plate = w => `<a class="pl" href="/w/${esc(w.slug)}" data-s="${esc(w.slug)}" style="--r:${ratio(w).toFixed(3)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" decoding="async" draggable="false"><span class="pc"><b>${esc(tidy(w.title))}</b><i>${esc([mOf(w).name, w.place].filter(Boolean).join(', '))}</i></span>${sp && !/"social":false/.test(w.rules || '') ? `<span class="pb" data-buy role="button" tabindex="0" aria-label="Collect">${markOf(mOf(w))}<i class="seal-r"></i></span>` : ''}</a>`;
   const byId = Object.fromEntries(works.map(w => [w.id, w]));
@@ -76,13 +76,20 @@ ${makerList.length > 1 ? `<div class="cx-makers" id="cxMakers"><button type="but
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
-<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button class="lb-seal"><span class="lb-k">${K_MARK}</span>Collect</button></form>` : ''}</span></div>
+<div class="lb-cap"><div><b id="lbT"></b><span id="lbM"></span></div><span class="lb-act"><button type="button" id="lbVo" class="lb-vo" hidden aria-label="Listen"><i></i>Listen</button><a id="lbRec" href="#">Record</a><a id="lbLic" href="#">License</a>${share && share.price_cents != null ? `<form method="post" id="lbShare" class="lb-share"><input type="hidden" name="use" value="social"><button class="lb-seal"><span class="lb-k">${K_MARK}</span>Collect</button></form>` : ''}</span></div>
 <button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Previous"></button><button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Next"></button></div>
-<script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/collection.js?v=${VER}" defer></script>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}`
+<script>window.__WM_SHARE=${JSON.stringify(sp)};window.__WM=${JSON.stringify(data).replace(/</g, '\\u003c')};</script><script src="/static/voices.js?v=${VER}" defer></script><script src="/static/collection.js?v=${VER}" defer></script>${pay ? `<script>window.__WM_PAY=${JSON.stringify(pay).replace(/</g, '\\u003c')};</script><script src="/static/pay.js?v=${VER}" defer></script>` : ''}`
   });
 }
 
-function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null }) {
+const VKIND = { maker: 'The maker', historian: 'Art history', note: 'A note' };
+const mmss = n => n ? `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}` : '';
+// One voice on a photograph: a round play button, who is speaking, and what they said.
+const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo-play" data-voice="/listen/${esc(v.key)}" aria-label="Listen to ${esc(v.speaker || VKIND[v.kind])}"><i></i></button>` : `<span class="vo-play vo-quiet" aria-hidden="true">&ldquo;</span>`}
+<div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
+${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
+
+function work({ w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [] }) {
   // A work page is a catalogue entry: the photograph on its own wall, then the entry as an
   // auction house or museum would set it, then the record. Publisher tools stay folded away.
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
@@ -122,6 +129,7 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
+${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}</span></p>` : ''}
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors.</p>` : ''}
@@ -140,7 +148,7 @@ ${rules && rules.never.length ? `<p class="never"><span>The maker says never</sp
 <form method="post" action="/report/${esc(w.slug)}" class="form"><label>Where you saw it<input name="url" type="url" required placeholder="https://"></label>
 <label>A note (optional)<input name="note"></label><label>Your email, if the maker may write back (optional)<input name="email" type="email"></label><button>Tell the maker</button></form></details>
 </section>
-<script src="/static/viewer.js" defer></script>`
+<script src="/static/viewer.js" defer></script>${voices.length ? `<script src="/static/voices.js?v=${VER}" defer></script>` : ''}`
   });
 }
 
@@ -374,6 +382,23 @@ ${done && own ? `<form method="post" action="/patron/${p.id}/name" class="form p
 <p class="sr-also"><a href="/m/${esc(slug)}">Back to ${esc(m.name)}</a> &middot; <a href="/yours">Your collection</a></p></section>` });
 }
 
+function voicesEdit({ w, maker, voices, kinds, saved }) {
+  return layout({ title: `Voices · ${tidy(w.title)} · Watermark`, body: `<section class="vo-ed"><a class="vo-back" href="/w/${esc(w.slug)}">&larr; ${esc(tidy(w.title))}</a>
+<div class="vo-head"><img src="/img/${esc(w.slug)}/thumb" alt="" draggable="false"><div><p class="k">Voices</p><h1>What is said about this photograph.</h1><p class="lede">Your own word on it, an art historian&rsquo;s reading, or a note. People hear it on the photograph&rsquo;s page and in the viewer.</p></div></div>
+${saved === '1' ? '<p class="ok">Saved. It is on the photograph now.</p>' : saved === 'removed' ? '<p class="ok">Removed.</p>' : saved === 'empty' ? '<p class="err">Record something, add a file, or write a note.</p>' : ''}
+${voices.length ? `<div class="vo-list">${voices.map(v => voice(v) + `<form method="post" action="/voices/${esc(w.slug)}/${esc(v.key)}/remove" class="vo-rm"><button>Remove</button></form>`).join('')}</div>` : ''}
+<form method="post" action="/voices/${esc(w.slug)}" enctype="multipart/form-data" class="form vo-form" data-vo-form>
+<label>Whose voice<select name="kind">${Object.entries(kinds).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('')}</select></label>
+<label>Speaker<input name="speaker" value="${esc(maker.name)}" placeholder="Name"></label>
+<label>Who they are (optional)<input name="role" placeholder="Art historian, The Morgan Library"></label>
+<div class="vo-rec"><button type="button" class="vo-recbtn" data-rec><i></i><span>Record</span></button><span class="vo-time" data-rec-time>0:00</span><audio controls hidden data-rec-play></audio></div>
+<label>Or a file (m4a, mp3, wav)<input type="file" name="audio" accept="audio/*"></label>
+<label>Words (a note, or what was said)<textarea name="body" rows="5" placeholder="What you see in it, where you stood, why it matters."></textarea></label>
+<input type="hidden" name="seconds" value="">
+<button class="buy-btn">Save it to the photograph</button></form></section>
+<script src="/static/voices.js?v=${VER}" defer></script>` });
+}
+
 function signin({ b, has }) {
   return layout({ title: 'Sign in · Watermark', body: `<section class="cx-intro pk-in" data-passkey-box><span class="ps-stamp" aria-hidden="true">${K_MARK}</span><p class="k">Your collection</p>
 <h1>${has ? 'You are signed in.' : 'Sign in.'}</h1>
@@ -584,4 +609,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
