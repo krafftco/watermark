@@ -871,6 +871,37 @@ function createApp(cfg = {}) {
     res.send(S.trove({ maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
   });
 
+
+  // Edition sizes, proposed for the maker to approve. A size makes a photograph a numbered limited
+  // edition, which is what lets it be traded. Rarer for the works that matter most; never below what has sold.
+  function proposeEditions() {
+    const series = new Set(require('./series').flatMap(x => x.chapters.flatMap(c => c.works || c.slugs || [])));
+    const rows = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.curated, w.edition_size, w.status,
+      (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.collector_no IS NOT NULL AND l.status IN ('active','expired')) AS sold,
+      (SELECT COALESCE(SUM(count),0) FROM views v WHERE v.work_id=w.id AND v.day >= date('now','-90 day')) AS seen
+      FROM works w WHERE w.maker_id=? AND w.status='held' ORDER BY w.id`).all(maker.id);
+    const seenSorted = rows.map(r => r.seen).sort((a, b) => b - a), top = seenSorted[Math.floor(seenSorted.length / 4)] || 0;
+    return rows.map(r => {
+      let size = 100, why = 'Open to many collectors';
+      if (r.seen > 0 && r.seen >= top) { size = 50; why = 'Among the most seen'; }
+      if (series.has(r.slug)) { size = 25; why = 'In The Great Rooms'; }
+      if (r.curated) { size = 10; why = 'One of your jewels'; }
+      size = Math.max(size, r.sold);
+      return { ...r, size, why };
+    });
+  }
+  app.get('/studio/editions', studioOnly, (req, res) => res.send(S.editions({ rows: proposeEditions(), notice: req.query.ok })));
+  app.post('/studio/editions', studioOnly, (req, res) => {
+    const b = req.body || {}; let n = 0;
+    for (const r of proposeEditions()) {
+      if (!b['on_' + r.id]) continue;
+      const v = Math.round(Number(b['size_' + r.id]));
+      if (!(v > 0)) continue;
+      db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(Math.max(v, r.sold), r.id); n++;
+    }
+    if (n) ledger.append(db, 'editions.set', maker.handle, { works: n });
+    res.redirect('/studio/editions?ok=' + encodeURIComponent(`${n} photograph${n === 1 ? '' : 's'} now numbered as limited editions.`));
+  });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
     const all = troveRows();
@@ -898,6 +929,7 @@ function createApp(cfg = {}) {
       { n: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active' AND ends_at IS NOT NULL AND ends_at <= ?").get(new Date(Date.now() + 60 * 864e5).toISOString()).n, label: ' licenses ending within 60 days', href: '/studio/activity' },
       { n: n("SELECT COUNT(*) n FROM sightings WHERE status='new'"), label: ' sightings of your work to look at', href: '/studio/sightings' },
       { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
+      { n: all.filter(w => !w.edition_size && w.status === 'held').length, label: ' public photographs not yet numbered as editions', href: '/studio/editions' },
     ];
     const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
     const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();

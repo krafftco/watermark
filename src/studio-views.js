@@ -3,7 +3,7 @@ const { layout, esc, money, date, termText } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const MORE = [['/studio/works', 'Add photographs'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MORE = [['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
 const nav = active => `<nav class="snav">${MAIN.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="snav-more">${MORE.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</span></nav>`;
 
 function login({ error }) {
@@ -236,4 +236,17 @@ try{await Promise.all([worker(),worker(),worker()]);go.textContent='Done'}catch(
 </section>` });
 }
 
-module.exports = { nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+// Edition sizes: proposed, adjusted and approved in one pass.
+function editions({ rows, notice }) {
+  const open = rows.filter(r => !r.edition_size), done = rows.filter(r => r.edition_size);
+  const row = r => `<label class="ed-row"><input type="checkbox" name="on_${r.id}" value="1" ${r.edition_size ? '' : 'checked'}><img src="/img/${esc(r.slug)}/thumb" alt="" loading="lazy"><span class="hd-t"><b>${esc(r.title)}</b><small>${esc(r.place || '')}${r.sold ? ` &middot; ${r.sold} already collected` : ''}</small></span><span class="ed-why">${esc(r.why)}</span><span class="ed-in">Edition of <input name="size_${r.id}" inputmode="numeric" value="${r.edition_size || r.size}" aria-label="Edition size for ${esc(r.title)}"></span></label>`;
+  return layout({ studio: true, title: 'Editions · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/editions')}
+${notice ? `<p class="ok">${esc(notice)}</p>` : ''}<p class="k">Editions</p><h1>Number the collection.</h1>
+<p class="lede">A size makes a photograph a numbered limited edition: collectors hold No. 3 of 25, and once an edition is complete it passes only between them, on the market. Proposed sizes are rarer for the works that matter most. Adjust any number, untick what should stay open, and approve. A size can be raised later, never lowered below what has been collected.</p>
+<form method="post" action="/studio/editions">
+${open.length ? `<section class="hd-list"><div class="hd-h"><h2>Not yet numbered</h2><span class="hd-n">${open.length}</span></div>${open.map(row).join('')}</section>` : '<p class="hd-calm">Every public photograph is numbered.</p>'}
+${done.length ? `<details class="ed-done"><summary>Already numbered (${done.length})</summary>${done.map(row).join('')}</details>` : ''}
+<p class="ed-go"><button class="buy-btn">Approve these editions</button></p></form></section>` });
+}
+
+module.exports = { editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

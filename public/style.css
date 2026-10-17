@@ -1095,3 +1095,12 @@ div.yf-mk{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
 .mk-chart{margin:4px 0 18px;color:var(--ink)}.mk-chart svg{display:block;width:100%;height:auto;max-width:640px}
 .mk-chart figcaption{display:flex;justify-content:space-between;max-width:640px;font-size:12px;color:var(--mu);margin-top:6px}
 .lot-of select{appearance:none;width:100%;padding:10px 0;border:0;border-bottom:1px solid var(--ln);background:transparent;font:inherit;font-size:15px;color:var(--ink);border-radius:0}
+/* Editions */
+.ed-row{display:grid;grid-template-columns:20px 56px minmax(0,1fr) 180px 150px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--ln);cursor:pointer}
+.ed-row img{width:56px;height:56px;object-fit:cover;display:block}
+.ed-why{font-size:12px;color:var(--mu)}
+.ed-in{font-size:13px;color:var(--mu);text-align:right}.ed-in input{width:64px;margin-left:6px;padding:7px 8px;border:1px solid var(--ln);font:inherit;text-align:right}
+.ed-done{margin-top:28px}.ed-done summary{cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+.ed-go{position:sticky;bottom:0;padding:18px 0;background:linear-gradient(transparent,var(--bg) 30%);margin:0}
+@media (max-width:760px){.ed-row{grid-template-columns:20px 48px minmax(0,1fr);}.ed-why{grid-column:3}.ed-in{grid-column:3;text-align:left}}
+.ed-row input[type=checkbox]{accent-color:var(--ink);width:16px;height:16px}

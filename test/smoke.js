@@ -229,6 +229,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/activity', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
   r = await req(port, 'GET', '/studio', { cookie }); assert.ok(r.body.includes('Holdings') && r.body.includes('Needs you') && r.body.includes('WM.'), 'holdings');
   r = await req(port, 'GET', '/studio/trove', { cookie }); assert.ok(r.body.includes('The works') && r.body.includes('WM.'), 'works with accession numbers');
+  r = await req(port, 'GET', '/studio/editions', { cookie }); assert.ok(r.body.includes('Number the collection') && /name="size_\d+"/.test(r.body), 'editions proposed');
   r = await req(port, 'POST', `/studio/licenses/${ref1}/grant`, { cookie }); assert.equal(r.status, 302);
   const l1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref1); assert.equal(l1.status, 'active'); assert.ok(l1.ends_at);
   r = await req(port, 'GET', `/d/${l1.download_token}`); assert.equal(r.status, 200);
