@@ -3,7 +3,7 @@ const { layout, esc, money, date, termText } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const MORE = [['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MORE = [['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
 const nav = active => `<nav class="snav">${MAIN.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}<span class="snav-more">${MORE.map(([h, t]) => `<a href="${h}"${h === active ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</span></nav>`;
 
 function login({ error }) {
@@ -249,4 +249,21 @@ ${done.length ? `<details class="ed-done"><summary>Already numbered (${done.leng
 <p class="ed-go"><button class="buy-btn">Approve these editions</button></p></form></section>` });
 }
 
-module.exports = { editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+// Copyright: the bridge to the U.S. Copyright Office.
+function copyright({ proposals, groups, reg, fee, notice }) {
+  const st = { prepared: 'Prepared', filed: 'Filed', registered: 'Registered' };
+  const g = x => `<div class="cr-g"><div class="cr-h"><b>${esc(x.title || '')}</b><span class="cr-s cr-${esc(x.status)}">${st[x.status] || x.status}</span></div>
+<p class="cr-m">${x.n} photograph${x.n === 1 ? "" : "s"} &middot; ${x.kind === 'GRPPH' ? 'Group of published photographs' : 'Group of unpublished photographs'} &middot; ${money(fee)} filing fee${x.sr ? ` &middot; Service request ${esc(x.sr)}` : ''}${x.reg ? ` &middot; <b>${esc(x.reg)}</b>` : ''}</p>
+<div class="cr-a"><a href="/studio/copyright/${x.id}/titles.csv">Title list (CSV)</a><a href="/studio/copyright/${x.id}/deposit.zip">Deposit copies (ZIP)</a><a href="https://eco.copyright.gov/" rel="noopener" target="_blank">Open eCO &rarr;</a></div>
+${x.status === 'prepared' ? `<form method="post" action="/studio/copyright/${x.id}" class="cr-f"><input type="hidden" name="act" value="filed"><input name="sr" placeholder="Service request number, e.g. 1-1234567890" required><button>Mark as filed</button></form><form method="post" action="/studio/copyright/${x.id}" class="inline"><input type="hidden" name="act" value="release"><button class="link">Release these photographs</button></form>` : ''}
+${x.status === 'filed' ? `<form method="post" action="/studio/copyright/${x.id}" class="cr-f"><input type="hidden" name="act" value="registered"><input name="reg" placeholder="Registration number, e.g. VA 2-412-118" required><button>Mark as registered</button></form>` : ''}</div>`;
+  return layout({ studio: true, title: 'Copyright · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/copyright')}
+${notice ? `<p class="ok">${esc(notice)}</p>` : ''}<p class="k">U.S. Copyright Office</p><h1>Register the collection.</h1>
+<p class="lede">Registration is what lets a photographer sue for infringement and claim statutory damages. The Office takes up to 750 photographs by one author in a single group, published in one calendar year (or all unpublished), for one ${money(fee)} fee. Watermark prepares each group: the title list and the deposit copies, ready to file in the Office's own system, eCO. When the certificate comes, enter its number and every photograph in the group carries it.</p>
+<div class="hd-held"><span><b>${reg}</b> registered</span><span><b>${groups.filter(x => x.status === 'filed').length}</b> group${groups.filter(x => x.status === 'filed').length === 1 ? '' : 's'} filed</span><span><b>${proposals.reduce((a, p) => a + p.works.length, 0)}</b> not yet in a group</span></div>
+<section class="hd-list"><div class="hd-h"><h2>Ready to group</h2></div>${proposals.length ? proposals.map(p => `<form method="post" action="/studio/copyright/prepare" class="cr-p"><input type="hidden" name="key" value="${esc(p.key)}"><span><b>${esc(p.label)}${p.part ? `, part ${p.part}` : ''}</b><small>${p.works.length} photograph${p.works.length === 1 ? "" : "s"} &middot; ${p.kind === 'GRPPH' ? 'group of published photographs' : 'group of unpublished photographs'} &middot; ${money(fee)}</small></span><button>Prepare this group</button></form>`).join('') : '<p class="hd-calm">Every photograph is in a group.</p>'}</section>
+${groups.length ? `<section class="hd-list"><div class="hd-h"><h2>Groups</h2></div>${groups.map(g).join('')}</section>` : ''}
+<p class="note">Check the publication dates before filing: a photograph first published on Krafft Studios may have an earlier date than the one Watermark holds. Watermark is not a law firm; for anything unusual (work made for hire, joint authors, earlier registrations), ask counsel.</p></section>` });
+}
+
+module.exports = { copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

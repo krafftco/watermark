@@ -566,6 +566,8 @@ function createApp(cfg = {}) {
   const tips = app.locals.tips = require('./tips').mountTips(app, { db, C, stripe, maker, slugify, ledger, V });
   // The market: collectors pass numbered pieces on, at their own prices; every trade is priced and recorded.
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition });
+  // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
+  require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
@@ -933,6 +935,7 @@ function createApp(cfg = {}) {
       { n: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active' AND ends_at IS NOT NULL AND ends_at <= ?").get(new Date(Date.now() + 60 * 864e5).toISOString()).n, label: ' licenses ending within 60 days', href: '/studio/activity' },
       { n: n("SELECT COUNT(*) n FROM sightings WHERE status='new'"), label: ' sightings of your work to look at', href: '/studio/sightings' },
       { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
+      { n: all.filter(w => !w.copyright_reg && !w.copyright_group).length, label: ' photographs not yet registered with the U.S. Copyright Office', href: '/studio/copyright' },
       { n: all.filter(w => !w.edition_size && w.status === 'held').length, label: ' public photographs not yet numbered as editions', href: '/studio/editions' },
     ];
     const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);

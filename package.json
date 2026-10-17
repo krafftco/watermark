@@ -16,6 +16,7 @@
     "@contentauth/c2pa-node": "0.9.9",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.3",
+    "archiver": "7.0.1",
     "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "exifr": "^7.1.3",

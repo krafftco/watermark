@@ -350,6 +350,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   db.prepare('UPDATE works SET width=11656, height=8742 WHERE id=?').run(w.id);
   r = await req(port, 'GET', `/w/${w.slug}`); let rb = r.body.toString(); assert.ok(rb.includes('A reference image') && rb.includes('102 MP') && rb.includes('Collect the Reference'), 'the Reference badge and option');
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'reference' } }); assert.equal(r.status, 303, 'the Reference goes to checkout');
+  // The U.S. Copyright Office bridge: group, title list, filed, registered; the badge on the work.
+  r = await req(port, 'GET', '/studio/copyright', { cookie: ck }); assert.ok(r.body.toString().includes('Register the collection'), 'copyright page');
+  const ckey = (r.body.toString().match(/name="key" value="([^"]+)"/) || [])[1]; assert.ok(ckey, 'a group proposed');
+  r = await req(port, 'POST', '/studio/copyright/prepare', { cookie: ck, body: { key: ckey } });
+  const cg = db.prepare('SELECT id FROM copyright_groups ORDER BY id DESC').get().id;
+  r = await req(port, 'GET', `/studio/copyright/${cg}/titles.csv`, { cookie: ck }); assert.ok(r.body.toString().startsWith('"Title","File name"'), 'title list');
+  r = await req(port, 'POST', `/studio/copyright/${cg}`, { cookie: ck, body: { act: 'filed', sr: '1-1234567890' } });
+  r = await req(port, 'POST', `/studio/copyright/${cg}`, { cookie: ck, body: { act: 'registered', reg: 'VA 2-412-118' } });
+  const rw = db.prepare("SELECT slug FROM works WHERE copyright_group=? AND status='held' LIMIT 1").get(cg);
+  if (rw) { r = await req(port, 'GET', `/w/${rw.slug}`); assert.ok(r.body.toString().includes('U.S. Registered') && r.body.toString().includes('VA 2-412-118'), 'the registration shows on the work'); }
   // Tips: a reader pays the writer and the photographer of a story, shared evenly.
   db.prepare("INSERT INTO stories (slug, title, url, fetched_at) VALUES ('lake-garda','Lake Garda','https://studios.krafftco.com/lake-garda/',datetime('now'))").run();
   const writer = db.prepare("INSERT INTO makers (handle, name, kind) VALUES ('ada-writer','Ada Lovelace','writer')").run().lastInsertRowid;
