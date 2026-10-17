@@ -362,6 +362,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`); assert.equal(r.status, 403, 'a stranger cannot remove it');
     r = await req(port, 'POST', `/w/${w.slug}/notes/${nid}/remove`, { cookie: ck }); assert.equal(r.status, 302); assert.ok(db.prepare('SELECT removed_at FROM notes WHERE id=?').get(nid).removed_at, 'the Studio can'); }
   r = await req(port, 'GET', '/studio/trove?sort=standing', { cookie: ck }); assert.ok(r.body.toString().includes('1 applauded'), 'standing in the Studio');
+  // Open a studio: anyone, with a name and an email; signed in at once; profile on their page; the Studio can hold them.
+  r = await req(port, 'POST', '/join', { body: { name: 'Greta Lund', email: 'greta@lund.example', house: 'Lund Studio' } }); assert.ok(r.headers.location.includes('welcome=1'), 'joined');
+  const gck = r.headers['set-cookie'].find(c => c.startsWith('wm_m=')).split(';')[0];
+  r = await req(port, 'POST', '/join', { body: { name: 'Greta Again', email: 'greta@lund.example' } }); assert.ok(r.headers.location.includes('err=known'), 'one studio per email');
+  r = await req(port, 'GET', '/account?welcome=1', { cookie: gck }); assert.ok(r.body.toString().includes('Your studio is open'), 'in their studio');
+  r = await req(port, 'POST', '/account/profile', { cookie: gck, body: mp('p.jpg', theirs, { name: 'Greta Lund', place: 'Oslo', bio: 'Light, mostly. Harbours when I can.', site: 'lund.example', instagram: '@gretalund' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
+  assert.ok(String(r.headers.location || '').includes('ok=1'), 'profile saved');
+  { const gm = db.prepare("SELECT * FROM makers WHERE email='greta@lund.example'").get(); assert.equal(gm.site, 'https://lund.example'); assert.equal(gm.instagram, 'gretalund'); assert.ok(gm.portrait, 'portrait kept');
+    r = await req(port, 'GET', '/m/greta-lund'); assert.ok(r.body.toString().includes('Harbours when I can') && r.body.toString().includes('/portrait/greta-lund') && r.body.toString().includes('@gretalund'), 'on her page');
+    r = await req(port, 'GET', '/portrait/greta-lund'); assert.equal(r.status, 200);
+    r = await req(port, 'POST', `/studio/accounts/${gm.id}/standing`, { cookie: ck }); assert.equal(db.prepare('SELECT standing FROM makers WHERE id=?').get(gm.id).standing, 'held', 'held by the Studio');
+    r = await req(port, 'POST', `/studio/accounts/${gm.id}/standing`, { cookie: ck }); assert.equal(db.prepare('SELECT standing FROM makers WHERE id=?').get(gm.id).standing, 'open'); }
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');

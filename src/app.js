@@ -286,7 +286,7 @@ function createApp(cfg = {}) {
   });
 
   // Makers apply to hold their work here. Read in the Studio.
-  app.get('/apply', (req, res) => res.redirect(301, '/makers#apply'));
+  app.get('/apply', (req, res) => res.redirect(301, '/join'));
   app.post('/apply', (req, res) => {
     const b = req.body; const email = String(b.email || '').trim();
     if (!b.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/makers#apply');
@@ -486,6 +486,7 @@ function createApp(cfg = {}) {
   app.locals.payCfg = payCfg;
   // The buyer is known only by a signed cookie on their device; no account, no password.
   const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); return mac === sign('b' + id) ? db.prepare('SELECT * FROM buyers WHERE id=?').get(+id) : null; };
+  app.locals.buyerOf = buyerOf; app.locals.makerSlug = V.makerSlug;
   const setBuyer = (res, b, tap) => {
     const o = { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 365 };
     res.cookie('wm_b', `${b.id}.${sign('b' + b.id)}`, { ...o, httpOnly: true });

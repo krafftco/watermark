@@ -9,7 +9,7 @@ const MULTIPLE = 3; // draft: an archive valued at three times its last twelve m
 
 function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork, upload, ledger }) {
   const fs = require('fs');
-  for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT']])
+  for (const [c, t] of [['invite_token', 'TEXT'], ['share_pct', 'INTEGER NOT NULL DEFAULT 85'], ['kind', "TEXT NOT NULL DEFAULT 'maker'"], ['joined_at', 'TEXT'], ['bio', 'TEXT'], ['place', 'TEXT'], ['site', 'TEXT'], ['instagram', 'TEXT'], ['portrait', 'TEXT'], ['buyer_id', 'INTEGER'], ['standing', "TEXT NOT NULL DEFAULT 'open'"]])
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='curated'").get()) db.exec('ALTER TABLE works ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
 
@@ -61,6 +61,63 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
   app.get('/account/logout', (req, res) => { res.clearCookie('wm_m'); res.redirect('/'); });
 
+  // ---------- open a studio: anyone, in a minute ----------
+  // A name and an email make a maker. They are signed in at once and can upload; what they publish is
+  // their word (the attestation) and the Studio sees every new maker on Accounts, and can hold one.
+  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); res.send(A.join({ err: req.query.err || null, name: req.query.name || '', email: req.query.email || '' })); });
+  app.post('/join', (req, res) => {
+    const b = req.body || {}, name = String(b.name || '').trim().slice(0, 120), email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+    const back = e => res.redirect(`/join?err=${e}&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`);
+    if (name.length < 2) return back('name'); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return back('email');
+    if (db.prepare('SELECT 1 FROM makers WHERE lower(email)=?').get(email)) return back('known');
+    let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
+    const buyer = app.locals.buyerOf ? app.locals.buyerOf(req) : null;
+    const id = db.prepare("INSERT INTO makers (handle,name,email,house,kind,joined_at,buyer_id) VALUES (?,?,?,?,'maker',datetime('now'),?)").run(handle, name, email, String(b.house || '').trim().slice(0, 120) || null, buyer ? buyer.id : null).lastInsertRowid;
+    const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
+    DEFAULT_USES.forEach(u => ins.run(id, ...u));
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(id);
+    ledger.append(db, 'maker.joined', handle, {});
+    setMaker(res, m);
+    res.redirect('/account?welcome=1');
+  });
+
+  // ---------- the maker's profile: who they are, on their page ----------
+  const portraits = require('path').join(C.dataDir, 'portraits'); fs.mkdirSync(portraits, { recursive: true });
+  app.get('/account/profile', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.profile({ m, saved: req.query.ok || null, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle })); });
+  app.post('/account/profile', (req, res, next) => upload().fields([{ name: 'portrait', maxCount: 1 }, { name: 'file', maxCount: 1 }])(req, res, next), async (req, res) => {
+    req.file = (req.files && ((req.files.portrait || [])[0] || (req.files.file || [])[0])) || null;
+    const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.sendStatus(401); }
+    const b = req.body || {}, t = (v, n) => String(v || '').trim().slice(0, n) || null;
+    const name = t(b.name, 120) || m.name;
+    const site = t(b.site, 200), ig = t(b.instagram, 60);
+    db.prepare('UPDATE makers SET name=?, house=?, place=?, bio=?, site=?, instagram=? WHERE id=?').run(name, t(b.house, 120), t(b.place, 120), t(b.bio, 700), site && /^https?:\/\//i.test(site) ? site : site ? 'https://' + site.replace(/^\/+/, '') : null, ig ? ig.replace(/^@/, '').replace(/[^A-Za-z0-9._]/g, '') : null, m.id);
+    if (req.file) {
+      try {
+        const sharp = require('sharp'); const out = `${m.handle}-${Date.now()}.jpg`;
+        await sharp(req.file.path).rotate().resize(720, 720, { fit: 'cover', position: 'attention' }).jpeg({ quality: 86 }).toFile(require('path').join(portraits, out));
+        if (m.portrait && fs.existsSync(require('path').join(portraits, m.portrait))) fs.unlinkSync(require('path').join(portraits, m.portrait));
+        db.prepare('UPDATE makers SET portrait=? WHERE id=?').run(out, m.id);
+      } catch (e) { /* not an image: ignored */ }
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    }
+    if (b.remove_portrait === '1' && m.portrait) { const f = require('path').join(portraits, m.portrait); if (fs.existsSync(f)) fs.unlinkSync(f); db.prepare('UPDATE makers SET portrait=NULL WHERE id=?').run(m.id); }
+    res.redirect('/account/profile?ok=1');
+  });
+  app.get('/portrait/:handle', (req, res) => {
+    const m = db.prepare('SELECT portrait FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m || !m.portrait) return res.sendStatus(404);
+    res.set('Cache-Control', 'public, max-age=3600').sendFile(require('path').join(portraits, m.portrait));
+  });
+
+  // The Studio may hold a maker (their public works go private) or release them.
+  app.post('/studio/accounts/:id/standing', studioOnly, (req, res) => {
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(+req.params.id); if (!m) return res.redirect('/studio/accounts');
+    const to = m.standing === 'held' ? 'open' : 'held';
+    db.prepare('UPDATE makers SET standing=? WHERE id=?').run(to, m.id);
+    if (to === 'held') db.prepare("UPDATE works SET status='hidden' WHERE maker_id=? AND status='held'").run(m.id);
+    ledger.append(db, to === 'held' ? 'maker.held' : 'maker.released', m.handle, {});
+    res.redirect('/studio/accounts?ok=' + encodeURIComponent(to === 'held' ? `${m.name} is held; their work is private until released.` : `${m.name} is released.`));
+  });
+
   function dashboard(m) {
     const pct = m.share_pct || 85;
     const paid = "l.status IN ('active','expired') AND l.price_cents > 0";
@@ -92,7 +149,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account', (req, res) => {
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
-    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
+    res.send(A.dashboard({ ...dashboard(m), viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their collection; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {
@@ -124,6 +181,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404);
     if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
     if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
+    if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
     ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });
     res.redirect('/account#w-' + w.slug);
