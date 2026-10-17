@@ -627,6 +627,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // The Hall of Patrons: the Studio hangs a portrait by the work's slug; the hall shows it with its plate.
   r = await req(port, 'POST', '/studio/hall', { cookie: ck, body: { name: 'Henry Clay Frick', founded: 'The Great Rooms', year: '2026', work: w.slug, note: 'He kept the doors open.', public: '1' } }); assert.equal(r.status, 302, 'hung');
   r = await req(port, 'GET', '/patrons'); assert.ok(r.body.toString().includes('Henry Clay Frick') && r.body.toString().includes('The Great Rooms') && r.body.toString().includes(`/img/${w.slug}/large`), 'the hall shows the portrait and the plate');
+  // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
+  r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'DENY' && r.headers['referrer-policy'], 'security headers');
+  r = await req(port, 'POST', '/guestbook/1/remove', { headers: { origin: 'https://evil.example' } }); assert.equal(r.status, 403, 'cross-site write refused');
+  r = await req(port, 'POST', '/yours', { headers: { origin: 'https://evil.example' }, body: { name: 'x' } }); assert.equal(r.status, 403, 'cross-site write refused (yours)');
+  { let last = 0; for (let i = 0; i < 11; i++) { r = await req(port, 'POST', '/studio/login', { body: { password: 'wrong' } }); last = r.status; } assert.equal(last, 429, 'the Studio door locks after ten tries'); }
   assert.ok(ledger.verify(db).ok); const n = ledger.verify(db).checked; assert.ok(n >= 5);
   db.prepare("UPDATE ledger SET data='{}' WHERE seq=1").run(); assert.equal(ledger.verifyAll(db).ok, false, 'tamper detected'); assert.equal(ledger.verify(db).ok, true, 'the quick check trusts its head for an hour');
   r = await req(port, 'GET', '/ledger?check=full'); assert.ok(r.body.includes('broken'));

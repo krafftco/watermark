@@ -262,6 +262,7 @@ function createApp(cfg = {}) {
     res.json({ received: true });
   });
 
+  require('./guardrails').mountGuardrails(app, { base: C.base });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
 
