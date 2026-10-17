@@ -416,6 +416,17 @@ function createApp(cfg = {}) {
   });
   app.options('/api/seen', (req, res) => { res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST' }); res.sendStatus(204); });
   // The house bar, shared with krafftco.com and studios.krafftco.com (loaded in each site's <head>).
+  // Who is at the door: for the house bar on every Krafft site. Same-site cookies carry across
+  // *.krafftco.com; elsewhere the answer is nobody, and the bar offers the way in.
+  const HOUSE_ORIGINS = /^https:\/\/([a-z0-9-]+\.)?(krafftco|wrkfullerton)\.com$/;
+  app.get('/api/me', (req, res) => {
+    const o = String(req.headers.origin || ''); if (HOUSE_ORIGINS.test(o)) { res.set('Access-Control-Allow-Origin', o); res.set('Access-Control-Allow-Credentials', 'true'); res.set('Vary', 'Origin'); }
+    res.set('Cache-Control', 'private, no-store');
+    const m = app.locals.accounts.makerOf(req), b = buyerOf(req);
+    if (!m && !b) return res.json({ in: false });
+    const name = (m && m.name) || (b && b.name) || null;
+    res.json({ in: true, name, initial: name ? name.trim().charAt(0).toUpperCase() : null, maker: m ? { handle: m.handle, slug: V.makerSlug(m) } : null, collector: b ? { code: b.public ? b.code : null } : null });
+  });
   app.get('/house.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=600').set('Access-Control-Allow-Origin', '*');
     res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));

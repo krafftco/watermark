@@ -15,6 +15,9 @@
     { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club' },
     { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1 }
   ];
+  // The far right of the bar is the visitor's own door: their studio and collection when they are known
+  // to the house, the way in when they are not. Will's page is the example of what everyone's can be.
+  var WM = 'https://watermark.krafftco.com';
   function fam(host) { return /wrkfullerton\.com$/.test(host) ? 'wrkfullerton.com' : /krafftco\.com$/.test(host) ? 'krafftco.com' : ''; }
   var h = location.hostname.replace(/^www\./, '');
   var here = null;
@@ -42,6 +45,7 @@
     + '.kh a[aria-current]::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:1px;background:currentColor}'
     + '.kh .kh-own{margin-left:auto}'
     + '.kh .kh-gb{opacity:.75}'
+    + '.kh .kh-you{color:#f6f5f2;opacity:.9}.kh .kh-me{display:none}'
     + '.kh .kh-own::before{content:"";position:absolute;left:calc(-1 * clamp(9px,1.3vw,18px));top:50%;width:1px;height:10px;margin-top:-5px;background:rgba(246,245,242,.22)}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
@@ -78,7 +82,17 @@
     var ch = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : here === 'will' ? 'krafft' : 'krafft';
     gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
     bar.appendChild(gb);
+    var you = document.createElement('a'); you.className = 'kh-you'; you.textContent = 'Sign in'; you.href = WM + '/signin'; bar.appendChild(you);
     document.body.insertBefore(bar, document.body.firstChild);
+    try {
+      fetch(WM + '/api/me', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (me) {
+        if (!me || !me.in) return;
+        you.textContent = me.name || 'You'; you.href = me.maker ? WM + '/account' : WM + '/yours'; you.title = me.maker ? 'Your studio' : 'Your collection';
+        var menu = document.createElement('span'); menu.className = 'kh-me';
+        menu.innerHTML = (me.maker ? '<a href="' + WM + '/account">Your studio</a><a href="' + WM + '/m/' + me.maker.slug + '">Your page</a>' : '') + '<a href="' + WM + '/yours">Your collection</a><a href="' + WM + '/guestbook">Guest book</a>';
+        you.insertAdjacentElement('afterend', menu);
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   // krafftco.com/license and Watermark, joined: when the photograph is held on Watermark, each use is

@@ -408,6 +408,10 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g2).status, 'hidden', 'culled, not deleted'); assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g1).status, 'held');
     r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '2' } }); assert.ok(r.headers.location.includes('up=1'), 'brought back when the bar lowers');
     r = await req(port, 'GET', '/studio/trove?sort=stars', { cookie: ck }); assert.ok(r.body.toString().includes('&#9733;&#9733;&#9733;&#9733;&#9733;'), 'the rubies in the Studio'); }
+  // Who is at the door: the house bar asks /api/me from any Krafft site.
+  r = await req(port, 'GET', '/api/me', { headers: { origin: 'https://studios.krafftco.com' } }); assert.equal(JSON.parse(r.body).in, false); assert.equal(r.headers['access-control-allow-origin'], 'https://studios.krafftco.com');
+  r = await req(port, 'GET', '/api/me', { cookie: gck, headers: { origin: 'https://evil.example' } }); { const me = JSON.parse(r.body); assert.ok(me.in && me.maker && me.maker.slug === 'greta-lund'); assert.ok(!r.headers['access-control-allow-origin'], 'no CORS for strangers'); }
+  r = await req(port, 'GET', '/house.js'); assert.ok(r.body.toString().includes('/api/me') && r.body.toString().includes('kh-you'), 'the bar has a door for you');
   // Quality control: a web-sized photograph is offered for sharing only; its master opens the larger uses.
   r = await req(port, 'GET', `/license/${w2.slug}`); { const lb = r.body.toString(); assert.ok(lb.includes('Collect') && !lb.includes('Before an audience') && !lb.includes('For a company'), 'web size: sharing only'); }
   r = await req(port, 'POST', `/buy/${w2.slug}`, { body: { use: 'campaign' } }); assert.equal(r.status, 302, 'no campaign from a web copy');
