@@ -144,7 +144,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account', (req, res) => {
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
-    res.send(A.dashboard({ ...dashboard(m), asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
+    res.send(A.dashboard({ ...dashboard(m), asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, claims: app.locals.disputes ? app.locals.disputes.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their gallery; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {

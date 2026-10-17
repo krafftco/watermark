@@ -78,10 +78,11 @@ function createApp(cfg = {}) {
   const foundingLeft = () => Math.max(0, FOUNDING - db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n);
   const refOK = w => !!(w && w.width && w.height && w.width * w.height >= 40e6);
   // A use is offered only when the maker allows it and the file held is good enough for it (see MIN_MP).
-  const offered = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  // A work under a claim is shown but not sold until the house decides (see disputes.js).
+  const offered = (rules, key, w) => !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -1298,6 +1299,7 @@ function createApp(cfg = {}) {
   require('./payouts').mountPayouts(app, { db, C, stripe, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger, mail });
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
+  require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {

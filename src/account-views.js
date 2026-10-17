@@ -68,7 +68,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option><option value="institution">Institution: a museum, a library, an archive</option></select></label><button>Create the account</button></form></section>` });
 }
 
-function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0 }) {
+function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0 }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
@@ -87,6 +87,7 @@ function dashboard({ m, pct, works, jewels, byUse, recent, totals, toMaker, mult
   const privateN = works.filter(w => w.status !== 'held').length;
   const needs = viewing ? [] : [
     asks ? `<li><a href="/account/requests"><b>${asks}</b> request${asks === 1 ? '' : 's'} waiting for your answer<span>&rarr;</span></a></li>` : '',
+    claims ? `<li><a href="/account/claims"><b>${claims}</b> claim${claims === 1 ? '' : 's'} about your work waiting for your answer<span>&rarr;</span></a></li>` : '',
     keeping && keeping.over ? `<li><a href="/account/keeping"><b>${keeping.works}</b> photographs held, above the ${esc(keeping.tier.name)} line; see Keeping<span>&rarr;</span></a></li>` : '',
     owed >= 100 ? `<li><a href="/account/payouts"><b>${money(owed)}</b> owed to you; see the statement, add your bank<span>&rarr;</span></a></li>` : '',
     privateN ? `<li><a href="#holdings"><b>${privateN}</b> photograph${privateN === 1 ? '' : 's'} waiting to be published<span>&rarr;</span></a></li>` : '',

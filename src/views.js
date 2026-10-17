@@ -86,7 +86,7 @@ let deskStatus = () => '', deskPath = '';
 const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/library', 'Library'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
+const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/library', 'Library'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
 const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/payouts', 'Getting paid'], ['/account/keeping', 'Keeping'], ['/yours', 'Your gallery']];
 // Every maker is a collector. One switch, the same in the studio and the gallery: Studio | Gallery.
 let houseMaker = null; const setHouseMaker = h => { houseMaker = h; };
@@ -257,7 +257,9 @@ ${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered wi
 ${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
 ${closerBlock(closer, w, edit)}${wander ? `<a class="wd-on" href="/wander?from=${esc(w.slug)}">${WAVE_MARK}<span>Wander on</span></a>` : ''}
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
+${w.disputed ? `<p class="wk-claim">Under review: a claim about this photograph is with the house. It is shown, and nothing is sold, until the house decides.</p>` : ''}
 ${shieldBlock(shield, { slug: w.slug })}
+<p class="wk-claim-door"><a href="/w/${esc(w.slug)}/claim">Is this yours, or are you in it? Say so.</a></p>
 <p class="lot-keep">${keepers}</p>
 ${ed ? `<p class="lot-ed"><b>Edition of ${ed.size}</b><span>${ed.left ? `${ed.left} of ${ed.size} remain` : 'Complete. Every number is held.'}${share && share.ladder && share.ladder.step ? ` &middot; issued at ${money(share.ladder.base)} to No.&nbsp;1, ${money(share.ladder.price)} now` : ''}${share && share.ladder && share.ladder.next && ed.left ? ` &middot; ${money(share.ladder.next)} from No.&nbsp;${share.ladder.at + 1}` : ''}</span></p>` : ''}
 ${share && ed && !ed.left ? `<p class="lot-gone">This edition is complete. It can pass to you only from one of its collectors${mkt && mkt.open.length ? '' : '; none is offered just now'}.</p>` : ''}
@@ -1107,7 +1109,8 @@ function terms() {
 <li><b>Exclusions.</b> No use in AI training datasets, no resale or sublicensing, and no use that implies the maker endorses a product, unless the certificate says so.</li>
 <li><b>Term.</b> The license ends on the date on the certificate. Renewal is offered before it ends.</li>
 <li><b>Prints.</b> A print is sold for private display. It carries no reproduction rights.</li>
-<li><b>Record.</b> Every license is recorded in Watermark&rsquo;s register by reference and fingerprint. Personal details are not published.</li></ol></section>`
+<li><b>Record.</b> Every license is recorded in Watermark&rsquo;s register by reference and fingerprint. Personal details are not published.</li>
+<li><b>Claims.</b> If a photograph here is yours, or you are in it without having agreed, say so in writing from its page (<i>Is this yours? Say so</i>) or to house@watermark.krafftco.com, the house&rsquo;s agent for notices. Sales pause when a claim arrives; the maker answers; the house decides against its record and writes to both within five working days. A claim upheld brings the photograph down and its holders are told.</li></ol></section>`
   });
 }
 

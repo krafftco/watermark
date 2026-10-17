@@ -423,6 +423,25 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '3' } }); assert.ok(r.headers.location.includes('down=1'));
     assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g2).status, 'hidden', 'culled, not deleted'); assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g1).status, 'held');
     r = await req(port, 'POST', '/account/cull', { cookie: gck, body: { from: '2' } }); assert.ok(r.headers.location.includes('up=1'), 'brought back when the bar lowers');
+    // A claim: sales pause, the maker answers, the house decides; dismissed resumes, upheld takes it down.
+    r = await req(port, 'GET', `/w/${g1}/claim`); assert.ok(r.body.toString().includes('Say so in writing') && r.body.toString().includes('perjury'), 'the claim form');
+    r = await req(port, 'POST', `/w/${g1}/claim`, { body: { kind: 'made', name: 'Nils Ek', email: 'nils@example.com', body: 'I made this in 2019 in the harbour; I hold the raw file.', oath: '1' } });
+    assert.equal(r.status, 200); assert.ok(r.body.toString().includes('WM-C-'), 'received'); assert.equal(db.prepare('SELECT disputed FROM works WHERE slug=?').get(g1).disputed, 1, 'sales paused');
+    r = await req(port, 'GET', `/w/${g1}`); assert.ok(r.body.toString().includes('Under review') && !r.body.toString().includes('data-share'), 'shown, not sold');
+    r = await req(port, 'POST', `/buy/${g1}`, { body: { use: 'social' } }); assert.notEqual(r.status, 303, 'no checkout under a claim');
+    r = await req(port, 'GET', '/account', { cookie: gck }); assert.ok(r.body.toString().includes('claim') && r.body.toString().includes('/account/claims'), 'the maker is told');
+    const cid = db.prepare('SELECT id FROM disputes ORDER BY id DESC LIMIT 1').get().id;
+    r = await req(port, 'POST', `/account/claims/${cid}/answer`, { cookie: gck, body: { answer: 'I made it; the raw and the contact sheet are in my studio.' } }); assert.ok(r.headers.location.includes('ok=answered'));
+    r = await req(port, 'GET', `/studio/claims/${cid}`, { cookie: ck }); assert.ok(r.body.toString().includes('What the house holds') && r.body.toString().includes('Fingerprint') && r.body.toString().includes('contact sheet'), 'the packet');
+    r = await req(port, 'POST', `/studio/claims/${cid}/decide`, { cookie: ck, body: { outcome: 'dismiss', note: 'The house holds the earlier file.' } }); assert.ok(r.headers.location.includes('ok=dismissed'));
+    assert.equal(db.prepare('SELECT disputed FROM works WHERE slug=?').get(g1).disputed, 0, 'sales resume'); assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g1).status, 'held');
+    r = await req(port, 'POST', `/w/${g1}/claim`, { body: { kind: 'person', name: 'Ane Ek', email: 'ane@example.com', body: 'That is me on the quay and I never agreed to be shown.', oath: '1' } });
+    const cid2 = db.prepare('SELECT id FROM disputes ORDER BY id DESC LIMIT 1').get().id;
+    r = await req(port, 'POST', `/studio/claims/${cid2}/decide`, { cookie: ck, body: { outcome: 'uphold' } }); assert.ok(r.headers.location.includes('ok=upheld'));
+    assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(g1).status, 'private', 'upheld: it came down');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='dispute.upheld'").get().n === 1 && db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='dispute.opened'").get().n === 2, 'on the register');
+    r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('upheld by the house') && !r.body.toString().includes('Nils'), 'told without names');
+    db.prepare("UPDATE works SET status='held' WHERE slug=?").run(g1);
     r = await req(port, 'GET', '/studio/trove?sort=stars', { cookie: ck }); assert.ok(r.body.toString().includes('&#9733;&#9733;&#9733;&#9733;&#9733;'), 'the rubies in the Studio'); }
   // Who is at the door: the house bar asks /api/me from any Krafft site.
   r = await req(port, 'GET', '/api/me', { headers: { origin: 'https://studios.krafftco.com' } }); assert.equal(JSON.parse(r.body).in, false); assert.equal(r.headers['access-control-allow-origin'], 'https://studios.krafftco.com');
