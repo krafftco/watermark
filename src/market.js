@@ -337,7 +337,7 @@ ${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>
 
     listing: ({ s, l, m, p, mine, sent, auto, bid, held }) => layout({ title: `${tidy(l.title)}, No. ${l.collector_no} · The market · Watermark`, body: `<section class="mk-l">
 <a class="mk-im mk-big" href="/w/${esc(l.slug)}" style="--r:${ratio(l)}"><img src="/img/${esc(l.slug)}/large" alt="${esc(tidy(l.title))}" draggable="false"></a>
-<div class="mk-side"><p class="k">Offered by its collector</p><h1>${esc(tidy(l.title))}</h1><p class="mk-no mk-no-big">${no(l)}</p><p class="mk-by">${esc(m.name)}${l.place ? ` &middot; ${esc(l.place)}` : ''}</p>
+<div class="mk-side"><p class="k">Offered by its collector</p><h1>${esc(tidy(l.title))}</h1><p class="mk-no mk-no-big">${no(l)}</p><p class="mk-by"><a href="/m/${esc(V.makerSlug ? V.makerSlug(m) : '')}">${esc(m.name)}</a>${l.place ? ` &middot; ${esc(l.place)}` : ''}</p>
 <dl class="sh-dl mk-dl"><div><dt>Asking</dt><dd class="mk-ask">${money(s.ask_cents)}</dd></div>${p.issue != null ? `<div><dt>Issued at</dt><dd>${money(p.issue)}</dd></div>` : ''}${p.last != null ? `<div><dt>Last traded</dt><dd>${money(p.last)}, ${date(p.lastAt)}</dd></div>` : ''}<div><dt>To the photographer</dt><dd>${Math.round(ROYALTY * 100)}% of the price, ${money(Math.round(s.ask_cents * ROYALTY))} at the asking price</dd></div></dl>
 ${s.status !== 'open' ? '<p class="note">This piece is no longer offered.</p>' : mine ? '<p class="note">This is your offer. Change or withdraw it from <a href="/yours#files">your collection</a>.</p>'
   : auto ? (sent === '1' ? '<p class="ok">Your offer is with the collector. If they accept, you will have a link to pay, and the piece moves to your collection the moment you do.</p>' : '')

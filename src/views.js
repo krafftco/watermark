@@ -9,6 +9,7 @@ const WAVE_MARK = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden
 // Each maker's own mark on the Collect seal: Krafft's makers carry the hand-made K, every other maker the Watermark wave.
 const isKrafft = m => !!m && (/krafft/i.test(m.house || '') || m.handle === 'krafft');
 const markOf = m => (isKrafft(m) ? K_MARK : WAVE_MARK);
+const mlink = (name, cls = '') => `<a href="/m/${esc(makerSlug({ name }))}"${cls ? ` class="${cls}"` : ''}>${esc(name)}</a>`;
 const makerSlug = m => String((m && m.name) || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const seal = (m, label = 'Collect', cls = '') => `<button class="seal${cls ? ' ' + cls : ''}" aria-label="${esc(label)}"><span class="seal-k">${markOf(m)}</span><span class="seal-r" aria-hidden="true"></span></button>`;
 // The Watermark Shield: an escutcheon with the wave struck across it.
@@ -399,7 +400,7 @@ function contractPage({ sections, w, maker, u, t, preview = false, lic = null })
   return layout({ title: `${preview ? 'The agreement' : 'Agreement ' + lic.ref} · ${tidy(w.title)}`, body: `<section class="ct-wrap">
 <p class="k">${preview ? 'The agreement, as it would read' : `Agreement ${esc(lic.ref)}`}</p>
 <h1>Standard Content License Agreement</h1>
-<p class="ct-for"><i>${esc(tidy(w.title))}</i>, photograph by ${esc(maker.name)} &middot; ${esc(u.name)}${t.price != null && !t.ask ? ` &middot; ${money(t.price)}` : ''}</p>
+<p class="ct-for"><i>${esc(tidy(w.title))}</i>, photograph by ${mlink(maker.name)} &middot; ${esc(u.name)}${t.price != null && !t.ask ? ` &middot; ${money(t.price)}` : ''}</p>
 <div class="ct-sum"><div><span>Granted</span>${has.length ? has.map(esc).join(', ') : u.kind === 'print' ? 'A physical print' : 'Personal use'}${t.extras.length ? `; ${t.extras.map(k => esc(C.EXTRAS.find(e => e.key === k).label)).join(', ')}` : ''}</div>
 <div><span>Term</span>${t.term_months ? `${t.term_months / 12 === 1 ? '1 year' : t.term_months + ' months'}` : 'Perpetual'}</div>
 <div><span>Never</span>${t.never.length ? t.never.map(k => esc(require('./rules').NEVER[k])).join('; ') : 'No further restrictions'}</div></div>
@@ -446,7 +447,7 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
 <figure class="buy-fig"><div class="ls" data-ls style="--img:url('/img/${esc(w.slug)}/screen')">
 <div class="ls-sc on" data-sc=""><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></div></div>
 ${scenes(w, maker)}</div>
-<figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${esc(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
+<figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${mlink(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Collect it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
@@ -686,14 +687,14 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
 <div class="lc2-side">
 <p class="lc2-st s-${esc(lic.status)}"><i></i>${esc(status)}</p>
 <h1>${esc(tidy(w.title))}</h1>
-<p class="lc2-by">Photograph by ${esc(maker.name)}</p>
+<p class="lc2-by">Photograph by ${mlink(maker.name)}</p>
 <p class="lc2-says">${says}</p>
 ${left}
 <dl class="lc2-dl">
 <div><dt>Licensed to</dt><dd>${esc(who)}</dd></div>
 <div><dt>For</dt><dd>${esc(use.name)}</dd></div>
 ${lic.price_cents != null ? `<div><dt>Paid</dt><dd>${money(lic.price_cents, lic.currency)}${lic.collector_no ? ` &middot; No.&nbsp;${lic.collector_no}` : ''}</dd></div>` : ''}
-<div><dt>Credit</dt><dd>Photograph by ${esc(maker.name)}</dd></div>
+<div><dt>Credit</dt><dd>Photograph by ${mlink(maker.name)}</dd></div>
 </dl>
 <div class="lc2-cc"><div><p class="lc2-h">You can</p><ul>${can.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><p class="lc2-h">You can&rsquo;t</p><ul class="no">${cannot.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>
 <div class="lc2-acts">
@@ -787,9 +788,9 @@ ${own ? '<p><a class="buy-btn" href="/collection">Walk the collection</a></p><p 
   // Each piece as a card you hold: an instant print on textured stock, inscribed with its number, title and
   // maker, blind-embossed with the Watermark wave. Tilted a little, as cards are when they are laid down.
   const card = i => { const tilt = (((i.id * 37) % 7) - 3) * 0.45; const yr = String(i.starts_at || '').slice(0, 4);
-    return `<a class="tc" href="/w/${esc(i.slug)}" style="--tilt:${tilt.toFixed(2)}deg"><span class="tc-win"><img src="/img/${esc(i.slug)}/screen" alt="${esc(tidy(i.title))}" loading="lazy" draggable="false"></span>
-<span class="tc-foot"><span class="tc-no">${i.collector_no ? `No.&nbsp;${i.collector_no}${i.edition_size ? `<small>&thinsp;/&thinsp;${i.edition_size}</small>` : ''}` : ''}</span><span class="tc-ins">${esc(tidy(i.title))}</span>
-${pr[i.id] && pr[i.id].market && pr[i.id].market.value != null && i.edition_size ? `<span class="tc-val">${pr[i.id].value > pr[i.id].cost ? `<b>${money(pr[i.id].value)}</b> <i>paid ${money(pr[i.id].cost)}</i>` : pr[i.id].listing ? `<b>Offered at ${money(pr[i.id].listing.ask_cents)}</b>` : `<i>${money(pr[i.id].cost)}</i>`}</span>` : ''}<span class="tc-meta">${esc(i.maker)}${i.place ? ` &middot; ${esc(String(i.place).split(',')[0])}` : ''}${yr ? ` &middot; ${yr}` : ''}${i.use_key && !['social', 'reference'].includes(i.use_key) ? ` &middot; ${esc(i.use_name)}` : ''}</span><span class="tc-mark" aria-hidden="true">${WAVE_MARK}</span></span>${i.printed ? `<span class="tc-pr">Printed</span>` : ''}</a>`; };
+    return `<div class="tc" style="--tilt:${tilt.toFixed(2)}deg"><a class="tc-win" href="/w/${esc(i.slug)}"><img src="/img/${esc(i.slug)}/screen" alt="${esc(tidy(i.title))}" loading="lazy" draggable="false"></a>
+<span class="tc-foot"><span class="tc-no">${i.collector_no ? `No.&nbsp;${i.collector_no}${i.edition_size ? `<small>&thinsp;/&thinsp;${i.edition_size}</small>` : ''}` : ''}</span><a class="tc-ins" href="/w/${esc(i.slug)}">${esc(tidy(i.title))}</a>
+${pr[i.id] && pr[i.id].market && pr[i.id].market.value != null && i.edition_size ? `<span class="tc-val">${pr[i.id].value > pr[i.id].cost ? `<b>${money(pr[i.id].value)}</b> <i>paid ${money(pr[i.id].cost)}</i>` : pr[i.id].listing ? `<b>Offered at ${money(pr[i.id].listing.ask_cents)}</b>` : `<i>${money(pr[i.id].cost)}</i>`}</span>` : ''}<span class="tc-meta">${mlink(i.maker)}${i.place ? ` &middot; ${esc(String(i.place).split(',')[0])}` : ''}${yr ? ` &middot; ${yr}` : ''}${i.use_key && !['social', 'reference'].includes(i.use_key) ? ` &middot; ${esc(i.use_name)}` : ''}</span><span class="tc-mark" aria-hidden="true">${WAVE_MARK}</span></span>${i.printed ? `<span class="tc-pr">Printed</span>` : ''}</div>`; };
   const roomRow = r => `<a class="yc-room" href="/rooms/${esc(r.slug)}"><span class="yc-rt">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</span><span class="yc-bar"><i style="width:${Math.round(100 * r.have / r.total)}%"></i></span><span class="yc-rn">${r.have === r.total ? 'Complete' : `${r.have} of ${r.total}`}</span></a>`;
   const lowest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a.collector_no) ? i : a), null);
   const done = rooms.filter(r => r.have === r.total).length;
@@ -877,4 +878,4 @@ function journal({ posts }) {
 <section class="gal">${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
+module.exports = { makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, ledgerPage, about, terms, esc, money, date, termText };
