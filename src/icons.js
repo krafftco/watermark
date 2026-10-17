@@ -33,6 +33,8 @@ const I = {
   close: wrap('<path d="M6 6l12 12M18 6 6 18"/>'),
   // The wave alone, for Wander: the house's line, walking.
   wave: '<svg class="ic ic-wave" viewBox="0 0 28 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1.5 6c2-3 4-3 6 0s4 3 6 0 4-3 6 0 4 3 6 0"/></svg>',
+  // The wanderer: a figure mid-stride, for Wander.
+  wander: wrap('<circle cx="13.6" cy="4.4" r="1.9"/><path d="M12.7 7.6 11.2 13M12.4 8.6 9.2 11.4M12.4 8.6l3.4 2.2 1.4 2.6M11.2 13l3.2 3.2.8 4.4M11.2 13l-2.8 3.6-1.2 4"/>'),
   // Keys and the eye.
   key: wrap('<circle cx="8" cy="12" r="3.6"/><path d="M11.6 12H20m-2.6 0v3M15 12v2.2"/>'),
   eye: wrap('<path d="M2.6 12c2.4-4 5.6-6 9.4-6s7 2 9.4 6c-2.4 4-5.6 6-9.4 6s-7-2-9.4-6z"/><circle cx="12" cy="12" r="2.8"/>'),
