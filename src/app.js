@@ -915,8 +915,9 @@ function createApp(cfg = {}) {
     const t = (v, n) => String(v || '').trim().slice(0, n) || null;
     db.prepare('INSERT INTO prints (license_id, size, paper, made) VALUES (?,?,?,?)').run(l.id, t(x.size, 60), t(x.paper, 80), t(x.made, 40));
     ledger.append(db, 'print.recorded', l.ref, { size: t(x.size, 60), paper: t(x.paper, 80) });
-    res.redirect('/yours#files');
+    res.redirect(/^\/yours\/p\/[\w-]+$/.test(String(x.back || '')) ? `${x.back}?ok=recorded` : '/yours#files');
   });
+  app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
   // May this license pass to another wallet? The agreement decides: a numbered personal piece may; a working

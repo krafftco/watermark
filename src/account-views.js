@@ -121,7 +121,7 @@ ${culled ? `<p class="ok">Culled from ${'&#9733;'.repeat(culled.from)}: ${culled
 ${welcome ? `<p class="ok">Your studio is open. <a href="/account/upload">Add your first works</a>, then <a href="/account/profile">tell people who you are</a>.</p>` : ''}${m.standing === 'held' ? '<p class="err">Your studio is held by Watermark while we look at something. Your work is private until it is released; write to us if you have questions.</p>' : ''}${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : need === 'held' ? '<p class="err">Your studio is held; nothing can be published until it is released.</p>' : ''}
 ${works.length ? `<div class="hd-head ac-row"><span></span><span>Work</span><span>On Watermark</span><span class="hd-c">Sold</span><span class="hd-c">Seen, 30d</span><span class="hd-v">To you</span><span></span></div>${works.map(row).join('')}` : `<p class="hd-calm">Nothing here yet. ${viewing ? '' : '<a href="/account/upload">Add your first works</a>; they stay private until you publish them.'}</p>`}</section>
 ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2></div>${recent.map(l => `<a class="hd-ev" href="/w/${esc(l.slug)}"><span>${date(l.starts_at)}</span><b>${esc(l.title)}</b><span>${esc(l.use_name)}</span><span class="hd-v">${money(toMaker(l.price_cents))}</span></a>`).join('')}</section>` : ''}
-</section><script src="/static/stars.js" defer></script>` });
+</section><script src="/static/stars.js?v=2" defer></script>` });
 }
 
 // Into the vault. Putting finished work here should feel like hanging it: each photograph is shown as it

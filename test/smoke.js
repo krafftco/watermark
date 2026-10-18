@@ -113,6 +113,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
   assert.ok(yb.includes(`No.&nbsp;${dj.no}`) && yb.includes('The gallery'), 'it hangs, numbered');
   r = await req(port, 'GET', '/yours?tab=files', { cookie: bck }); assert.ok(r.body.toString().includes('id="files"') && r.body.toString().includes(`No. ${dj.no}`), 'the files room');
+  // the holder's room: print it, live with it, the papers; a stranger is sent to the license page
+  assert.ok(yb.includes(`/yours/p/${dj.ref}`), 'the card opens the holder\'s room');
+  r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); let kp = r.body.toString();
+  assert.ok(r.status === 200 && kp.includes('See it in person') && kp.includes('kp-sz') && kp.includes('Ask for the print') && kp.includes('The certificate'), 'the holder\'s room');
+  r = await req(port, 'GET', `/yours/p/${dj.ref}`); assert.equal(r.status, 302, 'a stranger goes to the license page');
+  r = await req(port, 'POST', `/yours/p/${dj.ref}/order`, { cookie: bck, body: { size: '10 × 7½ in, on 10 × 8', paper: 'Cotton rag, matte', frame: '1', email: 'tap@example.com' } });
+  assert.ok(r.status === 303 && /ok=asked/.test(r.headers.location), 'a print asked for');
+  r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('with the house'), 'the order shows');
+  r = await req(port, 'GET', '/print'); assert.ok(r.status === 200 && r.body.toString().includes('Print your work.'), 'the guide to printing');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
