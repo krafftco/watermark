@@ -79,10 +79,12 @@ function createApp(cfg = {}) {
   const refOK = w => !!(w && w.width && w.height && w.width * w.height >= 40e6);
   // A use is offered only when the maker allows it and the file held is good enough for it (see MIN_MP).
   // A work under a claim is shown but not sold until the house decides (see disputes.js).
-  const offered = (rules, key, w) => !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  // A partner's accepted exclusive on a work holds back the uses it covers while it runs (src/bridge.js).
+  const held_ = (w, key) => !!(w && app && app.locals && app.locals.blockedBy && app.locals.blockedBy(w, key));
+  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -248,6 +250,7 @@ function createApp(cfg = {}) {
     if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
     if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85); } catch (e) { console.error('[representation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
+    if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
     const g = q.lic.get(ref);
     try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
@@ -1549,6 +1552,8 @@ function createApp(cfg = {}) {
   require('./payouts').mountPayouts(app, { db, C, stripe, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger, mail });
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
   require('./api').mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, ledger, limiter: require('./guardrails').limiter, verifyBuffer: (...a) => app.locals.archive.verifyBuffer(...a), upload: () => upload, makerBySlug: s => [maker, ...db.prepare('SELECT * FROM makers').all()].find(m => V.makerSlug(m) === s || m.handle === s) || null, regard: RG });
+  require('./splits').mountSplits(app, { db, V, ledger, isStudio, makerOf: app.locals.accounts.makerOf, mk });
+  require('./bridge').mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf: app.locals.accounts.makerOf, mk });
   require('./atelier').mountAtelier(app, { db, isStudio, makerOf: req => app.locals.accounts.makerOf(req), V });
   require('./introductions').mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, setMaker: app.locals.accounts.setMaker, setBuyer, slugify, DEFAULT_USES });
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });

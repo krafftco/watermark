@@ -17,6 +17,8 @@ function setKey(seed) {
   signer = { priv, pub };
 }
 const publicKey = () => (signer ? signer.pub : null);
+// Sign any bytes with the house key (credentials, partner messages); null when no key is set.
+const signBytes = buf => (signer ? crypto.sign(null, buf, signer.priv) : null);
 function sign(hash) { return signer ? crypto.sign(null, Buffer.from(hash, 'hex'), signer.priv).toString('hex') : null; }
 function checkSig(hash, sig, pubHex) {
   try { const spki = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(pubHex, 'hex')]); return crypto.verify(null, Buffer.from(hash, 'hex'), crypto.createPublicKey({ key: spki, format: 'der', type: 'spki' }), Buffer.from(sig, 'hex')); } catch (e) { return false; }
@@ -70,4 +72,4 @@ function verify(db) {
   const r = { ok: true, checked: n, head: prev }; heads.set(db, { ...r, at: Date.now(), seq: n }); return r;
 }
 
-module.exports = { append, verify, verifyAll, digest, setKey, publicKey, sign, checkSig, ensureSig };
+module.exports = { append, verify, verifyAll, digest, setKey, publicKey, sign, signBytes, checkSig, ensureSig };

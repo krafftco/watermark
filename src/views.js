@@ -88,8 +88,8 @@ let deskStatus = () => '', deskPath = '';
 const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/library', 'Library'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/hangs', 'Hangs'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons']];
-const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/payouts', 'Getting paid'], ['/account/curators', 'Curators'], ['/account/atelier', 'Atelier'], ['/yours', 'Your gallery']];
+const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/library', 'Library'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/hangs', 'Hangs'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons'], ['/studio/partners', 'Partners']];
+const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/payouts', 'Getting paid'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/yours', 'Your gallery']];
 // Every maker is a collector. One switch, the same in the studio and the gallery: Studio | Gallery.
 let houseMaker = null; const setHouseMaker = h => { houseMaker = h; };
 const SWITCH = (on, { admin = false } = {}) => `<nav class="dk-sw" aria-label="Studio or gallery">${admin ? `<a href="/studio"${on === 'house' ? ' aria-current="page"' : ''}>The house</a>` : ''}<a href="${admin && houseMaker ? `/account?maker=${esc(houseMaker)}` : '/account'}"${on === 'studio' ? ' aria-current="page"' : ''}>${admin ? 'My studio' : 'Studio'}</a><a href="/yours"${on === 'gallery' ? ' aria-current="page"' : ''}>Gallery</a></nav>`;
@@ -1362,4 +1362,69 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { GUIDE_SWITCH, plainRights, savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+
+// Connections (src/bridge.js): who you are in other systems, which partners may see your work and hear of your sales,
+// and the rights claims they send. Nothing flows to a partner until the maker turns it on.
+function connections({ m, ids, did, partners, claims, ok }) {
+  const msg = { identity: 'Your identity is saved.', partner: 'Saved.', claim: 'Saved.' }[ok];
+  const when = d => (d ? String(d).slice(0, 10) : '');
+  return layout({ title: 'Connections · Watermark', body: `<section class="narrow cn">
+<p class="k">Connections</p><h1>Your work, joined to the rest of your world.</h1>
+<p class="lede">Watermark speaks the open standards for identity and rights, so the systems you already use can recognise your work, check its papers and hear when it sells. Nothing is shared with a partner until you turn it on here, and you can turn it off at any time.</p>
+${msg ? `<p class="ok">${msg}</p>` : ''}
+<h2>Who you are</h2>
+<p class="note">Your identity in the house: <code>${esc(did)}</code>. Anyone can read it at <a href="/m/${esc(makerSlug(m))}/did.json">/m/${esc(makerSlug(m))}/did.json</a>, with the identities you add below.</p>
+<form method="post" action="/account/connections/identity" class="form">
+<label>Your own identifier (a DID, from a rights platform or your own site)<input name="did" value="${esc(m.did || '')}" placeholder="did:web:example.com:you"></label>
+<label>ISNI (the international identifier for creators)<input name="isni" value="${esc(ids.isni || '')}" placeholder="0000 0001 2345 6789"></label>
+<label>IPI (if you also write music)<input name="ipi" value="${esc(ids.ipi || '')}" placeholder="00000000000"></label>
+<label>Your site<input name="site" value="${esc(ids.site || '')}" placeholder="https://"></label>
+<button class="btn">Save</button></form>
+<h2>Partners</h2>
+${partners.length ? `<ul class="cn-p">${partners.map(p => `<li><div><b>${esc(p.name)}</b>${p.site ? ` <a href="${esc(p.site)}" rel="noopener">${esc(String(p.site).replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : ''}${p.note ? `<span>${esc(p.note)}</span>` : ''}<span>${p.on_ ? 'Connected: they can read your catalogue with its shares and accepted claims, send rights claims for you to accept, and are told of each sale (the use, the term and the price; never a buyer&rsquo;s name).' : 'Not connected.'}</span></div>
+<form method="post" action="/account/connections/partner/${p.id}"><input type="hidden" name="on" value="${p.on_ ? '0' : '1'}"><button class="${p.on_ ? 'link' : 'btn'}">${p.on_ ? 'Disconnect' : 'Connect'}</button></form></li>`).join('')}</ul>` : '<p class="note">No partners yet.</p>'}
+<h2>Rights claims</h2>
+${claims.length ? `<ul class="cn-c">${claims.map(c => `<li class="cn-${esc(c.state)}"><div><b>${esc((c.kind || '').replace('-', ' '))}</b> on <a href="/w/${esc(c.slug || '')}">${esc(tidy(c.title || ''))}</a> <span>from ${esc(c.partner)}${c.party ? `, for ${esc(c.party)}` : ''}${c.ends_at ? `, until ${esc(when(c.ends_at))}` : ''}</span>${c.summary ? `<p>${esc(c.summary)}</p>` : ''}<span>${c.signed ? 'Signed, and the signature checks.' : 'Not signed, or the signature could not be checked.'} ${c.kind === 'exclusive' ? 'Accepting an exclusive stops sales of the uses it covers while it runs.' : ''}</span></div>
+${c.state === 'pending' ? `<form method="post" action="/account/connections/claim/${c.id}"><button class="btn" name="act" value="accept">Accept</button><button class="link" name="act" value="decline">Decline</button></form>` : `<em>${esc(c.state)}</em>`}</li>`).join('')}</ul>` : '<p class="note">None.</p>'}
+</section>` });
+}
+// Shares and releases on one work (src/splits.js).
+function splitsPage({ w, m, splits, releases, ok }) {
+  const msg = { split: 'Saved.', release: 'Saved.', pct: 'The shares cannot come to more than all of your side.', 'release-missing': 'Say who or what the release is for.' }[ok];
+  const used = splits.reduce((a, x) => a + x.pct, 0);
+  return layout({ title: `Shares and releases · ${tidy(w.title)}`, body: `<section class="narrow cn">
+<p class="k">Shares and releases</p><h1>${esc(tidy(w.title))}</h1>
+<figure class="lc-fig"><img src="/img/${esc(w.slug)}/screen" alt=""></figure>
+${msg ? `<p class="ok">${msg}</p>` : ''}
+<h2>Who shares in it</h2>
+<p class="note">Shares come out of your side of each sale (${m.share_pct || 85}% of the price); the house&rsquo;s part is never touched. ${used ? `${used}% of your side is shared; ${100 - used}% is yours.` : 'All of your side is yours.'}</p>
+${splits.length ? `<ul class="cn-c">${splits.map(x => `<li><div><b>${esc(x.name)}</b> <span>${esc(x.role || '')} &middot; ${x.pct}% of your side${x.did ? ` &middot; ${esc(x.did)}` : ''}</span></div><form method="post"><input type="hidden" name="act" value="unsplit"><input type="hidden" name="id" value="${x.id}"><button class="link">Remove</button></form></li>`).join('')}</ul>` : ''}
+<form method="post" class="form cn-f"><input type="hidden" name="act" value="split">
+<label>Name<input name="name" required></label><label>Role<input name="role" placeholder="Second shooter, assistant, estate"></label>
+<label>Share of your side, %<input name="pct" type="number" min="1" max="100" step="0.5" required></label><label>Email, to be paid<input name="email" type="email"></label>
+<label>Their identifier (optional)<input name="did" placeholder="did:web:…"></label><button class="btn">Add a share</button></form>
+<h2>Releases</h2>
+<p class="note">A photograph with a recognisable person needs their consent before it is shown; a private property may need the owner&rsquo;s. Record each release here. Names stay with you and the house; nothing here is shown to the public.</p>
+${releases.length ? `<ul class="cn-c">${releases.map(x => `<li><div><b>${x.kind === 'property' ? 'Property' : 'Person'}: ${esc(x.subject)}</b> <span>${x.signed_on ? `signed ${esc(x.signed_on)}` : 'date not given'}${x.kept_at ? ` &middot; kept at ${esc(x.kept_at)}` : ''}</span>${x.note ? `<p>${esc(x.note)}</p>` : ''}</div><form method="post"><input type="hidden" name="act" value="unrelease"><input type="hidden" name="id" value="${x.id}"><button class="link">Remove</button></form></li>`).join('')}</ul>` : ''}
+<form method="post" class="form cn-f"><input type="hidden" name="act" value="release">
+<label>For<select name="kind"><option value="model">A person pictured</option><option value="property">A property</option></select></label>
+<label>Who or what<input name="subject" required></label><label>Signed on<input name="signed_on" type="date"></label>
+<label>Where the signed copy is kept<input name="kept_at" placeholder="A folder, a link, a drawer"></label><label>Note<input name="note"></label><button class="btn">Record the release</button></form>
+<p class="sr-also"><a href="/w/${esc(w.slug)}">Back to the photograph</a></p></section>` });
+}
+// The Studio's partners: issue a key (shown once), set where sales are told, pause.
+function partnersDesk({ rows, key = null, secret = null, newSlug = null, house, base }) {
+  return layout({ studio: true, title: 'Partners · Studio', body: `<section class="studio-wrap cn">
+<p class="k">Back office</p><h1>Partners.</h1>
+<p class="lede">Rights platforms, registries and houses that work alongside Watermark. Each gets a key; each maker decides whether that partner may see their work. The design is in docs/PARTNERS.md. The house&rsquo;s identity is <code>${esc(house)}</code> (<a href="/.well-known/did.json">did.json</a>).</p>
+${key ? `<div class="cn-key"><p><b>The key for ${esc(newSlug)}.</b> It is shown once, here, and never again. Hand it over by letter, never in a public place.</p><code>${esc(key)}</code>${secret ? `<p>The secret that signs each sale notice they receive (header <code>x-watermark-signature: sha256=…</code>):</p><code>${esc(secret)}</code>` : ''}</div>` : ''}
+${rows.length ? `<ul class="cn-c">${rows.map(p => `<li><div><b>${esc(p.name)}</b> <span>${p.active ? 'Active' : 'Paused'} &middot; ${p.makers} maker${p.makers === 1 ? '' : 's'} connected &middot; ${p.claims} claim${p.claims === 1 ? '' : 's'} &middot; ${p.sends} notice${p.sends === 1 ? '' : 's'} sent${p.did ? ` &middot; ${esc(p.did)}` : ''}</span>
+<form method="post" action="/studio/partners/${p.id}" class="cn-inline"><input type="hidden" name="act" value="webhook"><input name="webhook" value="${esc(p.webhook || '')}" placeholder="https://… where sales are told"><button class="link">Save</button></form></div>
+<form method="post" action="/studio/partners/${p.id}"><input type="hidden" name="act" value="${p.active ? 'pause' : 'resume'}"><button class="link">${p.active ? 'Pause' : 'Resume'}</button></form></li>`).join('')}</ul>` : ''}
+<h2>Add a partner</h2>
+<form method="post" class="form cn-f"><label>Name<input name="name" required></label><label>Site<input name="site" placeholder="https://"></label><label>Their identifier<input name="did" placeholder="did:web:…"></label>
+<label>Where sales are told (webhook)<input name="webhook" placeholder="https://…"></label><label>Note, shown to makers<input name="note" placeholder="What they do for a maker, in one line"></label><button class="btn">Add, and issue a key</button></form>
+<p class="note">A partner reads <code>${esc(base)}/api/partner/v1</code> with <code>Authorization: Bearer &lt;key&gt;</code>.</p></section>` });
+}
+
+module.exports = { connections, splitsPage, partnersDesk, GUIDE_SWITCH, plainRights, savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };

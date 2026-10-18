@@ -24,8 +24,9 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const L = q.licensed.get(m.id), T = q.thanks.get(m.id), R = q.royalties.get(m.id), P = q.paid.get(m.id).s;
     const share = Math.round(L.s * pct / 100);
     const G = app.locals.galleries ? { out: app.locals.galleries.cutsOut(m), in: app.locals.galleries.cutsIn(m) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
-    const earned = share + T.s + R.s - G.out.s + G.in.s;
-    return { pct, licensed: L, share, thanks: T, royalties: R, gallery: G, earned, paid: P, owed: Math.max(0, earned - P), rows: q.rows.all(m.id) };
+    const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
+    const earned = share + T.s + R.s - G.out.s + G.in.s - S.s;
+    return { pct, licensed: L, share, thanks: T, royalties: R, gallery: G, splits: S, earned, paid: P, owed: Math.max(0, earned - P), rows: q.rows.all(m.id) };
   }
   // Pay what is owed, when the maker can be paid and the house is set to pay.
   async function pay(m, { by = 'house' } = {}) {
@@ -107,6 +108,7 @@ ${notice ? `<p class="${/paid|bank/.test(ok) ? 'ok' : 'note'}">${esc(notice)}</p
 ${row('Licensed', money(st.licensed.s), `${st.licensed.n} sale${st.licensed.n === 1 ? '' : 's'}; your ${st.pct}% is ${money(st.share)}`)}
 ${row('Thank-you cards and tips', money(st.thanks.s), `${st.thanks.n}, yours whole`)}
 ${row('Royalties', money(st.royalties.s), `${st.royalties.n} resale${st.royalties.n === 1 ? '' : 's'}`)}
+${st.splits && st.splits.n ? row('To your collaborators', '&minus;' + money(st.splits.s), Object.keys(st.splits.by).map(k => `${k} ${money(st.splits.by[k])}`).join(' · ')) : ''}
 ${st.gallery && st.gallery.out.n ? row('To your gallery', '&minus;' + money(st.gallery.out.s), `${st.gallery.out.n} sale${st.gallery.out.n === 1 ? '' : 's'}, their agreed share of your side`) : ''}
 ${st.gallery && st.gallery.in.n ? row('Representation', money(st.gallery.in.s), `${st.gallery.in.n} sale${st.gallery.in.n === 1 ? '' : 's'} of your artists' work`) : ''}
 ${row('Earned, all time', money(st.earned))}

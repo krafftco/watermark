@@ -754,6 +754,58 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(end && got.size === all.length, 'the whole set, then the end: ' + got.size + ' of ' + all.length);
     assert.ok(/function screenFor/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'stroll.js'), 'utf8')), 'the stroll builds screens with its own function, never the card'); }
   console.log('ok: the stroll through a set');
+  // The bridge: the house's identity, credentials anyone can check, a partner with a key, a maker's consent,
+  // a rights claim that holds back a use, shares and releases, and notice of a sale.
+  { const B = require('../src/bridge');
+    let r = await req(port, 'GET', '/.well-known/did.json'); const did = JSON.parse(r.body.toString());
+    assert.ok(/^did:web:/.test(did.id) && did.verificationMethod[0].publicKeyMultibase.startsWith('z6Mk'), 'the house has an identity: ' + did.verificationMethod[0].publicKeyMultibase.slice(0, 6));
+    const lic = db.prepare("SELECT * FROM licenses WHERE status='active' AND price_cents > 0 ORDER BY id DESC LIMIT 1").get();
+    r = await req(port, 'GET', `/c/${lic.ref}/credential`); const vc = JSON.parse(r.body.toString());
+    assert.ok(vc.type.includes('WatermarkLicense') && vc.proof.cryptosuite === 'eddsa-jcs-2022', 'a license as a verifiable credential');
+    const vbody = JSON.stringify(vc);
+    r = await req(port, 'POST', '/api/v1/credentials/verify', { body: vbody, headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body.toString()).ok, true, 'and it checks');
+    const bad = { ...vc, credentialSubject: { ...vc.credentialSubject, number: 'WM 9999 9999 9999' } };
+    r = await req(port, 'POST', '/api/v1/credentials/verify', { body: JSON.stringify(bad), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body.toString()).ok, false, 'a changed word breaks it');
+    assert.equal(B.unb58(B.b58(Buffer.from([0, 0, 1, 2, 255]))).toString('hex'), '00000102ff', 'base58 round trip');
+    // A partner, issued by the Studio; a maker connects it.
+    r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'POST', '/studio/partners', { cookie: sck, body: { name: 'Rights House', site: 'https://rights.example', webhook: 'https://rights.example/hook' } });
+    const key = (r.body.toString().match(/wmp_[A-Za-z0-9_-]+/) || [])[0]; assert.ok(key, 'the key is shown once');
+    const auth = { authorization: 'Bearer ' + key };
+    r = await req(port, 'GET', '/api/partner/v1', { headers: auth }); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).makers.length, 0, 'no maker until one connects');
+    r = await req(port, 'GET', '/api/partner/v1', { headers: { authorization: 'Bearer wmp_wrong' } }); assert.equal(r.status, 401);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(lic.work_id), m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+    r = await req(port, 'GET', '/account?maker=' + m.handle, { cookie: sck }); const mc = [sck, ...(r.headers['set-cookie'] || []).map(c => c.split(';')[0])].join('; ');
+    const pid = db.prepare("SELECT id FROM partners WHERE slug='rights-house'").get().id;
+    r = await req(port, 'POST', `/account/connections/partner/${pid}`, { cookie: mc, body: { on: '1' } }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', '/account/connections', { cookie: mc }); assert.ok(/Rights House/.test(r.body.toString()) && /Disconnect/.test(r.body.toString()));
+    // Shares and a release on the work; the partner sees the shares.
+    r = await req(port, 'POST', `/account/works/${w.slug}/splits`, { cookie: mc, body: { act: 'split', name: 'A. Second', role: 'Second shooter', pct: '20' } }); assert.ok(/ok=split/.test(r.headers.location));
+    r = await req(port, 'POST', `/account/works/${w.slug}/splits`, { cookie: mc, body: { act: 'split', name: 'Too Much', pct: '90' } }); assert.ok(/ok=pct/.test(r.headers.location), 'never more than the whole');
+    r = await req(port, 'POST', `/account/works/${w.slug}/splits`, { cookie: mc, body: { act: 'release', kind: 'model', subject: 'The figure on the steps', signed_on: '2026-05-01' } }); assert.ok(/ok=release/.test(r.headers.location));
+    r = await req(port, 'GET', `/api/partner/v1/makers/${require('../src/views').makerSlug(m)}/works`, { headers: auth }); const cat = JSON.parse(r.body.toString());
+    const mine = cat.works.find(x => x.slug === w.slug); assert.ok(mine && mine.splits.length === 1 && mine.splits[0].pct === 20, 'the partner reads the shares');
+    assert.ok(!/The figure on the steps/.test(r.body.toString()), 'a release never leaves the house');
+    const pst = app.locals.splits.owedOut(m); assert.ok(pst.s > 0 && pst.by['A. Second'] > 0, 'the statement owes the second shooter');
+    // A signed claim from the partner: an exclusive for stories, accepted by the maker, holds that use back.
+    const kp = require('crypto').generateKeyPairSync('ed25519'); const pub = kp.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
+    const claimVC = B.prove({ '@context': ['https://www.w3.org/ns/credentials/v2'], type: ['VerifiableCredential'], issuer: 'did:web:rights.example', credentialSubject: { work: w.sha256, exclusive: 'editorial' } },
+      { vm: 'did:web:rights.example#k1', signBytes: b => require('crypto').sign(null, b, kp.privateKey) });
+    assert.ok(B.checkProof(claimVC, pub), 'a partner proof checks with its own key');
+    r = await req(port, 'POST', '/api/partner/v1/claims', { headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ verifiableCredential: claimVC, work: w.slug, kind: 'exclusive', party: 'A Magazine', uses: ['editorial'], ends: '2099-01-01' }) });
+    assert.equal(r.status, 201); const cid = JSON.parse(r.body.toString()).id;
+    assert.ok(app.locals.blockedBy(w, 'editorial') === null, 'pending holds nothing back');
+    r = await req(port, 'POST', `/account/connections/claim/${cid}`, { cookie: mc, body: { act: 'accept' } }); assert.equal(r.status, 302);
+    assert.ok(app.locals.blockedBy(w, 'editorial') && !app.locals.blockedBy(w, 'commercial'), 'an accepted exclusive holds back only its use');
+    r = await req(port, 'GET', `/api/v1/works/${w.slug}`); const ed = JSON.parse(r.body.toString()).uses.find(u => u.key === 'editorial'); assert.ok(!ed || !ed.instant, 'stories are not sold while it runs');
+    db.prepare("UPDATE claims_in SET state='declined' WHERE id=?").run(cid);
+    // Notice of a sale reaches a connected partner, signed.
+    let got = null; const realFetch = global.fetch; global.fetch = async (u, o) => { if (String(u).startsWith('https://rights.example')) { got = { u, o }; return { status: 200 }; } return realFetch(u, o); };
+    await app.locals.bridge.notice(lic.ref); global.fetch = realFetch;
+    assert.ok(got, 'a notice was sent'); assert.ok(/^sha256=[a-f0-9]{64}$/.test(got.o.headers['x-watermark-signature']), 'signed'); assert.ok(/license.granted/.test(got.o.body), 'the event'); assert.ok(!lic.licensee_email || !got.o.body.includes(lic.licensee_email), 'no email in it');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/A\. Second|The figure on the steps|Rights House/.test(r.body.toString()), 'nothing of it on the public register');
+  }
+  console.log('ok: the bridge');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');
