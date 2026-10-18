@@ -15,13 +15,18 @@ const { mountCloser } = require('../src/closer');
     { type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://www.pantheonroma.com/', title: 'Pantheon' }] },
     { type: 'text', text: 'Here it is: {"look":[{"what":"The oculus","why":"The only window. Watch where its light falls."}],"place":{"heading":"The Pantheon","story":["Built under Hadrian."]},"making":["Shot from below at noon."],"lineage":[{"name":"Giovanni Paolo Panini","why":"Painted this interior; see Interior of the Pantheon."}],"words":[{"term":"Oculus","means":"A round opening at the top of a dome."}],"questions":["Where does the light go next?"],"further":[{"title":"The Pantheon","by":"pantheonroma.com","url":"https://www.pantheonroma.com/"},{"title":"Bad","url":"javascript:alert(1)"}]}' }] };
   let studied = null;
-  const fetchImpl = async (url, o) => { const b = JSON.parse(o.body); if (/^You write the study/.test(b.system)) { studied = b; return { ok: true, json: async () => STUDY }; } sent = b; return { ok: true, json: async () => ({ model: 'claude-test', content: [{ type: 'text', text: 'An oculus open to the sky.\n\nThe light falls in a disc.' }] }) }; };
+  const RESEARCH = { model: 'claude-test', content: [{ type: 'server_tool_use', name: 'web_search' }, { type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://www.pantheonroma.com/', title: 'Pantheon' }] }, { type: 'text', text: 'Built under Hadrian (pantheonroma.com).' }] };
+  let researched = null;
+  const fetchImpl = async (url, o) => { const b = JSON.parse(o.body);
+    if (/^You are researching/.test(b.system)) { researched = b; return { ok: true, json: async () => RESEARCH }; }
+    if (/^You write the study/.test(b.system)) { studied = b; const t = STUDY.content[2].text; return { ok: true, json: async () => ({ model: 'claude-test', content: [{ type: 'tool_use', name: 'write_study', input: JSON.parse(t.slice(t.indexOf('{'))) }] }) }; } sent = b; return { ok: true, json: async () => ({ model: 'claude-test', content: [{ type: 'text', text: 'An oculus open to the sky.\n\nThe light falls in a disc.' }] }) }; };
   const app = express(); app.use(express.urlencoded({ extended: false }));
   let studio = true; const ledgerLog = [];
   mountCloser(app, { db, C: {}, studioOnly: (q, r, n) => n(), isStudio: () => studio, makerOf: () => null, imageOf: async () => Buffer.from('jpeg'),
     ledger: { append: (d, t, s) => ledgerLog.push(t) }, V, fetchImpl });
   assert.strictEqual(await app.locals.closerFill(), 2, 'one guide written, then its study');
-  assert.ok(studied.tools && studied.tools[0].name === 'web_search', 'the study is researched on the web');
+  assert.ok(researched.tools && researched.tools[0].name === 'web_search', 'the study is researched on the web');
+  assert.ok(studied.tool_choice && studied.tool_choice.name === 'write_study' && /Hadrian/.test(studied.messages[0].content[1].text), 'then written through the tool, from the notes');
   { const c0 = app.locals.closerOf(db.prepare('SELECT * FROM works').get()); const st = c0.study;
     assert.ok(st.searched && st.read.length === 1 && st.look[0].what === 'The oculus' && st.lineage.length === 1, 'the study kept');
     assert.ok(st.further.length === 2 && st.further[1].url === null, 'only real https links survive');

@@ -23,9 +23,9 @@ Write about the photograph, not about yourself or the visitor. Do not mention AI
 // (Anthropic's web search tool) so the history is checked and the sources are real; always marked as AI.
 const STUDY_SYSTEM = `You write the study that sits beneath a photograph's wall text in a museum's collection online: the entry a curious visitor opens when they want to know everything, and the one that teaches them how to think about a picture. Your reader is intelligent, curious and new to art history. Feed that curiosity; never talk down.
 
-Research first. Use web search to check the history of the place or subject, dates, architects, events and the artists you mention. Use only what you can confirm; if something is uncertain, say less. Prefer museums, universities, encyclopaedias, official sites and established publications as sources.
+You are given research notes with their sources. Use only what the notes confirm, or what you are certain of; if something is uncertain, say less. Links in "further" must come from the sources read.
 
-Then return ONLY one JSON object, no prose before or after, in this shape:
+Write it with the write_study tool. Its parts, for reference:
 {
  "look": [{"what": "a short phrase naming something in this picture", "why": "two or three sentences: what it does, and what it teaches about looking"}],
  "place": {"heading": "the place or subject, named", "story": ["paragraph", "paragraph"]},
@@ -39,6 +39,18 @@ Counts: look 3; place.story 2 to 3 paragraphs; making 1 to 2 paragraphs; lineage
 Voice: restrained, precise, warm and confident; a knowledgeable friend. Short sentences. No hype, no superlatives, no exclamation marks; never "stunning", "breathtaking", "captures", "testament", "delve".
 Never identify or guess the identity of any person in the photograph from their appearance; describe people only as figures in the scene. Named artists in "lineage" are fine: they are the history the picture belongs to.
 Do not invent facts, works, titles or URLs. If the record and the picture disagree, trust the record for names and dates. Do not mention AI or yourself.`;
+
+const RESEARCH_SYSTEM = `You are researching a photograph for its entry in a museum's online collection. Use web search to establish what is true about the place or subject pictured (what it is, who built or made it and when, what happened there, why it matters), and about two or three artists or photographers whose work is in conversation with this picture. Prefer museums, universities, encyclopaedias, official sites and established publications. Then write plain research notes: the facts you confirmed, each with the source it came from, and anything you could not confirm marked as uncertain. Never identify or guess the identity of any person in the photograph.`;
+const STR = { type: 'string' };
+const STUDY_TOOL = { name: 'write_study', description: 'Write the study for this photograph.', input_schema: { type: 'object', required: ['look', 'place', 'making', 'lineage', 'words', 'questions', 'further'], properties: {
+  look: { type: 'array', description: '3 things to look for in this picture', items: { type: 'object', required: ['what', 'why'], properties: { what: STR, why: STR } } },
+  place: { type: 'object', required: ['heading', 'story'], properties: { heading: STR, story: { type: 'array', items: STR, description: '2 to 3 paragraphs' } } },
+  making: { type: 'array', items: STR, description: '1 to 2 paragraphs' },
+  lineage: { type: 'array', description: '2 to 3 artists or photographers', items: { type: 'object', required: ['name', 'why'], properties: { name: STR, why: STR } } },
+  words: { type: 'array', description: '2 to 4 terms', items: { type: 'object', required: ['term', 'means'], properties: { term: STR, means: STR } } },
+  questions: { type: 'array', items: STR, description: '3 open questions' },
+  further: { type: 'array', description: '2 to 5 things to read, only from the research', items: { type: 'object', required: ['title'], properties: { title: STR, by: STR, url: STR } } },
+} } };
 
 function parseStudy(text) {
   const t = String(text || ''); const a = t.indexOf('{'), z = t.lastIndexOf('}'); if (a < 0 || z <= a) throw new Error('study: no json');
@@ -99,28 +111,33 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     const record = [`Title: ${w.title}`, w.place && `Place: ${w.place}`, (w.taken_at || '').slice(0, 4) && `Year: ${(w.taken_at || '').slice(0, 4)}`,
       w.camera && `Camera: ${w.camera}${w.lens ? `, ${w.lens}` : ''}`, w.caption && `The maker's caption: ${String(w.caption).slice(0, 1200)}`, w.keywords && `Keywords: ${w.keywords}`,
       `The wall text already written: ${c.text}`].filter(Boolean).join('\n');
-    const ask = async tools => {
+    const call = async body => {
       const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
         method: 'POST', signal: AbortSignal.timeout(180000),
         headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: MODEL(), max_tokens: 4000, system: STUDY_SYSTEM, ...(tools ? { tools } : {}), messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img.toString('base64') } },
-          { type: 'text', text: `The record for this photograph:\n${record}\n\nResearch it, then write its study as the JSON object.` },
-        ] }] }),
+        body: JSON.stringify({ model: MODEL(), ...body }),
       });
       if (!r.ok) { const e = new Error(`study ${r.status}: ${(await r.text()).slice(0, 200)}`); e.status = r.status; throw e; }
       return r.json();
     };
-    let j, searched = true;
-    try { j = await ask([{ type: process.env.CLOSER_SEARCH_TOOL || 'web_search_20250305', name: 'web_search', max_uses: 5 }]); }
-    catch (e) { if (e.status !== 400) throw e; searched = false; j = await ask(null); }
-    const blocks = j.content || [];
-    const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
-    const st = parseStudy(text);
-    // Sources the search actually read, kept beside what was cited.
-    const seen = [];
-    blocks.forEach(b => { if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(x => { if (x && x.url && !seen.some(y => y.url === x.url)) seen.push({ url: x.url, title: x.title || '' }); }); });
-    st.read = seen.slice(0, 12); st.searched = searched; st.model = j.model || MODEL(); st.at = new Date().toISOString();
+    const picture = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img.toString('base64') } };
+    // 1. Research: notes with sources, from the web.
+    let notes = '', searched = true; const seen = [];
+    try {
+      const j1 = await call({ max_tokens: 3000, system: RESEARCH_SYSTEM, tools: [{ type: process.env.CLOSER_SEARCH_TOOL || 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+        messages: [{ role: 'user', content: [picture, { type: 'text', text: `The record for this photograph:\n${record}\n\nResearch it and write your notes.` }] }] });
+      (j1.content || []).forEach(b => {
+        if (b.type === 'text') notes += b.text;
+        if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(x => { if (x && x.url && !seen.some(y => y.url === x.url)) seen.push({ url: x.url, title: x.title || '' }); });
+      });
+    } catch (e) { if (e.status !== 400) throw e; searched = false; }
+    // 2. The study, written through a tool whose shape is fixed, so it always arrives whole.
+    const j = await call({ max_tokens: 4000, system: STUDY_SYSTEM, tools: [STUDY_TOOL], tool_choice: { type: 'tool', name: 'write_study' },
+      messages: [{ role: 'user', content: [picture, { type: 'text', text: `The record for this photograph:\n${record}\n\n${notes ? `Research notes (with the sources found):\n${notes.slice(0, 12000)}\n\nSources read:\n${seen.map(x => `${x.title} ${x.url}`).join('\n')}\n\n` : 'No web research was available; write only what you are confident of.\n\n'}Write its study.` }] }] });
+    const use = (j.content || []).find(b => b.type === 'tool_use' && b.name === 'write_study');
+    if (!use) throw new Error('study: no tool use');
+    const st = parseStudy(JSON.stringify(use.input || {}));
+    st.read = seen.slice(0, 12); st.searched = searched && !!notes; st.model = j.model || MODEL(); st.at = new Date().toISOString();
     const fresh = read(w) || c; save(w.id, { ...fresh, study: st });
     return st;
   }
@@ -137,10 +154,10 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
       }
       // Then the studies, best work first, paced (each runs several web searches on the house's key).
       let studies = 0; const PER = Math.max(0, parseInt(process.env.STUDY_PER_RUN || '40', 10));
-      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyTried\":%' ORDER BY curated DESC, stars DESC, id").all()) {
+      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyFailed\":%' ORDER BY curated DESC, stars DESC, id").all()) {
         if (n >= limit) break;
         if (studies++ >= PER) break;
-        try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyTried: new Date().toISOString() }); }
+        try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyFailed: new Date().toISOString() }); }
         await new Promise(r => setTimeout(r, 4000));
       }
     } finally { running = false; }
@@ -178,4 +195,4 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
   return { write, study, fill, read, on };
 }
 
-module.exports = { mountCloser, SYSTEM, STUDY_SYSTEM, parseStudy };
+module.exports = { mountCloser, SYSTEM, STUDY_SYSTEM, RESEARCH_SYSTEM, STUDY_TOOL, parseStudy };
