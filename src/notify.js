@@ -99,7 +99,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     });
     if (type === 'work.bravo') later(() => {
       const w = work(subject); if (!w) return;
-      return tell({ maker_id: w.maker_id, kind: 'bravo', slug: w.slug, href: `/m/${V.makerSlug(mk(w))}/${w.slug}`, title: `Bravo! ${V.tidy(w.title)}`, body: 'Someone was moved by it. A bravo is the most a person can give a photograph here, and they have three a month.' });
+      return tell({ maker_id: w.maker_id, kind: 'bravo', slug: w.slug, href: `/m/${V.makerSlug(mk(w))}/${w.slug}`, title: `Bravo! ${V.tidy(w.title)}`, body: 'Someone was moved by it. A bravo is the most a person can give a work here, and they have three a month.' });
     });
     if (type === 'maker.paid') later(() => {
       const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(subject)); if (!m) return;
