@@ -29,6 +29,13 @@ async function send({ to, subject, text, from, html, feature, cta }) {
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
   if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); return { skipped: true }; }
+  // The test house mails only its testers, and says so in the subject.
+  if (process.env.STAGING === '1') {
+    const allow = String(process.env.MAIL_ALLOW || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
+    const ok = [].concat(to).filter(a => allow.some(x => x.startsWith('@') ? String(a).toLowerCase().endsWith(x) : String(a).toLowerCase() === x));
+    if (!ok.length) { console.log(`[mail:test-house] held back, to=${to} subject="${subject}"`); return { skipped: true }; }
+    to = ok; subject = `[Test house] ${subject}`;
+  }
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },

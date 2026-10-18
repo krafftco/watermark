@@ -47,6 +47,11 @@ function createApp(cfg = {}) {
     webhookSecret: cfg.webhookSecret !== undefined ? cfg.webhookSecret : process.env.STRIPE_WEBHOOK_SECRET,
     maker: cfg.maker || { handle: process.env.MAKER_HANDLE || 'krafft', name: process.env.MAKER_NAME || 'Will Fullerton', house: process.env.MAKER_HOUSE || 'Krafft Studios', email: process.env.MAKER_EMAIL || 'will@krafftco.com' },
   };
+  // The test house (STAGING=1): a second copy of Watermark for trying everything before it reaches the public.
+  // It never takes real money (a live Stripe key is refused), never mails anyone but the testers (MAIL_ALLOW),
+  // never asks to be indexed, and says on every page that nothing in it is real. See docs/STAGING.md.
+  C.staging = cfg.staging !== undefined ? !!cfg.staging : process.env.STAGING === '1';
+  if (C.staging && /^(sk|rk)_live_/.test(C.stripeKey || '')) { console.error('[staging] a live Stripe key was refused; use test keys in the test house'); C.stripeKey = null; C.stripePk = null; }
   const db = open(path.join(C.dataDir, 'watermark.db'));
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
@@ -308,6 +313,7 @@ function createApp(cfg = {}) {
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
   app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
   const AI_BOTS = ['GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'CCBot', 'ClaudeBot', 'anthropic-ai', 'Google-Extended', 'Applebot-Extended', 'PerplexityBot', 'Bytespider', 'Meta-ExternalAgent', 'Amazonbot', 'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot'];
+  app.get('/robots.txt', (req, res, next) => C.staging ? res.type('text').send('User-agent: *\nDisallow: /\n') : next());
   app.get('/robots.txt', (req, res) => res.type('text').send(`${AI_BOTS.map(b => `User-agent: ${b}\nDisallow: /`).join('\n\n')}\n\nUser-agent: *\nAllow: /img/*/thumb\nAllow: /img/*/screen\nDisallow: /img/\nDisallow: /d/\nDisallow: /k/\nDisallow: /studio\nDisallow: /buy/\nAllow: /\n\nSitemap: ${C.base}/sitemap.xml\n`));
   // Every public page, so search engines find the collection, each work, its life and the public rooms.
   app.get('/sitemap.xml', (req, res) => {
@@ -885,6 +891,7 @@ function createApp(cfg = {}) {
   require('./swaps').mountSwaps(app, { db, C, buyerOf, ledger, V, mail });
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
+  app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C });
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
   try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
@@ -1455,12 +1462,34 @@ function createApp(cfg = {}) {
         { ok: held > 0, name: 'Photographs public', detail: `${held}` },
         { ok: n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL") > 0, name: 'Numbered as editions', detail: `${n("SELECT COUNT(*) n FROM works WHERE status='held' AND edition_size IS NOT NULL")} of ${held}. Studio, Editions.` },
         { ok: n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''") > 0, name: 'Registered with the U.S. Copyright Office', detail: `${n("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''")} of ${held}. Studio, Copyright.` } ] },
+      (() => {
+        // The launch list (Will, 18 Oct): what the public sees first must read as finished.
+        const top = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY curated DESC, stars DESC, id DESC LIMIT 10").all();
+        const ids = top.map(w => w.id), inTop = ids.length ? `(${ids.join(',')})` : '(0)';
+        const notes = top.filter(w => w.note && String(w.note).trim().length > 20).length;
+        const caps = top.filter(w => w.caption && String(w.caption).trim().length > 40).length;
+        const lines = n(`SELECT COUNT(DISTINCT work_id) n FROM notes WHERE work_id IN ${inTop}`);
+        const small = n("SELECT COUNT(*) n FROM works WHERE status='held' AND (COALESCE(width,0) * COALESCE(height,0)) < 12000000");
+        const others = n(`SELECT COUNT(DISTINCT w.maker_id) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND m.id != ${Number(maker.id) || 0} AND COALESCE(m.kind,'maker') IN ('maker','writer')`);
+        const open = app.locals.beta ? app.locals.beta.open() : 0;
+        const list = s => top.filter(s).slice(0, 4).map(w => V.tidy(w.title)).join(', ');
+        return { group: 'Before the announcement', items: [
+          { ok: notes >= 10, name: 'The maker\'s note on the ten in front', detail: `${notes} of ${top.length}.${notes < top.length ? ' Missing: ' + list(w => !(w.note && String(w.note).trim().length > 20)) + '. On each work\'s record.' : ''}` },
+          { ok: caps >= 10, name: 'A catalogue note on the ten in front', detail: `${caps} of ${top.length} have two sentences or more.` },
+          { ok: lines >= 10, name: 'Guest-book lines from real people on the ten in front', detail: `${lines} of ${top.length} have a line. Ask friends to sign.` },
+          { ok: small === 0, name: 'Full masters for every photograph shown', detail: small ? `${small} held at under 12 megapixels. Studio, Masters.` : 'Every one at 12 megapixels or more' },
+          { ok: others >= 2, name: 'Two or three makers besides you', detail: `${others} so far. The house is a house when others hang in it. Studio, Accounts.` },
+          { ok: open === 0, name: 'Feedback answered', detail: open ? `${open} open. Studio, Feedback.` : 'Nothing open' },
+          { ok: false, manual: true, name: 'The test house', detail: 'A second Render service with test keys, for trying every flow without real money. docs/STAGING.md' },
+          { ok: false, manual: true, name: 'Uptime watched', detail: 'A monitor on /healthz that texts you when it fails (Better Stack or UptimeRobot, free).' },
+          { ok: false, manual: true, name: 'Counsel has read the agreement and the terms', detail: 'docs/CONTRACT.md lists what to ask.' } ] };
+      })(),
       { group: 'Words and terms (yours to confirm)', items: [
         { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licenses and prints are drafts' },
         { ok: false, manual: true, name: 'Shares', detail: '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
         { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
-    res.send(S.launch({ checks, live }));
+    res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, ok: req.query.ok }));
   });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
