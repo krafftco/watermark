@@ -97,7 +97,8 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
   app.get('/copyright', (req, res) => {
     const n = { registered: db.prepare("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''").get().n,
       filed: db.prepare("SELECT COUNT(*) n FROM works w JOIN copyright_groups g ON g.id=w.copyright_group WHERE g.status='filed'").get().n,
-      held: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, groups: db.prepare("SELECT COUNT(*) n FROM copyright_groups WHERE status='registered'").get().n };
+      held: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, groups: db.prepare("SELECT COUNT(*) n FROM copyright_groups WHERE status='registered'").get().n,
+      prepared: db.prepare("SELECT COUNT(*) n FROM works w JOIN copyright_groups g ON g.id=w.copyright_group WHERE g.status='prepared' AND (w.copyright_reg IS NULL OR w.copyright_reg='')").get().n };
     res.send(V.copyrightPage({ n, fee: FEE, max: MAX }));
   });
   return { proposals, groups, stateOf };

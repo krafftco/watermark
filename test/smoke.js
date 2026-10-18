@@ -41,7 +41,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   await assert.rejects(registerWork({ file: tmp2, originalName: 'y.jpg', title: 'Dupe' }), /already held/);
 
   let r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(r.body.includes('Test Dome'));
-  r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Watermark Shield') && r.body.toString().includes('Registered to'), 'the shield');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Watermark Shield') && r.body.toString().includes('Held by Watermark for'), 'the shield');
   r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200); assert.equal(r.headers['content-type'], 'image/jpeg');
   const sharp = require('sharp'); const m = await sharp(r.body).metadata(); assert.ok(Math.max(m.width, m.height) <= 1600, 'screen copy capped');
   r = await req(port, 'GET', `/img/${w.slug}/original`); assert.equal(r.status, 404, 'no original by size');
@@ -132,7 +132,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.equal(setLs.length, 2); assert.ok(setLs.every(l => l.status === 'active' && l.collector_no && l.download_token), 'each numbered, each with its file');
   assert.equal(setLs.reduce((a, l) => a + l.price_cents, 0), 800, 'the price shared out');
   r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('/g/' + code), 'shown among the collectors');
-  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/In \d+ collections?, among them/.test(r.body.toString()), 'in the collections of');
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/(In \d+ collections, among them|Collected by )/.test(r.body.toString()), 'in the collections of');
   r = await req(port, 'GET', `/collector/${code}`); assert.ok(r.body.toString().includes('data-buy') && r.body.toString().includes('/static/pay.js'), 'collect it from their wall');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection" } });
   r = await req(port, 'GET', `/collector/${code}`); assert.equal(r.status, 404, 'private again');
@@ -484,7 +484,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const f = mpart(null, 'x.wmark', wmark); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(r.body.toString().includes('Genuine.'), 'the house verifies its own archive'); }
   { const bad = Buffer.from(wmark); const i = bad.indexOf(Buffer.from('"accession"')); bad[i + 20] ^= 1; const f = mpart(null, 'x.wmark', bad); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(!r.body.toString().includes('Genuine.') && r.body.toString().includes('signature'), 'a touched manifest fails the signature'); }
   { const f = mpart(null, 'orig.jpg', fs.readFileSync(path.join(dir, 'originals', w.original_file))); r = await req(port, 'POST', '/verify', { body: f.body, headers: f.headers }); assert.ok(r.body.toString().includes('Genuine.') && r.body.toString().includes('byte for byte'), 'the original itself is known'); }
-  { const fx = await app.locals.archive.fixity(100); assert.ok(fx.ran >= 2 && fx.bad === 0, 'fixity whole'); r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('Fixity verified'), 'said on the shield'); }
+  { const fx = await app.locals.archive.fixity(100); assert.ok(fx.ran >= 2 && fx.bad === 0, 'fixity whole'); r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!/awaited|first check is due/.test(r.body.toString()), 'never "awaited" on the shield'); }
   r = await req(port, 'GET', '/studio/fixity', { cookie: ck }); assert.ok(r.body.toString().includes('Nothing failing'), 'conservation desk');
   // The Library: a volume set by the house, read for nothing, a copy taken for a price (free here), on the register.
   r = await req(port, 'POST', '/studio/library', { cookie: ck, body: { title: 'On Looking', kind: 'essay', author: 'The house', year: '2026', summary: 'How to stand in front of a photograph.', body: 'Stand still.\n\n# First\n\nLook longer than feels polite.\n\n> The eye takes a while.', price: '0', public: '1', cover: w.slug } }); assert.ok(r.headers.location.includes('/studio/library/on-looking'), 'shelved');
@@ -970,7 +970,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/artists">Artists<\/a><a href="\/collection">Collection<\/a><a href="\/collectors">Galleries<\/a><a href="\/market"[^>]*>Market<\/a><a href="\/yours"[^>]*>Yours<\/a>/.test(r.body.toString()), 'the menu, in order'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/collection">Collection<\/a><a href="\/makers">Makers<\/a><a href="\/signin"[^>]*>Sign in<\/a><\/nav>/.test(r.body.toString()), 'the menu, in order'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');
@@ -1027,7 +1027,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'abc123', s: 0 }), headers: { 'content-type': 'application/json' } }); { const sj = JSON.parse(r.body); assert.ok(sj.n === 1 && sj.first && /1st person/.test(sj.line), 'the first to stand: ' + r.body); }
   r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'abc123', s: 42 }), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body).n, 1, 'still the first');
   r = await req(port, 'POST', `/w/${w.slug}/stood`, { body: JSON.stringify({ v: 'def456', s: 0 }), headers: { 'content-type': 'application/json' } }); assert.equal(JSON.parse(r.body).n, 2, 'the second');
-  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: 'wm_v=abc123' }); assert.ok(r.body.toString().includes('You were the 1st person to stand in front of this') && r.body.toString().includes('2 people have stood'), 'told on the page');
+  r = await req(port, 'GET', `/w/${w.slug}`, { cookie: 'wm_v=abc123' }); assert.ok(r.body.toString().includes('You were the 1st person to stand in front of this') && !r.body.toString().includes('2 people have stood'), 'told on the page');
   r = await req(port, 'GET', '/yours', { cookie: 'wm_v=abc123; ' + bck }); assert.ok(r.body.toString().includes('Your looking, this month'), 'looking shown privately on Yours');
   // Wallets: a piece is sent to another wallet by address; the register signs every entry with the house key.
   { const hb = db.prepare("INSERT INTO buyers (customer, email, name, code) VALUES ('', 'hal@frick.org', 'Hal', 'halwallet')").run().lastInsertRowid;

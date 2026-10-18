@@ -104,7 +104,20 @@ function mountRegister(app, { db, V, ledger }) {
     res.send(V.registerPage({ told, check: req.query.check === 'full' ? ledger.verifyAll(db) : ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
   });
   // The last few moments in the house, for the front door.
-  app.locals.lately = (n = 6) => db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 60').all().map(e => ({ e, line: tell(e) })).filter(x => x.line).slice(0, n);
+  // Launch fix 2.1: the same thing happening to the same photograph in a row is one line with a count.
+  const GROUPED = { 'file.delivered': (n, w) => `${n} copies of ${T(w)} went out under its license.`, 'work.applauded': (n, w) => `${n} people tipped their hats to ${T(w)}.`,
+    'license.granted': (n, w) => `${T(w)}${by(w)} was collected ${n} times.`, 'work.voice': (n, w) => `${n} people spoke about ${T(w)}.` };
+  app.locals.lately = (n = 6) => {
+    const out = [];
+    for (const e of db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT 200').all()) {
+      const line = tell(e); if (!line) continue;
+      const key = e.type + '|' + (line.work ? line.work.slug : line.text), last = out[out.length - 1];
+      if (last && last.key === key) { last.n++; continue; }
+      if (out.length >= n) break;
+      out.push({ e, line, key, n: 1 });
+    }
+    return out.map(x => x.n > 1 ? { e: x.e, line: { ...x.line, text: GROUPED[x.e.type] && x.line.work ? GROUPED[x.e.type](x.n, x.line.work) : `${x.line.text.replace(/\.$/, '')} (${x.n} times).` } } : { e: x.e, line: x.line });
+  };
   return { tell };
 }
 

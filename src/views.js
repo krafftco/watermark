@@ -21,16 +21,17 @@ function shieldBlock(sh, { open = false, slug = '' } = {}) {
   const c = sh.cred && !sh.cred.none ? sh.cred : null;
   const capture = c ? (c.captured ? `Signed in camera at the moment it was made${c.issuer ? `, by ${esc(c.issuer)}` : ''}.` : `Arrived carrying Content Credentials${c.app ? ` from ${esc(c.app)}` : ''}${c.issuer ? `, signed by ${esc(c.issuer)}` : ''}.`) : '';
   const rows = [
-    ['Registered to', `${esc(sh.maker)}${sh.house ? `, ${esc(sh.house)}` : ''}, ${date(sh.registered)}${sh.accession ? ` &middot; ${esc(sh.accession)}` : ''}`],
-    ['Authorship', `${esc(sh.maker)} attested at registration to having made this photograph and holding its copyright.`],
+    ['Held for', `${esc(sh.maker)}${sh.house ? `, ${esc(sh.house)}` : ''}, ${date(sh.registered)}${sh.accession ? ` &middot; ${esc(sh.accession)}` : ''}`],
+    ['Authorship', `${esc(sh.maker)} attested on arrival to having made this photograph and holding its copyright.`],
     sh.copyright ? ['U.S. copyright', `Registered, ${esc(sh.copyright)}. Search it at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.`] : sh.office ? ['U.S. copyright', `${esc(sh.office.line)} <a href="/copyright">How registration works here</a>.`] : null,
     capture ? ['At capture', capture] : null,
-    ['Archival master', `${sh.mp ? `Held at ${esc(String(sh.mp))} megapixels${sh.mp < 12 ? ' (a web copy; the master is awaited)' : ''}. ` : ''}${sh.fixity ? (sh.fixity.ok ? `Fixity verified ${date(sh.fixity.checked_at)}: the original re-hashed against its fingerprint and found whole.` : 'Under conservation review.') : 'Fixity is checked on a schedule; the first check is due.'}${sh.archive ? ` <a href="/w/${esc(sh.archive)}/archive.wmark">Take the archive (.wmark)</a>.` : ''}`],
+    // Launch fix 1.1: the master row shows only when a full master is held (12 MP and up), never 'awaited' or 'due'.
+    sh.mp && sh.mp >= 12 ? ['Archival master', `Held at ${esc(String(sh.mp))} megapixels.${sh.fixity && sh.fixity.ok ? ` Fixity last verified ${date(sh.fixity.checked_at)}: the original re-hashed against its fingerprint and found whole.` : sh.fixity ? ' Under conservation review.' : ''}${sh.archive ? ` <a href="/w/${esc(sh.archive)}/archive.wmark">Take the archive (.wmark)</a>.` : ''}`] : null,
     ['Fingerprint', `<code>sha256:${esc(String(sh.fingerprint || '').slice(0, 16))}&hellip;</code> The original, sealed in the vault. <a href="/verify">Verify a file</a>.`],
     sh.seq ? ['Ledger', `Entry ${sh.seq} in the <a href="/ledger">register</a>, chained to every entry before it.`] : null,
     sh.signs ? ['Content Credentials', `Every file that leaves Watermark carries them: the maker, the copyright holder, the license${sh.noAI ? ', and that it is not for AI training' : ''}. Inspect any copy at <a href="https://contentcredentials.org/verify" rel="noopener">contentcredentials.org/verify</a>.`] : null,
   ].filter(Boolean);
-  return `<details class="wshield"${open ? ' open' : ''}><summary><span class="sh-m">${SHIELD}</span><span class="sh-t"><b>Watermark Shield</b><small>Registered to ${esc(sh.maker)} &middot; ${date(sh.registered)}</small></span><span class="sh-x" aria-hidden="true"></span></summary>
+  return `<details class="wshield"${open ? ' open' : ''}><summary><span class="sh-m">${SHIELD}</span><span class="sh-t"><b>Watermark Shield</b><small>Held by Watermark for ${esc(sh.maker)} &middot; ${date(sh.registered)}</small></span><span class="sh-x" aria-hidden="true"></span></summary>
 <dl class="sh-dl">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${slug ? `<p class="sh-more"><a href="/w/${esc(slug)}/life">The life of this photograph &rarr;</a></p>` : ''}</details>`;
 }
 // Reference: a photograph held at reference quality, the full original straight from the camera file,
@@ -114,9 +115,9 @@ function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio
 <link rel="stylesheet" href="/static/style.css?v=${VER}"><script>(function(){var m=document.cookie.match(/(?:^|; )wm_hi=([^;]*)/);if(!m)return;document.cookie='wm_hi=; Max-Age=0; path=/';var n=decodeURIComponent(m[1]);addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.className='wm-hi';d.textContent=n&&n!=='·'?'Welcome back, '+n+'.':'You are signed in.';document.body.appendChild(d);requestAnimationFrame(function(){d.classList.add('on')});setTimeout(function(){d.classList.remove('on');setTimeout(function(){d.remove()},600)},3200)})})()</script><link rel="icon" href="/static/wave.svg">${bare || studio ? '' : '<meta name="kh" content="page"><meta name="kh-dot" content="off"><script src="/house.js"></script>'}</head>
 <body class="${bare ? 'bare' : ''}${studio ? ' studio' : ''}">
 ${bare ? '' : studio ? deskHeader(path) : `${HOUSE}<header class="top"><button type="button" class="nv-back" data-nv-back hidden aria-label="Back">${I.back}<span>Back</span></button><a class="brand" href="/"><img src="/static/watermark-logo.svg" alt="Watermark" width="120" height="32"></a>
-<nav><a href="/artists">Artists</a><a href="/collection">Collection</a><a href="/collectors">Galleries</a><a href="/market" class="nv-m">Market</a><a href="/yours" class="nv-y">Yours</a>${studio ? '<a href="/studio">Studio</a><a href="/studio/logout">Sign out</a>' : ''}</nav><a href="/notices" class="nv-bell" data-nv-bell hidden aria-label="Notifications">${I.bell}<i data-nv-n></i></a><a href="/wander/room" class="nv-w" title="The viewing room: wander through the collection" data-nv-wander>${WAVE_MARK}<span>Wander</span></a></header><script>(function(){if(matchMedia('(max-width:760px) and (pointer:coarse)').matches){document.querySelectorAll('[data-nv-wander],a[href="/wander/room"],a[href="/wander"]').forEach(function(a){a.href='/stroll';a.title='The stroll: the finest photographs, one at a time';});}})();</script>`}
+<nav><a href="/collection">Collection</a><a href="/makers">Makers</a><a href="/signin" class="nv-y" data-nv-me>Sign in</a></nav><script>fetch('/api/me',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(!j||!j.in)return;var a=document.querySelector('[data-nv-me]');if(a){a.textContent='Yours';a.href='/yours'}}).catch(function(){})</script><a href="/notices" class="nv-bell" data-nv-bell hidden aria-label="Notifications">${I.bell}<i data-nv-n></i></a><a href="/wander/room" class="nv-w" title="The viewing room: wander through the collection" data-nv-wander>${WAVE_MARK}<span>Wander</span></a></header><script>(function(){if(matchMedia('(max-width:760px) and (pointer:coarse)').matches){document.querySelectorAll('[data-nv-wander],a[href="/wander/room"],a[href="/wander"]').forEach(function(a){a.href='/stroll';a.title='The stroll: the finest photographs, one at a time';});}})();</script>`}
 <main>${body}</main><script>window.__WM_MARK=${JSON.stringify(mark || WAVE_MARK)};window.__WM_WAVE=${JSON.stringify(WAVE_MARK)};</script><script src="/static/seal.js?v=${VER}" defer></script>
-${bare ? '' : `<footer class="foot"><p class="foot-h">Watermark &middot; <a href="https://krafftco.com">a Krafft company</a><span> &middot; Leave your mark.</span></p><nav class="foot-l" aria-label="The house"><a href="/journal">Journal</a><a href="/library">The Library</a><a href="/guestbook">Guest book</a><a href="/friends">Friends of the house</a><a href="/makers">For makers</a><a href="/trade">For the trade</a><a href="/verify">Verify a license</a><a href="/ledger">The register</a><a href="/copyright">Copyright Office</a><a href="/about">About</a><a href="/terms">Terms</a><a href="/signin">Sign in</a><a href="/app">The app</a><a href="/frame">The frame</a><a href="/stroll">The stroll</a></nav></footer>`}${bare || studio ? '' : APP}
+${bare ? '' : `<footer class="foot"><p class="foot-h">Watermark &middot; <a href="https://krafftco.com">a Krafft company</a><span> &middot; Leave your mark.</span></p><nav class="foot-l" aria-label="The house"><a href="/artists">Artists</a><a href="/collectors">Galleries</a><a href="/market">Market</a><a href="/yours">Yours</a><a href="/journal">Journal</a><a href="/library">The Library</a><a href="/guestbook">Guest book</a><a href="/friends">Friends of the house</a><a href="/makers">For makers</a><a href="/trade">For the trade</a><a href="/verify">Verify a license</a><a href="/ledger">The register</a><a href="/copyright">Copyright Office</a><a href="/about">About</a><a href="/terms">Terms</a><a href="/signin">Sign in</a><a href="/app">The app</a><a href="/frame">The frame</a><a href="/stroll">The stroll</a></nav></footer>`}${bare || studio ? '' : APP}
 <script src="/static/foryou.js?v=${VER}" defer></script>${studio ? '' : `<script src="/static/basket.js?v=${VER}" defer></script><script src="/static/eye.js?v=${VER}" defer></script><script src="/static/tostroll.js?v=${VER}" defer></script>`}<script src="/static/notify.js?v=${VER}" defer></script><script src="/static/save.js?v=${VER}" defer></script><script src="/static/trade.js?v=${VER}" defer></script><script>(function(){var sa=matchMedia('(display-mode:standalone)').matches||navigator.standalone;if(!sa)return;var b=document.querySelector('[data-nv-back]');if(!b)return;var came=document.referrer&&new URL(document.referrer,location.href).origin===location.origin;if(history.length>1&&came&&location.pathname!=='/'){b.hidden=false;b.onclick=function(){history.back();};}})();</script></body></html>`;
 }
 
@@ -159,7 +160,7 @@ ${lately.length ? `<section class="lt"><div class="lt-in"><p class="k">Lately, i
 <div class="cx-rooms" id="cxRooms"><button type="button" data-r="" aria-pressed="true">All</button>${shown.map(r => `<button type="button" data-r="${esc(r.slug)}">${esc(r.title.replace(/^Journey Out (East|West):?\s*/, ''))}</button>`).join('')}</div>
 ${makerList.length > 1 ? `<div class="cx-makers" id="cxMakers"><button type="button" data-mk="" aria-pressed="true">All makers</button>${makerList.map(m => `<button type="button" data-mk="${esc(makerSlug(m))}">${esc(m.name)}</button>`).join('')}</div>` : ''}
 <div class="cx-view"><a class="cx-lib" href="/stroll" title="One photograph at a time, edge to edge; swipe for the next">Stroll</a><a class="cx-lib" href="/series/the-great-rooms" title="Photographs gathered in series">Series</a><a class="cx-lib" href="/journal" title="The notebook">Journal</a><a class="cx-lib" href="/frame" title="Photographs on your television">The frame</a><a class="cx-lib" href="/library" title="Books, journals, essays, papers">Library</a><a class="cx-lib" href="/open" title="Public domain and Creative Commons">Free and clear</a><button type="button" data-wander title="A photograph at random, then another">Wander</button><button type="button" data-v="plates" aria-pressed="true" title="Plates">Plates</button><button type="button" data-v="index" title="Index">Index</button></div><span class="cx-n" id="cxN" hidden></span></div>
-<div class="cx" id="cx">${galleries}${restByMaker.map(([m, ws]) => `<section class="gal" data-room="" data-maker="${esc(makerSlug(m))}"><header class="gh"><h2>${m.id === maker.id ? (shown.length ? 'Also held' : 'Every photograph') : `<a href="/m/${esc(makerSlug(m))}">${esc(m.name)}</a>`}</h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>`).join('')}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
+<div class="cx" id="cx">${galleries}${restByMaker.filter(([m, ws]) => !(m.id === maker.id && shown.length && ws.length < 8)).map(([m, ws]) => `<section class="gal" data-room="" data-maker="${esc(makerSlug(m))}"><header class="gh"><h2>${m.id === maker.id ? (shown.length ? 'Also held' : 'Every photograph') : `<a href="/m/${esc(makerSlug(m))}">${esc(m.name)}</a>`}</h2><span>${ws.length}</span></header><div class="plates">${ws.map(plate).join('')}</div></section>`).join('')}${total ? '' : '<p class="empty">Nothing is held here yet.</p>'}</div>
 <div class="cx-flat" id="cxFlat" hidden></div>
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photograph"><div class="lb-stage" id="lbStage"><img id="lbLo" alt="" draggable="false"><img id="lbImg" alt="" draggable="false"></div>
 <div class="lb-top"><span id="lbPos"></span><span class="lb-act"><button type="button" id="lbFs">Full screen</button><button type="button" id="lbX" aria-label="Close">Close</button></span></div>
@@ -198,7 +199,7 @@ ${sec('further', 'Read further', read.length ? `<ul class="sd-f">${read.map(x =>
 const closerBlock = (c, w, edit) => {
   if (!c) return edit ? `<p class="lc-edit"><a href="/closer/${esc(w.slug)}">Look closer: write a guide for this photograph</a></p>` : '';
   const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
-  return `<section class="lc" id="closer"><button type="button" class="lc-min" data-lc-open aria-label="Open the guide"><span class="lc-min-k">Look closer</span><span class="lc-min-t">${esc(String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 140))}</span><i aria-hidden="true">Open</i></button><div class="lc-h"><p class="k">Look closer</p>${GUIDE_SWITCH}<button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
+  return `<section class="lc" id="closer"><button type="button" class="lc-min" data-lc-open aria-label="Open the guide"><span class="lc-min-k">Look closer &middot; read with AI</span><span class="lc-min-t">${esc(String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 140))}</span><i aria-hidden="true">Open</i></button><div class="lc-h"><p class="k">Look closer <span class="lc-ai">Read with AI</span></p>${GUIDE_SWITCH}<button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
 <div class="lc-t" data-say-text>${paras}</div><button type="button" class="lc-more" data-lc-more>Read on</button>
 ${c.sources && c.sources.length ? `<p class="lc-src"><b>Sources</b> ${c.sources.map(x => /^https?:\/\//.test(x) ? `<a href="${esc(x)}" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(x)).join(' &middot; ')}</p>` : ''}
 ${studyBlock(c, w)}
@@ -240,12 +241,14 @@ function work({ walk = null, hang = '', open = null, thanks = null, stood = null
   const ratio = w.width && w.height ? `${w.width} / ${w.height}` : '3 / 2';
   const title = tidy(w.title);
   const year = w.taken_at ? String(w.taken_at).slice(0, 4) : '';
-  const cap = w.caption && tidy(w.caption) !== title ? w.caption : '';
+  // A catalogue note that only repeats the title ('The staircase.') is not shown.
+  const bare = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const cap = w.caption && bare(w.caption) !== bare(title) && bare(w.caption).length > 12 ? w.caption : '';
   const medium = ['Digital photograph', w.camera ? `made with a ${w.camera}${w.lens && !/Q\d/.test(w.camera) ? ', ' + w.lens : ''}` : ''].filter(Boolean).join(', ');
   const dims = w.width && w.height ? `${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels` : '';
   const facts = [
     ['Accession', w.accession], ['Maker', maker.name], ['House', maker.house], ['Place', w.place], ['Taken', date(w.taken_at)],
-    ['Camera', w.camera], ['Lens', w.lens], ['Registered', date(w.created_at)],
+    ['Camera', w.camera], ['Lens', w.lens], ['Entered', date(w.created_at)],
   ].filter(f => f[1]).map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
   const embed = `&lt;script src="${esc(base)}/embed.js" defer&gt;&lt;/script&gt;\n&lt;watermark-image work="${esc(w.slug)}"&gt;&lt;/watermark-image&gt;`;
   const share = uses.find(u => u.key === 'social' && u.price_cents != null);
@@ -258,9 +261,12 @@ function work({ walk = null, hang = '', open = null, thanks = null, stood = null
     return `<li role="none"><button type="button" role="menuitem" data-k="${esc(u.k)}"><b>${esc(u.k === 'social' ? u.b : u.l)}</b>${u.k !== 'social' && pu && pu.price_cents != null ? `<em>${money(pu.price_cents)}</em>` : ''}<i>&rsaquo;</i></button></li>`; }).join('')}</ul>` : '';
   const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null || u.needsMaster ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   const trade = ed && held.n && !mine.some(m => m.collector_no) ? ` <a class="lot-trade" href="/swap/new?work=${esc(w.slug)}">Offer a trade for one.</a>` : '';
-  const keepers = held.n
-    ? `In ${held.n} collection${held.n === 1 ? '' : 's'}${held.shown.length ? ', among them ' + held.shown.map(c => `<a href="/g/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No.&nbsp;${c.no}</small>`).join(', ') : ''}.${trade}`
-    : 'Not yet in any collection. The first collector will be No.&nbsp;1.';
+  // Launch fix 1.4: no small numbers on the wall. Counts show from five; below that, names or a quiet line.
+  const named = held.shown.map(c => `<a href="/g/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No.&nbsp;${c.no}</small>`).join(', ');
+  const keepers = held.n >= 5
+    ? `In ${held.n} collections${held.shown.length ? ', among them ' + named : ''}.${trade}`
+    : held.n ? `${held.shown.length ? `Collected by ${named}.` : 'In private collections.'}${trade}`
+    : 'The first collector will be No.&nbsp;1.';
   return layout({
     title: `${title} · ${maker.name} · Watermark`,
     desc: `${title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; collect it at the source.`,
@@ -282,10 +288,10 @@ ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
-${ap ? `<div class="ap" id="applause"><form method="post" action="/w/${esc(w.slug)}/applaud" data-ap><button type="button" class="ap-b${ap.mine ? ' on' : ''}" aria-pressed="${ap.mine ? 'true' : 'false'}" aria-label="${ap.mine ? 'Applauded' : 'Applaud'}">${HAT}<span class="ap-r"></span></button></form><span class="ap-t" data-ap-t><b data-ap-n>${ap.n}</b> ${ap.n === 1 ? 'tip of the hat' : 'tips of the hat'}</span></div>` : ''}
+${ap ? `<div class="ap" id="applause"><form method="post" action="/w/${esc(w.slug)}/applaud" data-ap><button type="button" class="ap-b${ap.mine ? ' on' : ''}" aria-pressed="${ap.mine ? 'true' : 'false'}" aria-label="${ap.mine ? 'Applauded' : 'Applaud'}">${HAT}<span class="ap-r"></span></button></form><span class="ap-t" data-ap-t${ap.n < 5 ? ' hidden' : ''}><b data-ap-n>${ap.n}</b> ${ap.n === 1 ? 'tip of the hat' : 'tips of the hat'}</span></div>` : ''}
 ${isRegistered(w) ? `<div class="lot-mst">${regTag(w, 'crt-lg')}<p>Registered with the U.S. Copyright Office. Search the public record at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.</p></div>` : office ? `<p class="lot-office">${esc(office.line)} <a href="/copyright">How it works</a>.</p>` : ''}
 ${isReference(w) ? `<div class="lot-mst">${refTag(w, 'mst-lg')}<p>A reference image: the full original, ${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')} pixels${w.camera ? `, from a ${esc(w.camera)}` : ''}, straight from the camera file. It is what collectors and licensees receive, sealed and signed, and large enough to print on a wall.</p></div>` : ''}
-${closerBlock(closer, w, edit)}${wander ? `<a class="wd-on" href="/wander?from=${esc(w.slug)}">${WAVE_MARK}<span>Wander on</span></a>` : ''}
+${w.note ? `<section class="mn" id="note"><p class="k">The maker&rsquo;s note</p>${String(w.note).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('')}<p class="mn-by">${esc(maker.name)}</p></section>` : ''}${closerBlock(closer, w, edit)}${wander ? `<a class="wd-on" href="/wander?from=${esc(w.slug)}">${WAVE_MARK}<span>Wander on</span></a>` : ''}
 ${voices.length ? `<div class="vo-list">${voices.map(voice).join('')}</div>` : ''}
 ${w.disputed ? `<p class="wk-claim">Under review: a claim about this photograph is with the house. It is shown, and nothing is sold, until the house decides.</p>` : ''}
 ${shieldBlock(shield, { slug: w.slug })}
@@ -321,7 +327,7 @@ ${share && !open ? `<details class="more-uses"><summary>Other uses <span>In a st
 </div></article>
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
-${ap ? `${stood ? `<p class="lot-stood"><span data-stood ${stood.mine && stood.mine <= stood.first ? '' : 'hidden'}>${stood.mine && stood.mine <= stood.first ? `You were the ${stood.ord(stood.mine)} person to stand in front of this.` : ''}</span><small>${stood.n ? `${stood.n} ${stood.n === 1 ? 'person has' : 'people have'} stood in front of this photograph.` : 'Be the first to stand in front of this photograph.'}</small></p>` : ''}
+${ap ? `${stood ? `<p class="lot-stood"><span data-stood ${stood.mine && stood.mine <= stood.first ? '' : 'hidden'}>${stood.mine && stood.mine <= stood.first ? `You were the ${stood.ord(stood.mine)} person to stand in front of this.` : ''}</span><small>${stood.n >= 5 ? `${stood.n} people have stood in front of this photograph.` : 'Be among the first to stand in front of this photograph.'}</small></p>` : ''}
 <div class="lot-sec nt" id="notes"><h2>Guest book</h2><p class="nt-h">You are a guest in ${esc(maker.name)}&rsquo;s studio. Sign as you would in someone&rsquo;s home: your name, and what you would say to them standing in front of the picture. ${esc(maker.name.split(' ')[0])} reads every line, and marks the ones that saw something.</p>
 <p class="nt-ep">It is easy to be clever about a picture and hard to be useful to the person who made it. A line here costs nothing to write and is kept for good, under your name. Write the one you would want to find beneath your own work.</p>
 ${note === '1' ? '<p class="ok">Signed.</p>' : note === 'check' ? '<p class="err">A sentence and your name, please, without links.</p>' : note === 'kind' ? '<p class="err">Not in this house. Say it as you would to their face.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}
@@ -367,7 +373,9 @@ function home({ maker, works, uses, sent }) {
   // Lead with a large landscape frame from a place, never a small web copy.
   const big = works.filter(w => (w.width || 0) >= 1800 && w.width > w.height * 1.3);
   const hero = big.find(w => /florence|lake como|zurich|paris/i.test(w.place || '')) || big[0] || works[0];
-  const demo = works.find(w => w !== hero && (w.width || 0) >= 1200) || works[1] || works[0];
+  // Launch fix 3.3: the demo is a flagship plate with a full record (a place, a size), never an orphan.
+  const full = w => w !== hero && w.place && (w.width || 0) >= 1200;
+  const demo = works.find(w => w.slug === 'the-staircase') || works.find(w => full(w) && (w.curated || w.stars >= 4)) || works.find(full) || works[1] || works[0];
   const strip = works.slice(0, 8).map(w => `<a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title)}" loading="lazy" draggable="false"></a>`).join('');
   const price = k => { const u = uses.find(x => x.key === k); return u ? money(u.price_cents) : ''; };
   return layout({
@@ -424,17 +432,18 @@ ${demo ? `<p><a class="h-btn h-btn-d" href="/license/${esc(demo.slug)}">See it f
 <section class="h-sec h-num"><p class="h-big">85%</p><div><h2 class="h2">Of every license goes to the maker.</h2><p>Watermark&rsquo;s share covers payment, delivery, the record and the protection. You own your work, your buyers and your record of sales.</p></div></section>
 
 <section class="h-sec h-by"><p class="k">By image makers</p><h2 class="h2">Built by a photographer, for photographers.</h2>
-<p class="h-p">Watermark began seven years ago with a simple frustration: the photographs travelled and the photographer didn&rsquo;t. It is built by Krafft, a creative company, and its first collection is our own. We built it the way we wanted to be treated: credited, asked, and paid.</p>
+<p class="h-p">The idea for Watermark began seven years ago with a simple frustration: the photographs travelled and the photographer didn&rsquo;t. It is built by Krafft, a creative company, and its first collection is our own. We built it the way we wanted to be treated: credited, asked, and paid.</p>
 ${strip ? `<div class="h-strip">${strip}</div><p><a class="h-ln h-ln-d" href="/collection">See the collection</a></p>` : ''}</section>
 
 <section class="h-sec h-apply" id="apply"><p class="k">Hold your work here</p><h2 class="h2">We are opening Watermark to a small group of makers first.</h2>
-<p class="h-in-already">Already a Watermark maker? <a href="/account">Sign in to your room</a>.</p>
+<p class="h-in-already">Already a Watermark maker? <a href="/signin">Sign in to your room</a>.</p>
 ${sent ? '<p class="h-sent">Thank you. We read every application and will write to you personally.</p>' : `<form method="post" action="/apply" class="h-form">
 <label>Name<input name="name" required autocomplete="name"></label>
 <label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Where we can see your work<input name="portfolio" type="url" placeholder="https://"></label>
 <label>What you make<select name="practice"><option>Photography</option><option>Illustration</option><option>Fine art</option><option>Film and stills</option><option>Something else</option></select></label>
 <label class="h-wide">Anything we should know<textarea name="note" rows="3"></textarea></label>
+<p class="h-wide h-note">Watermark holds photographs, illustration, fine art and film stills, made by you and yours to license. It does not hold stock, work made by AI, or work you do not own.</p>
 <button class="h-btn h-btn-d h-wide" type="submit">Apply</button></form>`}</section>`
   });
 }
@@ -449,7 +458,7 @@ function life({ w, maker, lic, reg, rules, ed = null, prints = [], moves = [], s
 ${shieldBlock(shield, { open: true })}
 ${trades.length ? `<section class="life-tr"><h2>Traded between collectors</h2>${chart || ''}<ul>${trades.map(t => `<li><span>${date(t.at)}</span><b>No. ${t.collector_no}${ed ? ' of ' + ed.size : ''}</b><em>${money(t.price_cents)}</em></li>`).join('')}</ul></section>` : ''}
 <div class="stats">${ed ? `<div><b>${ed.sold} of ${ed.size}</b><span>collected</span></div>` : ''}<div><b>${lic.length}</b><span>times licensed</span></div>${prints.length ? `<div><b>${prints.length}</b><span>prints made</span></div>` : ''}${rules.showEarned ? `<div><b>${money(earned)}</b><span>earned for its maker</span></div>` : ''}<div><b>${date(w.created_at)}</b><span>registered</span></div></div>
-<ol class="life-l"><li><span>${date(w.created_at)}</span><b>Registered on Watermark</b><em>Fingerprint ${esc(w.sha256.slice(0, 16))}&hellip;</em>${reg ? `<a href="/ledger">Ledger ${reg.seq}</a>` : ''}</li>${rows}${prints.map(p => `<li><span>${date(p.created_at)}</span><b>Printed by collector No. ${p.collector_no}</b><em>${esc([p.size, p.paper, p.made].filter(Boolean).join(', '))}</em></li>`).join('')}${moves.map(m => `<li><span>${date(m.claimed_at)}</span><b>No. ${m.collector_no} passed to a new collector</b><em>Same number, new hands</em></li>`).join('')}</ol>
+<ol class="life-l"><li><span>${date(w.created_at)}</span><b>Entered into Watermark</b><em>Fingerprint ${esc(w.sha256.slice(0, 16))}&hellip;</em>${reg ? `<a href="/ledger">Ledger ${reg.seq}</a>` : ''}</li>${rows}${prints.map(p => `<li><span>${date(p.created_at)}</span><b>Printed by collector No. ${p.collector_no}</b><em>${esc([p.size, p.paper, p.made].filter(Boolean).join(', '))}</em></li>`).join('')}${moves.map(m => `<li><span>${date(m.claimed_at)}</span><b>No. ${m.collector_no} passed to a new collector</b><em>Same number, new hands</em></li>`).join('')}</ol>
 <p class="note">Collectors are not named. Each reference can be checked by anyone at <a href="/verify">/verify</a>.</p>
 <p><a class="btn" href="/license/${esc(w.slug)}">License this photograph</a></p></section>` });
 }
@@ -774,9 +783,16 @@ ${!done && role === 'from' ? `<form method="post" action="/swap/${s.id}/withdraw
 // Watermark and the U.S. Copyright Office: the public account of the bridge.
 function copyrightPage({ n, fee, max }) {
   return layout({ title: 'The U.S. Copyright Office · Watermark', desc: 'How Watermark prepares, files and records U.S. copyright registration for every photograph it holds.', path: '/copyright', body: `<section class="cx-intro cr-pg"><p class="k">Watermark and the U.S. Copyright Office</p>
-<h1>Registered, at the source.</h1>
+<h1>Copyright, on the public record.</h1>
 <p class="lede">Copyright belongs to the photographer from the moment the picture is made. Registration with the United States Copyright Office is the public record of it, and what a court asks for. Watermark prepares that record for every photograph it holds, files it the Office&rsquo;s way, and writes the registration number back onto the work, its certificate and its Shield.</p>
-<p class="cr-n"><span><b>${n.held}</b> photographs held</span><span><b>${n.registered}</b> registered</span><span><b>${n.filed}</b> filed, pending</span><span><b>${n.groups}</b> group registration${n.groups === 1 ? '' : 's'}</span></p></section>
+<p class="cr-n"><span><b>${n.held}</b> photographs held</span><span><b>${n.registered}</b> registered</span><span><b>${n.filed}</b> filed, pending</span><span><b>${n.prepared || 0}</b> prepared, not yet filed</span><span><b>${n.groups}</b> group registration${n.groups === 1 ? '' : 's'}</span></p></section>
+<section class="narrow cr-body cr-words">
+<h2>What the words mean here</h2>
+<p><b>Registered</b> means the U.S. Copyright Office has issued a registration number (VA&hellip;) for the photograph. Only then does Watermark use the word, and the number is shown on the work.</p>
+<p><b>Filed, pending</b> means the application, the fee and the deposit have gone to the Office and a service request number has been issued. The Office takes months to decide.</p>
+<p><b>Prepared</b> means Watermark has grouped the photograph the Office&rsquo;s way and made the title list and deposit, ready to file. Nothing has been sent yet.</p>
+<p><b>Held by Watermark</b> is the house&rsquo;s own record: the photograph entered, fingerprinted and kept in the register. It is not a copyright registration.</p>
+</section>
 <section class="narrow cr-body">
 <h2>What the Office receives</h2>
 <p>The Office registers photographs in groups: up to ${max} by one author, published in one calendar year (GRPPH), or unpublished (GRUPH), for a fee of ${money(fee)} a group. Watermark sorts every held photograph into those groups automatically, keeps the title list in the Office&rsquo;s form (title, file name, date), and assembles the deposit: one file for each photograph, named as it is in the list, at the size the Office accepts. The maker&rsquo;s attestation of authorship, taken on arrival, stands behind every title.</p>

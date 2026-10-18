@@ -52,6 +52,8 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='bytes'").get()) db.exec('ALTER TABLE works ADD COLUMN bytes INTEGER');
+  // Launch fix 3.2: the maker's own note, in the maker's voice, shown above the guide written with AI.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='note'").get()) db.exec('ALTER TABLE works ADD COLUMN note TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='rights'").get()) db.exec('ALTER TABLE licenses ADD COLUMN rights TEXT'); // the contract's terms, as paid for
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='set_ref'").get()) db.exec('ALTER TABLE licenses ADD COLUMN set_ref TEXT'); // bought together as a set
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='rules'").get()) db.exec('ALTER TABLE works ADD COLUMN rules TEXT');
@@ -456,7 +458,10 @@ function createApp(cfg = {}) {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
-    rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); });
+    // Launch fix 2.3: rooms read as places. A series name before a colon ('Journey Out West: The Nixon Library') is
+    // the series, not the room; the place after it names the room. The record's own title is unchanged.
+    const ROOM_AS = { 'on film': 'Out West, on film' };
+    rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); const m = String(r.title || '').match(/^[^:]{3,40}:\s*(.+)$/); if (m) r.title = ROOM_AS[m[1].toLowerCase()] || m[1].replace(/^The /, ''); });
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
     const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all())
@@ -1517,6 +1522,7 @@ function createApp(cfg = {}) {
     // Share it price for this photograph alone: whole dollars, $3 at least; empty = the maker's standard price.
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
+    if ('note' in b) db.prepare('UPDATE works SET note=? WHERE id=?').run(t(b.note, 2000), w.id);
     db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
     // Edition size: blank for an open edition. It can never be set below what has already been collected.
     const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });

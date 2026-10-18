@@ -9,7 +9,7 @@
     if (!was) { b.classList.remove('tip'); void b.offsetWidth; b.classList.add('tip'); }
     fetch(f.getAttribute('action'), { method: 'POST', headers: { Accept: 'application/json' }, credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (!j || !j.ok) throw 0; n.textContent = j.n; t.lastChild.textContent = ' ' + (j.n === 1 ? 'tip of the hat' : 'tips of the hat'); b.classList.toggle('on', j.on); b.setAttribute('aria-label', j.on ? 'Applauded' : 'Applaud'); })
+      .then(function (j) { if (!j || !j.ok) throw 0; n.textContent = j.n; t.lastChild.textContent = ' tips of the hat'; t.hidden = j.n < 5; b.classList.toggle('on', j.on); b.setAttribute('aria-label', j.on ? 'Applauded' : 'Applaud'); })
       .catch(function () { b.classList.toggle('on', was); })
       .then(function () { busy = false; });
   });

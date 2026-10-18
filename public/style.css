@@ -2707,3 +2707,11 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .ntp-devs{max-width:1080px;margin:0 auto 60px;padding:0 clamp(20px,5vw,56px)}
 .ntp-devs ul{list-style:none;margin:0;padding:0}.ntp-devs li{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--ln)}.ntp-devs small{color:var(--mu);margin-right:auto}
 .ntp-prefs legend{letter-spacing:0!important;text-transform:none!important;font-family:var(--disp)!important;font-size:24px!important}
+/* Launch fixes: the maker's note above the guide; the AI label; the application's note. */
+.mn{max-width:680px;margin:28px auto 8px;padding:0 20px}
+.mn .k{margin-bottom:10px}
+.mn p:not(.k):not(.mn-by){font-family:"Newsreader",Georgia,serif;font-size:clamp(19px,1.6vw,22px);line-height:1.5;margin:0 0 .7em}
+.mn .mn-by{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin-top:6px}
+.mn .mn-by::before{content:"\2014\00a0"}
+.lc-ai{display:inline-block;margin-left:8px;padding:1px 7px;border:1px solid currentColor;border-radius:99px;font-size:10px;letter-spacing:.12em;opacity:.6;vertical-align:1px}
+.h-note{font-size:13px;line-height:1.5;opacity:.7;margin:2px 0 4px}

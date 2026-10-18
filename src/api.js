@@ -24,7 +24,7 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
       content_credentials: sh.cred && !sh.cred.none ? { present: true, issuer: sh.cred.issuer || null, captured: !!sh.cred.captured } : { present: false },
       rules: { never: rules.never || [], ai_training: !(rules.never || []).includes('ai') ? 'not permitted without a license' : 'never', transfer: !!rules.transfer },
       open: open ? { licence: open.key, name: open.name, url: open.url, take: `${base}/open/${w.slug}/take` } : null,
-      uses: open ? [] : q.uses.all(m.id).filter(u => listed(rules, u.key, w)).map(u => { const p = priced(u, w); const now = offered(rules, u.key, w) && p.price_cents != null; return { key: u.key, name: u.key === 'social' ? 'Collect' : u.name, price_cents: now ? p.price_cents : null, currency: 'usd', instant: now, ask: !now, url: `${base}/license/${w.slug}?use=${u.key}` }; }),
+      uses: open ? [] : q.uses.all(m.id).filter(u => listed(rules, u.key, w)).map(u => { const p = priced(u, w); const now = offered(rules, u.key, w) && p.price_cents != null; return { key: u.key, name: u.key === 'social' ? 'Collect' : u.name, price_cents: p.price_cents != null && !(rules && rules.approve) ? p.price_cents : null, currency: 'usd', instant: now, ask: !now, url: `${base}/license/${w.slug}?use=${u.key}` }; }),
       images: img(w), pages: pages(w, m), embed: { oembed: `${base}/oembed?url=${encodeURIComponent(`${base}/w/${w.slug}`)}`, html: `<script src="${base}/embed.js" defer></script><watermark-image work="${w.slug}"></watermark-image>` } };
   }
   const held = slug => { const w = q.work.get(String(slug)); return w && w.status === 'held' ? w : null; };
