@@ -2938,3 +2938,12 @@ html.dk,html.dk body{background:#0b0a09;min-height:100%;overscroll-behavior:none
 @media (max-width:760px){.yc-print{grid-template-columns:64px 1fr}.yc-print img{width:64px;height:48px}.yc-pgo{grid-column:1/-1}}
 .kp-two>*,.kp-file>*,.kp-f>*{min-width:0}.kp-f select,.kp-f input:not([type=checkbox]){width:100%;min-width:0}
 .kp-guide h2{text-transform:none;letter-spacing:0;color:var(--ink)}.pr-room{margin:18px 0 0;font:400 19px/1.3 var(--disp)}.pr-room a{text-decoration:none;border-bottom:1px solid currentColor}
+/* We recommend you wander (Will, 18 Oct: get people into the stroll fast): a button in the hero and the line below it. */
+.gh-go{display:flex;flex-direction:column;align-items:center;gap:6px}
+.gh-wander{display:inline-flex;align-items:center;gap:10px;margin-top:22px;padding:13px 26px 13px 20px;border-radius:999px;background:#f6f1e7;color:#0b0a09;text-decoration:none;font:500 13px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);animation:gh-rise 1.1s .4s cubic-bezier(.16,1,.3,1) both;transition:transform .3s var(--e),background .3s}
+.gh-wander:hover{transform:translateY(-2px);background:#fff}.gh-wander svg{width:26px;height:26px}
+.cx-wander{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;font-style:normal;padding-top:34px;padding-bottom:6px}
+.cx-wander p{margin:0;font:400 clamp(26px,3vw,38px)/1.1 var(--disp);color:var(--ink)}
+.cx-wgo{display:inline-flex;align-items:center;gap:10px;padding:12px 24px 12px 18px;border-radius:999px;background:var(--ink);color:#fff;text-decoration:none;font:500 12.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;transition:transform .3s var(--e)}
+.cx-wgo:hover{transform:translateY(-2px)}.cx-wgo svg{width:24px;height:24px}
+.cx-wander small{flex-basis:100%;font:italic 15px/1.4 var(--read);color:var(--mu)}
