@@ -8,12 +8,13 @@
 (function () {
   if (window.__krafftHouse) return; window.__krafftHouse = 1;
   var P = [
-    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com' },
-    { id: 'studios', name: 'Krafft Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com' },
-    { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com' },
+    // Two front doors (Will, 18 Oct: Studios is the magazine, Watermark is the thing; the rest is tucked behind the K).
+    { id: 'studios', name: 'Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com', front: 1 },
+    { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com', front: 1 },
+    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com', line: 'The company: advisory, ventures' },
     // A venture that lives as a page on krafftco.com: matched by path, always opens at its page.
-    { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club' },
-    { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1 }
+    { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club', line: 'A Krafft venture' },
+    { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1, line: 'The photographer\u2019s own site' }
   ];
   // The far right of the bar is the visitor's own door: their studio and collection when they are known
   // to the house, the way in when they are not. Will's page is the example of what everyone's can be.
@@ -40,7 +41,12 @@
   // One calm strip: every house by name, your own door at the right. Nothing moves, nothing snaps.
   var css = '.kh{position:relative;z-index:1000;display:flex;align-items:center;gap:clamp(18px,2.6vw,36px);height:30px;padding:0 clamp(16px,4vw,56px);background:#111;color:rgba(246,245,242,.56);font:400 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;-webkit-font-smoothing:antialiased;overflow-x:auto;scrollbar-width:none;box-sizing:border-box;width:100%}'
     + '.kh::-webkit-scrollbar{display:none}'
-    + '.kh .kh-k{display:none}'
+    + '.kh .kh-k{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;padding:0;border:0;background:none;color:inherit;cursor:pointer;opacity:.85}.kh .kh-k svg{width:11px;height:11px}.kh .kh-k:hover,.kh.open .kh-k{opacity:1;color:#f6f5f2}'
+    + '.kh-menu{position:absolute;top:100%;left:clamp(8px,3vw,48px);z-index:1001;min-width:260px;padding:10px 0;background:#111;border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 40px rgba(0,0,0,.35);text-transform:none;letter-spacing:0;white-space:normal}.kh-menu[hidden]{display:none}'
+    + '.kh-mh{margin:4px 18px 8px;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(246,245,242,.45)}'
+    + '.kh .kh-mi{display:flex;flex-direction:column;gap:3px;padding:9px 18px;color:#f6f5f2}.kh .kh-mi b{font-weight:500;font-size:13px;letter-spacing:.02em}.kh .kh-mi span{font-size:12px;color:rgba(246,245,242,.5)}.kh .kh-mi:hover{background:rgba(255,255,255,.05)}.kh .kh-mg{border-top:1px solid rgba(255,255,255,.08);margin-top:6px}'
+    + '.kh{overflow:visible}'
+    + '.kh.kh-embed{position:static;height:auto;padding:0;background:none;color:rgba(17,17,17,.5);gap:18px;margin-right:auto;width:auto}.kh.kh-embed .kh-h a[aria-current]{color:#111}.kh.kh-embed a:hover{color:#111}.kh.kh-embed .kh-you{color:#111}.kh.kh-embed .kh-r{margin-left:18px}.kh.kh-embed .kh-k:hover,.kh.kh-embed.open .kh-k{color:#111}.kh.kh-embed .kh-menu{left:0}'
     + '.kh .kh-h{display:flex;align-items:center;gap:clamp(18px,2.6vw,36px)}'
     + '.kh a{position:relative;display:inline-block;color:inherit;text-decoration:none;padding:6px 0;transition:color .4s ease}'
     + '.kh a:hover,.kh a:focus-visible{color:#f6f5f2;outline:none}'
@@ -52,7 +58,7 @@
     + '.kh .kh-me{display:none}'
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
-    + '@media (max-width:600px){.kh{gap:12px;letter-spacing:.1em;padding:0 14px;font-size:9.5px;overflow-x:auto;scrollbar-width:none;max-width:100vw;box-sizing:border-box}.kh .kh-h{gap:12px;white-space:nowrap}.kh .kh-gb{display:none}.kh .kh-h a:not([aria-current]):nth-child(n+4){display:none}.kh .kh-r{gap:12px;flex:none}}'
+    + '@media (max-width:600px){.kh{gap:12px;letter-spacing:.1em;padding:0 14px;font-size:9.5px;overflow:visible;max-width:100vw;box-sizing:border-box}.kh .kh-h{gap:12px;white-space:nowrap}.kh .kh-gb{display:none}.kh .kh-h a:not([aria-current]):nth-child(n+4){display:none}.kh .kh-r{gap:12px;flex:none}}'
     + '@media print{.kh{display:none}}'
     // On a phone the bar stays out of the way (Will, 17 Oct: you need to see the images): it hides as you scroll; a
     // small K at the top left comes and goes like Instagram's, and a tap on it brings the bar in.
@@ -83,24 +89,40 @@
       if (bar.querySelector('.kh-r')) return;
       var as = bar.querySelectorAll('a[data-p]'); houses = bar.querySelector('.kh-h') || document.createElement('span'); houses.className = 'kh-h';
       for (var j = 0; j < as.length; j++) for (var k = 0; k < P.length; k++) if (as[j].getAttribute('data-p') === P[k].id) { var nl = link(P[k]); if (as[j].parentNode === houses) as[j].replaceWith(nl); else { houses.appendChild(nl); as[j].remove(); } }
-    } else { bar = document.createElement('nav'); bar.className = 'kh'; bar.setAttribute('aria-label', 'Krafft'); houses = document.createElement('span'); houses.className = 'kh-h'; for (var n = 0; n < P.length; n++) houses.appendChild(link(P[n])); }
+    } else { bar = document.createElement('nav'); bar.className = 'kh'; bar.setAttribute('aria-label', 'Krafft'); houses = document.createElement('span'); houses.className = 'kh-h'; for (var n = 0; n < P.length; n++) if (P[n].front) houses.appendChild(link(P[n])); }
+    [].forEach.call(houses.querySelectorAll('a[data-p]'), function (a) { var p = P.filter(function (x) { return x.id === a.getAttribute('data-p'); })[0]; if (p && !p.front) a.remove(); });
     var kb = bar.querySelector('.kh-k');
     if (!kb) { kb = document.createElement('button'); kb.className = 'kh-k'; kb.type = 'button'; kb.setAttribute('aria-label', 'The houses of Krafft'); kb.innerHTML = KM; bar.appendChild(kb); }
-    kb.addEventListener('click', function () { bar.classList.toggle('open'); });
+    if (kb.parentNode !== bar || bar.firstChild !== kb) bar.insertBefore(kb, bar.firstChild);
+    // Behind the K: the company and everything else, each with one line, and the guest book.
+    var menu = document.createElement('div'); menu.className = 'kh-menu'; menu.hidden = true;
+    var mh = '<p class="kh-mh">The house of Krafft</p>';
+    P.forEach(function (p) { if (p.front) return; var a = link(p); mh += '<a class="kh-mi" href="' + a.href + '"><b>' + p.name + '</b>' + (p.line ? '<span>' + p.line + '</span>' : '') + '</a>'; });
+    var chm = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : 'krafft';
+    mh += '<a class="kh-mi kh-mg" href="https://watermark.krafftco.com/guestbook?chapter=' + chm + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign"><b>Guest book</b><span>Sign it from any door</span></a>';
+    menu.innerHTML = mh; bar.appendChild(menu);
+    kb.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden = !menu.hidden; bar.classList.toggle('open', !menu.hidden); });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== kb) { menu.hidden = true; bar.classList.remove('open'); } });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { menu.hidden = true; bar.classList.remove('open'); } });
     if (houses.parentNode !== bar) bar.appendChild(houses);
     var right = document.createElement('span'); right.className = 'kh-r';
     // The house guest book, from every door: a quiet line at the end of the bar.
     var gb = document.createElement('a'); gb.className = 'kh-gb'; gb.textContent = 'Guest book';
     var ch = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : here === 'will' ? 'krafft' : 'krafft';
     gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
-    right.appendChild(gb);
     var you = document.createElement('a'); you.className = 'kh-you'; you.innerHTML = '<span class="kh-nm">Sign in</span>'; you.href = WM + '/signin'; right.appendChild(you);
     bar.appendChild(right);
-    if (!pre) document.body.insertBefore(bar, document.body.firstChild);
+    // On Studios the magazine keeps one top row (Will, 18 Oct: drop the subheader, make it the magazine): the
+    // switch lives inside the theme's own header, beside its menu, instead of a strip above it.
+    var nav = here === 'studios' ? document.querySelector('.k-nav__inner') : null;
+    if (nav) { bar.classList.add('kh-embed'); nav.insertBefore(bar, nav.firstChild); }
+    else if (!pre) document.body.insertBefore(bar, document.body.firstChild);
     // The phone: the bar out of the way, the K when you need it.
     // Watermark (Will, 18 Oct): no K by the wordmark; the house bar stays out of the way and the footer leads to Krafft.
     var quiet = !!document.querySelector('meta[name="kh-dot"][content="off"]');
-    if (quiet && window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches) bar.classList.add('kh-m');
+    if (nav) quiet = false;
+    if (nav) { /* embedded: always in its row, nothing to hide */ }
+    else if (quiet && window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches) bar.classList.add('kh-m');
     else if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
       bar.classList.add('kh-m');
       var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM;

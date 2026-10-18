@@ -81,7 +81,7 @@ ${standalone ? '' : `<p class="ap-act"><button class="buy-btn" data-install hidd
 }
 // The house bar (Krafft · Krafft Studios · Watermark), rendered here so it never flashes in;
 // public/house.js then points each link back to the page last open on that property.
-const HOUSE = `<nav class="kh" aria-label="Krafft"><button class="kh-k" type="button" aria-label="The houses of Krafft">${K_MARK}</button><span class="kh-h"><a data-p="krafft" href="https://www.krafftco.com/">Krafft</a><a data-p="studios" href="https://studios.krafftco.com/">Krafft Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a><a data-p="dgc" href="https://www.krafftco.com/dallas-golf-club">Dallas Golf Club</a><a data-p="will" href="https://www.wrkfullerton.com/">Will Fullerton</a></span></nav>`;
+const HOUSE = `<nav class="kh" aria-label="Krafft"><button class="kh-k" type="button" aria-label="The houses of Krafft">${K_MARK}</button><span class="kh-h"><a data-p="studios" href="https://studios.krafftco.com/">Studios</a><a data-p="watermark" href="/" aria-current="site">Watermark</a></span></nav>`;
 // The desk: the Studio's own shell. No public nav, no house bar; a wordmark, the rooms, the back office,
 // a status line, and the way out. Dense and quiet, the way a bank's application is.
 let deskStatus = () => '', deskPath = '';
