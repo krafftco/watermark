@@ -65,7 +65,7 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
 <div class="st-plate"><a class="st-by" href="/stroll?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/stroll?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
 <button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
 <nav class="st-rail" aria-label="Acts">
-<button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}">${I.hat}<span data-st-hat-n>Hat</span></button>
+<button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}"><i class="st-bv-w">Bravo!</i><span>Bravo</span></button>
 <button type="button" class="st-b" data-st-hang>${I.hang}<span>Hang</span></button>
 ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}">${I.collect}<span>${esc(w.collect.price)}</span></button>` : ''}
 ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Guide</span></button>` : ''}

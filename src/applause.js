@@ -85,10 +85,29 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
     res.redirect(`/collector/${g.code}#book`);
   });
   app.locals.capturesOf = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM captures GROUP BY work_id').all().map(r => [r.work_id, r.n]));
-  app.locals.applauseOf = (w, req) => ({ n: count(w.id), mine: mine(w.id, buyerOf(req)), notes: notesOf(w.id) });
+  app.locals.applauseOf = (w, req) => ({ n: count(w.id), mine: mine(w.id, buyerOf(req)), notes: notesOf(w.id), bravo: app.locals.bravoOf ? app.locals.bravoOf(w, req) : null });
   // Standing: the share of people who saw a work and applauded it, for the Studio's sort and the duds.
   app.locals.standing = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM applause GROUP BY work_id').all().map(r => [r.work_id, r.n]));
 
+  // Bravo (Will, 18 Oct: the hat is a nod; bravo is jubilation, "this work just blew my socks off"). The biggest
+  // thing a person can give a photograph, so it is scarce: BRAVOS_A_MONTH each (a draft), given and taken back
+  // freely within the month. The maker is told at once; the register says it aloud; regard weighs it as five hats.
+  db.exec(`CREATE TABLE IF NOT EXISTS bravos (work_id INTEGER NOT NULL, buyer_id INTEGER NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (work_id, buyer_id))`);
+  const BRAVOS_A_MONTH = 3;
+  const bravoN = id => db.prepare('SELECT COUNT(*) n FROM bravos WHERE work_id=?').get(id).n;
+  const bravoMine = (id, b) => !!(b && db.prepare('SELECT 1 FROM bravos WHERE work_id=? AND buyer_id=?').get(id, b.id));
+  const bravoLeft = b => (b ? Math.max(0, BRAVOS_A_MONTH - db.prepare("SELECT COUNT(*) n FROM bravos WHERE buyer_id=? AND at >= datetime('now','start of month')").get(b.id).n) : BRAVOS_A_MONTH);
+  app.locals.bravoOf = (w, req) => { const b = buyerOf(req); return { n: bravoN(w.id), mine: bravoMine(w.id, b), left: bravoLeft(b), of: BRAVOS_A_MONTH }; };
+  app.post('/w/:slug/bravo', (req, res) => {
+    const w = work(req.params.slug); if (!w) return res.status(404).json({ ok: false });
+    const b = person(req, res), had = bravoMine(w.id, b);
+    const done = j => res.format({ json: () => res.json(j), html: () => res.redirect(`/w/${w.slug}#applause`) });
+    if (had) { db.prepare('DELETE FROM bravos WHERE work_id=? AND buyer_id=?').run(w.id, b.id); return done({ ok: true, on: false, n: bravoN(w.id), left: bravoLeft(b) }); }
+    if (!bravoLeft(b)) return done({ ok: false, spent: true, n: bravoN(w.id), left: 0, of: BRAVOS_A_MONTH });
+    db.prepare('INSERT OR IGNORE INTO bravos (work_id, buyer_id) VALUES (?,?)').run(w.id, b.id);
+    ledger.append(db, 'work.bravo', w.slug, {});
+    done({ ok: true, on: true, n: bravoN(w.id), left: bravoLeft(b) });
+  });
   app.post('/w/:slug/applaud', (req, res) => {
     const w = work(req.params.slug); if (!w) return res.status(404).json({ ok: false });
     const b = person(req, res);

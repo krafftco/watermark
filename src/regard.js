@@ -12,6 +12,7 @@ function compute(db) {
   for (const w of db.prepare('SELECT id, stars, curated FROM works').all()) add(w.id, (w.stars || 0) * 3 + (w.curated ? 4 : 0));
   const safe = (sql, f) => { try { for (const r of db.prepare(sql).all()) f(r); } catch (e) { /* table not yet */ } };
   safe('SELECT work_id id, COUNT(*) n FROM applause GROUP BY work_id', r => add(r.id, Math.min(20, r.n)));
+  safe('SELECT work_id id, COUNT(*) n FROM bravos GROUP BY work_id', r => add(r.id, Math.min(40, r.n * 5))); // a bravo is five hats
   safe('SELECT work_id id, COUNT(*) n, SUM(CASE WHEN seen_at IS NOT NULL THEN 1 ELSE 0 END) s FROM notes WHERE removed_at IS NULL AND work_id>0 GROUP BY work_id', r => add(r.id, Math.min(15, r.n * 1.5) + r.s * 2));
   safe("SELECT work_id id, COUNT(*) n FROM licenses WHERE status IN ('active','expired') GROUP BY work_id", r => add(r.id, Math.min(30, r.n * 2)));
   safe('SELECT work_id id, COUNT(*) n FROM stood GROUP BY work_id', r => add(r.id, Math.log2(r.n + 1)));

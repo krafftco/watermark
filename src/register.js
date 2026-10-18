@@ -31,6 +31,7 @@ function mountRegister(app, { db, V, ledger }) {
     switch (t) {
       case 'work.registered': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} entered the archive${d.accession ? `, ${esc(d.accession)}` : ''}.` };
       case 'work.published': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} was shown for the first time.` };
+      case 'work.bravo': return { ...k, kind: 'applause', work: w, text: `Someone called Bravo! for ${T(w)}.` };
       case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };
       case 'work.guide': return { ...k, work: w, text: `${T(w)} received its wall text.` };
       case 'work.master': return { ...k, work: w, text: `${T(w)} received its master.` };
@@ -85,7 +86,7 @@ function mountRegister(app, { db, V, ledger }) {
   // Chapters of the register, so the stream can be read in scope and scale.
   const CHAPTERS = {
     arrivals: { name: 'Arrivals', types: ['work.registered', 'work.published', 'maker.joined', 'work.master', 'work.guide'] },
-    applause: { name: 'Applause', types: ['work.applauded', 'gallery.signed', 'house.signed', 'tip.given', 'work.voice'] },
+    applause: { name: 'Applause', types: ['work.bravo', 'work.applauded', 'gallery.signed', 'house.signed', 'tip.given', 'work.voice'] },
     collected: { name: 'Collected & licensed', types: ['license.granted', 'license.checkout', 'license.requested', 'license.quoted', 'license.declined', 'file.delivered', 'print.recorded', 'seal.created'] },
     trades: { name: 'Trades', types: ['license.transferred', 'market.offered', 'market.withdrawn', 'market.bid', 'market.offer', 'market.accepted', 'market.traded', 'swap.offered', 'swap.declined', 'swap.traded', 'payout.sent'] },
     patrons: { name: 'Patrons', types: ['friend.joined', 'friend.gave', 'keeping.begun', 'keeping.moved'] },
@@ -105,7 +106,7 @@ function mountRegister(app, { db, V, ledger }) {
   });
   // The last few moments in the house, for the front door.
   // Launch fix 2.1: the same thing happening to the same photograph in a row is one line with a count.
-  const GROUPED = { 'file.delivered': (n, w) => `${n} copies of ${T(w)} went out under its license.`, 'work.applauded': (n, w) => `${n} people tipped their hats to ${T(w)}.`,
+  const GROUPED = { 'work.bravo': (n, w) => `${n} people called Bravo! for ${T(w)}.`, 'file.delivered': (n, w) => `${n} copies of ${T(w)} went out under its license.`, 'work.applauded': (n, w) => `${n} people tipped their hats to ${T(w)}.`,
     'license.granted': (n, w) => `${T(w)}${by(w)} was collected ${n} times.`, 'work.voice': (n, w) => `${n} people spoke about ${T(w)}.` };
   app.locals.lately = (n = 6) => {
     const out = [];

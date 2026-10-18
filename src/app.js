@@ -425,7 +425,7 @@ function createApp(cfg = {}) {
     return { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
       img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : null, study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : null, approved: !!(c && c.state === 'approved'), held,
       collect: can && !held ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: pocket >= pr.price_cents, edition: (() => { const e = edition(w); return e ? { size: e.size, sold: e.sold } : null; })() } : null,
-      hat: ap ? { n: ap.n, mine: !!ap.mine } : null };
+      hat: ap ? { n: ap.n, mine: !!ap.mine } : null, bravo: ap && ap.bravo ? { mine: !!ap.bravo.mine } : null };
   }
   app.locals.wanderJSON = wanderJSON;
   require('./eye').mountEye(app, { db, V });

@@ -282,6 +282,22 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const exact = await app.locals.mark.trace(r.body); assert.equal(exact.how, 'bytes');
     r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it');
     r = await req(port, 'POST', '/yours/add', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, cookie: bck } }); assert.ok(r.body.toString().includes('Held by someone else'), 'a working license held by a company cannot be brought home by a stranger'); }
+  { // Bravo: the biggest thing a person can give, three a month; the maker is told; the register says it.
+    const ws = db.prepare("SELECT slug FROM works WHERE status='held' ORDER BY id LIMIT 4").all().map(x => x.slug);
+    let bk = ''; const bv = async sl => { const x = await req(port, 'POST', `/w/${sl}/bravo`, { headers: { accept: 'application/json' }, cookie: bk }); const c = (x.headers['set-cookie'] || []).find(c => c.startsWith('wm_b=')); if (c) bk = c.split(';')[0]; return JSON.parse(x.body); };
+    let j = await bv(ws[0]); assert.ok(j.ok && j.on && j.n === 1 && j.left === 2, 'a bravo given');
+    await bv(ws[1]); j = await bv(ws[2]); assert.equal(j.left, 0);
+    db.prepare("DELETE FROM bravos WHERE work_id=(SELECT id FROM works WHERE slug=?)").run(ws[0]); db.prepare("INSERT INTO bravos (work_id, buyer_id) SELECT w.id, b.buyer_id FROM works w, (SELECT buyer_id FROM bravos LIMIT 1) b WHERE w.slug=?").run(ws[0]);
+    j = await bv(ws[2]); assert.ok(j.ok && !j.on && j.left === 1, 'taken back');
+    j = await bv(ws[2]); assert.ok(j.ok && j.on && j.left === 0, 'given again');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.bravo'").get(), 'on the register');
+    db.prepare("DELETE FROM bravos WHERE buyer_id=(SELECT buyer_id FROM bravos LIMIT 1) AND work_id=(SELECT id FROM works WHERE slug=?)").run(ws[1]);
+    db.prepare("INSERT INTO bravos (work_id, buyer_id) SELECT w.id, 99999 FROM works w WHERE w.slug=?").run(ws[1]);
+    db.prepare("UPDATE bravos SET at=datetime('now') WHERE buyer_id=99999").run();
+    j = await bv(ws[1]); assert.ok(j.ok && j.on && j.left === 0 && j.n === 2, 'a second hand');
+    r = await req(port, 'GET', `/w/${ws[1]}`, { cookie: bk }); assert.ok(r.body.toString().includes('class="bv-b on"') && r.body.toString().includes('2 bravos'), 'the work page shows it');
+    console.log('ok: bravo');
+  }
   { // companies: license photographs to a company; its site serves them under license, counted by page, credited
     r = await req(port, 'POST', '/studio/clients', { cookie: ck, body: { name: 'Natora', hosts: 'natora.com' } }); assert.equal(r.status, 302);
     r = await req(port, 'POST', '/studio/clients/natora/license', { cookie: ck, body: { works: `${w.slug} /about\nnot-a-work`, use: 'commercial', fee: '' } });

@@ -23,6 +23,7 @@
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
+      + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '"><i class="st-bv-w">Bravo!</i><span>Bravo</span></button>'
       + '<button type="button" class="st-b" data-st-hang>' + ic.hang + '<span>Hang</span></button>'
       + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '">' + ic.collect + '<span>' + esc(w.collect.price) + '</span></button>' : '')
       + (w.guide ? '<button type="button" class="st-b" data-st-guide>' + ic.guide + '<span>Guide</span></button>' : '')
@@ -68,6 +69,26 @@
     fetch('/w/' + w.slug + '/applaud', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) return; w.hat = { n: j.n, mine: !!j.mine }; b.setAttribute('aria-pressed', j.mine ? 'true' : 'false'); // no numbers on the wall
     }).catch(function () {});
+  }
+  // Bravo: the standing ovation, a few a month. Gold flecks from the button, the phone answers, the maker is told.
+  function bravo(w, b) {
+    var was = b.getAttribute('aria-pressed') === 'true';
+    if (!was) {
+      try { navigator.vibrate && navigator.vibrate([14, 50, 14, 50, 40]); } catch (x) {}
+      if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        var r = b.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, fx = document.createElement('div'); fx.className = 'bv-fx'; document.body.appendChild(fx);
+        for (var i = 0; i < 30; i++) { var p = document.createElement('i'), a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 140; p.style.left = cx + 'px'; p.style.top = cy + 'px'; p.style.background = ['#c9a45c', '#e8d29a', '#b38a3e', '#f4ead0', '#fff'][i % 5]; p.style.setProperty('--x', Math.cos(a) * d + 'px'); p.style.setProperty('--y', (Math.sin(a) * d - 60) + 'px'); p.style.setProperty('--r', (Math.random() * 720 - 360) + 'deg'); fx.appendChild(p); }
+        var wd = document.createElement('b'); wd.textContent = 'Bravo!'; wd.style.left = (innerWidth / 2) + 'px'; wd.style.top = (innerHeight / 2) + 'px'; fx.appendChild(wd);
+        setTimeout(function () { fx.remove(); }, 1700);
+      }
+    }
+    b.setAttribute('aria-pressed', was ? 'false' : 'true');
+    fetch('/w/' + w.slug + '/bravo', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.spent) { b.setAttribute('aria-pressed', 'false'); say('Your ' + (j.of || 3) + ' bravos this month are given.'); return; }
+      if (!j || !j.ok) { b.setAttribute('aria-pressed', was ? 'true' : 'false'); return; }
+      w.bravo = { mine: !!j.on }; b.setAttribute('aria-pressed', j.on ? 'true' : 'false');
+      if (j.on) say(j.left ? 'Bravo. The maker is told. ' + j.left + ' left this month.' : 'Bravo. The maker is told. Your last this month.');
+    }).catch(function () { b.setAttribute('aria-pressed', was ? 'true' : 'false'); });
   }
   function hang(w) {
     fetch('/hang/add', { method: 'post', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'work=' + encodeURIComponent(w.slug) + '&hang=wander&title=From+my+wandering&json=1' })
@@ -115,6 +136,7 @@
     if (!b) { if (e.target.closest('.st-plate')) return; return; }
     e.preventDefault();
     if (b.hasAttribute('data-st-hat')) hat(w, false);
+    else if (b.hasAttribute('data-st-bravo')) bravo(w, b);
     else if (b.hasAttribute('data-st-hang')) hang(w);
     else if (b.hasAttribute('data-st-buy')) buy(w, b);
     else if (b.hasAttribute('data-st-guide')) guide(w);

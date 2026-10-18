@@ -2748,3 +2748,13 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .op{max-width:620px;margin:48px auto;padding:32px 0;border-top:1px solid var(--line,rgba(0,0,0,.12));border-bottom:1px solid var(--line,rgba(0,0,0,.12))}.op h2{font-family:var(--serif,Georgia,serif);font-weight:400}
 .op-f{display:grid;gap:12px;margin-top:16px}.op-f label{display:grid;gap:4px;font-size:13px}.op-f .op-c{display:flex;gap:8px;align-items:center}.op-f button{justify-self:start}
 .hpot{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0}
+/* Bravo (applause.js, bravo.js): the standing ovation beside the nod. */
+.bv-b{flex:none;height:44px;padding:0 18px;border:1px solid var(--ln);border-radius:22px!important;background:none;box-shadow:none;color:var(--ink);font:italic 400 18px/1 var(--serif,Georgia,serif);letter-spacing:.01em;cursor:pointer;transition:background .3s,color .3s,border-color .3s,transform .5s var(--e,ease)}
+.bv-b:hover{border-color:#b39a68;color:#8a6d33}.bv-b.on{background:#b39a68;border-color:#b39a68;color:#fff}
+.bv-b.cheer{animation:bv-swell .7s cubic-bezier(.34,1.56,.64,1)}@keyframes bv-swell{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-3deg)}100%{transform:scale(1)}}
+.bv-t{font-size:13px;color:var(--muted,#7d766b)}.bv-say{margin:2px 0 0;font-size:13px;color:var(--muted,#7d766b)}
+.bv-fx{position:fixed;inset:0;pointer-events:none;z-index:9999}.bv-fx i{position:absolute;width:7px;height:7px;margin:-3px;border-radius:1px;animation:bv-fly 1.25s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes bv-fly{0%{transform:translate(0,0) rotate(0);opacity:1}70%{opacity:1}100%{transform:translate(var(--x),calc(var(--y) + 120px)) rotate(var(--r));opacity:0}}
+.bv-fx b{position:absolute;transform:translate(-50%,-50%);font:italic 400 44px/1 var(--serif,Georgia,serif);color:#b39a68;text-shadow:0 2px 18px rgba(0,0,0,.25);animation:bv-word 1.4s cubic-bezier(.16,1,.3,1) forwards;white-space:nowrap}
+@keyframes bv-word{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}25%{opacity:1;transform:translate(-50%,-120%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-200%) scale(1)}}
+.st-bv .st-bv-w{display:block;font:italic 400 15px/24px var(--serif,Georgia,serif);height:24px;letter-spacing:.01em}.st-bv[aria-pressed="true"] .st-bv-w{color:#d9bc7c}

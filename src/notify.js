@@ -13,6 +13,7 @@ const KINDS = {
   requested: { who: 'maker', label: 'Someone asks to license one', on: true },
   thanks: { who: 'maker', label: 'A thank-you card arrives', on: true },
   hat: { who: 'maker', label: 'Someone tips their hat', on: false },
+  bravo: { who: 'maker', label: 'Someone calls Bravo! for one of yours', on: true },
   note: { who: 'maker', label: 'A line in a guest book of yours', on: true },
   paid: { who: 'maker', label: 'You are paid', on: true },
   show: { who: 'maker', label: 'A curator proposes a show, or opens your archive', on: true },
@@ -95,6 +96,10 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     if (type === 'work.applauded') later(() => {
       const w = work(subject); if (!w) return;
       return tell({ maker_id: w.maker_id, kind: 'hat', slug: w.slug, href: `/m/${V.makerSlug(mk(w))}/${w.slug}`, title: 'A tip of the hat', body: `For ${V.tidy(w.title)}.` });
+    });
+    if (type === 'work.bravo') later(() => {
+      const w = work(subject); if (!w) return;
+      return tell({ maker_id: w.maker_id, kind: 'bravo', slug: w.slug, href: `/m/${V.makerSlug(mk(w))}/${w.slug}`, title: `Bravo! ${V.tidy(w.title)}`, body: 'Someone was moved by it. A bravo is the most a person can give a photograph here, and they have three a month.' });
     });
     if (type === 'maker.paid') later(() => {
       const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(subject)); if (!m) return;
