@@ -174,7 +174,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/sightings', { cookie: ck }); assert.ok(r.body.includes('example.org/story'));
   r = await req(port, 'POST', '/apply', { body: { name: 'Ada Lens', email: 'ada@lens.com', portfolio: 'https://ada.photo', practice: 'Photography' } }); assert.equal(r.status, 303);
   r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.includes('Ada Lens'));
-  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For the people who make the pictures'));
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For those who make.'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
   // bulk registration, one file per request
