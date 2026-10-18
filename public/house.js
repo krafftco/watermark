@@ -46,6 +46,7 @@
     + '.kh-mh{margin:4px 18px 8px;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(246,245,242,.45)}'
     + '.kh .kh-mi{display:flex;flex-direction:column;gap:3px;padding:9px 18px;color:#f6f5f2}.kh .kh-mi b{font-weight:500;font-size:13px;letter-spacing:.02em}.kh .kh-mi span{font-size:12px;color:rgba(246,245,242,.5)}.kh .kh-mi:hover{background:rgba(255,255,255,.05)}.kh .kh-mg{border-top:1px solid rgba(255,255,255,.08);margin-top:6px}'
     + '.kh{overflow:visible}'
+    + '.kh-mag .k-nav__menu,.kh-mag .k-nav__toggle{display:none!important}.kh-mag .k-nav__inner{justify-content:space-between}'
     + '.kh.kh-embed{position:static;height:auto;padding:0;background:none;color:rgba(17,17,17,.5);gap:18px;margin-right:auto;width:auto}.kh.kh-embed .kh-h a[aria-current]{color:#111}.kh.kh-embed a:hover{color:#111}.kh.kh-embed .kh-you{color:#111}.kh.kh-embed .kh-r{margin-left:18px}.kh.kh-embed .kh-k:hover,.kh.kh-embed.open .kh-k{color:#111}.kh.kh-embed .kh-menu{left:0}'
     + '.kh .kh-h{display:flex;align-items:center;gap:clamp(18px,2.6vw,36px)}'
     + '.kh a{position:relative;display:inline-block;color:inherit;text-decoration:none;padding:6px 0;transition:color .4s ease}'
@@ -115,7 +116,7 @@
     // On Studios the magazine keeps one top row (Will, 18 Oct: drop the subheader, make it the magazine): the
     // switch lives inside the theme's own header, beside its menu, instead of a strip above it.
     var nav = here === 'studios' ? document.querySelector('.k-nav__inner') : null;
-    if (nav) { bar.classList.add('kh-embed'); nav.insertBefore(bar, nav.firstChild); }
+    if (nav) { bar.classList.add('kh-embed'); nav.insertBefore(bar, nav.firstChild); document.documentElement.classList.add('kh-mag'); } // the theme's own Krafft menu gives way: the K holds the company
     else if (!pre) document.body.insertBefore(bar, document.body.firstChild);
     // The phone: the bar out of the way, the K when you need it.
     // Watermark (Will, 18 Oct): no K by the wordmark; the house bar stays out of the way and the footer leads to Krafft.

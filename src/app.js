@@ -648,7 +648,7 @@ function createApp(cfg = {}) {
   app.get('/offline', (req, res) => res.send(V.offline()));
   app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
-    res.type('application/javascript').set('Cache-Control', 'public, max-age=600').set('Access-Control-Allow-Origin', '*');
+    res.type('application/javascript').set('Cache-Control', 'public, max-age=60, must-revalidate').set('Access-Control-Allow-Origin', '*'); // one minute: a change to the bar reaches every site at once
     res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));
   });
   app.get('/embed.js', (req, res) => {
