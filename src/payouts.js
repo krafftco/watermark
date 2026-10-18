@@ -50,8 +50,12 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   app.get('/account/payouts', async (req, res) => {
     const m = makerOf(req) || (req.query.maker && isStudio(req) ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.query.maker)) : null); if (!m) return res.redirect('/signin?next=/account/payouts');
     let ready = false; if (m.stripe_account && stripe) { try { const a = await stripe.accounts.retrieve(m.stripe_account); ready = !!a.payouts_enabled; } catch (e) { /* not ready */ } }
-    res.send(payoutsPage({ m, st: statement(m), ready, on: ON(), ok: req.query.ok || null, viewing: !makerOf(req) }));
+    res.send(payoutsPage({ m, st: statement(m), ready, on: ON(), ok: req.query.ok || null, viewing: !makerOf(req), why: connectState.byMaker.get(m.id) || null }));
   });
+  // What Stripe said the last time a bank could not be added (18 Oct: the reason was hidden behind 'could not be
+  // reached'). Shown to the maker on the page and to the house on /healthz; never a key or a bank detail.
+  const connectState = { last: null, byMaker: new Map() };
+  app.locals.connectState = () => connectState.last;
   app.post('/account/payouts/connect', async (req, res) => {
     const m = makerOf(req); if (!m || !stripe) return res.redirect('/account/payouts?ok=off');
     try {
@@ -59,7 +63,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
       if (!acct) { const a = await stripe.accounts.create({ type: 'express', email: m.email || undefined, capabilities: { transfers: { requested: true } }, business_profile: { name: m.name, product_description: 'Photographs licensed through Watermark' }, metadata: { maker: m.handle } }); acct = a.id; db.prepare('UPDATE makers SET stripe_account=? WHERE id=?').run(acct, m.id); }
       const link = await stripe.accountLinks.create({ account: acct, type: 'account_onboarding', refresh_url: `${C.base}/account/payouts`, return_url: `${C.base}/account/payouts?ok=bank` });
       res.redirect(303, link.url);
-    } catch (e) { console.error('[connect]', e.message); res.redirect('/account/payouts?ok=err'); }
+    } catch (e) { console.error('[connect]', e.message); connectState.last = { at: new Date().toISOString(), error: String(e.message).slice(0, 300), code: e.code || null }; connectState.byMaker.set(m.id, connectState.last.error); res.redirect('/account/payouts?ok=connect'); }
   });
   // Keep the money in the house: what is owed goes into the maker's pocket instead of to a bank, to collect
   // other makers' work, take Library copies, send cards. Recorded as paid, how 'pocket'.
@@ -94,10 +98,10 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   return app.locals.payouts;
 }
 
-function payoutsPage({ m, st, ready, on, ok, viewing = false }) {
+function payoutsPage({ m, st, ready, on, ok, viewing = false, why = null }) {
   setDeskPath('/account/payouts');
   const first = m.name.split(' ')[0];
-  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.' }[ok];
+  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
   const row = (k, v, small) => `<div><dt>${k}</dt><dd>${v}${small ? `<small>${small}</small>` : ''}</dd></div>`;
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
 <p class="lede">Every dollar that reaches you, and where it came from. ${st.pct}% of every license is yours; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
