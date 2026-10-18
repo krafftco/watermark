@@ -2481,3 +2481,4 @@ aside.cu-show .buy-btn{width:100%}
 .cu-wall{list-style:none;margin:36px 0;padding:0;display:grid;gap:56px}.cu-wall figure{margin:0 0 12px;background:#0b0a09;padding:clamp(10px,2vw,24px)}.cu-wall img{display:block;width:100%;height:auto}.cu-wall p{margin:0;font-size:14px}.cu-line{font-family:var(--read);font-size:17px;margin-top:6px!important}
 .cu-pv-go{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.cu-pv-go form{margin:0}
 @media (max-width:900px){.cu-cols{grid-template-columns:1fr}aside.cu-show{position:static;max-height:none;order:-1}.cu-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.cu-show{grid-template-columns:1fr}.cu-sh-go{justify-items:start}}
+.wm-no{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);letter-spacing:.08em;font-size:15px}

@@ -273,7 +273,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   db.prepare("UPDATE licenses SET dl_extra=0 WHERE ref=?").run(ref1);
   r = await req(port, 'GET', `/d/${l1.download_token}`);
   const piexif = require('piexifjs'); const ex = piexif.load(r.body.toString('binary'));
-  assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(ref1), 'license stamped in EXIF');
+  assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(require('../src/track').track(ref1)), 'license stamped in EXIF, as its Watermark number');
   // The mark, policy: the file carries the record in the open (XMP), and a mark within the picture unique to this delivery; it traces back even after recompression.
   { const M = require('../src/mark'); const x = M.readXmp(r.body); assert.ok(x && x.license === ref1 && x.creator, 'XMP names the license and the creator');
     const dl = db.prepare('SELECT * FROM downloads WHERE license_id=(SELECT id FROM licenses WHERE ref=?) ORDER BY id DESC LIMIT 1').get(ref1); assert.ok(dl.sha256 && dl.mark === dl.id, 'the delivery recorded with its mark');
@@ -719,6 +719,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'held', 'the kept-back photograph is published with it');
     r = await req(port, 'GET', '/curate/' + require('../src/views').makerSlug(cm)); assert.equal(r.status, 302, 'a stranger cannot open the archive'); }
   console.log('ok: curators');
+  // The Watermark number and the readable file: twelve digits that find the license; a caption and a name a person reads.
+  { const T = require('../src/track'); assert.equal(T.track('WM-2026-000082'), 'WM 2026 0000 8264'); assert.equal(T.ref('wm 2026 0000 8264'), 'WM-2026-000082'); assert.equal(T.ref('WM 2026 0000 8265'), null, 'a mistyped number is caught');
+    const l = db.prepare("SELECT l.*, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.status='active' AND l.download_token IS NOT NULL AND w.original_file LIKE '%.jpg' ORDER BY l.id DESC LIMIT 1").get();
+    let r = await req(port, 'GET', '/t/' + T.compact(l.ref)); assert.ok(r.headers.location.includes(encodeURIComponent(l.ref)), 'the number opens the license');
+    r = await req(port, 'GET', '/d/' + l.download_token, { headers: { accept: '*/*' } });
+    const cd = r.headers['content-disposition'] || ''; assert.ok(cd.includes(T.track(l.ref)) && !/sha256/.test(cd), 'a readable name with the number: ' + cd);
+    const ex = require('piexifjs').load(Buffer.from(r.body).toString('binary'));
+    const desc = ex['0th'][require('piexifjs').ImageIFD.ImageDescription]; assert.ok(desc.includes(T.track(l.ref)) && /A photograph by/.test(desc) && !/sha256/.test(desc), 'a caption in words: ' + desc); }
+  console.log('ok: the Watermark number');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

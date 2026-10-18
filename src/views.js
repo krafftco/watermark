@@ -1081,7 +1081,7 @@ ${owner && active && lic.download_token ? (dl && !dl.left ? '<p class="lc2-dl0">
 ${owner && dl ? `<span class="lc2-dln">${dl.left} of ${dl.limit} downloads left</span>` : ''}
 ${owner && lic.download_token ? `<a href="/c/${esc(lic.ref)}/contract?k=${esc(lic.download_token)}">The agreement</a>` : ''}
 ${active ? `<a href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a>` : ''}
-<a href="/verify?ref=${esc(lic.ref)}">Anyone can check it</a>
+<a href="/t/${esc(require('./track').compact(lic.ref) || lic.ref)}">Anyone can check it: ${esc(require('./track').track(lic.ref) || lic.ref)}</a>
 </div>
 <div class="lc2-coa">${SHIELD}<div><p class="lc2-h">Certificate of authenticity</p>
 <p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the license set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
@@ -1095,7 +1095,7 @@ ${seats.canBuy && active ? `<form method="post" action="/c/${esc(lic.ref)}/seats
 ${seats.list.length + 1 < seats.capacity && active ? `<form method="post" action="/c/${esc(lic.ref)}/seats" class="lc2-sf"><input type="hidden" name="k" value="${esc(lic.download_token)}"><input name="name" placeholder="Name" autocomplete="off"><input name="email" type="email" placeholder="Email" required autocomplete="off"><button class="btn">Add a seat</button></form>` : ''}</section>` : ''}
 <details class="lc2-proof"><summary>How we know it&rsquo;s genuine</summary>
 <p>Every license is written into Watermark&rsquo;s permanent record the moment it is granted, and each entry is sealed to the one before it, so nothing can be changed afterwards without it showing. The photograph is identified by its fingerprint, so this license belongs to this exact picture and no other.</p>
-<dl class="lc2-dl lc2-tech"><div><dt>License</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
+<dl class="lc2-dl lc2-tech"><div><dt>Watermark number</dt><dd class="wm-no">${esc(require('./track').track(lic.ref) || lic.ref)}</dd></div><div><dt>License</dt><dd>${esc(lic.ref)}</dd></div>${entry ? `<div><dt>Record</dt><dd>Entry ${entry.seq}, ${date(entry.at || lic.starts_at)} &middot; <code>${esc(entry.hash.slice(0, 16))}</code></dd></div>` : ''}<div><dt>Fingerprint</dt><dd><code>${esc(String(w.sha256 || '').slice(0, 16))}</code></dd></div>${t && t.hash ? `<div><dt>Agreement</dt><dd>Text fingerprint <code>${esc(t.hash.slice(0, 16))}</code></dd></div>` : ''}</dl>
 <p class="note">The full record is public at <a href="/ledger">the register</a>.</p></details>
 </div></section>
 <section class="lc2-learn"><p class="k">Licensing, simply</p><div class="lc2-cards">

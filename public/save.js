@@ -35,7 +35,8 @@
     });
   }
   function nameFrom(res, a) {
-    var cd = res.headers.get('content-disposition') || '', m = cd.match(/filename="?([^";]+)"?/i);
+    var cd = res.headers.get('content-disposition') || '', u = cd.match(/filename\*=UTF-8''([^;]+)/i), m = cd.match(/filename="?([^";]+)"?/i);
+    if (u) { try { return decodeURIComponent(u[1]); } catch (e) { /* fall through */ } }
     if (m) return m[1];
     var t = (res.headers.get('content-type') || 'image/jpeg').split(';')[0], ext = t === 'image/png' ? 'png' : t === 'image/tiff' ? 'tif' : 'jpg';
     return ((a.getAttribute('data-name') || document.title.split(' · ')[0] || 'Watermark').replace(/[^\w\- ]+/g, '').trim() || 'Watermark') + '.' + ext;

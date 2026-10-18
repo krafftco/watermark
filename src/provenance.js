@@ -4,14 +4,18 @@ const fs = require('fs');
 const piexif = require('piexifjs');
 const PDFDocument = require('pdfkit');
 
-function stampJpeg(file, { ref, maker, licensee, use, ends, fingerprint, base, conditions }) {
+function stampJpeg(file, { ref, maker, licensee, use, ends, fingerprint, base, conditions, caption = null, copyright = null }) {
   const bin = fs.readFileSync(file).toString('binary');
   let exif;
   try { exif = piexif.load(bin); } catch (e) { exif = { '0th': {}, Exif: {}, GPS: {}, '1st': {}, thumbnail: null }; }
   exif['0th'] = exif['0th'] || {};
   exif['0th'][piexif.ImageIFD.Artist] = maker;
-  exif['0th'][piexif.ImageIFD.Copyright] = `(c) ${maker}. Licensed to ${licensee} under Watermark ${ref}. Verify at ${base}/verify?ref=${ref}`;
-  exif['0th'][piexif.ImageIFD.ImageDescription] = `Watermark license ${ref}: ${use}${ends ? `, until ${ends.slice(0, 10)}` : ''}. ${conditions ? ` ${conditions}.` : ''} Original fingerprint sha256:${fingerprint}`;
+  exif['0th'][piexif.ImageIFD.Copyright] = copyright || `(c) ${maker}. Licensed to ${licensee} under Watermark ${ref}. Verify at ${base}/verify?ref=${ref}`;
+  exif['0th'][piexif.ImageIFD.ImageDescription] = caption || `Watermark license ${ref}: ${use}${ends ? `, until ${ends.slice(0, 10)}` : ''}.${conditions ? ` ${conditions}.` : ''}`;
+  exif.Exif = exif.Exif || {};
+  if (fingerprint) exif.Exif[piexif.ExifIFD.ImageUniqueID] = String(fingerprint).slice(0, 32); // the original's fingerprint, out of sight
+  // EXIF text is ASCII: keep the curly marks a reader expects out of it.
+  for (const k of [piexif.ImageIFD.ImageDescription, piexif.ImageIFD.Copyright, piexif.ImageIFD.Artist]) if (exif['0th'][k]) exif['0th'][k] = String(exif['0th'][k]).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/·/g, '-').replace(/©/g, '(c)').normalize('NFKD').replace(/[^\x20-\x7e]/g, '');
   const out = piexif.insert(piexif.dump(exif), bin);
   return Buffer.from(out, 'binary');
 }

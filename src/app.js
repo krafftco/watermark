@@ -99,13 +99,32 @@ function createApp(cfg = {}) {
   // The mark (mark.js): every image that leaves the house carries its maker, its license and the way back, in the open
   // (XMP), sealed (Content Credentials) and within the picture (an invisible mark unique to the delivery). Policy, no switch.
   const MARK = require('./mark'); const MARK_KEY = process.env.MARK_KEY || cfg.markKey || C.secret;
+  // What a file says about itself, in words a person reads in Photos or Finder: the photograph, its maker, how it is
+  // held, and the Watermark number that finds its license. The fingerprint stays in the file, out of the caption.
+  const TRACK = require('./track');
+  function captionOf({ w, maker, ref = null, licensee = null, use = null, ends = null }) {
+    const title = V.tidy(w.title), year = (w.taken_at || '').slice(0, 4), number = ref ? TRACK.track(ref) : null;
+    const l = ref ? db.prepare('SELECT l.collector_no, u.key FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?').get(ref) : null;
+    const how = !ref ? 'Free and clear, from Watermark' : l && l.key === 'social' ? `Collected on Watermark${l.collector_no ? `, No. ${l.collector_no}` : ''}` : l && l.key === 'reference' ? 'The Reference, collected on Watermark' : `Licensed on Watermark${use ? `, ${String(use).toLowerCase()}` : ''}${ends ? `, until ${new Date(ends).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}`;
+    const caption = `${title}. A photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}${year ? `, ${year}` : ''}. ${how}.${number ? ` ${number}.` : ''}`;
+    const copyright = `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at watermark.krafftco.com/t/${TRACK.compact(ref)}` : `Held at watermark.krafftco.com/w/${w.slug}`}`;
+    return { caption, copyright, number };
+  }
+  // A file's name: the title, the maker, the number. Readable in any folder; ASCII for the plain header, UTF-8 for the rest.
+  function fileName(w, maker, ref, ext) {
+    const n = ref ? TRACK.track(ref) : w.accession;
+    const nice = `${V.tidy(w.title)}, ${maker.name}${n ? ` (${n})` : ''}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return { utf8: nice + ext, ascii: nice.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').normalize('NFKD').replace(/[^\x20-\x7e]/g, '') + ext };
+  }
+  const disposition = f => `attachment; filename="${f.ascii.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(f.utf8)}`;
   async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, format = 'jpeg' }) {
     let out = await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format });
     if (share) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
       const tmp = path.join(cache, `mark-${dlId}-${Date.now()}.jpg`); fs.writeFileSync(tmp, out);
-      try { out = prov.stampJpeg(tmp, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null }); } catch (e) { /* keep */ } finally { fs.rmSync(tmp, { force: true }); }
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, noAI: R.parse(w.rules).never.includes('ai') }));
+      const cap = captionOf({ w, maker, ref, licensee, use, ends });
+      try { out = prov.stampJpeg(tmp, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ } finally { fs.rmSync(tmp, { force: true }); }
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, noAI: R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
     }
     db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
     return out;
@@ -1187,6 +1206,12 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
+  // The Watermark number, looked up: /t/202600008231 (or with spaces, or WM-…) opens the license it names.
+  app.get('/t/:n', (req, res) => {
+    const ref = TRACK.ref(req.params.n) || (/^WM-\d{4}-\d{6}$/.test(req.params.n) ? req.params.n : null);
+    const l = ref ? q.lic.get(ref) : null; if (!l) return res.sendStatus(404);
+    res.redirect(`/verify?ref=${encodeURIComponent(l.ref)}`);
+  });
   app.get('/d/:token', (req, res) => {
     const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
     // A phone opening the link itself (from the email): a page with the photograph and Save to Photos, not a file
@@ -1211,14 +1236,14 @@ function createApp(cfg = {}) {
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
     let file; try { file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
-    const name = `${w.slug}-${l.ref}${share ? '.jpg' : path.extname(w.original_file)}`;
+    const fname = fileName(w, maker, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()); const name = fname.ascii;
     if (/\.(jpe?g|png|tiff?)$/i.test(file)) {
       try {
         const u = lu;
         const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
         const buf = await marked(fs.readFileSync(file), { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, format: fmt });
-        if (fmt !== 'jpeg') { res.set('Content-Disposition', `attachment; filename="${name}"`); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
-        res.set('Content-Disposition', `attachment; filename="${name}"`);
+        if (fmt !== 'jpeg') { res.set('Content-Disposition', disposition(fname)); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
+        res.set('Content-Disposition', disposition(fname));
         // The Shield goes with the file: Content Credentials naming the maker, the copyright holder and this license.
         if (CR.enabled()) {
           const tmp = path.join(cache, `deliver-${l.ref}-${Date.now()}.jpg`), outp = tmp.replace(/\.jpg$/, '-cr.jpg');
@@ -1237,7 +1262,8 @@ function createApp(cfg = {}) {
   app.locals.deliver = deliver;
 
   app.get('/verify', (req, res) => {
-    const ref = String(req.query.ref || '').trim().toUpperCase();
+    const raw = String(req.query.ref || '').trim().toUpperCase();
+    const ref = TRACK.ref(raw) || raw; // a Watermark number (WM 2026 0000 8264) or the ref itself
     const lic = ref ? q.lic.get(ref) : null;
     const w = lic ? db.prepare('SELECT * FROM works WHERE id=?').get(lic.work_id) : null;
     const maker = mk(w); // the work's own maker
