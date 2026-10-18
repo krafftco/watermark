@@ -2435,3 +2435,11 @@ body:has([data-stroll]) .bk-toast{bottom:auto;top:calc(118px + env(safe-area-ins
 .nt-devs ul{list-style:none;margin:0;padding:0}.nt-devs li{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ln)}.nt-devs small{color:var(--mu);flex:1}.nt-devs form{margin:0}
 @media (max-width:700px){header.top .nv-bell{margin-left:auto;margin-right:12px}}
 .nt-dev [hidden],.nt-ios[hidden]{display:none!important}
+/* Save to Photos on a phone (18 Oct). */
+.sv{position:fixed;inset:0;z-index:3200;background:rgba(10,10,9,.45);display:grid;align-items:end}.sv[hidden]{display:none}
+.sv-card{background:var(--bg,#f6f5f2);color:var(--ink,#0e0e0e);padding:22px 20px calc(22px + env(safe-area-inset-bottom));display:grid;gap:12px;box-shadow:0 -20px 60px rgba(0,0,0,.3)}
+.sv-l{margin:0;font-family:var(--read,Georgia,serif);font-size:19px}
+.sv-b{background:#0e0e0e;color:#f6f5f2;border:0;padding:17px 18px;font:500 15px/1 var(--sans,inherit);letter-spacing:.04em}.sv-b[disabled]{opacity:.45}
+.sv-x{background:none;border:0;padding:6px;font:inherit;font-size:13px;color:var(--mu,#777);text-decoration:underline;text-underline-offset:3px}
+.svp{max-width:560px;margin:0 auto;padding:24px 16px 40px;text-align:center}.svp figure{margin:0 0 22px;background:#0b0a09;padding:12px}.svp img{display:block;width:100%;height:auto}
+.svp h1{font-family:var(--disp);font-weight:400;font-size:clamp(28px,7vw,40px);margin:4px 0 6px}.svp-by{color:var(--mu);margin:0 0 22px}.svp-go{display:block;width:100%;padding:18px;margin:0 0 14px;text-align:center}

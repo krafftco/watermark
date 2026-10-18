@@ -1187,7 +1187,18 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
-  app.get('/d/:token', (req, res) => deliver(db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token), res, { size: req.query.size }));
+  app.get('/d/:token', (req, res) => {
+    const l = db.prepare("SELECT * FROM licenses WHERE download_token=?").get(req.params.token);
+    // A phone opening the link itself (from the email): a page with the photograph and Save to Photos, not a file
+    // dropped in Files. The file is taken only when they tap (and only then counted).
+    const nav = /text\/html/.test(req.headers.accept || '') && (req.headers['sec-fetch-mode'] || 'navigate') === 'navigate' && !req.query.raw;
+    if (l && l.status === 'active' && nav && /iPhone|iPad|iPod|Android/.test(req.headers['user-agent'] || '')) {
+      const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+      res.set('Cache-Control', 'private, no-store');
+      return res.send(V.savePage({ w, maker: mk(w), file: `/d/${l.download_token}?raw=1${req.query.size ? `&size=${encodeURIComponent(req.query.size)}` : ''}`, ref: l.ref }));
+    }
+    deliver(l, res, { size: req.query.size });
+  });
   // The licensed file, stamped and sealed: for the holder's link, and for each seat on the license.
   async function deliver(l, res, { size = null, seat = null } = {}) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
