@@ -116,7 +116,9 @@
   // ---------- wander: get lost in the collection ----------
   function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
   function wander(from) { var pool = shuffle(showing.length && showing !== domOrder ? showing : W); if (!pool.length) return; showing = pool; open(pool[0].s, from); }
-  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-wander]'); if (!a) return; e.preventDefault(); wander(a); });
+  // On a phone, wandering is the stroll.
+  var PHONE = matchMedia('(max-width:760px) and (pointer:coarse)').matches;
+  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-wander]'); if (!a) return; e.preventDefault(); if (PHONE) { location.href = '/stroll' + (state.q ? '?q=' + encodeURIComponent(state.q) : ''); return; } wander(a); });
   if (/[?&]wander=1/.test(location.search)) setTimeout(function () { wander(); }, 300);
   function close() {
     lb.hidden = true; document.documentElement.classList.remove('lb-on'); img.removeAttribute('src');
