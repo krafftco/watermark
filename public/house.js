@@ -53,7 +53,12 @@
     + '.kh .kh-sh{display:none}'
     + '@media (max-width:960px){.kh .kh-fl{display:none}.kh .kh-sh{display:inline}}'
     + '@media (max-width:600px){.kh{gap:12px;letter-spacing:.1em;padding:0 14px;font-size:9.5px;overflow-x:auto;scrollbar-width:none;max-width:100vw;box-sizing:border-box}.kh .kh-h{gap:12px;white-space:nowrap}.kh .kh-gb{display:none}.kh .kh-h a:not([aria-current]):nth-child(n+4){display:none}.kh .kh-r{gap:12px;flex:none}}'
-    + '@media print{.kh{display:none}}';
+    + '@media print{.kh{display:none}}'
+    // On a phone the bar stays out of the way (Will, 17 Oct: you need to see the images): it hides as you scroll; a
+    // small K at the top left comes and goes like Instagram's, and a tap on it brings the bar in.
+    + '.kh.kh-m{position:fixed;top:0;left:0;right:0;transform:translateY(-100%);transition:transform .32s ease;box-shadow:0 6px 24px rgba(0,0,0,.35)}.kh.kh-m.on{transform:none}'
+    + '.kh-dot{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:999;width:34px;height:34px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:rgba(17,17,17,.55);color:#f6f5f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transform:translateY(-6px);transition:opacity .35s ease,transform .35s ease;-webkit-tap-highlight-color:transparent}'
+    + '.kh-dot svg{width:14px;height:14px}.kh-dot.up{opacity:.55;transform:none}.kh-dot.top{opacity:.9;transform:none}.kh-dot.gone{opacity:0;transform:translateY(-6px);pointer-events:none}';
   var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="51.66 0 .14 51.88 .14 51.67 .14 32.28 28.16 0 51.66 0"/></svg>';
   function link(p) {
     var a = document.createElement('a');
@@ -92,6 +97,17 @@
     var you = document.createElement('a'); you.className = 'kh-you'; you.innerHTML = '<span class="kh-nm">Sign in</span>'; you.href = WM + '/signin'; right.appendChild(you);
     bar.appendChild(right);
     if (!pre) document.body.insertBefore(bar, document.body.firstChild);
+    // The phone: the bar out of the way, the K when you need it.
+    if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
+      bar.classList.add('kh-m');
+      var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM; document.body.appendChild(dot);
+      var lastY = window.pageYOffset || 0, idle;
+      function state() { var y = window.pageYOffset || 0; if (bar.classList.contains('on')) { dot.className = 'kh-dot gone'; return; } if (y < 24) dot.className = 'kh-dot top'; else if (y < lastY - 4) dot.className = 'kh-dot up'; else if (y > lastY + 4) dot.className = 'kh-dot gone'; lastY = y; }
+      window.addEventListener('scroll', function () { if (bar.classList.contains('on')) bar.classList.remove('on'); state(); clearTimeout(idle); idle = setTimeout(function () { if (!dot.classList.contains('top')) dot.className = 'kh-dot up'; }, 1600); }, { passive: true });
+      dot.addEventListener('click', function () { bar.classList.add('on'); state(); });
+      document.addEventListener('click', function (e) { if (bar.classList.contains('on') && !bar.contains(e.target) && !dot.contains(e.target)) { bar.classList.remove('on'); state(); } });
+      state();
+    }
     try {
       fetch(WM + '/api/me', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (me) {
         if (!me || !me.in) return;

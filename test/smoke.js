@@ -665,6 +665,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/frame/tv/${fcode}/state`); fs = JSON.parse(r.body); assert.ok(fs.works.length && fs.works.every(w => w.held && /\/large$/.test(w.img)), 'now at full size');
     r = await req(port, 'GET', '/tv'); assert.equal(r.headers.location, '/frame/tv'); }
   console.log('ok: the frame');
+  // The stroll: the first photographs in the page, more by the API, never what was already seen, a word to stroll through.
+  { r = await req(port, 'GET', '/stroll'); assert.equal(r.status, 200); assert.ok(/class="st-i"/.test(r.body) && /__WM_STROLL/.test(r.body) && /data-st-hat/.test(r.body), 'the stroll opens with photographs and the rail');
+    r = await req(port, 'GET', '/api/stroll?n=3'); const s1 = JSON.parse(r.body); assert.equal(s1.items.length, 3); assert.ok(s1.items.every(w => /\/img\//.test(w.img) && w.maker && w.makerSlug));
+    r = await req(port, 'GET', '/api/stroll?n=20&seen=' + s1.items.map(w => w.slug).join(',')); const s2 = JSON.parse(r.body); assert.ok(s2.items.length && !s2.items.some(w => s1.items.find(x => x.slug === w.slug)), 'never the same twice');
+    r = await req(port, 'GET', '/api/stroll?n=5&q=zzzz-no-such'); assert.equal(JSON.parse(r.body).items.length, 0);
+    r = await req(port, 'GET', '/stroll?at=' + s1.items[0].slug); assert.ok(r.body.indexOf('data-slug="' + s1.items[0].slug + '"') < r.body.indexOf('data-slug="', r.body.indexOf('data-slug="' + s1.items[0].slug + '"') + 10), 'opens at the one asked for'); }
+  console.log('ok: the stroll');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

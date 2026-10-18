@@ -354,6 +354,7 @@ function createApp(cfg = {}) {
       hat: ap ? { n: ap.n, mine: !!ap.mine } : null };
   }
   app.locals.wanderJSON = wanderJSON;
+  require('./stroll').mountStroll(app, { db, V, wanderJSON, I: require('./icons') });
   // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
   // reason to come back in the morning and something to talk about. /today opens it.
   function todays() {
@@ -648,7 +649,7 @@ function createApp(cfg = {}) {
         metadata: { ref },
         custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for this order (${ref}), with the rights shown on Watermark: ${C.base}/contract/${w.slug}?use=${u.key}${t.added.map(a => '&add=' + a).join('')}${t.extras.map(a => '&x=' + a).join('')}` } },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : /^\/wander\/room/.test(String(req.query.back || '')) ? `${C.base}${String(req.query.back).slice(0, 200)}` : `${C.base}/license/${w.slug}?use=${u.key}`,
+        cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : /^\/(wander\/room|stroll)/.test(String(req.query.back || '')) ? `${C.base}${String(req.query.back).slice(0, 200)}` : `${C.base}/license/${w.slug}?use=${u.key}`,
       });
       db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
       res.redirect(303, s.url);
