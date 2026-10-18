@@ -204,6 +204,33 @@ function createApp(cfg = {}) {
     return `WM-${y}-${String(n).padStart(6, '0')}`;
   }
 
+  // What the two letters of a sale need (src/mail-letters.js): the photograph, its number, the rights in plain words,
+  // the agreement, and for the maker what is theirs and how often the work has been chosen.
+  const LETTERS = require('./mail-letters');
+  function letterFor(g, w, maker, u, token) {
+    let t = null; try { t = g.rights ? JSON.parse(g.rights) : null; } catch (e) { t = null; }
+    if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: g.price_cents });
+    const pr = V.plainRights(g, u, t), k = token ? `?k=${token}` : '';
+    const pct = maker.share_pct || 85, cents = g.price_cents || 0;
+    const fmtD = d => new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+    const b = g.buyer_id ? db.prepare('SELECT * FROM buyers WHERE id=?').get(g.buyer_id) : null;
+    const certUrl = `${C.base}/c/${g.ref}${k}`;
+    const times = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0").get(w.id).n;
+    const allTimes = db.prepare("SELECT COUNT(*) n FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0").get(maker.id).n;
+    const month = db.prepare("SELECT COALESCE(SUM(l.price_cents),0) c FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?").get(maker.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()).c;
+    return {
+      base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
+      img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
+      kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
+      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot,
+      fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
+      share: V.money(Math.round(cents * pct / 100), g.currency), pct, times, allTimes, month: allTimes > 1 ? V.money(Math.round(month * pct / 100), g.currency) : null,
+      number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
+      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null,
+      galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
+      studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
+    };
+  }
   function grant(ref, extra = {}) {
     const l = q.lic.get(ref);
     if (!l || l.status === 'active') return l;
@@ -222,8 +249,10 @@ function createApp(cfg = {}) {
     if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85); } catch (e) { console.error('[representation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     const g = q.lic.get(ref);
-    if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
-    if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) });
+    try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
+    catch (e) { console.error('[letters]', e.message);
+      if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
+      if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) }); }
     return g;
   }
 
@@ -341,6 +370,16 @@ function createApp(cfg = {}) {
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('hex');
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
+  // The letters, as they arrive: /studio/letters (the collector's) and ?as=maker (the maker's congratulations),
+  // drawn from the latest paid license, or ?ref=. Nothing is sent.
+  app.get('/studio/letters', studioOnly, (req, res) => {
+    const g = req.query.ref ? q.lic.get(String(req.query.ref)) : db.prepare("SELECT * FROM licenses WHERE status='active' AND price_cents > 0 ORDER BY id DESC LIMIT 1").get();
+    if (!g) return res.send('No paid license yet to draw a letter from.');
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(g.work_id), u = q.useById.get(g.use_id);
+    const L = letterFor(g, w, mk(w), u, g.download_token);
+    const out = req.query.as === 'maker' ? LETTERS.sold(L) : LETTERS.collected(L);
+    res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`));
+  });
   // Every maker and estate has their own account and dashboard.
   app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger, mail });
 
@@ -527,7 +566,7 @@ function createApp(cfg = {}) {
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size]) return res.sendStatus(404);
     try {
-      const fmt = images.pick(req.headers.accept);
+      const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
       res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
       res.set('Vary', 'Accept');

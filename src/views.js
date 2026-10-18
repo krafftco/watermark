@@ -1017,23 +1017,10 @@ const USE_SAYS = {
   commercial: 'for their company: a website, a presentation, a letter to investors',
   campaign: 'before an audience: a campaign, a film, a billboard, a package',
 };
-function certificate({ lic, w, maker, use, entry, base, owner, seats = null, seat = null, dl = null }) {
-  const active = lic.status === 'active';
-  const who = lic.licensee_company || lic.licensee_name || 'The holder';
+// What a holder can and cannot do, in plain words, from the contract they hold. The license page and the letter
+// that delivers it say the same thing.
+function plainRights(lic, use, t = null) {
   const C = require('./contract');
-  let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older license */ }
-  const added = t ? C.RIGHTS.filter(r => t.added.includes(r.key)).map(r => r.label.toLowerCase()) : [];
-  const extras = t ? t.extras.map(k => (C.EXTRAS.find(e => e.key === k) || {}).label).filter(Boolean) : [];
-  const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended' }[lic.status] || lic.status;
-  const says = use.kind === 'print' ? `${esc(who)} owns this print: signed, archival, theirs to keep.`
-    : `${esc(who)} may use this photograph ${esc(USE_SAYS[use.key] || use.name.toLowerCase())}${added.length ? `, and also in ${esc(added.join(', '))}` : ''}${extras.length ? `. Included: ${esc(extras.join(', ').toLowerCase())}` : ''}${active ? (lic.ends_at ? `, until ${date(lic.ends_at)}.` : ', for good.') : '.'}`;
-  let left = '';
-  if (active && lic.ends_at && lic.starts_at) {
-    const a = new Date(lic.starts_at).getTime(), z = new Date(lic.ends_at).getTime(), now = Date.now();
-    const pct = Math.max(0, Math.min(100, (now - a) / (z - a) * 100)), days = Math.max(0, Math.ceil((z - now) / 864e5));
-    left = `<div class="lc2-term"><div class="lc2-bar"><i style="width:${pct.toFixed(1)}%"></i></div><span>${date(lic.starts_at)}</span><span>${days ? `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'} left` : 'Ends today'}</span><span>${date(lic.ends_at)}</span></div>`;
-  }
-  // What they can and cannot do, in plain words, from the contract they hold.
   const cond = String(lic.conditions || '');
   const never = [/AI/i.test(cond) && 'ai', /altering/i.test(cond) && 'alter', /political/i.test(cond) && 'political', /tobacco/i.test(cond) && 'sensitive'].filter(Boolean);
   const tt = t || C.terms({ use, never, base: lic.price_cents });
@@ -1056,6 +1043,25 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
   if (never.includes('political')) cannot.push('Use it in politics or advocacy');
   if (never.includes('sensitive')) cannot.push('Use it for tobacco, firearms or gambling');
   cannot.push('Say you made it');
+  return { can, cannot, cond, never };
+}
+function certificate({ lic, w, maker, use, entry, base, owner, seats = null, seat = null, dl = null }) {
+  const active = lic.status === 'active';
+  const who = lic.licensee_company || lic.licensee_name || 'The holder';
+  const C = require('./contract');
+  let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older license */ }
+  const added = t ? C.RIGHTS.filter(r => t.added.includes(r.key)).map(r => r.label.toLowerCase()) : [];
+  const extras = t ? t.extras.map(k => (C.EXTRAS.find(e => e.key === k) || {}).label).filter(Boolean) : [];
+  const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended' }[lic.status] || lic.status;
+  const says = use.kind === 'print' ? `${esc(who)} owns this print: signed, archival, theirs to keep.`
+    : `${esc(who)} may use this photograph ${esc(USE_SAYS[use.key] || use.name.toLowerCase())}${added.length ? `, and also in ${esc(added.join(', '))}` : ''}${extras.length ? `. Included: ${esc(extras.join(', ').toLowerCase())}` : ''}${active ? (lic.ends_at ? `, until ${date(lic.ends_at)}.` : ', for good.') : '.'}`;
+  let left = '';
+  if (active && lic.ends_at && lic.starts_at) {
+    const a = new Date(lic.starts_at).getTime(), z = new Date(lic.ends_at).getTime(), now = Date.now();
+    const pct = Math.max(0, Math.min(100, (now - a) / (z - a) * 100)), days = Math.max(0, Math.ceil((z - now) / 864e5));
+    left = `<div class="lc2-term"><div class="lc2-bar"><i style="width:${pct.toFixed(1)}%"></i></div><span>${date(lic.starts_at)}</span><span>${days ? `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'} left` : 'Ends today'}</span><span>${date(lic.ends_at)}</span></div>`;
+  }
+  const { can, cannot, cond } = plainRights(lic, use, t);
   const keep = cond.split(/\.\s*/).map(x => x.trim()).filter(Boolean);
   return layout({
     title: `${tidy(w.title)}: license ${lic.ref} · Watermark`,
@@ -1331,4 +1337,4 @@ ${study.length ? `<section class="gal jn-study"><header class="gh"><h2>Worth stu
 <section class="gal"><header class="gh"><h2>From the notebooks</h2><span>written and published by <a href="https://studios.krafftco.com">Krafft Studios</a></span></header>${posts.length ? `<div class="jr-list">${posts.map((p, i) => item(p, i === 0)).join('')}</div>` : `<div class="jr-list"><a class="jr jr-lead" href="/patronage"><span class="jr-t"><small>Essay</small><b>On patronage</b><span>Every great work you have stood in front of was paid for by someone.</span></span></a></div>`}</section>` });
 }
 
-module.exports = { savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { plainRights, savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
