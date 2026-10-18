@@ -4,7 +4,7 @@
    card checkout instead. */
 (function () {
   var C = window.__WM_PAY; if (!C || !C.pk) return;
-  var stripe, elements, ece, sheet, cur, ready = false, available = false, loading;
+  var stripe, elements, ece, sheet, cur, ready = false, available = false, loading, slow;
 
   function loadStripe() {
     if (loading) return loading;
@@ -40,9 +40,12 @@
 
   function mount() {
     ece = elements.create('expressCheckout', { emailRequired: true, buttonHeight: 54, buttonTheme: { applePay: 'black', googlePay: 'black', paypal: 'black' }, buttonType: { applePay: 'buy', googlePay: 'buy' }, layout: { maxColumns: 1, maxRows: 3, overflow: 'never' } });
-    ece.on('ready', function (e) { ready = true; available = !!(e.availablePaymentMethods && Object.keys(e.availablePaymentMethods).some(function (k) { return e.availablePaymentMethods[k]; })); settle(); });
+    ece.on('ready', function (e) { ready = true; clearTimeout(slow); available = !!(e.availablePaymentMethods && Object.keys(e.availablePaymentMethods).some(function (k) { return e.availablePaymentMethods[k]; })); settle(); });
+    ece.on('loaderror', function () { ready = true; available = false; clearTimeout(slow); settle(); });
     ece.on('confirm', pay);
     ece.mount(sheet.querySelector('.ps-ece'));
+    // A wallet that never answers (a browser without one, a blocked script): the card checkout, not a wait.
+    slow = setTimeout(function () { if (!ready) { ready = true; available = false; settle(); } }, 4500);
   }
   function settle() {
     if (!cur) return;
