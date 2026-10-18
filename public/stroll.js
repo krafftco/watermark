@@ -162,7 +162,8 @@
   function arrive(slug) {
     quiet(); clearTimeout(lineT);
     var w = items[slug]; if (!w || !w.el) return;
-    if (w.guide && !w.el.querySelector('.st-line')) lineT = setTimeout(function () { if (cur !== slug) return; var p = document.createElement('p'); p.className = 'st-line'; p.textContent = firstLine(w.guide); w.el.appendChild(p); requestAnimationFrame(function () { p.classList.add('on'); }); }, sitting ? 9000 : LINE);
+    var gp = document.documentElement.getAttribute('data-guide') || 'hints';
+    if (gp !== 'off' && w.guide && !w.el.querySelector('.st-line')) lineT = setTimeout(function () { if (cur !== slug) return; var p = document.createElement('p'); p.className = 'st-line'; p.textContent = firstLine(w.guide); w.el.appendChild(p); requestAnimationFrame(function () { p.classList.add('on'); }); }, sitting ? 9000 : gp === 'full' ? 7000 : LINE);
     if (sitting) { clearTimeout(sitT); sitT = setTimeout(next, SIT); return; }
     var now = Date.now(); arrivals.push(now); arrivals = arrivals.filter(function (t) { return now - t < 60000; });
     var told = false; try { told = sessionStorage.getItem('wm_stay') === '1'; } catch (e) {}
@@ -205,6 +206,10 @@
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && sitting && !lock) wake(); });
   }
   if (cur) arrive(cur);
+  // The guide's setting, the same one as on every photograph's page: Off · Hints · Full.
+  function paintG() { var g = document.documentElement.getAttribute('data-guide') || 'hints'; [].forEach.call(root.querySelectorAll('[data-guide-set]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-guide-set') === g ? 'true' : 'false'); }); root.classList.toggle('st-gfull', g === 'full'); }
+  root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-guide-set]'); if (!b) return; var g = b.getAttribute('data-guide-set'); document.documentElement.setAttribute('data-guide', g); try { localStorage.setItem('wm_guide', g); } catch (x) {} paintG(); if (g === 'off') [].forEach.call(root.querySelectorAll('.st-line'), function (l) { l.remove(); }); say(g === 'off' ? 'The guide is off. It is always here when you want it.' : g === 'full' ? 'The guide in full.' : 'Hints: a line for those who stay.'); });
+  paintG();
   // Find: a word strolls through one place, one maker, one subject.
   var form = root.querySelector('[data-st-search]'), sx = root.querySelector('[data-st-sx]'), inp = form.querySelector('input');
   sx.addEventListener('click', function () { root.classList.add('st-find'); inp.focus(); });

@@ -47,3 +47,23 @@
   if (S && S.onvoiceschanged !== undefined) S.onvoiceschanged = function () {};
   window.addEventListener('pagehide', stop);
 })();
+
+/* The guide's setting: Off · Hints · Full, one for the whole house, remembered on this device. Off folds the guide
+   to one slim line you can still open; Hints shows the first paragraph and asks you to find each thing before it
+   tells you why; Full opens everything. */
+(function () {
+  var root = document.documentElement;
+  function cur() { return root.getAttribute('data-guide') || 'hints'; }
+  function paint() { [].forEach.call(document.querySelectorAll('[data-guide-set]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-guide-set') === cur() ? 'true' : 'false'); });
+    var full = cur() === 'full'; [].forEach.call(document.querySelectorAll('.sd-s'), function (d, i) { if (full) d.open = true; else if (cur() === 'hints') d.open = i === 0; }); }
+  window.WMGuide = { get: cur, set: function (v) { root.setAttribute('data-guide', v); try { localStorage.setItem('wm_guide', v); } catch (e) {} [].forEach.call(document.querySelectorAll('.lc'), function (s) { s.classList.remove('lc-open', 'lc-all'); }); paint(); } };
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-guide-set],[data-lc-open],[data-lc-more],[data-sd-reveal]'); if (!t) return;
+    if (t.hasAttribute('data-guide-set')) return window.WMGuide.set(t.getAttribute('data-guide-set'));
+    var sec = t.closest('.lc');
+    if (t.hasAttribute('data-lc-open')) { sec.classList.add('lc-open'); return; }
+    if (t.hasAttribute('data-lc-more')) { sec.classList.add('lc-all'); return; }
+    if (t.hasAttribute('data-sd-reveal')) { t.closest('li').classList.add('on'); }
+  });
+  paint();
+})();

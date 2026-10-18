@@ -2609,3 +2609,29 @@ aside.cu-show .buy-btn{width:100%}
 .sd-by{margin:14px 0 0;font-size:12px;line-height:1.5;color:var(--mu)}
 @media (max-width:600px){.sd-w div{grid-template-columns:1fr;gap:2px}.sd-s>summary{font-size:19px}}
 .st-gmore{display:block;margin-top:12px;color:#f3f1ec;font-size:13px;letter-spacing:.02em;text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(255,255,255,.35)}
+
+/* The guide's three settings (html[data-guide]). */
+.gd-sw{display:inline-flex;margin-left:auto;margin-right:6px;border:1px solid var(--ln);border-radius:999px;padding:2px}
+.gd-sw button{border:0;background:none;padding:6px 11px;border-radius:999px;font:500 10.5px/1 inherit;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);cursor:pointer}
+.gd-sw button[aria-pressed="true"]{background:var(--ink);color:var(--bg,#fff)}
+.lc-min{display:none;width:100%;align-items:baseline;gap:12px;padding:14px 0;border:0;background:none;text-align:left;cursor:pointer;color:var(--ink)}
+.lc-min-k{flex:none;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--mu)}
+.lc-min-t{flex:1;min-width:0;font-family:var(--read);font-style:italic;font-size:16px;color:#55514a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-min i{flex:none;font-style:normal;font-size:10px;letter-spacing:.18em;text-transform:uppercase;text-decoration:underline;text-underline-offset:4px}
+html[data-guide="off"] .lc:not(.lc-open)>*:not(.lc-min){display:none}
+html[data-guide="off"] .lc:not(.lc-open) .lc-min{display:flex}
+html[data-guide="off"] .lc:not(.lc-open){padding-top:4px}
+.lc-more{display:none;border:0;background:none;padding:0;margin:0 0 6px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+html[data-guide="hints"] .lc:not(.lc-all) .lc-t p:not(:first-child){display:none}
+html[data-guide="hints"] .lc:not(.lc-all) .lc-more{display:inline-block}
+/* The coach: find it first, then the why. */
+.sd-coach{margin:0 0 12px;font-family:var(--read);font-style:italic;font-size:15px;color:var(--mu)}
+html:not([data-guide="hints"]) .sd-coach{display:none}
+.sd-reveal{display:none;grid-column:2;justify-self:start;margin-top:4px;border:0;background:none;padding:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+html[data-guide="hints"] .sd-look li:not(.on) .sd-why{display:none}
+html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
+.sd-look li.on .sd-why{animation:sdIn .5s var(--e) both}
+@media (max-width:600px){.lc-h{flex-wrap:wrap}.gd-sw{order:3;margin:8px 0 0}}
+.st-gcard .gd-sw{margin:0 0 14px;border-color:rgba(255,255,255,.2)}
+.st-gcard .gd-sw button{color:rgba(243,241,236,.6)}
+.st-gcard .gd-sw button[aria-pressed="true"]{background:#f3f1ec;color:#151412}
