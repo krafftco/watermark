@@ -33,7 +33,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio })
     frame INTEGER NOT NULL DEFAULT 0, email TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const { esc, tidy, date, money } = V, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
   const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
-  const mine = (req, l) => { const b = buyerOf(req); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req))); };
+  const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };
 
   // What the holder's file is, in pixels: Collect is the 2400-pixel copy; the Reference and working licenses the original.
   function fileOf(l, w) {
@@ -42,7 +42,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio })
     return { L, S, what: 'The full original' };
   }
 
-  function room({ l, w, maker, b, ok }) {
+  function room({ l, w, maker, b, ok, kq = '' }) {
     const f = fileOf(l, w), sz = sizes(f.L, f.S), best = sz.filter(s => s.grade), top = best[best.length - 1];
     const prints = db.prepare('SELECT * FROM prints WHERE license_id=? ORDER BY id').all(l.id);
     const orders = db.prepare('SELECT * FROM print_orders WHERE license_id=? ORDER BY id DESC').all(l.id);
@@ -78,7 +78,7 @@ ${canRef ? `<p class="kp-up">To print larger, <a href="/license/${esc(w.slug)}?u
 <p><a href="/print">The house’s guide to printing →</a></p></div>
 <div class="kp-way kp-house"><p class="k">Or have it printed</p><h3>The house prints it for you.</h3>
 <p>Printed on archival cotton or fibre, checked by eye, signed off and sent to your door, numbered to match your piece. Ask, and the house writes back with the price and the day it will be ready.</p>
-<form method="post" action="/yours/p/${esc(l.ref)}/order" class="kp-f">
+<form method="post" action="/yours/p/${esc(l.ref)}/order" class="kp-f">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}
 <label><span>Size</span><select name="size" required>${best.map(s => `<option>${esc(s.image)} in, on ${esc(s.paper)}</option>`).join('')}</select></label>
 <label><span>Paper</span><select name="paper">${PAPER_STOCK.map(([k, n]) => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></label>
 <label class="kp-c"><input type="checkbox" name="frame" value="1"> Framed, behind UV glass</label>
@@ -113,20 +113,39 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
     const l = lic(req.params.ref); if (!l) return res.sendStatus(404);
     if (!mine(req, l)) return res.redirect(`/c/${encodeURIComponent(l.ref)}`);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
-    res.send(room({ l, w, maker: mk(w), b: buyerOf(req), ok: req.query.ok || null }));
+    res.send(room({ l, w, maker: mk(w), b: buyerOf(req), ok: req.query.ok || null, kq: req.query.k && l.download_token === String(req.query.k) ? l.download_token : '' }));
   });
   const hits = new Map(), slow = k => { const now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 36e5); a.push(now); hits.set(k, a); return a.length > 6; };
   app.post('/yours/p/:ref/order', (req, res) => {
     const l = lic(req.params.ref); if (!l || !mine(req, l)) return res.sendStatus(404);
     const x = req.body || {}, t = (v, n) => String(v || '').trim().slice(0, n);
     const size = t(x.size, 80), email = t(x.email, 160).toLowerCase();
-    if (!size || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=check#print`);
+    if (!size || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=check${x.k ? '&k=' + encodeURIComponent(x.k) : ''}#print`);
     const b = buyerOf(req), w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w);
     db.prepare('INSERT INTO print_orders (license_id, buyer_id, size, paper, frame, email, note) VALUES (?,?,?,?,?,?,?)').run(l.id, b ? b.id : null, size, t(x.paper, 80) || null, x.frame === '1' ? 1 : 0, email, t(x.note, 300) || null);
     ledger.append(db, 'print.asked', l.ref, { size });
     mail.send({ to: HOUSE, subject: `A print asked for: ${tidy(w.title)}, ${size}`, text: `${tidy(w.title)}, by ${maker.name}. ${l.ref}${l.collector_no ? `, No. ${l.collector_no}` : ''}.\n\nSize: ${size}\nPaper: ${t(x.paper, 80) || 'their choice'}\nFramed: ${x.frame === '1' ? 'yes' : 'no'}\nWrite to: ${email}\n${x.note ? `Note: ${t(x.note, 300)}\n` : ''}\nThe file: the original, held in the vault (${w.width} × ${w.height}).\n\nWatermark` });
     mail.send({ to: email, subject: `Your print of ${tidy(w.title)}`, text: `Thank you. The house has your request for a print of ${tidy(w.title)}, by ${maker.name}: ${size}${x.paper ? `, ${t(x.paper, 80)}` : ''}${x.frame === '1' ? ', framed' : ''}.\n\nWe will write within a day with the price and the day it will be ready.\n\nYour piece: ${C.base}/yours/p/${l.ref}\n\nWatermark` });
-    res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=asked#print`);
+    res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=asked${x.k ? '&k=' + encodeURIComponent(x.k) : ''}#print`);
+  });
+
+  // The print room's desk (Studio → Prints): every print asked for, moved along by hand; the asker is told at each step.
+  const STEPS = { asked: 'Asked', making: 'Being printed', sent: 'Sent', done: 'Delivered', declined: 'Declined' };
+  app.get('/studio/prints', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const rows = db.prepare(`SELECT o.*, l.ref, l.collector_no, w.slug, w.title, w.width, w.height FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id ORDER BY (o.status IN ('asked','making','sent')) DESC, o.id DESC LIMIT 300`).all();
+    res.send(V.layout({ title: 'Prints · Studio · Watermark', studio: true, path: '/studio/prints', body: `<section class="studio-wrap"><p class="k">The print room</p><h1>Prints asked for.</h1>
+<p class="lede">Each request is answered by letter with the price and the day; then moved along here. The asker is written to at each step. The original is in the vault at full size.</p>
+${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>Asked by</th><th>Asked</th><th>Where it is</th></tr>${rows.map(o => `<tr><td><img class="cat-th" src="/img/${esc(o.slug)}/thumb" alt="" width="56" height="42"></td><td><a href="/w/${esc(o.slug)}">${esc(tidy(o.title))}</a><br><small>${esc(o.ref)}${o.collector_no ? ` · No. ${o.collector_no}` : ''} · ${o.width} × ${o.height}</small></td><td>${esc(o.size || '')}<br><small>${esc(o.paper || '')}${o.frame ? ' · framed' : ''}${o.note ? ` · “${esc(o.note)}”` : ''}</small></td><td><a href="mailto:${esc(o.email || '')}">${esc(o.email || '')}</a></td><td>${esc(date(o.at))}</td><td><form method="post" action="/studio/prints/${o.id}" class="inline"><select name="status">${Object.entries(STEPS).map(([k, n]) => `<option value="${k}"${o.status === k ? ' selected' : ''}>${n}</option>`).join('')}</select> <button>Move</button></form></td></tr>`).join('')}</table>` : '<p>None yet. When a collector asks for a print from their piece, it arrives here and by mail.</p>'}</section>` }));
+  });
+  app.post('/studio/prints/:id', (req, res) => {
+    if (!isStudio(req)) return res.sendStatus(403);
+    const o = db.prepare('SELECT o.*, l.ref, w.title FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id WHERE o.id=?').get(+req.params.id); if (!o) return res.sendStatus(404);
+    const st = String((req.body || {}).status || ''); if (!STEPS[st] || st === o.status) return res.redirect('/studio/prints');
+    db.prepare('UPDATE print_orders SET status=? WHERE id=?').run(st, o.id);
+    const words = { making: 'is being printed now. We check every print by eye before it leaves.', sent: 'is on its way to you.', done: 'has arrived, we hope safely. Record it on your piece so it stays with the number.', declined: 'could not be made as asked. We will write separately.' }[st];
+    if (words && o.email) mail.send({ to: o.email, subject: `Your print of ${tidy(o.title)}`, text: `Your print of ${tidy(o.title)} (${o.size}${o.paper ? `, ${o.paper}` : ''}) ${words}\n\nYour piece: ${C.base}/yours/p/${o.ref}\n\nWatermark` });
+    res.redirect('/studio/prints');
   });
 
   // The house's guide to printing: for anyone, collector or not.

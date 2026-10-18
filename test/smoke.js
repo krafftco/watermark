@@ -152,6 +152,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
   // the maker's say: close a use, require approval, say never; conditions travel with the license
   r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const ck = r.headers['set-cookie'][0].split(';')[0];
+  r = await req(port, 'GET', '/studio/prints', { cookie: ck }); assert.ok(r.body.toString().includes('10 × 7½ in, on 10 × 8'), 'the print room lists it');
+  { const oid = (r.body.toString().match(/action="\/studio\/prints\/(\d+)"/) || [])[1]; r = await req(port, 'POST', `/studio/prints/${oid}`, { cookie: ck, body: { status: 'making' } }); assert.equal(r.status, 302, 'moved along'); }
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');

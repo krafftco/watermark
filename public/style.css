@@ -2937,3 +2937,4 @@ html.dk,html.dk body{background:#0b0a09;min-height:100%;overscroll-behavior:none
 .yc-pgo{font-size:12px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
 @media (max-width:760px){.yc-print{grid-template-columns:64px 1fr}.yc-print img{width:64px;height:48px}.yc-pgo{grid-column:1/-1}}
 .kp-two>*,.kp-file>*,.kp-f>*{min-width:0}.kp-f select,.kp-f input:not([type=checkbox]){width:100%;min-width:0}
+.kp-guide h2{text-transform:none;letter-spacing:0;color:var(--ink)}.pr-room{margin:18px 0 0;font:400 19px/1.3 var(--disp)}.pr-room a{text-decoration:none;border-bottom:1px solid currentColor}

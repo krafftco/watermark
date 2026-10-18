@@ -235,7 +235,7 @@ function createApp(cfg = {}) {
       fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(Math.round(cents * pct / 100), g.currency), pct, times, allTimes, month: allTimes > 1 ? V.money(Math.round(month * pct / 100), g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
-      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null,
+      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
     };
@@ -1308,7 +1308,7 @@ function createApp(cfg = {}) {
     if (l.status !== 'active' && owner) l = await settle(l); // paid at Stripe but not yet told here
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    const resend = owner && l.status === 'active' ? { email: l.licensee_email || (me && me.email) || '', sent: req.query.sent ? String(req.query.sent).slice(0, 160) : null } : null;
+    const resend = owner && l.status === 'active' ? { room: `/yours/p/${encodeURIComponent(l.ref)}${l.download_token ? `?k=${l.download_token}` : ''}`, email: l.licensee_email || (me && me.email) || '', sent: req.query.sent ? String(req.query.sent).slice(0, 160) : null } : null;
     res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend }));
   });
   // Send it again (Will, 18 Oct: the letter never came): the holder, signed in or holding the key, asks for the
