@@ -2715,3 +2715,11 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .mn .mn-by::before{content:"\2014\00a0"}
 .lc-ai{display:inline-block;margin-left:8px;padding:1px 7px;border:1px solid currentColor;border-radius:99px;font-size:10px;letter-spacing:.12em;opacity:.6;vertical-align:1px}
 .h-note{font-size:13px;line-height:1.5;opacity:.7;margin:2px 0 4px}
+/* The chrome on a phone (Will, 18 Oct): arriving shows the plate alone; the acts come on a tap and leave quickly.
+   Coming in is quick (.25s), going is a breath (.9s), never the slow 2.4s fade that kept buttons over the picture. */
+@media (pointer:coarse){
+  .st .st-top,.st .st-plate,.st .st-rail,.st .st-eye,.st .bk-pill{transition:opacity .25s ease}
+  .st.st-still .st-top,.st.st-still .st-plate,.st.st-still .st-rail,.st.st-still .st-eye,.st.st-still .bk-pill{transition:opacity .9s ease}
+  .st.st-arr .st-rail,.st.st-arr .st-eye,.st.st-arr .bk-pill,.st.st-arr .st-top{opacity:0;pointer-events:none}
+  .st.st-still:not(.st-sit) .st-line{bottom:calc(env(safe-area-inset-bottom) + 28px)}
+}

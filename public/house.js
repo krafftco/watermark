@@ -66,7 +66,7 @@
     + '.kh.kh-m{position:fixed;top:0;left:0;right:0;transform:translateY(-100%);transition:transform .32s ease;box-shadow:0 6px 24px rgba(0,0,0,.35)}.kh.kh-m.on{transform:none}'
     + '.kh-dot{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:999;width:34px;height:34px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:rgba(17,17,17,.55);color:#f6f5f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transform:translateY(-6px);transition:opacity .35s ease,transform .35s ease;-webkit-tap-highlight-color:transparent}'
     + '.kh-dot svg{width:14px;height:14px}.kh-dot.up{opacity:.55;transform:none}.kh-dot.top{opacity:.9;transform:none}.kh-dot.gone{opacity:0;transform:translateY(-6px);pointer-events:none}';
-  var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="51.66 0 .14 51.88 .14 51.67 .14 32.28 28.16 0 51.66 0"/></svg>';
+  var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
   function link(p) {
     var a = document.createElement('a');
     var other = fam(p.host) !== F;           // another domain: its cookie can't be read from here

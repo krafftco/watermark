@@ -127,7 +127,10 @@
     if (e.target.closest('button, a')) return; var it = e.target.closest('.st-i'); if (!it) return;
     var now = Date.now();
     if (now - lastTap < 320) { clearTimeout(tapT); lastTap = 0; var w = items[it.getAttribute('data-slug')]; if (w) hat(w, true); return; }
-    lastTap = now; tapT = setTimeout(function () { chrome = !chrome; root.classList.toggle('st-rest', !chrome); }, 330);
+    lastTap = now; tapT = setTimeout(function () {
+      // On a phone the picture leads: a tap calls the plate and the acts for a few seconds; a tap while they show sends them away.
+      if (TOUCH) { if (root.classList.contains('st-still') || root.classList.contains('st-arr')) { root.classList.remove('st-arr'); quiet(TAP); } else { clearTimeout(stillT); root.classList.add('st-still'); } return; }
+      chrome = !chrome; root.classList.toggle('st-rest', !chrome); }, 330);
   });
   // Stopping the guide when you move on.
   scroller.addEventListener('scroll', function () { if (audio || (Sy && Sy.speaking)) { if (!sheet.hidden) return; } }, { passive: true });
@@ -155,11 +158,17 @@
   // Staying is what pays (Will, 18 Oct: a feed pays you for moving on; Watermark pays you for staying).
   // Hold still and the plate and the acts fall away, leaving only the picture; stay longer and one line of the
   // guide rises. Racing on earns nothing; once, after a fast run, the next photograph holds and asks you to stay.
-  var stillT = null, lineT = null, STILL = 6000, LINE = 20000, arrivals = [], sitting = false, sitT = null, SIT = 90000;
+  // The chrome on a phone (Will, 18 Oct: the buttons must not take the picture for long; everything there the moment
+  // it is wanted). Arriving shows the plate alone (title, maker) for ARR; the acts stay away until a tap calls them,
+  // for TAP; moving on sends everything away at once. A swipe never wakes the chrome; only a tap does.
+  var TOUCH = matchMedia('(pointer:coarse)').matches, ARR = 2600, TAP = 4000;
+  var stillT = null, lineT = null, STILL = TOUCH ? ARR : 6000, LINE = 20000, arrivals = [], sitting = false, sitT = null, SIT = 90000;
   function firstLine(g) { var t = String(g || '').split(/\n{2,}/)[0]; var m = t.match(/^.{20,180}?[.!?](?=\s|$)/); return (m ? m[0] : t.slice(0, 160)).trim(); }
-  function quiet() { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden) root.classList.add('st-still'); }, sitting ? 1500 : STILL); }
-  ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
+  function quiet(ms) { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden) { root.classList.add('st-still'); root.classList.remove('st-arr'); } }, sitting ? 1500 : (ms || STILL)); }
+  ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (TOUCH && (t === 'touchstart' || t === 'wheel')) return; if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
+  if (TOUCH) { var movingT = null; scroller.addEventListener('scroll', function () { if (!movingT) { clearTimeout(stillT); root.classList.add('st-still'); root.classList.remove('st-arr'); } clearTimeout(movingT); movingT = setTimeout(function () { movingT = null; }, 180); }, { passive: true }); }
   function arrive(slug) {
+    if (TOUCH) root.classList.add('st-arr');
     quiet(); clearTimeout(lineT);
     var w = items[slug]; if (!w || !w.el) return;
     var gp = document.documentElement.getAttribute('data-guide') || 'hints';
