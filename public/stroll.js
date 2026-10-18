@@ -45,8 +45,24 @@
   // Which photograph is before you now; the one before it is told to the house.
   function stood(slug, s) { if (!slug || s < 2) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
   function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
+  // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
+  // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
+  // turn the current work is held in place, and landscape is its own presentation (the picture alone, edge to edge).
+  var turning = false, turnT = null;
+  function resnap() {
+    var w = items[cur]; if (!w || !w.el) return;
+    turning = true; clearTimeout(turnT);
+    scroller.style.scrollSnapType = 'none'; scroller.scrollTop = w.el.offsetTop;
+    requestAnimationFrame(function () { scroller.scrollTop = w.el.offsetTop; scroller.style.scrollSnapType = ''; turnT = setTimeout(function () { scroller.scrollTop = w.el.offsetTop; turning = false; }, 320); });
+    var land = innerWidth > innerHeight; root.classList.toggle('st-land', land);
+    if (land && TOUCH) { root.classList.add('st-arr'); clearTimeout(stillT); }
+  }
+  var rsT = null; addEventListener('resize', function () { clearTimeout(rsT); rsT = setTimeout(resnap, 60); }); addEventListener('orientationchange', function () { setTimeout(resnap, 120); setTimeout(resnap, 420); });
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', function () { setTimeout(resnap, 100); });
+  root.classList.toggle('st-land', innerWidth > innerHeight);
   var io = new IntersectionObserver(function (es) {
     es.forEach(function (e) {
+      if (turning) return;
       if (!e.isIntersecting || e.intersectionRatio < 0.6) return;
       var slug = e.target.getAttribute('data-slug'); if (slug === cur) return;
       if (cur) stood(cur, Math.round((Date.now() - since) / 1000));
@@ -170,9 +186,9 @@
   });
   // Guide on: each photograph's guide is read as you arrive, in the house voice, until you turn it off.
   var gon = root.querySelector('[data-st-gon]');
-  function paintGon() { gon.setAttribute('aria-pressed', guideOn ? 'true' : 'false'); }
+  function paintGon() { if (gon) gon.checked = !!guideOn; }
   paintGon();
-  gon.addEventListener('click', function () { guideOn = !guideOn; try { localStorage.setItem('wm_stroll_guide', guideOn ? '1' : '0'); } catch (e) {} paintGon(); if (guideOn && items[cur]) guide(items[cur], true); else stopGuide(); say(guideOn ? 'The guide will read each one.' : 'Guide off.'); });
+  if (gon) gon.addEventListener('change', function () { guideOn = gon.checked; try { localStorage.setItem('wm_stroll_guide', guideOn ? '1' : '0'); } catch (e) {} if (guideOn && items[cur]) guide(items[cur], true); else stopGuide(); say(guideOn ? 'The guide will read each one.' : 'Guide off.'); });
   // A swipe sideways on the picture opens the maker's own stroll (left), or returns to everything (right).
   var sx0 = null, sy0 = null;
   scroller.addEventListener('touchstart', function (e) { if (e.target.closest('button, a')) { sx0 = null; return; } sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; }, { passive: true });
@@ -189,9 +205,11 @@
   function quiet(ms) { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden) { root.classList.add('st-still'); root.classList.remove('st-arr'); } }, sitting ? 1500 : (ms || STILL)); }
   ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (TOUCH && (t === 'touchstart' || t === 'wheel')) return; if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
   if (TOUCH) { var movingT = null; scroller.addEventListener('scroll', function () { if (!movingT) { clearTimeout(stillT); root.classList.add('st-still'); root.classList.remove('st-arr'); } clearTimeout(movingT); movingT = setTimeout(function () { movingT = null; }, 180); }, { passive: true }); }
+  var firstArr = true;
   function arrive(slug) {
-    if (TOUCH) root.classList.add('st-arr');
-    quiet(); clearTimeout(lineT);
+    // The first screen keeps its bar and acts a few seconds longer, so a newcomer sees Find and Settings exist.
+    if (TOUCH && !firstArr) root.classList.add('st-arr');
+    quiet(firstArr && TOUCH ? 5000 : undefined); firstArr = false; clearTimeout(lineT);
     var w = items[slug]; if (!w || !w.el) return;
     var gp = document.documentElement.getAttribute('data-guide') || 'hints';
     if (gp !== 'off' && w.guide && !w.el.querySelector('.st-line')) lineT = setTimeout(function () { if (cur !== slug) return; var p = document.createElement('p'); p.className = 'st-line'; p.textContent = firstLine(w.guide); w.el.appendChild(p); requestAnimationFrame(function () { p.classList.add('on'); }); }, sitting ? 9000 : gp === 'full' ? 7000 : LINE);
@@ -224,26 +242,38 @@
     } catch (e) { ac = null; }
   }
   function wake() { try { navigator.wakeLock && navigator.wakeLock.request('screen').then(function (l) { lock = l; l.addEventListener && l.addEventListener('release', function () { lock = null; }); }).catch(function () {}); } catch (e) {} }
+  // The pace (18 Oct, settings): you scroll, or the stroll moves on by itself every 15, 30 or 90 seconds. Sit is the
+  // preset: 90 s, the guide read, quiet music. The music and the voice are switches of their own.
+  var pace = 0, musicOn = false; try { pace = +localStorage.getItem('wm_stroll_pace') || 0; musicOn = localStorage.getItem('wm_stroll_music') === '1'; } catch (e) {}
+  var paceB = root.querySelectorAll('[data-pace]'), musicSw = root.querySelector('[data-st-music]');
+  function paintPace() { [].forEach.call(paceB, function (b) { b.setAttribute('aria-pressed', +b.getAttribute('data-pace') === pace ? 'true' : 'false'); }); if (musicSw) musicSw.checked = musicOn; sitting = pace > 0; SIT = (pace || 90) * 1000; root.classList.toggle('st-sit', sitting); if (sitb) sitb.setAttribute('aria-pressed', (pace === 90 && musicOn && guideOn) ? 'true' : 'false'); sitbar.hidden = !sitting; }
+  function setPace(p) { pace = p; try { localStorage.setItem('wm_stroll_pace', String(p)); } catch (e) {} paintPace(); clearTimeout(sitT); if (pace > 0) { wake(); if (cur) { sitT = setTimeout(next, SIT); } } else { try { lock && lock.release(); } catch (e) {} lock = null; quiet(); } }
+  function setMusic(on) { musicOn = on; try { localStorage.setItem('wm_stroll_music', on ? '1' : '0'); } catch (e) {} if (on && !ac) music(true); if (!on && ac) music(false); paintPace(); }
   function sit(on) {
-    if (!sitb) return;
-    sitting = on; root.classList.toggle('st-sit', on); sitb.setAttribute('aria-pressed', on ? 'true' : 'false'); sitbar.hidden = !on;
-    clearTimeout(sitT); music(on);
-    if (on) { wasGuide = guideOn; guideOn = true; if (items[cur]) { guide(items[cur], true); arrive(cur); } wake(); }
-    else { guideOn = wasGuide; if (!guideOn) stopGuide(); try { lock && lock.release(); } catch (e) {} lock = null; quiet(); }
+    if (on) { setPace(90); setMusic(true); if (!guideOn) { guideOn = true; try { localStorage.setItem('wm_stroll_guide', '1'); } catch (e) {} paintGon(); if (items[cur]) guide(items[cur], true); } say('Sit as long as you like. Each one stays a while.', 3200); }
+    else { setPace(0); setMusic(false); if (guideOn) { guideOn = false; try { localStorage.setItem('wm_stroll_guide', '0'); } catch (e) {} paintGon(); stopGuide(); } }
+    paintPace();
   }
+  [].forEach.call(paceB, function (b) { b.addEventListener('click', function () { setPace(+b.getAttribute('data-pace')); say(pace ? 'Moving on every ' + pace + ' seconds.' : 'You scroll.'); }); });
+  if (musicSw) musicSw.addEventListener('change', function () { setMusic(musicSw.checked); });
   if (sitb) {
-    sitb.addEventListener('click', function () { sit(!sitting); if (sitting) say('Sit as long as you like. Each one stays a while.', 3200); });
+    sitb.addEventListener('click', function () { sit(!(pace === 90 && musicOn && guideOn)); closeSheets(); });
     sitbar.querySelector('[data-st-stand]').addEventListener('click', function () { sit(false); });
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && sitting && !lock) wake(); });
   }
+  paintPace(); if (musicOn) { var once = function () { if (musicOn && !ac) music(true); removeEventListener('touchstart', once); removeEventListener('click', once); }; addEventListener('touchstart', once, { passive: true }); addEventListener('click', once); }
   if (cur) arrive(cur);
   // The guide's setting, the same one as on every photograph's page: Off · Hints · Full.
   function paintG() { var g = document.documentElement.getAttribute('data-guide') || 'hints'; [].forEach.call(root.querySelectorAll('[data-guide-set]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-guide-set') === g ? 'true' : 'false'); }); root.classList.toggle('st-gfull', g === 'full'); }
   root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-guide-set]'); if (!b) return; var g = b.getAttribute('data-guide-set'); document.documentElement.setAttribute('data-guide', g); try { localStorage.setItem('wm_guide', g); } catch (x) {} paintG(); if (g === 'off') [].forEach.call(root.querySelectorAll('.st-line'), function (l) { l.remove(); }); say(g === 'off' ? 'The guide is off. It is always here when you want it.' : g === 'full' ? 'The guide in full.' : 'Hints: a line for those who stay.'); });
   paintG();
-  // Find: a word strolls through one place, one maker, one subject.
-  var form = root.querySelector('[data-st-search]'), sx = root.querySelector('[data-st-sx]'), inp = form.querySelector('input');
-  sx.addEventListener('click', function () { root.classList.add('st-find'); inp.focus(); });
-  inp.addEventListener('blur', function () { if (!inp.value) root.classList.remove('st-find'); });
-  if (q) root.classList.add('st-find');
+  // Settings: a sheet from the top bar (18 Oct). Find is the house's own (find.js), opened from the bar's Find.
+  var fsheet = null, ssheet = root.querySelector('[data-st-ssheet]');
+  function closeSheets() { if (ssheet) ssheet.hidden = true; root.classList.remove('st-sheet-on'); quiet(); }
+  function openSheet(el) { closeSheets(); el.hidden = false; root.classList.add('st-sheet-on'); clearTimeout(stillT); root.classList.remove('st-still', 'st-arr'); }
+  var sb = root.querySelector('[data-st-settings]');
+  if (sb) sb.addEventListener('click', function () { openSheet(ssheet); });
+  [].forEach.call(root.querySelectorAll('[data-st-sx2]'), function (b) { b.addEventListener('click', closeSheets); });
+  if (ssheet) ssheet.addEventListener('click', function (e) { if (e.target === ssheet) closeSheets(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ssheet && !ssheet.hidden) { e.stopImmediatePropagation(); closeSheets(); } }, true);
 })();

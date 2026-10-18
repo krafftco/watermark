@@ -45,3 +45,9 @@ So in the stroll: hold still and everything but the photograph falls away. Stay 
 The collector is who most people here will be, so what they hold must be the best room in the house, and they must be given everything to use it. Above all: print it, and see it in person. The holder's room (/yours/p/:ref) shows the sizes their file prints at, gives the file, teaches them to print it themselves (/print, the house's guide), or takes an order for the house to print it. The print room is by hand for now (`print_orders`, mailed to the house); a printing business, ours or a partner lab's, is the plan.
 
 The Frick is the model. The Krafft Collection is to be what the Frick is: a collection lived with in a house, not a white cube. One day a Gilded Age house on the Upper East Side, near the Met, where the analog work is printed and hung, and Watermark is also a small physical place. (Will's ambition, private until he says otherwise; not public copy.)
+
+## Wander is the house (Will, 18 October)
+Wander is what makes the house bingeable; the rest serves it. The front door, the header and the line beneath the hero all lead there with one button, the wave and the word. Inside it: Find (straight to the picture) and Settings (the guide, the pace, the sound), and nothing else in the way. A phone turned sideways shows a horizontal work full screen, the way Instagram never does.
+
+## Straight to the picture (Will, 18 October)
+Finding art is always hard; the long walk up to the one you came for. Find is one search for the whole house, the same everywhere (the header, the stroll, / or ⌘K, /find): as you type, the works themselves appear, with their pictures; Enter opens the first; a slip of the fingers is forgiven; before you type, where you stood lately and what is yours, then the ways in. A word with no single work wanders through everything that matches.

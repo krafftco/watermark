@@ -122,6 +122,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(r.status === 303 && /ok=asked/.test(r.headers.location), 'a print asked for');
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('with the house'), 'the order shows');
   r = await req(port, 'GET', '/print'); assert.ok(r.status === 200 && r.body.toString().includes('Print your work.'), 'the guide to printing');
+  // find: straight to the picture
+  r = await req(port, 'GET', '/api/find?q=dome'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length && fj.works[0].href.startsWith('/m/') && fj.works[0].stroll.startsWith('/stroll?at='), 'find by title: ' + r.body.slice(0, 200)); }
+  r = await req(port, 'GET', '/api/find?q=dmoe'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length, 'a typo forgiven'); }
+  r = await req(port, 'GET', '/api/find', { cookie: bck }); { const fj = JSON.parse(r.body); assert.ok(fj.before && fj.before.yours.length >= 1 && fj.before.places.length, 'before typing: yours and the ways in'); }
+  r = await req(port, 'GET', '/find?q=dome'); assert.ok(r.status === 200 && r.body.toString().includes('class="fd-w"'), 'the find page');
+  r = await req(port, 'GET', '/stroll'); assert.ok(r.body.toString().includes('data-find-open="stroll"') && r.body.toString().includes('data-st-ssheet') && r.body.toString().includes('data-pace="30"'), 'the stroll carries Find and Settings');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');

@@ -917,6 +917,7 @@ function createApp(cfg = {}) {
     ledger.append(db, 'print.recorded', l.ref, { size: t(x.size, 60), paper: t(x.paper, 80) });
     res.redirect(/^\/yours\/p\/[\w-]+$/.test(String(x.back || '')) ? `${x.back}?ok=recorded` : '/yours#files');
   });
+  require('./find').mountFind(app, { db, V, I: require('./icons') });
   app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.

@@ -45,6 +45,13 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     if (req.query.in) { const r = inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
     res.set('Cache-Control', 'no-store').json({ items: next(req, { seen, q, maker, n }), q, maker });
   });
+  // The ways in (18 Oct: Find should never be an empty box): the places, the makers and the series held, with counts.
+  app.get('/api/stroll/ways', (req, res) => {
+    const places = db.prepare("SELECT place AS name, COUNT(*) n FROM works WHERE status='held' AND place IS NOT NULL AND place!='' GROUP BY place ORDER BY n DESC, place LIMIT 24").all();
+    const makers = db.prepare("SELECT m.*, COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(m.kind,'') NOT IN ('writer','gallery') GROUP BY m.id ORDER BY n DESC LIMIT 12").all().map(m => ({ name: m.name, slug: V.makerSlug(m), n: m.n }));
+    let series = []; try { series = db.prepare("SELECT s.slug, s.title, COUNT(sw.work_id) n FROM series s JOIN series_works sw ON sw.series_id=s.id JOIN works w ON w.id=sw.work_id AND w.status='held' WHERE s.public=1 GROUP BY s.id ORDER BY n DESC LIMIT 12").all(); } catch (e) { series = []; }
+    res.set('Cache-Control', 'public, max-age=300').json({ places, makers, series });
+  });
   app.get('/stroll', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const at = req.query.at ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
@@ -75,10 +82,17 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}The stroll · Watermark`, desc: 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: '/stroll', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(V.tidy ? set.label : set.label)}<i>${I.close}</i></a>` : ''}<button type="button" class="st-gon st-sitb" data-st-sit aria-pressed="false" title="Sit: each photograph held a while, the guide read, quiet music">${I.stand}<span>Sit</span></button><button type="button" class="st-gon" data-st-gon aria-pressed="false" title="Read each guide as you arrive">${I.guide}<span>Guide</span></button><form class="st-search" action="/stroll" method="get" data-st-search><input type="search" name="q" value="${esc(q)}" placeholder="A place, a maker, a word" aria-label="Find" autocomplete="off"><button type="button" class="st-sx" data-st-sx aria-label="Find">${I.find || I.eye}</button></form><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
+<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon" data-st-settings aria-label="Settings" title="The guide, the pace, the sound">${I.dial}<span>Settings</span></button><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
+/div>
+<div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
+<button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
+<div class="st-srow"><p class="st-sk">The guide</p>${V.GUIDE_SWITCH || ''}</div>
+<div class="st-srow"><p class="st-sk">Pace</p><div class="st-pills" data-st-pace><button type="button" data-pace="0">You scroll</button><button type="button" data-pace="15">15 s</button><button type="button" data-pace="30">30 s</button><button type="button" data-pace="90">90 s</button></div></div>
+<div class="st-srow"><p class="st-sk">Sound</p><label class="st-sw"><input type="checkbox" data-st-music><span>Quiet music, made here</span></label><label class="st-sw"><input type="checkbox" data-st-gon><span>The guide read aloud as you arrive</span></label></div>
+<p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/stroll">Stroll on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k">Look closer</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
-<p class="st-toast" data-st-toast hidden></p>
+<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>
 </main>
