@@ -108,6 +108,7 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
     const b = person(req, res);
     if (db.prepare("SELECT COUNT(*) n FROM notes WHERE buyer_id=? AND at > datetime('now','-10 minutes')").get(b.id).n >= 3) return res.redirect(`/w/${w.slug}?note=slow#notes`);
     db.prepare('INSERT INTO notes (work_id, buyer_id, name, body) VALUES (?,?,?,?)').run(w.id, b.id, name || b.name || null, body);
+    if (app.locals.notify) app.locals.notify.tell({ maker_id: w.maker_id, kind: 'note', slug: w.slug, href: `/w/${w.slug}#notes`, title: `${name || b.name || 'Someone'} signed the guest book`, body: `“${body.slice(0, 120)}${body.length > 120 ? '…' : ''}”, on ${String(w.title).replace(/[.\s]+$/, '')}.` }).catch(() => {});
     if (name && !b.name) db.prepare('UPDATE buyers SET name=? WHERE id=?').run(name, b.id);
     res.redirect(`/w/${w.slug}?note=1#notes`);
   });

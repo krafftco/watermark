@@ -681,6 +681,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/basket'); assert.ok(/The basket is empty/.test(r.body));
     r = await req(port, 'GET', '/w/' + two[0].slug); assert.ok(/static\/basket\.js/.test(r.body), 'the basket script rides on every page'); }
   console.log('ok: the basket');
+  // Notifications: a paid sale tells its maker; the list and the count; a device subscribes.
+  { const nw = db.prepare("SELECT * FROM works WHERE status='held' LIMIT 1").get(); const nm = db.prepare('SELECT * FROM makers WHERE id=?').get(nw.maker_id);
+    const before = db.prepare("SELECT COUNT(*) n FROM notices WHERE maker_id=? AND kind='licensed'").get(nm.id).n;
+    const nref = 'T-NOTIFY-1'; const su = db.prepare("SELECT id FROM uses WHERE maker_id=? AND key='social'").get(nm.id) || db.prepare('SELECT id FROM uses LIMIT 1').get();
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status) VALUES (?,?,?,?,?,?,'awaiting_payment')").run(nref, nw.id, su.id, 'Ada', 'ada@example.com', 500);
+    require('../src/ledger').append(db, 'license.granted', nref, { work: nw.slug, use: 'social', paid: true });
+    await new Promise(r => setTimeout(r, 50));
+    const after = db.prepare("SELECT * FROM notices WHERE maker_id=? AND kind='licensed' ORDER BY id DESC").all(nm.id);
+    assert.equal(after.length, before + 1, 'a paid sale tells its maker'); assert.ok(/was collected/.test(after[0].title) && /\$5/.test(after[0].body), after[0].title + ' / ' + after[0].body);
+    let r = await req(port, 'GET', '/api/notices'); assert.equal(JSON.parse(r.body).in, false, 'a stranger hears nothing');
+    r = await req(port, 'GET', '/notices'); assert.equal(r.status, 302);
+    assert.ok(app.locals.notify.vapid().publicKey.length > 40, 'the house has push keys'); }
+  console.log('ok: notifications');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

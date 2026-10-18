@@ -27,7 +27,8 @@
     "pdfkit": "^0.20.2",
     "piexifjs": "^1.0.6",
     "sharp": "^0.35.5",
-    "stripe": "^23.0.0"
+    "stripe": "^23.0.0",
+    "web-push": "^3.6.7"
   },
   "private": true,
   "engines": {

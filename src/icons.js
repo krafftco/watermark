@@ -46,4 +46,6 @@ const I = {
   plus: wrap('<path d="M12 5v14M5 12h14"/>'),
   check: wrap('<path d="m5 12.5 4.2 4.2L19 7.4"/>'),
 };
+// The bell: a handbell, not an alarm.
+I.bell = wrap('<path d="M6.6 16.4V11a5.4 5.4 0 0 1 10.8 0v5.4l1.4 1.8H5.2z"/><path d="M10.2 20.2a1.9 1.9 0 0 0 3.6 0"/><path d="M12 5.6V4.2"/>');
 module.exports = I;

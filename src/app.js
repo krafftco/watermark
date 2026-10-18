@@ -818,6 +818,7 @@ function createApp(cfg = {}) {
     imageOf: async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen')) });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   require('./speech').mountSpeech(app, { db, C, store, closerOf: w => app.locals.closerOf(w) });
+  require('./notify').mountNotify(app, { db, C, ledger, V, mk, makerOf: req => app.locals.accounts.makerOf(req), buyerOf });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
   // Signing in by email: a six-digit code or the link in the message; the same email opens a maker's room.
