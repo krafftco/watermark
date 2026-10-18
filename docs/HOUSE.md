@@ -34,3 +34,9 @@ In the house this is the eye: on every photograph, a quiet glyph top right. It o
 Draft definition, for Will to confirm or rewrite: **watermark** (n.), the information a photograph carries: who made it, who may use it, and how the maker is paid. (v.), to place a photograph in Watermark so it carries that information wherever it goes.
 
 The domain watermark.com is Will's to pursue; nothing is bought from here.
+
+## Staying is what pays (Will, 18 October)
+
+Social media made looking into a feed: a scroll, a swipe, a comment, in your face. The house borrows the swipe because that is how a thumb moves on a phone, but it must not borrow the bargain. A feed pays you for moving on; Watermark pays you for staying.
+
+So in the stroll: hold still and everything but the photograph falls away. Stay longer and one line of the guide rises, as a docent might lean in. Racing on earns nothing; once, after a fast run, the next photograph holds and says "Stay with this one." There are no numbers on the wall: the tip of the hat is given, never counted where the visitor can see it. And there is Sit: each photograph held a minute and a half, the guide read aloud, quiet music made in the room, nothing to press. Someone could walk through the house half-asleep and come out full.

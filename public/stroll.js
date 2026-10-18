@@ -22,7 +22,7 @@
       + '<div class="st-plate"><a class="st-by" href="/stroll?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/stroll?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
-      + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '">' + ic.hat + '<span data-st-hat-n>' + (w.hat && w.hat.n ? w.hat.n : '') + '</span></button>'
+      + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
       + '<button type="button" class="st-b" data-st-hang>' + ic.hang + '<span>Hang</span></button>'
       + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '">' + ic.collect + '<span>' + esc(w.collect.price) + '</span></button>' : '')
       + (w.guide ? '<button type="button" class="st-b" data-st-guide>' + ic.guide + '<span>Guide</span></button>' : '')
@@ -53,6 +53,7 @@
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 4) more();
       try { history.replaceState(null, '', '/stroll?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);
+      arrive(slug);
     });
   }, { root: scroller, threshold: [0.6] });
   order.forEach(function (s) { io.observe(items[s].el); });
@@ -65,7 +66,7 @@
     if (fly) { var f = w.el.querySelector('.st-hat-fly'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} }
     if (fly && w.hat && w.hat.mine) return; // a double-tap never takes a hat back
     fetch('/w/' + w.slug + '/applaud', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j || !j.ok) return; w.hat = { n: j.n, mine: !!j.mine }; b.setAttribute('aria-pressed', j.mine ? 'true' : 'false'); n.textContent = j.n || '';
+      if (!j || !j.ok) return; w.hat = { n: j.n, mine: !!j.mine }; b.setAttribute('aria-pressed', j.mine ? 'true' : 'false'); // no numbers on the wall
     }).catch(function () {});
   }
   function hang(w) {
@@ -151,6 +152,59 @@
   var sx0 = null, sy0 = null;
   scroller.addEventListener('touchstart', function (e) { if (e.target.closest('button, a')) { sx0 = null; return; } sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; }, { passive: true });
   scroller.addEventListener('touchend', function (e) { if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0, dy = e.changedTouches[0].clientY - sy0; sx0 = null; if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.7) return; var w = items[cur]; if (!w) return; if (dx < 0 && !maker) location.href = '/stroll?maker=' + encodeURIComponent(w.makerSlug) + '&at=' + encodeURIComponent(w.slug); else if (dx > 0 && maker) location.href = '/stroll?at=' + encodeURIComponent(w.slug); }, { passive: true });
+  // Staying is what pays (Will, 18 Oct: a feed pays you for moving on; Watermark pays you for staying).
+  // Hold still and the plate and the acts fall away, leaving only the picture; stay longer and one line of the
+  // guide rises. Racing on earns nothing; once, after a fast run, the next photograph holds and asks you to stay.
+  var stillT = null, lineT = null, STILL = 6000, LINE = 20000, arrivals = [], sitting = false, sitT = null, SIT = 90000;
+  function firstLine(g) { var t = String(g || '').split(/\n{2,}/)[0]; var m = t.match(/^.{20,180}?[.!?](?=\s|$)/); return (m ? m[0] : t.slice(0, 160)).trim(); }
+  function quiet() { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden) root.classList.add('st-still'); }, sitting ? 1500 : STILL); }
+  ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
+  function arrive(slug) {
+    quiet(); clearTimeout(lineT);
+    var w = items[slug]; if (!w || !w.el) return;
+    if (w.guide && !w.el.querySelector('.st-line')) lineT = setTimeout(function () { if (cur !== slug) return; var p = document.createElement('p'); p.className = 'st-line'; p.textContent = firstLine(w.guide); w.el.appendChild(p); requestAnimationFrame(function () { p.classList.add('on'); }); }, sitting ? 9000 : LINE);
+    if (sitting) { clearTimeout(sitT); sitT = setTimeout(next, SIT); return; }
+    var now = Date.now(); arrivals.push(now); arrivals = arrivals.filter(function (t) { return now - t < 60000; });
+    var told = false; try { told = sessionStorage.getItem('wm_stay') === '1'; } catch (e) {}
+    if (arrivals.length >= 15 && !told) { try { sessionStorage.setItem('wm_stay', '1'); } catch (e) {} hold(); }
+  }
+  function hold() {
+    var st = root.querySelector('[data-st-stay]'); if (!st) return; st.hidden = false; requestAnimationFrame(function () { st.classList.add('on'); });
+    scroller.style.overflowY = 'hidden';
+    setTimeout(function () { scroller.style.overflowY = ''; st.classList.remove('on'); setTimeout(function () { st.hidden = true; }, 900); }, 3200);
+  }
+  function next() { scroller.scrollBy({ top: scroller.clientHeight, behavior: 'smooth' }); }
+  // Sit: one tap and the stroll becomes a room to sit in. Each photograph held a minute and a half, the guide read
+  // in the house voice, quiet music made here (four sines breathing; nothing streamed), the screen kept awake.
+  var sitb = root.querySelector('[data-st-sit]'), sitbar = root.querySelector('[data-st-sitbar]'), ac = null, lock = null, wasGuide = false;
+  function music(on) {
+    try {
+      if (!on) { if (ac) { var a = ac; ac = null; a.master.gain.setTargetAtTime(0, a.ctx.currentTime, 1.2); setTimeout(function () { a.ctx.close(); }, 4000); } return; }
+      var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      var ctx = new C(), master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+      [110, 164.81, 220, 277.18].forEach(function (f, i) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), l = ctx.createOscillator(), lg = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.25 / (i + 1);
+        l.frequency.value = 0.05 + i * 0.013; lg.gain.value = 0.12 / (i + 1); l.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(master); o.start(); l.start();
+      });
+      master.gain.setTargetAtTime(0.05, ctx.currentTime, 2.5); ac = { ctx: ctx, master: master };
+    } catch (e) { ac = null; }
+  }
+  function wake() { try { navigator.wakeLock && navigator.wakeLock.request('screen').then(function (l) { lock = l; l.addEventListener && l.addEventListener('release', function () { lock = null; }); }).catch(function () {}); } catch (e) {} }
+  function sit(on) {
+    if (!sitb) return;
+    sitting = on; root.classList.toggle('st-sit', on); sitb.setAttribute('aria-pressed', on ? 'true' : 'false'); sitbar.hidden = !on;
+    clearTimeout(sitT); music(on);
+    if (on) { wasGuide = guideOn; guideOn = true; if (items[cur]) { guide(items[cur], true); arrive(cur); } wake(); }
+    else { guideOn = wasGuide; if (!guideOn) stopGuide(); try { lock && lock.release(); } catch (e) {} lock = null; quiet(); }
+  }
+  if (sitb) {
+    sitb.addEventListener('click', function () { sit(!sitting); if (sitting) say('Sit as long as you like. Each one stays a while.', 3200); });
+    sitbar.querySelector('[data-st-stand]').addEventListener('click', function () { sit(false); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && sitting && !lock) wake(); });
+  }
+  if (cur) arrive(cur);
   // Find: a word strolls through one place, one maker, one subject.
   var form = root.querySelector('[data-st-search]'), sx = root.querySelector('[data-st-sx]'), inp = form.querySelector('input');
   sx.addEventListener('click', function () { root.classList.add('st-find'); inp.focus(); });

@@ -2560,3 +2560,23 @@ aside.cu-show .buy-btn{width:100%}
 .st-top .st-chip{flex:0 1 auto;min-width:0;max-width:none}
 .st-top .st-chip.st-set{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-top .st-x,.st-top .st-search,.st-top .st-gon{flex:none}
+
+/* Staying is what pays (Will, 18 Oct). Held still, the stroll lets everything but the picture fall away. */
+.st .st-top,.st .st-plate,.st .st-rail,.st .st-eye,.st .bk-pill{transition:opacity 2.4s ease}
+.st.st-still .st-top,.st.st-still .st-plate,.st.st-still .st-rail,.st.st-still .st-eye,.st.st-still .bk-pill{opacity:0;pointer-events:none}
+/* One line of the guide, for those who stay. */
+.st-line{position:absolute;left:clamp(20px,6vw,56px);right:clamp(20px,6vw,56px);bottom:calc(env(safe-area-inset-bottom) + 34px);z-index:3;margin:0;font:italic 400 17px/1.5 var(--disp,Georgia),Georgia,serif;color:rgba(246,244,239,.9);text-shadow:0 1px 14px rgba(0,0,0,.7);opacity:0;transform:translateY(8px);transition:opacity 3.2s ease,transform 3.2s ease;pointer-events:none;max-width:34em}
+.st-line.on{opacity:1;transform:none}
+.st:not(.st-still) .st-line{bottom:calc(env(safe-area-inset-bottom) + 150px)}
+/* Stay with this one: said once, quietly, in the middle of the picture. */
+.st-stay{position:fixed;left:0;right:0;top:46%;z-index:6;margin:0;text-align:center;font:italic 400 24px/1.3 var(--disp,Georgia),Georgia,serif;color:#f6f4ef;text-shadow:0 1px 18px rgba(0,0,0,.75);opacity:0;transition:opacity .9s ease;pointer-events:none}
+.st-stay.on{opacity:1}
+/* Sit */
+.st-sitb[aria-pressed="true"]{color:#f6f4ef}
+.st.st-sit .st-rail,.st.st-sit .st-eye,.st.st-sit .bk-pill{opacity:0!important;pointer-events:none!important}
+.st-sitbar{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);z-index:6;transform:translateX(-50%);transition:opacity 2.4s ease}
+.st-sitbar[hidden]{display:none}
+.st-sitbar button{background:rgba(20,20,19,.45);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.18);color:rgba(246,244,239,.85);font:500 10.5px/1 inherit;letter-spacing:.2em;text-transform:uppercase;padding:11px 18px;border-radius:999px;cursor:pointer}
+.st.st-still .st-sitbar{opacity:0}
+.st.st-sit .st-line{bottom:calc(env(safe-area-inset-bottom) + 34px)}
+@media (prefers-reduced-motion:reduce){.st-line,.st-stay,.st .st-top,.st .st-plate,.st .st-rail{transition:none}}
