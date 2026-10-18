@@ -367,7 +367,7 @@ function createApp(cfg = {}) {
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
-      if (ref && q.lic.get(ref)) grant(ref, { paid: true, price_cents: pi.amount_received });
+      if (ref && q.lic.get(ref)) settle(q.lic.get(ref)).catch(e => console.error('[settle]', e.message));
     }
     res.json({ received: true });
   });
@@ -539,6 +539,8 @@ function createApp(cfg = {}) {
   // Every address is the person's: a photograph lives under its maker (/m/<maker>/<slug>; /w/<slug> still answers),
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
+  // Back from paying with ?paid=<ref>: settle it with Stripe before the page is drawn, so the work shows as yours.
+  app.get('/w/:slug', async (req, res, next) => { const r = String(req.query.paid || ''); if (r) { const l = q.lic.get(r); if (l && l.status !== 'active') await Promise.race([settle(l), new Promise(f => setTimeout(f, 6000))]); } next(); });
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -789,7 +791,7 @@ function createApp(cfg = {}) {
       if (!pi || pi.status !== 'succeeded') return res.json({ ok: false, status: pi ? pi.status : 'unknown' });
       const b = buyerOf(req);
       if (b && pi.customer === b.customer && pi.payment_method) { db.prepare('UPDATE buyers SET pm=?, email=COALESCE(email, ?) WHERE id=?').run(pi.payment_method, pi.receipt_email || null, b.id); setBuyer(res, b, true); }
-      l = grant(l.ref, { paid: true, price_cents: pi.amount_received });
+      l = await settle(l);
     }
     res.json(handover(l));
   });
@@ -1088,6 +1090,42 @@ function createApp(cfg = {}) {
     const all = db.prepare("SELECT ref FROM licenses WHERE set_ref=?").all(setRef);
     for (const x of all) { fillBuyer(x.ref, s); grant(x.ref, { paid: true }); }
   }
+  // Paid but not yet granted (18 Oct: a $5 Collect paid in place went through at Stripe, but the page's call and the
+  // webhook both missed it, during a restart). The house asks Stripe itself: every few minutes, every license still
+  // awaiting payment from the last three days is checked, and what Stripe says is paid is granted, with the buyer's
+  // email taken from the payment when the sheet never asked for one. Nothing is charged here; it only reads.
+  async function settle(l) {
+    if (!stripe || !l || l.status === 'active' || !l.stripe_session) return l;
+    try {
+      if (/^pi_/.test(l.stripe_session)) {
+        const pi = await stripe.paymentIntents.retrieve(l.stripe_session, { expand: ['latest_charge'] });
+        if (!pi || pi.status !== 'succeeded') return l;
+        const bd = (pi.latest_charge && pi.latest_charge.billing_details) || {};
+        const email = pi.receipt_email || bd.email || null, name = bd.name || (email ? email.split('@')[0] : null);
+        if (email) db.prepare("UPDATE licenses SET licensee_email=CASE WHEN COALESCE(licensee_email,'')='' THEN ? ELSE licensee_email END, licensee_name=CASE WHEN COALESCE(licensee_name,'') IN ('','Buyer') AND ? IS NOT NULL THEN ? ELSE licensee_name END WHERE ref=? AND status!='active'").run(email, name, name, l.ref);
+        if (email && l.buyer_id) db.prepare('UPDATE buyers SET email=COALESCE(email, ?) WHERE id=?').run(email, l.buyer_id);
+        console.log('[settle] granted', l.ref);
+        return grant(l.ref, { paid: true, price_cents: pi.amount_received });
+      }
+      if (/^cs_/.test(l.stripe_session)) {
+        const s = await stripe.checkout.sessions.retrieve(l.stripe_session);
+        if (!s || s.payment_status !== 'paid') return l;
+        console.log('[settle] granted', l.ref);
+        if (s.metadata && s.metadata.set) { grantSet(s.metadata.set, s); return q.lic.get(l.ref); }
+        fillBuyer(l.ref, s); return grant(l.ref, { paid: true, price_cents: s.amount_total });
+      }
+    } catch (e) { console.error('[settle]', l.ref, e.message); }
+    return l;
+  }
+  async function settleAll() {
+    if (!stripe) return 0;
+    const rows = db.prepare("SELECT * FROM licenses WHERE status='awaiting_payment' AND stripe_session IS NOT NULL AND updated_at > datetime('now','-3 days') ORDER BY id").all();
+    const seen = new Set(); let n = 0;
+    for (const l of rows) { if (seen.has(l.stripe_session)) continue; seen.add(l.stripe_session); const g = await settle(l); if (g && g.status === 'active') n++; }
+    return n;
+  }
+  app.locals.settle = settle; app.locals.settleAll = settleAll;
+  if (process.env.NODE_ENV !== 'test') { setTimeout(() => settleAll().catch(() => {}), 20e3).unref(); setInterval(() => settleAll().catch(() => {}), 5 * 60e3).unref(); }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };
