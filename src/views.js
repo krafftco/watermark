@@ -196,15 +196,17 @@ ${today ? `<a class="gh-cell gh-today" href="/w/${esc(today.slug)}?today=1"><img
   // departures board, one line for each kind of visitor, the track on the right, then the desk.
   const t1 = (w) => (w ? `<img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">` : '<span></span>');
   const any = n => works[n] || works[0];
+  // Every line its own picture: the masterworks first, then the rest, never the same twice on the board.
+  const used = new Set(); const pic = pref => { const c = [pref, ...masters, ...works].find(w => w && !used.has(w.slug)); if (c) used.add(c.slug); return c; };
   const routes = [
-    ['/collection', 'The collection', `The museum: ${total} works, the masterworks and the wings`, cover || any(0)],
-    [onView ? '/collectors' : '/collectors', 'On view', onView ? `${shows.length ? `${shows.length} show${shows.length === 1 ? '' : 's'}, ` : ''}${hangs.length} wall${hangs.length === 1 ? '' : 's'} hung by curators and galleries` : 'Shows and walls hung by curators and galleries', masters[1] || any(1)],
-    ['/artists', 'The makers', `${makerList.length} maker${makerList.length === 1 ? '' : 's'}, each with a room of their own`, makerRows[0] && makerRows[0].w],
-    ['/yours', 'For those who collect', 'Your gallery: what you hold, your walls, your pocket', masters[2] || any(2)],
-    ['/makers', 'For those who make', 'Hold your work, license it, and be paid, by invitation', masters[3] || any(3)],
-    ['/trade', 'For editors and companies', 'Search, comp and license for publication', masters[4] || any(4)],
-    ['/verify', 'Check a work', 'Who made it, who holds it, what it may be used for', masters[5] || any(5)],
-    ['/stroll', 'Simply to look', 'One work at a time, edge to edge', today || any(6)],
+    ['/collection', 'The collection', `The museum: ${total} works, the masterworks and the wings`, pic(cover)],
+    [onView ? '/collectors' : '/collectors', 'On view', onView ? `${shows.length ? `${shows.length} show${shows.length === 1 ? '' : 's'}, ` : ''}${hangs.length} wall${hangs.length === 1 ? '' : 's'} hung by curators and galleries` : 'Shows and walls hung by curators and galleries', pic(null)],
+    ['/artists', 'The makers', makerList.length > 1 ? `${makerList.length} makers, each with a room of their own` : `${makerList[0] ? makerList[0].name : 'The first maker'}, and the makers to come`, pic(makerRows[0] && makerRows[0].w)],
+    ['/yours', 'For those who collect', 'Your gallery: what you hold, your walls, your pocket', pic(null)],
+    ['/makers', 'For those who make', 'Hold your work, license it, and be paid, by invitation', pic(null)],
+    ['/trade', 'For editors and companies', 'Search, comp and license for publication', pic(null)],
+    ['/verify', 'Check a work', 'Who made it, who holds it, what it may be used for', pic(null)],
+    ['/stroll', 'Simply to look', 'One work at a time, edge to edge', pic(today)],
   ];
   const departures = `<section class="gc" id="board" aria-label="Where to"><div class="gh-in"><header class="gc-h"><p class="k">Where to?</p><h2>Departures.</h2><p class="gh-lede">Every way into the house, from here. Choose a line.</p></header>
 <ol class="gc-board">${routes.map(([href, name, line, w], i) => `<li><a href="${href}">${t1(w)}<b>${name}</b><i>${esc(line)}</i><span class="gc-track"><small>Track</small>${i + 1}</span></a></li>`).join('')}</ol></div></section>`;
