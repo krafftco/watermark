@@ -25,6 +25,16 @@ function paper({ subject, text, feature = null, cta = null }) {
 <tr><td style="padding:18px 40px 34px"><hr style="border:0;border-top:1px solid #e2e2df;margin:0 0 18px"><p style="margin:0;font:11px/1.6 Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8f8a81">Watermark &middot; A Krafft company<br><a href="${BASE()}" style="color:#8f8a81;text-decoration:none">watermark.krafftco.com</a></p></td></tr>
 </table></td></tr></table></body></html>`;
 }
+// What the last sends came to, told on /healthz (never the key, never an address): so a quiet failure is seen.
+const state = { sent: 0, failed: 0, last: null, domain: null };
+async function probe() { // the sending domain's standing at Resend, read once at start
+  const key = process.env.RESEND_API_KEY; if (!key) return;
+  try {
+    const r = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${key}` } });
+    const j = await r.json().catch(() => ({}));
+    state.domain = r.ok ? (j.data || []).map(d => `${d.name}: ${d.status}`).join(', ') || 'none' : `unreadable (${r.status}${j.name ? ' ' + j.name : ''})`;
+  } catch (e) { state.domain = 'unreachable: ' + e.message; }
+}
 async function send({ to, subject, text, from, html, feature, cta }) {
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
@@ -41,9 +51,10 @@ async function send({ to, subject, text, from, html, feature, cta }) {
       method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: sender, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }),
     });
-    if (!r.ok) console.error('[mail] failed', r.status, await r.text());
+    if (!r.ok) { const t = await r.text(); console.error('[mail] failed', r.status, t); state.failed++; state.last = { at: new Date().toISOString(), ok: false, status: r.status, error: String(t).slice(0, 240) }; }
+    else { state.sent++; state.last = { at: new Date().toISOString(), ok: true }; }
     return { ok: r.ok };
-  } catch (e) { console.error('[mail] error', e.message); return { ok: false }; }
+  } catch (e) { console.error('[mail] error', e.message); state.failed++; state.last = { at: new Date().toISOString(), ok: false, error: e.message.slice(0, 240) }; return { ok: false }; }
 }
 
 const templates = {
@@ -85,4 +96,5 @@ const templates = {
   }),
 };
 
-module.exports = { on, send, templates, paper };
+if (process.env.NODE_ENV !== 'test') setTimeout(() => probe(), 5e3).unref();
+module.exports = { on, send, templates, paper, state, probe };

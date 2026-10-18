@@ -2309,7 +2309,7 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 /* The switch on a phone (Will, 17 Oct): Studio | Gallery on its own line under the desk row, and on the gallery. */
 @media (max-width:700px){.yc-sw{flex-direction:column;align-items:flex-start;gap:10px}.yc-sw .dk-sw{align-self:center}}
 /* The stroll (Will, 17 Oct): as easy as Instagram, the finest photographs in the world. One per screen, edge to edge. */
-.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;-webkit-user-select:none;user-select:none}
+main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;-webkit-user-select:none;user-select:none}
 .st-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}.st-scroll::-webkit-scrollbar{display:none}
 .st-i{position:relative;height:100%;height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;display:grid;place-items:center;overflow:hidden}
 .st-im{width:100%;height:100%;object-fit:contain;display:block;background:#0b0a09;-webkit-user-drag:none;pointer-events:none;animation:st-in .9s ease both}
@@ -2879,3 +2879,6 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 
 /* Dark rooms reach the screen's edges: in the installed app the strip under the home indicator is the page's own ground, so it is the wall's black, never the paper (Will, 18 Oct). */
 html.dk,html.dk body{background:#0b0a09;min-height:100%;overscroll-behavior:none}
+
+/* Send it again (the license page, for the one who holds it). */
+.pr-again{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:end;margin:18px 0 0;max-width:520px}.pr-again label{display:grid;gap:4px}.pr-again span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute,#7a746b)}.pr-again input{font:15px/1.4 var(--sans);padding:9px 0;border:0;border-bottom:1px solid #cfcbc3;background:transparent;border-radius:0}.pr-again button{padding:10px 16px;border:1px solid currentColor;background:none;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}.pr-sent{grid-column:1/-1;margin:0;font-size:13px;color:#4f6b45}

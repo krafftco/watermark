@@ -1283,9 +1283,29 @@ function createApp(cfg = {}) {
     }
     if (req.query.k && l.download_token && req.query.k === l.download_token) owner = true;
     if (isStudio(req)) owner = true;
+    const me = buyerOf(req); if (me && l.buyer_id === me.id) owner = true; // in your account
+    if (l.status !== 'active' && owner) l = await settle(l); // paid at Stripe but not yet told here
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l) }));
+    const resend = owner && l.status === 'active' ? { email: l.licensee_email || (me && me.email) || '', sent: req.query.sent ? String(req.query.sent).slice(0, 160) : null } : null;
+    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend }));
+  });
+  // Send it again (Will, 18 Oct: the letter never came): the holder, signed in or holding the key, asks for the
+  // collector's letter once more, to the address on the license or a new one (kept on the license when it had none).
+  const resent = new Map();
+  app.post('/c/:ref/resend', (req, res) => {
+    const l = q.lic.get(req.params.ref); if (!l || l.status !== 'active') return res.sendStatus(404);
+    const me = buyerOf(req), back = k => `/c/${encodeURIComponent(l.ref)}?${l.download_token && req.get('referer') && req.get('referer').includes('k=') ? 'k=' + l.download_token + '&' : ''}sent=${encodeURIComponent(k)}#again`;
+    if (!(isStudio(req) || (me && l.buyer_id === me.id) || (req.get('referer') || '').includes('k=' + l.download_token))) return res.sendStatus(403);
+    const email = String(req.body.email || '').trim().toLowerCase().slice(0, 160);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect(303, back('no'));
+    const t = resent.get(l.ref) || 0; if (Date.now() - t < 60e3) return res.redirect(303, back('slow')); resent.set(l.ref, Date.now());
+    if (!l.licensee_email) db.prepare('UPDATE licenses SET licensee_email=? WHERE ref=?').run(email, l.ref);
+    if (me && !me.email) db.prepare('UPDATE buyers SET email=? WHERE id=?').run(email, me.id);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w), u = q.useById.get(l.use_id), g = q.lic.get(l.ref);
+    try { mail.send({ to: email, ...LETTERS.collected(letterFor(g, w, maker, u, g.download_token)) }); }
+    catch (e) { console.error('[letters]', e.message); mail.send({ to: email, ...mail.templates.grantedToLicensee({ ref: g.ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${g.ref}?k=${g.download_token || ''}`, downloadUrl: g.download_token ? `${C.base}/d/${g.download_token}` : null }) }); }
+    res.redirect(303, back(email));
   });
 
   // ---------- The contract ----------
@@ -1957,7 +1977,7 @@ function createApp(cfg = {}) {
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

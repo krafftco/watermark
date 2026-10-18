@@ -1170,7 +1170,7 @@ function plainRights(lic, use, t = null) {
   cannot.push('Say you made it');
   return { can, cannot, cond, never };
 }
-function certificate({ lic, w, maker, use, entry, base, owner, seats = null, seat = null, dl = null }) {
+function certificate({ lic, w, maker, use, entry, base, owner, seats = null, seat = null, dl = null, resend = null }) {
   const active = lic.status === 'active';
   const who = lic.licensee_company || lic.licensee_name || 'The holder';
   const C = require('./contract');
@@ -1193,7 +1193,7 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
     body: `<section class="lc2">
 <figure class="lc2-fig lc2-print"><div class="pr-mat"><a class="pr-win" href="/w/${esc(w.slug)}" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}"><img src="/img/${esc(w.slug)}/large" alt="${esc(tidy(w.title))}" draggable="false"></a>
 <figcaption class="pr-cap"><span class="pr-no">${lic.collector_no ? `${lic.collector_no}${w.edition_size ? ` / ${w.edition_size}` : ''}` : ''}</span><span class="pr-t"><i>${esc(tidy(w.title))}</i>${w.taken_at ? `, ${String(w.taken_at).slice(0, 4)}` : ''}</span><span class="pr-sig">${esc(maker.name)}</span><span class="pr-emb" aria-hidden="true">${WAVE_MARK}</span></figcaption></div>
-${owner && active && lic.download_token && dl && dl.left ? `<p class="pr-take"><a class="buy-btn" href="/d/${esc(lic.download_token)}" download>Take the file</a><small>${use.key === 'social' ? 'The 2400-pixel copy' : use.key === 'reference' ? 'The full original' : 'The licensed file'}, with your name, the maker's copyright and this license written into it, and a mark within the picture that is yours alone.</small></p>` : ''}</figure>
+${owner && active && lic.download_token && dl && dl.left ? `<p class="pr-take"><a class="buy-btn" href="/d/${esc(lic.download_token)}" download>Take the file</a><small>${use.key === 'social' ? 'The 2400-pixel copy' : use.key === 'reference' ? 'The full original' : 'The licensed file'}, with your name, the maker's copyright and this license written into it, and a mark within the picture that is yours alone.</small></p>` : ''}${resend ? `<form class="pr-again" id="again" method="post" action="/c/${esc(lic.ref)}/resend">${resend.sent ? `<p class="pr-sent">${resend.sent === 'no' ? 'That address did not look right. Try once more.' : resend.sent === 'slow' ? 'Sent a moment ago. Give it a few minutes, and look in Promotions or Spam.' : `Sent to ${esc(resend.sent)}. It carries the file, the certificate and the agreement.`}</p>` : ''}<label><span>The letter, the file and the agreement, sent again</span><input type="email" name="email" required maxlength="160" value="${esc(resend.email || '')}" placeholder="Your email" autocomplete="email"></label><button>Send it to me</button></form>` : ''}</figure>
 <div class="lc2-side">
 <p class="lc2-st s-${esc(lic.status)}"><i></i>${esc(status)}</p>
 <h1>${esc(tidy(w.title))}</h1>
