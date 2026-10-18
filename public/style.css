@@ -2787,3 +2787,73 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .vr-row .vr-collect em{font-style:normal;margin-left:2px;color:#d9bc7c;letter-spacing:.06em}.vr-row .vr-collect:hover,.vr-row .vr-collect:focus-visible{color:#fff}
 .vr-bv .vr-bv-w{font:italic 400 17px/20px var(--serif,Georgia,serif);letter-spacing:.01em;text-transform:none;color:rgba(242,239,233,.82)}.vr-bv:hover .vr-bv-w{color:#fff}.vr-bv[aria-pressed=true] .vr-bv-w{color:#d9bc7c}
 .vr-pg{margin:12px 0 0;font-size:inherit}.vr-pg .vr-go{display:inline-flex;align-items:center;gap:8px;color:rgba(242,239,233,.55)}.vr-pg .ic{width:18px;height:18px}
+/* The entrance (Will, 18 Oct: Grand Central for the front page, the Met's Great Hall for the collection; the old
+   buildings said "I love you" to the people who came in: generous scale, warm light, room to breathe). */
+.gh-hero{position:relative;height:100svh;min-height:560px;overflow:hidden;background:#0b0a09;color:#f6f1e7}
+.gh-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:gh-drift 28s cubic-bezier(.2,.6,.2,1) both;opacity:.92}
+@keyframes gh-drift{from{transform:scale(1.09)}to{transform:scale(1)}}
+.gh-hero:after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 40%,rgba(11,10,9,0) 30%,rgba(11,10,9,.55) 100%),linear-gradient(180deg,rgba(11,10,9,.25),rgba(11,10,9,0) 30%,rgba(11,10,9,.6))}
+.gh-hero-t{position:absolute;inset:0;z-index:2;display:grid;place-content:center;justify-items:center;text-align:center;padding:0 24px;gap:18px}
+.gh-k{margin:0;font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:rgba(246,241,231,.82)}
+.gh-hero h1{margin:0;font:400 clamp(46px,7.6vw,128px)/.98 var(--serif,Georgia,serif);letter-spacing:-.015em;max-width:12ch;text-shadow:0 2px 40px rgba(0,0,0,.35);animation:gh-rise 1.6s .2s cubic-bezier(.16,1,.3,1) both}
+.gh-sub{margin:0;max-width:34ch;font:italic 400 clamp(17px,1.6vw,22px)/1.45 var(--serif,Georgia,serif);color:rgba(246,241,231,.88);animation:gh-rise 1.6s .45s cubic-bezier(.16,1,.3,1) both}
+.gh-enter{margin-top:14px;display:inline-grid;justify-items:center;gap:6px;color:#f6f1e7;text-decoration:none;font-size:11.5px;letter-spacing:.32em;text-transform:uppercase;animation:gh-rise 1.6s .7s cubic-bezier(.16,1,.3,1) both}.gh-enter span{font-size:18px;letter-spacing:0;animation:gh-bob 2.8s ease-in-out infinite}
+@keyframes gh-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}@keyframes gh-bob{50%{transform:translateY(5px)}}
+.gh-hero .cx-cap{z-index:2}
+.gh-in{max-width:1320px;margin:0 auto;padding:0 32px}
+.gh-lede{margin:10px 0 0;max-width:58ch;font:italic 400 18px/1.55 var(--serif,Georgia,serif);color:#6f675c}
+
+/* Departures: the board in the concourse. */
+.gc{background:#0f0d0b;color:#efe8db;padding:110px 0 120px;background-image:radial-gradient(1px 1px at 12% 18%,rgba(217,188,124,.35),transparent),radial-gradient(1px 1px at 68% 9%,rgba(217,188,124,.3),transparent),radial-gradient(1.2px 1.2px at 84% 26%,rgba(217,188,124,.28),transparent),radial-gradient(1px 1px at 38% 6%,rgba(217,188,124,.25),transparent),radial-gradient(1px 1px at 25% 30%,rgba(217,188,124,.2),transparent)}
+.gc-h .k{color:#d9bc7c}.gc-h h2{margin:6px 0 0;font:400 clamp(40px,5vw,72px)/1 var(--serif,Georgia,serif);color:#f6f1e7}.gc .gh-lede{color:#a69d8f}
+.gc-board{list-style:none;margin:48px 0 0;padding:0;border-top:1px solid rgba(217,188,124,.35)}
+.gc-board li{border-bottom:1px solid rgba(217,188,124,.18)}
+.gc-board a{display:grid;grid-template-columns:96px minmax(180px,1.1fr) 2fr auto;align-items:center;gap:28px;padding:20px 8px;color:inherit;text-decoration:none;transition:background .4s}
+.gc-board a:hover,.gc-board a:focus-visible{background:rgba(217,188,124,.06)}
+.gc-board img,.gc-board a>span:first-child{width:96px;height:64px;object-fit:cover;display:block;filter:saturate(.9);transition:transform .7s cubic-bezier(.16,1,.3,1),filter .5s}
+.gc-board a:hover img{transform:scale(1.06);filter:none}
+.gc-board b{font:400 clamp(22px,2.2vw,30px)/1.15 var(--serif,Georgia,serif);color:#f6f1e7}
+.gc-board i{font-style:normal;font-size:14.5px;line-height:1.45;color:#a69d8f}
+.gc-track{display:grid;justify-items:end;font:400 34px/1 var(--serif,Georgia,serif);color:#d9bc7c;font-variant-numeric:tabular-nums;min-width:64px}.gc-track small{font:500 9.5px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.24em;text-transform:uppercase;color:#8a7a58;margin-bottom:6px}
+
+/* The information desk. */
+.gh-deskwrap{background:#f5f0e6;padding:56px 0 64px}.gh-deskwrap .k{margin-bottom:18px}
+.gh-desk{display:grid;grid-template-columns:repeat(5,auto);gap:0;border:1px solid rgba(26,23,20,.14);background:#fbf8f2}
+.gh-cell{display:flex;align-items:center;gap:14px;padding:20px 22px;color:inherit;text-decoration:none;border-right:1px solid rgba(26,23,20,.1);min-width:0}.gh-cell:last-child{border-right:0}
+.gh-cell small{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#8a8175;margin-bottom:6px}.gh-cell b{font:400 18px/1.25 var(--serif,Georgia,serif)}
+.gh-today img{width:58px;height:44px;object-fit:cover}
+.gh-find{display:block}.gh-find input{width:100%;border:0;border-bottom:1px solid rgba(26,23,20,.3);background:none;padding:4px 0;font:italic 17px var(--serif,Georgia,serif);outline:none}.gh-find input:focus{border-bottom-color:#1a1714}
+.gh-ways{display:block}.gh-ways>span{display:flex;flex-wrap:wrap;gap:4px 14px}.gh-ways a{font:400 16px var(--serif,Georgia,serif);color:inherit}
+.gh-hours b{font-style:italic}
+
+/* The Great Hall of the collection. */
+.ghall{padding:110px 0 40px;background:#f5f0e6}
+.gh-top .k{color:#8a7a58}
+.gh-3{display:grid;grid-template-columns:1fr minmax(320px,1.15fr) 1fr;gap:48px;align-items:start;margin-top:56px}
+.gh-wing{display:grid;gap:2px}.gh-dir{margin:0 0 14px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#8a7a58}.gh-right .gh-dir{text-align:right}
+.gh-row{display:grid;grid-template-columns:72px 1fr auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(26,23,20,.1);color:inherit;text-decoration:none}
+.gh-row img,.gh-row>span{width:72px;height:54px;object-fit:cover;display:block;background:#e8e1d4;transition:transform .6s cubic-bezier(.16,1,.3,1)}.gh-row .gh-por{border-radius:50%;width:54px;height:54px;margin-left:9px}
+.gh-row b{font:400 20px/1.2 var(--serif,Georgia,serif)}.gh-row i{font-style:normal;font-size:12px;color:#8a8175;font-variant-numeric:tabular-nums}.gh-row:hover img{transform:scale(1.05)}.gh-row:hover b{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+.gh-all{margin-top:14px;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#1a1714}.gh-right .gh-all{text-align:right}
+.gh-stair{display:grid;gap:18px;color:inherit;text-decoration:none;text-align:center}
+.gh-stair-im{display:block;aspect-ratio:3/4;max-height:78vh;overflow:hidden;background:#0b0a09;box-shadow:0 40px 80px -30px rgba(26,23,20,.55)}.gh-stair-im img{width:100%;height:100%;object-fit:cover;transition:transform 1.4s cubic-bezier(.16,1,.3,1)}.gh-stair:hover .gh-stair-im img{transform:scale(1.035)}
+.gh-stair-t{display:grid;gap:6px}.gh-stair-t small{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#8a7a58}.gh-stair-t b{font:400 clamp(34px,3.4vw,52px)/1.05 var(--serif,Georgia,serif)}.gh-stair-t i{font:italic 17px var(--serif,Georgia,serif);color:#6f675c}
+
+/* The masterworks, hung large in a salon. */
+.gh-mw{background:#f5f0e6;padding:90px 32px 110px}.gh-mw-h{max-width:1320px;margin:0 auto 56px;text-align:center}.gh-mw-h .k{color:#8a7a58}.gh-mw-h h2{margin:6px 0 0;font:400 clamp(40px,5vw,76px)/1 var(--serif,Georgia,serif)}.gh-mw-h .gh-lede{margin:12px auto 0}
+.gh-salon{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:80px 64px;align-items:end}
+.gh-m{display:grid;gap:16px;color:inherit;text-decoration:none}.gh-m-big{grid-column:1/-1;max-width:1100px;justify-self:center;width:100%}
+.gh-m-im{display:block;background:#0b0a09;box-shadow:0 30px 70px -28px rgba(26,23,20,.6),0 0 0 1px rgba(26,23,20,.08);overflow:hidden}.gh-m-im img{display:block;width:100%;height:auto;aspect-ratio:var(--r);object-fit:cover;max-height:86vh;transition:transform 1.2s cubic-bezier(.16,1,.3,1)}.gh-m:hover .gh-m-im img{transform:scale(1.02)}
+.gh-m-t{display:grid;gap:4px;text-align:center}.gh-m-t b{font:400 22px/1.2 var(--serif,Georgia,serif)}.gh-m-t i{font-style:normal;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8a8175}
+
+/* The wings: each place a band of its own. */
+.gh-wings{background:#0b0a09;padding:90px 0 0}.gh-wings .gh-mw-h{color:#f6f1e7}.gh-wings .gh-mw-h .k{color:#d9bc7c}
+.gh-band{position:relative;display:block;height:72vh;min-height:420px;overflow:hidden;color:#f6f1e7;text-decoration:none;border-top:1px solid rgba(217,188,124,.2)}
+.gh-band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform 2s cubic-bezier(.16,1,.3,1);opacity:.85}.gh-band:hover img{transform:scale(1.04);opacity:1}
+.gh-band:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,10,9,.65),rgba(11,10,9,0) 60%)}
+.gh-band-t{position:absolute;z-index:2;left:max(32px,6vw);bottom:12vh;display:grid;gap:10px}.gh-band-t small{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#d9bc7c}.gh-band-t b{font:400 clamp(48px,7vw,112px)/.95 var(--serif,Georgia,serif)}.gh-band-t i{font-size:12px;letter-spacing:.28em;text-transform:uppercase;font-style:normal;border-bottom:1px solid rgba(246,241,231,.5);justify-self:start;padding-bottom:4px}
+
+@media (max-width:1000px){.gh-3{grid-template-columns:1fr;gap:56px}.gh-stair{order:-1}.gh-right .gh-dir,.gh-right .gh-all{text-align:left}.gh-desk{grid-template-columns:1fr 1fr}.gh-cell{border-bottom:1px solid rgba(26,23,20,.1)}.gh-salon{grid-template-columns:1fr;gap:56px}}
+@media (max-width:760px){.gh-in{padding:0 16px}.gc{padding:72px 0 80px}.gc-board a{grid-template-columns:64px 1fr auto;gap:14px;padding:16px 4px}.gc-board img,.gc-board a>span:first-child{width:64px;height:48px}.gc-board i{grid-column:2/3;grid-row:2;font-size:13px}.gc-board b{font-size:21px}.gc-track{grid-row:1/3;grid-column:3;font-size:26px}.gh-desk{grid-template-columns:1fr}.gh-cell{border-right:0}.gh{padding:72px 0 24px}.gh-mw{padding:64px 16px 72px}.gh-band{height:58vh}.gh-hero h1{max-width:11ch}}
+@media (prefers-reduced-motion:reduce){.gh-hero>img,.gh-hero h1,.gh-sub,.gh-enter,.gh-enter span{animation:none}}
+.gc-h h2,.gh-mw-h h2{text-transform:none;letter-spacing:-.01em}
