@@ -4,7 +4,7 @@
 // it, grouped by day. Private things (sign-ins, keys, seats' emails) are kept off the public stream;
 // nothing on it names a person who did not choose to be named. The hash stays, small, for those who look.
 const USE = { social: 'collected', reference: 'collected as the Reference', editorial: 'licensed for a story', commercial: 'licensed to a company', campaign: 'licensed for a campaign', print: 'ordered as a print' };
-const HIDDEN = new Set(['representation.earned', 'representation.ended', 'introduction.issued', 'cabinet.kept', 'showing.opened', 'curation.earned', 'pocket.cashed', 'dispute.opened', 'dispute.answered', 'dispute.dismissed', 'dispute.withdrawn', 'signin.email', 'collector.passkey', 'maker.passkey', 'license.seat', 'license.seat.claimed', 'license.seat.file', 'license.seat.removed', 'license.seats.added', 'market.refunded', 'license.undone', 'patron.ending', 'license.renewal_offered']);
+const HIDDEN = new Set(['license.checkout', 'license.undone', 'representation.earned', 'representation.ended', 'introduction.issued', 'cabinet.kept', 'showing.opened', 'curation.earned', 'pocket.cashed', 'dispute.opened', 'dispute.answered', 'dispute.dismissed', 'dispute.withdrawn', 'signin.email', 'collector.passkey', 'maker.passkey', 'license.seat', 'license.seat.claimed', 'license.seat.file', 'license.seat.removed', 'license.seats.added', 'market.refunded', 'license.undone', 'patron.ending', 'license.renewal_offered']);
 
 function mountRegister(app, { db, V, ledger }) {
   const workBySlug = db.prepare("SELECT id, slug, title, maker_id, width, height, status FROM works WHERE slug=?");
@@ -40,7 +40,7 @@ function mountRegister(app, { db, V, ledger }) {
       case 'maker.invited': return { ...k, kind: 'birth', work: null, text: `A maker was invited to the house.` };
       case 'work.terms': return { ...k, work: w, text: `The terms of ${T(w)} were set by its maker.` };
       case 'work.voice': return { ...k, work: w, text: `Someone spoke about ${T(w)}.` };
-      case 'license.granted': case 'license.checkout': {
+      case 'license.granted': {
         if (d.set) return { ...k, kind: 'collect', work: w, text: `A set of ${d.works ? d.works.length : 'several'} photographs was collected together.` };
         const u = USE[d.use || (w && w.use_key)] || 'licensed';
         return { ...k, kind: 'collect', work: w, text: `${T(w)}${by(w)} was ${u}${no(w, d)}.` }; }
