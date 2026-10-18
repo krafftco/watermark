@@ -346,6 +346,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/account/join/${est.invite_token}`); assert.equal(r.status, 404, 'link works once');
   r = await req(port, 'GET', '/account', { cookie: mck }); let ab = r.body.toString(); assert.ok(ab.includes('The Ada Estate.') && ab.includes('Nothing here yet'), 'their own dashboard');
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: mck }); assert.equal(r.status, 404, 'cannot touch another maker\'s work');
+  { // first steps: the newly opened studio shows the way; each step ticks itself
+    assert.ok(ab.includes('First steps') && ab.includes('0 of 7'), 'first steps on a new studio');
+    r = await req(port, 'GET', '/account/prices', { cookie: mck }); assert.equal(r.status, 200);
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('1 of 7'), 'opening the prices ticks a step');
+    r = await req(port, 'POST', '/account/steps/shared', { cookie: mck, headers: { accept: 'application/json' } }); assert.equal(r.status, 200);
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('2 of 7'));
+    r = await req(port, 'POST', '/account/steps/bogus', { cookie: mck }); assert.equal(r.status, 400);
+    console.log('ok: first steps');
+  }
   // the estate adds its own photograph: private until it publishes, with its word on rights and releases
   const px2 = Buffer.alloc(320 * 200 * 3); for (let k = 0; k < px2.length; k++) px2[k] = (k * 104729 + 7) % 241;
   const theirs = await sharp2(px2, { raw: { width: 320, height: 200, channels: 3 } }).resize({ width: 2000, height: 1250, kernel: "nearest" }).jpeg().toBuffer();

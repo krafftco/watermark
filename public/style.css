@@ -2857,3 +2857,14 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 @media (max-width:760px){.gh-in{padding:0 16px}.gc{padding:72px 0 80px}.gc-board a{grid-template-columns:64px 1fr auto;gap:14px;padding:16px 4px}.gc-board img,.gc-board a>span:first-child{width:64px;height:48px}.gc-board i{grid-column:2/3;grid-row:2;font-size:13px}.gc-board b{font-size:21px}.gc-track{grid-row:1/3;grid-column:3;font-size:26px}.gh-desk{grid-template-columns:1fr}.gh-cell{border-right:0}.gh{padding:72px 0 24px}.gh-mw{padding:64px 16px 72px}.gh-band{height:58vh}.gh-hero h1{max-width:11ch}}
 @media (prefers-reduced-motion:reduce){.gh-hero>img,.gh-hero h1,.gh-sub,.gh-enter,.gh-enter span{animation:none}}
 .gc-h h2,.gh-mw-h h2{text-transform:none;letter-spacing:-.01em}
+/* First steps on the maker's studio (steps.js). */
+.fs{margin:28px 0 36px;padding:26px 28px;background:#f7f3ec;border:1px solid rgba(26,23,20,.1)}
+.fs-h{display:grid;grid-template-columns:1fr auto;gap:4px 24px;align-items:start}.fs-h .k{grid-column:1;margin:0;color:#8a7a58}.fs-h h2{grid-column:1;margin:2px 0 0;font:400 30px/1.1 var(--serif,Georgia,serif)}.fs-h p:not(.k){grid-column:1;margin:6px 0 0;color:#6f675c}.fs-away{grid-column:2;grid-row:1}
+.fs-l{list-style:none;margin:20px 0 0;padding:0;border-top:1px solid rgba(26,23,20,.1)}
+.fs-l li{display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(26,23,20,.08)}
+.fs-n{width:26px;height:26px;border-radius:50%;border:1px solid rgba(26,23,20,.3);display:grid;place-items:center;font-size:12px;color:#6f675c}
+.fs-done .fs-n{background:#1a1714;border-color:#1a1714;color:#fff}.fs-done .fs-t b{color:#8a8175}.fs-next .fs-n{border-color:#b39a68;color:#8a6d33}
+.fs-t{display:grid;gap:2px}.fs-t b{font:400 18px/1.25 var(--serif,Georgia,serif)}.fs-t small{color:#7d766b;font-size:13px;line-height:1.45}
+.fs-go{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#1a1714;border:1px solid rgba(26,23,20,.3);padding:8px 14px;background:none;cursor:pointer;text-decoration:none;white-space:nowrap}.fs-next .fs-go{background:#1a1714;color:#fff;border-color:#1a1714}
+.fs-ok{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8a8175}
+@media (max-width:760px){.fs{padding:20px 16px}.fs-l li{grid-template-columns:28px 1fr;}.fs-l li>.fs-go,.fs-l li>.fs-ok{grid-column:2;justify-self:start}}
