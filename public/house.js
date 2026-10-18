@@ -11,7 +11,7 @@
     // Two front doors (Will, 18 Oct: Studios is the magazine, Watermark is the thing; the rest is tucked behind the K).
     { id: 'studios', name: 'Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com', front: 1 },
     { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com', front: 1 },
-    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com', line: 'The company: advisory, ventures' },
+    { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com', line: 'The Firm, and the ventures' },
     // A venture that lives as a page on krafftco.com: matched by path, always opens at its page.
     { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club', line: 'A Krafft venture' },
     { id: 'will', name: 'Will Fullerton', short: 'W. Fullerton', host: 'wrkfullerton.com', url: 'https://www.wrkfullerton.com', own: 1, line: 'The photographer\u2019s own site' }
