@@ -15,6 +15,8 @@ const KINDS = {
   hat: { who: 'maker', label: 'Someone tips their hat', on: false },
   note: { who: 'maker', label: 'A line in a guest book of yours', on: true },
   paid: { who: 'maker', label: 'You are paid', on: true },
+  show: { who: 'maker', label: 'A curator proposes a show, or opens your archive', on: true },
+  reviewed: { who: 'buyer', label: 'A maker answers a show you curated', on: true },
   answered: { who: 'buyer', label: 'A maker answers your request', on: true },
   received: { who: 'buyer', label: 'A piece is sent to you', on: true },
   placed: { who: 'buyer', label: 'A sale through your wall', on: true },

@@ -25,6 +25,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   });
 
   // Let them in: the collection on this device joins the one the email names; a maker opens their room too.
+  app.locals.admit = (...a) => admit(...a);
   function admit(req, res, email) {
     const { maker } = whois(email); let { buyer } = whois(email);
     const cur = buyerOf(req);

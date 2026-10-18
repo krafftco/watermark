@@ -694,6 +694,31 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/notices'); assert.equal(r.status, 302);
     assert.ok(app.locals.notify.vapid().publicKey.length > 40, 'the house has push keys'); }
   console.log('ok: notifications');
+  // Curators: the maker opens the archive by letter; the curator builds a show from it, kept-back work included, and
+  // sends it; the maker approves; the show opens and the kept-back photograph is published with it.
+  { const cm = db.prepare("SELECT * FROM makers WHERE id=(SELECT maker_id FROM works WHERE status='held' GROUP BY maker_id ORDER BY COUNT(*) DESC LIMIT 1)").get();
+    const ws = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY id LIMIT 2").all(cm.id);
+    db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(ws[1].id);
+    let r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck0 = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'GET', '/account?maker=' + cm.handle, { cookie: sck0 });
+    const asm = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    const mc = [sck0, asm].filter(Boolean).join('; ');
+    r = await req(port, 'POST', '/account/curators', { cookie: mc, body: { name: 'Michael', email: 'michael@leica.example', label: 'Leica Gallery' } });
+    assert.ok(r.headers.location.includes('/account/curators'), 'the keys are sent');
+    const cur = db.prepare("SELECT * FROM curators WHERE email='michael@leica.example'").get(); assert.ok(cur && cur.status === 'invited');
+    r = await req(port, 'GET', '/curate/join/' + cur.token); assert.ok(r.headers.location.startsWith('/curate/'), 'the letter opens the archive');
+    const cc = r.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
+    r = await req(port, 'GET', r.headers.location, { cookie: cc }); assert.equal(r.status, 200); assert.ok(r.body.includes('data-cu-w="' + ws[1].slug + '"'), 'kept-back work is on the desk');
+    r = await req(port, 'POST', '/curate/' + require('../src/views').makerSlug(cm) + '/show', { cookie: cc, body: { title: 'The Stairs of Paris' } });
+    const sid = new URL('http://x' + r.headers.location).searchParams.get('show'); assert.ok(sid);
+    for (const w of ws) { r = await req(port, 'POST', '/curate/show/' + sid + '/toggle', { cookie: cc, body: { work: w.slug }, headers: { accept: 'application/json' } }); assert.ok(JSON.parse(r.body).in); }
+    r = await req(port, 'POST', '/curate/show/' + sid + '/propose', { cookie: cc }); assert.equal(db.prepare('SELECT review FROM hangs WHERE id=?').get(+sid).review, 'proposed');
+    r = await req(port, 'GET', '/curate/show/' + sid, { cookie: cc }); assert.ok(r.body.includes('kept back'), 'the preview shows the kept-back photograph');
+    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc });
+    const h = db.prepare('SELECT * FROM hangs WHERE id=?').get(+sid); assert.ok(h.review === 'approved' && h.public === 1, 'the show opens');
+    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'held', 'the kept-back photograph is published with it');
+    r = await req(port, 'GET', '/curate/' + require('../src/views').makerSlug(cm)); assert.equal(r.status, 302, 'a stranger cannot open the archive'); }
+  console.log('ok: curators');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

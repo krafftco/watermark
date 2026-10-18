@@ -1469,6 +1469,7 @@ function createApp(cfg = {}) {
   require('./frame').mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket: app.locals.pocket, nextRef, grant, SERIES: require('./series'), collectUse: w => { if (!w) return null; const m = mk(w); const u = q.uses.all(m.id).find(x => x.key === 'social'); return u && u.price_cents > 0 && offered(R.parse(w.rules), 'social', w) ? u : null; } });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
+  require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
