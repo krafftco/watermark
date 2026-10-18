@@ -2364,3 +2364,10 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
   .cx-cap{left:16px;right:16px;bottom:12px}
   .cx-intro{padding:28px 16px 8px}
 }
+/* The close, the top rows and the decks always clear the notch and the home bar, installed or not (Will, 17 Oct). */
+.st-top{padding-top:max(12px,calc(10px + env(safe-area-inset-top)))}
+.wv-top,.vr-top{padding-top:max(14px,calc(10px + env(safe-area-inset-top)))}
+.st-plate,.st-rail{bottom:max(22px,calc(16px + env(safe-area-inset-bottom)))}
+.wv-deck,.vr-deck{bottom:max(clamp(18px,4vh,40px),calc(14px + env(safe-area-inset-bottom)))}
+.wv-plate{bottom:max(clamp(18px,4vh,40px),calc(14px + env(safe-area-inset-bottom)))}
+@media (max-width:700px){.wv-deck,.vr-deck{bottom:max(14px,calc(10px + env(safe-area-inset-bottom)))}.wv-plate{bottom:max(72px,calc(66px + env(safe-area-inset-bottom)))}.st-top{padding-top:max(14px,calc(12px + env(safe-area-inset-top)))}}
