@@ -672,6 +672,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/api/stroll?n=5&q=zzzz-no-such'); assert.equal(JSON.parse(r.body).items.length, 0);
     r = await req(port, 'GET', '/stroll?at=' + s1.items[0].slug); assert.ok(r.body.indexOf('data-slug="' + s1.items[0].slug + '"') < r.body.indexOf('data-slug="', r.body.indexOf('data-slug="' + s1.items[0].slug + '"') + 10), 'opens at the one asked for'); }
   console.log('ok: the stroll');
+  // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
+  { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
+    assert.equal(two.length, 2, 'two collectable photographs for the basket');
+    const ck = 'wm_bk=' + encodeURIComponent(two.map(w => w.slug).join(','));
+    let r = await req(port, 'GET', '/basket', { cookie: ck }); assert.equal(r.status, 200); assert.ok(two.every(w => r.body.includes('data-slug="' + w.slug + '"')) && /Collect all 2/.test(r.body), 'the basket lists both and offers to collect all');
+    r = await req(port, 'GET', '/api/basket?s=' + two.map(w => w.slug).join(',')); const bj = JSON.parse(r.body); assert.equal(bj.items.length, 2); assert.equal(bj.total, bj.items[0].price + bj.items[1].price);
+    r = await req(port, 'GET', '/basket'); assert.ok(/The basket is empty/.test(r.body));
+    r = await req(port, 'GET', '/w/' + two[0].slug); assert.ok(/static\/basket\.js/.test(r.body), 'the basket script rides on every page'); }
+  console.log('ok: the basket');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

@@ -910,6 +910,59 @@ function createApp(cfg = {}) {
     return { chapters, whole: { n: every.length, ...setPrice(every, SET_OFF.all) } };
   };
   const SETS = Object.fromEntries(SERIES.map(s => [s.slug, { name: s.title }]));
+  SETS.basket = { name: 'Your basket' };
+  // The basket (Mom, 18 Oct: "I could only collect one image; it needs a cart"). Photographs gathered from anywhere in
+  // the house and collected together in one payment: from the pocket in one tap, or one Stripe checkout with a line per
+  // photograph. Each is its own license and its own collector number, as if collected one by one. The basket itself
+  // lives in the visitor's browser (cookie wm_bk, slugs); nothing is reserved until payment.
+  const BASKET_MAX = 40;
+  const basketOf = req => [...new Set(String((req.cookies && req.cookies.wm_bk) || '').split(',').map(x => decodeURIComponent(x).trim()).filter(x => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, BASKET_MAX);
+  const basketItems = (req, slugs) => {
+    const held = new Set();
+    const rows = collectable(slugs).filter(x => offered(R.parse(x.w.rules), 'social', x.w) && !heldBy(req, x.w).some(h => h.key === 'social' || h.key === 'reference'));
+    const out = []; for (const x of rows) { if (held.has(x.w.id)) continue; held.add(x.w.id); out.push(x); }
+    return out;
+  };
+  app.get('/api/basket', (req, res) => {
+    const slugs = String(req.query.s || '').split(',').filter(Boolean).slice(0, BASKET_MAX);
+    const items = basketItems(req, slugs.length ? slugs : basketOf(req));
+    const b = buyerOf(req); const pocket = b && app.locals.pocket ? app.locals.pocket.balance(b) : 0;
+    const total = items.reduce((a, x) => a + x.u.price_cents, 0);
+    res.set('Cache-Control', 'no-store').json({ items: items.map(x => ({ slug: x.w.slug, title: V.tidy(x.w.title), maker: mk(x.w).name, place: x.w.place || null, price: x.u.price_cents, thumb: `/img/${x.w.slug}/thumb` })), total, pocket, covers: !!b && pocket >= total && total > 0, signedIn: !!b });
+  });
+  app.get('/basket', (req, res) => {
+    const items = basketItems(req, basketOf(req));
+    const b = buyerOf(req); const pocket = b && app.locals.pocket ? app.locals.pocket.balance(b) : 0;
+    const total = items.reduce((a, x) => a + x.u.price_cents, 0);
+    res.set('Cache-Control', 'private, no-store');
+    res.send(V.basketPage({ items: items.map(x => ({ w: x.w, maker: mk(x.w), price: x.u.price_cents })), total, pocket, covers: !!b && pocket >= total && total > 0, buy: !!stripe, note: req.query.ok || null }));
+  });
+  app.post('/basket/collect', async (req, res) => {
+    const items = basketItems(req, basketOf(req));
+    if (!items.length) return res.redirect('/basket?ok=' + encodeURIComponent('Nothing in the basket can be collected just now.'));
+    const b = buyerOf(req);
+    const total = items.reduce((a, x) => a + x.u.price_cents, 0);
+    const setRef = `basket:${nextRef()}`;
+    const refs = items.map(x => { const ref = nextRef(); db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,set_ref,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?,?)").run(ref, x.w.id, x.u.id, (b && b.name) || 'Collector', (b && b.email) || '', x.u.price_cents, R.conditions(R.parse(x.w.rules)) || null, setRef, b ? b.id : null); return ref; });
+    const pocket = app.locals.pocket;
+    if (req.body && req.body.from === 'pocket' && b && pocket && pocket.spend(b, total, 'collect', refs[0], `The basket: ${items.length} photograph${items.length === 1 ? '' : 's'}`)) {
+      for (const [i, ref] of refs.entries()) { grant(ref, { paid: true, price_cents: items[i].u.price_cents }); ledger.append(db, 'license.paid.pocket', ref, { work: items[i].w.slug, use: 'social', amount: items[i].u.price_cents, basket: true }); }
+      res.cookie('wm_bk', '', { maxAge: 0, path: '/' });
+      return res.redirect(`/thanks/${refs[0]}`);
+    }
+    if (!stripe) { db.prepare("DELETE FROM licenses WHERE set_ref=?").run(setRef); return res.redirect('/basket?ok=' + encodeURIComponent('Payments are not open yet.')); }
+    ledger.append(db, 'license.checkout', refs[0], { set: setRef, works: items.map(x => x.w.slug) });
+    try {
+      const ss = await stripe.checkout.sessions.create({ mode: 'payment', submit_type: 'pay', ...(b && b.email ? { customer_email: b.email } : {}),
+        line_items: items.map(x => ({ quantity: 1, price_data: { currency: 'usd', unit_amount: x.u.price_cents, product_data: { name: `${V.tidy(x.w.title)}, by ${mk(x.w).name}`, description: 'Collect: yours to keep and share, credited. Numbered in your gallery.', images: [`${C.base}/img/${x.w.slug}/thumb`] } } })),
+        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for each photograph collected (Collect), as shown on Watermark: ${C.base}/terms` } },
+        metadata: { ref: refs[0], set: setRef },
+        success_url: `${C.base}/thanks/${refs[0]}?session_id={CHECKOUT_SESSION_ID}&basket=1`,
+        cancel_url: `${C.base}/basket` });
+      db.prepare('UPDATE licenses SET stripe_session=? WHERE set_ref=?').run(ss.id, setRef);
+      res.redirect(303, ss.url);
+    } catch (e) { console.error('[basket]', e.message); db.prepare("DELETE FROM licenses WHERE set_ref=? AND status='awaiting_payment'").run(setRef); res.redirect('/basket?ok=' + encodeURIComponent('Checkout could not open just now. Try again in a moment.')); }
+  });
   app.get('/series/:slug', (req, res) => {
     const s = SERIES.find(x => x.slug === req.params.slug); if (!s) return res.sendStatus(404);
     if (app.locals.walk) app.locals.walk.set(res, `series:${s.slug}`);
@@ -1021,6 +1074,7 @@ function createApp(cfg = {}) {
         db.prepare('UPDATE licenses SET buyer_id=COALESCE(buyer_id, ?) WHERE set_ref=?').run(b.id, l.set_ref);
       }
       const items = db.prepare('SELECT l.*, w.slug, w.title, w.place FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.set_ref=? ORDER BY l.id').all(l.set_ref);
+      if (l.set_ref.startsWith('basket:') && items.every(x => x.status === 'active')) res.cookie('wm_bk', '', { maxAge: 0, path: '/' });
       return res.send(V.setThanks({ items, name: (SETS[l.set_ref.split(':')[0]] || {}).name || 'The set' }));
     }
     if (l.status !== 'active' && stripe) {
