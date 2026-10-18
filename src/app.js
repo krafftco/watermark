@@ -475,7 +475,7 @@ function createApp(cfg = {}) {
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
-    res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: todays(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [] }));
+    res.send(V.collection({ maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: todays(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [], shows: showsNow(), collections: publicCollections() }));
   });
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
@@ -1115,7 +1115,8 @@ function createApp(cfg = {}) {
     return journal.posts;
   }
   app.get('/journal', async (req, res) => res.send(V.journal({ posts: await journalPosts(), study: db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND (curated=1 OR stars>=4) ORDER BY RANDOM() LIMIT 3").all() })));
-  app.get('/collectors', (req, res) => {
+  // The public collections and the shows now, for Galleries and the Collection's doors.
+  function publicCollections() {
     const list = db.prepare(`SELECT b.id, b.code, b.name, COUNT(DISTINCT l.work_id) AS works, MIN(l.collector_no) AS earliest FROM buyers b
       JOIN licenses l ON l.buyer_id=b.id AND l.status IN ('active','expired') AND l.price_cents > 0 JOIN works w ON w.id=l.work_id AND w.status='held'
       WHERE b.public=1 AND b.code IS NOT NULL GROUP BY b.id ORDER BY works DESC, b.id LIMIT 200`).all();
@@ -1124,7 +1125,12 @@ function createApp(cfg = {}) {
     list.forEach(c => { c.founding = foundingNo(c); });
     list.forEach(c => { c.statement = (db.prepare('SELECT statement FROM buyers WHERE id=?').get(c.id) || {}).statement; });
     const G = app.locals.galleries; if (G) list.forEach(c => { c.eye = G.eye(c); });
-    res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [], shows: G ? G.onNow().map(h => ({ ...h, thumbs: db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id AND w.status='held' WHERE hw.hang_id=? ORDER BY hw.pos LIMIT 3").all(h.id) })) : [] }));
+    return list;
+  }
+  const showsNow = () => { const G = app.locals.galleries; return G ? G.onNow().map(h => ({ ...h, thumbs: db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id AND w.status='held' WHERE hw.hang_id=? ORDER BY hw.pos LIMIT 3").all(h.id) })) : []; };
+  app.get('/collectors', (req, res) => {
+    const list = publicCollections();
+    res.send(V.collectors({ list, left: foundingLeft(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [], shows: showsNow() }));
   });
   app.get('/g/:code', (req, res, next) => { req.url = `/collector/${req.params.code}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/collector/:code', (req, res) => {

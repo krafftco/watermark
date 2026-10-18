@@ -2758,3 +2758,15 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .bv-fx b{position:absolute;transform:translate(-50%,-50%);font:italic 400 44px/1 var(--serif,Georgia,serif);color:#b39a68;text-shadow:0 2px 18px rgba(0,0,0,.25);animation:bv-word 1.4s cubic-bezier(.16,1,.3,1) forwards;white-space:nowrap}
 @keyframes bv-word{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}25%{opacity:1;transform:translate(-50%,-120%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-200%) scale(1)}}
 .st-bv .st-bv-w{display:block;font:italic 400 15px/24px var(--serif,Georgia,serif);height:24px;letter-spacing:.01em}.st-bv[aria-pressed="true"] .st-bv-w{color:#d9bc7c}
+/* The four doors on the Collection (views.collection): the archive, walls, shows, collections. */
+.dr4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;max-width:1280px;margin:40px auto 8px;padding:0 24px}
+.dr4-d{position:relative;display:grid;grid-template-rows:auto 1fr;color:inherit;text-decoration:none;background:#0f0e0c;color:#ece7de;overflow:hidden;min-height:340px}
+.dr4-im{position:relative;display:block;height:220px;overflow:hidden}.dr4-im img{position:absolute;width:62%;height:78%;object-fit:cover;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:transform .9s cubic-bezier(.16,1,.3,1)}
+.dr4-im img:nth-child(1){left:6%;top:14%;z-index:1;transform:rotate(-2deg)}.dr4-im img:nth-child(2){left:32%;top:8%;z-index:3}.dr4-im img:nth-child(3){right:4%;top:18%;z-index:2;transform:rotate(2deg);width:50%;height:66%}
+.dr4-im img:only-child{left:0;top:0;width:100%;height:100%;transform:none}
+.dr4-d:hover .dr4-im img:nth-child(1){transform:rotate(-4deg) translateX(-8px)}.dr4-d:hover .dr4-im img:nth-child(3){transform:rotate(4deg) translateX(8px)}.dr4-d:hover .dr4-im img:nth-child(2){transform:translateY(-6px) scale(1.03)}
+.dr4-t{display:grid;gap:6px;align-content:start;padding:18px 20px 22px}.dr4-t small{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#a39b8e}.dr4-t b{font:400 26px/1.1 var(--serif,Georgia,serif)}.dr4-t i{font-style:normal;font-size:13.5px;line-height:1.45;color:#c9c2b6}
+.dr4-n{position:absolute;top:14px;right:16px;z-index:4;font-size:11px;letter-spacing:.14em;color:#ece7de;background:rgba(11,10,9,.55);padding:4px 9px;border-radius:12px}
+@media (max-width:1000px){.dr4{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:760px){.dr4{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;padding:0 16px;margin-top:24px;-webkit-overflow-scrolling:touch;scrollbar-width:none}.dr4::-webkit-scrollbar{display:none}.dr4-d{flex:0 0 78%;scroll-snap-align:start;min-height:300px}.dr4-im{height:180px}}
+@media (prefers-reduced-motion:reduce){.dr4-im img{transition:none}}
