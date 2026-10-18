@@ -2256,7 +2256,7 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .dk-right{flex:none;white-space:nowrap;align-items:center}.dk-brand{flex:none}
 @media (max-width:1180px){.dk-sw{margin-right:8px}.dk-sw a{padding:5px 10px;letter-spacing:.1em}}
 @media (max-width:960px){.dk-right .dk-out:first-child{display:none}}
-@media (max-width:700px){.dk-sw{display:none}.dk-row{gap:14px;padding:0 16px}}
+@media (max-width:700px){.dk-row{gap:14px;padding:0 16px;height:auto;min-height:48px;flex-wrap:wrap;row-gap:0}.dk-row>.dk-sw{order:10;flex:0 0 auto;margin:0 auto 10px;display:inline-flex}.dk-row>.dk-nav{order:5}.dk-row>.dk-brand{order:1}.dk-row>.dk-status,.dk-row>.dk-more{order:6}}
 /* The walk, as one quiet line. */
 .wk{grid-template-columns:auto minmax(0,1fr) auto;gap:24px;margin:18px auto 0;padding:14px 0 0;border-top:1px solid rgba(255,255,255,.1);max-width:900px;width:100%}
 .wk-go{gap:8px;font-size:10.5px;letter-spacing:.2em;color:rgba(255,255,255,.6);transition:color .3s}.wk-go:hover{color:#fff}.wk-go .ic{width:16px;height:16px;transition:transform .3s var(--e)}.wk-prev:hover .ic{transform:translateX(-3px)}.wk-next:hover .ic{transform:translateX(3px)}.wk-go img{display:none}.wk-go span{border:0;padding:0}
@@ -2305,3 +2305,6 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 }
 .nv-back{display:none;align-items:center;gap:6px;color:var(--mut);font-size:11px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;padding:6px 8px 6px 0;cursor:pointer}.nv-back .ic{width:18px;height:18px}.nv-back[hidden]{display:none}
 @media (max-width:700px){@media (display-mode:standalone){.vr-deck,.wv-deck{bottom:calc(14px + env(safe-area-inset-bottom))}.wv-plate{bottom:calc(72px + env(safe-area-inset-bottom))}}}
+
+/* The switch on a phone (Will, 17 Oct): Studio | Gallery on its own line under the desk row, and on the gallery. */
+@media (max-width:700px){.yc-sw{flex-direction:column;align-items:flex-start;gap:10px}.yc-sw .dk-sw{align-self:center}}
