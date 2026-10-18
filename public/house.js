@@ -100,10 +100,14 @@
     // The phone: the bar out of the way, the K when you need it.
     if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
       bar.classList.add('kh-m');
-      var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM; document.body.appendChild(dot);
+      var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM;
+      // A page with its own sticky header (Watermark): the ghost K sits in that row, beside the mark, never on it.
+      var hdr = document.querySelector('header.top');
+      if (hdr) { dot.className = 'kh-dot kh-in'; hdr.insertBefore(dot, hdr.firstChild); } else document.body.appendChild(dot);
+      var inRow = !!hdr;
       var lastY = window.pageYOffset || 0, idle;
-      function state() { var y = window.pageYOffset || 0; if (bar.classList.contains('on')) { dot.className = 'kh-dot gone'; return; } if (y < 24) dot.className = 'kh-dot top'; else if (y < lastY - 4) dot.className = 'kh-dot up'; else if (y > lastY + 4) dot.className = 'kh-dot gone'; lastY = y; }
-      window.addEventListener('scroll', function () { if (bar.classList.contains('on')) bar.classList.remove('on'); state(); clearTimeout(idle); idle = setTimeout(function () { if (!dot.classList.contains('top')) dot.className = 'kh-dot up'; }, 1600); }, { passive: true });
+      function state() { if (inRow) return; var y = window.pageYOffset || 0; if (bar.classList.contains('on')) { dot.className = 'kh-dot gone'; return; } if (y < 24) dot.className = 'kh-dot top'; else if (y < lastY - 4) dot.className = 'kh-dot up'; else if (y > lastY + 4) dot.className = 'kh-dot gone'; lastY = y; }
+      window.addEventListener('scroll', function () { if (bar.classList.contains('on')) bar.classList.remove('on'); state(); clearTimeout(idle); idle = setTimeout(function () { if (!inRow && !dot.classList.contains('top')) dot.className = 'kh-dot up'; }, 1600); }, { passive: true });
       dot.addEventListener('click', function () { bar.classList.add('on'); state(); });
       document.addEventListener('click', function (e) { if (bar.classList.contains('on') && !bar.contains(e.target) && !dot.contains(e.target)) { bar.classList.remove('on'); state(); } });
       state();

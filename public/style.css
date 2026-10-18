@@ -2376,3 +2376,20 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .st-gon{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:rgba(242,239,233,.6);font-family:inherit;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:6px;cursor:pointer}.st-gon .ic{width:20px;height:20px}.st-gon[aria-pressed=true]{color:#fff;text-shadow:0 0 12px rgba(255,255,255,.5)}
 @media (max-width:420px){.st-gon span{display:none}}
 .st-top>*{flex:none}.st-top .st-search{flex:1 1 auto;min-width:40px}.st-chip{max-width:32vw}.st-gon{padding:6px 4px}
+/* The footer, calm (Will, 17 Oct: "a wild footer"): a list, not a run-on line; separators only where there is room. */
+.foot{align-items:flex-start}
+.foot-h{margin:0;flex:none}
+.foot-l{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px 0;max-width:62%}
+.foot-l a{white-space:nowrap}.foot-l a+a::before{content:"\00b7";margin:0 .7em;color:var(--mu)}
+@media (max-width:700px){
+  .foot{flex-direction:column;gap:22px;margin-top:40px;padding:28px 16px calc(32px + env(safe-area-inset-bottom));font-size:12.5px;letter-spacing:.04em;text-transform:none}
+  .foot-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase}.foot-h span{display:none}
+  .foot-l{max-width:none;display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;justify-content:start}
+  .foot-l a+a::before{content:none}
+  .foot-l a{color:var(--ink);white-space:normal}
+}
+/* The record on a phone: the folded sections sit close; no long empty drop to the footer. */
+@media (max-width:999px){.lot-rec{gap:28px;padding-bottom:24px}.lot-rec .lot-fold+.lot-fold{margin-top:-12px}.lot-fold{padding:16px 0 4px}}
+/* On Watermark the ghost K sits in the header row, beside the mark, never on it. */
+.top .kh-dot.kh-in{position:static;width:26px;height:26px;margin-right:10px;flex:none;order:-1;background:none;color:var(--ink);backdrop-filter:none;-webkit-backdrop-filter:none;opacity:.32;transform:none;box-shadow:none}.top .kh-dot.kh-in svg{width:13px;height:13px}.top .kh-dot.kh-in:active{opacity:.8}
+.foot-l{gap:8px 1.6em}.foot-l a+a::before{content:none}
