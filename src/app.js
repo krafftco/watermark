@@ -349,7 +349,7 @@ function createApp(cfg = {}) {
     const pocket = b && app.locals.pocket ? app.locals.pocket.balance(b) : 0;
     const ap = app.locals.applauseOf ? app.locals.applauseOf(w, req) : null;
     return { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
-      img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : null, approved: !!(c && c.state === 'approved'), held,
+      img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : null, audio: c ? `/closer/${w.slug}/audio` : null, approved: !!(c && c.state === 'approved'), held,
       collect: can && !held ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: pocket >= pr.price_cents, edition: (() => { const e = edition(w); return e ? { size: e.size, sold: e.sold } : null; })() } : null,
       hat: ap ? { n: ap.n, mine: !!ap.mine } : null };
   }
@@ -816,6 +816,7 @@ function createApp(cfg = {}) {
   require('./closer').mountCloser(app, { db, C, studioOnly, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V,
     imageOf: async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen')) });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
+  require('./speech').mountSpeech(app, { db, C, store, closerOf: w => app.locals.closerOf(w) });
   // Signing in with a passkey: the collection follows the collector to every device.
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
   // Signing in by email: a six-digit code or the link in the message; the same email opens a maker's room.
@@ -1710,7 +1711,7 @@ function createApp(cfg = {}) {
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

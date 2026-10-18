@@ -176,7 +176,7 @@ const mmss = n => n ? `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`
 const closerBlock = (c, w, edit) => {
   if (!c) return edit ? `<p class="lc-edit"><a href="/closer/${esc(w.slug)}">Look closer: write a guide for this photograph</a></p>` : '';
   const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
-  return `<section class="lc" id="closer"><div class="lc-h"><p class="k">Look closer</p><button type="button" class="lc-say" data-say aria-label="Hear it"><i></i><span>Hear it</span></button></div>
+  return `<section class="lc" id="closer"><div class="lc-h"><p class="k">Look closer</p><button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
 <div class="lc-t" data-say-text>${paras}</div>
 ${c.sources && c.sources.length ? `<p class="lc-src"><b>Sources</b> ${c.sources.map(x => /^https?:\/\//.test(x) ? `<a href="${esc(x)}" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(x)).join(' &middot; ')}</p>` : ''}
 <p class="lc-by">${c.by ? `Written by ${esc(c.by)}, with AI from the photograph and its record.` : c.state === 'approved' ? 'Written with AI from the photograph and its record; read and approved by the maker.' : 'Written by AI from the photograph and its record. The maker may correct it.'}${edit ? ` <a href="/closer/${esc(w.slug)}">Edit</a>` : ''}</p></section>

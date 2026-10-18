@@ -15,15 +15,29 @@
   var V = code(); try { document.cookie = 'wm_v=' + V + '; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : ''); } catch (e) {}
   function say_(msg, ms) { toast.textContent = msg; toast.hidden = false; toast.classList.add('on'); clearTimeout(say_.t); say_.t = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 500); }, ms || 2600); }
   function voice() { if (!S) return null; var vs = S.getVoices().filter(function (v) { return /^en(-|_|$)/i.test(v.lang); }); var pref = [/premium|enhanced|natural|neural/i, /Daniel|Serena|Kate|Oliver|Arthur/, /Samantha|Ava|Allison|Google UK English|Google US English/]; for (var k = 0; k < pref.length; k++) { var f = vs.filter(function (v) { return pref[k].test(v.name); }); if (f.length) return f[0]; } return vs[0] || null; }
-  function stopSay() { saying = false; if (S) S.cancel(); sayB.setAttribute('aria-pressed', 'false'); gEl.querySelectorAll('p').forEach(function (p) { p.classList.remove('now'); }); }
+  var rec = null, recTick = null;
+  function stopSay() { saying = false; if (S) S.cancel(); if (rec) { rec.pause(); rec = null; } clearInterval(recTick); sayB.setAttribute('aria-pressed', 'false'); gEl.querySelectorAll('p').forEach(function (p) { p.classList.remove('now'); }); }
+  function doneSaying() { saying = false; sayB.setAttribute('aria-pressed', 'false'); clearInterval(recTick); if (auto) go(1); }
+  // The house voice: a recording of the guide, when the house has made one; else the browser's own voice.
+  function sayRecording(w, paras, fallback) {
+    rec = new Audio(w.audio); rec.preload = 'auto';
+    var total = paras.reduce(function (n, p) { return n + p.textContent.length; }, 0) || 1, ends = [], acc = 0;
+    paras.forEach(function (p) { acc += p.textContent.length; ends.push(acc / total); });
+    rec.onended = function () { if (saying) doneSaying(); };
+    rec.onerror = function () { rec = null; fallback(); };
+    var pr = rec.play(); if (pr && pr.catch) pr.catch(function () { rec = null; fallback(); });
+    recTick = setInterval(function () { if (!rec || !rec.duration) return; var f = rec.currentTime / rec.duration, n = 0; while (n < ends.length - 1 && f > ends[n]) n++; paras.forEach(function (p, k) { p.classList.toggle('now', k === n); }); }, 250);
+  }
   function say(w) {
-    if (!S || !w.guide) return;
+    if (!w.guide || (!S && !w.audio)) return;
     stopSay(); saying = true; sayB.setAttribute('aria-pressed', 'true'); gEl.hidden = false;
     var paras = [].slice.call(gEl.querySelectorAll('p')), i = 0;
-    (function next() { if (!saying || i >= paras.length) { if (saying) { saying = false; sayB.setAttribute('aria-pressed', 'false'); if (auto) go(1); } return; }
+    if (w.audio) return sayRecording(w, paras, function () { if (S && saying) next(); else doneSaying(); });
+    next();
+    function next() { if (!saying || i >= paras.length) { if (saying) { saying = false; sayB.setAttribute('aria-pressed', 'false'); if (auto) go(1); } return; }
       var u = new SpeechSynthesisUtterance(paras[i].textContent), v = voice(); if (v) { u.voice = v; u.lang = v.lang; } u.rate = 0.92;
       paras.forEach(function (p, k) { p.classList.toggle('now', k === i); });
-      u.onend = function () { i++; next(); }; u.onerror = function () { saying = false; }; S.speak(u); })();
+      u.onend = function () { i++; next(); }; u.onerror = function () { saying = false; }; S.speak(u); }
   }
   // Standing: how long you stood in front of each, told to the house when you move on (the first hundred are remembered).
   function stood(w) { if (!w) return; var s = Math.round((Date.now() - stoodAt) / 1000); stoodAt = Date.now(); if (s < 2) return; try { navigator.sendBeacon('/w/' + w.slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }

@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js test/fixture.jpg && node test/s3.js && node test/sync.js && node test/credentials.js && node test/closer.js",
+    "test": "node test/smoke.js test/fixture.jpg && node test/s3.js && node test/sync.js && node test/credentials.js && node test/closer.js && node test/speech.js",
     "seed": "node scripts/seed.js"
   },
   "keywords": [],
