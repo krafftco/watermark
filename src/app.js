@@ -345,9 +345,14 @@ function createApp(cfg = {}) {
   app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger, mail });
 
   // --- public pages ---
+  // Never a break (Will, 18 Oct): a link to a photograph no longer shown goes on to the next one, on a phone in the stroll.
+  const isPhone = req => /iPhone|iPod|Android.+Mobile|Mobile Safari/i.test(String(req.get('user-agent') || '')) && !/iPad/i.test(String(req.get('user-agent') || ''));
+  function onward(req, from) { return isPhone(req) ? '/stroll' : `/wander?from=${encodeURIComponent(from || '')}`; }
+  app.locals.onward = onward; app.locals.isPhone = isPhone;
   // The front door is the collection; makers have their own entrance.
   // The viewing room: the picture alone on a dark wall, the guide read aloud, and on to the next by itself.
   app.get('/wander/room', (req, res) => {
+    if (isPhone(req)) return res.redirect(req.query.at ? `/stroll?at=${encodeURIComponent(String(req.query.at))}` : '/stroll'); // on a phone, the stroll
     const from = String(req.query.from || '').split(',').filter(Boolean).slice(-12);
     const start = req.query.at ? q.work.get(String(req.query.at)) : null;
     const w = (start && start.status === 'held' ? start : null) || db.prepare(`SELECT * FROM works WHERE status='held'${from.length ? ` AND slug NOT IN (${from.map(() => '?').join(',')})` : ''} ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(...from);
@@ -373,6 +378,7 @@ function createApp(cfg = {}) {
       hat: ap ? { n: ap.n, mine: !!ap.mine } : null };
   }
   app.locals.wanderJSON = wanderJSON;
+  require('./eye').mountEye(app, { db, V });
   require('./stroll').mountStroll(app, { db, V, wanderJSON, I: require('./icons') });
   // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
   // reason to come back in the morning and something to talk about. /today opens it.
@@ -392,6 +398,7 @@ function createApp(cfg = {}) {
     const pick = db.prepare(`SELECT slug FROM works WHERE status='held' AND slug<>? ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(from)
       || db.prepare("SELECT slug FROM works WHERE status='held' ORDER BY RANDOM() LIMIT 1").get();
     if (!pick) return res.redirect('/collection');
+    if (isPhone(req)) return res.redirect(`/stroll?at=${encodeURIComponent(pick.slug)}`); // on a phone, wandering is the stroll
     res.redirect(`/w/${pick.slug}?wander=1`);
   });
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
@@ -481,7 +488,8 @@ function createApp(cfg = {}) {
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || (w.status !== 'held' && !isStudio(req))) return res.status(404).send(V.sign({ code: 404, cover: coverFor() }));
+    if (w && w.status !== 'held' && !isStudio(req)) return res.redirect(onward(req, w.slug)); // no break: a photograph taken down leads on to the next
+    if (!w) return res.status(404).send(V.sign({ code: 404, cover: coverFor() }));
     countView(w.id, null, 'view');
     const rules = R.parse(w.rules);
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
@@ -503,7 +511,7 @@ function createApp(cfg = {}) {
   app.get('/w/:slug/life', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || w.status !== 'held') return res.sendStatus(404);
+    if (!w || w.status !== 'held') return w ? res.redirect(onward(req, w.slug)) : res.sendStatus(404);
     const rules = R.parse(w.rules);
     const lic = db.prepare("SELECT l.id, l.ref, l.starts_at, l.ends_at, l.status, l.price_cents, l.collector_no, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.status IN ('active','expired') ORDER BY l.starts_at").all(w.id);
     const reg = db.prepare("SELECT * FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq LIMIT 1").get(w.slug);
@@ -610,9 +618,10 @@ function createApp(cfg = {}) {
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || w.status !== 'held') return res.sendStatus(404);
+    if (!w || w.status !== 'held') return w ? res.redirect(onward(req, w.slug)) : res.sendStatus(404);
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
+    if (!q.uses.all(maker.id).some(u => listed(rules, u.key, w))) return res.redirect(`/w/${w.slug}`); // nothing to license (open, or every use closed)
     res.send(V.buy({ w, maker, rules, mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 

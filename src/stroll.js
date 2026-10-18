@@ -49,6 +49,7 @@ function strollPage({ items, q = '', maker = null, I }) {
   const card = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="/stroll?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/stroll?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
+<button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
 <nav class="st-rail" aria-label="Acts">
 <button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}">${I.hat}<span data-st-hat-n>${w.hat && w.hat.n ? w.hat.n : ''}</span></button>
 <button type="button" class="st-b" data-st-hang>${I.hang}<span>Hang</span></button>
@@ -60,13 +61,13 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}The stroll · Watermark`, desc: 'Watermark on a phone: the finest photographs, one at a time, edge to edge. Swipe for the next.', path: '/stroll', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}<button type="button" class="st-gon" data-st-gon aria-pressed="false" title="Read each guide as you arrive">${I.guide}<span>Guide</span></button><form class="st-search" action="/stroll" method="get" data-st-search><input type="search" name="q" value="${esc(q)}" placeholder="A place, a maker, a word" aria-label="Find" autocomplete="off"><button type="button" class="st-sx" data-st-sx aria-label="Find">${I.eye}</button></form><a class="st-x" href="/collection" aria-label="Close">${I.close}</a></header>
+<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}<button type="button" class="st-gon" data-st-gon aria-pressed="false" title="Read each guide as you arrive">${I.guide}<span>Guide</span></button><form class="st-search" action="/stroll" method="get" data-st-search><input type="search" name="q" value="${esc(q)}" placeholder="A place, a maker, a word" aria-label="Find" autocomplete="off"><button type="button" class="st-sx" data-st-sx aria-label="Find">${I.find || I.eye}</button></form><a class="st-x" href="/collection" aria-label="Close">${I.close}</a></header>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/stroll">Stroll on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k">Look closer</p><div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 <p class="st-toast" data-st-toast hidden></p>
 </main>
 <script>window.__WM_STROLL=${JSON.stringify({ items, q, maker: maker ? maker.slug : '' }).replace(/</g, '\\u003c')};</script>
-<script src="/static/stroll.js?v=${V.VER || ''}" defer></script>` });
+<script src="/static/stroll.js?v=${V.VER || ''}" defer></script><script src="/static/eye.js?v=${V.VER || ''}" defer></script>` });
 }
 
 module.exports = { mountStroll, strollPage };

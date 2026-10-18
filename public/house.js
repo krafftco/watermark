@@ -98,7 +98,10 @@
     bar.appendChild(right);
     if (!pre) document.body.insertBefore(bar, document.body.firstChild);
     // The phone: the bar out of the way, the K when you need it.
-    if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
+    // Watermark (Will, 18 Oct): no K by the wordmark; the house bar stays out of the way and the footer leads to Krafft.
+    var quiet = !!document.querySelector('meta[name="kh-dot"][content="off"]');
+    if (quiet && window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches) bar.classList.add('kh-m');
+    else if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
       bar.classList.add('kh-m');
       var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM;
       // A page with its own sticky header (Watermark): the ghost K sits in that row, beside the mark, never on it.

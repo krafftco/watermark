@@ -737,6 +737,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/trade/quote', { body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()));
     r = await req(port, 'GET', '/w/' + slug); assert.ok(!/tr-spec-box/.test(r.body.toString()), 'the visitor sees no trade panel in the page itself'); }
   console.log('ok: for the trade');
+  // See the watermark: what the photograph carries; a taken-down photograph leads on, never to a sign.
+  { const w = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id LIMIT 1").get();
+    let r = await req(port, 'GET', '/api/eye/' + w.slug); const d = JSON.parse(r.body.toString()); assert.ok(/^WM\./.test(d.number) && /% of every sale/.test(d.paid) && d.uses.length, 'the watermark reads');
+    r = await req(port, 'GET', '/w/' + w.slug); assert.ok(/data-eye=/.test(r.body.toString()), 'the eye on the plate');
+    db.prepare("UPDATE works SET status='private' WHERE id=?").run(w.id);
+    r = await req(port, 'GET', '/w/' + w.slug); assert.equal(r.status, 302); assert.ok(/\/wander/.test(r.headers.location), 'goes on: ' + r.headers.location);
+    r = await req(port, 'GET', '/w/' + w.slug, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile Safari' } }); assert.equal(r.headers.location, '/stroll');
+    db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); }
+  console.log('ok: see the watermark');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

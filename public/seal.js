@@ -68,3 +68,10 @@
     var p = f.querySelector('.seal-t span'); if (p) p.innerHTML = 'It hangs in <a href="/yours">your gallery</a>.';
   };
 })();
+
+/* While a phone scrolls, the marks on the photographs go away; they come back as a ghost when it rests. */
+(function () {
+  if (!window.matchMedia || !matchMedia('(hover:none)').matches) return;
+  var root = document.documentElement, t;
+  addEventListener('scroll', function () { root.classList.add('wm-scrolling'); clearTimeout(t); t = setTimeout(function () { root.classList.remove('wm-scrolling'); }, 700); }, { passive: true });
+})();

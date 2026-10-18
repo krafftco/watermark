@@ -22,3 +22,15 @@ Will's words, 17 October 2026, kept as the standard. Drafts in his voice until h
 
 ## The team to build
 Museum-grade, editorial: curators, art historians, people from the auction houses (Sotheby's) and the great archives. The house's judgement is human; the AI guides (Look closer) are labelled and never the last word.
+
+## What a watermark is (Will, 18 October)
+
+The old watermark is a stamp across a picture that says *keep out*. Ours is the opposite: it is what the picture carries. Who made it, its number, who holds the copyright, how the maker is paid, who holds it now and under what license, how anyone can have it, and the proof. It travels inside every file the house sends out, and anyone can read it.
+
+The aim is that the word comes to mean this, the way a brand name becomes the name of the thing. To watermark a photograph is to put it in the house: held, numbered, registered, and paid for when it is used. "Is it watermarked?" should mean "can I see who made it and how to pay them?"
+
+In the house this is the eye: on every photograph, a quiet glyph top right. It opens *The watermark*, the information the picture carries. The picture itself stays clean; the marks on the plates are ghosts until you reach for them. No K on Watermark's own pages; the K stays with Krafft's sites.
+
+Draft definition, for Will to confirm or rewrite: **watermark** (n.), the information a photograph carries: who made it, who may use it, and how the maker is paid. (v.), to place a photograph in Watermark so it carries that information wherever it goes.
+
+The domain watermark.com is Will's to pursue; nothing is bought from here.

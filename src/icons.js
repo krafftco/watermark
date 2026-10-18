@@ -37,6 +37,8 @@ const I = {
   wander: wrap('<circle cx="13.6" cy="4.4" r="1.9"/><path d="M12.7 7.6 11.2 13M12.4 8.6 9.2 11.4M12.4 8.6l3.4 2.2 1.4 2.6M11.2 13l3.2 3.2.8 4.4M11.2 13l-2.8 3.6-1.2 4"/>'),
   // Keys and the eye.
   key: wrap('<circle cx="8" cy="12" r="3.6"/><path d="M11.6 12H20m-2.6 0v3M15 12v2.2"/>'),
+  // A glass: find.
+  find: wrap('<circle cx="10.6" cy="10.6" r="6"/><path d="m15 15 5.4 5.4"/>'),
   eye: wrap('<path d="M2.6 12c2.4-4 5.6-6 9.4-6s7 2 9.4 6c-2.4 4-5.6 6-9.4 6s-7-2-9.4-6z"/><circle cx="12" cy="12" r="2.8"/>'),
   // Put in, take out.
   in: wrap('<path d="M12 4v11M7.6 10.6 12 15l4.4-4.4"/><path d="M4.5 16.5v2a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-2"/>'),
