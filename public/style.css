@@ -2876,3 +2876,6 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .ap-col{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--ln);border-radius:22px!important;background:none;box-shadow:none;color:var(--ink);font-size:12px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 .ap-col .ic{width:20px;height:20px}.ap-col em{font-style:normal;letter-spacing:.06em;color:#8a6d33}.ap-col:hover{border-color:var(--ink)}
 .ap{flex-wrap:wrap}
+
+/* Dark rooms reach the screen's edges: in the installed app the strip under the home indicator is the page's own ground, so it is the wall's black, never the paper (Will, 18 Oct). */
+html.dk,html.dk body{background:#0b0a09;min-height:100%;overscroll-behavior:none}
