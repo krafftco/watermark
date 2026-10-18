@@ -19,6 +19,7 @@ const KINDS = {
   reviewed: { who: 'buyer', label: 'A maker answers a show you curated', on: true },
   answered: { who: 'buyer', label: 'A maker answers your request', on: true },
   received: { who: 'buyer', label: 'A piece is sent to you', on: true },
+  asked: { who: 'buyer', label: 'Someone asks you to pass on a piece you hold', on: true },
   placed: { who: 'buyer', label: 'A sale through your wall', on: true },
 };
 

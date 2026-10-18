@@ -280,7 +280,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok && rd.payload === dl.id, 'the mark reads back');
     const re = await require('sharp')(r.body).jpeg({ quality: 60 }).toBuffer(); const tr = await app.locals.mark.trace(re); assert.ok(tr && tr.ref === ref1 && tr.how === 'mark', 'a recompressed copy still traces to the license');
     const exact = await app.locals.mark.trace(r.body); assert.equal(exact.how, 'bytes');
-    r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it'); }
+    r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it');
+    r = await req(port, 'POST', '/yours/add', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, cookie: bck } }); assert.ok(r.body.toString().includes('Held by someone else'), 'a working license held by a company cannot be brought home by a stranger'); }
   r = await req(port, 'GET', `/c/${ref1}.pdf`); assert.equal(r.status, 200); assert.equal(r.body.slice(0, 4).toString(), '%PDF');
   // renewal notice for a license ending soon, then expiry
   db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + 5 * 864e5).toISOString(), ref1);

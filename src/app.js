@@ -1581,6 +1581,7 @@ function createApp(cfg = {}) {
 
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
   require('./archive').mountArchive(app, { db, C, q, V, mk, originalPath, images, isStudio, makerOf: req => app.locals.accounts.makerOf(req), heldBy, mail, upload: () => upload, copyrightState: w => (app.locals.copyrightState ? app.locals.copyrightState(w) : null) });
+  require('./drop').mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
   app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });
   require('./open').mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req) });

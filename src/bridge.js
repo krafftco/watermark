@@ -161,7 +161,7 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
     const r = db.prepare('INSERT INTO claims_in (partner_id, work_id, maker_id, kind, summary, party, uses, starts_at, ends_at, vc, signed) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
       .run(req.partner.id, w.id, w.maker_id, kind, String(b.summary || '').slice(0, 600), String(b.party || '').slice(0, 160) || null, JSON.stringify([].concat(b.uses || []).map(String).slice(0, 12)), b.starts || null, b.ends || null, JSON.stringify(vc).slice(0, 200000), chk.ok ? 1 : 0);
     ledger.append(db, 'claim.received', w.slug, { partner: req.partner.slug, kind, signed: chk.ok });
-    if (app.locals.notify) app.locals.notify.tell(`m:${w.maker_id}`, 'requested', `${req.partner.name} sent a rights claim on ${V.tidy(w.title)}`, `${kind.replace('-', ' ')}${b.party ? `, ${b.party}` : ''}. Accept or decline it in your studio.`, '/account/connections');
+    if (app.locals.notify) app.locals.notify.tell({ maker_id: w.maker_id, kind: 'requested', slug: w.slug, href: '/account/connections', title: `${req.partner.name} sent a rights claim on ${V.tidy(w.title)}`, body: `${kind.replace('-', ' ')}${b.party ? `, ${b.party}` : ''}. Accept or decline it in your studio.` }).catch(() => {});
     res.status(201).json({ id: r.lastInsertRowid, state: 'pending', signed: chk.ok, why: chk.why || null });
   });
   app.get('/api/partner/v1/claims/:id', P, (req, res) => { const c = db.prepare('SELECT id, kind, state, signed, created_at, decided_at FROM claims_in WHERE id=? AND partner_id=?').get(Number(req.params.id), req.partner.id); c ? res.json(c) : res.sendStatus(404); });
