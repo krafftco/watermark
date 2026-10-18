@@ -2780,3 +2780,10 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .xr-hide,.xr-show{justify-self:start;background:none;border:0;padding:0;color:#7d766b;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.xr-show{position:absolute;left:24px;bottom:24px;color:#a39b8e}
 .xr-load{position:absolute;top:50%;left:0;right:0;text-align:center;margin:0;color:#7d766b;font:italic 15px var(--serif,Georgia,serif)}.xr-load[hidden]{display:none}
 @media (max-width:760px){.xr-card{left:12px;right:12px;bottom:12px;max-width:none;padding:16px 18px}.xr-card h1{font-size:24px}.xr-show{left:12px;bottom:12px}}
+/* The acts in the viewing room (Will, 18 Oct: enjoy first; hat and bravo; collecting easy, never pressed on anyone).
+   One quiet row at one weight. Collect is last and the only act with a price, in the house's gold. */
+.vr-row{gap:22px}.vr-cf{display:inline-flex}
+.vr-row .vr-collect{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,239,233,.82)}
+.vr-row .vr-collect em{font-style:normal;margin-left:2px;color:#d9bc7c;letter-spacing:.06em}.vr-row .vr-collect:hover,.vr-row .vr-collect:focus-visible{color:#fff}
+.vr-bv .vr-bv-w{font:italic 400 17px/20px var(--serif,Georgia,serif);letter-spacing:.01em;text-transform:none;color:rgba(242,239,233,.82)}.vr-bv:hover .vr-bv-w{color:#fff}.vr-bv[aria-pressed=true] .vr-bv-w{color:#d9bc7c}
+.vr-pg{margin:12px 0 0;font-size:inherit}.vr-pg .vr-go{display:inline-flex;align-items:center;gap:8px;color:rgba(242,239,233,.55)}.vr-pg .ic{width:18px;height:18px}

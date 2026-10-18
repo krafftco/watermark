@@ -6,7 +6,7 @@
   var R = document.querySelector('[data-vr]'); if (!R) return;
   var im = R.querySelectorAll('.vr-im'), cur = 0, hist = [], at = -1, seen = (R.getAttribute('data-from') || '').split(',').filter(Boolean), ahead = null, aheadImg = null;
   var $ = function (s) { return R.querySelector(s); };
-  var kEl = $('[data-vr-k]'), tEl = $('[data-vr-t]'), byEl = $('[data-vr-by]'), gEl = $('[data-vr-guide]'), pageEl = $('[data-vr-page]'), cf = $('[data-vr-cf]'), colEl = $('[data-vr-collect]'), fromEl = $('[data-vr-from]'), hatB = $('[data-vr-hat]'), hangB = $('[data-vr-hang]'), bar = $('[data-vr-bar]'), hint = $('[data-vr-hint]'), toast = $('[data-vr-toast]');
+  var kEl = $('[data-vr-k]'), tEl = $('[data-vr-t]'), byEl = $('[data-vr-by]'), gEl = $('[data-vr-guide]'), pageEl = $('[data-vr-page]'), cf = $('[data-vr-cf]'), colEl = $('[data-vr-collect]'), fromEl = $('[data-vr-from]'), hatB = $('[data-vr-hat]'), bvB = $('[data-vr-bravo]'), hangB = $('[data-vr-hang]'), bar = $('[data-vr-bar]'), hint = $('[data-vr-hint]'), toast = $('[data-vr-toast]');
   var sayB = $('[data-vr-say]'), autoB = $('[data-vr-auto]');
   var auto = false, saying = false, DWELL = 14000, timer = null, t0 = 0, left = DWELL, paused = false, stoodAt = Date.now();
   var S = window.speechSynthesis;
@@ -45,10 +45,10 @@
     kEl.textContent = [w.place, w.year].filter(Boolean).join(' · ');
     tEl.textContent = w.title; byEl.innerHTML = '<a href="/m/' + esc(w.makerSlug) + '">' + esc(w.maker) + '</a>';
     pageEl.href = '/m/' + esc(w.makerSlug) + '/' + esc(w.slug);
-    if (w.collect) { cf.hidden = false; cf.action = w.collect.url; fromEl.value = w.collect.pocket ? 'pocket' : ''; colEl.innerHTML = (w.collect.pocket ? 'Collect it, ' + esc(w.collect.price) + ' <small>from your pocket, one tap</small>' : 'Collect it, ' + esc(w.collect.price)) + (w.collect.edition ? ' <small>No. ' + (w.collect.edition.sold + 1) + ' of ' + w.collect.edition.size + '</small>' : ''); }
+    if (w.collect) { cf.hidden = false; cf.action = w.collect.url; fromEl.value = w.collect.pocket ? 'pocket' : ''; var pr = colEl.querySelector('[data-vr-price]'); if (pr) pr.textContent = w.collect.price; colEl.title = 'Collect it, ' + w.collect.price + (w.collect.pocket ? ', one tap from your pocket' : '') + (w.collect.edition ? '. No. ' + (w.collect.edition.sold + 1) + ' of ' + w.collect.edition.size : '') + ' (C)'; }
     else { cf.hidden = true; }
     if (w.held) { cf.hidden = true; }
-    hatB.setAttribute('aria-pressed', String(!!(w.hat && w.hat.mine))); (hatB.querySelector('span') || hatB).textContent = w.hat && w.hat.n ? 'Hat · ' + w.hat.n : 'Hat';
+    hatB.setAttribute('aria-pressed', String(!!(w.hat && w.hat.mine))); bvB.setAttribute('aria-pressed', String(!!(w.bravo && w.bravo.mine)));
     gEl.innerHTML = w.guide ? w.guide.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '<small>' + (w.approved ? 'Written with AI, approved by the maker.' : 'Written by AI from the photograph and its record.') + '</small>' : '';
     gEl.hidden = !w.guide || !saying; sayB.hidden = !w.guide;
     document.title = w.title + ' · The viewing room';
@@ -90,6 +90,24 @@
       colEl.disabled = false; if (j && j.ok) { w.held = true; w.collect = null; plate(w); say_('Yours' + (j.no ? ', No. ' + j.no : '') + '. It hangs in your gallery.', 3600); } else say_((j && j.why) || 'The pocket could not cover it; collect it from the photograph.', 3600);
     }).catch(function () { colEl.disabled = false; cf.action = w.collect.url; cf.submit(); });
   });
+  // Bravo: the standing ovation. Gold flecks rise from the button, the phone answers, the maker is told.
+  bvB.addEventListener('click', function () {
+    var w = hist[at]; if (!w) return; var was = bvB.getAttribute('aria-pressed') === 'true';
+    if (!was) {
+      try { navigator.vibrate && navigator.vibrate([14, 50, 14, 50, 40]); } catch (x) {}
+      if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        var r = bvB.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, fx = document.createElement('div'); fx.className = 'bv-fx'; document.body.appendChild(fx);
+        for (var i = 0; i < 30; i++) { var p = document.createElement('i'), a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 150; p.style.left = cx + 'px'; p.style.top = cy + 'px'; p.style.background = ['#c9a45c', '#e8d29a', '#b38a3e', '#f4ead0', '#fff'][i % 5]; p.style.setProperty('--x', Math.cos(a) * d + 'px'); p.style.setProperty('--y', (Math.sin(a) * d - 60) + 'px'); p.style.setProperty('--r', (Math.random() * 720 - 360) + 'deg'); fx.appendChild(p); }
+        var wd = document.createElement('b'); wd.textContent = 'Bravo!'; wd.style.left = (innerWidth / 2) + 'px'; wd.style.top = (innerHeight / 2) + 'px'; fx.appendChild(wd); setTimeout(function () { fx.remove(); }, 1700);
+      }
+    }
+    bvB.setAttribute('aria-pressed', String(!was));
+    fetch('/w/' + w.slug + '/bravo', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.spent) { bvB.setAttribute('aria-pressed', 'false'); say_('Your ' + (j.of || 3) + ' bravos this month are given.', 3000); return; }
+      if (!j || !j.ok) { bvB.setAttribute('aria-pressed', String(was)); return; }
+      w.bravo = { mine: !!j.on }; bvB.setAttribute('aria-pressed', String(!!j.on)); if (j.on) say_(j.left ? 'Bravo. The maker is told. ' + j.left + ' left this month.' : 'Bravo. The maker is told. Your last this month.', 3000);
+    }).catch(function () { bvB.setAttribute('aria-pressed', String(was)); });
+  });
   hatB.addEventListener('click', function () { var w = hist[at]; if (!w) return; fetch('/w/' + w.slug + '/applaud', { method: 'POST', headers: { accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) { if (!j) return; w.hat = { n: j.n, mine: !!j.mine }; plate(w); say_(j.mine ? 'A tip of the hat.' : 'Hat back on.'); }).catch(function () {}); });
   hangB.addEventListener('click', function () { var w = hist[at]; if (!w) return; fetch('/hang/add', { method: 'post', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'work=' + encodeURIComponent(w.slug) + '&hang=wander&title=From+my+wandering&json=1' }).then(function (r) { return r.json(); }).then(function (j) { say_(j && j.ok ? 'Hung on your wall, From my wandering.' : 'Could not hang it just now.'); }).catch(function () {}); });
   // Full screen: the photograph alone, edge to edge. Asked for on Wander, or F, or the button; Esc leaves it the browser's way.
@@ -110,7 +128,7 @@
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     var k = e.key.toLowerCase();
     if (e.key === ' ') { e.preventDefault(); if (!auto) autoB.click(); else pause(!paused); pauseLabel(); } else if (k === 'f') { full(!document.fullscreenElement); } else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
-    else if (k === 'g') sayB.click(); else if (k === 'w') autoB.click(); else if (k === 'c' && !cf.hidden) colEl.click(); else if (k === 'h') hatB.click(); else if (k === 's') hangB.click(); else if (e.key === 'Escape') location.href = (root.getAttribute('data-from') || '/collection');
+    else if (k === 'g') sayB.click(); else if (k === 'w') autoB.click(); else if (k === 'c' && !cf.hidden) colEl.click(); else if (k === 'h') hatB.click(); else if (k === 'b') bvB.click(); else if (k === 's') hangB.click(); else if (e.key === 'Escape') location.href = (root.getAttribute('data-from') || '/collection');
   });
   var hideT; function wake() { R.classList.add('awake'); R.classList.add('labeled'); clearTimeout(plateT); clearTimeout(hideT); hideT = setTimeout(function () { R.classList.remove('awake'); if (!saying && !paused) R.classList.remove('labeled'); }, 2600); }
   ['mousemove', 'touchstart', 'keydown'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });
