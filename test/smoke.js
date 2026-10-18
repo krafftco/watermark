@@ -282,6 +282,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const exact = await app.locals.mark.trace(r.body); assert.equal(exact.how, 'bytes');
     r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it');
     r = await req(port, 'POST', '/yours/add', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, cookie: bck } }); assert.ok(r.body.toString().includes('Held by someone else'), 'a working license held by a company cannot be brought home by a stranger'); }
+  { // companies: license photographs to a company; its site serves them under license, counted by page, credited
+    r = await req(port, 'POST', '/studio/clients', { cookie: ck, body: { name: 'Natora', hosts: 'natora.com' } }); assert.equal(r.status, 302);
+    r = await req(port, 'POST', '/studio/clients/natora/license', { cookie: ck, body: { works: `${w.slug} /about\nnot-a-work`, use: 'commercial', fee: '' } });
+    assert.ok(decodeURIComponent(r.headers.location).includes('1 licensed to Natora') && decodeURIComponent(r.headers.location).includes('not-a-work'), 'licensed to the company');
+    r = await req(port, 'GET', '/api/client/natora'); const cj = JSON.parse(r.body); assert.equal(cj.works.length, 1); assert.ok(cj.works[0].live && /^WM \d{4} \d{4} \d{4}$/.test(cj.works[0].number), 'a live license with its number');
+    const cref = cj.works[0].ref; assert.equal(db.prepare('SELECT licensee_company c FROM licenses WHERE ref=?').get(cref).c, 'Natora');
+    r = await req(port, 'GET', `/p/${cref}/screen`, { headers: { referer: 'https://natora.com/about' } }); assert.equal(r.status, 200, 'served under license');
+    assert.equal(db.prepare("SELECT n FROM placements WHERE ref=? AND host='natora.com' AND page='/about'").get(cref).n, 1, 'counted by page');
+    r = await req(port, 'GET', '/site.js'); assert.ok(r.body.toString().includes('data-wm') && !r.body.toString().includes('__WM_BASE__'));
+    r = await req(port, 'GET', '/for/natora'); assert.equal(r.status, 404, 'private until the company says yes');
+    r = await req(port, 'GET', '/studio/clients/natora', { cookie: ck }); assert.ok(r.body.toString().includes('natora.com/about'), 'the desk shows where it hangs');
+    db.prepare('UPDATE licenses SET ends_at=? WHERE ref=?').run(new Date(Date.now() - 864e5).toISOString(), cref);
+    r = await req(port, 'GET', `/p/${cref}/screen`); assert.equal(r.status, 410, 'an ended license is not served');
+    console.log('ok: companies');
+  }
   r = await req(port, 'GET', `/c/${ref1}.pdf`); assert.equal(r.status, 200); assert.equal(r.body.slice(0, 4).toString(), '%PDF');
   // renewal notice for a license ending soon, then expiry
   db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + 5 * 864e5).toISOString(), ref1);
