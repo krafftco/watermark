@@ -89,7 +89,7 @@
   function guide(w, quiet) {
     if (!w.guide) return;
     gt.innerHTML = w.guide.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
-    gby.textContent = w.approved ? 'Written with AI, approved by the maker.' : 'Written by AI from the photograph and its record.';
+    gby.innerHTML = esc(w.approved ? 'Written with AI, approved by the maker.' : 'Written by AI from the photograph and its record.') + (w.study ? ' <a class="st-gmore" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '#study">Go further: what to look for, the history, the artists, what to read</a>' : '');
     if (!quiet) sheet.hidden = false;
     if (w.audio) { audio = new Audio(w.audio); audio.onerror = function () { audio = null; speak(w); }; var p = audio.play(); if (p && p.catch) p.catch(function () { audio = null; speak(w); }); }
     else speak(w);

@@ -173,17 +173,36 @@ const VKIND = { maker: 'The maker', historian: 'Art history', note: 'A note' };
 const mmss = n => n ? `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}` : '';
 // Look closer: the guide on a photograph, read on the page or heard aloud. Always says it was written by AI,
 // and whether the maker has read and approved it.
+// The study: beneath the wall text, an entry the curious can go down as far as they like (Will, 18 Oct).
+const studyBlock = (c, w) => {
+  const st = c && !c.studyHidden ? c.study : null; if (!st) return '';
+  const sec = (k, title, inner, open) => inner ? `<details class="sd-s"${open ? ' open' : ''} id="study-${k}"><summary><span>${title}</span><i aria-hidden="true"></i></summary><div class="sd-b">${inner}</div></details>` : '';
+  const P = a => a.map(x => `<p>${esc(x)}</p>`).join('');
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+  const read = (st.further || []).length ? st.further : [];
+  return `<div class="sd" id="study"><p class="sd-k">Go further</p>
+${sec('look', 'What to look for', st.look.length ? `<ol class="sd-look">${st.look.map(x => `<li><b>${esc(x.what)}</b><span>${esc(x.why)}</span></li>`).join('')}</ol>` : '', true)}
+${sec('place', st.place ? esc(st.place.heading) : 'The place', st.place ? P(st.place.story) : '')}
+${sec('making', 'How it was made', st.making.length ? P(st.making) : '')}
+${sec('lineage', 'In conversation with', st.lineage.length ? `<ul class="sd-li">${st.lineage.map(x => `<li><b>${esc(x.name)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul>` : '')}
+${sec('words', 'Words to keep', st.words.length ? `<dl class="sd-w">${st.words.map(x => `<div><dt>${esc(x.term)}</dt><dd>${esc(x.means)}</dd></div>`).join('')}</dl>` : '')}
+${sec('questions', 'To carry with you', st.questions.length ? `<ul class="sd-q">${st.questions.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '')}
+${sec('further', 'Read further', read.length ? `<ul class="sd-f">${read.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" rel="noopener" target="_blank">${esc(x.title)}</a>` : `<i>${esc(x.title)}</i>`}${x.by ? `<span>${esc(x.by)}</span>` : ''}${x.url ? `<em>${esc(host(x.url))}</em>` : ''}</li>`).join('')}</ul>` : '')}
+<p class="sd-more">${w.place ? `<a href="/stroll?q=${encodeURIComponent(String(w.place).split(',')[0])}">Stroll ${esc(String(w.place).split(',')[0])}</a>` : ''}</p>
+<p class="sd-by">${st.searched ? 'Researched on the web and written with AI' : 'Written with AI from the photograph and its record'}${(st.read || []).length ? `; ${st.read.length} source${st.read.length === 1 ? '' : 's'} read` : ''}. Check what matters to you against the sources.</p></div>`;
+};
 const closerBlock = (c, w, edit) => {
   if (!c) return edit ? `<p class="lc-edit"><a href="/closer/${esc(w.slug)}">Look closer: write a guide for this photograph</a></p>` : '';
   const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
   return `<section class="lc" id="closer"><div class="lc-h"><p class="k">Look closer</p><button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
 <div class="lc-t" data-say-text>${paras}</div>
 ${c.sources && c.sources.length ? `<p class="lc-src"><b>Sources</b> ${c.sources.map(x => /^https?:\/\//.test(x) ? `<a href="${esc(x)}" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(x)).join(' &middot; ')}</p>` : ''}
+${studyBlock(c, w)}
 <p class="lc-by">${c.by ? `Written by ${esc(c.by)}, with AI from the photograph and its record.` : c.state === 'approved' ? 'Written with AI from the photograph and its record; read and approved by the maker.' : 'Written by AI from the photograph and its record. The maker may correct it.'}${edit ? ` <a href="/closer/${esc(w.slug)}">Edit</a>` : ''}</p></section>
 <script src="/static/closer.js?v=${VER}" defer></script>`;
 };
 function closerEdit({ w, c, on, ok }) {
-  const msg = { written: 'Written.', saved: 'Saved.', failed: 'The guide could not be written just now. Try again in a minute.' }[ok];
+  const msg = { written: 'Written.', studied: 'The study is written.', saved: 'Saved.', failed: 'The guide could not be written just now. Try again in a minute.' }[ok];
   return layout({ title: `Look closer · ${tidy(w.title)}`, body: `<section class="narrow lc-ed">
 <p class="k">Look closer</p><h1>${esc(tidy(w.title))}</h1>
 <figure class="lc-fig"><img src="/img/${esc(w.slug)}/screen" alt=""></figure>
@@ -196,7 +215,9 @@ ${c ? `<form method="post" class="form"><input type="hidden" name="act" value="s
 <p class="note">${c.state === 'hidden' ? 'Hidden from the page.' : c.state === 'approved' ? 'Approved by you.' : 'Shown as written by AI; not yet approved.'} Saving approves it.</p>
 <button class="btn">Save and approve</button></form>
 <div class="lc-acts"><form method="post"><input type="hidden" name="act" value="${c.state === 'hidden' ? 'show' : 'hide'}"><button class="link">${c.state === 'hidden' ? 'Show it again' : 'Hide it'}</button></form>
-${on ? `<form method="post"><input type="hidden" name="act" value="write"><button class="link">Write it again</button></form>` : ''}</div>`
+${on ? `<form method="post"><input type="hidden" name="act" value="write"><button class="link">Write it again</button></form><form method="post"><input type="hidden" name="act" value="study"><button class="link">${c.study ? 'Research the study again' : 'Research and write the study'}</button></form>` : ''}
+${c.study ? `<form method="post"><input type="hidden" name="act" value="${c.studyHidden ? 'study-show' : 'study-hide'}"><button class="link">${c.studyHidden ? 'Show the study' : 'Hide the study'}</button></form>` : ''}</div>
+${c.study && !c.studyHidden ? `<div class="lc-ed-study"><p class="k">The study, as visitors see it</p>${studyBlock(c, w)}</div>` : ''}`
   : on ? `<form method="post"><input type="hidden" name="act" value="write"><button class="btn">Write the guide</button></form>` : ''}
 <p class="sr-also"><a href="/w/${esc(w.slug)}">Back to the photograph</a></p></section>` });
 }
