@@ -26,25 +26,39 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     while (pi < picks.length && out.length < n) out.push(picks[pi++]);
     return out.slice(0, n).map(w => wanderJSON(w, req));
   }
+  // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
+  // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.
+  const setOf = key => (key && app.locals.walk ? app.locals.walk.list(String(key).slice(0, 80)) : null);
+  function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
+    const v = setOf(key); if (!v || !v.works.length) return null;
+    const slugs = v.works.map(w => w.slug), not = new Set(seen);
+    let i = slugs.indexOf(at || seen[seen.length - 1]); if (i < 0) i = -1;
+    const out = [];
+    for (let k = 1; k <= slugs.length && out.length < n; k++) { const sl = slugs[(i + k) % slugs.length]; if (!not.has(sl) && sl !== at) { out.push(sl); not.add(sl); } }
+    const rows = out.map(sl => db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(sl)).filter(Boolean);
+    return { label: v.label, href: v.href, n: slugs.length, items: rows.map(w => wanderJSON(w, req)) };
+  }
   app.get('/api/stroll', (req, res) => {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const n = Math.max(1, Math.min(16, parseInt(req.query.n, 10) || PAGE));
+    if (req.query.in) { const r = inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
     res.set('Cache-Control', 'no-store').json({ items: next(req, { seen, q, maker, n }), q, maker });
   });
   app.get('/stroll', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const at = req.query.at ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
-    let items = next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
+    const key = String(req.query.in || '').slice(0, 80); const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
+    let items = set ? set.items : next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (at) items = [wanderJSON(at, req), ...items];
-    const mk = makerBy(maker);
+    const mk = set ? null : makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
-    res.send(strollPage({ items, q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, I }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n } : null, I }));
   });
 }
 
 // The page: the first photographs are in the HTML, so the stroll begins the instant it opens; the script carries on.
-function strollPage({ items, q = '', maker = null, I }) {
+function strollPage({ items, q = '', maker = null, set = null, I }) {
   const V = require('./views');
   const card = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
@@ -61,12 +75,12 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}The stroll · Watermark`, desc: 'Watermark on a phone: the finest photographs, one at a time, edge to edge. Swipe for the next.', path: '/stroll', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}<button type="button" class="st-gon" data-st-gon aria-pressed="false" title="Read each guide as you arrive">${I.guide}<span>Guide</span></button><form class="st-search" action="/stroll" method="get" data-st-search><input type="search" name="q" value="${esc(q)}" placeholder="A place, a maker, a word" aria-label="Find" autocomplete="off"><button type="button" class="st-sx" data-st-sx aria-label="Find">${I.find || I.eye}</button></form><a class="st-x" href="/collection" aria-label="Close">${I.close}</a></header>
+<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(V.tidy ? set.label : set.label)}<i>${I.close}</i></a>` : ''}<button type="button" class="st-gon" data-st-gon aria-pressed="false" title="Read each guide as you arrive">${I.guide}<span>Guide</span></button><form class="st-search" action="/stroll" method="get" data-st-search><input type="search" name="q" value="${esc(q)}" placeholder="A place, a maker, a word" aria-label="Find" autocomplete="off"><button type="button" class="st-sx" data-st-sx aria-label="Find">${I.find || I.eye}</button></form><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/stroll">Stroll on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k">Look closer</p><div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 <p class="st-toast" data-st-toast hidden></p>
 </main>
-<script>window.__WM_STROLL=${JSON.stringify({ items, q, maker: maker ? maker.slug : '' }).replace(/</g, '\\u003c')};</script>
+<script>window.__WM_STROLL=${JSON.stringify({ items, q, maker: maker ? maker.slug : '', set }).replace(/</g, '\\u003c')};</script>
 <script src="/static/stroll.js?v=${V.VER || ''}" defer></script><script src="/static/eye.js?v=${V.VER || ''}" defer></script>` });
 }
 

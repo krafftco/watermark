@@ -2550,3 +2550,13 @@ aside.cu-show .buy-btn{width:100%}
 .st-i .st-eye .ic{width:22px;height:22px}
 .st-i .st-eye:active,.st-i .st-eye:hover{opacity:1}
 .st-rest .st-i .st-eye{opacity:0;pointer-events:none}
+/* The end of a set in the stroll: said plainly, with the way back and the way on. */
+.st-end{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#f3f1ec;text-align:center;padding:0 32px}
+.st-end p{font-family:var(--disp);font-size:26px;line-height:1.2;margin:0}
+.st-end a{color:#f3f1ec;font-size:12px;letter-spacing:.16em;text-transform:uppercase;text-decoration:underline;text-underline-offset:5px;text-decoration-color:rgba(255,255,255,.35)}
+.st-set{max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* With a set or a maker named up top, the wordmark gives way to the wave so the bar fits a phone. */
+.st-top:has(.st-chip) .st-home span{display:none}
+.st-top .st-chip{flex:0 1 auto;min-width:0;max-width:none}
+.st-top .st-chip.st-set{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-top .st-x,.st-top .st-search,.st-top .st-gon{flex:none}

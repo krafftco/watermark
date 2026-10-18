@@ -3,6 +3,7 @@
 (function () {
   var root = document.querySelector('[data-stroll]'); if (!root) return;
   var scroller = root.querySelector('[data-st-scroll]'), S = window.__WM_STROLL || { items: [] }, q = S.q || '', maker = S.maker || '', guideOn = false;
+  var set = S.set || null;
   try { guideOn = localStorage.getItem('wm_stroll_guide') === '1'; } catch (e) {}
   var items = {}, order = [], seen = [], cur = null, since = Date.now(), loading = false, done = false, chrome = true;
   var toast = root.querySelector('[data-st-toast]'), tt;
@@ -15,7 +16,7 @@
   function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
 
-  function card(w) {
+  function screenFor(w) {
     var el = document.createElement('section'); el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
       + '<div class="st-plate"><a class="st-by" href="/stroll?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/stroll?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
@@ -33,9 +34,11 @@
   // More, before the visitor reaches the end.
   function more() {
     if (loading || done) return; loading = true;
-    fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { return r.json(); }).then(function (j) {
-      var list = (j && j.items) || []; if (!list.length) { done = true; return; }
-      list.forEach(function (w) { if (items[w.slug]) return; var el = card(w); scroller.appendChild(el); register(w, el); io.observe(el); });
+    fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { return r.json(); }).then(function (j) {
+      var list = (j && j.items) || [];
+      if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/stroll">Stroll everything</a>'; scroller.appendChild(e); }, 0); }
+      else if (!list.length) { done = true; return; }
+      list.forEach(function (w) { if (items[w.slug]) return; var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); });
     }).catch(function () {}).then(function () { loading = false; });
   }
   // Which photograph is before you now; the one before it is told to the house.
@@ -48,7 +51,7 @@
       if (cur) stood(cur, Math.round((Date.now() - since) / 1000));
       cur = slug; since = Date.now();
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 4) more();
-      try { history.replaceState(null, '', '/stroll?at=' + slug + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
+      try { history.replaceState(null, '', '/stroll?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);
     });
   }, { root: scroller, threshold: [0.6] });

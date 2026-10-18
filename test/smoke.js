@@ -746,6 +746,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/w/' + w.slug, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile Safari' } }); assert.equal(r.headers.location, '/stroll');
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); }
   console.log('ok: see the watermark');
+  // The stroll through one set: from the photograph tapped, in the set's own order, never past its end.
+  { const all = db.prepare("SELECT slug FROM works WHERE status='held'").all().map(r => r.slug);
+    let r = await req(port, 'GET', '/stroll?at=' + all[0] + '&in=collection'); assert.equal(r.status, 200); assert.ok(/st-set/.test(r.body.toString()), 'the set is named up top');
+    const got = new Set([all[0]]); let seen = [all[0]], end = false;
+    for (let k = 0; k < 20 && !end; k++) { r = await req(port, 'GET', '/api/stroll?n=8&in=collection&seen=' + encodeURIComponent(seen.join(','))); const j = JSON.parse(r.body.toString()); j.items.forEach(w => { assert.ok(!got.has(w.slug), 'never twice: ' + w.slug); got.add(w.slug); seen.push(w.slug); }); end = j.end; }
+    assert.ok(end && got.size === all.length, 'the whole set, then the end: ' + got.size + ' of ' + all.length);
+    assert.ok(/function screenFor/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'stroll.js'), 'utf8')), 'the stroll builds screens with its own function, never the card'); }
+  console.log('ok: the stroll through a set');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');
