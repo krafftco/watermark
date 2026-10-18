@@ -28,6 +28,7 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
       images: img(w), pages: pages(w, m), embed: { oembed: `${base}/oembed?url=${encodeURIComponent(`${base}/w/${w.slug}`)}`, html: `<script src="${base}/embed.js" defer></script><watermark-image work="${w.slug}"></watermark-image>` } };
   }
   const held = slug => { const w = q.work.get(String(slug)); return w && w.status === 'held' ? w : null; };
+  app.locals.workJSON = workJSON;
 
   app.get('/api/v1', (req, res) => res.json({ name: 'Watermark', version: 1, docs: `${base}/developers`, endpoints: ['/api/v1/works/:slug', '/api/v1/works?q=&maker=&limit=', '/api/v1/makers/:slug', '/api/v1/licenses/:ref', '/api/v1/verify (POST a file, or ?sha256=)', '/api/v1/match?src=', '/api/v1/credit/:slug', '/api/v1/register/:slug', '/oembed?url='], house: { key: ledger.publicKey ? ledger.publicKey() : null, register: `${base}/ledger.json` } }));
   app.get('/api/v1/works', (req, res) => {

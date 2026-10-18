@@ -728,6 +728,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const ex = require('piexifjs').load(Buffer.from(r.body).toString('binary'));
     const desc = ex['0th'][require('piexifjs').ImageIFD.ImageDescription]; assert.ok(desc.includes(T.track(l.ref)) && /A photograph by/.test(desc) && !/sha256/.test(desc), 'a caption in words: ' + desc); }
   console.log('ok: the Watermark number');
+  // For the trade: the search with its filters and prices, a comp with a readable name, a quote for a set; the visitor's view untouched.
+  { let r = await req(port, 'GET', '/trade?min=0&sort=big'); assert.equal(r.status, 200); assert.ok(/tr-spec/.test(r.body) && /\/comp\//.test(r.body) && /data-hang-open/.test(r.body), 'spec, comp and lightbox on every row');
+    assert.ok((r.headers['set-cookie'] || []).some(c => /wm_trade=1/.test(c)), 'arriving at the trade turns it on for this device');
+    const slug = (r.body.toString().match(/data-hang-open="([^"]+)"/) || [])[1];
+    r = await req(port, 'GET', '/trade?shape=nonsense&min=999'); assert.equal(r.status, 200);
+    r = await req(port, 'GET', '/comp/' + slug); assert.equal(r.status, 200); assert.ok(/\(comp\)\.jpg/.test(r.headers['content-disposition']), r.headers['content-disposition']);
+    r = await req(port, 'POST', '/trade/quote', { body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()));
+    r = await req(port, 'GET', '/w/' + slug); assert.ok(!/tr-spec-box/.test(r.body.toString()), 'the visitor sees no trade panel in the page itself'); }
+  console.log('ok: for the trade');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

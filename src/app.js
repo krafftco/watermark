@@ -1206,6 +1206,20 @@ function createApp(cfg = {}) {
   });
   app.get('/studio/contract', studioOnly, (req, res) => res.send(S.contract({ review: K.REVIEW, rights: K.RIGHTS, extras: K.EXTRAS, bundles: K.BUNDLES, add: K.ADD_RIGHT })));
 
+  // A comp: the photograph at screen size with a mark across its foot, free for layouts and pitches, not for publication.
+  const compLimit = require('./guardrails').limiter({ name: 'comp', max: 120, windowMs: 3600e3 });
+  app.get('/comp/:slug', compLimit, async (req, res) => {
+    const w = q.work.get(String(req.params.slug)); if (!w || w.status !== 'held') return res.sendStatus(404);
+    const maker = mk(w);
+    try {
+      const file = await images.derivative(await originalPath(w), cache, w.slug, 'screen', 'jpg');
+      let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `watermark.krafftco.com/w/${w.slug}` });
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at watermark.krafftco.com/license/${w.slug}.` }));
+      res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
+      ledger.append(db, 'comp.taken', w.slug, {});
+      res.type('jpg').send(out);
+    } catch (e) { res.sendStatus(503); }
+  });
   // The Watermark number, looked up: /t/202600008231 (or with spaces, or WM-…) opens the license it names.
   app.get('/t/:n', (req, res) => {
     const ref = TRACK.ref(req.params.n) || (/^WM-\d{4}-\d{6}$/.test(req.params.n) ? req.params.n : null);
@@ -1495,6 +1509,7 @@ function createApp(cfg = {}) {
   require('./frame').mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket: app.locals.pocket, nextRef, grant, SERIES: require('./series'), collectUse: w => { if (!w) return null; const m = mk(w); const u = q.uses.all(m.id).find(x => x.key === 'social'); return u && u.price_cents > 0 && offered(R.parse(w.rules), 'social', w) ? u : null; } });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
+  require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });
   require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });

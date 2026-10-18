@@ -11,6 +11,10 @@ Will's words, 17 October 2026, kept as the standard. Drafts in his voice until h
 - The essential studio tool: the whole of an artist's working life (the vault, the register, licenses, contracts, requests, taxes, the Copyright Office), so what is left is the work.
 - A walled garden. No advertising, ever. Kept by members and the friends of the house.
 
+## Made for the public (Will, 18 October)
+- A place the curious can come and feel fed and seen, and told: you're allowed to look around; we built this place for you to enjoy; this hall is dedicated to you. In the tradition of the great public buildings (Grand Central): the most beautiful place made for the public. A gift for people, a gift for artists, and a tool to be used; the quality of the tool is in whether people use it. Our work is to build the frame for what is possible.
+- Two people, two kinds of knowledge, one house, each to their delight: the art-world professional and the one who comes in to look. The museum serves both. The stock house (Getty) serves a purpose, but no one wanders there; Watermark carries a Getty's working side almost invisibly (For the trade: the spec, every use and its price, comps, lightboxes, quotes), switched on by those who need it, never laid over the picture for those who came to look.
+
 ## What hangs here
 - Work worth presenting, at the level of thought of the Met. Nothing pornographic. A nude is a thoughtful nude or it does not hang.
 - The beautiful rises (regard); the body of work is kept whole; nothing is deleted by taste.
