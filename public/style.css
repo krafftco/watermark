@@ -2872,3 +2872,7 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .gh-hero-t:before{content:"";position:absolute;left:50%;top:50%;width:min(1100px,140vw);height:min(560px,80vh);transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(11,10,9,.5),rgba(11,10,9,.28) 55%,rgba(11,10,9,0));z-index:-1;pointer-events:none}
 .gh-hero-t{isolation:isolate}.gh-sub{text-shadow:0 1px 18px rgba(0,0,0,.55)}.gh-k,.gh-enter{text-shadow:0 1px 12px rgba(0,0,0,.5)}
 .gh-hero h1{animation-duration:1.1s;animation-delay:.1s}.gh-sub{animation-duration:1.1s;animation-delay:.3s}.gh-enter{animation-duration:1.1s;animation-delay:.5s}
+/* Collect beside the hat and the bravo on the work page: the same quiet weight, the only one with a price. */
+.ap-col{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--ln);border-radius:22px!important;background:none;box-shadow:none;color:var(--ink);font-size:12px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.ap-col .ic{width:20px;height:20px}.ap-col em{font-style:normal;letter-spacing:.06em;color:#8a6d33}.ap-col:hover{border-color:var(--ink)}
+.ap{flex-wrap:wrap}
