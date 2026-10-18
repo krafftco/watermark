@@ -5,6 +5,9 @@ const wrap = (d, extra = '') => `<svg class="ic${extra ? ' ' + extra : ''}" view
 
 const I = {
   // A top hat, tipped: the tip of the hat.
+  // Bravo (Will, 18 Oct: an iconic gesture, a little opera man, the hat's companion): a gentleman in tails, arms up,
+  // throwing his top hat in the air. The hat is a nod; this is hats in the air.
+  bravo: `<svg class="ic" viewBox="3 1 19 21.4" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(-18 17.2 3.6)"><path d="M14.8 5.1h4.8M15.6 5.1V2.1h3.2v3"/></g><circle cx="11.2" cy="9.9" r="2.3"/><path d="M9.8 12.9c.9-.3 1.9-.3 2.8 0l-.1 4H9.9z"/><path d="M9.9 15.2l-1.4 3.9M12.5 15.2l1.4 3.9"/><path d="M10.6 16.9v4.7M11.8 16.9v4.7"/><path d="M9.9 13.4L6.6 8.6M12.5 13.4l2.4-4.9"/></svg>`,
   hat: wrap('<g transform="rotate(-12 12 13)"><path d="M7.6 16.2V6.4c0-1.1 2-1.9 4.4-1.9s4.4.8 4.4 1.9v9.8"/><path d="M7.6 10.4c1.2.7 2.7 1.1 4.4 1.1s3.2-.4 4.4-1.1"/><path d="M2.6 15.6c2.2 1.8 5.6 2.8 9.4 2.8s7.2-1 9.4-2.8"/><path d="M2.6 15.6c.8-.8 1.9-1.3 3.2-1.5M21.4 15.6c-.8-.8-1.9-1.3-3.2-1.5"/></g>'),
   // A frame hung from a nail by its cord.
   hang: wrap('<circle cx="12" cy="4.2" r="1"/><path d="M12 5.2 7.2 9.6M12 5.2l4.8 4.4"/><rect x="4.8" y="9.6" width="14.4" height="10.4"/><rect x="7.6" y="12.2" width="8.8" height="5.2"/>'),

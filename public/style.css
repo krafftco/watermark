@@ -2947,3 +2947,8 @@ html.dk,html.dk body{background:#0b0a09;min-height:100%;overscroll-behavior:none
 .cx-wgo{display:inline-flex;align-items:center;gap:10px;padding:12px 24px 12px 18px;border-radius:999px;background:var(--ink);color:#fff;text-decoration:none;font:500 12.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;transition:transform .3s var(--e)}
 .cx-wgo:hover{transform:translateY(-2px)}.cx-wgo svg{width:24px;height:24px}
 .cx-wander small{flex-basis:100%;font:italic 15px/1.4 var(--read);color:var(--mu)}
+/* Bravo as a glyph (18 Oct): the gentleman throwing his hat, in the hat's round case; gold when given. */
+.bv-b{width:44px;height:44px;padding:0!important;display:grid;place-items:center;border-radius:50%!important}.bv-b svg{width:28px;height:28px}
+.bv-b.on{background:#b39a68;border-color:#b39a68;color:#fff}
+.vr-bv svg{width:22px;height:22px}.vr-bv[aria-pressed="true"]{color:#d9bc7c}
+.st-bv[aria-pressed="true"] svg{color:#d9bc7c}
