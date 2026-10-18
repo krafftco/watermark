@@ -25,7 +25,7 @@ const STUDY_SYSTEM = `You write the study that sits beneath a photograph's wall 
 
 You are given research notes with their sources. Use only what the notes confirm, or what you are certain of; if something is uncertain, say less. Links in "further" must come from the sources read.
 
-Write it with the write_study tool. Its parts, for reference:
+Write it by calling the write_study tool, once, with every part filled; do not answer in prose. Its parts, for reference:
 {
  "look": [{"what": "a short phrase naming something in this picture", "why": "two or three sentences: what it does, and what it teaches about looking"}],
  "place": {"heading": "the place or subject, named", "story": ["paragraph", "paragraph"]},
@@ -54,7 +54,8 @@ const STUDY_TOOL = { name: 'write_study', description: 'Write the study for this
 
 function parseStudy(text) {
   const t = String(text || ''); const a = t.indexOf('{'), z = t.lastIndexOf('}'); if (a < 0 || z <= a) throw new Error('study: no json');
-  const j = JSON.parse(t.slice(a, z + 1));
+  let j; const raw = t.slice(a, z + 1);
+  try { j = JSON.parse(raw); } catch (e) { j = JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').replace(/[\u201c\u201d]/g, '"')); }
   const s = v => String(v == null ? '' : v).replace(/<\/?cite[^>]*>/g, '').trim();
   const arr = (v, n) => (Array.isArray(v) ? v : []).slice(0, n);
   const out = {
@@ -132,11 +133,12 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
       });
     } catch (e) { if (e.status !== 400) throw e; searched = false; }
     // 2. The study, written through a tool whose shape is fixed, so it always arrives whole.
-    const j = await call({ max_tokens: 4000, system: STUDY_SYSTEM, tools: [STUDY_TOOL], tool_choice: { type: 'tool', name: 'write_study' },
-      messages: [{ role: 'user', content: [picture, { type: 'text', text: `The record for this photograph:\n${record}\n\n${notes ? `Research notes (with the sources found):\n${notes.slice(0, 12000)}\n\nSources read:\n${seen.map(x => `${x.title} ${x.url}`).join('\n')}\n\n` : 'No web research was available; write only what you are confident of.\n\n'}Write its study.` }] }] });
+    const j = await call({ max_tokens: 6000, system: STUDY_SYSTEM, tools: [STUDY_TOOL], tool_choice: { type: 'auto' },
+      messages: [{ role: 'user', content: [picture, { type: 'text', text: `The record for this photograph:\n${record}\n\n${notes ? `Research notes (with the sources found):\n${notes.slice(0, 12000)}\n\nSources read:\n${seen.map(x => `${x.title} ${x.url}`).join('\n')}\n\n` : 'No web research was available; write only what you are confident of.\n\n'}Write its study now by calling write_study.` }] }] });
+    // The model is asked to write through the tool; some models will only offer it, so its text is read as JSON
+    // when there is no tool call.
     const use = (j.content || []).find(b => b.type === 'tool_use' && b.name === 'write_study');
-    if (!use) throw new Error('study: no tool use');
-    const st = parseStudy(JSON.stringify(use.input || {}));
+    const st = use ? parseStudy(JSON.stringify(use.input || {})) : parseStudy((j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
     st.read = seen.slice(0, 12); st.searched = searched && !!notes; st.model = j.model || MODEL(); st.at = new Date().toISOString();
     const fresh = read(w) || c; save(w.id, { ...fresh, study: st });
     return st;
@@ -154,10 +156,10 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
       }
       // Then the studies, best work first, paced (each runs several web searches on the house's key).
       let studies = 0; const PER = Math.max(0, parseInt(process.env.STUDY_PER_RUN || '40', 10));
-      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyFailed\":%' ORDER BY curated DESC, stars DESC, id").all()) {
+      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyMissed\":%' ORDER BY curated DESC, stars DESC, id").all()) {
         if (n >= limit) break;
         if (studies++ >= PER) break;
-        try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyFailed: new Date().toISOString() }); }
+        try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyMissed: new Date().toISOString() }); }
         await new Promise(r => setTimeout(r, 4000));
       }
     } finally { running = false; }

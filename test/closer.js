@@ -26,7 +26,7 @@ const { mountCloser } = require('../src/closer');
     ledger: { append: (d, t, s) => ledgerLog.push(t) }, V, fetchImpl });
   assert.strictEqual(await app.locals.closerFill(), 2, 'one guide written, then its study');
   assert.ok(researched.tools && researched.tools[0].name === 'web_search', 'the study is researched on the web');
-  assert.ok(studied.tool_choice && studied.tool_choice.name === 'write_study' && /Hadrian/.test(studied.messages[0].content[1].text), 'then written through the tool, from the notes');
+  assert.ok(studied.tools && studied.tools[0].name === 'write_study' && /Hadrian/.test(studied.messages[0].content[1].text), 'then written through the tool, from the notes');
   { const c0 = app.locals.closerOf(db.prepare('SELECT * FROM works').get()); const st = c0.study;
     assert.ok(st.searched && st.read.length === 1 && st.look[0].what === 'The oculus' && st.lineage.length === 1, 'the study kept');
     assert.ok(st.further.length === 2 && st.further[1].url === null, 'only real https links survive');
