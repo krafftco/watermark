@@ -29,7 +29,7 @@ function securityHeaders(base) {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('X-Frame-Options', 'DENY');
     res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.stripe.com"), interest-cohort=()');
+    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.stripe.com"), xr-spatial-tracking=(self), interest-cohort=()');
     res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     if (https) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // house.js and k.js are loaded by other Krafft sites and must stay embeddable as scripts; the policy

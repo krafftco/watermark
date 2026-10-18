@@ -793,6 +793,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(end && got.size === all.length, 'the whole set, then the end: ' + got.size + ' of ' + all.length);
     assert.ok(/function screenFor/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'stroll.js'), 'utf8')), 'the stroll builds screens with its own function, never the card'); }
   console.log('ok: the stroll through a set');
+  { // In a headset: the room and its photographs; a private wall is not shown there.
+    r = await req(port, 'GET', '/vr?space=rotunda'); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('The rotunda') && r.body.toString().includes('/static/vr.js'));
+    r = await req(port, 'GET', '/api/vr'); const vj = JSON.parse(r.body); assert.ok(vj.items.length >= 1 && vj.items[0].img.includes('/img/'), 'the photographs');
+    r = await req(port, 'GET', '/vendor/three.module.min.js'); assert.equal(r.status, 200);
+    console.log('ok: in a headset');
+  }
   // The bridge: the house's identity, credentials anyone can check, a partner with a key, a maker's consent,
   // a rights claim that holds back a use, shares and releases, and notice of a sale.
   { const B = require('../src/bridge');

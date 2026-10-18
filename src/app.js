@@ -1588,6 +1588,7 @@ function createApp(cfg = {}) {
   const upload = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 250 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\//.test(f.mimetype)) });
   require('./archive').mountArchive(app, { db, C, q, V, mk, originalPath, images, isStudio, makerOf: req => app.locals.accounts.makerOf(req), heldBy, mail, upload: () => upload, copyrightState: w => (app.locals.copyrightState ? app.locals.copyrightState(w) : null) });
   require('./drop').mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk });
+  app.locals.vr = require('./vr').mountVR(app, { db, V });
   app.locals.opening = require('./opening').mountOpening(app, { db, C, V, mail, buyerOf, isStudio });
   app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
