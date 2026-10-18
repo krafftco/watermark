@@ -46,11 +46,16 @@ async function send({ to, subject, text, from, html, feature, cta }) {
     if (!ok.length) { console.log(`[mail:test-house] held back, to=${to} subject="${subject}"`); return { skipped: true }; }
     to = ok; subject = `[Test house] ${subject}`;
   }
+  const SAFE = 'Watermark <house@watermark.krafftco.com>'; // the verified sending domain
+  const post = f => fetch('https://api.resend.com/emails', {
+    method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: f, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }),
+  });
   try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: sender, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }),
-    });
+    let r = await post(sender);
+    // 18 Oct: MAIL_FROM named krafftco.com, which Resend has not verified, so every letter was refused from the
+    // evening of the 17th. A refused sender falls back to the verified one rather than losing the letter.
+    if (r.status === 403 && sender !== SAFE) { const t = await r.text(); console.error('[mail] sender refused, sending as the house', t); r = await post(SAFE); }
     if (!r.ok) { const t = await r.text(); console.error('[mail] failed', r.status, t); state.failed++; state.last = { at: new Date().toISOString(), ok: false, status: r.status, error: String(t).slice(0, 240) }; }
     else { state.sent++; state.last = { at: new Date().toISOString(), ok: true }; }
     return { ok: r.ok };
