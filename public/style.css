@@ -2744,3 +2744,7 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 /* Companies (clients.js) */
 .cl-g{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:28px;margin:32px 0}.cl-g img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}.cl-g p{margin:10px 0 0;display:grid;gap:3px}.cl-g span,.cl-g small{color:var(--muted,#7d766b);font-size:13px}
 .cl-f{display:grid;gap:12px;max-width:620px}.cl-f label{display:grid;gap:4px;font-size:13px}.cl-f .cl-c{display:flex;gap:8px;align-items:center}.cl-s{white-space:pre-wrap;background:rgba(0,0,0,.05);padding:12px;font-size:12px;overflow-x:auto}.cl-l{padding-left:18px;line-height:1.8}
+/* The opening (opening.js) */
+.op{max-width:620px;margin:48px auto;padding:32px 0;border-top:1px solid var(--line,rgba(0,0,0,.12));border-bottom:1px solid var(--line,rgba(0,0,0,.12))}.op h2{font-family:var(--serif,Georgia,serif);font-weight:400}
+.op-f{display:grid;gap:12px;margin-top:16px}.op-f label{display:grid;gap:4px;font-size:13px}.op-f .op-c{display:flex;gap:8px;align-items:center}.op-f button{justify-self:start}
+.hpot{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0}

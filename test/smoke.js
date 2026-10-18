@@ -653,6 +653,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const today = new Date().toISOString().slice(0, 10);
     r = await req(port, 'POST', `/hang/${sh2.id}/show`, { cookie: showck, body: { opens_at: today, closes_at: '2099-01-01', venue: 'Little West 12th' } }); assert.equal(r.status, 302);
     r = await req(port, 'GET', `/hang/${sh2.slug}`); { const h = r.body.toString(); assert.ok(h.includes('A show') && h.includes('now showing') && h.includes('Little West 12th'), 'the wall reads as a show'); }
+    // The opening: a reply card on the show; a photographer is handed the application; the list is the curator's.
+    assert.ok(r.body.toString().includes(`/hang/${sh2.id}/rsvp`), 'the show carries the reply card');
+    r = await req(port, 'POST', `/hang/${sh2.id}/rsvp`, { body: { name: 'Ada Lens', email: 'ada@example.com', maker: '1', plus: '1' } }); assert.equal(r.status, 303);
+    r = await req(port, 'GET', r.headers.location.replace(/^https?:\/\/[^/]+/, '')); assert.ok(r.body.toString().includes('You are on the list') && r.body.toString().includes('/join?name=Ada'), 'a photographer is handed the application');
+    assert.equal(db.prepare('SELECT plus FROM rsvps WHERE hang_id=?').get(sh2.id).plus, 1);
+    r = await req(port, 'GET', `/hang/${sh2.id}/guests`); assert.equal(r.status, 404, 'the list is private');
+    r = await req(port, 'GET', `/hang/${sh2.id}/guests.csv`, { cookie: showck }); assert.ok(r.body.toString().includes('ada@example.com'), 'the curator has the list');
     r = await req(port, 'GET', '/collectors'); assert.ok(r.body.toString().includes('>Shows<') && r.body.toString().includes('Venice, in Winter'), 'Galleries leads with shows');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='show.opening'").get(), 'the opening is on the register');
     r = await req(port, 'GET', `/m/${gal.handle}`);  assert.ok(r.body.toString().includes('Represents') && r.body.toString().includes('Venice, in Winter'), 'the gallery page: artists and shows'); }

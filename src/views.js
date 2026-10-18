@@ -1474,7 +1474,7 @@ ${err ? `<p class="err">${esc(err)}</p>` : ''}<form method="post" action="/feedb
 <fieldset class="fb-k"><legend>It was</legend>${[['broke', 'Something broke'], ['confusing', 'Something confused me'], ['idea', 'An idea'], ['loved', 'Something I loved']].map(([v, l], i) => `<label><input type="radio" name="kind" value="${v}"${i === 0 ? ' checked' : ''}> ${l}</label>`).join('')}</fieldset>
 <label>What happened<textarea name="body" rows="5" maxlength="4000" required placeholder="Where you were, what you did, what you expected."></textarea></label>
 <label>Your email <small>(only if you would like an answer)</small><input name="email" type="email" autocomplete="email"></label>
-<input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+<input name="website" tabindex="-1" autocomplete="off" class="hpot" aria-hidden="true">
 <button class="btn">Send</button></form>`}</section>` });
 }
 function feedbackDesk({ rows, ok }) {
