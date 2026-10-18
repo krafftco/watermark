@@ -2371,3 +2371,8 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .wv-deck,.vr-deck{bottom:max(clamp(18px,4vh,40px),calc(14px + env(safe-area-inset-bottom)))}
 .wv-plate{bottom:max(clamp(18px,4vh,40px),calc(14px + env(safe-area-inset-bottom)))}
 @media (max-width:700px){.wv-deck,.vr-deck{bottom:max(14px,calc(10px + env(safe-area-inset-bottom)))}.wv-plate{bottom:max(72px,calc(66px + env(safe-area-inset-bottom)))}.st-top{padding-top:max(14px,calc(12px + env(safe-area-inset-top)))}}
+.st-plate .st-by,.st-plate .st-t,.st-k a{text-decoration:none;color:inherit}.st-plate .st-t{display:block}
+.st-chip{display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:5px 8px 5px 10px;border:1px solid rgba(255,255,255,.22);border-radius:999px;color:#f2efe9;text-decoration:none;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;max-width:40vw;overflow:hidden;text-overflow:ellipsis}.st-chip i{display:inline-flex}.st-chip .ic{width:14px;height:14px}
+.st-gon{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:rgba(242,239,233,.6);font-family:inherit;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:6px;cursor:pointer}.st-gon .ic{width:20px;height:20px}.st-gon[aria-pressed=true]{color:#fff;text-shadow:0 0 12px rgba(255,255,255,.5)}
+@media (max-width:420px){.st-gon span{display:none}}
+.st-top>*{flex:none}.st-top .st-search{flex:1 1 auto;min-width:40px}.st-chip{max-width:32vw}.st-gon{padding:6px 4px}

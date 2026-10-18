@@ -106,8 +106,10 @@ function mountTips(app, { db, C, stripe, maker, slugify, ledger, V, ghost = {}, 
     if (b && app.locals.pocket && app.locals.pocket.spend(b, cents, 'thanks', grp, `${m.name.split(' ')[0]}, for ${String(w.title).replace(/[.\s]+$/, '')}`)) {
       db.prepare("INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note, status, name, email, paid_at) VALUES (?,?,?,?,?,?,'paid',?,?,datetime('now'))").run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word, b.name || null, b.email || null);
       ledger.append(db, 'thanks.given', `tip-${grp}`, { work: w.slug, to: m.handle, amount: cents, from: 'pocket' });
+      if (x.json) return res.json({ ok: true, cents, from: 'pocket' });
       return res.redirect(`/w/${w.slug}?thanks=given#thanks`);
     }
+    if (x.json) return res.json({ ok: false, go: `/w/${w.slug}/thanks` });
     if (!stripe) return res.redirect(`/w/${w.slug}?thanks=off#thanks`);
     db.prepare('INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note) VALUES (?,?,?,?,?,?)').run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word);
     try {
