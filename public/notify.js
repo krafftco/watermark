@@ -14,7 +14,12 @@
   var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function b64(s) { var p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
-  function say(t) { state.textContent = t; }
+  function say(t) { state.textContent = t; page.classList.toggle('nt-is-on', /^On\b/.test(t)); }
+  // The choices save themselves as they are made.
+  var prefs = page.querySelector('[data-nt-prefs]');
+  if (prefs) { page.classList.add('nt-live'); var note = prefs.querySelector('[data-nt-saved]'), noteT = note ? note.textContent : '', tt;
+    prefs.addEventListener('change', function () { var fd = new URLSearchParams(); [].forEach.call(prefs.querySelectorAll('input[name=on]:checked'), function (i) { fd.append('on', i.value); });
+      fetch(prefs.action, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: fd.toString(), credentials: 'same-origin' }).then(function () { if (note) { note.textContent = 'Saved.'; note.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { note.textContent = noteT; note.classList.remove('on'); }, 1800); } }); }); }
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     if (isIOS && !standalone) { say('Add Watermark to your Home Screen to be told here.'); ios.hidden = false; } else say('This browser cannot show notifications. The list below is always kept.');
     return;

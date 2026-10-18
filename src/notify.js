@@ -136,7 +136,10 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     const kinds = Object.entries(KINDS).filter(([, k]) => (k.who === 'maker' && w.maker_id) || (k.who === 'buyer' && w.buyer_id)).map(([key, k]) => ({ key, label: k.label, on: owners.some(o => wants(o, key)) }));
     const devices = db.prepare(`SELECT id, ua, at, last_ok FROM push_subs WHERE ${[w.maker_id ? 'maker_id=?' : null, w.buyer_id ? 'buyer_id=?' : null].filter(Boolean).join(' OR ')} ORDER BY id DESC`).all(...[w.maker_id, w.buyer_id].filter(Boolean));
     res.set('Cache-Control', 'private, no-store');
-    res.send(V.noticesPage({ items, kinds, devices, key: vapid().publicKey, name: (w.m && w.m.name) || (w.b && w.b.name) || '', saved: req.query.ok || null }));
+    // A photograph to stand the page on: the maker's own best, else today's.
+    const cover = (w.maker_id && db.prepare("SELECT slug, title FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(w.maker_id))
+      || (app.locals.todays && app.locals.todays()) || db.prepare("SELECT slug, title FROM works WHERE status='held' ORDER BY id LIMIT 1").get() || null;
+    res.send(V.noticesPage({ items, kinds, devices, key: vapid().publicKey, name: (w.m && w.m.name) || (w.b && w.b.name) || '', saved: req.query.ok || null, cover, maker: !!w.maker_id }));
     const qr = mine(w, ' AND read_at IS NULL'); db.prepare(`UPDATE notices SET read_at=datetime('now') WHERE ${qr.where}`).run(...qr.args);
   });
   app.post('/notices/subscribe', (req, res) => {

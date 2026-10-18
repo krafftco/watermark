@@ -2660,3 +2660,50 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .cn-inline{display:flex;gap:8px;margin-top:6px}.cn-inline input{min-width:0;flex:1}
 .cn-key{margin:18px 0;padding:18px;border:1px solid var(--ink);background:#fbfaf6}.cn-key code{display:block;word-break:break-all;font-size:14px;margin:6px 0 12px}
 .cn code{font-size:.92em}
+
+/* Notifications (Will, 18 Oct: never a stock form). The page stands on a photograph; the device's state is one
+   line in it; a sample shows what a notice looks like; the choices are quiet switches that save themselves. */
+.ntp{max-width:none;padding:0}
+.ntp-hero{position:relative;min-height:min(62vh,560px);display:flex;align-items:flex-end;background:#0e0d0b var(--img) center/cover no-repeat;color:#f6f4ef}
+.ntp-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,9,8,.25) 0%,rgba(10,9,8,.45) 45%,rgba(10,9,8,.88) 100%)}
+.ntp-in{position:relative;width:100%;max-width:1080px;margin:0 auto;padding:clamp(80px,14vh,140px) clamp(20px,5vw,56px) clamp(32px,6vh,56px)}
+.ntp-hero .k{color:rgba(246,244,239,.72)}
+.ntp-hero h1{margin:10px 0 26px;max-width:14em;font-family:var(--disp);font-weight:400;font-size:clamp(36px,6vw,68px);line-height:1.04;color:#f6f4ef}
+.ntp-dev{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px}
+.ntp-dev p{margin:0;font-size:14px;color:rgba(246,244,239,.8)}
+.ntp-dot{width:8px;height:8px;border-radius:50%;background:rgba(246,244,239,.35)}
+.nt-is-on .ntp-dot{background:#9fd3a4;box-shadow:0 0 0 4px rgba(159,211,164,.18)}
+.ntp-on{border:0;background:#f6f4ef;color:#151412;padding:13px 22px;font:600 11px/1 inherit;letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+.ntp-test{border:1px solid rgba(246,244,239,.4);background:none;color:#f6f4ef;padding:12px 18px;font:500 11px/1 inherit;letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
+.ntp-on[hidden],.ntp-test[hidden],.nt-ios[hidden]{display:none!important}
+.ntp-hero .nt-ios{margin:16px 0 0;max-width:38em;font-size:14px;line-height:1.55;color:rgba(246,244,239,.8)}.ntp-hero .nt-ios a{color:#f6f4ef}
+.ntp-ok{max-width:1080px;margin:18px auto 0;padding:0 clamp(20px,5vw,56px)}
+.ntp-body{max-width:1080px;margin:0 auto;padding:clamp(36px,6vh,64px) clamp(20px,5vw,56px) 24px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(32px,6vw,88px);align-items:start}
+@media (max-width:860px){.ntp-body{grid-template-columns:1fr}}
+.ntp-sk{margin:0 0 16px;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--mu)}
+.ntp-empty{margin:0 0 28px;font-family:var(--read);font-size:19px;line-height:1.55;color:var(--ink);max-width:24em}
+/* The sample: a lock-screen notice, set on the wall. */
+.ntx-k{margin:0 0 10px;font-family:var(--read);font-style:italic;font-size:14px;color:var(--mu)}
+.ntx-card{display:flex;gap:14px;align-items:center;max-width:400px;padding:14px;border-radius:18px;background:rgba(245,243,238,.9);border:1px solid var(--ln);box-shadow:0 18px 40px -18px rgba(0,0,0,.25)}
+.ntx-card img{width:58px;height:58px;object-fit:cover;border-radius:10px;flex:none}
+.ntx-card div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ntx-h{margin:0;display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
+.ntx-h i{margin-left:auto;font-style:normal;letter-spacing:0;text-transform:none}
+.ntx-app{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:#111;color:#f6f4ef}.ntx-app svg{width:12px;height:auto}
+.ntx-card b{font-size:15px;font-weight:600;color:var(--ink)}.ntx-card span{font-size:13px;color:#4a463f}
+/* The switches. */
+.ntp-prefs fieldset{border:0;margin:0 0 26px;padding:0}
+.ntp-prefs legend{padding:0;margin:0 0 6px;font-family:var(--disp);font-size:22px;color:var(--ink)}
+.ntp-sw{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 0;border-bottom:1px solid var(--ln);cursor:pointer}
+.ntp-sw>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ntp-sw b{font-weight:500;font-size:15px;color:var(--ink)}.ntp-sw small{font-size:13px;line-height:1.45;color:var(--mu)}
+.ntp-sw input{position:absolute;opacity:0;width:1px;height:1px}
+.ntp-sw i{position:relative;flex:none;width:44px;height:26px;border-radius:13px;background:#d9d5cc;transition:background .25s ease}
+.ntp-sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .28s cubic-bezier(.3,1.4,.5,1)}
+.ntp-sw input:checked+i{background:#151412}.ntp-sw input:checked+i::after{transform:translateX(18px)}
+.ntp-sw input:focus-visible+i{outline:1px solid var(--ink);outline-offset:3px}
+.nt-live .ntp-save{display:none}
+.ntp-note{margin:10px 0 0;font-size:13px;line-height:1.5;color:var(--mu);transition:color .3s}.ntp-note.on{color:var(--ink)}
+.ntp-devs{max-width:1080px;margin:0 auto 60px;padding:0 clamp(20px,5vw,56px)}
+.ntp-devs ul{list-style:none;margin:0;padding:0}.ntp-devs li{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--ln)}.ntp-devs small{color:var(--mu);margin-right:auto}
+.ntp-prefs legend{letter-spacing:0!important;text-transform:none!important;font-family:var(--disp)!important;font-size:24px!important}

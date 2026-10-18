@@ -887,16 +887,31 @@ ${mine ? '<p class="note">This is the link you made. Send it to the person you a
 
 // The basket: what has been gathered, each with its price and a way out of the basket; one payment for all.
 // Notifications: what the house has told you, the devices it tells, and what you choose to hear about.
-function noticesPage({ items, kinds, devices, key, name = '', saved = null }) {
+function noticesPage({ items, kinds, devices, key, name = '', saved = null, cover = null, maker = false }) {
   const when = t => { const d = new Date(String(t).replace(' ', 'T') + 'Z'); const s = (Date.now() - d) / 1000; return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
-  return layout({ title: 'Notifications · Watermark', path: '/notices', body: `<section class="nt-pg" data-notices data-key="${esc(key)}">
-<p class="k">${name ? esc(name.split(' ')[0]) + ', the house will tell you' : 'The house will tell you'}</p><h1>Notifications.</h1>
-${saved ? `<p class="ok">${esc(saved)}</p>` : ''}
-<div class="nt-dev"><div><b>On this device</b><p data-nt-state>Checking&hellip;</p></div><button type="button" class="buy-btn" data-nt-on hidden>Turn on notifications</button><button type="button" class="bk-alt" data-nt-test hidden>Send a test</button></div>
-<p class="nt-ios" data-nt-ios hidden>On iPhone and iPad, notifications come to the installed app: in Safari tap <b>Share</b>, then <b>Add to Home Screen</b>, open Watermark from its icon and come back here. <a href="/app">How</a></p>
-${items.length ? `<ol class="nt-list">${items.map(n => `<li class="nt-it${n.read_at ? '' : ' new'}"><a href="${esc(n.href || '/notices')}">${n.slug ? `<img src="/img/${esc(n.slug)}/thumb" alt="" loading="lazy" draggable="false">` : `<span class="nt-mk">${I.bell}</span>`}<div><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}<small>${when(n.at)}</small></div></a></li>`).join('')}</ol>` : '<p class="lede">Nothing yet. When a photograph of yours is collected or licensed, it will be here, and on your phone if you turn notifications on.</p>'}
-<form method="post" action="/notices/prefs" class="nt-prefs"><h2>Tell me when</h2>${kinds.map(k => `<label><input type="checkbox" name="on" value="${esc(k.key)}"${k.on ? ' checked' : ''}> ${esc(k.label)}</label>`).join('')}<button class="bk-alt">Save</button><p class="note">Every notice is kept here either way; this chooses what reaches your devices. The emails the house sends (Collected, Asked for) stay as they are.</p></form>
-${devices.length ? `<div class="nt-devs"><h2>Devices told</h2><ul>${devices.map(d => `<li><span>${esc(/iPhone/.test(d.ua) ? 'iPhone' : /iPad/.test(d.ua) ? 'iPad' : /Android/.test(d.ua) ? 'Android' : /Mac/.test(d.ua) ? 'Mac' : /Windows/.test(d.ua) ? 'Windows' : 'A device')}</span><small>since ${esc(String(d.at).slice(0, 10))}</small><form method="post" action="/notices/unsubscribe"><input type="hidden" name="id" value="${d.id}"><button class="bk-alt">Stop</button></form></li>`).join('')}</ul></div>` : ''}
+  const first = name ? esc(name.split(' ')[0]) : '';
+  // What each choice means, in a line.
+  const HINT = { licensed: 'The moment it happens: what, by whom, for how much, and its number.', requested: 'A company or a person asks for a use you approve yourself.', thanks: 'Someone sends a card to say the photograph meant something.', hat: 'A quiet one. Off unless you want every tip.', note: 'Someone writes a line about your work.', paid: 'Money on its way to your bank.', show: 'A curator opens your archive or sends you a show to approve.', reviewed: 'The maker approves or returns a show you hung.', answered: 'A maker accepts or declines what you asked for.', received: 'A numbered piece is passed to you.', placed: 'Someone collects through a wall you hung.' };
+  const groups = [['Your work', kinds.filter(k => ['licensed', 'requested', 'thanks', 'hat', 'note', 'paid', 'show'].includes(k.key))], ['Your walls and your collecting', kinds.filter(k => !['licensed', 'requested', 'thanks', 'hat', 'note', 'paid', 'show'].includes(k.key))]].filter(g => g[1].length);
+  const sample = cover ? `<div class="ntx"><p class="ntx-k">What a notice looks like</p><div class="ntx-card"><img src="/img/${esc(cover.slug)}/thumb" alt="" draggable="false"><div><p class="ntx-h"><span class="ntx-app">${WAVE_MARK}</span>Watermark<i>now</i></p><b>${esc(tidy(cover.title))} was collected</b><span>Collect &middot; $5 &middot; No.&nbsp;4 &middot; 85% is yours</span></div></div></div>` : '';
+  return layout({ title: 'Notifications · Watermark', path: '/notices', body: `<section class="ntp" data-notices data-key="${esc(key)}">
+<header class="ntp-hero"${cover ? ` style="--img:url('/img/${esc(cover.slug)}/large')"` : ''}><div class="ntp-in">
+<p class="k">${first ? `${first}, the house will tell you` : 'The house will tell you'}</p>
+<h1>${maker ? 'When your work is chosen, you will know.' : 'When something of yours moves, you will know.'}</h1>
+<div class="ntp-dev"><span class="ntp-dot" aria-hidden="true"></span><p data-nt-state>Checking this device&hellip;</p><button type="button" class="ntp-on" data-nt-on hidden>Turn on notifications</button><button type="button" class="ntp-test" data-nt-test hidden>Send a test</button></div>
+<p class="nt-ios" data-nt-ios hidden>On iPhone and iPad, notices come to the installed app: in Safari tap <b>Share</b>, then <b>Add to Home Screen</b>, open Watermark from its icon and come back here. <a href="/app">How</a></p>
+</div></header>
+${saved ? `<p class="ok ntp-ok">${esc(saved)}</p>` : ''}
+<div class="ntp-body">
+<div class="ntp-main">
+${items.length ? `<p class="ntp-sk">Lately</p><ol class="nt-list">${items.map(n => `<li class="nt-it${n.read_at ? '' : ' new'}"><a href="${esc(n.href || '/notices')}">${n.slug ? `<img src="/img/${esc(n.slug)}/thumb" alt="" loading="lazy" draggable="false">` : `<span class="nt-mk">${I.bell}</span>`}<div><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}<small>${when(n.at)}</small></div></a></li>`).join('')}</ol>`
+    : `<p class="ntp-sk">Lately</p><p class="ntp-empty">Nothing yet. ${maker ? 'The first time a photograph of yours is chosen, it will be here, and on your phone the moment it happens.' : 'When something of yours moves, it will be here.'}</p>${sample}`}
+</div>
+<form method="post" action="/notices/prefs" class="ntp-prefs" data-nt-prefs><p class="ntp-sk">Tell me when</p>
+${groups.map(([t, ks]) => `<fieldset><legend>${esc(t)}</legend>${ks.map(k => `<label class="ntp-sw"><span><b>${esc(k.label)}</b><small>${esc(HINT[k.key] || '')}</small></span><input type="checkbox" name="on" value="${esc(k.key)}"${k.on ? ' checked' : ''}><i aria-hidden="true"></i></label>`).join('')}</fieldset>`).join('')}
+<button class="bk-alt ntp-save">Save</button><p class="ntp-note" data-nt-saved>Every notice is kept here either way; these choose what reaches your devices. The letters the house sends by email stay as they are.</p></form>
+</div>
+${devices.length ? `<div class="ntp-devs"><p class="ntp-sk">Devices told</p><ul>${devices.map(d => `<li><span>${esc(/iPhone/.test(d.ua) ? 'iPhone' : /iPad/.test(d.ua) ? 'iPad' : /Android/.test(d.ua) ? 'Android' : /Mac/.test(d.ua) ? 'Mac' : /Windows/.test(d.ua) ? 'Windows' : 'A device')}</span><small>since ${esc(String(d.at).slice(0, 10))}</small><form method="post" action="/notices/unsubscribe"><input type="hidden" name="id" value="${d.id}"><button class="bk-alt">Stop</button></form></li>`).join('')}</ul></div>` : ''}
 </section><script src="/static/notify.js?v=${VER}" defer></script>` });
 }
 // A file link opened on a phone: the photograph, and one button that hands it to the phone's share sheet (Save Image → Photos).
