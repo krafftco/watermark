@@ -2635,3 +2635,15 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .st-gcard .gd-sw{margin:0 0 14px;border-color:rgba(255,255,255,.2)}
 .st-gcard .gd-sw button{color:rgba(243,241,236,.6)}
 .st-gcard .gd-sw button[aria-pressed="true"]{background:#f3f1ec;color:#151412}
+
+/* Full screen on a computer (Will, 18 Oct: tall photographs were cut off): the photograph keeps a margin of the
+   dark wall, never touching the screen's edge, a notch or a rounded corner; the drift settles into the frame
+   instead of growing past it. */
+@media (pointer:fine){
+  .vr-im{padding:5vh 4vw 9vh!important;box-sizing:border-box}
+  .st-im{padding:4vh 0;box-sizing:border-box}
+}
+@keyframes vr-drift{from{transform:scale(.975)}to{transform:scale(1)}}
+/* The stroll's photograph is held to the screen itself (a grid's auto row let a tall one grow to the full width
+   on a computer and crop): pinned to the screen, contained, never cropped. */
+.st-i>.st-im{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:contain}

@@ -34,8 +34,14 @@
   function apply() { img.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')'; }
   function center() {
     var W = innerWidth, H = innerHeight, w = img.naturalWidth || 1, h = img.naturalHeight || 1;
-    fit = Math.min(W / w, H / h); s = fit; x = -w * s / 2; y = -h * s / 2; apply();
+    // On a computer the photograph keeps a margin of the dark around it, so a tall one is never clipped by the
+    // screen's edge, a notch or a rounded corner; on a phone it fills the screen.
+    var m = matchMedia('(pointer:fine)').matches ? 0.92 : 1;
+    fit = Math.min(W * m / w, H * m / h); s = fit; x = -w * s / 2; y = -h * s / 2; apply();
   }
+  // Into and out of the browser's full screen, or a window resized: set it again if it was at rest.
+  function refit() { if (box.classList.contains('on') && !lifting && Math.abs(s - fit) < 1e-6) center(); }
+  addEventListener('resize', refit); document.addEventListener('fullscreenchange', function () { setTimeout(refit, 60); });
   function zoomAt(f, cx, cy) {
     var ns = Math.max(fit, Math.min(fit * 8, s * f));
     var ox = cx - innerWidth / 2, oy = cy - innerHeight / 2;
