@@ -1125,6 +1125,26 @@ function createApp(cfg = {}) {
     return n;
   }
   app.locals.settle = settle; app.locals.settleAll = settleAll;
+  // Once (18 Oct): every letter refused between the evening of the 17th and the mail fix goes out again, to each
+  // collector with an address, then the maker is told in one note what was sent. Marked done before it begins.
+  async function lettersAgain() {
+    try { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); } catch (e) { /* made elsewhere */ }
+    if (db.prepare("SELECT 1 FROM settings WHERE k='letters_again_1017'").get()) return;
+    db.prepare("INSERT INTO settings (k, v) VALUES ('letters_again_1017', ?)").run(new Date().toISOString());
+    const rows = db.prepare("SELECT * FROM licenses WHERE status='active' AND starts_at >= '2026-10-17T22:30:00Z' AND starts_at < '2026-10-18T20:28:00Z' AND COALESCE(licensee_email,'')!='' ORDER BY id").all();
+    const out = [];
+    for (const g of rows) {
+      try {
+        const w = db.prepare('SELECT * FROM works WHERE id=?').get(g.work_id), m = mk(w), u = q.useById.get(g.use_id);
+        await mail.send({ to: g.licensee_email, ...LETTERS.collected(letterFor(g, w, m, u, g.download_token)) });
+        out.push(`${tidyTitle(w.title)} (${g.ref}) to ${g.licensee_email}`);
+      } catch (e) { console.error('[letters again]', g.ref, e.message); }
+      await new Promise(f => setTimeout(f, 700));
+    }
+    console.log('[letters again]', out.length);
+    if (out.length && maker.email) mail.send({ to: maker.email, subject: `${out.length} letter${out.length === 1 ? '' : 's'} sent again`, text: `The house's mail was refused from the evening of 17 October until this afternoon, so these collectors never had their letters. Each has now been sent again:\n\n${out.join('\n')}\n\nWatermark` });
+  }
+  if (process.env.NODE_ENV !== 'test') setTimeout(() => lettersAgain().catch(e => console.error('[letters again]', e.message)), 60e3).unref();
   if (process.env.NODE_ENV !== 'test') { setTimeout(() => settleAll().catch(() => {}), 20e3).unref(); setInterval(() => settleAll().catch(() => {}), 5 * 60e3).unref(); }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
