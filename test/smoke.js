@@ -898,6 +898,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/season', { cookie: ck, body: { id: String(ni.id), title: ni.title, kind: 'late', at: '2031-05-09T21:00', status: 'past', came: '14' } }); assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='night.held'").get().n >= 1, 'held, told');
   }
   console.log('ok: the season, the Circle and the cards');
+  // The Keyhole Room (19 Oct): a dinner is drawn, not first come; the Circle first; the menu only to those seated.
+  { const wmk = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+    r = await req(port, 'POST', '/studio/season', { cookie: ck, body: { title: 'The dinner, October', kind: 'dinner', at: '2031-06-01T19:30', city: 'New York', venue: 'A private room', address: '2 Meridian Street', capacity: '1', menu: 'Oysters.\n\nA roast.', makers: wmk.handle, circle_first: '0', status: 'open' } });
+    const dn = db.prepare("SELECT * FROM nights WHERE kind='dinner' ORDER BY id DESC LIMIT 1").get(); assert.ok(dn && dn.menu, 'the dinner is set with a menu');
+    r = await req(port, 'GET', '/season/' + dn.slug, { cookie: mck }); assert.ok(/Put my name down/.test(r.body) && !/Oysters/.test(r.body), 'names go down; no menu yet');
+    r = await req(port, 'POST', `/season/${dn.slug}/reply`, { cookie: mck, body: { name: 'The Maker' } }); assert.ok(/ok=asked/.test(r.headers.location), 'the maker asks first');
+    r = await req(port, 'POST', `/season/${dn.slug}/reply`, { cookie: sck, body: { name: 'Season Collector' } }); assert.ok(/ok=asked/.test(r.headers.location), 'the Circle member asks second');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM night_guests WHERE night_id=? AND status='asked'").get(dn.id).n, 2);
+    r = await req(port, 'POST', `/studio/season/${dn.id}/draw`, { cookie: ck }); assert.ok(/1%20seated|1 seated/.test(r.headers.location), 'one seat drawn');
+    const seated = db.prepare("SELECT * FROM night_guests WHERE night_id=? AND status='going'").all(dn.id); assert.ok(seated.length === 1 && seated[0].buyer_id, 'the Circle member is seated first, though they asked second');
+    r = await req(port, 'GET', '/season/' + dn.slug, { cookie: sck }); assert.ok(/You are seated/.test(r.body) && /Oysters/.test(r.body) && /2 Meridian Street/.test(r.body), 'the menu and the address to the seated');
+    r = await req(port, 'GET', '/season/' + dn.slug, { cookie: mck }); assert.ok(/kept for the next/.test(r.body) && !/Oysters/.test(r.body), 'the other is kept for the next, no menu');
+    r = await req(port, 'GET', `/studio/season/${dn.id}/guests`, { cookie: ck }); assert.ok(/Draw the table/.test(r.body) && /Seat</.test(r.body), 'the desk');
+  }
+  console.log('ok: the Keyhole Room');
   // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
   { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
     const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();

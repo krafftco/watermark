@@ -3172,3 +3172,4 @@ html.fd-on{overflow:hidden}
 .sn-ed label{display:block;margin:10px 0;font-size:13px}.sn-ed input:not([type=checkbox]),.sn-ed select,.sn-ed textarea{display:block;width:100%;max-width:560px;margin-top:4px;padding:8px;font:inherit}
 .sd-night h3 a{color:inherit;text-decoration:none}
 @media(max-width:760px){.nx-h{grid-template-columns:1fr}.nx-gl{columns:1}.cr-cover,.sn-h{padding:48px 22px 40px}}
+.nx-menu{margin:14px 0;padding:14px 18px;border:1px solid rgba(230,200,117,.35);border-radius:3px;font-family:var(--read,Georgia,serif);font-size:16px;line-height:1.5}.nx-menu .k{color:var(--kgilt,#e6c875)}.sn-draw{margin:14px 0 20px;padding:14px;border:1px solid var(--hair,#ddd);border-radius:3px}
