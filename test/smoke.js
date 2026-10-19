@@ -831,6 +831,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/api/stroll?n=20&seen=' + s1.items.map(w => w.slug).join(',')); const s2 = JSON.parse(r.body); assert.ok(s2.items.length && !s2.items.some(w => s1.items.find(x => x.slug === w.slug)), 'never the same twice');
     r = await req(port, 'GET', '/api/stroll?n=5&q=zzzz-no-such'); assert.equal(JSON.parse(r.body).items.length, 0);
     r = await req(port, 'GET', '/stroll?at=' + s1.items[0].slug); assert.ok(r.body.indexOf('data-slug="' + s1.items[0].slug + '"') < r.body.indexOf('data-slug="', r.body.indexOf('data-slug="' + s1.items[0].slug + '"') + 10), 'opens at the one asked for'); }
+    // The doors beside the stroll (19 Oct): a swipe left opens the Keys, a swipe right Yours (the wallet, as a collector or a maker).
+    const sd1 = JSON.parse((await req(port, 'GET', '/api/stroll?n=1')).body).items[0].slug;
+    r = await req(port, 'GET', '/stroll'); assert.ok(/data-st-side="keys"/.test(r.body) && /data-st-side="yours"/.test(r.body) && /data-st-doors="keys"/.test(r.body), 'the two doors and their tabs are in the page');
+    r = await req(port, 'GET', '/stroll/side/' + sd1); let sd = JSON.parse(r.body); assert.ok(/The bench/.test(sd.keys) && /The balcony/.test(sd.keys) && /kmk-mark/.test(sd.keys) && /The collection/.test(sd.keys) && /Sign in/.test(sd.yours), 'a stranger sees the Keys and a sign-in');
+    r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); sd = JSON.parse(r.body); assert.ok(/Your pocket/.test(sd.yours) && /Your gallery/.test(sd.yours) && !/data-sd-switch/.test(sd.yours), 'a collector sees the wallet, no switch');
+    r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: mck }); sd = JSON.parse(r.body); assert.ok(/data-sd-switch="maker"/.test(sd.yours) && /Owed to you/.test(sd.yours) && /Your pocket/.test(sd.yours), 'a maker sees both sides and the switch');
+    r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);

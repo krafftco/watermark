@@ -189,10 +189,65 @@
   function paintGon() { if (gon) gon.checked = !!guideOn; }
   paintGon();
   if (gon) gon.addEventListener('change', function () { guideOn = gon.checked; try { localStorage.setItem('wm_stroll_guide', guideOn ? '1' : '0'); } catch (e) {} if (guideOn && items[cur]) guide(items[cur], true); else stopGuide(); say(guideOn ? 'The guide will read each one.' : 'Guide off.'); });
-  // A swipe sideways on the picture opens the maker's own stroll (left), or returns to everything (right).
-  var sx0 = null, sy0 = null;
-  scroller.addEventListener('touchstart', function (e) { if (e.target.closest('button, a')) { sx0 = null; return; } sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; }, { passive: true });
-  scroller.addEventListener('touchend', function (e) { if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0, dy = e.changedTouches[0].clientY - sy0; sx0 = null; if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.7) return; var w = items[cur]; if (!w) return; if (dx < 0 && !maker) location.href = '/stroll?maker=' + encodeURIComponent(w.makerSlug) + '&at=' + encodeURIComponent(w.slug); else if (dx > 0 && maker) location.href = '/stroll?at=' + encodeURIComponent(w.slug); }, { passive: true });
+  // The doors beside the stroll (Will, 19 Oct): a swipe left opens the Keys (the bench under this work, the balcony,
+  // your keys; then your gallery and the collection); a swipe right opens Yours (your wallet, as a collector or a maker,
+  // with a switch). The door follows the finger and snaps; a swipe back, the shade, or Esc closes it. Fetched once a
+  // work (/stroll/side/:slug), for whoever is signed in. Replaces the old sideways swipe into the maker's stroll, which
+  // looked like nothing had happened (the same picture, a chip).
+  var sideL = root.querySelector('[data-st-side="yours"]'), sideR = root.querySelector('[data-st-side="keys"]'), shade = root.querySelector('[data-st-shade]');
+  var sideOpen = null, sideCache = {}, sideFor = null, sideAs = 'collector';
+  try { sideAs = localStorage.getItem('wm_side_as') || 'collector'; } catch (e) {}
+  function sideW(el) { return el ? el.getBoundingClientRect().width : 0; }
+  function sideSet(el, x, anim) { if (!el) return; el.style.transition = anim ? 'transform .42s cubic-bezier(.16,1,.3,1)' : 'none'; el.style.transform = 'translateX(' + x + 'px)'; }
+  function paintAs() { root.querySelectorAll('[data-sd-as]').forEach(function (p) { p.hidden = p.getAttribute('data-sd-as') !== sideAs; }); root.querySelectorAll('[data-sd-switch]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-sd-switch') === sideAs ? 'true' : 'false'); }); }
+  function sideFill(slug) {
+    if (sideFor === slug) return; sideFor = slug;
+    var go = function (d) { sideL.querySelector('[data-sd-body]').innerHTML = d.yours || ''; sideR.querySelector('[data-sd-body]').innerHTML = d.keys || ''; paintAs(); };
+    if (sideCache[slug]) return go(sideCache[slug]);
+    fetch('/stroll/side/' + encodeURIComponent(slug), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { sideCache[slug] = d; if (sideFor === slug) go(d); }).catch(function () {});
+  }
+  function sideShow(which, anim) {
+    var el = which === 'keys' ? sideR : sideL; if (!el) return;
+    sideOpen = which; root.classList.add('st-side-on'); shade.hidden = false; el.classList.add('on');
+    sideSet(el, 0, anim !== false); clearTimeout(stillT); root.classList.add('st-still');
+  }
+  function sideHide(anim) {
+    if (!sideOpen) return; var el = sideOpen === 'keys' ? sideR : sideL; var w = sideW(el);
+    sideSet(el, sideOpen === 'keys' ? w : -w, anim !== false); el.classList.remove('on'); sideOpen = null; root.classList.remove('st-side-on'); shade.hidden = true;
+  }
+  var sx0 = null, sy0 = null, sLock = null, sEl = null, sBase = 0, sX = 0;
+  scroller.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
+    sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
+  }, { passive: true });
+  scroller.addEventListener('touchmove', function (e) {
+    if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
+    if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } }
+    if (sLock !== 'x' || !sEl) return;
+    e.preventDefault();
+    var open = sEl === sideR ? Math.max(0, Math.min(sBase, -dx)) : Math.max(0, Math.min(sBase, dx)); sX = open;
+    sideSet(sEl, sEl === sideR ? sBase - open : open - sBase, false);
+    shade.style.opacity = String(0.6 * open / sBase);
+  }, { passive: false });
+  scroller.addEventListener('touchend', function (e) {
+    if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
+    if (lock !== 'x' || !el) return;
+    shade.style.opacity = '';
+    if (sX > sBase * 0.3 || Math.abs(dx) > 90) sideShow(el === sideR ? 'keys' : 'yours'); else { sideSet(el, el === sideR ? sBase : -sBase, true); el.classList.remove('on'); shade.hidden = !sideOpen; }
+  }, { passive: true });
+  // Closing: the shade, Esc, or a swipe back on the door itself.
+  shade.addEventListener('click', function () { sideHide(); });
+  [sideL, sideR].forEach(function (el) {
+    if (!el) return; var x0 = null;
+    el.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) < 60) return; if ((el === sideR && dx > 0) || (el === sideL && dx < 0)) sideHide(); }, { passive: true });
+    el.addEventListener('click', function (e) { var b = e.target.closest('[data-sd-switch]'); if (!b) return; sideAs = b.getAttribute('data-sd-switch'); try { localStorage.setItem('wm_side_as', sideAs); } catch (x) {} paintAs(); });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sideOpen) { e.preventDefault(); e.stopImmediatePropagation(); sideHide(); } else if (!sideOpen && e.key === 'ArrowRight') { var w = items[cur]; if (w) { sideFill(w.slug); sideShow('keys'); } } else if (!sideOpen && e.key === 'ArrowLeft') { var w2 = items[cur]; if (w2) { sideFill(w2.slug); sideShow('yours'); } } }, true);
+  root.addEventListener('click', function (e) { var k = e.target.closest('[data-st-doors]'); if (!k) return; var w = items[cur]; if (w) sideFill(w.slug); sideShow(k.getAttribute('data-st-doors')); });
+  // A fresh work closes an open door and drops the old answer.
+  var sideWatch = setInterval(function () { if (sideOpen) return; var w = items[cur]; if (w && sideFor && sideFor !== w.slug) sideFor = null; }, 800);
   // Staying is what pays (Will, 18 Oct: a feed pays you for moving on; Watermark pays you for staying).
   // Hold still and the plate and the acts fall away, leaving only the picture; stay longer and one line of the
   // guide rises. Racing on earns nothing; once, after a fast run, the next photograph holds and asks you to stay.
