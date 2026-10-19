@@ -3117,3 +3117,13 @@ html.fd-on{overflow:hidden}
 /* The first collector (19 Oct). */
 .fc-first{display:block;font:italic 15px/1.4 var(--read);color:#8a6a1f}.fc-tag-first{color:#8a6a1f;font-weight:600}
 .fdr-first{margin:18px 0 30px;padding:18px 20px;border:1px solid var(--ln);background:var(--soft)}.fdr-who{font:18px/1.5 var(--read);margin:4px 0 14px}.fdr-note,.fdr-find{display:grid;gap:8px;margin:10px 0 14px;max-width:560px}.fdr-note label,.fdr-find label{display:grid;gap:6px;font-size:13px}.fdr-note input,.fdr-find input{font:16px var(--read);padding:8px 10px;border:1px solid var(--ln);background:#fff}.fdr-found{list-style:none;padding:0;margin:8px 0 14px}.fdr-found li{padding:8px 0;border-top:1px solid var(--ln);font-size:14px}.fdr-found .link{margin-left:10px;background:none;border:0;text-decoration:underline;cursor:pointer;font:inherit;color:inherit}.fdr-one td{font-weight:600;color:#8a6a1f}
+/* For museums (19 Oct), and the IIIF desk. */
+.mu{max-width:1040px;margin:0 auto;padding:40px 16px 60px}.mu-h h1{font:400 clamp(40px,6vw,64px)/1.05 var(--disp);margin:6px 0 14px}.mu-h .lede{max-width:760px}
+.mu-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 40px;margin:36px 0}.mu-grid h2{font:400 26px/1.15 var(--disp);margin:4px 0 10px;text-transform:none;letter-spacing:0}.mu-grid p{font:16px/1.6 var(--read);color:#2f2d29;margin:0}.mu-grid code{font-size:.85em}
+.mu-ask{margin:30px 0 0;padding:26px 0 0;border-top:1px solid var(--ln)}.mu-ask h2{font:400 30px/1.1 var(--disp);margin:0 0 10px;text-transform:none;letter-spacing:0}.mu-ask p{font:17px/1.6 var(--read)}.mu-ask .buy-btn{display:inline-block;margin:10px 14px 0 0}.mu-alt{margin-right:14px}
+@media(max-width:760px){.mu-grid{grid-template-columns:1fr}}
+.iif-f{display:grid;gap:10px;max-width:640px;margin:10px 0 24px}.iif-f label{display:grid;gap:5px;font-size:13px}.iif-f input,.iif-f select{font:15px var(--read);padding:8px 10px;border:1px solid var(--ln);background:#fff}.iif-ck{display:flex!important;gap:8px;align-items:center}.iif-f .buy-btn{justify-self:start}.iif-list{list-style:none;padding:0;margin:14px 0}.iif-list li{padding:6px 0;border-top:1px solid var(--ln);font-size:14px}
+
+/* Hat vs Bravo, said once, plainly (Will, 19 Oct: people keep asking). */
+.ap-why{font:13px/1.5 var(--read);color:var(--mu);margin:6px 0 0}.ap-why b{font-weight:600;color:var(--ink)}.ap-why i{font-style:italic}
+.vr-why{font:12.5px/1.5 var(--read);color:#8d8677;margin:8px 0 0}.vr-why i{font-style:italic}

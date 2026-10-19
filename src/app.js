@@ -543,6 +543,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   app.get('/about', (req, res) => res.send(V.about()));
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
+  require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger }); // museums: a collection in from a IIIF manifest; the Image API out; /museums
   require('./legal').mountLegal(app, { db, V, C, ledger, buyerOf: req => app.locals.buyerOf(req), isStudio }); // /terms, /privacy, /legal/*: the house's agreements
 
   // What the visitor already holds of a work: one row per active license, with its use and any open offer.

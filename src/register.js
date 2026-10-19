@@ -30,6 +30,7 @@ function mountRegister(app, { db, V, ledger }) {
     const k = { kind: 'life' };
     switch (t) {
       case 'work.registered': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} entered the archive${d.accession ? `, ${esc(d.accession)}` : ''}.` };
+      case 'collection.imported': { const mk = d.maker && db.prepare('SELECT name, handle FROM makers WHERE handle=?').get(d.maker); return { ...k, kind: 'birth', text: `${mk ? `<a href="/m/${esc(mk.handle)}">${esc(mk.name)}</a>` : 'An institution'} brought ${d.n} work${d.n === 1 ? '' : 's'} into the house from its own collection.` }; }
       case 'work.published': return { ...k, kind: 'birth', work: w, text: `${T(w)}${by(w)} was shown for the first time.` };
       case 'work.bravo': return { ...k, kind: 'applause', work: w, text: `Someone called Bravo! for ${T(w)}.` };
       case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };

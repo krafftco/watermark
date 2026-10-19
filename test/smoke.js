@@ -28,7 +28,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   stripeClient.subscriptions.update = async (id, o) => ({ id, ...o }); stripeClient.subscriptions.retrieve = async id => ({ id, items: { data: [{ id: 'si_1' }] } });
   stripeClient.webhookEndpoints.list = async () => ({ data: [{ url: 'http://localhost/stripe/webhook', enabled_events: ['checkout.session.completed', 'payment_intent.succeeded'] }] });
   stripeClient.refunds.create = async o => { refunds.push(o); return { id: 're_1', ...o }; };
-  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true });
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 's', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true, fetchImpl: (...a) => (appRef.locals.__fetch ? appRef.locals.__fetch(...a) : fetch(...a)) }); const appRef = app;
   const server = app.listen(0); const port = server.address().port;
   const { registerWork, db } = app.locals;
   // A master-sized file (25 MP), so every use is sold instantly; a web-sized one is tested below.
@@ -854,6 +854,30 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/founders/first', { cookie: ck, body: { id: '' } }); assert.ok(/clock/.test(decodeURIComponent(r.headers.location)), 'un-named'); assert.ok(!app.locals.founders.firstId());
   }
   console.log('ok: the first collector');
+  // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
+  { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
+    const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();
+    r = await req(port, 'GET', `/iiif/${held.slug}/info.json`); const info = JSON.parse(r.body); assert.ok(info.type === 'ImageService3' && info.profile === 'level0' && info.sizes.length, 'the Image API describes a held work');
+    r = await req(port, 'GET', `/iiif/${held.slug}/full/max/0/default.jpg`); assert.ok(r.status === 302 && /\/img\/.*\/large/.test(r.headers.location), 'and serves max');
+    r = await req(port, 'GET', `/iiif/${held.slug}/full/400,/0/default.jpg`); assert.ok(/\/thumb/.test(r.headers.location), 'a small size from the thumb');
+    r = await req(port, 'GET', `/iiif/${held.slug}/square/max/0/default.jpg`); assert.equal(r.status, 400, 'level 0 only');
+    // A manifest of two canvases, served by the test's own fetch: the pictures are fresh renders so the fingerprints are new.
+    const sharp = require('sharp'); const pics = [await sharp({ create: { width: 900, height: 600, channels: 3, background: '#7a5c3a' } }).jpeg().toBuffer(), await sharp({ create: { width: 700, height: 900, channels: 3, background: '#3a5c7a' } }).jpeg().toBuffer()];
+    const man = { '@context': 'http://iiif.io/api/presentation/3/context.json', id: 'https://museum.example/m/1', type: 'Manifest', label: { en: ['The Harbour Pictures'] }, metadata: [{ label: { en: ['Place'] }, value: { en: ['Marseille'] } }],
+      items: [0, 1].map(i => ({ id: `https://museum.example/c/${i}`, type: 'Canvas', label: { en: [`Harbour ${i + 1}`] }, metadata: [{ label: { en: ['Date'] }, value: { en: ['1911'] } }, { label: { en: ['Medium'] }, value: { en: ['Gelatin silver print'] } }], items: [{ type: 'AnnotationPage', items: [{ type: 'Annotation', body: { type: 'Image', format: 'image/jpeg', id: `https://museum.example/i/${i}.jpg`, service: [{ id: `https://museum.example/iiif/${i}`, type: 'ImageService3', profile: 'level1' }] } }] }] })) };
+    app.locals.__fetch = async (u) => { u = String(u); if (u.includes('/m/1')) return { ok: true, json: async () => man }; const m = u.match(/\/iiif\/(\d)\/full\/max/); if (m) return { ok: true, arrayBuffer: async () => pics[+m[1]] }; return { ok: false, status: 404 }; };
+    const inst = db.prepare("INSERT INTO makers (handle,name,kind) VALUES ('musee','Musée du Port','institution')").run().lastInsertRowid;
+    r = await req(port, 'POST', '/studio/iiif', { cookie: ck, body: { maker: String(inst), url: 'https://museum.example/m/1', open: 'pd' } }); assert.ok(/\/studio\/iiif\/\d+/.test(r.headers.location), 'queued');
+    for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+    const job = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(job.status === 'done' && job.done === 2, 'two canvases brought in: ' + JSON.stringify(job));
+    const got = db.prepare("SELECT * FROM works WHERE maker_id=? ORDER BY id").all(inst); assert.ok(got.length === 2 && got[0].status === 'hidden' && got[0].open === 'pd' && got[0].place === 'Marseille' && /1911/.test(got[0].taken_at) && /Gelatin/.test(got[0].medium) && got[0].title === 'Harbour 1', 'held back, public domain, with its record: ' + JSON.stringify(got[0]));
+    r = await req(port, 'POST', '/studio/iiif', { cookie: ck, body: { maker: String(inst), url: 'https://museum.example/m/1' } });
+    for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+    const again = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(again.done === 0 && again.skipped === 2, 'a second run brings nothing twice: ' + JSON.stringify(again));
+    r = await req(port, 'GET', '/studio/iiif', { cookie: ck }); assert.ok(/The Harbour Pictures/.test(r.body));
+    const P = require('../src/iiif').parseManifest({ sequences: [{ canvases: [{ '@id': 'c1', label: 'One', images: [{ resource: { '@id': 'https://x/i.jpg', service: { '@id': 'https://x/iiif/1', profile: 'http://iiif.io/api/image/2/level1.json' } } }] }] }] }); assert.ok(P.items[0].image === 'https://x/iiif/1/full/full/0/default.jpg', 'v2 manifests too');
+  }
+  console.log('ok: for museums');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
     assert.equal(two.length, 2, 'two collectable photographs for the basket');

@@ -8,7 +8,8 @@
   var items = {}, order = [], seen = [], cur = null, since = Date.now(), loading = false, done = false, chrome = true;
   var toast = root.querySelector('[data-st-toast]'), tt;
   var V = (document.cookie.match(/(?:^|;\s*)wm_v=([^;]+)/) || [])[1] || '';
-  function say(m, ms) { toast.textContent = m; toast.hidden = false; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 400); }, ms || 2200); }
+  var sayHold = 0;
+  function say(m, ms) { if (sayHold > Date.now() && m.indexOf('A hat is') !== 0) { setTimeout(function () { say(m, ms); }, sayHold - Date.now()); return; } toast.textContent = m; toast.hidden = false; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 400); }, ms || 2200); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'share'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
@@ -78,7 +79,10 @@
   addEventListener('pagehide', function () { if (cur) stood(cur, Math.round((Date.now() - since) / 1000)); });
 
   // The acts.
+  // Hat vs Bravo, said once (Will, 19 Oct: people keep asking): the first time either is pressed, one line.
+  function hatOrBravoTold() { try { if (localStorage.getItem('wm_hb_told')) return true; localStorage.setItem('wm_hb_told', '1'); } catch (e) {} sayHold = Date.now() + 5200; say('A hat is a nod: I saw it. Bravo is a shout: it floored me. Hats are free; three bravos a month.', 5200); return false; }
   function hat(w, fly) {
+    hatOrBravoTold();
     var b = w.el.querySelector('[data-st-hat]'), n = w.el.querySelector('[data-st-hat-n]');
     if (fly) { var f = w.el.querySelector('.st-hat-fly'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} }
     if (fly && w.hat && w.hat.mine) return; // a double-tap never takes a hat back
@@ -88,6 +92,7 @@
   }
   // Bravo: the standing ovation, a few a month. Gold flecks from the button, the phone answers, the maker is told.
   function bravo(w, b) {
+    hatOrBravoTold();
     var was = b.getAttribute('aria-pressed') === 'true';
     if (!was) {
       try { navigator.vibrate && navigator.vibrate([14, 50, 14, 50, 40]); } catch (x) {}
