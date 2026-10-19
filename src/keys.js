@@ -6,8 +6,16 @@
 // Friends of the house is dues, not a door. This file: the keys themselves (`keys`), their issue and backfill,
 // the door (/keys), and what the rest of the house asks: `holds(req)`.
 const I = require('./icons');
+const fs = require('fs');
+const path = require('path');
 
 const KINDS = { maker: 'The maker’s key', collector: 'The collector’s key', curator: 'The curator’s key' };
+
+// The marks of the Keys (Will, 19 Oct): the matchbook of the Keys restaurant, Indianapolis, born 1947, vectorised
+// by Will (THE_KEYS/the_keys.ai): the wordmark 'The KEYS Restaurant' and the bunch of keys on their tassel.
+// Family material; free to use. Inlined so they take the page's colour.
+const MARK = {};
+for (const n of ['bunch', 'mark', 'matchbook']) { try { MARK[n] = fs.readFileSync(path.join(__dirname, '..', 'public', 'keys', n + '.svg'), 'utf8').replace('<svg ', `<svg class="kmk kmk-${n}" aria-hidden="true" `); } catch (e) { MARK[n] = ''; } }
 
 function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
   db.exec(`CREATE TABLE IF NOT EXISTS keys (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, maker_id INTEGER, buyer_id INTEGER, no INTEGER NOT NULL,
@@ -73,9 +81,12 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
     const counts = Object.fromEntries(db.prepare('SELECT kind, COUNT(*) n FROM keys GROUP BY kind').all().map(r => [r.kind, r.n]));
     const b = buyerOf(req), m = makerOf(req);
     const room = (kind, title, line, how, href, cta) => `<section class="ky-room ky-${kind}${mine[kind] ? ' held' : ''}"><div class="ky-key">${I.key}</div><p class="k">${esc(title)}</p><h2>${esc(line)}</h2><p>${how}</p>${mine[kind] ? `<p class="ky-no">Yours: No. ${mine[kind].no}. <a href="${href}">${cta} →</a></p>` : `<p class="ky-how">${counts[kind] || 0} given.</p>`}</section>`;
-    res.send(V.layout({ title: 'The Keys · Watermark', path: '/keys', desc: 'The house’s private members’ club. Every maker, collector and curator holds keys.', body: `<section class="ky"><header class="ky-h"><p class="k">The house</p><h1>The Keys.</h1>
+    res.send(V.layout({ title: 'The Keys · Watermark', path: '/keys', desc: 'The house’s private members’ club, since 1947. Every maker, collector and curator holds keys.', body: `<section class="ky">
+<header class="ky-cover"><div class="ky-cover-in"><a class="ky-mark" href="/keys/story" title="The story of the Keys">${MARK.mark}</a><p class="ky-since">Indianapolis, 1947 · Watermark, 2026</p></div><div class="ky-damask" aria-hidden="true"></div></header>
+<div class="ky-h"><p class="k">The house</p><h1>The Keys.</h1>
 <p class="lede">The galleries are silent, as a museum’s are. Above them is the balcony, where the members talk: about what they just saw, what they hold, what they are making. The Keys is the house’s private members’ club. Keys are earned, never bought. ${kinds.length ? `You hold ${kinds.length === 1 ? 'one' : kinds.length}.` : 'Anyone may look in through the window.'}</p>
-<p class="ky-q">Are you a maker, a collector, or a curator?</p></header>
+<p class="ky-comm"><span class="ky-script">Keys Comments</span> The Keys was born in 1947 on North Meridian Street, Indianapolis, a restaurant kept by two sisters; the keys it gave its guests opened the front door. The house carries the name, the keys and the manner on. <a href="/keys/story">The story →</a></p>
+<p class="ky-q">Are you a maker, a collector, or a curator?</p></div>
 <div class="ky-rooms">
 ${room('maker', KINDS.maker, 'You make the work.', 'Given with a studio, by invitation. It opens your archive, kept forever; your page; your prices; the register; the print room; the piano, where new work is shown first; and a night of your own to host.', m ? '/account' : '/makers', m ? 'Your studio' : 'Apply')}
 ${room('collector', KINDS.collector, 'You keep the work.', 'Given with the first piece you collect. It opens your gallery and your walls, the benches under every work, the balcony, and the dinner. The first hundred collectors are founders, for good.', b ? '/yours' : '/collection', 'Your gallery')}
@@ -90,7 +101,44 @@ ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who
 <li><b>The dinner.</b> Once a month, twelve keyholders at one table, in a city. Shot by Studios.</li></ul>
 <p class="ky-foot"><a href="/balcony">The balcony</a> opens in the evening; the benches are under every work and wall. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section></section>` }));
   });
-  app.locals.keys = { issue, holds, any, ofMaker, ofBuyer, tag, tags, KINDS, backfill };
+
+  // The story (Will, 19 Oct: "my great-grandmother started this restaurant, the Keys; we need to tell that story",
+  // and the story of the name). From the Keys' own 1968 menu (Keys Comments, signed Mary Helen Krafft, Mrs. Wm. R.)
+  // and Will. Every word a draft for Will; the blanks in the name's story are his to fill.
+  app.get('/keys/story', (req, res) => {
+    const menu = (n, cap) => `<figure class="ks-menu"><a href="/static/keys/menu-${n}.jpg"><img src="/static/keys/menu-${n}.jpg" alt="${esc(cap)}" loading="lazy"></a><figcaption>${esc(cap)}</figcaption></figure>`;
+    res.send(V.layout({ title: 'The story of the Keys · Watermark', path: '/keys/story', desc: 'The Keys was born in 1947 on North Meridian Street, Indianapolis. The house carries the name, the keys and the manner on.', body: `<article class="ks">
+<header class="ks-cover"><div class="ks-cover-in">${MARK.matchbook}</div><div class="ky-damask" aria-hidden="true"></div></header>
+<div class="ks-body">
+<p class="k">The house · <a href="/keys">The Keys</a></p>
+<h1>Born in 1947.</h1>
+<p class="lede">A restaurant on North Meridian Street, Indianapolis, kept by two sisters. The keys it gave its guests opened the front door. Seventy-nine years on, the house gives keys again.</p>
+
+<h2 class="ky-script">The restaurant</h2>
+<p>The Keys opened in 1947 at 1820 North Meridian Street, in a mansion built around 1890, one of the supper clubs that made North Meridian the street to dine on. Two sisters began it; one of them, Mary Helen Krafft, kept it as proprietress for the decades that followed. Her portrait, painted by the Swiss artist Hans Limbach in 1947, hung on the right wall of the foyer; the portrait of her husband, William R. Krafft, hung on the left. Over the bar was a photograph of the Indiana State Capitol taken in 1937, and through the lounge and the rooms hung paintings by European and Indiana artists.</p>
+<p>The original keys issued to guests were used to open the front door. Over the years, by the restaurant’s own count, many thousands of them went home with guests from France, England, Holland, Belgium, Saudi Arabia, Colombia, Brazil, South Africa, Italy, Germany. The bar lounge kept the pictures of the famous who came: Clare Boothe Luce, Helen Hayes, Arnold Palmer, Alan Shepard, Walter Cronkite, Barbara Stanwyck, Liberace, Gene Autry, Victor Borge, Arthur Godfrey, and diplomats of many nations.</p>
+<p>The private rooms were the Champagne Room, the Arthur Godfrey Room and the Keyhole Room, furnished with antiques, “for persons wishing elegant privacy in entertaining.” The beef and the pork were the Keys’ own: Blue Ribbon steers and swine shown each year at the State Fair and raised on the family’s Fulton County farm. The menu won nine Holiday Magazine awards for dining distinction and carried the house’s one plea: <em>“The essence of culinary art is time. We ask your kind indulgence.”</em></p>
+<p>Each menu closed with a column headed <span class="ky-script">Keys Comments</span>, signed <span class="ks-sig">Mary Helen Krafft</span> (Mrs. Wm. R.): “It is my extreme pleasure to welcome you among our honored guests.”</p>
+
+<div class="ks-menus">${menu(1, 'The menu’s cover: red damask, the keys in gold. 1968.')}${menu(4, 'The back page: the rooms, Keys Comments, and the front door. 1968.')}${menu(3, 'From the Roaster and Broiler; From the Sea and Stream; From Our Indiana Farm.')}${menu(2, 'Fine Wines; Appetizers; the Keys’ Caesar, tossed at the table.')}</div>
+
+<h2 class="ky-script">The name</h2>
+<p>Krafft is the family name on the restaurant’s door: Mary Helen Krafft’s, and William R. Krafft’s, whose portrait faced hers across the foyer. The Krafft men sold automobiles in Indianapolis; the restaurant and the dealership were the same family, the same street life, the same era of the city. <span class="ks-blank">[Will: the dealership’s name, the make, the years, and Ed Krafft’s place in the line, from the pictures and obituaries. The family tree runs from them to you.]</span></p>
+<p>Krafft, the company, takes the name forward: Design, Studios and Ventures, of which Watermark is one. The Keys at Watermark is the family’s restaurant brought to the 21st century: a clubhouse for the people who make, keep and choose the work, with the same rules of hospitality. You are welcomed by name. The talk is at the table, not on the wall. What is said in the room stays with the people who were there. And the keys are given, never sold.</p>
+
+<h2 class="ky-script">What carries over</h2>
+<ul class="ks-list">
+<li><b>The keys.</b> A guest of the restaurant left with a key to the front door. A maker, a collector or a curator of the house holds a numbered key: the maker’s, the collector’s, the curator’s.</li>
+<li><b>The rooms.</b> The benches under every work are the bar lounge, where the pictures of who came hang. The balcony is the Champagne Room, open in the evening, with a host. The dinner is the Keyhole Room: twelve at one table, in a city, once a month.</li>
+<li><b>The manner.</b> Signed, a sentence at least; the house’s regard the only rating; discretion. “The essence of culinary art is time.” So is the essence of looking.</li>
+<li><b>The look.</b> Red damask, the keys in gold, the script. The matchbook said <i>close cover before striking</i>; the house says <i>look before you speak</i>.</li>
+</ul>
+<p class="ks-draft">A draft, from the Keys’ 1968 menu and family memory, for Will to confirm.</p>
+<p class="ky-foot"><a href="/keys">The Keys</a> · <a href="/balcony">The balcony</a></p>
+</div></article>` }));
+  });
+
+  app.locals.keys = { issue, holds, any, ofMaker, ofBuyer, tag, tags, KINDS, backfill, MARK };
   return app.locals.keys;
 }
 module.exports = { mountKeys, KINDS };

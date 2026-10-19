@@ -3059,3 +3059,31 @@ html.fd-on{overflow:hidden}
 .bc-say{display:flex;gap:10px}.bc-say input{flex:1;background:transparent;border:1px solid #3a3631;color:inherit;padding:12px 14px;font:16px var(--read);outline:0}.bc-say .buy-btn{background:#efeae0;color:#1c1a16;border-color:#efeae0}.bc-note{font:13px/1.5 var(--read);color:#8d8677;margin:10px 0 0}.bc-note a{color:#d9bc7c}
 .bc-word{position:fixed;right:16px;bottom:16px;width:min(360px,calc(100vw - 32px));background:#15130f;border:1px solid #3a3631;padding:16px;z-index:40;display:grid;gap:8px}.bc-word .k{color:#8d8677}.bc-word ol{list-style:none;padding:0;margin:0;max-height:30vh;overflow:auto;font:15px/1.5 var(--read)}.bc-word li{padding:5px 0}.bc-word li b{color:#d9bc7c;margin-right:8px}.bc-word form{display:flex;gap:6px}.bc-word input{flex:1;background:transparent;border:1px solid #3a3631;color:inherit;padding:8px 10px;font:14px var(--read);outline:0}.bc-word button{background:none;border:1px solid #3a3631;color:inherit;padding:8px 10px;cursor:pointer;font-size:11px;letter-spacing:.1em;text-transform:uppercase}.bc-word .link{border:0;text-decoration:underline;padding:0;justify-self:start}
 @media(max-width:760px){.bc{grid-template-columns:1fr;grid-template-areas:"top" "wall" "side" "table"}}
+/* The Keys, after the 1947 restaurant (Will, 19 Oct): red damask, the keys in gold, the script of the menu. */
+:root{--kred:#a90f18;--kgold:#e0a63c;--kcream:#f7efdc}
+.ky-script{font-family:"Snell Roundhand","Apple Chancery","Brush Script MT","Segoe Script","URW Chancery L",cursive;font-weight:400;font-style:normal;letter-spacing:0;text-transform:none}
+.kmk{display:block;width:100%;height:auto}
+.ky-cover,.ks-cover{position:relative;background:var(--kred) url(/static/keys/damask.svg) center/120px 160px;color:var(--kgold);margin:0 -16px 30px;padding:46px 16px 40px;overflow:hidden}
+.ky-cover:before,.ks-cover:before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(255,220,160,.12),rgba(0,0,0,.35) 75%)}
+.ky-cover-in,.ks-cover-in{position:relative;max-width:300px;margin:0 auto;text-align:center}.ks-cover-in{max-width:340px}
+.ky-mark{display:block;color:var(--kgold);filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}.ky-mark:hover{color:#f0c76a}
+.ky-since{font:italic 14px/1.4 var(--read);color:#f2d9a6;margin:16px 0 0;letter-spacing:.04em}
+.ky-damask{position:absolute;top:0;bottom:0;right:0;width:clamp(40px,8vw,110px);background:url(/static/keys/damask.svg) center/120px 160px;box-shadow:inset 1px 0 0 rgba(255,255,255,.18),-10px 0 30px -10px rgba(0,0,0,.45);filter:saturate(1.15) brightness(.92)}
+@media(min-width:1072px){.ky-cover,.ks-cover{margin-left:0;margin-right:0}}
+.ky-comm{font:17px/1.6 var(--read);max-width:620px;margin:18px 0 0;color:#2f2d29}.ky-comm .ky-script{font-size:26px;color:var(--kred);margin-right:10px;line-height:1}.ky-comm a{color:var(--kred)}
+.ky-room .ky-key{color:var(--kgold)}.ky-room.held{border-color:var(--kgold)}.ky-no{color:var(--kgold)}
+.ky-rules h2,.ky-h .k{color:inherit}
+.ks{max-width:1040px;margin:0 auto;padding:0 16px 60px}.ks-body{max-width:720px;margin:0 auto}
+.ks h1{font:400 clamp(40px,6vw,64px)/1.05 var(--disp);margin:6px 0 14px}
+.ks h2.ky-script{font-size:clamp(30px,4vw,40px);color:var(--kred);margin:40px 0 10px;line-height:1.1}
+.ks p{font:18px/1.6 var(--read);color:#2f2d29}.ks p.k{font:600 11px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mu);margin:0 0 10px}.ks p.k a{color:inherit;text-decoration:none}
+.ks-sig{font-family:"Snell Roundhand","Apple Chancery","Brush Script MT","Segoe Script",cursive;font-size:1.25em;color:var(--kred)}
+.ks-blank{display:block;margin:10px 0 0;padding:10px 14px;border:1px dashed #d4b36b;background:#fbf6ea;font-size:15px;color:#6b5a2e}
+.ks-menus{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;margin:26px 0 10px}.ks-menu{margin:0}.ks-menu img{display:block;width:100%;height:auto;box-shadow:0 14px 40px -20px rgba(0,0,0,.6);background:#eee}.ks-menu figcaption{font:italic 14px/1.5 var(--read);margin-top:8px;color:var(--mu)}
+.ks-list{list-style:none;padding:0;margin:0 0 20px}.ks-list li{padding:14px 0;border-top:1px solid var(--ln);font:17px/1.6 var(--read)}.ks-list li b{font-weight:600}
+.ks-draft{font-size:14px!important;color:var(--mu)!important;border-top:1px solid var(--ln);padding-top:14px}
+@media(max-width:760px){.ks-menus{grid-template-columns:1fr 1fr;gap:12px}.ky-cover,.ks-cover{padding:34px 16px 30px}.ky-cover-in,.ks-cover-in{max-width:220px}}
+/* The balcony and the benches wear the Keys' colours lightly: a band of damask, the bunch of keys in gold. */
+.bc{position:relative;border-top:3px solid var(--kred)}.bc .kmk-bunch{width:26px;height:26px;color:var(--kgold);vertical-align:-7px;margin-right:8px;display:inline-block}
+.bc-top .k a{color:var(--kgold);text-decoration:none}
+.bn-door .kmk-bunch{width:22px;height:22px;color:#b8963f}

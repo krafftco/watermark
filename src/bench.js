@@ -89,7 +89,7 @@ ${who.may ? `<form method="post" action="${isW ? `/bench/${esc(s.slug)}` : `/ben
     res.redirect(303, l.kind === 'work' ? `/bench/${encodeURIComponent(s.slug)}` : `/bench/wall/${encodeURIComponent(s.slug)}`);
   });
   // The door on the wall: one quiet line, never the lines themselves.
-  const door = (kind, s) => { const n = count(kind, s.id); return `<a class="bn-door" href="${kind === 'work' ? `/bench/${esc(s.slug)}` : `/bench/wall/${esc(s.slug)}`}">${require('./icons').stand}<span>The bench</span><small>${n ? `${n} ${n === 1 ? 'line' : 'lines'}` : 'Sit a while'}</small></a>`; };
+  const door = (kind, s) => { const n = count(kind, s.id); return `<a class="bn-door" href="${kind === 'work' ? `/bench/${esc(s.slug)}` : `/bench/wall/${esc(s.slug)}`}">${(app.locals.keys && app.locals.keys.MARK && app.locals.keys.MARK.bunch) || require('./icons').stand}<span>The bench</span><small>${n ? `${n} ${n === 1 ? 'line' : 'lines'}` : 'Sit a while'}</small></a>`; };
   app.locals.bench = { door, count, lines, whoAt };
   return app.locals.bench;
 }

@@ -214,6 +214,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const K = app.locals.keys; assert.ok(db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='collector'").get().n >= 1, 'a collector was given a key'); assert.ok(db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='maker'").get().n >= 1, 'a maker was given a key');
     const k1 = db.prepare("SELECT * FROM keys WHERE kind='collector' ORDER BY no LIMIT 1").get(); const again = K.issue('collector', { buyer_id: k1.buyer_id }, 'again'); assert.equal(again.no, k1.no, 'never reissued');
     r = await req(port, 'GET', '/keys'); assert.ok(r.status === 200 && r.body.toString().includes('Are you a maker, a collector, or a curator?'), 'the door');
+    assert.ok(r.body.toString().includes('kmk-mark') && r.body.toString().includes('/keys/story'), 'the 1947 mark on the door');
+    r = await req(port, 'GET', '/keys/story'); assert.ok(r.status === 200 && r.body.toString().includes('Born in 1947') && r.body.toString().includes('Mary Helen Krafft'), 'the story');
+    r = await req(port, 'GET', '/static/keys/menu-4.jpg'); assert.equal(r.status, 200, 'the menu scan');
     r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('The Keys:'), 'the key shows on the gallery');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('key.given'), 'keys are given quietly'); }
   // The bench: anyone reads; a stranger may not speak; a keyholder who has not stood is refused; after a minute before the work they speak; the maker marks it well seen; nothing of it is on the wall.
