@@ -19,6 +19,11 @@ const DELTA = 3;                 // the shift, in 8-bit levels: below what the e
 function rng(seed) { let x = seed.readUInt32LE(0) || 1, y = seed.readUInt32LE(4) || 2, z = seed.readUInt32LE(8) || 3, w = seed.readUInt32LE(12) || 4; return () => { const t = x ^ (x << 11); x = y; y = z; z = w; w = (w ^ (w >>> 19)) ^ (t ^ (t >>> 8)); return (w >>> 0) / 4294967296; }; }
 const seedOf = key => crypto.createHmac('sha256', String(key)).update('watermark-mark-v1').digest();
 const check = p => ((p ^ (p >>> 8) ^ (p >>> 16) ^ (p >>> 24)) & 0xff);
+// Whitening (19 Oct): the reader sees each block against its neighbours, so a payload of mostly one bit (a small
+// id, a rendition) would cancel itself out. The bits are XORed with a key-derived balanced pattern before they are
+// laid down, and again when read; files marked before this are read as before (the check byte tells which).
+const whiteBits = key => { const h = crypto.createHmac('sha256', String(key)).update('watermark-mark-whiten').digest(); const out = []; for (let i = 0; i < BITS; i++) out.push((h[i >> 3] >> (7 - (i & 7))) & 1); return out; };
+const fromBits = bits => { let payload = 0, c = 0; for (let b = 0; b < BITS; b++) { if (b < 32) payload = (payload << 1) | bits[b]; else c = (c << 1) | bits[b]; } payload = payload >>> 0; return { payload, c, ok: check(payload) === c }; };
 const toBits = payload => { const c = check(payload >>> 0); const bits = []; for (let i = 31; i >= 0; i--) bits.push((payload >>> i) & 1); for (let i = 7; i >= 0; i--) bits.push((c >>> i) & 1); return bits; };
 
 // Which blocks carry which bit: a fixed shuffle of the block grid by the key, the same at embed and at read.
@@ -34,13 +39,29 @@ async function embed(input, payload, key, { format = 'jpeg', quality = 92 } = {}
   const { data, info } = await sharp(input).rotate().raw().toBuffer({ resolveWithObject: true });
   const { width: W, height: H, channels: C } = info; const bw = Math.floor(W / 8), bh = Math.floor(H / 8);
   if (bw * bh < BITS * 8) return sharp(input).rotate().toFormat(format, { quality }).toBuffer();  // too small to carry a mark
-  const map = layout(bw, bh, key), bits = toBits(payload);
+  const map = layout(bw, bh, key), wb = whiteBits(key), bits = toBits(payload).map((b, i) => b ^ wb[i]);
   for (let b = 0; b < BITS; b++) { const s = bits[b] ? DELTA : -DELTA; const blocks = map[b];
     for (let k = 0; k < blocks.length; k++) { const bx = blocks[k] % bw, by = Math.floor(blocks[k] / bw);
       for (let y = by * 8; y < by * 8 + 8; y++) { let p = (y * W + bx * 8) * C; for (let x = 0; x < 8; x++, p += C) { for (let c = 0; c < Math.min(3, C); c++) { const v = data[p + c] + s; data[p + c] = v < 0 ? 0 : v > 255 ? 255 : v; } } } } }
   const out = sharp(data, { raw: { width: W, height: H, channels: C } });
   return format === 'png' ? out.png().toBuffer() : format === 'tiff' ? out.tiff({ compression: 'lzw' }).toBuffer() : out.jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
 }
+
+// Mark raw pixels in place (the same layout as embed), for a rendition about to be encoded by the caller.
+function embedRaw(data, { width: W, height: H, channels: C }, payload, key) {
+  const bw = Math.floor(W / 8), bh = Math.floor(H / 8); if (bw * bh < BITS * 8) return false;
+  const map = layout(bw, bh, key), wb = whiteBits(key), bits = toBits(payload).map((b, i) => b ^ wb[i]);
+  for (let b = 0; b < BITS; b++) { const s = bits[b] ? DELTA : -DELTA; const blocks = map[b];
+    for (let k = 0; k < blocks.length; k++) { const bx = blocks[k] % bw, by = Math.floor(blocks[k] / bw);
+      for (let y = by * 8; y < by * 8 + 8; y++) { let p = (y * W + bx * 8) * C; for (let x = 0; x < 8; x++, p += C) { for (let c = 0; c < Math.min(3, C); c++) { const v = data[p + c] + s; data[p + c] = v < 0 ? 0 : v > 255 ? 255 : v; } } } } }
+  return true;
+}
+// Renditions (the screen and large copies the site itself serves) carry the work's id with the top bit set, so a
+// copy scraped from the house's own walls traces to the work and to the house, never mistaken for a delivery.
+const RENDITION = 0x80000000;
+const renditionPayload = workId => (RENDITION | (workId & 0x7fffffff)) >>> 0;
+const isRendition = payload => (payload >>> 0) >= RENDITION;
+const renditionWork = payload => (payload >>> 0) & 0x7fffffff;
 
 // Read: the payload and how surely it was read (the mean agreement of the repeated blocks), or null.
 async function read(input, key) {
@@ -52,11 +73,16 @@ async function read(input, key) {
   for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) { let s = 0; for (let y = by * 8; y < by * 8 + 8; y++) { let p = y * W + bx * 8; for (let x = 0; x < 8; x++, p++) s += data[p]; } m[by * bw + bx] = s / 64; }
   const d = new Float32Array(bw * bh);
   for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) { let s = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const x = bx + dx, y = by + dy; if (x < 0 || y < 0 || x >= bw || y >= bh) continue; s += m[y * bw + x]; n++; } d[by * bw + bx] = m[by * bw + bx] - s / n; }
-  const map = layout(bw, bh, key); let payload = 0, c = 0, strength = 0;
-  for (let b = 0; b < BITS; b++) { let sum = 0; const blocks = map[b]; for (let k = 0; k < blocks.length; k++) sum += d[blocks[k]]; const bit = sum > 0 ? 1 : 0; strength += Math.abs(sum / blocks.length) / DELTA; if (b < 32) payload = (payload << 1) | bit; else c = (c << 1) | bit; }
-  payload = payload >>> 0; const sure = strength / BITS;
-  if (check(payload) !== c) return { payload: null, sure, ok: false };
-  return { payload, sure, ok: sure > 0.25 };
+  // The picture's own residual is taken out before the vote: its mean over every block (a global tilt from the
+  // encoder or the subject), and any one block counts at most a few shifts, so an edge cannot outvote the mark.
+  let gm = 0; for (let i = 0; i < d.length; i++) gm += d[i]; gm /= d.length || 1; const CLIP = 4 * DELTA;
+  const map = layout(bw, bh, key); const raw = []; let strength = 0;
+  for (let b = 0; b < BITS; b++) { let sum = 0; const blocks = map[b]; for (let k = 0; k < blocks.length; k++) { const v = d[blocks[k]] - gm; sum += v > CLIP ? CLIP : v < -CLIP ? -CLIP : v; } raw.push(sum > 0 ? 1 : 0); strength += Math.abs(sum / blocks.length) / DELTA; }
+  const sure = strength / BITS, wb = whiteBits(key);
+  const white = fromBits(raw.map((b, i) => b ^ wb[i])), plain = fromBits(raw);
+  const got = white.ok ? white : plain.ok ? plain : null;
+  if (!got) return { payload: null, sure, ok: false };
+  return { payload: got.payload, sure, ok: sure > 0.25 };
 }
 
 // The open layer: an XMP packet the way IPTC and PLUS write it, so the file says who made it, who holds the rights,
@@ -108,4 +134,4 @@ async function credit(input, { maker, url }) {
   return sharp(input).composite([{ input: svg, gravity: 'south' }]).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
 }
 
-module.exports = { embed, read, xmp, withXmp, readXmp, credit, BITS, DELTA };
+module.exports = { embed, embedRaw, read, xmp, withXmp, readXmp, credit, BITS, DELTA, renditionPayload, isRendition, renditionWork };

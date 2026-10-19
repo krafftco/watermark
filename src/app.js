@@ -108,6 +108,8 @@ function createApp(cfg = {}) {
   // The mark (mark.js): every image that leaves the house carries its maker, its license and the way back, in the open
   // (XMP), sealed (Content Credentials) and within the picture (an invisible mark unique to the delivery). Policy, no switch.
   const MARK = require('./mark'); const MARK_KEY = process.env.MARK_KEY || cfg.markKey || C.secret;
+  // Renditions carry the work's mark too (19 Oct): a copy scraped from the walls traces to the work and the house.
+  images.setMarker({ key: MARK_KEY, payloadFor: slug => { const w = q.work.get(slug); return w ? MARK.renditionPayload(w.id) : null; } });
   // What a file says about itself, in words a person reads in Photos or Finder: the photograph, its maker, how it is
   // held, and the Watermark number that finds its license. The fingerprint stays in the file, out of the caption.
   const TRACK = require('./track');
@@ -142,7 +144,7 @@ function createApp(cfg = {}) {
     const h = crypto.createHash('sha256').update(buf).digest('hex');
     let d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.sha256=?').get(h); let how = 'bytes';
     if (!d) { const x = MARK.readXmp(buf); if (x && x.license) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d JOIN licenses l ON l.id=d.license_id WHERE l.ref=? ORDER BY d.id DESC LIMIT 1').get(x.license); how = 'xmp'; } }
-    if (!d) { try { const r = await MARK.read(buf, MARK_KEY); if (r && r.ok && r.payload) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.id=?').get(r.payload); how = 'mark'; } } catch (e) { /* unreadable */ } }
+    if (!d) { try { const r = await MARK.read(buf, MARK_KEY); if (r && r.ok && r.payload && MARK.isRendition(r.payload)) { const rw = db.prepare('SELECT slug, title FROM works WHERE id=?').get(MARK.renditionWork(r.payload)); if (rw) return { rendition: true, work: rw, how: 'mark' }; } if (r && r.ok && r.payload) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.id=?').get(r.payload); how = 'mark'; } } catch (e) { /* unreadable */ } }
     return d ? { ...d, how } : null; } };
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='dl_extra'").get()) db.exec('ALTER TABLE licenses ADD COLUMN dl_extra INTEGER NOT NULL DEFAULT 0');
   const dlOf = l => { const u = q.useById.get(l.use_id); const limit = (DL[u ? u.key : 'social'] || 5) + (l.dl_extra || 0); const used = db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(l.id).n; return { limit, used, left: Math.max(0, limit - used) }; };
@@ -346,6 +348,7 @@ function createApp(cfg = {}) {
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
   app.use(require('compression')({ threshold: 1024 }));
+  const served = require('./served').mountServed(app, { publicDir: path.join(__dirname, '..', 'public'), cacheDir: cache, express }); // scripts and styles leave stripped (19 Oct)
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
 
@@ -687,7 +690,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const name = (m && m.name) || (b && b.name) || null;
     res.json({ in: true, name, initial: name ? name.trim().charAt(0).toUpperCase() : null, maker: m ? { handle: m.handle, slug: V.makerSlug(m) } : null, collector: b ? { code: b.public ? b.code : null } : null });
   });
-  app.get('/sw.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-cache').set('Service-Worker-Allowed', '/'); res.sendFile(path.join(__dirname, '..', 'public', 'sw.js')); });
+  app.get('/sw.js', async (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-cache').set('Service-Worker-Allowed', '/'); let f = null; try { f = await served.serve('sw.js'); } catch (e) { /* source */ } res.sendFile(f || path.join(__dirname, '..', 'public', 'sw.js')); });
   app.get('/offline', (req, res) => res.send(V.offline()));
   app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
@@ -1791,7 +1794,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         db.prepare(`UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=?, master_at=datetime('now'),
           camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
           .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
-        for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) { const c = path.join(cache, `${w.slug}-${sz}.${f}`); if (fs.existsSync(c)) fs.unlinkSync(c); }
+        for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) for (const c of [path.join(cache, `${w.slug}-${sz}.${f}`), images.fileOf(cache, w.slug, sz, f)]) { if (fs.existsSync(c)) fs.unlinkSync(c); }
         const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
         const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
         if (store.kind === 's3') fs.unlinkSync(dest);

@@ -913,6 +913,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/studio/season/${dn.id}/guests`, { cookie: ck }); assert.ok(/Draw the table/.test(r.body) && /Seat</.test(r.body), 'the desk');
   }
   console.log('ok: the Keyhole Room');
+  // Harder to copy (19 Oct): the screen rendition carries the house's mark and /verify says so; served scripts carry no comments.
+  { r = await req(port, 'GET', `/img/${w.slug}/screen?f=jpg`); assert.equal(r.status, 200);
+    const t = await app.locals.mark.trace(r.body); assert.ok(t && t.rendition && t.work.slug === w.slug, 'a rendition traces to its work');
+    const sharp = require('sharp'); const re = await sharp(r.body).jpeg({ quality: 70 }).toBuffer(); const t2 = await app.locals.mark.trace(re); assert.ok(t2 && t2.rendition, 'and after recompression');
+    r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`); assert.equal(r.status, 200, 'thumbs unmarked, served');
+    r = await req(port, 'GET', '/static/stroll.js'); assert.ok(r.status === 200 && !/\/\/ |\/\*/.test(r.body.toString().slice(0, 4000)) && r.body.length < require('fs').statSync('public/stroll.js').size, 'stroll.js leaves stripped');
+    r = await req(port, 'GET', '/static/style.css'); assert.ok(r.status === 200 && !/\/\*/.test(r.body.toString()), 'style.css leaves without comments');
+    r = await req(port, 'GET', '/sw.js'); assert.ok(r.status === 200 && /self\.addEventListener|addEventListener/.test(r.body.toString()), 'the service worker still works');
+  }
+  console.log('ok: harder to copy');
   // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
   { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
     const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();

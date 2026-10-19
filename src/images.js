@@ -41,15 +41,24 @@ async function inspect(file) {
 // Display copies are cached on disk; sizes are fixed so nobody can ask for the original by size.
 // Each size is kept as JPEG and, when the browser accepts it, WebP (about a third smaller at the same look).
 const FORMATS = { jpg: ['jpg', 'image/jpeg'], webp: ['webp', 'image/webp'] };
+// The mark on renditions (19 Oct: harder to copy the house): when `marker` is set, every screen and large copy
+// carries the invisible mark of mark.js with the work's rendition payload, so a scraped archive traces back.
+let marker = null; // { key, payloadFor(slug) } set by the app
+const setMarker = m => { marker = m; };
+const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}.${fmt}`);
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
   if (!FORMATS[fmt]) fmt = 'jpg';
   fs.mkdirSync(cacheDir, { recursive: true });
-  const out = path.join(cacheDir, `${slug}-${size}.${fmt}`);
+  const out = fileOf(cacheDir, slug, size, fmt);
   if (!fs.existsSync(out)) {
     const tmp = `${out}.${process.pid}.${Date.now()}.tmp`;
-    const base = sharp(original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
+    let base = sharp(original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
+    if (marker && size !== 'thumb') {
+      const payload = marker.payloadFor(slug);
+      if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
+    }
     if (fmt === 'webp') await base.webp({ quality: size === 'thumb' ? 70 : size === 'large' ? 78 : 76, effort: 4 }).toFile(tmp);
     else await base.jpeg({ quality: size === 'thumb' ? 78 : 84, mozjpeg: true }).withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } }).toFile(tmp);
     try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
@@ -62,7 +71,7 @@ function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'
 async function warm(original, cacheDir, slug) {
   for (const size of Object.keys(SIZES)) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
 }
-const warmed = (cacheDir, slug) => Object.keys(SIZES).every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(path.join(cacheDir, `${slug}-${size}.${fmt}`))));
+const warmed = (cacheDir, slug) => Object.keys(SIZES).every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
 
 // A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
 // so a full-resolution master can be matched to the web copy already held.
@@ -74,4 +83,4 @@ async function dhash(file) {
 }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { inspect, derivative, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { setMarker, fileOf, inspect, derivative, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };
