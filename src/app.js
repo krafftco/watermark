@@ -235,7 +235,7 @@ function createApp(cfg = {}) {
       fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(Math.round(cents * pct / 100), g.currency), pct, times, allTimes, month: allTimes > 1 ? V.money(Math.round(month * pct / 100), g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
-      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`,
+      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
     };

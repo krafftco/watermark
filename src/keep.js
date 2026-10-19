@@ -232,4 +232,4 @@ ${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>
   });
   return { sizes };
 }
-module.exports = { mountKeep, sizes };
+module.exports = { mountKeep, sizes, PROOF_CENTS, PROOF_PAPER };

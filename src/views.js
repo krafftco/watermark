@@ -1039,7 +1039,8 @@ function thanks({ lic, w, maker, use }) {
 <p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(maker.name)}. ${use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
 ${done ? `<div class="yours-a">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the full file</a>` : ''}
 <a class="yours-l" href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a><a class="yours-l" href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">License page</a><a class="yours-l" href="/verify?ref=${esc(lic.ref)}">Verify</a></div>
-<p class="note">The file carries its license inside it: maker, collector, reference and term. ${esc(maker.name)} has been paid.</p>` : ''}
+<p class="note">The file carries its license inside it: maker, collector, reference and term. ${esc(maker.name)} has been paid.</p>
+${lic.collector_no ? `<p class="yours-proof"><span class="k">The proof</span> Hold it in your hand: a 5 × 7 print from the house’s print room, on Hahnemühle Photo Rag, your number in pencil, posted. <a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">Ask for the proof →</a></p>` : ''}` : ''}
 </div></section>`
   });
 }

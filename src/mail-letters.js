@@ -55,6 +55,9 @@ function ledgerRows(rows) {
 const para = (t, pad = '18px') => `<tr><td style="padding:${pad} 48px 0" class="wm-pad"><p style="margin:0;font:15px/1.65 ${BODY};color:#3c3933">${t}</p></td></tr>`;
 const close = t => `<tr><td align="center" style="padding:40px 48px 48px" class="wm-pad">${t}</td></tr>`;
 
+// The proof: a 5 × 7 from the house's print room, offered in the letter.
+const proof = c => `<tr><td style="padding:34px 48px 0" class="wm-pad"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3efe6"><tr><td style="padding:22px 26px"><p style="margin:0 0 6px;font:10px/1 ${SANS};letter-spacing:.3em;text-transform:uppercase;color:${MUTED}">The proof</p><p style="margin:0 0 8px;font:italic 19px/1.3 ${BODY};color:${INK}">Hold it in your hand.</p><p style="margin:0;font:14px/1.6 ${BODY};color:#3c3933">A 5 &times; 7 print of <i>${esc(clean(c.title))}</i> from the house&rsquo;s own print room: pigment on Hahnem&uuml;hle Photo Rag, ${c.no ? 'your number' : 'the title'} in pencil beneath, posted to you. ${esc(c.proof.price)}. <a href="${c.proof.url}" style="color:${INK}">Ask for the proof &rarr;</a></p></td></tr></table></td></tr>`;
+
 // The collector's letter.
 function collected(c) {
   const title = clean(c.title), first = String(c.name || '').trim().split(/\s+/)[0];
@@ -68,6 +71,7 @@ function collected(c) {
     mount({ img: c.img, href: c.galleryUrl, title, year: c.year, maker: c.maker, no, of: c.of }),
     button(personal ? 'See it in your gallery' : 'Open your license', personal ? c.galleryUrl : c.certUrl),
     links([c.fileUrl && ['Save the photograph', c.fileUrl], c.printUrl && ['Print it', c.printUrl], ['The certificate', c.certUrl], ['The agreement', c.contractUrl]]),
+    c.proof ? proof(c) : '',
     rule(),
     section('What you hold'),
     rights(c.can, c.cannot),
@@ -92,6 +96,7 @@ function collected(c) {
     personal ? `In your gallery: ${c.galleryUrl}` : `Your license: ${c.certUrl}`,
     c.fileUrl ? `Save the photograph: ${c.fileUrl}` : '',
     c.printUrl ? `Print it (the sizes it holds, how, or the house prints it): ${c.printUrl}` : '',
+    c.proof ? `Hold it in your hand: the proof, a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, your number in pencil, posted, ${c.proof.price}: ${c.proof.url}` : '',
     `The certificate: ${c.certUrl}\nThe agreement: ${c.contractUrl}`,
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
     `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
