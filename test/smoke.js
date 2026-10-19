@@ -230,6 +230,27 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('far wall is the whole picture') && r.body.toString().includes('bn-door'), 'nothing of it on the wall; only the door');
     assert.ok(db.prepare("SELECT COUNT(*) n FROM notices WHERE kind='bench'").get().n >= 1, 'the maker is told');
     db.prepare("DELETE FROM stood WHERE viewer='benchv'").run(); }
+  // The balcony: closed outside the hours; the house opens it; a keyholder speaks and another keyholder's stream hears it; the window hears presence, never lines; the host keeps one with the speaker's yes; closing leaves one sentence and nothing said.
+  { process.env.BALCONY_ALWAYS = '0';
+    r = await req(port, 'GET', '/balcony'); assert.ok(r.status === 200 && /Opens at 9 in the evening|Open tonight/.test(r.body.toString()), 'the balcony page');
+    const B = app.locals.balcony; B.close(); r = await req(port, 'POST', '/balcony/say', { cookie: bck, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ body: 'hello' }) }); assert.equal(r.status, 409, 'closed: no one speaks');
+    r = await req(port, 'POST', '/studio/balcony/open', { cookie: ck }); assert.ok(B.room().open, 'the house opens it');
+    const listen = (cookie) => new Promise(resolve => { const h = { accept: 'text/event-stream' }; if (cookie) h.cookie = cookie; const rq = http.request({ port, path: '/balcony/stream', headers: h }, s => { let buf = ''; const got = []; s.on('data', d => { buf += d; let m; while ((m = buf.match(/event: (\w+)\ndata: ([^\n]*)\n\n/))) { got.push({ ev: m[1], data: JSON.parse(m[2]) }); buf = buf.slice(m.index + m[0].length); } }); resolve({ got, close: () => rq.destroy() }); }); rq.end(); });
+    const a = await listen(bck), win = await listen(null); await new Promise(x => setTimeout(x, 150));
+    r = await req(port, 'POST', '/balcony/say', { cookie: bck, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ body: 'The light on the far wall, again, tonight.' }) }); assert.equal(r.status, 200, 'a keyholder speaks');
+    await new Promise(x => setTimeout(x, 150));
+    assert.ok(a.got.some(g => g.ev === 'line' && /far wall, again/.test(g.data.body)), 'those inside hear it');
+    assert.ok(!win.got.some(g => g.ev === 'line') && win.got.some(g => g.ev === 'state' || g.ev === 'presence'), 'the window hears presence, never lines');
+    // the house (as host by right) hangs the wall and asks to keep the line; the speaker says yes; it lands on the bench
+    r = await req(port, 'POST', '/balcony/wall', { cookie: ck, body: { slug: w.slug } }); assert.ok(B.room().wall && B.room().wall.slug === w.slug, 'the wall of the night');
+    const lid = B.room().lines[0].id; r = await req(port, 'POST', `/balcony/keep/${lid}`, { cookie: ck, headers: { 'content-type': 'application/json' }, body: '{}' }); assert.equal(r.status, 200, 'the host asks');
+    r = await req(port, 'POST', `/balcony/keep/${lid}/yes`, { cookie: bck, headers: { 'content-type': 'application/json' }, body: '{}' }); assert.ok(JSON.parse(r.body).ok, 'the speaker says yes');
+    assert.ok(db.prepare("SELECT 1 FROM bench_lines WHERE body LIKE '%far wall, again%'").get(), 'kept on the bench in their name');
+    a.close(); win.close(); await new Promise(x => setTimeout(x, 100));
+    B.close(); assert.equal(B.room().lines.length, 0, 'closing forgets everything said');
+    const night = db.prepare('SELECT * FROM balcony_nights ORDER BY id DESC LIMIT 1').get(); assert.ok(night && night.closed_at && night.came >= 1 && night.wall === w.slug, 'one sentence per night');
+    r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('The balcony was open') && !r.body.toString().includes('far wall, again'), 'the register tells the night, never the talk');
+    delete process.env.BALCONY_ALWAYS; }
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');

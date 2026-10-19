@@ -88,7 +88,7 @@ ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who
 <li><b>Hours.</b> The balcony opens in the evening and closes at midnight; the night is shelved for those who were there.</li>
 <li><b>Discretion.</b> No one’s looking is shown to anyone. What is said on the balcony stays with the members of that night.</li>
 <li><b>The dinner.</b> Once a month, twelve keyholders at one table, in a city. Shot by Studios.</li></ul>
-<p class="ky-foot">The balcony and the benches open with the first season. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section></section>` }));
+<p class="ky-foot"><a href="/balcony">The balcony</a> opens in the evening; the benches are under every work and wall. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section></section>` }));
   });
   app.locals.keys = { issue, holds, any, ofMaker, ofBuyer, tag, tags, KINDS, backfill };
   return app.locals.keys;

@@ -1720,6 +1720,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
   require('./keys').mountKeys(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // The Keys: the club; every maker, collector and curator holds keys
   require('./bench').mountBench(app, { db, V, C, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, mk, notify: app.locals.notify }); // the benches under works and walls: the talk, one door from the wall
+  app.locals.noTimers = !!cfg.noTimers;
+  require('./balcony').mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // the balcony: the Keys' room, open at hours; nothing said is kept
   if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });

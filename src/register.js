@@ -72,6 +72,7 @@ function mountRegister(app, { db, V, ledger }) {
       case 'representation.began': return { ...k, kind: 'life', text: `${esc(d.gallery || 'A gallery')} now represents <a href="/m/${esc(e.ref)}">a maker of the house</a>.` };
       case 'show.opening': return { ...k, kind: 'life', text: `A show opens ${esc(d.opens || '')}: <a href="/hang/${esc(d.slug || '')}">${esc(d.title || 'a show')}</a>${d.venue ? ', at ' + esc(d.venue) : ''}.` };
       case 'hang.opened': return { ...k, kind: 'life', text: `A curator hung a wall: <a href="/hang/${esc(d.slug || '')}">${esc(d.title || 'a hang')}</a>.` };
+      case 'balcony.night': { const bw = d.wall ? workBySlug.get(d.wall) : null; return { ...k, kind: 'applause', work: bw || null, text: `The balcony was open${d.host ? `, ${esc(d.host)} hosting` : ''}${bw ? `; on the wall, ${T(bw)}` : ''}; ${d.came === 1 ? 'one came' : `${d.came || 0} came`}. Nothing said was kept.` }; }
       case 'dispute.upheld': return { ...k, kind: 'life', text: 'A claim about a photograph was upheld by the house; it came down, and its holders were told.' };
       case 'keeping.moved': return { ...k, text: 'A maker moved their archive to a larger shelf.' };
       case 'maker.joined': { const m = makerByHandle.get(e.subject); return { ...k, kind: 'birth', text: `${m ? esc(m.name) : 'A maker'} opened a studio on Watermark.` }; }
