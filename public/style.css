@@ -3089,7 +3089,7 @@ html.fd-on{overflow:hidden}
 .bn-door .kmk-bunch{width:22px;height:22px;color:#b8963f}
 /* The doors beside the stroll (19 Oct): Yours on the left, the Keys on the right; a swipe or the edge tab opens them. */
 .st-scroll{touch-action:pan-y}
-.st-tab{position:absolute;top:50%;z-index:6;transform:translateY(-50%);background:rgba(11,10,9,.45);border:0;color:rgba(242,239,233,.55);padding:10px 6px;display:grid;justify-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .4s,color .3s;backdrop-filter:blur(6px)}.st-tab svg{width:18px;height:18px}.st-tab span{font:600 8px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.st-tab{position:absolute;top:calc(env(safe-area-inset-top) + 112px);z-index:6;background:rgba(11,10,9,.45);border:0;color:rgba(242,239,233,.55);padding:10px 6px;display:grid;justify-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .4s,color .3s;backdrop-filter:blur(6px)}.st-tab svg{width:18px;height:18px}.st-tab span{font:600 8px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
 .st-tab-l{left:0;border-radius:0 8px 8px 0}.st-tab-r{right:0;border-radius:8px 0 0 8px;color:rgba(224,166,60,.7)}
 .st-still .st-tab,.st-rest .st-tab,.st-side-on .st-tab{opacity:0;pointer-events:none}
 .st-shade{position:absolute;inset:0;z-index:30;background:#000;opacity:.6;transition:opacity .4s}
@@ -3108,3 +3108,9 @@ html.fd-on{overflow:hidden}
 .sd-sw{display:inline-flex;border:1px solid #3a3631;border-radius:999px;padding:3px;margin:10px 0 0}.sdr .sd-sw button{background:none;border:0;color:#cfc8b8;padding:7px 16px;border-radius:999px;font:600 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}.sdr .sd-sw button[aria-selected="true"]{background:#efeae0;color:#1c1a16}
 .sdr .buy-btn{display:inline-block;margin-top:8px}
 @media(hover:hover) and (pointer:fine){.st-tab{opacity:.001}main.st:hover .st-tab{opacity:1}}
+/* Stroll your gallery (Will, 19 Oct): the door at the top of Yours, and in the Yours drawer of the stroll. */
+.yc-stroll{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;margin:18px 0 6px;padding:14px 18px;background:#0e0d0b;color:#efeae0;text-decoration:none;border:1px solid #2a2724}
+.yc-sfan{display:flex;height:64px}.yc-sfan img{width:64px;height:64px;object-fit:cover;border:2px solid #0e0d0b;margin-left:-22px;box-shadow:0 6px 16px -8px rgba(0,0,0,.8)}.yc-sfan img:first-child{margin-left:0}
+.yc-st{display:grid;gap:3px}.yc-st .k{color:#d9bc7c;margin:0}.yc-st .k svg{width:34px;height:10px}.yc-st b{font:400 22px/1.15 var(--disp)}.yc-st small{font:14px/1.45 var(--read);color:#b9b29f}
+.yc-stroll:hover{border-color:#d9bc7c}
+.sd-stroll{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;text-decoration:none;color:inherit;padding:12px 14px;margin:0 0 10px;border:1px solid #d9bc7c;border-radius:6px;background:#1b1813}.sd-stroll svg{width:34px;height:10px;color:#d9bc7c}.sd-stroll b{display:block;font:400 18px/1.15 var(--disp)}.sd-stroll i{font:italic 12.5px/1.4 var(--read);color:#b9b29f}

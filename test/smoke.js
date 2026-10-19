@@ -837,6 +837,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/stroll/side/' + sd1); let sd = JSON.parse(r.body); assert.ok(/The bench/.test(sd.keys) && /The balcony/.test(sd.keys) && /kmk-mark/.test(sd.keys) && /The collection/.test(sd.keys) && /Sign in/.test(sd.yours), 'a stranger sees the Keys and a sign-in');
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); sd = JSON.parse(r.body); assert.ok(/Your pocket/.test(sd.yours) && /Your gallery/.test(sd.yours) && !/data-sd-switch/.test(sd.yours), 'a collector sees the wallet, no switch');
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: mck }); sd = JSON.parse(r.body); assert.ok(/data-sd-switch="maker"/.test(sd.yours) && /Owed to you/.test(sd.yours) && /Your pocket/.test(sd.yours), 'a maker sees both sides and the switch');
+    r = await req(port, 'GET', '/stroll?in=mine', { cookie: sck }); assert.ok(r.status === 200 && /Your gallery/.test(r.body) && /class="st-i"/.test(r.body), 'a collector strolls their own gallery');
+    r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); assert.ok(/\/stroll\?in=mine/.test(JSON.parse(r.body).yours), 'the door offers it');
+    r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/yc-stroll/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
     r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.

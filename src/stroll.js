@@ -29,8 +29,22 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
   // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.
   const setOf = key => (key && app.locals.walk ? app.locals.walk.list(String(key).slice(0, 80)) : null);
+  // 'mine' (Will, 19 Oct: flip through your own gallery as beautifully as the archive, and get there fast): the
+  // signed-in person's gallery, in collector order; private to them. A maker's own held work is 'studio'.
+  function mine(req, key) {
+    if (key === 'mine') {
+      const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; if (!b) return null;
+      const v = setOf('gallery:' + b.code) || { works: [] };
+      // Rembrandt's room first: a maker's own five-star work hangs in their gallery, then what they collect.
+      let hand = []; try { hand = app.locals.ownHand ? app.locals.ownHand(b, req) : []; } catch (e) { hand = []; }
+      const seen = new Set(); const works = [...hand, ...v.works].filter(w => !seen.has(w.slug) && seen.add(w.slug));
+      return { label: 'Your gallery', href: '/yours', works };
+    }
+    if (key === 'studio') { const m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null; if (!m) return null; const v = setOf('maker:' + m.handle); return v ? Object.assign({}, v, { label: 'Your work', href: '/account' }) : null; }
+    return setOf(key);
+  }
   function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
-    const v = setOf(key); if (!v || !v.works.length) return null;
+    const v = mine(req, key); if (!v || !v.works.length) return null;
     const slugs = v.works.map(w => w.slug), not = new Set(seen);
     let i = slugs.indexOf(at || seen[seen.length - 1]); if (i < 0) i = -1;
     const out = [];
@@ -84,7 +98,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
       const basket = String((req.cookies && req.cookies.wm_bk) || '').split(',').filter(Boolean).length;
       const collector = `<div class="sd-pane" data-sd-as="collector">
 <section class="sd-wallet"><p class="k">Your pocket</p><p class="sd-sum">${money(bal)}</p><p class="sd-m">${cash >= 100 ? `${money(cash)} earned, yours to cash out.` : 'One tap collects from it.'}</p><div class="sd-row"><a href="/yours?tab=settings#pocket">Top up</a>${cash >= 100 ? '<a href="/yours?tab=settings#pocket">Cash out</a>' : ''}</div></section>
-<section class="sd-sec"><p class="k">Your gallery · ${nHeld}</p>${pieces.length ? `<div class="sd-th">${pieces.map(p => `<a href="/yours" title="${esc(p.title)}"><img src="/img/${esc(p.slug)}/thumb" alt=""></a>`).join('')}</div>` : '<p class="sd-m">Nothing yet. Collect what stops you.</p>'}<a class="sd-go" href="/yours">Open your gallery →</a></section>
+<section class="sd-sec"><p class="k">Your gallery · ${nHeld}</p>${pieces.length ? `<a class="sd-stroll" href="/stroll?in=mine${w ? '' : ''}">${I.wave || ''}<b>Stroll your gallery</b><i>Your pieces, one at a time, edge to edge</i></a><div class="sd-th">${pieces.map(p => `<a href="/yours" title="${esc(p.title)}"><img src="/img/${esc(p.slug)}/thumb" alt=""></a>`).join('')}</div>` : '<p class="sd-m">Nothing yet. Collect what stops you.</p>'}<a class="sd-go" href="/yours">Open your gallery →</a></section>
 <div class="sd-doors">${door('/yours?tab=walls', 'Yours', walls ? `${walls} wall${walls === 1 ? '' : 's'}` : 'Your walls', 'Hang what you love, show it')}${basket ? door('/basket', 'Yours', `Basket · ${basket}`, 'Collect them all at once') : ''}${door('/yours?tab=papers', 'Yours', 'Your papers', 'Licenses, certificates, the register')}${door('/collection', 'The museum', 'The collection', 'Every work, the wings, the masterworks')}</div></div>`;
       let maker = '';
       if (m) {

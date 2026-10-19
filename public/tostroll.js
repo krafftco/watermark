@@ -11,8 +11,10 @@
   else if ((m = /^\/(?:g|collector)\/([^/]+)$/.exec(p))) key = 'gallery:' + m[1];
   else if ((m = /^\/(?:g\/[^/]+\/)?hang\/([^/]+)$/.exec(p))) key = 'hang:' + m[1];
   else if ((m = /^\/series\/([^/]+)$/.exec(p))) key = 'series:' + m[1];
+  else if (p === '/yours') key = 'mine'; // your own gallery, in your order (Will, 19 Oct)
   else if (/^\/(stroll|wander|frame|tv|curate|account|studio|trade|basket|yours)/.test(p)) return; // rooms with their own ways
   function slugOf(a) {
+    if (a.getAttribute('data-slug')) return a.getAttribute('data-slug');
     var h = a.getAttribute('href') || '', x = /^\/(?:w|m\/[^/?#]+)\/([^/?#]+)\/?(?:[?#].*)?$/.exec(h);
     return x && !/^(life|claim|thanks|closer|archive\.wmark)$/.test(x[1]) ? x[1] : null;
   }

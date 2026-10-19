@@ -881,6 +881,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return { items, rooms, works: ids.length, makers: new Set(items.map(i => i.handle)).size };
   }
   // Rembrandt's room: a maker's fives hang in their own gallery as the artist's copies, alongside what they collect.
+  app.locals.ownHand = (b, req) => ownHand(b, req);
   const ownHand = (b, req) => { const m = (b && db.prepare('SELECT * FROM makers WHERE buyer_id=? OR (email IS NOT NULL AND email=?) ORDER BY buyer_id=? DESC LIMIT 1').get(b.id, b.email || '', b.id)) || (req && app.locals.accounts.makerOf(req)); if (!m || m.standing === 'held') return []; return db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND stars=5 ORDER BY id DESC").all(m.id).map(w => ({ ...w, maker: m.name, maker_slug: V.makerSlug(m) })); };
   app.get('/yours', (req, res) => {
     let b = buyerOf(req);
