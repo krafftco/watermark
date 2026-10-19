@@ -75,6 +75,28 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
   const tag = (k, { link = true } = {}) => (k ? `<${link ? 'a href="/keys"' : 'span'} class="key-tag key-${esc(k.kind)}" title="${esc(KINDS[k.kind] || 'The Keys')}">${I.key}<span>The Keys · No. ${k.no}</span></${link ? 'a' : 'span'}>` : '');
   const tags = ks => ks.map(k => tag(k)).join('');
 
+  // The rooms of the club (Will, 19 Oct: the Keys is the club; open all day and night, all over the world, so it
+  // needs rooms, each curated, some kept for certain hours; paint the scene, after the Morgan's library; and, for the
+  // day the house holds raw masters of sound and film, a listening room and a screening room). Each room: where it
+  // leads, its hours, whether it is open now; a room not yet built is shown with its door closed, so the house is
+  // honest about what is coming.
+  function rooms() {
+    const bal = app.locals.balcony ? app.locals.balcony.state() : null; const open = !!(bal && bal.open);
+    const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: process.env.BALCONY_TZ || 'America/New_York' }).format(new Date()));
+    return [
+      { key: 'lounge', name: 'The Bar Lounge', line: 'Where the pictures of who came hang. The benches: one under every work and every wall, the talk kept, signed, a sentence at least.', hours: 'Always open', now: true, href: '/bench', cta: 'Find a bench', glyph: 'stand' },
+      { key: 'champagne', name: 'The Champagne Room', line: 'The balcony. A host, a wall for the night, the piano for new work, a word between two people. Nothing said is kept.', hours: `Nine in the evening to midnight, New York time${open ? '' : ` · opens in ${((21 - hour) + 24) % 24 || 24} hour${((21 - hour) + 24) % 24 === 1 ? '' : 's'}`}`, now: open, href: '/balcony', cta: open ? 'Go up' : 'Look through the window', glyph: 'key' },
+      { key: 'library', name: 'The Library', line: 'The shelf of texts, the study beneath every guide, the atelier’s guides to the craft. Read in your own time.', hours: 'Always open', now: true, href: '/library', cta: 'Read', glyph: 'guide' },
+      { key: 'viewing', name: 'The Viewing Room', line: 'The photograph alone on a dark wall, the guide read aloud, the next decoded while you stand. The stroll on a phone; the long gallery in a headset.', hours: 'Always open', now: true, href: '/stroll', cta: 'Wander', glyph: 'wave' },
+      { key: 'print', name: 'The Print Room', line: 'Pigment on cotton rag from the house’s own press. The proof, the sizes your file prints at, and how to hang it at fifty-seven inches.', hours: 'Always open · prints posted within the week', now: true, href: '/print', cta: 'Print your work', glyph: 'page' },
+      { key: 'keyhole', name: 'The Keyhole Room', line: 'The dinner. Twelve keyholders at one table, in a city, once a month, shot by Studios. Elegant privacy in entertaining.', hours: 'By invitation · monthly', now: false, href: '/keys#dinner', cta: 'Hold a place', glyph: 'card' },
+      { key: 'listening', name: 'The Listening Room', line: 'Hi-fi. The raw master of a recording, played as it was made, on the house’s own system; vinyl when the house presses it. A room for the day the vault holds sound.', hours: 'Not yet open', now: false, soon: true, href: null, cta: 'Someday', glyph: 'pause' },
+      { key: 'screening', name: 'The Screening Room', line: 'Not a stream: a private screening. Films chosen by the people who make them and the people who restore them, shown whole, at the highest resolution the master allows, in surround sound, to your home theatre; it plays through, as a cinema does, and a pause opens the filmmaker’s notes. The Paris, the Metrograph, at home. A room for the day the vault holds moving pictures.', hours: 'Not yet open', now: false, soon: true, href: null, cta: 'Someday', glyph: 'play' },
+    ];
+  }
+  const roomCard = r => `<${r.href ? `a href="${esc(r.href)}"` : 'div'} class="kr${r.now ? ' open' : ''}${r.soon ? ' soon' : ''}"><span class="kr-g">${I[r.glyph] || I.key}</span><span class="kr-st">${r.now ? 'Open now' : r.soon ? 'Not yet open' : 'Closed'}</span><b>${esc(r.name)}</b><i>${esc(r.line)}</i><small>${esc(r.hours)}</small><em>${esc(r.cta)}${r.href ? ' →' : ''}</em></${r.href ? 'a' : 'div'}>`;
+  app.locals.keyRooms = rooms;
+
   // The door.
   app.get('/keys', (req, res) => {
     const mine = holds(req); const kinds = Object.keys(mine).filter(k => k !== 'house');
@@ -84,7 +106,7 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
     res.send(V.layout({ title: 'The Keys · Watermark', path: '/keys', desc: 'The house’s private members’ club, since 1947. Every maker, collector and curator holds keys.', body: `<section class="ky">
 <header class="ky-cover"><div class="ky-cover-in"><a class="ky-mark" href="/keys/story" title="The story of the Keys">${MARK.mark}</a><p class="ky-since">Indianapolis, 1947 · Watermark, 2026</p></div><div class="ky-damask" aria-hidden="true"></div></header>
 <div class="ky-h"><p class="k">The house</p><h1>The Keys.</h1>
-<p class="lede">The galleries are silent, as a museum’s are. Above them is the balcony, where the members talk: about what they just saw, what they hold, what they are making. The Keys is the house’s private members’ club. Keys are earned, never bought. ${kinds.length ? `You hold ${kinds.length === 1 ? 'one' : kinds.length}.` : 'Anyone may look in through the window.'}</p>
+<p class="lede">The Keys is the club: the house’s own, private, for its members. The galleries below are silent, as a museum’s are; up here the members talk, about what they just saw, what they hold, what they are making. Keys are earned, never bought. ${kinds.length ? `You hold ${kinds.length === 1 ? 'one' : kinds.length}.` : 'Anyone may look in through the window.'}</p>
 <p class="ky-comm"><span class="ky-script">Keys Comments</span> The Keys was born in 1947 on North Meridian Street, Indianapolis, a restaurant kept by two sisters; the keys it gave its guests opened the front door. The house carries the name, the keys and the manner on. <a href="/keys/story">The story →</a></p>
 <p class="ky-ep">“It is my extreme pleasure to welcome you among our honored guests.” <span>Mary Helen Krafft, 1968. The house’s standard since.</span></p>
 <p class="ky-q">Are you a maker, a collector, or a curator?</p></div>
@@ -93,7 +115,8 @@ ${room('maker', KINDS.maker, 'You make the work.', 'Given with a studio, by invi
 ${room('collector', KINDS.collector, 'You keep the work.', `Given with the first piece you collect. It opens your gallery and your walls, the benches under every work, the balcony, and the dinner. The first hundred collectors are founders, for good.${(() => { const F = app.locals.founders && app.locals.founders.first(); return F ? ` The first collector of the house: ${F.public && F.code ? `<a href="/g/${esc(F.code)}">${esc(F.name || 'a collector')}</a>` : esc(F.name || 'a collector')}${app.locals.founders.note() ? `, ${esc(app.locals.founders.note())}` : ''}.` : ''; })()}`, b ? '/yours' : '/collection', 'Your gallery')}
 ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who hands you the keys to an archive, by a gallery that opens here, or when a wall you hung is shown and placed. It opens the archives you have been given, the right to hang shows, the curation share, and hosting.', '/curate', 'The archives open to you')}
 </div>
-<section class="ky-rules"><h2>The rules of the house.</h2><ul>
+<section class="ky-rm"><p class="k">The club</p><h2>The rooms.</h2><p class="ky-rml">Open all day and all night, all over the world. Some rooms keep hours; the rest are always lit. Each is curated: a host, a wall, a programme. Two are built for a day the house has not yet reached, and their doors say so.</p><div class="kr-grid">${rooms().map(roomCard).join('')}</div><p class="ky-rml ky-enjoy">The rooms reach into your own: <a href="/enjoy">how to enjoy the work in the real world</a>, on a television, through good speakers, in a headset, on paper.</p></section>
+<section class="ky-rules" id="dinner"><h2>The rules of the house.</h2><ul>
 <li><b>Nothing social on the wall.</b> No comment, count or feed ever sits beside a work. The talk is here, one door away.</li>
 <li><b>You may speak once you have stood before it.</b> A bench under a work opens to those who have looked, held, or been well seen.</li>
 <li><b>Signed, and a sentence at least.</b> No reactions, no down-votes, no leaderboard. The makers’ and curators’ regard is the only rating.</li>
@@ -139,6 +162,20 @@ ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who
 </div></article>` }));
   });
 
+  // Enjoying it in the real world (Will, 19 Oct: tell people how to get more out of the experience; Sonos, Dolby
+  // Atmos and Vision, stereo, the left and the right speaker; real ways to enjoy art in the real world). A guide, not
+  // a shop: the house names what helps and never sells it. Words a draft.
+  app.get('/enjoy', (req, res) => {
+    res.send(V.layout({ title: 'Enjoying it in the real world · The Keys · Watermark', path: '/enjoy', desc: 'How to get more from the work: on a television, through good speakers, in a headset, on paper.', body: `<section class="ej"><p class="k"><a href="/keys">The Keys</a> · The rooms</p><h1>Enjoying it in the real world.</h1>
+<p class="lede">The house is built to be seen on a phone, and built harder to be seen off one. These are the ways the rooms reach into yours: none of them required, each of them a step up. The house sells none of this; it only says what helps.</p>
+<section class="ej-s"><h2>On the wall at home: a television.</h2><p>Any television becomes a wall with <a href="/frame">the frame</a>: a set of works, chosen for the evening, cross-fading slowly, the plate shown for a moment. Turn the picture mode to <i>Filmmaker</i> or <i>Cinema</i> and motion smoothing off; a photograph wants no processing. A Samsung Frame or an OLED hung at eye level, fifty-seven inches to the centre, is the museum’s own height. Dim the room. The work carries the light.</p></section>
+<section class="ej-s"><h2>In your ears: the guide, read.</h2><p>Every guide is read aloud in the house voice. Headphones, or one good speaker, are enough. If you listen through a Sonos or any pair of speakers, sit between them: the voice is mixed for a room, not a phone, and a reading heard from the middle of the room is a different thing from one heard from your hand.</p></section>
+<section class="ej-s"><h2>Someday, the sound and the film: Atmos, Vision, surround.</h2><p>When the vault holds raw masters of sound and moving pictures, the listening room and the screening room will play them as they were made: a recording in stereo, the left and the right exactly as the engineer placed them, or in Dolby Atmos where it was mixed that way; a film in Dolby Vision and surround sound to a home theatre, shown whole. Until then: a receiver that passes Atmos and Vision, a pair of good speakers set at ear height and as far from each other as they are from you, and a screen that does not smooth motion. That is the whole of it.</p></section>
+<section class="ej-s"><h2>In a headset.</h2><p>Any wall or gallery opens in <a href="/vr?in=collection">the long gallery, the rotunda, or the night</a> on a Quest, a Vision Pro or any WebXR browser. Stand before a work at its true size; walk to the next. The grand spaces the work deserves, without the flight.</p></section>
+<section class="ej-s"><h2>On paper.</h2><p>Nothing is finished until it is printed. <a href="/print">The print room</a> says what your file prints at, on which paper, and how to frame it; the proof, a five by seven on cotton rag from the house’s own press, is the first object most collectors own.</p></section>
+<section class="ej-s"><h2>In person.</h2><p>The dinner, once a month, twelve keyholders at one table; the openings; the shows galleries mount here and in their rooms. The house is a place; it meets you in the world when it can.</p></section>
+<p class="note">A draft, for Will to confirm. Brands are named for help, never for a fee.</p></section>` }));
+  });
   app.locals.keys = { issue, holds, any, ofMaker, ofBuyer, tag, tags, KINDS, backfill, MARK };
   return app.locals.keys;
 }

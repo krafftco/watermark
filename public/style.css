@@ -3060,15 +3060,15 @@ html.fd-on{overflow:hidden}
 .bc-word{position:fixed;right:16px;bottom:16px;width:min(360px,calc(100vw - 32px));background:#15130f;border:1px solid #3a3631;padding:16px;z-index:40;display:grid;gap:8px}.bc-word .k{color:#8d8677}.bc-word ol{list-style:none;padding:0;margin:0;max-height:30vh;overflow:auto;font:15px/1.5 var(--read)}.bc-word li{padding:5px 0}.bc-word li b{color:#d9bc7c;margin-right:8px}.bc-word form{display:flex;gap:6px}.bc-word input{flex:1;background:transparent;border:1px solid #3a3631;color:inherit;padding:8px 10px;font:14px var(--read);outline:0}.bc-word button{background:none;border:1px solid #3a3631;color:inherit;padding:8px 10px;cursor:pointer;font-size:11px;letter-spacing:.1em;text-transform:uppercase}.bc-word .link{border:0;text-decoration:underline;padding:0;justify-self:start}
 @media(max-width:760px){.bc{grid-template-columns:1fr;grid-template-areas:"top" "wall" "side" "table"}}
 /* The Keys, after the 1947 restaurant (Will, 19 Oct): red damask, the keys in gold, the script of the menu. */
-:root{--kred:#a90f18;--kgold:#e0a63c;--kcream:#f7efdc}
+:root{--kred:#5e0b14;--kred2:#3a0409;--kgold:#c9a24a;--kgilt:#e6c875;--kcream:#f7efdc;--kwood:#2a1a12}
 .ky-script{font-family:"Snell Roundhand","Apple Chancery","Brush Script MT","Segoe Script","URW Chancery L",cursive;font-weight:400;font-style:normal;letter-spacing:0;text-transform:none}
 .kmk{display:block;width:100%;height:auto}
-.ky-cover,.ks-cover{position:relative;background:var(--kred) url(/static/keys/damask.svg) center/120px 160px;color:var(--kgold);margin:0 -16px 30px;padding:46px 16px 40px;overflow:hidden}
-.ky-cover:before,.ks-cover:before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(255,220,160,.12),rgba(0,0,0,.35) 75%)}
+.ky-cover,.ks-cover{position:relative;background:radial-gradient(ellipse at 50% 35%,rgba(255,215,150,.1),transparent 60%),linear-gradient(180deg,var(--kred),var(--kred2)),url(/static/keys/damask.svg) center/120px 160px;background-blend-mode:normal,multiply,normal;color:var(--kgilt);border-top:3px solid var(--kgold);border-bottom:3px solid var(--kgold);box-shadow:inset 0 0 0 1px rgba(201,162,74,.35),inset 0 0 120px rgba(0,0,0,.55);margin:0 -16px 30px;padding:46px 16px 40px;overflow:hidden}
+.ky-cover:before,.ks-cover:before{content:"";position:absolute;inset:8px;border:1px solid rgba(201,162,74,.45);pointer-events:none}
 .ky-cover-in,.ks-cover-in{position:relative;max-width:300px;margin:0 auto;text-align:center}.ks-cover-in{max-width:340px}
-.ky-mark{display:block;color:var(--kgold);filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}.ky-mark:hover{color:#f0c76a}
+.ky-mark{display:block;color:var(--kgilt);filter:drop-shadow(0 2px 0 rgba(0,0,0,.45))}.ky-mark:hover{color:#f6d98f}
 .ky-since{font:italic 14px/1.4 var(--read);color:#f2d9a6;margin:16px 0 0;letter-spacing:.04em}
-.ky-damask{position:absolute;top:0;bottom:0;right:0;width:clamp(40px,8vw,110px);background:url(/static/keys/damask.svg) center/120px 160px;box-shadow:inset 1px 0 0 rgba(255,255,255,.18),-10px 0 30px -10px rgba(0,0,0,.45);filter:saturate(1.15) brightness(.92)}
+.ky-damask{position:absolute;top:0;bottom:0;right:0;width:clamp(40px,8vw,110px);background:url(/static/keys/damask.svg) center/120px 160px;box-shadow:inset 1px 0 0 rgba(201,162,74,.5),-10px 0 30px -10px rgba(0,0,0,.6);filter:brightness(.8)}
 @media(min-width:1072px){.ky-cover,.ks-cover{margin-left:0;margin-right:0}}
 .ky-comm{font:17px/1.6 var(--read);max-width:620px;margin:18px 0 0;color:#2f2d29}.ky-comm .ky-script{font-size:26px;color:var(--kred);margin-right:10px;line-height:1}.ky-comm a{color:var(--kred)}
 .ky-room .ky-key{color:var(--kgold)}.ky-room.held{border-color:var(--kgold)}.ky-no{color:var(--kgold)}
@@ -3098,7 +3098,7 @@ html.fd-on{overflow:hidden}
 .st-side-l{left:0;transform:translateX(-100%)}.st-side-r{right:0;transform:translateX(100%);border-left:3px solid var(--kred)}
 .sdr{padding:18px 18px 40px}.sdr .k{color:#8d8677;margin:0 0 4px}.sdr h3{font:400 22px/1.15 var(--disp);margin:0 0 8px}
 .sd-h{margin:0 0 18px;padding:0 0 14px;border-bottom:1px solid #2a2724}.sd-h p{font:15px/1.5 var(--read);color:#ddd6c8;margin:8px 0 0}
-.sd-keys-h{margin:-18px -18px 18px;padding:26px 18px 18px;background:var(--kred) url(/static/keys/damask.svg) center/120px 160px;color:var(--kgold);border-bottom:0}.sd-keys-h .kmk{max-width:200px;margin:0 auto}.sd-keys-h p{color:#f2d9a6;text-align:center;font-style:italic}
+.sd-keys-h{margin:-18px -18px 18px;padding:26px 18px 18px;background:linear-gradient(180deg,var(--kred),var(--kred2)),url(/static/keys/damask.svg) center/120px 160px;background-blend-mode:multiply,normal;color:var(--kgilt);border-bottom:2px solid var(--kgold)}.sd-keys-h .kmk{max-width:200px;margin:0 auto}.sd-keys-h p{color:#f2d9a6;text-align:center;font-style:italic}
 .sd-sec{margin:0 0 20px;padding:0 0 16px;border-bottom:1px solid #2a2724}.sd-m{font:14.5px/1.5 var(--read);color:#b9b29f;margin:0 0 8px}
 .sd-lines{list-style:none;padding:0;margin:0 0 10px;font:14.5px/1.5 var(--read)}.sd-lines li{padding:6px 0;border-top:1px solid #2a2724}.sd-lines b{color:var(--kgold);font-weight:600;margin-right:6px}
 .sd-go{display:inline-block;color:var(--kgold);text-decoration:none;font-size:13px;letter-spacing:.04em}.st-side-l .sd-go{color:#d9bc7c}
@@ -3139,3 +3139,12 @@ html.fd-on{overflow:hidden}
 .dr-line p,.dr-ask p{font:17px/1.6 var(--read);max-width:680px}.dr-line{margin:0 0 28px}
 .mh-dir{color:#8a6a1f;text-decoration:none;font-weight:600}
 @media(max-width:760px){.dr-h{grid-template-columns:1fr;gap:18px}.dr-por{max-width:260px}.dr-grid{grid-template-columns:repeat(3,1fr)}}
+
+/* The rooms of the club (19 Oct): velvet, gilt and mahogany, after the Morgan's library. */
+.ky-rm{margin:10px 0 40px;padding:34px 22px 30px;background:linear-gradient(180deg,#241611,var(--kwood));color:#efe4cf;border-top:3px solid var(--kgold);border-bottom:3px solid var(--kgold);box-shadow:inset 0 0 0 1px rgba(201,162,74,.3)}.ky-rm .k{color:var(--kgold)}.ky-rm h2{font:400 34px/1.1 var(--disp);margin:4px 0 10px;color:#f5e9d2;text-transform:none;letter-spacing:0}.ky-rml{font:16px/1.6 var(--read);color:#cdbfa6;max-width:640px;margin:0 0 22px}
+.kr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.kr{position:relative;display:grid;gap:6px;padding:18px 16px 16px;text-decoration:none;color:#efe4cf;background:linear-gradient(180deg,rgba(94,11,20,.55),rgba(58,4,9,.75));border:1px solid rgba(201,162,74,.35);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4),0 10px 30px -20px #000}.kr:hover{border-color:var(--kgilt)}
+.kr-g{color:var(--kgold)}.kr-g svg{width:22px;height:22px}.kr-st{position:absolute;top:14px;right:14px;font:600 9px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:#8d8677}.kr.open .kr-st{color:var(--kgilt)}.kr.open .kr-st:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--kgilt);margin-right:6px;box-shadow:0 0 8px var(--kgilt)}
+.kr b{font:400 22px/1.15 var(--disp);color:#f5e9d2}.kr i{font:italic 14px/1.5 var(--read);color:#d6c8ad}.kr small{font:11px/1.5 var(--sans);letter-spacing:.06em;color:#a89c84}.kr em{font-style:normal;font-size:12.5px;color:var(--kgilt);margin-top:4px}
+.kr.soon{opacity:.72;background:linear-gradient(180deg,rgba(42,26,18,.6),rgba(20,12,8,.85))}.kr.soon em{color:#a89c84}
+.ej{max-width:760px;margin:0 auto;padding:40px 16px 60px}.ej h1{font:400 clamp(36px,5vw,56px)/1.05 var(--disp);margin:6px 0 14px}.ej .k a{color:inherit;text-decoration:none}.ej-s{margin:30px 0 0;padding:22px 0 0;border-top:1px solid var(--ln)}.ej-s h2{font:400 26px/1.15 var(--disp);margin:0 0 10px;text-transform:none;letter-spacing:0}.ej-s p{font:18px/1.6 var(--read);color:#2f2d29;margin:0}.ky-enjoy{margin-top:18px}.ky-enjoy a{color:var(--kgilt)}

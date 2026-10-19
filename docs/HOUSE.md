@@ -62,3 +62,15 @@ Everything the house does is operated as hospitality, at the level of a three-st
 So every interaction of the house says, in its own words, four things: thank you; you are our honoured guest; this is our house and our home, and you are welcome in it; we hope you come back. The restaurant said it first, on the back of every menu: "It is my extreme pleasure to welcome you among our honored guests." Mary Helen Krafft, 1968. The house's standard since.
 
 Where it is said today: the welcome when you sign in; the letter when you collect; the thanks page; the door out ("Thank you for coming. We hope you come back."); the epigraph on the Keys. The test for any new page or letter: does it thank, welcome, and hope to see them again, without saying so twice.
+
+## The rooms of the Keys (Will, 19 October)
+
+The Keys is the club. It is open all day and all night, all over the world, so it is built as rooms, each curated (a host, a wall, a programme), some kept for certain hours. The look is the restaurant's red made deeper, velvet and gilt and mahogany, after the Morgan's library: Gilded Age beauty with a modern hand.
+
+The rooms today: the Bar Lounge (the benches), the Champagne Room (the balcony, evenings), the Library, the Viewing Room, the Print Room, the Keyhole Room (the dinner). Two are built for a day the house has not reached, and their doors say so:
+
+**The Listening Room.** Hi-fi. The raw master of a recording, played as it was made; vinyl when the house presses it.
+
+**The Screening Room.** Not Netflix. A private screening: films chosen by the people who make them and the people who restore them (the aim is the filmmakers' own lists, and partnerships with the restorers and the archives, none of which is to be claimed in public copy until signed), shown whole, at the highest resolution the master allows, in surround sound, to a home theatre, the way the Paris or the Metrograph would show them. It plays through, as a cinema does; a pause opens the filmmaker's notes.
+
+And the rooms reach into people's own: /enjoy says how to get more from the work in the real world (a television as a wall, good speakers, Atmos and Vision when the masters come, a headset, paper, in person). The house sells none of it; it only says what helps.
