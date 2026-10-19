@@ -389,7 +389,7 @@ function createApp(cfg = {}) {
     if (!g) return res.send('No paid license yet to draw a letter from.');
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(g.work_id), u = q.useById.get(g.use_id);
     const L = letterFor(g, w, mk(w), u, g.download_token);
-    const out = req.query.as === 'maker' ? LETTERS.sold(L) : LETTERS.collected(L);
+    const out = req.query.as === 'maker' ? LETTERS.sold(L) : req.query.as === 'wall' ? LETTERS.ready({ ...L, printUrl: L.printUrl, guideUrl: `${C.base}/print`, proof: L.proof || { price: V.money(require('./keep').PROOF_CENTS), url: L.printUrl } }) : LETTERS.collected(L);
     res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`));
   });
   // Every maker and estate has their own account and dashboard.
@@ -1978,6 +1978,7 @@ function createApp(cfg = {}) {
   }
   app.locals.warmAll = warmAll;
   if (!cfg.noTimers) { setTimeout(() => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); }).catch(e => console.error('[warm]', e.message)), 15e3).unref(); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
+  if (!cfg.noTimers) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }

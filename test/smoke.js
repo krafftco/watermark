@@ -132,6 +132,10 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const o = db.prepare("SELECT * FROM print_orders WHERE kind='proof' ORDER BY id DESC").get(); assert.ok(o && o.paid === 1 && o.status === 'asked' && o.cents === 2500 && /NY 10028/.test(o.address), 'the proof is on the desk, paid, with the address'); }
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('You have one'), 'the room counts the proof');
   assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='proof.collected'").get().n === 1, 'proof.collected on the register');
+  // The wall letter: a month on, nothing printed, one letter; the piece with a proof is left alone; never twice.
+  { const before = (app.locals.mailLog || []).length; db.prepare("UPDATE licenses SET starts_at=datetime('now','-40 days') WHERE status='active'").run();
+    let n = await app.locals.wallLetters(); assert.ok(n >= 1, 'wall letters went'); assert.ok(!db.prepare('SELECT 1 FROM wall_letters WHERE license_id=?').get(db.prepare('SELECT id FROM licenses WHERE ref=?').get(dj.ref).id), 'the piece with a proof is left alone');
+    n = await app.locals.wallLetters(); assert.equal(n, 0, 'never twice'); }
   // find: straight to the picture
   r = await req(port, 'GET', '/api/find?q=dome'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length && fj.works[0].href.startsWith('/m/') && fj.works[0].stroll.startsWith('/stroll?at='), 'find by title: ' + r.body.slice(0, 200)); }
   r = await req(port, 'GET', '/api/find?q=dmoe'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length, 'a typo forgiven'); }

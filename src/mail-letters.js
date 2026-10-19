@@ -142,4 +142,28 @@ function sold(c) {
   return { subject: `Congratulations: ${title} has been ${c.personal ? 'collected' : 'licensed'}`, text, html };
 }
 
-module.exports = { collected, sold, frame };
+// The wall letter (Will, 19 Oct): thirty days after a Collect with nothing printed, one letter: the piece on its
+// mount, 'Ready to hang', the proof. Sent once per piece, never again.
+function ready(c) {
+  const title = clean(c.title), no = c.no ? `No.&nbsp;${c.no}` : '';
+  const html = frame({ base: c.base, preheader: `${title} has been yours a month. It would look well on a wall.`, body: [
+    kicker(`In your gallery a month${c.no ? ` &nbsp;&middot;&nbsp; <span style="white-space:nowrap">No. ${c.no}${c.of ? ` of ${c.of}` : ''}</span>` : ''}`),
+    headline(`Ready to hang.`),
+    lede(`<i>${esc(title)}</i> has been yours for a month, on a screen. On paper it has weight and an edge, and it is there when you come home.`),
+    mount({ img: c.img, href: c.printUrl, title, year: c.year, maker: c.maker, no, of: c.of }),
+    proof(c),
+    para(`Or print it yourself: your piece shows the sizes its file holds, and <a href="${c.guideUrl}" style="color:${INK}">the house&rsquo;s guide</a> says how, in five steps. When it is made, record it on the piece, so the print stays with the number.`, '26px'),
+    button('Print it', c.printUrl),
+    close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">A photograph is finished when it is printed.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
+  ].join('') });
+  const text = [
+    `Ready to hang.`,
+    `${title}, by ${c.maker}${c.no ? `, No. ${c.no}${c.of ? ` of ${c.of}` : ''}` : ''}, has been yours for a month, on a screen. On paper it has weight and an edge.`,
+    `The proof: a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, ${c.no ? 'your number' : 'the title'} in pencil, posted, ${c.proof.price}: ${c.proof.url}`,
+    `Or print it yourself: ${c.printUrl}\nThe house's guide: ${c.guideUrl}`,
+    'A photograph is finished when it is printed.\nThe house',
+  ].join('\n\n');
+  return { subject: `${title}: ready to hang`, text, html };
+}
+
+module.exports = { collected, sold, ready, frame };
