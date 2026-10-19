@@ -842,6 +842,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/yc-stroll/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
     r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
+  // The first collector (19 Oct): the house names No. 1 by hand; the honour shows on the gallery, the Galleries page and the Keys.
+  { r = await req(port, 'GET', '/studio/founders', { cookie: ck }); assert.ok(r.status === 200 && /The Founding Collectors/.test(r.body), 'the founders desk');
+    const fb = db.prepare("SELECT b.* FROM buyers b JOIN licenses l ON l.buyer_id=b.id WHERE l.collector_no IS NOT NULL AND l.status='active' ORDER BY l.id DESC LIMIT 1").get(); assert.ok(fb, 'a numbered collector to name');
+    r = await req(port, 'GET', '/studio/founders?q=' + encodeURIComponent(fb.email || fb.code), { cookie: ck }); assert.ok(/Name as the first collector/.test(r.body), 'found by email or code');
+    r = await req(port, 'POST', '/studio/founders/first', { cookie: ck, body: { id: String(fb.id) } }); assert.ok(/is the first collector/.test(decodeURIComponent(r.headers.location)));
+    r = await req(port, 'POST', '/studio/founders/note', { cookie: ck, body: { note: 'the founder’s mother' } }); assert.equal(r.status, 302);
+    assert.equal(app.locals.founders.no(fb), 1, 'No. 1 by hand, whatever the clock said');
+    r = await req(port, 'GET', '/keys'); assert.ok(/The first collector of the house/.test(r.body) && /founder’s mother/.test(r.body), 'said on the Keys');
+    r = await req(port, 'GET', '/studio/founders', { cookie: ck }); assert.ok(/the first collector/.test(r.body));
+    r = await req(port, 'POST', '/studio/founders/first', { cookie: ck, body: { id: '' } }); assert.ok(/clock/.test(decodeURIComponent(r.headers.location)), 'un-named'); assert.ok(!app.locals.founders.firstId());
+  }
+  console.log('ok: the first collector');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
     assert.equal(two.length, 2, 'two collectable photographs for the basket');

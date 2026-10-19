@@ -47,5 +47,7 @@ services:
         sync: false
       - key: BACKUP_KEEP_DAYS
         value: "30"
+      - key: FIRST_COLLECTOR
+        value: Amy Fullerton
       - key: PROOF_CENTS
         value: "2500"
