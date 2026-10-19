@@ -365,6 +365,7 @@ function createApp(cfg = {}) {
     if (app.locals.libraryEvent) app.locals.libraryEvent(event); // a copy taken from the Library
     if (app.locals.pocketEvent) app.locals.pocketEvent(event); // the pocket filled
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
+    if (app.locals.keepEvent) app.locals.keepEvent(event); // a proof paid for
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
       if (ref && q.lic.get(ref)) settle(q.lic.get(ref)).catch(e => console.error('[settle]', e.message));
@@ -918,7 +919,7 @@ function createApp(cfg = {}) {
     res.redirect(/^\/yours\/p\/[\w-]+$/.test(String(x.back || '')) ? `${x.back}?ok=recorded` : '/yours#files');
   });
   require('./find').mountFind(app, { db, V, I: require('./icons') });
-  app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio });
+  app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, setBuyer, pocket: () => app.locals.pocket });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
   // May this license pass to another wallet? The agreement decides: a numbered personal piece may; a working

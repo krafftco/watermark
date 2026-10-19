@@ -3021,3 +3021,10 @@ html.fd-on{overflow:hidden}
 .st-wil{display:flex;align-items:center;gap:8px}.st-wil .ic-wil{width:20px;height:26px}
 .fd-foot{display:flex;align-items:center;gap:10px}.fd-foot .ic-wil{width:22px;height:28px;color:#a39b8e}.fd-foot:empty{display:none}
 .fd-none{display:flex;align-items:center;gap:12px}.fd-none .ic-wil{width:30px;height:38px;color:#a39b8e}
+/* The proof (19 Oct): a small print on the mount, the first object a collector owns. */
+.kp-proof{display:grid;grid-template-columns:minmax(120px,180px) 1fr;gap:clamp(18px,3vw,36px);align-items:start;margin:30px 0 6px;padding:26px;border:1px solid var(--ln);background:#f6f2ea;color:#1c1a16}
+.kp-proof-pic{background:#fbf9f4;padding:12px 12px 26px;box-shadow:0 1px 0 rgba(0,0,0,.08),0 10px 24px -14px rgba(0,0,0,.35);transform:rotate(-1.2deg)}
+.kp-proof-pic img{display:block;width:100%;aspect-ratio:var(--r,1.5);object-fit:contain;background:#eee}
+.kp-proof-t .k{color:#7a7262}.kp-proof-t h3{font:400 28px/1.1 var(--disp);margin:6px 0 12px;text-transform:none;letter-spacing:0}.kp-proof-t p{font:16px/1.55 var(--read);margin:0}
+.kp-pf{margin-top:14px;grid-template-columns:1fr 1fr 1fr}.kp-pf .kp-wide{grid-column:1/-1}.kp-pf label:nth-child(1),.kp-pf label:nth-child(2){grid-column:span 1}.kp-pf button{grid-column:1/-1;justify-self:start}.kp-pfn{grid-column:1/-1;font-size:12px;opacity:.7}
+@media(max-width:760px){.kp-proof{grid-template-columns:1fr}.kp-proof-pic{max-width:160px}.kp-pf{grid-template-columns:1fr 1fr}}

@@ -122,6 +122,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(r.status === 303 && /ok=asked/.test(r.headers.location), 'a print asked for');
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('with the house'), 'the order shows');
   r = await req(port, 'GET', '/print'); assert.ok(r.status === 200 && r.body.toString().includes('Print your work.'), 'the guide to printing');
+  // The proof: a 5 × 7 from the house's print room, paid at once; from the pocket in one tap, landing on the desk paid.
+  assert.ok(kp.includes('kp-proof') && kp.includes('Hahnemühle Photo Rag'), 'the proof is offered');
+  r = await req(port, 'POST', `/yours/p/${dj.ref}/proof`, { cookie: bck, body: { name: 'Tap', email: 'tap@example.com', street: '1 Main St', city: 'New York', state: 'New York', zip: '10028' } });
+  assert.ok(/ok=proofcheck/.test(r.headers.location), 'a bad address is refused');
+  { const pb = db.prepare('SELECT * FROM licenses WHERE ref=?').get(dj.ref); const buyer = db.prepare('SELECT * FROM buyers WHERE id=?').get(pb.buyer_id); app.locals.pocket.credit(buyer, 2500, 'thanks_in', 'test', 'for the proof'); }
+  r = await req(port, 'POST', `/yours/p/${dj.ref}/proof`, { cookie: bck, body: { from: 'pocket', name: 'Tap', email: 'tap@example.com', street: '1 Main St', city: 'New York', state: 'ny', zip: '10028' } });
+  assert.ok(/ok=proof(&|#|$)/.test(r.headers.location), 'the proof paid from the pocket');
+  { const o = db.prepare("SELECT * FROM print_orders WHERE kind='proof' ORDER BY id DESC").get(); assert.ok(o && o.paid === 1 && o.status === 'asked' && o.cents === 2500 && /NY 10028/.test(o.address), 'the proof is on the desk, paid, with the address'); }
+  r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('You have one'), 'the room counts the proof');
+  assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='proof.collected'").get().n === 1, 'proof.collected on the register');
   // find: straight to the picture
   r = await req(port, 'GET', '/api/find?q=dome'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length && fj.works[0].href.startsWith('/m/') && fj.works[0].stroll.startsWith('/stroll?at='), 'find by title: ' + r.body.slice(0, 200)); }
   r = await req(port, 'GET', '/api/find?q=dmoe'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length, 'a typo forgiven'); }

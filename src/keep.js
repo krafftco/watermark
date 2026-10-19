@@ -28,10 +28,20 @@ function sizes(pxL, pxS) {
 }
 const GRADE = { fine: 'Close up, every detail', good: 'Framed, at arm’s length', wall: 'On the wall, from a step back' };
 
-function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio }) {
+// The proof (Will, 19 Oct): the first object most collectors will own. A 5 × 7 print of the piece from the house's
+// own print room (the PRO-1100, Hahnemühle Photo Rag), the number in pencil, posted. One price, paid at once from
+// the pocket or by Checkout; it lands on the print room's desk already paid. Drafts: the price, US only.
+const PROOF_CENTS = Number(process.env.PROOF_CENTS || 2500);
+const PROOF_PAPER = 'Hahnemühle Photo Rag';
+
+function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, pocket, setBuyer }) {
   db.exec(`CREATE TABLE IF NOT EXISTS print_orders (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, buyer_id INTEGER, size TEXT, paper TEXT,
     frame INTEGER NOT NULL DEFAULT 0, email TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  for (const [col, def] of [['kind', "TEXT NOT NULL DEFAULT 'ask'"], ['cents', 'INTEGER'], ['paid', 'INTEGER NOT NULL DEFAULT 0'], ['stripe_session', 'TEXT'], ['ship_name', 'TEXT'], ['address', 'TEXT']]) {
+    if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} ${def}`);
+  }
   const { esc, tidy, date, money } = V, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const pk = () => (typeof pocket === 'function' ? pocket() : pocket) || app.locals.pocket;
   const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
   const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };
 
@@ -52,7 +62,19 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio })
     const title = tidy(w.title), yr = (w.taken_at || '').slice(0, 4), r = (w.width && w.height ? w.width / w.height : 1.5).toFixed(3);
     const no = l.collector_no ? `No.&nbsp;${l.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}` : esc(l.use_name);
     const file = live && l.download_token && dl.left ? `/d/${esc(l.download_token)}` : null;
-    const note = { asked: 'Asked. The house will write within a day with the paper, the size, the price and when it will be ready.', recorded: 'Recorded. The print is part of this piece’s life now.', check: 'Choose a size, and say where to write.' }[ok];
+    const note = { asked: 'Asked. The house will write within a day with the paper, the size, the price and when it will be ready.', recorded: 'Recorded. The print is part of this piece’s life now.', check: 'Choose a size, and say where to write.', proof: 'Yours. The proof is with the print room; it will be posted within the week, and you will be written to when it goes.', proofcheck: 'Your name, the address and where to write, please.', proofoff: 'The proof cannot be paid for just now. Write to the house and we will arrange it.' }[ok];
+    const proofs = orders.filter(o => o.kind === 'proof' && o.paid), proofSz = sizes(f.L, f.S)[0];
+    const bal = b && pk() ? pk().balance(b) : 0, proofPocket = bal >= PROOF_CENTS;
+    const proof = live ? `<div class="kp-proof"><div class="kp-proof-pic" style="--r:${r}"><img src="/img/${esc(w.slug)}/thumb" alt=""></div><div class="kp-proof-t"><p class="k">The proof</p><h3>Hold it in your hand, ${money(PROOF_CENTS)}.</h3>
+<p>A 5 × 7 print of <i>${esc(title)}</i> from the house’s own print room: pigment on ${PROOF_PAPER}, the picture ${proofSz ? esc(proofSz.image) + ' inches' : 'fitted to the sheet'} with a white border, ${l.collector_no ? 'your number' : 'the title'} in pencil beneath. Posted to you${proofs.length ? `. You have ${proofs.length === 1 ? 'one' : proofs.length}` : ''}.</p>
+<form method="post" action="/yours/p/${esc(l.ref)}/proof" class="kp-f kp-pf">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}
+<label><span>Name on the parcel</span><input name="name" required maxlength="80" value="${esc((b && b.name) || l.licensee_name || '')}" autocomplete="name"></label>
+<label><span>Where to write</span><input type="email" name="email" required maxlength="160" value="${esc((b && b.email) || l.licensee_email || '')}" autocomplete="email"></label>
+<label class="kp-wide"><span>Street</span><input name="street" required maxlength="120" autocomplete="street-address"></label>
+<label><span>City</span><input name="city" required maxlength="60" autocomplete="address-level2"></label>
+<label><span>State</span><input name="state" required maxlength="2" autocomplete="address-level1" placeholder="NY"></label>
+<label><span>ZIP</span><input name="zip" required maxlength="10" inputmode="numeric" autocomplete="postal-code"></label>
+${proofPocket ? `<button class="buy-btn" name="from" value="pocket">${money(PROOF_CENTS)} from your pocket</button>` : `<button class="buy-btn">The proof, ${money(PROOF_CENTS)}</button>`}<small class="kp-pfn">United States for now; elsewhere by letter to the house. Posted within the week.</small></form></div></div>` : '';
     return V.layout({ title: `${title} · Yours · Watermark`, path: '/yours', desc: `${title}, by ${maker.name}. Yours.`, body: `<div class="kp">
 <section class="kp-wall"><figure class="kp-mount" style="--r:${r}"><img src="/img/${esc(w.slug)}/large" alt="${esc(title)}, a photograph by ${esc(maker.name)}" draggable="false"><figcaption class="kp-pencil"><span>${no}</span><span><i>${esc(title)}</i>${yr ? `, ${esc(yr)}` : ''}</span><span class="kp-sig">${esc(maker.name)}</span></figcaption></figure></section>
 <header class="kp-h"><p class="k"><a href="/yours">Your gallery</a> · ${no}</p><h1><i>${esc(title)}</i> is yours.</h1>
@@ -66,6 +88,7 @@ ${note ? `<p class="${ok === 'check' ? 'err' : 'ok'} kp-note">${note}</p>` : ''}
 ${top ? `<div><span class="kp-fk">Prints beautifully to</span><b>${esc(top.image)} in</b><small>on ${esc(top.paper)} paper</small></div>` : ''}
 ${file ? `<a class="buy-btn kp-take" href="${file}" download>Take the print file</a>` : `<span class="kp-fk">${!live ? 'This license has ended.' : !l.download_token ? `The file is kept with <a href="/c/${esc(l.ref)}">the license</a>.` : 'Every download has been used: write to the house for another.'}</span>`}</div>
 <table class="kp-sz"><thead><tr><th>Paper</th><th>The picture</th><th>How it holds</th></tr></thead><tbody>${sz.filter((s, i) => s.grade || i < best.length + 2).map(s => `<tr class="${s.grade ? 'kp-g-' + s.grade : 'kp-no'}"><td>${esc(s.paper)} in</td><td>${esc(s.image)} in</td><td>${s.grade ? `<span class="kp-dot"></span>${GRADE[s.grade]}` : canRef ? 'Larger than this file: the Reference prints it' : 'Larger than this file holds'}</td></tr>`).join('')}</tbody></table>
+${proof}
 ${canRef ? `<p class="kp-up">To print larger, <a href="/license/${esc(w.slug)}?use=reference">collect the Reference</a>, ${money(ref.price_cents)}: the full original, ${(w.width || 0).toLocaleString('en-US')} × ${(w.height || 0).toLocaleString('en-US')} pixels, for prints to ${esc((sizes(Math.max(w.width, w.height), Math.min(w.width, w.height)).filter(s => s.grade).pop() || {}).image || 'wall size')} in.</p>` : ''}
 
 <div class="kp-two">
@@ -85,7 +108,7 @@ ${canRef ? `<p class="kp-up">To print larger, <a href="/license/${esc(w.slug)}?u
 <label><span>Where to write</span><input type="email" name="email" required maxlength="160" value="${esc((b && b.email) || l.licensee_email || '')}" autocomplete="email"></label>
 <label class="kp-wide"><span>A note (optional)</span><input name="note" maxlength="300" placeholder="A date it is for, a frame you have in mind"></label>
 <button class="buy-btn">Ask for the print</button></form>
-${orders.length ? `<ul class="kp-ord">${orders.map(o => `<li>${esc(o.size || '')}${o.paper ? `, ${esc(o.paper)}` : ''}${o.frame ? ', framed' : ''} · asked ${esc(date(o.at))} · <i>${esc({ asked: 'with the house', making: 'being printed', sent: 'sent', done: 'delivered' }[o.status] || o.status)}</i></li>`).join('')}</ul>` : ''}</div>
+${orders.filter(o => o.kind !== 'proof' || o.paid).length ? `<ul class="kp-ord">${orders.filter(o => o.kind !== 'proof' || o.paid).map(o => `<li>${o.kind === 'proof' ? 'The proof, ' : ''}${esc(o.size || '')}${o.paper ? `, ${esc(o.paper)}` : ''}${o.frame ? ', framed' : ''} · asked ${esc(date(o.at))} · <i>${esc({ asked: 'with the house', making: 'being printed', sent: 'sent', done: 'delivered' }[o.status] || o.status)}</i></li>`).join('')}</ul>` : ''}</div>
 </div></section>
 
 <section class="kp-s"><p class="k">The prints of this piece</p><h2>${prints.length ? `${prints.length} print${prints.length === 1 ? '' : 's'}, recorded.` : 'Record a print when you make one.'}</h2>
@@ -129,14 +152,60 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
     res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=asked${x.k ? '&k=' + encodeURIComponent(x.k) : ''}#print`);
   });
 
+  // The proof: paid at once, from the pocket or by Checkout; it reaches the desk already paid.
+  const proofSize = (l, w) => { const f = fileOf(l, w), s = sizes(f.L, f.S)[0]; return s ? `${s.image} in, on 7 × 5` : '7 × 5'; };
+  function proofPaid(o, how, s) {
+    if (!o || o.paid) return;
+    db.prepare("UPDATE print_orders SET paid=1, status='asked', stripe_session=COALESCE(?, stripe_session) WHERE id=?").run(s ? s.id : null, o.id);
+    if (s && s.customer && o.buyer_id) db.prepare("UPDATE buyers SET customer=COALESCE(NULLIF(customer,''), ?), email=COALESCE(email, ?) WHERE id=?").run(s.customer, (s.customer_details || {}).email || null, o.buyer_id);
+    const l = db.prepare('SELECT * FROM licenses WHERE id=?').get(o.license_id), w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w);
+    ledger.append(db, 'proof.collected', l.ref, { cents: o.cents, how });
+    mail.send({ to: HOUSE, subject: `A proof, paid: ${tidy(w.title)}`, text: `${tidy(w.title)}, by ${maker.name}. ${l.ref}${l.collector_no ? `, No. ${l.collector_no}` : ''}.\n\nThe proof: ${o.size}, ${PROOF_PAPER}. Paid ${money(o.cents)} (${how}).\n\nPost to:\n${o.ship_name}\n${o.address}\n\nWrite to: ${o.email}\n\nThe file: the original, held in the vault (${w.width} × ${w.height}). Studio → Prints moves it along.\n\nWatermark` });
+    if (o.email) mail.send({ to: o.email, subject: `The proof of ${tidy(w.title)}`, text: `Thank you. A proof of ${tidy(w.title)}, by ${maker.name}, is with the house's print room: ${o.size}, pigment on ${PROOF_PAPER}, ${l.collector_no ? `No. ${l.collector_no}` : 'the title'} in pencil beneath.\n\nIt will be posted within the week to:\n${o.ship_name}\n${o.address}\n\nYou will be written to when it goes.\n\nYour piece: ${C.base}/yours/p/${l.ref}\n\nWatermark` });
+  }
+  app.post('/yours/p/:ref/proof', async (req, res) => {
+    const l = lic(req.params.ref); if (!l || !mine(req, l)) return res.sendStatus(404);
+    const x = req.body || {}, t = (v, n) => String(v || '').trim().slice(0, n), kq = x.k ? '&k=' + encodeURIComponent(x.k) : '';
+    const back = ok => res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=${ok}${kq}#print`);
+    const name = t(x.name, 80), email = t(x.email, 160).toLowerCase(), street = t(x.street, 120), city = t(x.city, 60), state = t(x.state, 20).toUpperCase(), zip = t(x.zip, 10);
+    if (!name || !street || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{5}(-\d{4})?$/.test(zip) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return back('proofcheck');
+    const live = l.status === 'active' && (!l.ends_at || new Date(l.ends_at) > new Date()); if (!live) return back('proofoff');
+    let b = buyerOf(req), w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
+    const address = `${street}\n${city}, ${state} ${zip}\nUnited States`, size = proofSize(l, w);
+    const id = db.prepare("INSERT INTO print_orders (license_id, buyer_id, kind, size, paper, email, ship_name, address, cents, paid, status) VALUES (?,?,'proof',?,?,?,?,?,?,0,'pending')").run(l.id, b ? b.id : null, size, PROOF_PAPER, email, name, address, PROOF_CENTS).lastInsertRowid;
+    const o = db.prepare('SELECT * FROM print_orders WHERE id=?').get(id);
+    if (x.from === 'pocket' && b && pk() && pk().spend(b, PROOF_CENTS, 'proof', l.ref, `The proof of ${tidy(w.title)}`)) { proofPaid(o, 'pocket'); return back('proof'); }
+    if (!stripe) { db.prepare('DELETE FROM print_orders WHERE id=?').run(id); return back('proofoff'); }
+    if (!b && setBuyer) { const bid = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', ?)").run(email).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(bid); setBuyer(res, b); db.prepare('UPDATE print_orders SET buyer_id=? WHERE id=?').run(b.id, id); }
+    try {
+      const s = await stripe.checkout.sessions.create({ mode: 'payment', submit_type: 'pay', ...(b && b.customer ? { customer: b.customer } : { customer_email: email }),
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: PROOF_CENTS, product_data: { name: `The proof: ${tidy(w.title)}`, description: `A 5 × 7 print from the house's print room, pigment on ${PROOF_PAPER}, posted to you.`, images: [`${C.base}/img/${w.slug}/screen?f=jpg`] } } }],
+        metadata: { proof: String(id) }, payment_intent_data: { metadata: { proof: String(id) } },
+        success_url: `${C.base}/yours/p/${l.ref}/proof/thanks?id=${id}&session_id={CHECKOUT_SESSION_ID}${l.download_token ? `&k=${l.download_token}` : ''}`, cancel_url: `${C.base}/yours/p/${l.ref}${l.download_token ? `?k=${l.download_token}` : ''}#print` });
+      db.prepare('UPDATE print_orders SET stripe_session=? WHERE id=?').run(s.id, id);
+      res.redirect(303, s.url);
+    } catch (e) { console.error('[proof]', e.message); db.prepare('DELETE FROM print_orders WHERE id=?').run(id); back('proofoff'); }
+  });
+  function settleProof(id, s) {
+    const o = db.prepare('SELECT * FROM print_orders WHERE id=?').get(Number(id));
+    if (!o || o.paid || o.kind !== 'proof' || o.stripe_session !== s.id || s.payment_status !== 'paid') return;
+    proofPaid(o, 'card', s);
+  }
+  app.get('/yours/p/:ref/proof/thanks', async (req, res) => {
+    const o = db.prepare('SELECT * FROM print_orders WHERE id=?').get(Number(req.query.id));
+    if (o && !o.paid && stripe && o.stripe_session === req.query.session_id) { try { settleProof(o.id, await stripe.checkout.sessions.retrieve(o.stripe_session)); } catch (e) { /* the webhook */ } }
+    res.redirect(`/yours/p/${encodeURIComponent(req.params.ref)}?ok=proof${req.query.k ? '&k=' + encodeURIComponent(req.query.k) : ''}#print`);
+  });
+  app.locals.keepEvent = event => { if (event.type === 'checkout.session.completed') { const s = event.data.object; if (s.metadata && s.metadata.proof) settleProof(s.metadata.proof, s); } };
+
   // The print room's desk (Studio → Prints): every print asked for, moved along by hand; the asker is told at each step.
   const STEPS = { asked: 'Asked', making: 'Being printed', sent: 'Sent', done: 'Delivered', declined: 'Declined' };
   app.get('/studio/prints', (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio/login');
-    const rows = db.prepare(`SELECT o.*, l.ref, l.collector_no, w.slug, w.title, w.width, w.height FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id ORDER BY (o.status IN ('asked','making','sent')) DESC, o.id DESC LIMIT 300`).all();
+    const rows = db.prepare(`SELECT o.*, l.ref, l.collector_no, w.slug, w.title, w.width, w.height FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id WHERE o.status<>'pending' ORDER BY (o.status IN ('asked','making','sent')) DESC, o.id DESC LIMIT 300`).all();
     res.send(V.layout({ title: 'Prints · Studio · Watermark', studio: true, path: '/studio/prints', body: `<section class="studio-wrap"><p class="k">The print room</p><h1>Prints asked for.</h1>
 <p class="lede">Each request is answered by letter with the price and the day; then moved along here. The asker is written to at each step. The original is in the vault at full size.</p>
-${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>Asked by</th><th>Asked</th><th>Where it is</th></tr>${rows.map(o => `<tr><td><img class="cat-th" src="/img/${esc(o.slug)}/thumb" alt="" width="56" height="42"></td><td><a href="/w/${esc(o.slug)}">${esc(tidy(o.title))}</a><br><small>${esc(o.ref)}${o.collector_no ? ` · No. ${o.collector_no}` : ''} · ${o.width} × ${o.height}</small></td><td>${esc(o.size || '')}<br><small>${esc(o.paper || '')}${o.frame ? ' · framed' : ''}${o.note ? ` · “${esc(o.note)}”` : ''}</small></td><td><a href="mailto:${esc(o.email || '')}">${esc(o.email || '')}</a></td><td>${esc(date(o.at))}</td><td><form method="post" action="/studio/prints/${o.id}" class="inline"><select name="status">${Object.entries(STEPS).map(([k, n]) => `<option value="${k}"${o.status === k ? ' selected' : ''}>${n}</option>`).join('')}</select> <button>Move</button></form></td></tr>`).join('')}</table>` : '<p>None yet. When a collector asks for a print from their piece, it arrives here and by mail.</p>'}</section>` }));
+${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>Asked by</th><th>Asked</th><th>Where it is</th></tr>${rows.map(o => `<tr><td><img class="cat-th" src="/img/${esc(o.slug)}/thumb" alt="" width="56" height="42"></td><td><a href="/w/${esc(o.slug)}">${esc(tidy(o.title))}</a><br><small>${esc(o.ref)}${o.collector_no ? ` · No. ${o.collector_no}` : ''} · ${o.width} × ${o.height}</small></td><td>${o.kind === 'proof' ? `<b>The proof</b> · ${esc(o.size || '')}<br><small>${esc(o.paper || '')} · paid ${money(o.cents || 0)}</small>` : `${esc(o.size || '')}<br><small>${esc(o.paper || '')}${o.frame ? ' · framed' : ''}${o.note ? ` · “${esc(o.note)}”` : ''}</small>`}</td><td><a href="mailto:${esc(o.email || '')}">${esc(o.email || '')}</a>${o.address ? `<br><small>${esc(o.ship_name || '')}<br>${esc(o.address).replace(/\n/g, '<br>')}</small>` : ''}</td><td>${esc(date(o.at))}</td><td><form method="post" action="/studio/prints/${o.id}" class="inline"><select name="status">${Object.entries(STEPS).map(([k, n]) => `<option value="${k}"${o.status === k ? ' selected' : ''}>${n}</option>`).join('')}</select> <button>Move</button></form></td></tr>`).join('')}</table>` : '<p>None yet. When a collector asks for a print from their piece, it arrives here and by mail.</p>'}</section>` }));
   });
   app.post('/studio/prints/:id', (req, res) => {
     if (!isStudio(req)) return res.sendStatus(403);
