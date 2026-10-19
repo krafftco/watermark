@@ -238,13 +238,38 @@
   }, { passive: true });
   // Closing: the shade, Esc, or a swipe back on the door itself.
   shade.addEventListener('click', function () { sideHide(); });
+  (function () { var x0 = null; shade.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true }); shade.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) >= 60) move(dx < 0 ? 1 : -1); }, { passive: true }); })();
+  scroller.addEventListener('scroll', function () { if (sideOpen) sideHide(); }, { passive: true });
   [sideL, sideR].forEach(function (el) {
     if (!el) return; var x0 = null;
     el.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
-    el.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) < 60) return; if ((el === sideR && dx > 0) || (el === sideL && dx < 0)) sideHide(); }, { passive: true });
+    el.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) < 60) return; move(dx < 0 ? 1 : -1); }, { passive: true });
     el.addEventListener('click', function (e) { var b = e.target.closest('[data-sd-switch]'); if (!b) return; sideAs = b.getAttribute('data-sd-switch'); try { localStorage.setItem('wm_side_as', sideAs); } catch (x) {} paintAs(); });
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sideOpen) { e.preventDefault(); e.stopImmediatePropagation(); sideHide(); } else if (!sideOpen && e.key === 'ArrowRight') { var w = items[cur]; if (w) { sideFill(w.slug); sideShow('keys'); } } else if (!sideOpen && e.key === 'ArrowLeft') { var w2 = items[cur]; if (w2) { sideFill(w2.slug); sideShow('yours'); } } }, true);
+  // Three rooms in a row, Yours · Wander · the Keys (Will, 19 Oct: left, left, right, right, every combination should
+  // land somewhere, always easy, always quick): `move(dir)` steps along the row. From Wander, → opens the Keys and ←
+  // opens Yours; from an open door, a step back closes it to Wander, and a step further wraps round to the other door.
+  // Arrow keys, a sideways trackpad scroll, and a swipe all move the same way.
+  function move(dir) {
+    var w = items[cur]; if (w) sideFill(w.slug);
+    if (!sideOpen) return sideShow(dir > 0 ? 'keys' : 'yours');
+    if ((sideOpen === 'keys' && dir < 0) || (sideOpen === 'yours' && dir > 0)) return sideHide();
+    var other = sideOpen === 'keys' ? 'yours' : 'keys'; sideHide(); setTimeout(function () { sideShow(other); }, 180);
+  }
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (e.key === 'Escape' && sideOpen) { e.preventDefault(); e.stopImmediatePropagation(); sideHide(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); move(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); move(-1); }
+  }, true);
+  // A sideways scroll on a trackpad: one step per gesture.
+  var wx = 0, wT = null, wDone = false;
+  addEventListener('wheel', function (e) {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5) return;
+    clearTimeout(wT); wT = setTimeout(function () { wx = 0; wDone = false; }, 350);
+    if (wDone) return; wx += e.deltaX;
+    if (Math.abs(wx) > 60) { wDone = true; wx = 0; e.preventDefault(); move(e.deltaX > 0 ? 1 : -1); }
+  }, { passive: false });
   root.addEventListener('click', function (e) { var k = e.target.closest('[data-st-doors]'); if (!k) return; var w = items[cur]; if (w) sideFill(w.slug); sideShow(k.getAttribute('data-st-doors')); });
   // A fresh work closes an open door and drops the old answer.
   var sideWatch = setInterval(function () { if (sideOpen) return; var w = items[cur]; if (w && sideFor && sideFor !== w.slug) sideFor = null; }, 800);
