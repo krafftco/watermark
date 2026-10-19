@@ -12,7 +12,7 @@ const path = require('path');
 const KINDS = { maker: 'The maker’s key', collector: 'The collector’s key', curator: 'The curator’s key' };
 
 // The marks of the Keys (Will, 19 Oct): the matchbook of the Keys restaurant, Indianapolis, born 1947, vectorised
-// by Will (THE_KEYS/the_keys.ai): the wordmark 'The KEYS Restaurant' and the bunch of keys on their tassel.
+// by Will (THE_KEYS/the_keys.ai): the wordmark 'The KEYS' (the word Restaurant taken off, Will 19 Oct: the Keys is the club now) and the bunch of keys on their tassel.
 // Family material; free to use. Inlined so they take the page's colour.
 const MARK = {};
 for (const n of ['bunch', 'mark', 'matchbook']) { try { MARK[n] = fs.readFileSync(path.join(__dirname, '..', 'public', 'keys', n + '.svg'), 'utf8').replace('<svg ', `<svg class="kmk kmk-${n}" aria-hidden="true" `); } catch (e) { MARK[n] = ''; } }
