@@ -216,6 +216,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/keys'); assert.ok(r.status === 200 && r.body.toString().includes('Are you a maker, a collector, or a curator?'), 'the door');
     r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('The Keys:'), 'the key shows on the gallery');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('key.given'), 'keys are given quietly'); }
+  // The bench: anyone reads; a stranger may not speak; a keyholder who has not stood is refused; after a minute before the work they speak; the maker marks it well seen; nothing of it is on the wall.
+  { r = await req(port, 'GET', `/bench/${w.slug}`); assert.ok(r.status === 200 && r.body.toString().includes('On the bench') && r.body.toString().includes('for keyholders'), 'the bench reads to anyone');
+    r = await req(port, 'POST', `/bench/${w.slug}`, { body: { body: 'A stranger says something long enough to count.' } }); assert.ok(/ok=no/.test(r.headers.location), 'a stranger may not speak');
+    // the collector (bck) holds a key but has not stood before this work and does not hold it
+    db.prepare('DELETE FROM stood WHERE work_id=?').run(w.id);
+    const bb = db.prepare('SELECT * FROM licenses WHERE ref=?').get(dj.ref); db.prepare("INSERT INTO stood (work_id, viewer, buyer_id, n, seconds) VALUES (?,?,?,1,75)").run(w.id, 'benchv', bb.buyer_id);
+    r = await req(port, 'POST', `/bench/${w.slug}`, { cookie: bck, body: { body: 'short' } }); assert.ok(/ok=short/.test(r.headers.location), 'a sentence at least');
+    r = await req(port, 'POST', `/bench/${w.slug}`, { cookie: bck, body: { body: 'The light on the far wall is the whole picture; everything else waits for it. See www.x.com' } }); assert.ok(/ok=link/.test(r.headers.location), 'no links');
+    r = await req(port, 'POST', `/bench/${w.slug}`, { cookie: bck, body: { body: 'The light on the far wall is the whole picture; everything else waits for it.' } }); assert.ok(/ok=said/.test(r.headers.location), 'after standing, they speak');
+    const bl = db.prepare("SELECT * FROM bench_lines WHERE kind='work' AND subject_id=?").get(w.id); assert.ok(bl && bl.name, 'signed');
+    r = await req(port, 'POST', `/bench/line/${bl.id}/seen`, { cookie: ck }); r = await req(port, 'GET', `/bench/${w.slug}`); assert.ok(r.body.toString().includes('Well seen'), 'the house marks it well seen');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('far wall is the whole picture') && r.body.toString().includes('bn-door'), 'nothing of it on the wall; only the door');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM notices WHERE kind='bench'").get().n >= 1, 'the maker is told');
+    db.prepare("DELETE FROM stood WHERE viewer='benchv'").run(); }
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');

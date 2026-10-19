@@ -301,7 +301,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -397,6 +397,7 @@ ${share && !open ? `<details class="more-uses"><summary>Other uses <span>In a st
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
 ${ap ? `${stood ? `<p class="lot-stood"><span data-stood ${stood.mine && stood.mine <= stood.first ? '' : 'hidden'}>${stood.mine && stood.mine <= stood.first ? `You were the ${stood.ord(stood.mine)} person to stand in front of this.` : ''}</span><small>${stood.n >= 5 ? `${stood.n} people have stood in front of this photograph.` : 'Be among the first to stand in front of this photograph.'}</small></p>` : ''}
+${bench ? `<div class="lot-sec bn-sec">${bench}<p class="bn-sec-l">The talk is in the Keys, one door from the wall: what the members say, signed, with the maker reading.</p></div>` : ''}
 <div class="lot-sec nt" id="notes"><h2>Guest book</h2><p class="nt-h">You are a guest in ${esc(maker.name)}&rsquo;s studio. Sign as you would in someone&rsquo;s home: your name, and what you would say to them standing in front of the picture. ${esc(maker.name.split(' ')[0])} reads every line, and marks the ones that saw something.</p>
 <p class="nt-ep">It is easy to be clever about a picture and hard to be useful to the person who made it. A line here costs nothing to write and is kept for good, under your name. Write the one you would want to find beneath your own work.</p>
 ${note === '1' ? '<p class="ok">Signed.</p>' : note === 'check' ? '<p class="err">A sentence and your name, please, without links.</p>' : note === 'kind' ? '<p class="err">Not in this house. Say it as you would to their face.</p>' : note === 'slow' ? '<p class="err">A moment, please.</p>' : ''}

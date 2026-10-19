@@ -15,6 +15,7 @@ const KINDS = {
   hat: { who: 'maker', label: 'Someone tips their hat', on: false },
   bravo: { who: 'maker', label: 'Someone calls Bravo! for one of yours', on: true },
   note: { who: 'maker', label: 'A line in a guest book of yours', on: true },
+  bench: { who: 'both', label: 'Someone speaks on the bench under your work, or your wall', on: true },
   paid: { who: 'maker', label: 'You are paid', on: true },
   show: { who: 'maker', label: 'A curator proposes a show, or opens your archive', on: true },
   reviewed: { who: 'buyer', label: 'A maker answers a show you curated', on: true },
@@ -139,7 +140,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     if (!q) return res.redirect('/signin?next=/notices');
     const items = db.prepare(`SELECT * FROM notices WHERE ${q.where} ORDER BY id DESC LIMIT 100`).all(...q.args);
     const owners = ownerKeys(w);
-    const kinds = Object.entries(KINDS).filter(([, k]) => (k.who === 'maker' && w.maker_id) || (k.who === 'buyer' && w.buyer_id)).map(([key, k]) => ({ key, label: k.label, on: owners.some(o => wants(o, key)) }));
+    const kinds = Object.entries(KINDS).filter(([, k]) => (k.who === 'both' && (w.maker_id || w.buyer_id)) || (k.who === 'maker' && w.maker_id) || (k.who === 'buyer' && w.buyer_id)).map(([key, k]) => ({ key, label: k.label, on: owners.some(o => wants(o, key)) }));
     const devices = db.prepare(`SELECT id, ua, at, last_ok FROM push_subs WHERE ${[w.maker_id ? 'maker_id=?' : null, w.buyer_id ? 'buyer_id=?' : null].filter(Boolean).join(' OR ')} ORDER BY id DESC`).all(...[w.maker_id, w.buyer_id].filter(Boolean));
     res.set('Cache-Control', 'private, no-store');
     // A photograph to stand the page on: the maker's own best, else today's.
@@ -167,7 +168,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
   app.post('/notices/prefs', (req, res) => {
     const w = me(req); const owners = ownerKeys(w); if (!owners.length) return res.sendStatus(401);
     const on = new Set([].concat((req.body && req.body.on) || []));
-    for (const [key, k] of Object.entries(KINDS)) for (const o of owners) if ((k.who === 'maker' && o[0] === 'm') || (k.who === 'buyer' && o[0] === 'b'))
+    for (const [key, k] of Object.entries(KINDS)) for (const o of owners) if (k.who === 'both' || (k.who === 'maker' && o[0] === 'm') || (k.who === 'buyer' && o[0] === 'b'))
       db.prepare('INSERT INTO notify_prefs (owner, kind, push) VALUES (?,?,?) ON CONFLICT(owner, kind) DO UPDATE SET push=excluded.push').run(o, key, on.has(key) ? 1 : 0);
     res.redirect('/notices?ok=' + encodeURIComponent('Saved.'));
   });
