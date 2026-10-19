@@ -208,6 +208,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
     ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });
+    if (app.locals.legal) { try { app.locals.legal.accept('maker', m.id, 'makers', req.ip, w.slug); } catch (e) { console.error('[legal]', e.message); } } // publishing accepts the Maker Agreement
     res.redirect('/account#w-' + w.slug);
   });
 

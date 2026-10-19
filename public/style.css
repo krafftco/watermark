@@ -3029,3 +3029,8 @@ html.fd-on{overflow:hidden}
 .kp-pf{margin-top:14px;grid-template-columns:1fr 1fr 1fr}.kp-pf .kp-wide{grid-column:1/-1}.kp-pf label:nth-child(1),.kp-pf label:nth-child(2){grid-column:span 1}.kp-pf button{grid-column:1/-1;justify-self:start}.kp-pfn{grid-column:1/-1;font-size:12px;opacity:.7}
 @media(max-width:760px){.kp-proof{grid-template-columns:1fr}.kp-proof-pic{max-width:160px}.kp-pf{grid-template-columns:1fr 1fr}}
 .yours-proof{margin:22px 0 0;padding:16px 18px;background:#f3efe6;font:15px/1.55 var(--read);color:#1c1a16}.yours-proof .k{display:block;margin-bottom:4px}.yours-proof a{color:inherit}
+/* The agreements (19 Oct): plain pages, a draft notice until reviewed. */
+.lg h2{font:400 24px/1.2 var(--disp);margin:34px 0 10px;text-transform:none;letter-spacing:0}.lg p,.lg li{font:16px/1.6 var(--read)}.lg ul{padding-left:20px}.lg li{margin:0 0 8px}
+.lg-draft{padding:12px 16px;background:#f3efe6;color:#1c1a16;font-size:14.5px}.lg-foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--ln);font-size:13px;opacity:.85}.lg-foot code{font-size:12px}.lg-others a{margin-right:6px}
+.lg-list{list-style:none;padding:0;margin:20px 0}.lg-list li{padding:14px 0;border-top:1px solid var(--ln)}.lg-list a{display:grid;gap:3px;text-decoration:none;color:inherit}.lg-list b{font:400 22px/1.2 var(--disp)}.lg-list small{display:block;margin-top:4px;opacity:.7;font-size:12px}
+.cu-agree{display:block;margin-top:8px;font-size:12px;opacity:.75}

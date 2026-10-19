@@ -257,6 +257,7 @@ function createApp(cfg = {}) {
     if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
     if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85); } catch (e) { console.error('[representation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
+    if (extra.paid && app.locals.legal) { try { app.locals.legal.accept('buyer', l.buyer_id, 'house', null, ref); } catch (e) { console.error('[legal]', e.message); } } // paying accepts the terms of the house
     if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
     const g = q.lic.get(ref);
     try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
@@ -518,7 +519,7 @@ function createApp(cfg = {}) {
     res.send(V.reported({ w }));
   });
   app.get('/about', (req, res) => res.send(V.about()));
-  app.get('/terms', (req, res) => res.send(V.terms()));
+  require('./legal').mountLegal(app, { db, V, C, ledger, buyerOf: req => app.locals.buyerOf(req), isStudio }); // /terms, /privacy, /legal/*: the house's agreements
 
   // What the visitor already holds of a work: one row per active license, with its use and any open offer.
   const heldBy = (req, w) => { const b = buyerOf(req); if (!b || !w) return [];
@@ -732,7 +733,7 @@ function createApp(cfg = {}) {
         ...(u.key === 'social' ? { submit_type: 'pay' } : { custom_fields: [{ key: 'company', label: { type: 'custom', custom: 'Company or publication' }, type: 'text', optional: true }] }),
         ...(u.kind === 'print' ? { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } } : {}),
         metadata: { ref },
-        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for this order (${ref}), with the rights shown on Watermark: ${C.base}/contract/${w.slug}?use=${u.key}${t.added.map(a => '&add=' + a).join('')}${t.extras.map(a => '&x=' + a).join('')}` } },
+        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for this order (${ref}), with the rights shown on Watermark: ${C.base}/contract/${w.slug}?use=${u.key}${t.added.map(a => '&add=' + a).join('')}${t.extras.map(a => '&x=' + a).join('')} and the terms of the house: ${C.base}/terms` } },
         success_url: `${C.base}/thanks/${ref}?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: /^https:\/\/([a-z0-9-]+\.)?krafftco\.com\//.test(String(req.body.back || '')) ? String(req.body.back).slice(0, 500) : /^\/(wander\/room|stroll)/.test(String(req.query.back || '')) ? `${C.base}${String(req.query.back).slice(0, 200)}` : `${C.base}/license/${w.slug}?use=${u.key}`,
       });
@@ -1044,7 +1045,7 @@ function createApp(cfg = {}) {
     try {
       const ss = await stripe.checkout.sessions.create({ mode: 'payment', submit_type: 'pay', ...(b && b.email ? { customer_email: b.email } : {}),
         line_items: items.map(x => ({ quantity: 1, price_data: { currency: 'usd', unit_amount: x.u.price_cents, product_data: { name: `${V.tidy(x.w.title)}, by ${mk(x.w).name}`, description: 'Collect: yours to keep and share, credited. Numbered in your gallery.', images: [`${C.base}/img/${x.w.slug}/thumb`] } } })),
-        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for each photograph collected (Collect), as shown on Watermark: ${C.base}/terms` } },
+        custom_text: { submit: { message: `By paying you accept the Standard Content License Agreement for each photograph collected (Collect) and the terms of the house: ${C.base}/terms` } },
         metadata: { ref: refs[0], set: setRef },
         success_url: `${C.base}/thanks/${refs[0]}?session_id={CHECKOUT_SESSION_ID}&basket=1`,
         cancel_url: `${C.base}/basket` });

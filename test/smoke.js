@@ -122,6 +122,10 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(r.status === 303 && /ok=asked/.test(r.headers.location), 'a print asked for');
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('with the house'), 'the order shows');
   r = await req(port, 'GET', '/print'); assert.ok(r.status === 200 && r.body.toString().includes('Print your work.'), 'the guide to printing');
+  // The agreements: every page answers, each is fingerprinted, the text matches the page's fingerprint; paying accepted the terms, publishing the Maker Agreement.
+  for (const pth of ['/terms', '/privacy', '/legal/makers', '/legal/curators', '/legal/claims', '/legal/prints', '/legal']) { r = await req(port, 'GET', pth); assert.ok(r.status === 200 && r.body.toString().includes('Version 2026-'), `agreement ${pth}`); }
+  r = await req(port, 'GET', '/legal/house.txt'); { const t = r.body.toString(); const h = t.match(/sha256 ([0-9a-f]{64})/)[1]; assert.equal(h, app.locals.legal.hashOf('house'), 'the text carries its fingerprint'); const crypto = require('crypto'); assert.equal(crypto.createHash('sha256').update(t.replace(/sha256 [0-9a-f]{64}\n$/, '')).digest('hex'), h, 'the fingerprint is of the text'); }
+  assert.ok(db.prepare("SELECT COUNT(*) n FROM acceptances WHERE who='buyer' AND doc='house'").get().n >= 1, 'paying accepted the terms of the house');
   // The proof: a 5 × 7 from the house's print room, paid at once; from the pocket in one tap, landing on the desk paid.
   assert.ok(kp.includes('kp-proof') && kp.includes('Hahnemühle Photo Rag'), 'the proof is offered');
   r = await req(port, 'POST', `/yours/p/${dj.ref}/proof`, { cookie: bck, body: { name: 'Tap', email: 'tap@example.com', street: '1 Main St', city: 'New York', state: 'New York', zip: '10028' } });
@@ -174,6 +178,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const ck = r.headers['set-cookie'][0].split(';')[0];
   r = await req(port, 'GET', '/studio/prints', { cookie: ck }); assert.ok(r.body.toString().includes('10 × 7½ in, on 10 × 8'), 'the print room lists it');
   { const oid = (r.body.toString().match(/action="\/studio\/prints\/(\d+)"/) || [])[1]; r = await req(port, 'POST', `/studio/prints/${oid}`, { cookie: ck, body: { status: 'making' } }); assert.equal(r.status, 302, 'moved along'); }
+  r = await req(port, 'GET', '/studio/legal', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('Mark reviewed'), 'the agreements desk');
+  r = await req(port, 'POST', '/studio/legal/house', { cookie: ck }); r = await req(port, 'GET', '/terms'); assert.ok(!r.body.toString().includes('lg-draft'), 'reviewed drops the draft notice');
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');
@@ -394,6 +400,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.strictEqual(aw.maker_id, est.id); assert.strictEqual(aw.status, 'hidden', 'private on arrival');
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck }); assert.ok(r.headers.location.includes('need=attest'), 'no publishing without the attestation');
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck, body: { attest: '1' } });
+  assert.ok(db.prepare("SELECT COUNT(*) n FROM acceptances WHERE who='maker' AND doc='makers'").get().n >= 1, 'publishing accepted the Maker Agreement');
   assert.strictEqual(db.prepare('SELECT status FROM works WHERE id=?').get(aw.id).status, 'held');
   r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('Photograph by The Ada Estate'), 'their name on their work');
   r = await req(port, 'POST', `/buy/${aj.slug}`, { body: { use: 'social' } }); const es = sessions[r.headers.location.split('/').pop()];
