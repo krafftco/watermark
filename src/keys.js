@@ -86,6 +86,7 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
 <div class="ky-h"><p class="k">The house</p><h1>The Keys.</h1>
 <p class="lede">The galleries are silent, as a museum’s are. Above them is the balcony, where the members talk: about what they just saw, what they hold, what they are making. The Keys is the house’s private members’ club. Keys are earned, never bought. ${kinds.length ? `You hold ${kinds.length === 1 ? 'one' : kinds.length}.` : 'Anyone may look in through the window.'}</p>
 <p class="ky-comm"><span class="ky-script">Keys Comments</span> The Keys was born in 1947 on North Meridian Street, Indianapolis, a restaurant kept by two sisters; the keys it gave its guests opened the front door. The house carries the name, the keys and the manner on. <a href="/keys/story">The story →</a></p>
+<p class="ky-ep">“It is my extreme pleasure to welcome you among our honored guests.” <span>Mary Helen Krafft, 1968. The house’s standard since.</span></p>
 <p class="ky-q">Are you a maker, a collector, or a curator?</p></div>
 <div class="ky-rooms">
 ${room('maker', KINDS.maker, 'You make the work.', 'Given with a studio, by invitation. It opens your archive, kept forever; your page; your prices; the register; the print room; the piano, where new work is shown first; and a night of your own to host.', m ? '/account' : '/makers', m ? 'Your studio' : 'Apply')}
@@ -106,7 +107,7 @@ ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who
   // and the story of the name). From the Keys' own 1968 menu (Keys Comments, signed Mary Helen Krafft, Mrs. Wm. R.)
   // and Will. Every word a draft for Will; the blanks in the name's story are his to fill.
   app.get('/keys/story', (req, res) => {
-    const menu = (n, cap) => `<figure class="ks-menu"><a href="/static/keys/menu-${n}.jpg"><img src="/static/keys/menu-${n}.jpg" alt="${esc(cap)}" loading="lazy"></a><figcaption>${esc(cap)}</figcaption></figure>`;
+    const menu = (n, cap) => `<figure class="ks-menu"><img src="/static/keys/menu-${n}.jpg" alt="${esc(cap)}" loading="lazy"><figcaption>${esc(cap)}</figcaption></figure>`;
     res.send(V.layout({ title: 'The story of the Keys · Watermark', path: '/keys/story', desc: 'The Keys was born in 1947 on North Meridian Street, Indianapolis. The house carries the name, the keys and the manner on.', body: `<article class="ks">
 <header class="ks-cover"><div class="ks-cover-in">${MARK.matchbook}</div><div class="ky-damask" aria-hidden="true"></div></header>
 <div class="ks-body">

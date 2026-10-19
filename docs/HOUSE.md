@@ -54,3 +54,11 @@ Finding art is always hard; the long walk up to the one you came for. Find is on
 
 ## Wilhelm (Will, 18 October)
 The house has a character: Wilhelm, a version of Will in a few lines, the way Hitchcock's profile is Hitchcock. The quiff is the Watermark wave; the round glasses, the short beard, the neckerchief. Chic, an artist. He is the one who reads the guide, who finds things for you, who keeps the signs when a page is missing; the house's AI wears his face and his name, never a chat bubble. First drawn 18 October from the Photo Booth portraits; a draft until Will says it is him.
+
+## Unreasonable hospitality (Will, 19 October)
+
+Everything the house does is operated as hospitality, at the level of a three-star room and past it. The standard is Thomas Keller's: there is no such thing as perfection in food, and seeking it anyway is the point, because the point is to make people happy. That is what Watermark and Krafft Studios are for: to make people happy; to make beautiful places for beautiful work to be seen in; and for the people who make it to be paid.
+
+So every interaction of the house says, in its own words, four things: thank you; you are our honoured guest; this is our house and our home, and you are welcome in it; we hope you come back. The restaurant said it first, on the back of every menu: "It is my extreme pleasure to welcome you among our honored guests." Mary Helen Krafft, 1968. The house's standard since.
+
+Where it is said today: the welcome when you sign in; the letter when you collect; the thanks page; the door out ("Thank you for coming. We hope you come back."); the epigraph on the Keys. The test for any new page or letter: does it thank, welcome, and hope to see them again, without saying so twice.

@@ -3127,3 +3127,4 @@ html.fd-on{overflow:hidden}
 /* Hat vs Bravo, said once, plainly (Will, 19 Oct: people keep asking). */
 .ap-why{font:13px/1.5 var(--read);color:var(--mu);margin:6px 0 0}.ap-why b{font-weight:600;color:var(--ink)}.ap-why i{font-style:italic}
 .vr-why{font:12.5px/1.5 var(--read);color:#8d8677;margin:8px 0 0}.vr-why i{font-style:italic}
+.ky-ep{font:italic 19px/1.5 var(--read);color:#2f2d29;max-width:620px;margin:18px 0 0}.ky-ep span{display:block;font:12px/1.5 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-top:6px;font-style:normal}

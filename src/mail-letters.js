@@ -88,7 +88,7 @@ function collected(c) {
     ]),
     para(`Your agreement with ${esc(c.maker)} is set out in full at <a href="${c.contractUrl}" style="color:${INK}">the agreement</a>. You accepted it when you paid; its fingerprint is kept in the house register, so neither side can change a word of it.`, '26px'),
     para(`The photograph carries its papers inside the file: who made it, this number, and how to reach the maker. Anyone can check them at <a href="${c.checkUrl}" style="color:${INK}">${esc(c.checkUrl.replace(/^https?:\/\//, ''))}</a>.`),
-    close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for collecting.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
+    close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
   ].join('') });
   const text = [
     `${personal ? `${title} is yours.` : `${title} is licensed to ${c.who}.`}`,
@@ -101,7 +101,7 @@ function collected(c) {
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
     `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
     `Watermark number: ${c.number}. Anyone can check it: ${c.checkUrl}`,
-    'Thank you for collecting.\nThe house',
+    'Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.\nThe house',
   ].filter(Boolean).join('\n\n');
   const subject = personal ? `${title} is yours${c.no ? `, No. ${c.no}` : ''}` : `Your license for ${title}`;
   return { subject, text, html };
