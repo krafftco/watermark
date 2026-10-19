@@ -878,6 +878,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const P = require('../src/iiif').parseManifest({ sequences: [{ canvases: [{ '@id': 'c1', label: 'One', images: [{ resource: { '@id': 'https://x/i.jpg', service: { '@id': 'https://x/iiif/1', profile: 'http://iiif.io/api/image/2/level1.json' } } }] }] }] }); assert.ok(P.items[0].image === 'https://x/iiif/1/full/full/0/default.jpg', 'v2 manifests too');
   }
   console.log('ok: for museums');
+  { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
+    r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
+  console.log('ok: the director');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
     assert.equal(two.length, 2, 'two collectable photographs for the basket');

@@ -3128,3 +3128,14 @@ html.fd-on{overflow:hidden}
 .ap-why{font:13px/1.5 var(--read);color:var(--mu);margin:6px 0 0}.ap-why b{font-weight:600;color:var(--ink)}.ap-why i{font-style:italic}
 .vr-why{font:12.5px/1.5 var(--read);color:#8d8677;margin:8px 0 0}.vr-why i{font-style:italic}
 .ky-ep{font:italic 19px/1.5 var(--read);color:#2f2d29;max-width:620px;margin:18px 0 0}.ky-ep span{display:block;font:12px/1.5 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-top:6px;font-style:normal}
+
+/* The director (19 Oct). */
+.dr{max-width:960px;margin:0 auto;padding:40px 16px 60px}.dr .k{margin:0 0 6px}
+.dr-h{display:grid;grid-template-columns:minmax(200px,300px) 1fr;gap:34px;align-items:end;margin:0 0 40px}.dr-por{width:100%;aspect-ratio:4/5;object-fit:cover;background:#111;filter:grayscale(.15)}.dr-por-w{aspect-ratio:3/2}
+.dr-hd h1{font:400 clamp(40px,6vw,66px)/1.02 var(--disp);margin:4px 0 10px}.dr-title{font:600 11px/1.6 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:#8a6a1f;margin:0 0 14px}.dr-hd .lede{max-width:40em}
+.dr-st{max-width:680px;margin:0 0 36px}.dr-st p{font:19px/1.6 var(--read);color:#2f2d29;margin:0 0 14px}.dr-sig{font-family:"Snell Roundhand","Apple Chancery","Brush Script MT",cursive;font-size:30px!important;color:var(--ink)!important;margin:10px 0 4px!important}.dr-st .note{font-size:13px!important;color:var(--mu)!important}
+.dr-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:0 0 40px;padding:22px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)}.dr-nums b{display:block;font:300 40px/1 var(--disp)}.dr-nums span{font:13px/1.4 var(--read);color:var(--mu)}
+.dr-own{margin:0 0 36px}.dr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0 10px}.dr-grid .pl{aspect-ratio:1}.dr-grid img{width:100%;height:100%;object-fit:cover}
+.dr-line p,.dr-ask p{font:17px/1.6 var(--read);max-width:680px}.dr-line{margin:0 0 28px}
+.mh-dir{color:#8a6a1f;text-decoration:none;font-weight:600}
+@media(max-width:760px){.dr-h{grid-template-columns:1fr;gap:18px}.dr-por{max-width:260px}.dr-grid{grid-template-columns:repeat(3,1fr)}}
