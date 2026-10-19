@@ -854,6 +854,50 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/founders/first', { cookie: ck, body: { id: '' } }); assert.ok(/clock/.test(decodeURIComponent(r.headers.location)), 'un-named'); assert.ok(!app.locals.founders.firstId());
   }
   console.log('ok: the first collector');
+  // The season, the Circle and the cards (19 Oct): a night opens to the Circle first; a member replies and sees who is coming; a card between two keyholders; yes → the house introduces both.
+  { const wmk = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+    r = await req(port, 'GET', '/circle'); assert.ok(r.status === 200 && /The Circle\./.test(r.body) && /Join the Circle/.test(r.body) && /under forty/.test(r.body), 'the Circle page');
+    r = await req(port, 'GET', '/season'); assert.ok(r.status === 200 && /The season\./.test(r.body), 'the season page');
+    r = await req(port, 'POST', '/circle/join', { cookie: sck, body: { level: 'guest', name: 'Season Collector', email: 'sck@example.com' } }); assert.ok(/ok=check/.test(r.headers.location), 'the attestation is needed');
+    r = await req(port, 'POST', '/circle/join', { cookie: sck, body: { level: 'guest', name: 'Season Collector', email: 'sck@example.com', attest: '1' } }); assert.ok(r.status === 303 && /checkout\.stripe\.test/.test(r.headers.location), 'to Checkout, by the year');
+    const cr = db.prepare("SELECT * FROM circle ORDER BY id DESC LIMIT 1").get(); assert.ok(cr && cr.status === 'pending' && cr.buyer_id && cr.stripe_session, 'pending, tied to the collector');
+    app.locals.seasonEvent({ type: 'checkout.session.completed', data: { object: { id: cr.stripe_session, status: 'complete', payment_status: 'paid', subscription: 'sub_c', metadata: { circle: String(cr.id) } } } });
+    assert.equal(db.prepare('SELECT status FROM circle WHERE id=?').get(cr.id).status, 'active', 'the webhook makes a member');
+    r = await req(port, 'GET', '/circle', { cookie: sck }); assert.ok(/You are a member of the Circle/.test(r.body) && /In the Circle/.test(r.body), 'the member sees the room');
+    // the Studio throws a night
+    r = await req(port, 'POST', '/studio/season', { cookie: ck, body: { title: 'A late night at the galleries', kind: 'late', at: '2031-05-09T21:00', city: 'New York', venue: 'The Long Gallery', address: '1 Meridian Street', line: 'The pictures, the people, the hour.', capacity: '2', makers: wmk.handle, circle_first: '1', status: 'open', work_slug: w.slug } });
+    const ni = db.prepare("SELECT * FROM nights ORDER BY id DESC LIMIT 1").get(); assert.ok(ni && ni.status === 'open' && ni.slug === 'a-late-night-at-the-galleries', 'the night is made and open');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='night.opened'").get().n >= 1, 'told on the register');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/opens its doors in New York/.test(r.body), 'in a sentence');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM notices WHERE kind='night' AND buyer_id=?").get(cr.buyer_id).n >= 1, 'the Circle is told');
+    r = await req(port, 'GET', '/season/' + ni.slug); assert.ok(r.status === 200 && /A late night at the galleries/.test(r.body) && /The artists present/.test(r.body) && !/1 Meridian Street/.test(r.body), 'the page, the artists, never the address to a stranger');
+    r = await req(port, 'POST', `/season/${ni.slug}/reply`, { cookie: mck, body: { name: 'The Maker' } }); assert.ok(/ok=circle/.test(r.headers.location), 'a keyholder waits: the Circle first');
+    r = await req(port, 'POST', `/season/${ni.slug}/reply`, { cookie: sck, body: { name: 'Season Collector', plus: '1', note: 'Bringing a friend who collects.' } }); assert.ok(/ok=going/.test(r.headers.location), 'the member comes, with a guest');
+    r = await req(port, 'GET', '/season/' + ni.slug, { cookie: sck }); assert.ok(/You are coming, with a guest/.test(r.body) && /1 Meridian Street/.test(r.body) && /Who is coming/.test(r.body) && /the Circle/.test(r.body), 'the address and the room, to those coming');
+    db.prepare("UPDATE nights SET created_at=datetime('now','-3 days') WHERE id=?").run(ni.id);
+    r = await req(port, 'POST', `/season/${ni.slug}/reply`, { cookie: mck, body: { name: 'The Maker' } }); assert.ok(/ok=waiting/.test(r.headers.location), 'after the Circle’s hours: the room is full, the list');
+    r = await req(port, 'POST', `/season/${ni.slug}/cancel`, { cookie: sck }); assert.equal(db.prepare("SELECT status FROM night_guests WHERE night_id=? AND maker_id IS NOT NULL").get(ni.id).status, 'going', 'the place passes to the first waiting');
+    r = await req(port, 'GET', `/studio/season/${ni.id}/guests.csv`, { cookie: ck }); assert.ok(/name,email/.test(r.body) && /The Maker/.test(r.body), 'the list');
+    // the cards
+    const mm = db.prepare("SELECT * FROM makers WHERE handle='the-ada-estate'").get();
+    r = await req(port, 'GET', `/meet/card?to=m:${mm.id}&about=night:${ni.slug}`, { cookie: sck }); assert.ok(r.status === 200 && /Leave the card/.test(r.body), 'the card page');
+    r = await req(port, 'POST', '/meet/card', { cookie: sck, body: { to: `m:${mm.id}`, about: `night:${ni.slug}`, note: 'short' } }); assert.ok(/ok=check/.test(r.headers.location), 'a sentence');
+    r = await req(port, 'POST', '/meet/card', { cookie: sck, body: { to: `m:${mm.id}`, about: `night:${ni.slug}`, note: 'Your staircase held me for four minutes; I would like to hear how you found it.' } }); assert.ok(/ok=card/.test(r.headers.location), 'the card is left');
+    r = await req(port, 'POST', '/meet/card', { cookie: sck, body: { to: `m:${mm.id}`, note: 'Another sentence for the same person, today.' } }); assert.ok(/ok=carded/.test(r.headers.location), 'never twice');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM notices WHERE kind='card' AND maker_id=?").get(mm.id).n >= 1, 'the maker is told');
+    r = await req(port, 'GET', '/meet', { cookie: mck }); assert.ok(/Left for you/.test(r.body) && /four minutes/.test(r.body) && /Yes, introduce us/.test(r.body), 'the maker reads it');
+    const cd = db.prepare('SELECT * FROM cards ORDER BY id DESC LIMIT 1').get();
+    r = await req(port, 'POST', `/meet/${cd.id}/answer`, { cookie: mck, body: { a: 'yes' } }); assert.ok(/ok=yes/.test(r.headers.location));
+    assert.ok(db.prepare('SELECT introduced_at FROM cards WHERE id=?').get(cd.id).introduced_at, 'introduced');
+    r = await req(port, 'GET', '/meet', { cookie: sck }); assert.ok(/Introduced,/.test(r.body), 'the collector sees it');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/four minutes|Season Collector|a card/.test(r.body.toString()), 'nothing of it on the register');
+    r = await req(port, 'GET', `/bench/${w.slug}`, { cookie: sck }); assert.ok(r.status === 200, 'the bench still reads');
+    r = await req(port, 'GET', '/stroll/side/' + w.slug, { cookie: sck }); assert.ok(/The season/.test(JSON.parse(r.body).keys), 'the Keys door says the season');
+    r = await req(port, 'GET', '/keys'); assert.ok(/The Circle/.test(r.body) && /The Season/.test(r.body), 'the rooms');
+    r = await req(port, 'POST', '/meet/prefs', { cookie: mck, body: { line: 'I make pictures of staircases.' } }); r = await req(port, 'POST', '/meet/card', { cookie: mck, body: { to: `b:${cr.buyer_id}`, note: 'Thank you for the card; a sentence back.' } }); assert.ok(/ok=card|ok=carded/.test(r.headers.location));
+    r = await req(port, 'POST', '/studio/season', { cookie: ck, body: { id: String(ni.id), title: ni.title, kind: 'late', at: '2031-05-09T21:00', status: 'past', came: '14' } }); assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='night.held'").get().n >= 1, 'held, told');
+  }
+  console.log('ok: the season, the Circle and the cards');
   // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
   { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
     const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();

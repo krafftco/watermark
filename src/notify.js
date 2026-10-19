@@ -23,6 +23,9 @@ const KINDS = {
   received: { who: 'buyer', label: 'A piece is sent to you', on: true },
   asked: { who: 'buyer', label: 'Someone asks you to pass on a piece you hold', on: true },
   placed: { who: 'buyer', label: 'A sale through your wall', on: true },
+  night: { who: 'both', label: 'A night of the season opens, or a place is yours', on: true },
+  card: { who: 'both', label: 'A card is left for you, or someone says yes to yours', on: true },
+  circle: { who: 'both', label: 'The Circle', on: true },
 };
 
 function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl }) {

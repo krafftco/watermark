@@ -367,6 +367,7 @@ function createApp(cfg = {}) {
     if (app.locals.pocketEvent) app.locals.pocketEvent(event); // the pocket filled
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (app.locals.keepEvent) app.locals.keepEvent(event); // a proof paid for
+    if (app.locals.seasonEvent) app.locals.seasonEvent(event); // the Circle: joined, or ended
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
       const pi = event.data.object, ref = pi.metadata && pi.metadata.ref;
       if (ref && q.lic.get(ref)) settle(q.lic.get(ref)).catch(e => console.error('[settle]', e.message));
@@ -1726,6 +1727,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./bench').mountBench(app, { db, V, C, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, mk, notify: app.locals.notify }); // the benches under works and walls: the talk, one door from the wall
   app.locals.noTimers = !!cfg.noTimers;
   require('./balcony').mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // the balcony: the Keys' room, open at hours; nothing said is kept
+  require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
   if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });
