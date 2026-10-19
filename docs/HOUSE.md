@@ -51,3 +51,6 @@ Wander is what makes the house bingeable; the rest serves it. The front door, th
 
 ## Straight to the picture (Will, 18 October)
 Finding art is always hard; the long walk up to the one you came for. Find is one search for the whole house, the same everywhere (the header, the stroll, / or ⌘K, /find): as you type, the works themselves appear, with their pictures; Enter opens the first; a slip of the fingers is forgiven; before you type, where you stood lately and what is yours, then the ways in. A word with no single work wanders through everything that matches.
+
+## Wilhelm (Will, 18 October)
+The house has a character: Wilhelm, a version of Will in a few lines, the way Hitchcock's profile is Hitchcock. The quiff is the Watermark wave; the round glasses, the short beard, the neckerchief. Chic, an artist. He is the one who reads the guide, who finds things for you, who keeps the signs when a page is missing; the house's AI wears his face and his name, never a chat bubble. First drawn 18 October from the Photo Booth portraits; a draft until Will says it is him.

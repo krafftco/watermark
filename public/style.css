@@ -3013,3 +3013,11 @@ html.fd-on{overflow:hidden}
   .st .st-line{display:none}
 }
 .fd-f input::-webkit-search-cancel-button,.fd-form input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+/* Wilhelm (18 Oct): the house's own, in a few lines; beside the guide, Find and the signs. */
+.ic-wil{width:30px;height:38px;flex:none}
+.lc-min-k .ic-wil{width:18px;height:23px;vertical-align:-6px;margin-right:6px}
+.lc-ai{display:inline-flex;align-items:center;gap:6px}.lc-ai .ic-wil{width:16px;height:20px}
+.nf-wil{display:flex;align-items:center;gap:10px}.nf-wil .ic-wil{width:26px;height:33px}
+.st-wil{display:flex;align-items:center;gap:8px}.st-wil .ic-wil{width:20px;height:26px}
+.fd-foot{display:flex;align-items:center;gap:10px}.fd-foot .ic-wil{width:22px;height:28px;color:#a39b8e}.fd-foot:empty{display:none}
+.fd-none{display:flex;align-items:center;gap:12px}.fd-none .ic-wil{width:30px;height:38px;color:#a39b8e}

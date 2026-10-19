@@ -39,7 +39,7 @@
       if (b.lately && b.lately.length) { h += '<p class="fd-k">Where you stood lately</p>' + b.lately.map(workRow).join(''); rows = rows.concat(b.lately); }
       if (b.yours && b.yours.length) { h += '<p class="fd-k">Yours</p>' + b.yours.map(workRow).join(''); rows = rows.concat(b.yours); }
       h += chips('Places', b.places) + chips('Makers', b.makers) + chips('Rooms', b.rooms);
-      list.innerHTML = h; foot.textContent = PHONE ? 'Type, or tap a way in.' : 'Type, then Enter opens the first. ↑ ↓ choose. Esc closes.'; return;
+      list.innerHTML = h; foot.innerHTML = (IC.wilhelm || '') + '<span>' + (PHONE ? 'What are you looking for? Type, or tap a way in.' : 'What are you looking for? Enter opens the first. ↑ ↓ choose.') + '</span>'; return;
     }
     var out = '';
     if (d.works && d.works.length) { out += d.works.map(workRow).join(''); rows = rows.concat(d.works); }
@@ -47,9 +47,9 @@
     (d.places || []).forEach(function (p) { out += wayRow(p, 'Place'); rows.push(p); });
     (d.rooms || []).forEach(function (r) { out += wayRow(r, 'Room'); rows.push(r); });
     (d.hangs || []).forEach(function (w) { out += wayRow(w, 'A wall'); rows.push(w); });
-    if (!out) out = '<p class="fd-none">Nothing by that word yet. Try a place, a maker, or a year.</p>';
+    if (!out) out = '<p class="fd-none">' + (IC.wilhelm || '') + '<span>Nothing by that word yet. Try a place, a maker, or a year.</span></p>';
     else if (d.works && d.works.length) out += '<a class="fd-all" href="/stroll?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
-    list.innerHTML = out; foot.textContent = d.works && d.works.length ? (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') : '';
+    list.innerHTML = out; foot.innerHTML = d.works && d.works.length ? (IC.wilhelm || '') + '<span>' + (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') + '</span>' : '';
   }
   var ctl = null;
   function load(q) {
