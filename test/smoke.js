@@ -180,6 +180,36 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const oid = (r.body.toString().match(/action="\/studio\/prints\/(\d+)"/) || [])[1]; r = await req(port, 'POST', `/studio/prints/${oid}`, { cookie: ck, body: { status: 'making' } }); assert.equal(r.status, 302, 'moved along'); }
   r = await req(port, 'GET', '/studio/legal', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('Mark reviewed'), 'the agreements desk');
   r = await req(port, 'POST', '/studio/legal/house', { cookie: ck }); r = await req(port, 'GET', '/terms'); assert.ok(!r.body.toString().includes('lg-draft'), 'reviewed drops the draft notice');
+  // Backups and the restore drill: a copy into the vault, the latest restored and checked against the live register; a stale or tampered copy fails the drill.
+  { const b = await app.locals.backup.backup(); assert.ok(b.key.startsWith('backups/db/') && b.bytes > 0, 'backed up to the vault');
+    const d = await app.locals.backup.drill(); assert.ok(d.ok && /matches the live one/.test(d.detail), 'the drill restores and checks');
+    r = await req(port, 'GET', '/studio/backups', { cookie: ck }); assert.ok(r.body.toString().includes(b.key) && r.body.toString().includes('drill'), 'the backups desk');
+    r = await req(port, 'GET', '/healthz'); { const j = JSON.parse(r.body); assert.ok(j.backup && j.backup.last && j.backup.last.ok && j.backup.drill && j.backup.drill.ok, '/healthz reports the backup'); }
+    // tamper: a backup whose register has a different hash at the same seq must fail
+    const zlib = require('zlib'); const Database = require('better-sqlite3'); const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.db`);
+    fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key))); const t = new Database(tmp); t.prepare("UPDATE ledger SET hash='0000' WHERE seq=(SELECT MAX(seq) FROM ledger)").run(); t.close();
+    await app.locals.store.put('backups/db/watermark-2000-01-01T00-00-00.db.gz', zlib.gzipSync(fs.readFileSync(tmp)), 'application/gzip');
+    let bad = null; try { await app.locals.backup.drill('backups/db/watermark-2000-01-01T00-00-00.db.gz'); } catch (e) { bad = e.message; } assert.ok(/register differs/.test(bad || ''), 'a tampered copy fails the drill');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='backup.failed'").get().n === 1, 'the failure is on the register');
+    await new Promise(r => setTimeout(r, 1100)); await app.locals.backup.backup(); await new Promise(r => setTimeout(r, 1100)); await app.locals.backup.backup(); assert.ok(!(await app.locals.store.list('backups/db/')).some(k => k.includes('2000-01-01')), 'old copies are pruned with each backup, never below three'); }
+  // The Studio door: with STUDIO_EMAILS set the password is retired; a named person's email code opens the door (no passkey yet), a stranger's does not.
+  { process.env.STUDIO_EMAILS = 'door@example.com';
+    r = await req(port, 'GET', '/studio/login'); assert.ok(r.status === 302 && /studio\/door/.test(r.headers.location), 'the password page gives way to the door');
+    r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); assert.equal(r.status, 403, 'the password is retired');
+    r = await req(port, 'POST', '/signin/code', { body: { email: 'stranger@example.com' } }); r = await req(port, 'POST', '/signin/verify', { body: { email: 'stranger@example.com', code: app.locals.lastCode.code } });
+    assert.ok(!/wm_s=/.test(String(r.headers['set-cookie'] || '')), 'a stranger\'s code opens no studio');
+    r = await req(port, 'POST', '/signin/code', { body: { email: 'door@example.com' } }); r = await req(port, 'POST', '/signin/verify', { body: { email: 'door@example.com', code: app.locals.lastCode.code } });
+    const sc = String(r.headers['set-cookie'] || ''); assert.ok(/wm_s=/.test(sc), 'the named person\'s code opens the door');
+    const dck = sc.match(/wm_s=[^;]+/)[0]; r = await req(port, 'GET', '/studio/legal', { cookie: dck }); assert.equal(r.status, 200, 'and the studio answers');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.opened'").get().n >= 1, 'the opening is on the register');
+    delete process.env.STUDIO_EMAILS; }
+  // The audit: a Studio action is on the register with its fields, never a password; the page lists it.
+  { const n0 = db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.action'").get().n;
+    r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '5' } });
+    const e = db.prepare("SELECT * FROM ledger WHERE type='studio.action' ORDER BY seq DESC LIMIT 1").get(); assert.ok(n0 >= 1 && e && /\/studio\/uses\/social/.test(e.subject) && /"price":"5"/.test(e.data), 'the price change is on the register');
+    assert.ok(!db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.action' AND data LIKE '%password%'").get().n, 'never a password');
+    r = await req(port, 'GET', '/studio/audit', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('studio.action'), 'the audit page');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('studio.action'), 'hidden from the public register'); }
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');

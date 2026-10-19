@@ -3034,3 +3034,5 @@ html.fd-on{overflow:hidden}
 .lg-draft{padding:12px 16px;background:#f3efe6;color:#1c1a16;font-size:14.5px}.lg-foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--ln);font-size:13px;opacity:.85}.lg-foot code{font-size:12px}.lg-others a{margin-right:6px}
 .lg-list{list-style:none;padding:0;margin:20px 0}.lg-list li{padding:14px 0;border-top:1px solid var(--ln)}.lg-list a{display:grid;gap:3px;text-decoration:none;color:inherit}.lg-list b{font:400 22px/1.2 var(--disp)}.lg-list small{display:block;margin-top:4px;opacity:.7;font-size:12px}
 .cu-agree{display:block;margin-top:8px;font-size:12px;opacity:.75}
+.bk-keys{list-style:none;padding:0;margin:10px 0 20px;font-size:13px}.bk-keys li{padding:6px 0;border-top:1px solid var(--ln)}.tbl tr.bad td{color:#9b2c2c}
+.dr-steps{list-style:none;padding:0;margin:24px 0}.dr-steps li{padding:18px 0;border-top:1px solid var(--ln);font:16px/1.5 var(--read)}.dr-steps li b{display:block;font:400 22px/1.2 var(--disp);margin-bottom:8px}.dr-steps li small{display:block;margin-top:8px;opacity:.7;font-size:13px}.dr-steps li.done b:after{content:" ✓";opacity:.6}.dr-steps li .buy-btn{margin-top:4px}

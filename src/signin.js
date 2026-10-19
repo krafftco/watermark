@@ -46,6 +46,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     const first = ((maker && maker.name) || fresh.name || '').split(' ')[0];
     res.cookie('wm_hi', first || '·', { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 60 * 1000 });
     ledger.append(db, 'signin.email', `buyer-${fresh.id}`, { maker: !!maker });
+    if (app.locals.studioFactor) { try { app.locals.studioFactor(req, res, email, 'code'); } catch (e) { console.error('[door]', e.message); } } // a named person's first factor at the Studio door
     const name = (maker && maker.name) || fresh.name || null;
     return { name: name ? name.split(' ')[0] : null, to: maker ? '/account' : '/yours', maker: !!maker, fresh: !cur || cur.id !== fresh.id ? !fresh.customer && !maker : false };
   }
@@ -115,7 +116,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   // Leaving: the house says goodbye the way a good host does, at the door.
   app.post('/signout', (req, res) => {
     const b = buyerOf(req), m = makerOf(req); const name = ((m && m.name) || (b && b.name) || '').split(' ')[0] || null;
-    for (const c of ['wm_b', 'wm_tap', 'wm_m', 'wm_as']) res.clearCookie(c);
+    for (const c of ['wm_b', 'wm_tap', 'wm_m', 'wm_as', 'wm_s']) res.clearCookie(c);
     res.redirect(`/farewell${name ? `?to=${encodeURIComponent(name)}` : ''}`);
   });
   app.get('/farewell', (req, res) => {

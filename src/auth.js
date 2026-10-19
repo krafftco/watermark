@@ -67,6 +67,7 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker
       }
       const fresh = db.prepare('SELECT * FROM buyers WHERE id=?').get(b.id);
       setBuyer(res, fresh, !!fresh.pm);
+      if (app.locals.studioFactor && fresh.email) { try { app.locals.studioFactor(req, res, fresh.email, 'passkey'); } catch (e) { console.error('[door]', e.message); } } // the second factor at the Studio door
       res.json({ ok: true });
     } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
   });

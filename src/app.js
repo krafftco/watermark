@@ -383,6 +383,29 @@ function createApp(cfg = {}) {
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('hex');
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
+  // The audit (Will, 19 Oct: security 3/6): every Studio action that changes anything is told on the register, signed into the
+  // chain like everything else (`studio.action`, hidden): the route, the fields that matter (never a password, a secret or a key),
+  // the outcome, who was at the desk. Read at Studio → Audit.
+  const AUDIT_KEYS = ['status', 'standing', 'price', 'price_cents', 'amount', 'slug', 'ref', 'handle', 'maker', 'number', 'va', 'service_request', 'state', 'decision', 'kind', 'name', 'use', 'fee', 'cents', 'size', 'paper', 'note', 'title', 'launched', 'on', 'from', 'to', 'pct', 'key', 'application', 'label', 'featured', 'public', 'do', 'order', 'reason', 'how'];
+  const AUDIT_NEVER = /pass|secret|token|cert|key$|^key$|webhook|api|private/i;
+  app.use('/studio', (req, res, next) => {
+    if (req.method !== 'POST' || req.path === '/login') return next();
+    res.on('finish', () => {
+      if (!isStudio(req) && res.statusCode >= 400) return;
+      const b = req.body || {}; const data = {};
+      for (const k of Object.keys(b)) { if (AUDIT_NEVER.test(k) && k !== 'key') continue; if (AUDIT_KEYS.includes(k) || /^(id|work|license)$/.test(k)) data[k] = String(b[k]).slice(0, 120); }
+      if (b.key && req.path.startsWith('/uses')) data.key = String(b.key).slice(0, 40);
+      const who = buyerOf(req); const m = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null;
+      try { ledger.append(db, 'studio.action', `${req.method} /studio${req.path}`, { ...data, status: data.status || undefined, http: res.statusCode, by: m ? `maker:${m.handle}` : who && who.email ? who.email.replace(/^(.).*@/, '$1…@') : 'studio', ip: (req.ip || '').slice(0, 45) }); } catch (e) { console.error('[audit]', e.message); }
+    });
+    next();
+  });
+  app.get('/studio/audit', studioOnly, (req, res) => {
+    const rows = db.prepare("SELECT * FROM ledger WHERE type IN ('studio.action','studio.opened','terms.reviewed','terms.draft','backup.failed','fixity.failed','dispute.upheld','dispute.dismissed','maker.paid','market.settled') ORDER BY seq DESC LIMIT 300").all();
+    res.send(V.layout({ title: 'Audit · Studio · Watermark', studio: true, path: '/studio/audit', body: `<section class="studio-wrap"><p class="k">The house</p><h1>The audit.</h1>
+<p class="lede">Every action taken at this desk, and every opening of its door, on the register: hashed into the chain and signed with the house key, so nothing here can be quietly changed or removed. Passwords, secrets and keys are never recorded.</p>
+${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail</th><th>Entry</th></tr>${rows.map(e => { let d = {}; try { d = JSON.parse(e.data || '{}'); } catch (x) { /* */ } const by = d.by || ''; delete d.by; return `<tr><td>${V.esc(V.date(e.at))}<br><small>${V.esc(e.at.slice(11, 19))}</small></td><td><code>${V.esc(e.type)}</code><br><small>${V.esc(e.subject)}</small></td><td><small>${V.esc(Object.entries(d).filter(([k, v]) => v !== undefined && v !== null && k !== 'ip').map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · '))}${by ? ` · by ${V.esc(by)}` : ''}</small></td><td><small>#${e.seq} · ${V.esc(String(e.hash).slice(0, 10))}</small></td></tr>`; }).join('')}</table>` : '<p>Nothing yet.</p>'}</section>` }));
+  });
   // The letters, as they arrive: /studio/letters (the collector's) and ?as=maker (the maker's congratulations),
   // drawn from the latest paid license, or ?ref=. Nothing is sent.
   app.get('/studio/letters', studioOnly, (req, res) => {
@@ -910,6 +933,7 @@ function createApp(cfg = {}) {
   const auth = require('./auth').mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
   // Signing in by email: a six-digit code or the link in the message; the same email opens a maker's room.
   require('./signin').mountSignin(app, { db, C, buyerOf, setBuyer, ledger, V, mail, makerOf: app.locals.accounts.makerOf, setMaker: app.locals.accounts.setMaker });
+  require('./door').mountDoor(app, { db, C, V, ledger, buyerOf, openStudio: res => app.locals.openStudio(res), isStudio, passkeysOf: b => (app.locals.passkeysOf ? app.locals.passkeysOf(b) : []) }); // the Studio door: email code + passkey
   // A collector records a print they have made of a work they hold. It shows on their wall and in the work's life.
   app.post('/yours/print', (req, res) => {
     const b = buyerOf(req), x = req.body || {}; const l = b && q.lic.get(String(x.ref || ''));
@@ -1442,12 +1466,17 @@ function createApp(cfg = {}) {
   app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), house: ledger.publicKey(), signature: 'ed25519 over the entry hash, hex', entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
 
   // --- Studio ---
-  app.get('/studio/login', (req, res) => res.send(S.login({})));
+  const openStudio = res => { const exp = String(Date.now() + 1000 * 60 * 60 * 24 * 14); res.cookie('wm_s', `${exp}.${sign(exp)}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 14 }); };
+  app.locals.openStudio = openStudio;
+  const doorNamed = () => !!String(process.env.STUDIO_EMAILS || '').trim();
+  // The password answers only while no one is named at the door (STUDIO_EMAILS); then the door is email code + passkey (src/door.js).
+  app.get('/studio/login', (req, res) => doorNamed() ? res.redirect('/studio/door') : res.send(S.login({})));
   app.post('/studio/login', (req, res) => {
+    if (doorNamed()) return res.status(403).send(S.login({ error: 'The password is retired. The door is your email code and your passkey.' }));
     const ok = C.adminPassword && crypto.timingSafeEqual(crypto.createHash('sha256').update(String(req.body.password || '')).digest(), crypto.createHash('sha256').update(C.adminPassword).digest());
     if (!ok) return res.status(401).send(S.login({ error: C.adminPassword ? 'That password is not right.' : 'Set ADMIN_PASSWORD on the server first.' }));
-    const exp = String(Date.now() + 1000 * 60 * 60 * 24 * 14);
-    res.cookie('wm_s', `${exp}.${sign(exp)}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 14 });
+    openStudio(res);
+    try { ledger.append(db, 'studio.opened', 'password', { factors: 'password' }); } catch (e) { /* */ }
     res.redirect('/studio');
   });
   app.get('/studio/logout', (req, res) => { res.clearCookie('wm_s'); res.redirect('/'); });
@@ -1982,7 +2011,8 @@ function createApp(cfg = {}) {
   if (!cfg.noTimers) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
-  if (!cfg.noTimers && store.kind === 's3') { const b = () => backupDb().then(k => console.log('[backup]', k)).catch(e => console.error('[backup]', e.message)); setTimeout(b, 60e3).unref(); setInterval(b, 6 * 3600e3).unref(); }
+  const BK = require('./backup').mountBackup(app, { db, C, store, ledger, mail, isStudio, V }); // nightly to the vault, a weekly restore drill, Studio → Backups
+  if (!cfg.noTimers) BK.schedule();
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).
   const sync = require('./studios-sync').createSync({ db, registerWork, slugify, fetchImpl: cfg.fetchImpl || fetch, stageDir: path.join(C.dataDir, 'incoming') });
@@ -2002,7 +2032,7 @@ function createApp(cfg = {}) {
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

@@ -32,6 +32,8 @@ function localStore(root) {
     async put(key, body) { fs.mkdirSync(path.dirname(p(key)), { recursive: true }); fs.writeFileSync(p(key), Buffer.isBuffer(body) ? body : fs.readFileSync(body)); },
     async get(key) { return fs.existsSync(p(key)) ? fs.readFileSync(p(key)) : null; },
     async list(prefix) { const d = path.dirname(p(prefix + 'x')); return fs.existsSync(d) ? fs.readdirSync(d).map(f => path.posix.join(path.posix.dirname(prefix + 'x'), f)).filter(k => k.startsWith(prefix)) : []; },
+    async del(key) { try { fs.unlinkSync(p(key)); } catch (e) { /* gone */ } },
+    async size(key) { try { return fs.statSync(p(key)).size; } catch (e) { return null; } },
   };
 }
 
@@ -52,6 +54,8 @@ function s3Store({ bucket, region, endpoint, client }) {
       const r = await c.send(new S3.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
       return (r.Contents || []).map(o => o.Key);
     },
+    async del(key) { await c.send(new S3.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
+    async size(key) { try { const r = await c.send(new S3.HeadObjectCommand({ Bucket: bucket, Key: key })); return r.ContentLength; } catch (e) { return null; } },
   };
 }
 
@@ -63,6 +67,8 @@ function createStore(cfg) {
     put: (key, body, type) => raw.put(key, k.seal(Buffer.isBuffer(body) ? body : fs.readFileSync(body)), type),
     get: async key => k.open(await raw.get(key)),
     list: prefix => raw.list(prefix),
+    del: key => raw.del(key),
+    size: key => raw.size(key),
     // A known object proves the key is the right one before anything is written with it.
     async checkKey() {
       if (!k.on) return 'off';

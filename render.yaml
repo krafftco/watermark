@@ -42,4 +42,10 @@ services:
       - key: PAYOUTS
         value: ""
       - key: MAIL_FROM
-        value: Watermark <license@krafftco.com>
+        value: Watermark <house@watermark.krafftco.com>
+      - key: STUDIO_EMAILS # who may enter the Studio: email code + passkey; set it and ADMIN_PASSWORD is retired
+        sync: false
+      - key: BACKUP_KEEP_DAYS
+        value: "30"
+      - key: PROOF_CENTS
+        value: "2500"
