@@ -210,6 +210,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(!db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.action' AND data LIKE '%password%'").get().n, 'never a password');
     r = await req(port, 'GET', '/studio/audit', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('studio.action'), 'the audit page');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('studio.action'), 'hidden from the public register'); }
+  // The Keys: the collector who paid holds the collector's key; the maker who published holds the maker's key; the door answers; keys are numbered and never reissued.
+  { const K = app.locals.keys; assert.ok(db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='collector'").get().n >= 1, 'a collector was given a key'); assert.ok(db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='maker'").get().n >= 1, 'a maker was given a key');
+    const k1 = db.prepare("SELECT * FROM keys WHERE kind='collector' ORDER BY no LIMIT 1").get(); const again = K.issue('collector', { buyer_id: k1.buyer_id }, 'again'); assert.equal(again.no, k1.no, 'never reissued');
+    r = await req(port, 'GET', '/keys'); assert.ok(r.status === 200 && r.body.toString().includes('Are you a maker, a collector, or a curator?'), 'the door');
+    r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('The Keys:'), 'the key shows on the gallery');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('key.given'), 'keys are given quietly'); }
   // whole dollars, with a floor for Share it
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '1.49' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 300, 'Share it floor is $3');
   r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '7.6' } }); assert.equal(db.prepare("SELECT price_cents FROM uses WHERE key='social'").get().price_cents, 800, 'whole dollars');
