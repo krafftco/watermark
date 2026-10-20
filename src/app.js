@@ -1889,7 +1889,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
   }
   app.locals.takeMaster = (file, name, folder) => inLane(() => takeMaster(file, name, folder));
-  require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming') }); // straight into the vault in parts, taken in by a queue
+  require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming'), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), takeWork: (f, a) => app.locals.takeWork(f, a) }); // straight into the vault in parts, taken in by a queue; the Studio's masters and every maker's own vault
   app.post('/studio/masters/one', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     const r = await takeMaster(req.file.path, req.file.originalname, req.body.folder);

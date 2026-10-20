@@ -3314,3 +3314,4 @@ html.fd-on{overflow:hidden}
 
 /* Arrivals (20 Oct): the Masters desk's progress and the house's queue */
 .ms-bar{height:3px;background:var(--line,#e6e2da);margin:14px 0 8px;overflow:hidden}.ms-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}.ms-queue{margin:28px 0 0;font-size:13px}.ms-queue p{margin:0 0 8px}.bulk-list li.fail{color:#9a3b2d}
+.vt-bar{display:block;height:2px;background:var(--line,#e6e2da);margin-top:6px;overflow:hidden}.vt-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}.vt-i.held .vt-bar{display:none}

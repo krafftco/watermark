@@ -490,6 +490,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/account/works/one', { cookie: mck, body: mp('ada_harbour.jpg', theirs, { place: 'Genoa, Italy' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
   const aj = JSON.parse(r.body); assert.ok(aj.ok, r.body); const aw = db.prepare('SELECT * FROM works WHERE slug=?').get(aj.slug);
   assert.strictEqual(aw.maker_id, est.id); assert.strictEqual(aw.status, 'hidden', 'private on arrival');
+  // The maker's own vault through arrivals (20 Oct): straight into the vault, then the queue registers it as theirs, private, with its place and kind; a stranger and another maker are refused.
+  { const px3 = Buffer.alloc(300 * 300 * 3); for (let k = 0; k < px3.length; k++) px3[k] = (k * 7331) % 239; const theirs2 = await sharp2(px3, { raw: { width: 300, height: 300, channels: 3 } }).jpeg().toBuffer();
+    r = await req(port, 'POST', '/account/arrivals/start', { cookie: mck, body: { name: 'ada_cloister.jpg', size: theirs2.length, type: 'image/jpeg', place: 'Genoa, Italy', kind: 'painting' } }); const v = JSON.parse(r.body); assert.ok(v.ok && v.id, 'a maker starts an arrival: ' + r.body);
+    r = await req(port, 'PUT', `/account/arrivals/${v.id}/body`, { body: theirs2, headers: { 'content-type': 'application/octet-stream' } }); assert.equal(r.status, 401, 'a stranger cannot put');
+    r = await req(port, 'PUT', `/account/arrivals/${v.id}/body`, { cookie: mck, body: theirs2, headers: { 'content-type': 'application/octet-stream' } }); assert.ok(JSON.parse(r.body).ok, 'the maker puts');
+    for (let t = 0; t < 40; t++) { await new Promise(r2 => setTimeout(r2, 100)); if (db.prepare('SELECT status FROM arrivals WHERE id=?').get(v.id).status === 'done') break; }
+    r = await req(port, 'GET', `/account/arrivals/state?ids=${v.id}`, { cookie: mck }); const vs = JSON.parse(r.body); const got = vs.asked.find(x => x.id === v.id); assert.ok(got && got.status === 'done' && got.result.ok && got.result.deed && got.result.accession, 'taken in as the maker\'s: ' + JSON.stringify(got));
+    const vw = db.prepare('SELECT * FROM works WHERE slug=?').get(got.slug); assert.ok(vw.maker_id === est.id && vw.status === 'hidden' && vw.kind === 'painting' && vw.place === 'Genoa, Italy', 'theirs, private, a painting in Genoa');
+    r = await req(port, 'GET', '/studio/arrivals/state', { cookie: ck }); assert.ok(!JSON.parse(r.body).recent.some(x => x.id === v.id), 'the masters desk does not list a maker\'s arrivals');
+    r = await req(port, 'GET', '/account/upload', { cookie: mck }); assert.ok(r.body.toString().includes('/static/arrivals.js'), 'the vault page uses the sender'); }
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck }); assert.ok(r.headers.location.includes('need=attest'), 'no publishing without the attestation');
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck, body: { attest: '1' } });
   assert.ok(db.prepare("SELECT COUNT(*) n FROM acceptances WHERE who='maker' AND doc='makers'").get().n >= 1, 'publishing accepted the Maker Agreement');
