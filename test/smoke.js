@@ -964,6 +964,40 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/studio/works/${w.slug}/zone`, { cookie: ck, body: {} }); assert.equal(db.prepare('SELECT zone FROM works WHERE id=?').get(w.id).zone, 'all');
   }
   console.log('ok: you already own it, and the rooms');
+  // The committees (20 Oct): the Front Door and the Walls.
+  { r = await req(port, 'GET', '/hanging'); assert.ok(r.status === 200 && /Who hangs, and how it is decided/.test(r.body) && /The Front Door/.test(r.body) && /The Walls/.test(r.body), 'the standard is public');
+    r = await req(port, 'GET', '/committee'); assert.equal(r.status, 401, 'no seat, no desk');
+    r = await req(port, 'GET', '/studio/committee', { cookie: ck }); assert.ok(r.status === 200 && /No seats yet/.test(r.body));
+    const seatOf = async (name, email, committee) => { r = await req(port, 'POST', '/studio/committee/seat', { cookie: ck, body: { committee, name, email, label: 'a test eye' } }); const row = db.prepare('SELECT * FROM reviewers WHERE email=? AND committee=?').get(email, committee); assert.ok(row, 'seated'); r = await req(port, 'GET', `/committee/join/${row.token}`); assert.ok(/\/committee\?welcome=1/.test(r.headers.location)); return (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; '); };
+    const s1 = await seatOf('Ada Seat', 'ada@example.com', 'door'), s2 = await seatOf('Bo Seat', 'bo@example.com', 'door');
+    r = await req(port, 'GET', '/committee?welcome=1', { cookie: s1 }); assert.ok(r.status === 200 && /Your seat is open/.test(r.body) && /The Front Door/.test(r.body) && !/The Walls/.test(String(r.body).replace(/Who hangs[^]*$/, '')) , 'a seat sees its own committee');
+    // a second recorded maker, ready, asks; two votes hang the first show
+    r = await req(port, 'POST', '/record', { body: { name: 'Cee Order', email: 'cee@example.com' } }); const cck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    const cm = db.prepare("SELECT * FROM makers WHERE email='cee@example.com'").get();
+    const ceeSlugs = []; for (let i = 0; i < 12; i++) { const sl = `cee-body-${i}`; ceeSlugs.push(sl); db.prepare("INSERT INTO works (maker_id, slug, title, caption, place, taken_at, width, height, original_file, sha256, status, stars) VALUES (?,?,?,?,?,?,?,?,?,?,'hidden',?)").run(cm.id, sl, `Cee ${i}`, 'A sentence.', 'Lisbon', '2025-06-01', 4000, 3000, 'mine.jpg', 'cee' + i, i < 8 ? 4 : 0); }
+    db.prepare("UPDATE makers SET bio='Streets at the blue hour, for a decade now.' WHERE id=?").run(cm.id); db.prepare("INSERT INTO uses (maker_id, key, name, description, price_cents) VALUES (?, 'social', 'Collect', 'Keep it', 500)").run(cm.id);
+    r = await req(port, 'POST', '/account/ask-house', { cookie: cck, body: {} }); assert.ok(/ok=asked/.test(r.headers.location));
+    r = await req(port, 'GET', `/committee/review/${cm.id}`, { cookie: s1 }); assert.ok(r.status === 200 && /Hang: the ticked pieces/.test(r.body), 'the seat\'s review room');
+    r = await req(port, 'POST', `/committee/review/${cm.id}/vote`, { cookie: s1, body: { vote: 'hang', hang: ceeSlugs.slice(0, 4), note: 'Yes.' } }); assert.ok(/1 more decide/.test(decodeURIComponent(r.headers.location)), 'one vote waits: ' + r.headers.location);
+    assert.equal(db.prepare('SELECT door FROM makers WHERE id=?').get(cm.id).door, 'record');
+    r = await req(port, 'POST', `/committee/review/${cm.id}/vote`, { cookie: s2, body: { vote: 'hang', hang: ceeSlugs.slice(2, 6) } }); assert.ok(/is invited/.test(decodeURIComponent(r.headers.location)));
+    assert.equal(db.prepare('SELECT door FROM makers WHERE id=?').get(cm.id).door, 'house', 'two votes invite');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(cm.id).n, 6, 'the first show is the union of what the voters ticked');
+    const inv = db.prepare("SELECT data FROM ledger WHERE type='maker.invited' AND subject=?").get(cm.handle); assert.ok(/committee/.test(inv.data) && /Ada Seat/.test(inv.data), 'the register names the seats');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/Ada and Bo of the Front Door/.test(r.body), 'told in public');
+    // the Walls: two votes take a work back to the record
+    const w1 = await seatOf('Dee Seat', 'dee@example.com', 'walls'), w2 = await seatOf('Eve Seat', 'eve@example.com', 'walls');
+    const hungOne = db.prepare("SELECT * FROM works WHERE slug=?").get(ceeSlugs[0]);
+    r = await req(port, 'GET', '/committee', { cookie: w1 }); assert.ok(/The Walls/.test(r.body) && new RegExp(`/committee/walls/${hungOne.id}`).test(r.body), 'the Walls sees the recent hang');
+    r = await req(port, 'POST', `/committee/walls/${hungOne.id}`, { cookie: w1, body: { vote: 'down', note: 'Not yet the edit.' } }); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(hungOne.id).status, 'held');
+    r = await req(port, 'POST', `/committee/walls/${hungOne.id}`, { cookie: w2, body: { vote: 'down' } }); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(hungOne.id).status, 'hidden', 'back to the record, never deleted');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.unhung' AND subject=?").get(hungOne.slug));
+    r = await req(port, 'POST', `/committee/walls/${hungOne.id}`, { cookie: s1, body: { vote: 'down' } }); assert.equal(r.status, 401, 'a Front Door seat has no vote on the Walls');
+    r = await req(port, 'GET', '/hanging'); assert.ok(/Sitting now: Ada, a test eye/.test(r.body), 'the seats are named on the standard');
+    db.prepare("DELETE FROM works WHERE slug LIKE 'cee-body-%'").run();
+  }
+  console.log('ok: the committees');
+
   // Yours on a phone (20 Oct): a collector whose email is a maker's gets the maker's door and the Studio | Gallery switch.
   { const sb = db.prepare("SELECT b.* FROM buyers b JOIN circle c ON c.buyer_id=b.id WHERE c.email='sck@example.com'").get(); assert.ok(sb);
     const ym = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, buyer_id) VALUES ('yours-maker', 'Yours Maker', 'yours-maker@example.com', 'maker', datetime('now'), ?)").run(sb.id).lastInsertRowid;

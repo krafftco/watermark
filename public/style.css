@@ -3208,3 +3208,18 @@ html.fd-on{overflow:hidden}
 .rv-no textarea{width:100%;box-sizing:border-box;margin-top:4px}
 .h-two-g h3{margin-top:0}
 @media (max-width:760px){.rv-grid{grid-template-columns:1fr 1fr}}
+
+/* The committees (20 Oct). */
+.cmt{max-width:960px;margin:0 auto;padding:24px 20px}
+.cmt-c{margin:22px 0;padding-top:14px;border-top:1px solid #e6e0d4}
+.cmt-seats,.cmt-l{list-style:none;padding:0;margin:8px 0}
+.cmt-seats li,.cmt-l li{padding:6px 0;border-bottom:1px solid #efeae0}
+.cmt-f{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.cmt-f input{flex:1 1 160px}
+.cmt-veto{margin:18px 0;padding:12px;border:1px solid #e6e0d4}
+.cmt-votes{margin:10px 0;padding-left:16px}
+.cmt-w .rv-cap{color:#c9c2b6}
+.cmt-wf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.cmt-wf input{flex:1 1 120px;font-size:12px}
+.hg-std{max-width:720px;margin:0 auto;padding:24px 20px}
+.hg-std h2{margin-top:26px}

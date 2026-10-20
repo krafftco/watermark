@@ -103,16 +103,27 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     res.redirect('/account/upload?welcome=own');
   });
   // The house invites a recorded maker in: their work may then hang.
-  app.post('/studio/accounts/:id/invite', studioOnly, (req, res) => {
-    const m = mk(Number(req.params.id)); if (!m) return res.sendStatus(404);
+  // Inviting and answering, shared with the committees (committee.js).
+  app.locals.inviteMaker = (m, hang = [], who = { by: 'house' }) => {
     db.prepare("UPDATE makers SET door='house', invited_at=datetime('now') WHERE id=?").run(m.id);
     db.prepare("UPDATE house_asks SET answer='Invited to the house.', answered_at=datetime('now') WHERE maker_id=? AND answer IS NULL").run(m.id);
-    ledger.append(db, 'maker.invited', m.handle, { by: 'house', from: 'record' });
-    // The first show: the house hangs what it ticked; the rest stays in the record until the maker publishes it.
-    let hang = (req.body || {}).hang; hang = Array.isArray(hang) ? hang : hang ? String(hang).split(',') : []; let hung = 0;
-    for (const slug of hang.slice(0, 60)) { const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status='hidden'").get(String(slug), m.id); if (!w) continue; db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { maker: m.handle, by: 'house', show: 'first' }); hung++; }
+    ledger.append(db, 'maker.invited', m.handle, { ...who, from: 'record' });
+    // The first show: what was ticked hangs; the rest stays in the record until the maker publishes it.
+    let hung = 0;
+    for (const slug of hang.slice(0, 60)) { const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status='hidden'").get(String(slug), m.id); if (!w) continue; db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { maker: m.handle, ...who, show: 'first' }); hung++; }
     if (hung && app.locals.findIndexDirty) app.locals.findIndexDirty();
     if (m.email) mail.send({ to: m.email, subject: 'The house invites you', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has looked at what you brought in and would like to hang it.${hung ? ` The first show is hung: ${hung} of your works are on the walls from today.` : ''} From today your work may be published to the collection from your studio: ${C.base}/account\n\nWelcome. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
+    return hung;
+  };
+  app.locals.answerAsk = (m, ask, answer, who = { by: 'house' }) => {
+    db.prepare("UPDATE house_asks SET answer=?, answered_at=datetime('now') WHERE id=?").run(answer, ask.id);
+    ledger.append(db, 'house.answered', m.handle, who);
+    if (m.email) mail.send({ to: m.email, subject: 'The house has looked', text: `${(m.name || '').split(/\s+/)[0]},\n\n${answer}\n\nYour work stays held and deeded, yours as ever; keep bringing it in. ${C.base}/account\n\nThank you.\n\nWatermark, a Krafft company.` }).catch(() => {});
+  };
+  app.post('/studio/accounts/:id/invite', studioOnly, (req, res) => {
+    const m = mk(Number(req.params.id)); if (!m) return res.sendStatus(404);
+    let hang = (req.body || {}).hang; hang = Array.isArray(hang) ? hang : hang ? String(hang).split(',') : [];
+    app.locals.inviteMaker(m, hang, { by: 'house' });
     res.redirect('/studio/accounts?ok=' + encodeURIComponent(`${m.name} is invited to the house.`));
   });
   app.locals.mayHang = m => !m || m.door !== 'record';
@@ -147,23 +158,14 @@ ${C.base}/studio/accounts` }).catch(() => {});
   });
   app.post('/studio/accounts/:id/answer', studioOnly, (req, res) => {
     const m = mk(Number(req.params.id)); if (!m) return res.sendStatus(404);
-    const ask = lastAsk(m); const answer = String((req.body || {}).answer || '').trim().slice(0, 600); if (!ask || !answer) return res.redirect('/studio/accounts');
-    db.prepare("UPDATE house_asks SET answer=?, answered_at=datetime('now') WHERE id=?").run(answer, ask.id);
-    if (m.email) mail.send({ to: m.email, subject: 'The house has looked', text: `${(m.name || '').split(/\s+/)[0]},
-
-${answer}
-
-Your work stays held and deeded, yours as ever; keep bringing it in. ${C.base}/account
-
-Thank you.
-
-Watermark, a Krafft company.` }).catch(() => {});
+    const ask = lastAsk(m); const answer = String((req.body || {}).answer || '').trim().slice(0, 600); if (!ask || ask.answer || !answer) return res.redirect('/studio/accounts');
+    app.locals.answerAsk(m, ask, answer, { by: 'house' });
     res.redirect('/studio/accounts?ok=' + encodeURIComponent(`Answered ${m.name}.`));
   });
   app.locals.houseAsksBlock = () => {
     const rows = db.prepare('SELECT a.*, m.name, m.handle, m.id AS mid, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id AND w.status IN (\'held\',\'hidden\')) n FROM house_asks a JOIN makers m ON m.id=a.maker_id WHERE a.answer IS NULL ORDER BY a.at').all();
     if (!rows.length) return '';
-    return `<section class="ac-asks"><p class="k">Asking to hang · ${rows.length}</p><ul class="ac-askl">${rows.map(a => `<li><b>${esc(a.name)}</b> · ${a.n} works · asked ${esc(dayOf(a.at))}${a.note ? ` · <em>${esc(a.note)}</em>` : ''} · <a href="/studio/review/${a.mid}">Look</a>
+    return `<section class="ac-asks"><p class="k">Asking to hang · ${rows.length} · <a href="/studio/committee">The committees</a></p><ul class="ac-askl">${rows.map(a => `<li><b>${esc(a.name)}</b> · ${a.n} works · asked ${esc(dayOf(a.at))}${a.note ? ` · <em>${esc(a.note)}</em>` : ''} · <a href="/studio/review/${a.mid}">Look</a>
 <form method="post" action="/studio/accounts/${a.mid}/invite" class="inline"><button class="link">Invite to the house</button></form>
 <form method="post" action="/studio/accounts/${a.mid}/answer" class="inline ac-ans"><input name="answer" maxlength="600" placeholder="A word back, in the house’s voice: what you saw, and what would bring it in."><button class="link">Send</button></form></li>`).join('')}</ul></section>`;
   };

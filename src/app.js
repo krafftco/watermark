@@ -941,6 +941,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
   require('./own').mountOwn(app, { db, V, C, ledger, stripe, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly, registerWork }); // you already own it: the deed, /own, the open door, the Office one tap, said simply
+  require('./committee').mountCommittee(app, { db, V, C, ledger, mail, studioOnly, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) }); // the committees: the Front Door (who hangs) and the Walls (what stays)
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
   try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
   // Look closer: a guide written by AI on every photograph, which the maker can correct, approve or hide.
