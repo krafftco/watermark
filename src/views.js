@@ -199,18 +199,24 @@ ${today ? `<a class="gh-cell gh-today" href="/w/${esc(today.slug)}?today=1"><img
   const any = n => works[n] || works[0];
   // Every line its own picture: the masterworks first, then the rest, never the same twice on the board.
   const used = new Set(); const pic = pref => { const c = [pref, ...masters, ...works].find(w => w && !used.has(w.slug)); if (c) used.add(c.slug); return c; };
-  const routes = [
-    ['/collection', 'The collection', `The museum: ${total} works, the masterworks and the wings`, pic(cover)],
-    [onView ? '/collectors' : '/collectors', 'On view', onView ? `${shows.length ? `${shows.length} show${shows.length === 1 ? '' : 's'}, ` : ''}${hangs.length} wall${hangs.length === 1 ? '' : 's'} hung by curators and galleries` : 'Shows and walls hung by curators and galleries', pic(null)],
-    ['/artists', 'The makers', makerList.length > 1 ? `${makerList.length} makers, each with a room of their own` : `${makerList[0] ? makerList[0].name : 'The first maker'}, and the makers to come`, pic(makerRows[0] && makerRows[0].w)],
-    ['/yours', 'For those who collect', 'Your gallery: what you hold, your walls, your pocket', pic(null)],
-    ['/makers', 'For those who make', 'Hold your work, license it, and be paid, by invitation', pic(null)],
-    ['/trade', 'For editors and companies', 'Search, comp and license for publication', pic(null)],
-    ['/verify', 'Check a work', 'Who made it, who holds it, what it may be used for', pic(null)],
-    ['/stroll', 'Simply to look', 'One work at a time, edge to edge', pic(today)],
+  // Wilhelm at the door (Will, 20 Oct: "we do want to efficiently route people"; "everyone likes a good tour guide, who
+  // is ours": Wilhelm). He asks who you are and sends you: three doors, then the smaller ways in a row. No numbers.
+  const wdoors = [
+    ['/stroll' + (cover ? `?at=${esc(cover.slug)}` : ''), 'I came to look.', 'Then wander. One work at a time, edge to edge; the guide if you want it, silence if you don’t.', pic(today), 'Wander'],
+    ['/yours', 'I collect.', `Your gallery: what you hold, your walls, your pocket. ${total} works to choose from, each $5 to begin.`, pic(cover), 'Your gallery'],
+    ['/makers#ready', 'I make things.', 'Put it in the day you make it; hang it when it is ready. The record is free and yours; the walls are by invitation.', pic(makerRows[0] && makerRows[0].w), 'Two floors'],
   ];
-  const departures = `<section class="gc" id="board" aria-label="Where to"><div class="gh-in"><header class="gc-h"><p class="k">Where to?</p><h2>Departures.</h2><p class="gh-lede">Every way into the house, from here. Choose a line.</p></header>
-<ol class="gc-board">${routes.map(([href, name, line, w], i) => `<li><a href="${href}">${t1(w)}<b>${name}</b><i>${esc(line)}</i><span class="gc-track"><small>Track</small>${i + 1}</span></a></li>`).join('')}</ol></div></section>`;
+  const ways = [
+    ['/collection', 'The collection', `the museum, ${total} works`],
+    [onView ? '/collectors' : '/collectors', 'On view', onView ? `${shows.length ? `${shows.length} show${shows.length === 1 ? '' : 's'}, ` : ''}${hangs.length} wall${hangs.length === 1 ? '' : 's'}` : 'shows and walls'],
+    ['/artists', 'The makers', makerList.length > 1 ? `${makerList.length} rooms` : 'the first room'],
+    ['/trade', 'Editors and companies', 'search, comp, license'],
+    ['/verify', 'Check a work', 'who made it, who holds it'],
+    ['/find', 'Find', 'a title, a place, a maker'],
+  ];
+  const departures = `<section class="gc" id="board" aria-label="Where to"><div class="gh-in"><header class="gc-h gc-wil">${I.wilhelm}<div><p class="k">Wilhelm, at the door</p><h2>Who are you, today?</h2><p class="gh-lede">Tell me and I’ll send you the right way. The whole house is open; this is only the shortest road.</p></div></header>
+<div class="gc-doors">${wdoors.map(([href, name, line, w, act]) => `<a class="gc-door" href="${href}"${/^\/stroll/.test(href) ? ' data-nv-wander' : ''}>${t1(w)}<b>${name}</b><i>${esc(line)}</i><span class="gc-act">${esc(act)} &rarr;</span></a>`).join('')}</div>
+<nav class="gc-ways" aria-label="Other ways in"><p class="k">Or, by name</p>${ways.map(([href, name, line]) => `<a href="${href}"><b>${name}</b><i>${esc(line)}</i></a>`).join('')}</nav></div></section>`;
   const showsBand = shows.length ? `<section class="hg-band" id="shows"><div class="hg-band-in"><header class="gh"><h2>Shows</h2><a class="wk-more" href="/collectors">All the galleries</a></header><div class="hg-cards">${shows.slice(0, 3).map(h => `<a class="hg-card" href="/g/${esc(h.curator_code)}/hang/${esc(h.slug)}"><span class="hg-th">${(h.thumbs || []).map(w => `<img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy">`).join('')}</span><b>${esc(h.title)}</b><span>${esc(h.gallery || h.curator || 'A curator')}${h.venue ? ` · ${esc(h.venue)}` : ''}</span></a>`).join('')}</div></div></section>` : '';
   const collBand = collections.length ? `<section class="hg-band" id="collections"><div class="hg-band-in"><header class="gh"><h2>Collections</h2><a class="wk-more" href="/collectors">Every collection</a></header><div class="yc-cards">${collections.slice(0, 4).map(collectorCard).join('')}</div></div></section>` : '';
   return layout({
