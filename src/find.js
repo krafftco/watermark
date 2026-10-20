@@ -14,7 +14,7 @@ function mountFind(app, { db, V, I }) {
   const sim = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; for (const x of a) if (b.has(x)) n++; return n / Math.sqrt(a.size * b.size); };
   function build() {
     if (Date.now() - index.at < 60e3) return index;
-    const works = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, m.name AS maker, m.handle, m.id AS maker_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'`).all()
+    const works = db.prepare(`SELECT w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, m.name AS maker, m.handle, m.id AS maker_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'`).all()
       .map(w => { const year = (w.taken_at || '').slice(0, 4); const fields = { title: norm(tidy(w.title)), place: norm(w.place), maker: norm(w.maker), kw: norm(w.keywords), cap: norm(w.caption).slice(0, 300), year, acc: norm(w.accession) }; return { ...w, year, title: tidy(w.title), makerSlug: V.makerSlug({ name: w.maker, handle: w.handle }), f: fields, g: grams(`${fields.title} ${fields.place} ${fields.maker}`) }; });
     const makers = []; const seenM = new Set(); for (const w of works) if (!seenM.has(w.maker_id)) { seenM.add(w.maker_id); makers.push({ name: w.maker, slug: w.makerSlug, n: works.filter(x => x.maker_id === w.maker_id).length, nm: norm(w.maker), cover: w.slug }); }
     const pc = new Map(); for (const w of works) if (w.place) { const k = w.place; const e = pc.get(k) || { name: k, n: 0, nm: norm(k), cover: w.slug }; e.n++; if (w.curated) e.cover = w.slug; pc.set(k, e); }
@@ -28,8 +28,8 @@ function mountFind(app, { db, V, I }) {
   const imgOf = w => `/img/${w.slug}/thumb`;
   const row = w => ({ kind: 'work', slug: w.slug, title: w.title, maker: w.maker, makerSlug: w.makerSlug, place: w.place || null, year: w.year || null, img: imgOf(w), href: `/m/${w.makerSlug}/${w.slug}`, stroll: `/stroll?at=${encodeURIComponent(w.slug)}` });
 
-  function search(q, n = 12) {
-    const ix = build(); const nq = norm(q); if (!nq) return { works: [], makers: [], places: [], rooms: [], hangs: [] };
+  function search(q, n = 12, req = null) {
+    const ix0 = build(); const ix = req && app.locals.zone && !app.locals.zone.open(req) ? { ...ix0, works: ix0.works.filter(w => w.zone !== 'mature') } : ix0; const nq = norm(q); if (!nq) return { works: [], makers: [], places: [], rooms: [], hangs: [] };
     const toks = nq.split(' ').filter(Boolean);
     const scored = [];
     for (const w of ix.works) {
@@ -72,12 +72,12 @@ function mountFind(app, { db, V, I }) {
     const q = String(req.query.q || '').trim().slice(0, 80);
     res.set('Cache-Control', 'private, no-store');
     if (!q) return res.json({ q: '', before: before(req) });
-    res.json({ q, ...search(q, Math.max(1, Math.min(24, parseInt(req.query.n, 10) || 12))) });
+    res.json({ q, ...search(q, Math.max(1, Math.min(24, parseInt(req.query.n, 10) || 12)), req) });
   });
   app.locals.find = { search, before };
   // The page: the same search, for a typed address or no script.
   app.get('/find', (req, res) => {
-    const q = String(req.query.q || '').trim().slice(0, 80); const r = q ? search(q, 48) : null; const bf = q ? null : before(req);
+    const q = String(req.query.q || '').trim().slice(0, 80); const r = q ? search(q, 48, req) : null; const bf = q ? null : before(req);
     const work = w => `<a class="fd-w" href="${esc(w.href)}"><img src="${esc(w.img)}" alt="" loading="lazy"><span><b>${esc(w.title)}</b><small>${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${w.year ? ` · ${esc(w.year)}` : ''}</small></span></a>`;
     const chips = (k, list) => list && list.length ? `<p class="fd-k">${k}</p><div class="fd-chips">${list.map(x => `<a href="${esc(x.href)}">${esc(x.name)}<i>${x.n}</i></a>`).join('')}</div>` : '';
     res.set('Cache-Control', 'private, no-store').send(V.layout({ title: `${q ? `${esc(q)} · ` : ''}Find · Watermark`, path: '/find', desc: 'Find a work, a maker, a place: straight to the picture.', body: `<section class="narrow fd-page"><p class="k">Find</p><h1>Straight to the picture.</h1>

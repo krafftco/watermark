@@ -47,7 +47,7 @@ let marker = null; // { key, payloadFor(slug) } set by the app
 const setMarker = m => { marker = m; };
 // Quality (20 Oct, after the blocking): screen and large at JPEG 88 / WebP 82-84, which holds a smooth sky; the file
 // names carry 'q2' so every rendition made before is rebuilt.
-const Q = { jpg: { thumb: 78, screen: 88, large: 90 }, webp: { thumb: 70, screen: 82, large: 84 } };
+const Q = { jpg: { thumb: 78, screen: 88, large: 90 }, webp: { thumb: 72, screen: 90, large: 92 } };
 const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q2.${fmt}`);
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];

@@ -923,6 +923,38 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/sw.js'); assert.ok(r.status === 200 && /self\.addEventListener|addEventListener/.test(r.body.toString()), 'the service worker still works');
   }
   console.log('ok: harder to copy');
+  // You already own it, the way in, the rooms (20 Oct).
+  { r = await req(port, 'GET', '/own'); assert.ok(r.status === 200 && /You already own it\./.test(r.body) && /Open my studio/.test(r.body), '/own');
+    r = await req(port, 'GET', `/w/${w.slug}/deed`); assert.ok(r.status === 200 && /a deed of authorship/.test(r.body) && /Fingerprint/.test(r.body) && /Entered the register/.test(r.body), 'the deed');
+    r = await req(port, 'POST', '/record', { body: { name: 'Rec Order', email: 'rec@example.com' } }); assert.ok(/\/account\/upload\?welcome=own/.test(r.headers.location), 'the open door opens a studio'); const rck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    const rm = db.prepare("SELECT * FROM makers WHERE email='rec@example.com'").get(); assert.ok(rm && rm.door === 'record', 'a recorded maker');
+    r = await req(port, 'GET', '/account/upload?welcome=own', { cookie: rck }); assert.ok(r.status === 200 && /Your studio is open/.test(r.body), 'the vault welcomes');
+    const MINE = path.join(dir, 'mine.jpg'); await require('sharp')(SRC).resize({ width: 2600, height: 1700, fit: 'fill' }).modulate({ hue: 90 }).jpeg({ quality: 80 }).toFile(MINE);
+    const fd = Buffer.concat([Buffer.from('--b\r\nContent-Disposition: form-data; name="file"; filename="mine.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'), fs.readFileSync(MINE), Buffer.from('\r\n--b--\r\n')]);
+    r = await req(port, 'POST', '/account/works/one', { cookie: rck, headers: { 'content-type': 'multipart/form-data; boundary=b' }, body: fd }); const j = JSON.parse(r.body); assert.ok(j.ok && /This is yours\. It has been since/.test(j.yours) && /\/deed$/.test(j.deed), 'the arrival sentence and the deed');
+    r = await req(port, 'POST', `/account/works/${j.slug}/show`, { cookie: rck, body: { attest: '1' } }); assert.ok(/need=invited/.test(r.headers.location), 'a recorded maker cannot hang until invited');
+    r = await req(port, 'GET', '/account', { cookie: rck }); assert.ok(/The way in/.test(r.body) && /Ask the house/.test(r.body), 'the way in on the studio');
+    r = await req(port, 'POST', '/account/ask-house', { cookie: rck, body: { note: 'Please look.' } }); assert.ok(/ok=asked/.test(r.headers.location)); assert.equal(db.prepare('SELECT COUNT(*) n FROM house_asks WHERE maker_id=?').get(rm.id).n, 1);
+    r = await req(port, 'GET', '/studio/accounts', { cookie: ck }); assert.ok(/Asking to hang/.test(r.body) && /Rec Order/.test(r.body), 'the house sees the ask');
+    r = await req(port, 'POST', `/studio/accounts/${rm.id}/invite`, { cookie: ck }); assert.equal(db.prepare('SELECT door FROM makers WHERE id=?').get(rm.id).door, 'house');
+    r = await req(port, 'POST', `/account/works/${j.slug}/show`, { cookie: rck, body: { attest: '1' } }); assert.ok(!/need=/.test(r.headers.location), 'invited: it hangs');
+    r = await req(port, 'GET', '/account/copyright', { cookie: rck }); assert.ok(r.status === 200 && /Register these/.test(r.body), 'the Office, one tap');
+    r = await req(port, 'POST', '/account/copyright/ask', { cookie: rck, body: { w: j.slug } }); assert.ok(r.status === 303 && /checkout/.test(r.headers.location), 'to Checkout at the Office’s fee');
+    r = await req(port, 'GET', '/account/prices', { cookie: rck }); assert.ok(/Said simply/.test(r.body), 'said simply');
+    // the rooms
+    r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`); const clear = r.body;
+    r = await req(port, 'POST', `/studio/works/${w.slug}/zone`, { cookie: ck, body: { zone: 'mature', note: 'nudity' } }); assert.equal(db.prepare('SELECT zone FROM works WHERE id=?').get(w.id).zone, 'mature');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.status === 200 && /A room not for children/.test(r.body) && /nudity/.test(r.body) && !/class="ap"/.test(r.body), 'a stranger meets the door');
+    r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`); assert.ok(r.status === 200 && !r.body.equals(clear), 'the picture is veiled');
+    r = await req(port, 'GET', '/api/stroll?n=40'); assert.ok(!JSON.parse(r.body).items.some(i => i.slug === w.slug), 'left out of the stroll');
+    r = await req(port, 'POST', '/zone/enter', { body: { back: `/w/${w.slug}` } }); const zk = r.headers['set-cookie'][0].split(';')[0]; assert.ok(/wm_zone=mature/.test(zk));
+    r = await req(port, 'GET', `/w/${w.slug}`, { cookie: zk }); assert.ok(/Not for children/.test(r.body) && /class="ap"/.test(r.body), 'inside, labelled');
+    r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`, { cookie: zk }); assert.ok(r.body.equals(clear), 'and clear');
+    r = await req(port, 'POST', '/zone', { body: { zone: 'family' } }); const fk = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'GET', `/w/${w.slug}`, { cookie: fk }); assert.ok(/set to Family/.test(r.body), 'family: the door stays closed');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/zone`, { cookie: ck, body: {} }); assert.equal(db.prepare('SELECT zone FROM works WHERE id=?').get(w.id).zone, 'all');
+  }
+  console.log('ok: you already own it, and the rooms');
   // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
   { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
     const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();

@@ -37,7 +37,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the Studio side: invite a maker or an estate ----------
   app.get('/studio/accounts', studioOnly, (req, res) => {
     const list = db.prepare(`SELECT m.*, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id) AS works FROM makers m ORDER BY m.id`).all();
-    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
+    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
   });
   app.post('/studio/accounts', studioOnly, (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
@@ -149,7 +149,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const m = whose(req);
     if (!m) return res.status(401).send(A.signedOut());
     const keyedNow = app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true;
-    res.send(A.dashboard({ ...dashboard(m), keys: app.locals.keys ? app.locals.keys.ofMaker(m) : [], steps: !(req.query.maker && isStudio(req)) && app.locals.steps ? app.locals.steps.of(m, keyedNow) : null, rep: (db.prepare("SELECT g.name FROM representation r JOIN makers g ON g.id=r.gallery_id WHERE r.maker_id=? AND r.status='offered' ORDER BY r.id DESC LIMIT 1").get(m.id) || {}).name || null, edit: (() => { const RG = require('./regard'); const now = RG.standing(db, m.id); const at = [3, 4, 5].map(f => ({ from: f, ...RG.standing(db, m.id, { from: f }) })); const best = at.filter(x => x.n > 0).sort((a, b) => b.standing - a.standing)[0] || null; return { now, at, best: best && best.standing > now.standing ? best : null }; })(), asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, claims: app.locals.disputes ? app.locals.disputes.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
+    res.send(A.dashboard({ ...dashboard(m), way: app.locals.wayIn && !(req.query.maker && isStudio(req)) ? app.locals.wayIn(m, req.query.ok) : '', keys: app.locals.keys ? app.locals.keys.ofMaker(m) : [], steps: !(req.query.maker && isStudio(req)) && app.locals.steps ? app.locals.steps.of(m, keyedNow) : null, rep: (db.prepare("SELECT g.name FROM representation r JOIN makers g ON g.id=r.gallery_id WHERE r.maker_id=? AND r.status='offered' ORDER BY r.id DESC LIMIT 1").get(m.id) || {}).name || null, edit: (() => { const RG = require('./regard'); const now = RG.standing(db, m.id); const at = [3, 4, 5].map(f => ({ from: f, ...RG.standing(db, m.id, { from: f }) })); const best = at.filter(x => x.n > 0).sort((a, b) => b.standing - a.standing)[0] || null; return { now, at, best: best && best.standing > now.standing ? best : null }; })(), asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, claims: app.locals.disputes ? app.locals.disputes.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their gallery; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {
@@ -183,7 +183,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
 
   // ---------- the maker's own uploads: private until they publish ----------
-  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m })); });
+  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, welcome: req.query.welcome === 'own' })); });
   app.post('/account/works/one', (req, res, next) => upload().single('file')(req, res, next), async (req, res) => {
     const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.status(401).json({ ok: false }); }
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
@@ -193,7 +193,8 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(m.name, w.id);
       const full = db.prepare('SELECT accession, sha256, width, height, bytes FROM works WHERE id=?').get(w.id) || {};
       const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq DESC LIMIT 1").get(w.slug);
-      res.json({ ok: true, slug: w.slug, title: w.title, accession: full.accession || null, fingerprint: full.sha256 ? full.sha256.slice(0, 12) : null, width: full.width, height: full.height, mp: full.width && full.height ? Math.round(full.width * full.height / 1e5) / 10 : null, entry: seq ? seq.seq : null });
+      const wf = db.prepare('SELECT * FROM works WHERE id=?').get(w.id);
+      res.json({ ok: true, slug: w.slug, title: w.title, yours: app.locals.yours ? app.locals.yours(wf, m) : null, deed: `/w/${w.slug}/deed`, accession: full.accession || null, fingerprint: full.sha256 ? full.sha256.slice(0, 12) : null, width: full.width, height: full.height, mp: full.width && full.height ? Math.round(full.width * full.height / 1e5) / 10 : null, entry: seq ? seq.seq : null });
     } catch (e) {
       if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
@@ -206,6 +207,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
     if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
     if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
+    if (app.locals.mayHang && !app.locals.mayHang(m)) return res.redirect('/account?need=invited#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
     ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });
     if (app.locals.legal) { try { app.locals.legal.accept('maker', m.id, 'makers', req.ip, w.slug); } catch (e) { console.error('[legal]', e.message); } } // publishing accepts the Maker Agreement
