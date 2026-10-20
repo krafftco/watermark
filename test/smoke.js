@@ -1040,6 +1040,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/stroll'); assert.ok(/data-st-easel/.test(r.body), 'the stroll opens the easel');
     r = await req(port, 'GET', '/static/easel.js'); assert.ok(r.status === 200 && /ez-notan2/.test(r.body)); }
   console.log('ok: the easel');
+  // The house's portrait ships with the code (20 Oct).
+  { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
+    r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
+    r = await req(port, 'GET', `/portrait/${hm.handle}?tall=1`); const tl = await require('sharp')(r.body).metadata(); assert.ok(tl.height > tl.width, 'the whole portrait, its own shape');
+    r = await req(port, 'GET', '/director'); assert.ok(/tall=1/.test(r.body), 'the director stands in the whole portrait'); }
+  console.log('ok: the portrait');
+
 
 
 
