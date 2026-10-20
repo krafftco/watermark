@@ -9,7 +9,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const SIZES = { thumb: 600, screen: 1600, large: 2400 };
+const SIZES = { thumb: 600, screen: 1600, large: 2400, wall: 3840 }; // wall (20 Oct): for the viewer on screens with more pixels than large; never enlarged beyond the original
+const WARM = ['thumb', 'screen', 'large']; // made ahead of the first visitor; wall on demand
 
 function cameraName(make, model) {
   const tidy = t => String(t || '').trim().replace(/\b(camera ag|corporation|corp\.?|co\.,? ?ltd\.?|inc\.?)\b/gi, '').replace(/\bLEICA\b/g, 'Leica').replace(/\s+/g, ' ').trim();
@@ -47,7 +48,7 @@ let marker = null; // { key, payloadFor(slug) } set by the app
 const setMarker = m => { marker = m; };
 // Quality (20 Oct, after the blocking): screen and large at JPEG 88 / WebP 82-84, which holds a smooth sky; the file
 // names carry 'q2' so every rendition made before is rebuilt.
-const Q = { jpg: { thumb: 78, screen: 88, large: 90 }, webp: { thumb: 72, screen: 90, large: 92 } };
+const Q = { jpg: { thumb: 78, screen: 88, large: 90, wall: 90 }, webp: { thumb: 72, screen: 90, large: 92, wall: 92 } };
 const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q2.${fmt}`);
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
@@ -72,9 +73,9 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
 function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
 async function warm(original, cacheDir, slug) {
-  for (const size of Object.keys(SIZES)) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
+  for (const size of WARM) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
 }
-const warmed = (cacheDir, slug) => Object.keys(SIZES).every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
+const warmed = (cacheDir, slug) => WARM.every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
 
 // A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
 // so a full-resolution master can be matched to the web copy already held.

@@ -62,7 +62,8 @@
     var go = function () {
       img.style.transition = 'none'; fromRect(r); void img.offsetWidth;
       img.style.transition = 'transform .72s cubic-bezier(.2,.7,.2,1)'; center(); box.classList.add('lit');
-      setTimeout(function () { img.style.transition = ''; lifting = false; showPlate(4400); if (plate.dataset.full && img.getAttribute('src') !== plate.dataset.full) { var full = new Image(); full.onload = function () { var ratio = full.naturalWidth / (img.naturalWidth || 1); s = s / ratio; img.src = plate.dataset.full; apply(); fit = fit / ratio; }; full.src = plate.dataset.full; } }, 740);
+      setTimeout(function () { img.style.transition = ''; lifting = false; showPlate(4400); if (plate.dataset.full && /\/large$/.test(plate.dataset.full) && Math.max(screen.width, screen.height) * (devicePixelRatio || 1) > 2400) plate.dataset.full = plate.dataset.full.replace(/\/large$/, '/wall'); // (20 Oct) the wall copy for screens with more pixels than large
+        if (plate.dataset.full && img.getAttribute('src') !== plate.dataset.full) { var full = new Image(); full.onload = function () { var ratio = full.naturalWidth / (img.naturalWidth || 1); s = s / ratio; img.src = plate.dataset.full; apply(); fit = fit / ratio; }; full.src = plate.dataset.full; } }, 740);
       if (box.requestFullscreen && matchMedia('(pointer:fine)').matches) box.requestFullscreen().catch(function () {});
       wake();
     };

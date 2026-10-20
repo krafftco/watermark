@@ -90,3 +90,13 @@ Why it is not disgusting, and better than the apps: you meet over the work, unde
 ## Two floors
 
 Everyone may put work in the day they make it. The record keeps it, fingerprints it, deeds it; it is the frame on your own wall, your work treated as worth making, and the house celebrates it. The walls of the house are a museum's, and hanging there is by invitation. The stock agencies once made a living possible for anyone whose work was good enough; Watermark means to be that again, and the moment is read from the work, not asked for: a body of work, an edit the maker made, professional files, a page and prices. Then the house looks at the edit, large, and hangs the first show itself or writes back in words. The steps are a discipline whether or not the house ever calls: title it, place it, date it, grade it, edit it. What wanders is the edit, so the halls hold up.
+
+## The vault and the jewel box
+
+The house is the container for the masterpieces of the world, so it holds itself to a museum's standard of presentation: nothing the house does may corrupt or diminish a work. The charter, as the code keeps it:
+
+- The original is kept byte for byte, fingerprinted on the register, sealed in the vault, mirrored to a second store, backed up nightly; it is never served.
+- Every display copy is made from the original alone: colour-managed to sRGB, never cropped, never enlarged past the original, nothing laid into the pixels, chroma kept whole (4:4:4), quality at or above 88. A wall copy at 3840 px serves screens with more pixels than the large copy; a phone and a 5K display each get a copy at least as sharp as they can show.
+- Every change to the pipeline passes the gate (test/pictures.js): a smooth sky and a textured scene through the pipeline as served, within a fifth of a level of block structure of the original and above 45 dB; a Display P3 original comes out sRGB; a truncated original is seen.
+- If it is not sound, it is not shown. The condition check runs over the whole archive, a few works at a time, forever: the original decodes whole, matches its fingerprint and its record, and every display copy is judged against the original resized. What fails leaves the walls at once and goes to the restoration room, where it is rebuilt from the original, fetched back from the mirror, or asked of the maker again, and returns only after it passes. Its page says 'Off view for conservation', as a museum's label would; the register says so too. Nothing is ever deleted.
+- A browser keeps a display copy for an hour and must ask again; the app's own cache replaces a copy on the next look. A corrected picture reaches every device within the hour.

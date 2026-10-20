@@ -3242,3 +3242,14 @@ html.fd-on{overflow:hidden}
 .gc-ways a:hover b{color:#d9bc7c}
 @media (max-width:980px){.gc-ways{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:760px){.gc{padding:64px 0 72px}.gc-wil{grid-template-columns:48px 1fr;gap:14px}.gc-wil>svg{width:48px}.gc-doors{grid-template-columns:1fr;gap:12px;margin-top:28px}.gc-door img,.gc-door>span:first-child{height:150px}.gc-ways{grid-template-columns:1fr 1fr;margin-top:28px}}
+
+/* The restoration room (20 Oct). */
+.cv{max-width:1100px;margin:0 auto;padding:24px 20px}
+.cv-sum{color:#6b655c}
+.cv-l{list-style:none;padding:0;margin:12px 0}
+.cv-w{display:grid;grid-template-columns:112px 1fr;gap:16px;padding:14px 0;border-top:1px solid #e6e0d4}
+.cv-w img{width:112px;height:84px;object-fit:cover;background:#0b0a09;display:block}
+.cv-f{margin:6px 0;padding-left:16px;color:#7a2e2e;font-size:14px}
+.cv-acts{font-size:14px}
+.cv-sign{max-width:640px;margin:0 auto;padding:60px 20px;text-align:center}
+.cv-sign .lede{color:#6b655c}

@@ -34,5 +34,12 @@ const sharp = require('sharp'); const images = require('../src/images'); const M
   // The gate must catch the mark: the sky, marked, shows blocks.
   images.setMarker({ key: 'k', payloadFor: () => M.renditionPayload(7) }); const marked = await images.derivative(sky, dir, 'sky-m', 'screen', 'jpg'); images.setMarker(null);
   const bm = (await blockiness(marked)) - (await blockiness(path.join(dir, 'sky-screen-ref.png'))); assert.ok(bm > 0.2, `the gate must see the mark (${bm.toFixed(3)})`); console.log(`ok: the gate sees the mark (blocks ${bm.toFixed(3)})`);
+  // Colour is managed: a Display P3-tagged original comes out in sRGB, in both formats, within two levels of the right value.
+  { const P = require('../src/pictures'); const p3 = path.join(dir, 'p3.jpg'); await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 230, g: 40, b: 40 } } }).jpeg({ quality: 95 }).withMetadata({ icc: 'p3' }).toFile(p3);
+    for (const fmt of ['jpg', 'webp']) { const out = await images.derivative(p3, dir, 'p3', 'screen', fmt); const { data } = await sharp(out).raw().toBuffer({ resolveWithObject: true }); assert.ok(Math.abs(data[0] - 230) <= 2 && Math.abs(data[1] - 40) <= 2 && Math.abs(data[2] - 40) <= 2, `${fmt}: colour managed to sRGB (${data[0]},${data[1]},${data[2]})`); }
+    console.log('ok: colour managed to sRGB');
+    // The judge agrees with the gate, and a broken original is seen.
+    const j = await P.judge(sky, path.join(dir, 'sky-screen-ref.png').replace('-ref.png', '-ref.png'), images.SIZES.screen); assert.ok(j.ok, 'the judge passes the reference');
+    const broken = path.join(dir, 'broken.jpg'); fs.writeFileSync(broken, fs.readFileSync(sky).subarray(0, 20000)); const d = await P.decodes(broken); assert.ok(!d.ok, 'a truncated original fails to decode whole'); console.log('ok: the judge, and a broken original seen'); }
   console.log('ok: the pictures');
 })().catch(e => { console.error(e); process.exit(1); });

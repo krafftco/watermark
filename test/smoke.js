@@ -997,6 +997,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     db.prepare("DELETE FROM works WHERE slug LIKE 'cee-body-%'").run();
   }
   console.log('ok: the committees');
+  // The restoration room (20 Oct): if it is not sound, it is not shown.
+  { const CV = app.locals.conservation; assert.ok(CV);
+    let r0 = await CV.check(w); assert.ok(r0.ok, 'a sound work passes: ' + r0.findings.join('; '));
+    r = await req(port, 'GET', `/img/${w.slug}/screen?f=jpg`); assert.equal(r.status, 200); const cacheDir = path.join(dir, 'cache'); const bad = fs.readdirSync(cacheDir).find(f => f.startsWith(w.slug + '-screen') && f.endsWith('.jpg')); assert.ok(bad, 'a display copy exists');
+    // damage the display copy: a blocky, dark, wrong picture in its place
+    await require('sharp')({ create: { width: 1600, height: 1000, channels: 3, background: { r: 20, g: 20, b: 20 } } }).jpeg({ quality: 20 }).toFile(path.join(cacheDir, bad));
+    r0 = await CV.check(w); assert.ok(!r0.ok && /Display copies fail/.test(r0.findings.join(' ')), 'the damaged copy is caught: ' + r0.findings.join('; '));
+    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'restoring', 'off view');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.status === 200 && /Off view for conservation/.test(r.body), 'the sign on its page');
+    r = await req(port, 'GET', '/api/stroll?n=40'); assert.ok(!JSON.parse(r.body).items.some(i => i.slug === w.slug), 'left out of the walks');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/is off view for conservation/.test(r.body), 'told on the register');
+    r = await req(port, 'GET', '/studio/restoration', { cookie: ck }); assert.ok(r.status === 200 && /In the room/.test(r.body) && new RegExp(`/studio/restoration/${w.id}/rebuild`).test(r.body), 'the room shows it');
+    r = await req(port, 'POST', `/studio/restoration/${w.id}/rebuild`, { cookie: ck }); assert.ok(/rebuilt and sound/.test(decodeURIComponent(r.headers.location)), 'rebuilt: ' + decodeURIComponent(r.headers.location));
+    r = await req(port, 'POST', `/studio/restoration/${w.id}/back`, { cookie: ck }); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'back on the walls');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!/Off view for conservation/.test(r.body));
+    r = await req(port, 'GET', '/healthz'); assert.ok(JSON.parse(r.body).conservation && JSON.parse(r.body).conservation.checked >= 1);
+    r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');
+  }
+  console.log('ok: the restoration room');
+
 
   // Yours on a phone (20 Oct): a collector whose email is a maker's gets the maker's door and the Studio | Gallery switch.
   { const sb = db.prepare("SELECT b.* FROM buyers b JOIN circle c ON c.buyer_id=b.id WHERE c.email='sck@example.com'").get(); assert.ok(sb);

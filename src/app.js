@@ -391,6 +391,7 @@ function createApp(cfg = {}) {
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
+  require('./conservation').mountConservation(app, { db, V, C, ledger, mail, images, store, cache, originalPath, originals, studioOnly, mk, notify: null }); // the restoration room: if it is not sound, it is not shown (the sign must come before /w)
   // The audit (Will, 19 Oct: security 3/6): every Studio action that changes anything is told on the register, signed into the
   // chain like everything else (`studio.action`, hidden): the route, the fields that matter (never a password, a secret or a key),
   // the outcome, who was at the desk. Read at Studio → Audit.
@@ -622,7 +623,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
-      res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.set('Cache-Control', 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
       res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -2060,7 +2061,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.
