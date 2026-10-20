@@ -10,9 +10,12 @@
   var save = function () { try { localStorage.setItem(K, JSON.stringify(mem)); } catch (e) { /* full */ } };
   var keyOf = function (f) { return (f.webkitRelativePath || f.name) + ':' + f.size + ':' + (f.lastModified || 0); };
   var post = function (url, body) { return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body).toString() }).then(function (r) { if (r.status === 401 || r.redirected) throw 'signed-out'; return r.json(); }); };
+  // Plain words for what went wrong: the two failures a browser can meet talking to the bucket are both the bucket's
+  // CORS rule (docs/ARRIVALS.md), and the desk says so rather than 'Failed to fetch'.
+  var CORS = 'The vault did not let the browser in: the bucket needs its CORS rule (ExposeHeaders ETag). See docs/ARRIVALS.md.';
   function putPart(url, blob, tries) {
-    return fetch(url, { method: 'PUT', body: blob }).then(function (r) { if (!r.ok) throw new Error('part ' + r.status); var et = r.headers.get('ETag') || r.headers.get('etag'); if (!et) throw new Error('no-etag'); return et.replace(/"/g, ''); })
-      .catch(function (e) { if (String(e.message) === 'no-etag') throw e; if (tries > 0) return new Promise(function (res) { setTimeout(res, 1500 * (4 - tries)); }).then(function () { return putPart(url, blob, tries - 1); }); throw e; });
+    return fetch(url, { method: 'PUT', body: blob }).then(function (r) { if (!r.ok) throw new Error('the vault answered ' + r.status); var et = r.headers.get('ETag') || r.headers.get('etag'); if (!et) throw new Error(CORS); return et.replace(/"/g, ''); })
+      .catch(function (e) { if (e.message === CORS) throw e; if (e instanceof TypeError) { if (tries > 0) return new Promise(function (res) { setTimeout(res, 1200); }).then(function () { return putPart(url, blob, tries - 1); }); throw new Error(CORS); } if (tries > 0) return new Promise(function (res) { setTimeout(res, 1500 * (4 - tries)); }).then(function () { return putPart(url, blob, tries - 1); }); throw e; });
   }
   async function send(f, o) {
     o = o || {}; var base = o.base || '/studio', k = base + ':' + keyOf(f), m = mem[k] || {}; var folder = (f.webkitRelativePath || '').split('/').slice(0, -1).join('/');
@@ -47,21 +50,23 @@
   if (!inp || !go) return;
   var files = [], stop = false;
   var keep = function (f) { var p = f.webkitRelativePath || f.name; return /\.(jpe?g|tiff?|png)$/i.test(f.name) && !/(^|\/)[_.]/.test(p) && !window.WMArrivals.sentBefore('/studio', f); };
-  inp.onchange = function () { files = [].filter.call(inp.files, keep); var total = files.reduce(function (a, f) { return a + f.size; }, 0); go.disabled = !files.length; go.textContent = files.length ? 'Send ' + files.length + ' masters (' + fmt(total) + ')' : 'Nothing new in that folder'; sum.textContent = ''; };
+  inp.onchange = function () { files = [].filter.call(inp.files, keep); var total = files.reduce(function (a, f) { return a + f.size; }, 0); go.disabled = !files.length; go.textContent = files.length ? 'Send ' + files.length + ' masters (' + fmt(total) + ')' : 'Nothing new in that folder'; sum.textContent = files.length ? files.length + ' files chosen, ' + fmt(total) + '. Nothing has been sent yet: press Send.' : 'Every file in that folder has already been sent from this computer.'; if (bar) bar.style.width = '0%'; };
   var sent = 0, t0 = 0, totalBytes = 0;
-  function tick(extra) { var s = (Date.now() - t0) / 1000, rate = sent / Math.max(s, 1); var left = rate > 0 ? Math.round((totalBytes - sent) / rate / 60) : null; if (bar) bar.style.width = Math.min(100, sent / Math.max(totalBytes, 1) * 100).toFixed(1) + '%'; sum.textContent = fmt(sent) + ' of ' + fmt(totalBytes) + ' · ' + (rate / 1e6).toFixed(1) + ' MB/s' + (left != null ? ' · about ' + left + ' min left' : '') + (extra ? ' · ' + extra : ''); }
+  var fileNo = 0;
+  function tick(extra) { var s = (Date.now() - t0) / 1000, rate = sent / Math.max(s, 1); var left = rate > 0 ? Math.round((totalBytes - sent) / rate / 60) : null; if (bar) bar.style.width = Math.min(100, sent / Math.max(totalBytes, 1) * 100).toFixed(1) + '%'; sum.innerHTML = '<b>Sending ' + fileNo + ' of ' + files.length + '</b> · ' + fmt(sent) + ' of ' + fmt(totalBytes) + ' · ' + (rate / 1e6).toFixed(1) + ' MB/s' + (left != null ? ' · about ' + left + ' min left' : '') + (extra ? ' · ' + esc(extra) : ''); }
   function one(f) { return send(f, { base: '/studio', onBytes: function (b) { sent += b; tick(f.name); }, stopped: function () { return stop; } }); }
   go.onclick = async function () {
     if (go.dataset.running) { stop = true; go.textContent = 'Stopping…'; return; }
     go.dataset.running = '1'; stop = false; t0 = Date.now(); sent = 0; totalBytes = files.reduce(function (a, f) { return a + f.size; }, 0); go.textContent = 'Stop';
     var ok = 0, failed = 0;
     for (var x = 0; x < files.length && !stop; x++) {
-      var f = files[x];
+      var f = files[x]; fileNo = x + 1; tick(f.name);
       try { await one(f); ok++; var li = document.createElement('li'); li.className = 'done'; li.textContent = (f.webkitRelativePath || f.name) + ' · in the vault'; list.insertBefore(li, list.firstChild); }
       catch (e) { if (e === 'stopped') break; if (e === 'signed-out') { sum.textContent = 'Signed out: sign in again and choose the folder; it picks up where it stopped.'; break; } failed++; var li2 = document.createElement('li'); li2.className = 'fail'; li2.textContent = (f.webkitRelativePath || f.name) + ' · ' + (e.message || e); list.insertBefore(li2, list.firstChild); }
       tick(ok + ' sent' + (failed ? ', ' + failed + ' failed' : ''));
     }
     delete go.dataset.running; go.textContent = stop ? 'Stopped: choose the folder again to continue' : 'Sent ' + ok + (failed ? ' · ' + failed + ' failed' : '');
+    if (!stop) sum.innerHTML = ok ? '<b>' + ok + ' in the vault.</b> The house is taking them in below; you can leave this page.' + (failed ? ' ' + failed + ' failed: the reasons are listed.' : '') : (failed ? '<b>Nothing was sent.</b> ' + failed + ' failed: the reason is listed below.' : '');
     if (!stop) { inp.value = ''; }
   };
   // The house's queue beneath, every three seconds while the page is open.

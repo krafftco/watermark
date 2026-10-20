@@ -9,7 +9,7 @@
   var kEl = $('[data-vr-k]'), tEl = $('[data-vr-t]'), byEl = $('[data-vr-by]'), gEl = $('[data-vr-guide]'), pageEl = $('[data-vr-page]'), cf = $('[data-vr-cf]'), colEl = $('[data-vr-collect]'), fromEl = $('[data-vr-from]'), hatB = $('[data-vr-hat]'), bvB = $('[data-vr-bravo]'), hangB = $('[data-vr-hang]'), bar = $('[data-vr-bar]'), hint = $('[data-vr-hint]'), toast = $('[data-vr-toast]');
   var sayB = $('[data-vr-say]'), autoB = $('[data-vr-auto]');
   var auto = false, saying = false, DWELL = 14000, timer = null, t0 = 0, left = DWELL, paused = false, stoodAt = Date.now();
-  var S = window.speechSynthesis;
+  var S = null; // the browser's synthetic voice is never used (Will, 20 Oct): the house's recording, or the guide is read with the eyes
   var esc = function (s) { return String(s || '').replace(/[<>&"]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]; }); };
   function code() { try { var k = localStorage.getItem('wm_v'); if (!k) { k = Math.random().toString(36).slice(2, 8); localStorage.setItem('wm_v', k); } return k; } catch (e) { return 'anon'; } }
   var V = code(); try { document.cookie = 'wm_v=' + V + '; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : ''); } catch (e) {}
@@ -29,8 +29,8 @@
     recTick = setInterval(function () { if (!rec || !rec.duration) return; var f = rec.currentTime / rec.duration, n = 0; while (n < ends.length - 1 && f > ends[n]) n++; paras.forEach(function (p, k) { p.classList.toggle('now', k === n); }); }, 250);
   }
   function say(w) {
-    if (!w.guide || (!S && !w.audio)) return;
-    stopSay(); saying = true; sayB.setAttribute('aria-pressed', 'true'); gEl.hidden = false;
+    if (!w.guide) return;
+    stopSay(); gEl.hidden = false; if (!w.audio) { saying = false; sayB.setAttribute('aria-pressed', 'false'); return; } saying = true; sayB.setAttribute('aria-pressed', 'true');
     var paras = [].slice.call(gEl.querySelectorAll('p')), i = 0;
     if (w.audio) return sayRecording(w, paras, function () { if (S && saying) next(); else doneSaying(); });
     next();

@@ -1,11 +1,12 @@
-/* Look closer: hear the guide read aloud. The house voice first (a recording made once, served from the house);
-   the browser's own voice only when there is no recording yet. Paragraphs light as they are read. */
+/* Look closer: hear the guide read aloud, in the house's voice only (a recording made once, served from the house).
+   The browser's synthetic voice is never used (Will, 20 Oct: it sounds like a machine); with no recording yet the
+   button stays away and the guide is read with the eyes. Paragraphs light as they are read. */
 (function () {
   var b = document.querySelector('[data-say]'), box = document.querySelector('[data-say-text]');
   if (!b || !box) return;
-  var S = window.speechSynthesis, paras = [].slice.call(box.querySelectorAll('p')), i = 0, playing = false, audio = null, tick = null;
+  var S = null, paras = [].slice.call(box.querySelectorAll('p')), i = 0, playing = false, audio = null, tick = null;
   var src = b.getAttribute('data-say-audio');
-  if (!S && !src) { b.hidden = true; return; }
+  if (!src) { b.hidden = true; return; }
   function voice() {
     if (!S) return null;
     var vs = S.getVoices().filter(function (v) { return /^en(-|_|$)/i.test(v.lang); });
@@ -37,7 +38,7 @@
     tick = setInterval(function () { if (!audio || !audio.duration) return; var f = audio.currentTime / audio.duration; var n = 0; while (n < ends.length - 1 && f > ends[n]) n++; mark(n); }, 250);
   }
   b.addEventListener('click', function () {
-    if (playing) return stop();
+    if (!src) return; if (playing) return stop();
     if (window.WMVoice) window.WMVoice.stop();
     playing = true; i = 0; if (S) S.cancel(); b.classList.add('on'); b.querySelector('span').textContent = 'Stop';
     if (src) playRecording(); else nextSpoken();

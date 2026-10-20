@@ -13,8 +13,10 @@ const STYLE = 'You are a museum guide reading wall text aloud to one visitor sta
 function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
   db.exec(`CREATE TABLE IF NOT EXISTS speech (work_id INTEGER PRIMARY KEY, hash TEXT NOT NULL, file TEXT NOT NULL, provider TEXT, voice TEXT, bytes INTEGER, made_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const dir = path.join(C.dataDir, 'speech'); fs.mkdirSync(dir, { recursive: true });
-  const provider = () => (process.env.OPENAI_API_KEY ? 'openai' : process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : null);
-  const voice = () => process.env.SPEECH_VOICE || (provider() === 'openai' ? 'ash' : '');
+  // ElevenLabs first when both are set (Will, 20 Oct: the voice must be elegant and beautiful); OpenAI otherwise.
+  const provider = () => (process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : process.env.OPENAI_API_KEY ? 'openai' : null);
+  // ElevenLabs' George (a warm, unhurried British narrator from the premade library) unless SPEECH_VOICE names another.
+  const voice = () => process.env.SPEECH_VOICE || (provider() === 'openai' ? 'ash' : provider() === 'elevenlabs' ? 'JBFqnCBsd6RMkjVDRZzb' : '');
   const on = () => !!provider() && process.env.NODE_ENV !== 'test';
   const hashOf = text => crypto.createHash('sha256').update(`${provider()}|${voice()}|${text}`).digest('hex').slice(0, 16);
 

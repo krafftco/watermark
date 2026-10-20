@@ -4,7 +4,7 @@
 (function () {
   var plate = document.querySelector('[data-viewer]');
   if (!plate) return;
-  var G = window.__WM_GUARD || {}, K = window.__WM_WALK || null, S = window.speechSynthesis;
+  var G = window.__WM_GUARD || {}, K = window.__WM_WALK || null, S = null; // never the browser's synthetic voice (Will, 20 Oct): the page's own Hear it plays the house's recording when there is one
   var hasHat = !!document.querySelector('.ap-b'), hasHang = !!document.querySelector('.hg-open'), guideBox = document.querySelector('[data-say-text]'), buyForm = document.querySelector('form.share-buy');
   var ic = function (n) { var t = document.querySelector('template[data-ic="' + n + '"]'); return t ? t.innerHTML : ''; };
   var box = document.createElement('div');
@@ -12,7 +12,7 @@
   box.innerHTML =
     '<div class="wv-vig"></div>' +
     '<div class="wv-top"><span class="wv-t"></span><span class="wv-ctl">' +
-      (guideBox && S ? '<button type="button" class="wv-b" data-guide aria-pressed="false">' + ic('guide') + '<span>Guide</span></button>' : '') +
+      (guideBox ? '<button type="button" class="wv-b" data-guide aria-pressed="false">' + ic('guide') + '<span>Guide</span></button>' : '') +
       '<button type="button" class="wv-b" data-z="out" aria-label="Smaller">&minus;</button><button type="button" class="wv-b" data-z="in" aria-label="Closer">+</button>' +
       '<button type="button" class="wv-b wv-x" data-close>' + ic('close') + '<span>Close</span></button></span></div>' +
     '<aside class="wv-guide" hidden><div class="wv-gt"></div></aside>' +

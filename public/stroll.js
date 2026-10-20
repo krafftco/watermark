@@ -127,7 +127,7 @@
     }).catch(function () { checkout(w); });
   }
   // The guide: a sheet with the text, read in the house voice.
-  var sheet = root.querySelector('[data-st-guide-sheet]'), gt = root.querySelector('[data-st-gt]'), gby = root.querySelector('[data-st-gby]'), audio = null, Sy = window.speechSynthesis;
+  var sheet = root.querySelector('[data-st-guide-sheet]'), gt = root.querySelector('[data-st-gt]'), gby = root.querySelector('[data-st-gby]'), audio = null, Sy = null /* the browser's synthetic voice is never used (Will, 20 Oct); the house's recording or nothing */;
   function stopGuide(keepSheet) { if (audio) { audio.pause(); audio = null; } if (Sy) Sy.cancel(); if (!keepSheet) sheet.hidden = true; else sheet.hidden = true; }
   function guide(w, quiet) {
     if (!w.guide) return;
