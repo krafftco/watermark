@@ -277,6 +277,7 @@ function createApp(cfg = {}) {
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
     if (extra.paid && app.locals.legal) { try { app.locals.legal.accept('buyer', l.buyer_id, 'house', null, ref); } catch (e) { console.error('[legal]', e.message); } } // paying accepts the terms of the house
     if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
+    if (app.locals.onGrant) { try { app.locals.onGrant(q.lic.get(ref), extra); } catch (e) { console.error('[editions]', e.message); } } // a print edition: the number, the order, the register
     const g = q.lic.get(ref);
     try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
@@ -380,7 +381,7 @@ function createApp(cfg = {}) {
       const s = event.data.object;
       const ref = s.metadata && s.metadata.ref;
       if (s.metadata && s.metadata.set && s.payment_status === 'paid') grantSet(s.metadata.set, s);
-      else if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total }); }
+      else if (ref && s.payment_status === 'paid') { fillBuyer(ref, s); grant(ref, { paid: true, price_cents: s.amount_total, session: s }); }
     }
     if (app.locals.patronEvent) app.locals.patronEvent(event); // patronage: joined, or ended
     if (app.locals.libraryEvent) app.locals.libraryEvent(event); // a copy taken from the Library
@@ -596,6 +597,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   // Back from paying with ?paid=<ref>: settle it with Stripe before the page is drawn, so the work shows as yours.
+  app.use(['/w/:slug', '/m/:maker/:slug'], (req, res, next) => (app.locals.rememberShow ? app.locals.rememberShow(req, res, next) : next())); // ?show=<hang slug> from a wall label: the show is remembered, so the sale is the show's (editions.js)
   app.get('/w/:slug', async (req, res, next) => { const r = String(req.query.paid || ''); if (r) { const l = q.lic.get(r); if (l && l.status !== 'active') await Promise.race([settle(l), new Promise(f => setTimeout(f, 6000))]); } next(); });
   app.get('/w/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
@@ -607,7 +609,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
     const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
     const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ objectLabel: OB.label(w), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.balance(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ prints: app.locals.editions ? app.locals.editions.block(w, maker, req) : '', objectLabel: OB.label(w), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.balance(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, me: (buyerOf(req) || {}).id || null, edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -985,6 +987,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   require('./find').mountFind(app, { db, V, I: require('./icons') });
   app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, setBuyer, pocket: () => app.locals.pocket });
+  app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
   // May this license pass to another wallet? The agreement decides: a numbered personal piece may; a working
@@ -1180,7 +1183,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         if (!s || s.payment_status !== 'paid') return l;
         console.log('[settle] granted', l.ref);
         if (s.metadata && s.metadata.set) { grantSet(s.metadata.set, s); return q.lic.get(l.ref); }
-        fillBuyer(l.ref, s); return grant(l.ref, { paid: true, price_cents: s.amount_total });
+        fillBuyer(l.ref, s); return grant(l.ref, { paid: true, price_cents: s.amount_total, session: s });
       }
     } catch (e) { console.error('[settle]', l.ref, e.message); }
     return l;
@@ -1981,7 +1984,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
     const studio = !req.path.startsWith('/account');
-    res.send(S.workTerms({ objectBlock: OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
+    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
   }
   app.get('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); workDesk(req, res, w); });
   app.get('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); workDesk(req, res, w); });

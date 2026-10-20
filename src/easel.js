@@ -33,7 +33,9 @@ function mountEasel(app, { db, V, mk, I }) {
 <button type="button" data-ez="timer" aria-pressed="false" title="Timer (T)"><span class="ez-k">T</span>Timer</button>
 <button type="button" data-ez="fit" title="Fit (0)"><span class="ez-k">0</span>Fit</button>
 <button type="button" data-ez="study" aria-pressed="false" title="The study (?)">${I.wilhelm}Study</button>
+<button type="button" data-ez-hide title="Put the tools away (H, or Tab); a tap on the edge brings them back"><span class="ez-k">H</span>Hide</button>
 </nav>
+<button type="button" class="ez-peek" data-ez-peek hidden title="The tools (H)">${I.dial || I.wilhelm}</button>
 <aside class="ez-study" data-ez-study hidden><p class="k">${I.wilhelm} Wilhelm · The master study</p>
 <ol><li><b>Five minutes: the values.</b> Switch on Squint and Notan. Draw the picture the size of a postage stamp, nothing but the three or four masses of light and dark. Where does the eye go? That is where the biggest contrast is.</li>
 <li><b>Two minutes: the gesture.</b> Grid on. Two or three lines only: the great diagonals and curves that hold the composition. No detail; the detail is a lie until the gesture is true.</li>

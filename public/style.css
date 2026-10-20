@@ -3315,3 +3315,16 @@ html.fd-on{overflow:hidden}
 /* Arrivals (20 Oct): the Masters desk's progress and the house's queue */
 .ms-bar{height:3px;background:var(--line,#e6e2da);margin:14px 0 8px;overflow:hidden}.ms-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}.ms-queue{margin:28px 0 0;font-size:13px}.ms-queue p{margin:0 0 8px}.bulk-list li.fail{color:#9a3b2d}
 .vt-bar{display:block;height:2px;background:var(--line,#e6e2da);margin-top:6px;overflow:hidden}.vt-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}.vt-i.held .vt-bar{display:none}
+
+/* The editions room (20 Oct): prints sold off the wall */
+.pe{margin:40px 0 0;padding:28px 0 0;border-top:1px solid var(--line,#e6e2da)}.pe h2{font:400 30px/1.1 var(--serif,Georgia,serif);margin:4px 0 10px}.pe-lede{color:var(--mu);font-size:14px;max-width:60ch;margin:0 0 18px}
+.pe-sizes{display:grid;gap:8px;margin:0 0 14px}.pe-s{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line,#e6e2da);cursor:pointer;background:#fff}.pe-s:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}.pe-out{opacity:.5;cursor:default}.pe-s input{margin:0}.pe-l b{display:block;font-size:15px}.pe-l i{display:block;font-style:normal;font-size:12.5px;color:var(--mu)}.pe-p{font:400 20px/1 var(--serif,Georgia,serif);font-variant-numeric:tabular-nums}
+.pe-opts{display:grid;gap:8px;margin:0 0 16px}.pe-o{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}.pe-o span{display:block}.pe-o i{display:block;font-style:normal;font-size:12.5px;color:var(--mu)}.pe-ship{font-size:12.5px;color:var(--mu);margin:0}
+.pe-go{display:inline-flex;gap:14px;align-items:baseline}.pe-go em{font-style:normal;opacity:.85}.pe-fine{font-size:12.5px;color:var(--mu);margin:10px 0 0;max-width:56ch}
+.pe-rec .pe-t input{font:inherit;font-size:13px;padding:3px 5px;border:1px solid var(--line,#e6e2da);background:#fff}.pe-new{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}.pe-new input{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line,#e6e2da)}
+.hg-ed{display:block;font-size:12px;color:var(--mu);margin-top:4px}.hg-sold{color:#a0323a}.hg-showdesk{font-size:13px}
+@media (max-width:640px){.pe-s{grid-template-columns:auto 1fr;}.pe-p{grid-column:2;justify-self:start}}
+
+/* The easel, just the picture (20 Oct): Hide puts the tools away; the chrome fades when still */
+.ez.ez-hidden .ez-tools,.ez.ez-hidden .ez-top,.ez.ez-hidden .ez-timers,.ez.ez-hidden .ez-study{opacity:0;pointer-events:none;transition:opacity .35s}.ez.ez-still:not(.ez-hidden) .ez-tools,.ez.ez-still:not(.ez-hidden) .ez-top{opacity:.08;transition:opacity 1.2s}.ez .ez-tools,.ez .ez-top{transition:opacity .35s}
+.ez-peek{position:absolute;right:calc(10px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));width:40px;height:40px;border-radius:50%;border:0;background:rgba(20,18,16,.5);color:#f6f1e7;opacity:.28;display:grid;place-items:center;cursor:pointer;z-index:5}.ez-peek svg{width:20px;height:20px}.ez-peek:hover{opacity:.9}.ez-peek[hidden]{display:none}

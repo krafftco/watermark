@@ -829,6 +829,32 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='show.opening'").get(), 'the opening is on the register');
     r = await req(port, 'GET', `/m/${gal.handle}`);  assert.ok(r.body.toString().includes('Represents') && r.body.toString().includes('Venice, in Winter'), 'the gallery page: artists and shows'); }
   console.log('ok: galleries');
+  // The editions room (20 Oct): prints sold off the wall at a show. The Studio opens the house's sizes on a work; a guest at the show taps the wall label's QR, acquires a 16 × 24 to take home; the number is allotted, the print room gets the order, the show's desk lists it, the register tells it.
+  { const dims = db.prepare('SELECT width, height FROM works WHERE id=?').get(w.id); db.prepare('UPDATE works SET width=6000, height=4000 WHERE id=?').run(w.id); // a master at the print standard, for the test
+    r = await req(port, 'POST', `/studio/works/${w.slug}/editions`, { cookie: ck, body: { open: '1' } }); assert.equal(r.status, 302);
+    const eds = db.prepare('SELECT * FROM print_editions WHERE work_id=? ORDER BY sort').all(w.id); assert.equal(eds.length, 3, 'the house\'s three sizes'); assert.equal(eds[1].label, '16 × 24');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/editions`, { cookie: ck, body: { id: String(eds[0].id), label: '11 × 14', long_in: '14', paper: 'Hahnemühle Photo Rag', edition_n: '10', price: '275', framed: '150', active: '1' } }); assert.equal(db.prepare('SELECT price_cents, edition_n FROM print_editions WHERE id=?').get(eds[0].id).price_cents, 27500, 'a row edited');
+    r = await req(port, 'GET', `/studio/works/${w.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('The print editions') && r.body.toString().includes('16 × 24'), 'the record shows them');
+    r = await req(port, 'POST', `/hang/${hg.id}/show`, { cookie: sck, body: { opens_at: '2026-11-06', closes_at: '2026-12-06', venue: 'The Leica Gallery, Meatpacking' } });
+    r = await req(port, 'POST', '/hang/add', { cookie: sck, body: { work: w.slug, hang: String(hg.id) } });
+        r = await req(port, 'GET', `/hang/${hg.id}/labels`, { cookie: sck }); const lb = r.body.toString(); assert.ok(r.status === 200 && lb.includes('QR code') && lb.includes('16 × 24 in') && lb.includes('$650') && lb.includes(`show=${hg.slug}`), 'wall labels with the QR and the editions');
+    r = await req(port, 'GET', `/hang/${hg.id}/labels`); assert.equal(r.status, 404, 'labels are the curator\'s');
+    r = await req(port, 'GET', `/hang/${hg.slug}`); assert.ok(r.body.toString().includes('Prints from $275'), 'the wall says what remains');
+    r = await req(port, 'GET', `/w/${w.slug}?show=${hg.slug}`); const showck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_via=')); assert.ok(showck, 'the show is remembered from the label'); const pg = r.body.toString(); assert.ok(pg.includes('Have it on your wall.') && pg.includes('Edition of 12') && pg.includes('Take it home from the show'), 'the print block at the show: ' + (pg.match(/class="pe"[\s\S]{0,200}/) || [''])[0]);
+    r = await req(port, 'POST', `/w/${w.slug}/print`, { cookie: showck.split(';')[0], body: { edition: String(eds[1].id), framed: '1', how: 'pickup' } }); assert.equal(r.status, 303, 'to checkout: ' + r.status);
+    const pid = r.headers.location.split('/').pop(), ps = sessions[pid]; assert.equal(ps.line_items[0].price_data.unit_amount, 95000, '$650 + $300 framed'); assert.ok(!ps.shipping_address_collection, 'no address for a pickup');
+    Object.assign(ps, { payment_status: 'paid', amount_total: 95000, customer_details: { email: 'guest@show.com', name: 'A Guest', phone: '+12125551212' } });
+    const pref = ps.metadata.ref; { const payload2 = JSON.stringify({ id: 'evt_print', type: 'checkout.session.completed', data: { object: ps } }); const sig2 = require('stripe')('sk_test_dummy').webhooks.generateTestHeaderString({ payload: payload2, secret: 'whsec_test' }); r = await req(port, 'POST', '/stripe/webhook', { body: payload2, headers: { 'content-type': 'application/json', 'stripe-signature': sig2 } }); assert.equal(r.status, 200); }
+    const pl = db.prepare('SELECT * FROM licenses WHERE ref=?').get(pref); assert.equal(pl.status, 'active', 'granted'); const pr = JSON.parse(pl.rights); assert.equal(pr.print.no, 1, 'No. 1 of 12');
+    const po = db.prepare("SELECT * FROM print_orders WHERE license_id=? AND kind='edition'").get(pl.id); assert.ok(po && po.paid === 1 && po.status === 'asked' && po.edition_no === 1 && po.framed === 1 && po.pickup === 1 && po.show_id === hg.id && po.email === 'guest@show.com', 'the print room has the order: ' + JSON.stringify(po));
+    assert.equal(db.prepare('SELECT via FROM licenses WHERE ref=?').get(pref).via, `hang:${hg.id}`, 'the sale is the show\'s');
+    r = await req(port, 'GET', `/hang/${hg.id}/sales`, { cookie: sck }); const sd = r.body.toString(); assert.ok(sd.includes('what sold') && sd.includes('16 × 24') && sd.includes('Taken home') && sd.includes('$950'), 'the show\'s desk');
+    r = await req(port, 'GET', `/hang/${hg.id}/sales.csv`, { cookie: sck }); assert.ok(r.body.toString().includes('pickup') && r.body.toString().includes('guest@show.com'), 'the packing list');
+    r = await req(port, 'GET', '/studio/prints', { cookie: ck }); assert.ok(r.body.toString().includes('The print, No. 1') && r.body.toString().includes('taken home from the show'), 'in the print room');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/A print of .* No\. 1 of 12, was acquired at the show/.test(r.body.toString()), 'told on the register');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('11 remain'), 'one fewer');
+    db.prepare('UPDATE works SET width=?, height=? WHERE id=?').run(dims.width, dims.height, w.id); }
+  console.log('ok: the editions room');
   // Your looking: the record of standing; for you, never the same twice.
   { const vcode = 'tester12345'; const slugs = db.prepare("SELECT slug FROM works WHERE status='held' AND slug NOT IN ('test-dome') ORDER BY id DESC LIMIT 3").all().map(x => x.slug);
     for (const [i, sl] of slugs.entries()) { await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 0 }) }); await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 40 * (i + 1) }) }); }

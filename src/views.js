@@ -309,7 +309,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ prints = '', objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -401,6 +401,7 @@ ${thanks.state === 'given' ? `<p class="ty-done">Sent. ${esc(maker.name.split(' 
 ${patron ? `<p class="pat-line"><a href="/m/${esc(patron)}#patron">Become a patron of ${esc(maker.name)}</a><span>Keep the work going, monthly or once.</span></p>` : ''}
 ${share && !(ed && !ed.left) ? `<script>(function(){var f=document.querySelector('[data-share]');if(!f||matchMedia('(hover:hover)').matches)return;var shown=false;f.addEventListener('click',function(e){if(shown)return;if(!e.target.closest('button.seal'))return;e.preventDefault();e.stopImmediatePropagation();f.classList.add('px-on');shown=true;setTimeout(function(){f.classList.remove('px-on');shown=false},3500)},true)})();</script>` : ''}
 ${share && !open ? `<details class="more-uses"><summary>Other uses <span>In a story, for a company, before an audience, a print</span></summary><div class="uses">${options}</div></details>` : `<h2>Use this photograph</h2><div class="uses">${options}</div>`}
+${prints}
 </div></article>
 <section class="lot-rec">
 ${cap ? `<div class="lot-sec"><h2>Catalogue note</h2><p class="cap">${esc(cap)}</p></div>` : ''}
