@@ -59,6 +59,13 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
   }
 
   // Off view, and back.
+  const digest = []; let digestTimer = null;
+  function sendDigest() {
+    digestTimer = null; const rows = digest.splice(0); if (!rows.length) return;
+    const house = mk(null);
+    mail.send({ to: house.email, subject: rows.length === 1 ? `Off view for conservation: ${rows[0].title}` : `Off view for conservation: ${rows.length} works`,
+      text: `${rows.length === 1 ? 'One work' : `${rows.length} works`} failed a condition check twice and left the walls.\n\n${rows.map(r => `${r.title} (${r.slug})\n  ${r.findings.join('\n  ')}`).join('\n\n')}\n\nThe restoration room: ${C.base}/studio/restoration` });
+  }
   function offView(w, findings) {
     if (w.status === 'restoring') return;
     db.prepare("UPDATE works SET status_before=status, status='restoring', condition='unsound' WHERE id=?").run(w.id);
@@ -66,6 +73,10 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     ledger.append(db, 'work.conserving', w.slug, { maker: (mk(w) || {}).handle, was: w.status, why: findings.slice(0, 3) });
     const m = mk(w);
     const notify2 = notify || app.locals.notify; if (notify2 && m) try { notify2.tell({ maker_id: m.id, kind: 'show', href: `/account/works/${w.slug}`, title: `${tidy(w.title)} is off view for conservation`, body: findings[0] || 'The house is restoring it; the original and the record are held.' }); } catch (e) { /* told by mail */ }
+    // One letter to the house for the batch, never one a work (20 Oct: two hundred letters in a minute spent the day's
+    // mail quota, and the collectors' letters behind them).
+    digest.push({ title: tidy(w.title), slug: w.slug, findings }); if (!digestTimer) digestTimer = setTimeout(sendDigest, 60000);
+    return;
     const house = mk(null);
     mail.send({ to: house.email, subject: `Off view for conservation: ${tidy(w.title)}`, text: `${tidy(w.title)} (${w.slug}) failed its condition check and has left the walls.\n\n${findings.join('\n')}\n\nThe restoration room: ${C.base}/studio/restoration` }).catch(() => {});
   }
