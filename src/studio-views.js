@@ -1,5 +1,5 @@
 // The Studio: where the maker manages the vault, prices and licenses.
-const { layout, esc, money, date, termText, setDeskPath } = require('./views');
+const { layout, esc, money, date, termText, setDeskPath, VER } = require('./views');
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
@@ -191,19 +191,19 @@ function makers({ list }) {
 }
 
 // The Trove. The maker's private gallery: every work, what it is, and what it has done.
-function trove({ maker, rows, totals, sort, room, rooms, untapped, notice, view = 'wall' }) {
+function trove({ maker, rows, totals, sort, room, rooms, untapped, notice, view = 'wall', batch = '', here = '/studio/trove' }) {
   const q = (o) => { const p = new URLSearchParams({ ...(room ? { room: room.slug } : {}), sort, ...(view === 'list' ? { view: 'list' } : {}), ...o }); return '/studio/trove?' + p; };
   // The catalogue register: one row a work, the way a curator reads an archive.
   const st = w => ({ held: 'Published', private: 'Private', hidden: 'Private', draft: 'Draft' }[w.status] || esc(w.status));
-  const list = `<table class="cat"><thead><tr><th>Accession</th><th></th><th>Title</th><th>Date made</th><th>Place</th><th>Medium · size</th><th>Edition</th><th>U.S. ©</th><th>Status</th><th class="r">Licensed</th><th class="r">Seen</th><th class="r">Earned</th><th>Record</th></tr></thead><tbody>${rows.map(w => `<tr>
-<td class="acc">${esc(w.accession || '')}</td><td class="cat-th"><a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a></td>
+  const list = `<form method="post" action="/studio/works/batch" id="batchForm" data-batch>${batch}</form><table class="cat"><thead><tr><th></th><th>Accession</th><th></th><th>Title</th><th>Date made</th><th>Place</th><th>Medium · size</th><th>Edition</th><th>U.S. ©</th><th>Status</th><th class="r">Licensed</th><th class="r">Seen</th><th class="r">Earned</th><th>Record</th></tr></thead><tbody>${rows.map(w => `<tr>
+<td class="bt-ck"><input type="checkbox" form="batchForm" name="slugs" value="${esc(w.slug)}" aria-label="Select"></td><td class="acc">${esc(w.accession || '')}</td><td class="cat-th"><a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a></td>
 <td class="cat-t"><a href="/studio/works/${esc(w.slug)}">${esc(w.title)}</a>${w.stars ? `<small>${'&#9733;'.repeat(w.stars)}</small>` : ''}</td>
 <td>${w.taken_at ? esc(String(w.taken_at).slice(0, 10)) : '<i>—</i>'}</td><td>${esc(w.place || '')}</td><td>Digital photograph${w.width ? ` · ${w.width}&thinsp;×&thinsp;${w.height}` : ''}</td>
 <td>${w.edition_size ? `of ${w.edition_size}` : 'open'}</td><td>${w.copyright_reg ? `<span class="cat-reg">${esc(w.copyright_reg)}</span>` : '<i>—</i>'}</td><td>${st(w)}</td>
 <td class="r">${w.licensed}</td><td class="r">${w.seen}</td><td class="r">${money(w.earned)}</td><td>${w.missing.length ? `<span class="cat-miss">${w.complete}%</span>` : '<span class="cat-ok">Complete</span>'}</td></tr>`).join('')}</tbody></table>`;
   const sorts = [['stars', 'The rubies: by stars'], ['earned', 'Most earned'], ['standing', 'Most applauded'], ['duds', 'Seen, never applauded'], ['seen', 'Most seen'], ['untapped', 'Seen, never licensed'], ['taken', 'Date made'], ['newest', 'Newest in'], ['unfinished', 'Needs cataloguing']];
-  const tiles = rows.map(w => `<a class="tv-w" href="/studio/works/${esc(w.slug)}">
-<span class="tv-f"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">${w.sealed ? '<i class="tv-s" title="Sealed copies out">Sealed</i>' : ''}</span>
+  const tiles = `<form method="post" action="/studio/works/batch" id="batchForm" data-batch>${batch}</form>` + rows.map(w => `<a class="tv-w" href="/studio/works/${esc(w.slug)}">
+<span class="tv-f"><label class="bt-ck tv-ck" onclick="event.stopPropagation()"><input type="checkbox" form="batchForm" name="slugs" value="${esc(w.slug)}" aria-label="Select" onclick="event.stopPropagation()"></label><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">${w.sealed ? '<i class="tv-s" title="Sealed copies out">Sealed</i>' : ''}</span>
 <span class="tv-acc">${esc(w.accession || '')}</span><b>${esc(w.title)}</b><span class="tv-pl">${esc([w.place, w.taken_at ? String(w.taken_at).slice(0, 4) : ''].filter(Boolean).join(', '))}</span>
 <span class="tv-n"><em>${money(w.earned)}</em><span>${w.stars ? '&#9733;'.repeat(w.stars) + ' · ' : ''}${w.licensed} licensed · ${w.seen} seen${w.applause ? ` · ${w.applause} applauded` : ''}${w.captures ? ` · ${w.captures} screenshot${w.captures === 1 ? '' : 's'}` : ''}${w.sites ? ` · ${w.sites} site${w.sites > 1 ? 's' : ''}` : ''}</span></span>
 ${w.missing.length ? `<span class="tv-miss">Record ${w.complete}% · add ${esc(w.missing.join(', '))}</span>` : '<span class="tv-ok">Record complete</span>'}</a>`).join('');
@@ -263,7 +263,7 @@ ${need.length ? need.map(w => `<div class="ms-row"><img src="/img/${esc(w.slug)}
 <ol class="bulk-list" id="mList"></ol>
 </form>
 <div class="ms-queue" id="mQueue"></div>
-<script src="/static/arrivals.js" defer></script>
+<script src="/static/arrivals.js?v=${VER}" defer></script>
 </section>` });
 }
 

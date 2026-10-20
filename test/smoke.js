@@ -855,6 +855,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('11 remain'), 'one fewer');
     db.prepare('UPDATE works SET width=?, height=? WHERE id=?').run(dims.width, dims.height, w.id); }
   console.log('ok: the editions room');
+  // Batch (20 Oct): tick works, publish the lot with one attestation; make private; grade; the Studio curates.
+  { db.prepare("UPDATE works SET status='hidden' WHERE maker_id=?").run(est.id); const mine2 = db.prepare("SELECT slug FROM works WHERE maker_id=? AND status='hidden' ORDER BY id").all(est.id).map(x => x.slug); assert.ok(mine2.length >= 2, 'two private works to publish: ' + mine2.length);
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: mine2.join(','), do: 'publish' } }); assert.ok(/not: the attestation/.test(decodeURIComponent(r.headers.location)), 'no attestation, nothing published');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: mine2.join(','), do: 'publish', attest: '1' } }); assert.ok(new RegExp(`${mine2.length} published`).test(decodeURIComponent(r.headers.location)), 'published by batch: ' + decodeURIComponent(r.headers.location));
+    assert.equal(db.prepare(`SELECT COUNT(*) n FROM works WHERE slug IN (${mine2.map(() => '?').join(',')}) AND status='held'`).get(...mine2).n, mine2.length, 'all public'); assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.published' AND data LIKE '%batch%'").get().n >= mine2.length, 'each on the register');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: mine2[0], do: 'stars', stars: '5' } }); assert.equal(db.prepare('SELECT stars, curated FROM works WHERE slug=?').get(mine2[0]).curated, 1, 'five stars is a jewel');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: mine2.join(','), do: 'hide' } }); assert.equal(db.prepare(`SELECT COUNT(*) n FROM works WHERE slug IN (${mine2.map(() => '?').join(',')}) AND status='hidden'`).get(...mine2).n, mine2.length, 'made private by batch');
+    r = await req(port, 'POST', '/account/works/batch', { body: { slugs: mine2.join(','), do: 'publish', attest: '1' } }); assert.equal(r.status, 401, 'a stranger cannot');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: w.slug, do: 'hide' } }); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'another maker\'s work is untouched');
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('data-batch') && r.body.toString().includes('name="slugs"'), 'the bar on the studio');
+    r = await req(port, 'POST', '/studio/works/batch', { cookie: ck, body: { slugs: mine2.join(','), do: 'curate', back: '/studio/trove?view=list' } }); assert.ok(/curated/.test(decodeURIComponent(r.headers.location)) && r.headers.location.startsWith('/studio/trove?view=list'), 'the Studio curates a batch');
+    r = await req(port, 'GET', '/studio/trove?view=list', { cookie: ck }); assert.ok(r.body.toString().includes('data-batch') && r.body.toString().includes('form="batchForm"'), 'the bar on Studio → Works');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: mine2.join(','), do: 'publish', attest: '1' } }); db.prepare('UPDATE works SET curated=0, stars=0 WHERE maker_id=?').run(est.id); }
+  console.log('ok: batch');
   // Your looking: the record of standing; for you, never the same twice.
   { const vcode = 'tester12345'; const slugs = db.prepare("SELECT slug FROM works WHERE status='held' AND slug NOT IN ('test-dome') ORDER BY id DESC LIMIT 3").all().map(x => x.slug);
     for (const [i, sl] of slugs.entries()) { await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 0 }) }); await req(port, 'POST', `/w/${sl}/stood`, { cookie: `wm_v=${vcode}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: vcode, s: 40 * (i + 1) }) }); }

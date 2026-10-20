@@ -43,7 +43,7 @@ function mountEasel(app, { db, V, mk, I }) {
 ${look.length ? `<p class="k">What to look for, in this one</p><ul>${look.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
 <p class="note">Pinch or drag to a passage; a wheel or + − zooms; arrows move; Esc leaves. The screen stays awake while you work.</p></aside>
 <div class="ez-timers" data-ez-timers hidden><span>A sitting of</span><button type="button" data-ez-min="5">5</button><button type="button" data-ez-min="15">15</button><button type="button" data-ez-min="30">30</button><button type="button" data-ez-min="60">60</button><span>minutes</span><button type="button" data-ez-min="0">Stop</button></div>
-</main><script src="/static/easel.js" defer></script>`;
+</main><script src="/static/easel.js?v=${V.VER}" defer></script>`;
     res.send(V.layout({ title: `${tidy(w.title)} · The easel`, path: '/easel', bare: true, body }));
   });
 }

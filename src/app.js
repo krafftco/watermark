@@ -987,6 +987,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   require('./find').mountFind(app, { db, V, I: require('./icons') });
   app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, setBuyer, pocket: () => app.locals.pocket });
+  require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
@@ -1554,7 +1555,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const all = troveRows();
     const totals = { works: all.length, earned: all.reduce((a, w) => a + w.earned, 0), licensed: all.filter(w => w.licensed).length, seen: all.reduce((a, w) => a + w.seen, 0), sealed: all.reduce((a, w) => a + w.sealed, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
     const untapped = all.filter(w => !w.licensed && w.seen > 0).sort((a, b) => b.seen - a.seen).slice(0, 3);
-    res.send(S.trove({ view: req.query.view === 'list' ? 'list' : 'wall', maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
+    res.send(S.trove({ batch: app.locals.batch ? app.locals.batch.bar({ action: '/studio/works/batch', studio: true, back: req.originalUrl.split('?')[0] + (req.query.view ? '?view=' + req.query.view : '') }) : '', view: req.query.view === 'list' ? 'list' : 'wall', maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
   });
 
 
