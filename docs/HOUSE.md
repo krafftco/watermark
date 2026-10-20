@@ -77,12 +77,12 @@ And the rooms reach into people's own: /enjoy says how to get more from the work
 
 ## Meeting people (19 Oct)
 
-Why does anyone go to the late night at the museum, or want the Apollo Circle's gala? To be among people like them, in a beautiful room, with something worth talking about in front of them. The work gives the reason; the house gives the room; the club gives the people. That is the whole of the social side of Watermark, and it is the thing that is distinct: not a feed, a club, with a calendar, in the real world.
+Why does anyone go to the late night at the museum, or want the Apollo Club's gala? To be among people like them, in a beautiful room, with something worth talking about in front of them. The work gives the reason; the house gives the room; the club gives the people. That is the whole of the social side of Watermark, and it is the thing that is distinct: not a feed, a club, with a calendar, in the real world.
 
 Three things, in `src/season.js`:
 
 - **The season.** The nights the house throws, with Krafft Studios filming: an opening, a late night in the galleries, the dinner at one table, a salon in a maker's own words, a screening, a walk through a city with the photographer who made its pictures. Each night is a page (the picture, the words, the artists present, the reply); the address comes with the reply; who is coming is shown only to those coming, by first name and by what they collect or make. After, the night has its bench, and the house says only how many came.
-- **The Circle.** Our Apollo Circle, in the manner of the Keys: the young members, under forty, by the year. Every night first; the dinner; the artists; the introductions; a key. Dues are a membership, not a gift. The aim is the coolest room in the house, and it is the people.
+- **The Club.** Our Apollo Club, in the manner of the Keys: the young members, under forty, by the year. Every night first; the dinner; the artists; the introductions; a key. Dues are a membership, not a gift. The aim is the coolest room in the house, and it is the people.
 - **The card.** How two people meet. Over a work, a line or a night, a keyholder leaves a card for another: one sentence, under their name, at most one a day, never the same person twice. If the other says yes, the house introduces them both by letter, at once, and steps back. A no is never told to anyone. Nothing of it on the wall or the register.
 
 Why it is not disgusting, and better than the apps: you meet over the work, under your name, in a sentence, and only when both say yes; the house asks for no photograph of you (the picture on every page is a work); the meeting is meant to end in a room. Discretion: the house never says who came or who holds what outside the room.
