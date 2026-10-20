@@ -17,7 +17,8 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
   // A work, as the house says it in public.
   function workJSON(w) {
     const m = mk(w), rules = R.parse(w.rules), sh = shieldOf(w, m), office = app.locals.copyrightState ? app.locals.copyrightState(w) : null, open = app.locals.openOf ? app.locals.openOf(w) : null;
-    return { id: w.accession, slug: w.slug, title: V.tidy(w.title), maker: { name: m.name, slug: V.makerSlug(m), kind: m.kind || 'maker' }, year: (w.taken_at || '').slice(0, 4) || null, place: w.place || null, medium: w.medium || null,
+    const OBJ = require('./object');
+    return { id: w.accession, slug: w.slug, title: V.tidy(w.title), kind: OBJ.kindOf(w), medium: w.medium || null, object: OBJ.physical(w) ? { dimensions: w.obj_dims || null, edition: w.obj_edition || null, made: w.obj_made || null, signed: w.obj_signed || null, label: `${base}/w/${w.slug}/object` } : null, byline: OBJ.by(w, m.name), maker: { name: m.name, slug: V.makerSlug(m), kind: m.kind || 'maker' }, year: (w.taken_at || '').slice(0, 4) || null, place: w.place || null, medium: w.medium || null,
       dimensions: w.width && w.height ? { width: w.width, height: w.height, megapixels: Math.round(w.width * w.height / 1e5) / 10 } : null,
       credit: creditOf(w, m), copyright: { holder: m.name, registered: !!w.copyright_reg, registration: w.copyright_reg || null, statement: office ? office.line : null },
       fingerprint: { sha256: w.sha256 }, register: { entry: sh.seq || null, hash: sh.hash || null, registered_at: sh.registered || null, url: `${base}/ledger` },

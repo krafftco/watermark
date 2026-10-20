@@ -3253,3 +3253,18 @@ html.fd-on{overflow:hidden}
 .cv-acts{font-size:14px}
 .cv-sign{max-width:640px;margin:0 auto;padding:60px 20px;text-align:center}
 .cv-sign .lede{color:#6b655c}
+
+/* The physical work (20 Oct): the object record, its label, the registrar's card and book. */
+.ob-set{margin:18px 0}
+.ob-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px;align-items:end}
+.ob-f label{display:grid;gap:4px;font-size:13px}.ob-f .ob-wide{grid-column:1/-1}
+.ob-label{margin:6px 0 0;font-size:13.5px;color:#6b655c}
+.ob{max-width:760px;margin:0 auto;padding:24px 20px}
+.ob-fig{margin:18px 0;background:#0b0a09;padding:14px}.ob-fig img{display:block;width:100%;height:auto}.ob-fig figcaption{color:#a69d8f;font-size:12.5px;margin-top:8px}
+.ob-dl{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin:18px 0;border-top:1px solid #e6e0d4;padding-top:14px}
+.ob-dl div{display:grid;gap:2px}.ob-dl dt{font:500 10.5px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#8a8275}.ob-dl dd{margin:0}
+.cb-rec{margin-top:10px;padding-top:10px;border-top:1px dashed #d9d2c4}.cb-rec h4{margin:0 0 8px;font-weight:500}.cb-rec small{color:#8a8275;font-weight:400}
+.cb-book{max-width:1200px;margin:0 auto;padding:24px 20px;overflow-x:auto}
+.cb-tbl img{width:56px;height:42px;object-fit:cover;display:block}.cb-tbl td,.cb-tbl th{font-size:12.5px;vertical-align:middle;white-space:nowrap}
+.vt-kind select{max-width:100%}
+@media (max-width:760px){.ob-dl{grid-template-columns:1fr}}

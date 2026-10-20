@@ -189,7 +189,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     try {
       const name = req.file.originalname.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
-      const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, title: String(req.body.title || '').trim() || name || 'Untitled', place: String(req.body.place || '').trim() || null, makerId: m.id });
+      const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, title: String(req.body.title || '').trim() || name || 'Untitled', place: String(req.body.place || '').trim() || null, makerId: m.id, kind: String(req.body.kind || 'photograph') });
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(m.name, w.id);
       const full = db.prepare('SELECT accession, sha256, width, height, bytes FROM works WHERE id=?').get(w.id) || {};
       const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq DESC LIMIT 1").get(w.slug);

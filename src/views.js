@@ -6,6 +6,7 @@ const tidy = s => String(s == null ? '' : s).trim().replace(/\.$/, '').replace(/
 // The maker's mark, used as the Collect seal. Krafft makers carry the hand-made K; others the Watermark wave.
 const K_MARK = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
 const I = require('./icons');
+const OBJ = require('./object'); // kinds and by-lines: 'Photograph by', 'Painting by'
 const HAT = I.hat;
 const WAVE_MARK = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden="true"><path d="M40.9019,20.248c.0496.0348.1284.1018.21.14.0392.0183.1355.0555.1748.0725.142.0613.2106.0623.2106.0623.4242.1069.61-.0405.61-.0405,0,0,.0188-.0104.0372-.0243.0184-.014.0363-.0314.0458-.0406.0151-.0146.0539-.0644.0539-.0644,0,0,.052-.0909.0637-.1237.0071-.0198.024-.0795.024-.0795.0222-.0965.0109-.1126.0246-.2317.0093-.0811-.0287-.3268-.0598-.4078-.0365-.0952-.1166-.3107-.1703-.4046-.0609-.1065-.288-.3048-.3726-.4039-.0684-.0801-.1447-.1568-.2296-.2285-.1278-.108-.4529-.423-.699-.5881-.1149-.077-.4531-.3086-.661-.3576-.1954-.0461-.5058-.1799-.7093-.2207-.1562-.0313-.3892-.0664-.5873-.0663-.1141.0029-1.5885.0597-2.7094,1.0659-.3753.3369-.3855.3946-.8039.8574-1.32,1.4605-2.8991,1.493-4.248.0839-2.6425-2.7603-4.3029-2.7712-7.0126-.0458-1.4491,1.4575-2.8945,1.5826-4.2166-.0527-2.0205-2.4992-5.04-2.4249-6.9906-.0205-1.4506,1.788-2.9277,1.5387-4.6146-.3402-1.5584-1.7356-3.6345-2.0457-5.3761-.7779-.3208.2335-.6042.5574-.9828.9127-.3769.3368-.7879,2.0455.8259,1.4273.2077-.0796.4772-.3289.6437-.4599,1.37-1.0769,2.6549-.9274,3.9243.3511,2.7283,2.7477,4.1663,2.7285,6.9293-.0031,1.449-1.4325,2.9109-1.5845,4.2323.0157,2.0744,2.512,4.8342,2.5441,6.9759.0433,1.4851-1.7342,2.9311-1.5102,4.6445.3102,1.7438,1.8528,3.6846,2.1267,5.4476.7528.2651-.2066.5093-.4648.7507-.7199.9751-1.0303,1.776-1.4668,2.6072-1.416,0-.052.6333.1119.8306.2146.0961.05.3577.1959.4835.268.0829.0476.2447.1927.3365.2464l.1702.1427.1157.0958.071.0558Z"/></svg>';
 // Each maker's own mark on the Collect seal: Krafft's makers carry the hand-made K, every other maker the Watermark wave.
@@ -22,7 +23,8 @@ function shieldBlock(sh, { open = false, slug = '' } = {}) {
   const capture = c ? (c.captured ? `Signed in camera at the moment it was made${c.issuer ? `, by ${esc(c.issuer)}` : ''}.` : `Arrived carrying Content Credentials${c.app ? ` from ${esc(c.app)}` : ''}${c.issuer ? `, signed by ${esc(c.issuer)}` : ''}.`) : '';
   const rows = [
     ['Held for', `${esc(sh.maker)}${sh.house ? `, ${esc(sh.house)}` : ''}, ${date(sh.registered)}${sh.accession ? ` &middot; ${esc(sh.accession)}` : ''}`],
-    ['Authorship', `${esc(sh.maker)} attested on arrival to having made this photograph and holding its copyright, theirs from the moment it was made.${slug ? ` <a href="/w/${esc(slug)}/deed">The deed</a>.` : ''}`],
+    sh.object ? [sh.object.k, sh.object.v] : null,
+    ['Authorship', `${esc(sh.maker)} attested on arrival to having made this ${esc((sh.kind || 'photograph').toLowerCase())} and holding its copyright, theirs from the moment it was made.${slug ? ` <a href="/w/${esc(slug)}/deed">The deed</a>.` : ''}`],
     sh.copyright ? ['U.S. copyright', `Registered, ${esc(sh.copyright)}. Search it at <a href="https://publicrecords.copyright.gov/" rel="noopener">publicrecords.copyright.gov</a>.`] : sh.office ? ['U.S. copyright', `${esc(sh.office.line)} <a href="/copyright">How registration works here</a>.`] : null,
     capture ? ['At capture', capture] : null,
     // Launch fix 1.1: the master row shows only when a full master is held (12 MP and up), never 'awaited' or 'due'.
@@ -307,7 +309,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -348,14 +350,14 @@ function work({ zoneLabel = '', bench = '', walk = null, hang = '', open = null,
     path: `/m/${makerSlug(maker)}/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article', mark: markOf(maker),
     // Google Images shows a "Licensable" badge when an image carries these fields.
     jsonld: { '@context': 'https://schema.org', '@type': 'ImageObject', name: title, caption: w.caption || undefined, contentUrl: `${BASE()}/img/${w.slug}/screen`, thumbnailUrl: `${BASE()}/img/${w.slug}/thumb`,
-      creator: { '@type': 'Person', name: maker.name }, creditText: `Photograph by ${maker.name}${maker.house ? ', ' + maker.house : ''}`, copyrightNotice: `© ${maker.name}`,
+      creator: { '@type': 'Person', name: maker.name }, creditText: `${OBJ.by(w, maker.name)}${maker.house ? ', ' + maker.house : ''}`, copyrightNotice: `© ${maker.name}`,
       copyrightHolder: { '@type': 'Person', name: maker.name }, license: `${BASE()}/terms`, acquireLicensePage: `${BASE()}/license/${w.slug}`,
       dateCreated: w.taken_at || undefined, contentLocation: w.place ? { '@type': 'Place', name: w.place } : undefined, identifier: w.accession || undefined,
       sourceOrganization: { '@type': 'Organization', name: 'Watermark', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } } },
     body: `<article class="work lot">
-<div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="Photograph by ${esc(maker.name)}" data-place="${esc([w.place, year].filter(Boolean).join(', '))}">
+<div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="${esc(OBJ.by(w, maker.name))}" data-place="${esc([w.place, year].filter(Boolean).join(', '))}">
 <img src="/img/${esc(w.slug)}/screen" alt="${esc(title)}" draggable="false"><span class="shield"></span><button type="button" class="eye-b" data-eye="${esc(w.slug)}" aria-label="See the watermark">${require('./icons').eye}<span>Watermark</span></button></figure>
-<p class="lot-hint">Tap or click the photograph to see it whole.${walk ? ' Arrows walk.' : ''}</p>${require('./walk').walkBar(walk)}</div>
+<p class="lot-hint">Tap or click the ${OBJ.kindWord(w).toLowerCase()} to see it whole.${walk ? ' Arrows walk.' : ''}</p>${objectLabel || ''}${require('./walk').walkBar(walk)}</div>
 <div class="meta lot-entry">
 ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-maker"><a href="/m/${esc(makerSlug(maker))}">${esc(maker.name)}</a>${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
@@ -648,7 +650,7 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
 <figure class="buy-fig"><div class="ls" data-ls style="--img:url('/img/${esc(w.slug)}/screen')">
 <div class="ls-sc on" data-sc=""><div class="buy-plate" style="aspect-ratio:${ratio}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" draggable="false"></div></div>
 ${scenes(w, maker)}</div>
-<figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>Photograph by ${mlink(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
+<figcaption><b>${esc(tidy(w.title))}</b>${w.place ? ` &middot; ${esc(w.place)}` : ''}<br>${OBJ.kindWord(w)} by ${mlink(maker.name)}<span class="ls-cap" data-ls-cap>Choose where it will live, and see it there.</span></figcaption></figure>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Collect it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
@@ -682,7 +684,7 @@ function ask({ w, maker, u, note, renews, error, approve, uses = [] }) {
     title: `Ask about ${w.title} · Watermark`,
     body: `<section class="buy buy-ask">
 <figure class="buy-fig"><div class="buy-plate"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
-<figcaption><b>${esc(w.title)}</b><br>Photograph by ${esc(maker.name)}</figcaption></figure>
+<figcaption><b>${esc(w.title)}</b><br>${esc(OBJ.by(w, maker.name))}</figcaption></figure>
 <form method="post" action="/license/${esc(w.slug)}" class="buy-form form">
 <p class="k">${esc(u.name)}${approve && u.price_cents != null ? ` &middot; ${money(u.price_cents)}` : ''}</p><h1>${approve ? 'This maker approves each license personally.' : 'Tell the maker what you have in mind.'}</h1>
 ${error ? `<p class="err">${esc(error)}</p>` : ''}
@@ -1211,14 +1213,14 @@ ${owner && active && lic.download_token && dl && dl.left ? `<p class="pr-take"><
 <div class="lc2-side">
 <p class="lc2-st s-${esc(lic.status)}"><i></i>${esc(status)}</p>
 <h1>${esc(tidy(w.title))}</h1>
-<p class="lc2-by">Photograph by ${mlink(maker.name)}</p>
+<p class="lc2-by">${OBJ.kindWord(w)} by ${mlink(maker.name)}</p>
 <p class="lc2-says">${says}</p>
 ${left}
 <dl class="lc2-dl">
 <div><dt>Licensed to</dt><dd>${esc(who)}</dd></div>
 <div><dt>For</dt><dd>${esc(use.name)}</dd></div>
 ${lic.price_cents != null ? `<div><dt>Paid</dt><dd>${money(lic.price_cents, lic.currency)}${lic.collector_no ? ` &middot; No.&nbsp;${lic.collector_no}` : ''}</dd></div>` : ''}
-<div><dt>Credit</dt><dd>Photograph by ${mlink(maker.name)}</dd></div>
+<div><dt>Credit</dt><dd>${OBJ.kindWord(w)} by ${mlink(maker.name)}</dd></div>
 </dl>
 <div class="lc2-cc"><div><p class="lc2-h">You can</p><ul>${can.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><p class="lc2-h">You can&rsquo;t</p><ul class="no">${cannot.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>
 <div class="lc2-acts">

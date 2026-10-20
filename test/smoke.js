@@ -1016,6 +1016,24 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');
   }
   console.log('ok: the restoration room');
+  // The physical work (20 Oct): kinds, the object record, its label, the cabinet's registrar card and book.
+  { r = await req(port, 'POST', `/studio/works/${w.slug}/object`, { cookie: ck, body: { kind: 'painting', medium: 'oil on linen', dims: '61 × 46 cm', edition: 'unique', signed: 'signed lower right', located: 'the studio', note: 'private' } }); assert.equal(db.prepare('SELECT kind FROM works WHERE id=?').get(w.id).kind, 'painting');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/Painting by/.test(r.body) && /class="ob-label"/.test(r.body) && /oil on linen/.test(r.body) && /The object/.test(r.body), 'the by-line and the label follow the kind');
+    r = await req(port, 'GET', `/w/${w.slug}/object`); assert.ok(r.status === 200 && /A painting by/.test(r.body) && /61 × 46 cm/.test(r.body) && /photograph of record/.test(r.body) && !/the studio/.test(r.body) && !/private/.test(r.body), 'the object page, private fields kept back');
+    r = await req(port, 'GET', `/w/${w.slug}/object`, { cookie: ck }); assert.ok(/the studio/.test(r.body), 'the house sees where it is');
+    r = await req(port, 'GET', `/api/v1/works/${w.slug}`); const wj = JSON.parse(r.body); assert.ok(wj.kind === 'painting' && /Painting by/.test(wj.byline) && wj.object && wj.object.dimensions === '61 × 46 cm', 'the API carries the kind');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/object`, { cookie: ck, body: { kind: 'photograph', medium: 'Digital photograph' } }); assert.equal(db.prepare('SELECT kind FROM works WHERE id=?').get(w.id).kind, 'photograph');
+    // the cabinet's card and book
+    const cab = db.prepare('SELECT * FROM cabinet ORDER BY id DESC LIMIT 1').get(); assert.ok(cab, 'a cabinet work from the cabinet test');
+    const owner = db.prepare('SELECT * FROM buyers WHERE id=?').get(cab.buyer_id); assert.ok(owner, 'the cabinet owner'); if (!owner.email) db.prepare('UPDATE buyers SET email=? WHERE id=?').run('cabinet-owner@example.com', owner.id); const oem = owner.email || 'cabinet-owner@example.com'; r = await req(port, 'POST', '/signin/code', { body: { email: oem } }); r = await req(port, 'POST', '/signin/verify', { body: { email: oem, code: app.locals.lastCode.code } }); const okc = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    r = await req(port, 'POST', `/cabinet/${cab.id}/record`, { cookie: okc, body: { accession: '2026.001', acquired: '2024-05', from_whom: 'the artist', paid: '1200', value: '2500', located: 'the hall', condition: 'excellent', provenance: 'The artist; the collector.', work: w.slug } }); assert.ok(/cab=recorded/.test(r.headers.location));
+    const c2 = db.prepare('SELECT * FROM cabinet WHERE id=?').get(cab.id); assert.ok(c2.paid_cents === 120000 && c2.value_cents === 250000 && c2.work_id === w.id, 'the card is kept');
+    r = await req(port, 'GET', '/yours/cabinet/book', { cookie: okc }); assert.ok(r.status === 200 && /2026\.001/.test(r.body) && /\$2,500/.test(r.body) && /the hall/.test(r.body), 'the book');
+    r = await req(port, 'GET', '/yours/cabinet.csv', { cookie: okc }); assert.ok(/text\/csv/.test(r.headers['content-type']) && /2026\.001/.test(r.body) && /the artist/.test(r.body), 'the spreadsheet');
+    r = await req(port, 'GET', '/yours/cabinet/book'); assert.equal(r.status, 302, 'nobody else');
+  }
+  console.log('ok: the physical work');
+
 
 
   // Yours on a phone (20 Oct): a collector whose email is a maker's gets the maker's door and the Studio | Gallery switch.

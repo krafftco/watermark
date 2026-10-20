@@ -110,7 +110,7 @@ function uses({ list, notice, base = '/studio/uses', studio = true, simply = '' 
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true, zoneBlock = '' }) {
+function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true, zoneBlock = '', objectBlock = '' }) {
   const licBase = studio ? '/studio/licenses' : '/account/requests';
   if (!studio) setDeskPath('/account');
   const open = k => !rules.uses || rules.uses.includes(k);
@@ -146,7 +146,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <fieldset class="wide"><legend>Collections</legend>${rooms.length ? rooms.map(c => `<label class="chk"><input type="checkbox" name="rooms" value="${c.id}" ${c.has ? 'checked' : ''}> ${esc(c.title)}</label>`).join('') : '<small>No collections yet. Start one from Works.</small>'}</fieldset>
 <button>Save the record</button></form></div>
 <h2>Exhibition history</h2><table class="tbl"><thead><tr><th>Where</th><th>How</th><th>Views</th><th>First</th><th>Latest</th></tr></thead><tbody>${views.map(v => `<tr><td>${esc(v.host || 'Watermark')}</td><td>${esc({ view: 'Its page', open: 'License page opened', embed: 'Embedded with credit' }[v.kind] || v.kind)}</td><td>${v.n}</td><td>${esc(v.first)}</td><td>${esc(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">Not shown anywhere yet.</td></tr>'}${w.source_url ? `<tr><td colspan="5">Published at <a href="${esc(w.source_url)}" target="_blank" rel="noopener">${esc(w.source_url.replace(/^https?:\/\//, ''))}</a></td></tr>` : ''}</tbody></table>
-${zoneBlock}<h2>Terms</h2>
+${objectBlock}${zoneBlock}<h2>Terms</h2>
 <form method="post" action="${base}/${esc(w.slug)}" class="form terms-form">
 <h2>Open to</h2>${uses.map(u => `<label class="chk"><input type="checkbox" name="uses" value="${esc(u.key)}" ${open(u.key) ? 'checked' : ''}> ${esc(u.name)} <small>${money(u.price_cents)}</small></label>`).join('')}
 <h2>Approval</h2><label class="chk"><input type="checkbox" name="approve" value="1" ${rules.approve ? 'checked' : ''}> Approve each license myself before the buyer pays</label>
