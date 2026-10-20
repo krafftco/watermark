@@ -1010,14 +1010,22 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/img/${w.slug}/screen?f=jpg`); assert.equal(r.status, 200); const cacheDir = path.join(dir, 'cache'); const bad = fs.readdirSync(cacheDir).find(f => f.startsWith(w.slug + '-screen') && f.endsWith('.jpg')); assert.ok(bad, 'a display copy exists');
     // damage the display copy: a blocky, dark, wrong picture in its place
     await require('sharp')({ create: { width: 1600, height: 1000, channels: 3, background: { r: 20, g: 20, b: 20 } } }).jpeg({ quality: 20 }).toFile(path.join(cacheDir, bad));
-    r0 = await CV.check(w); assert.ok(!r0.ok && /Display copies fail/.test(r0.findings.join(' ')), 'the damaged copy is caught: ' + r0.findings.join('; '));
-    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'restoring', 'off view');
+    const damagedBytes = fs.statSync(path.join(cacheDir, bad)).size;
+    r0 = await CV.check(w); assert.ok(r0.ok, 'a damaged display copy is remade from the original and the work stays on view: ' + r0.findings.join('; '));
+    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'still on the walls'); assert.notEqual(fs.statSync(path.join(cacheDir, bad)).size, damagedBytes, 'the copy was remade');
+    // damage the original itself: a hard finding, and only the second check in a row takes it off view
+    const origPath = path.join(dir, 'originals', db.prepare('SELECT original_file FROM works WHERE id=?').get(w.id).original_file); const origBytes = fs.readFileSync(origPath);
+    fs.writeFileSync(origPath, origBytes.subarray(0, Math.floor(origBytes.length / 2)));
+    r0 = await CV.check(w); assert.ok(!r0.ok && /does not decode whole/.test(r0.findings.join(' ')), 'the damaged original is caught: ' + r0.findings.join('; '));
+    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'one bad check never empties a wall');
+    r0 = await CV.check(w); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'restoring', 'off view on the second');
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.status === 200 && /Off view for conservation/.test(r.body), 'the sign on its page');
     r = await req(port, 'GET', '/api/stroll?n=40'); assert.ok(!JSON.parse(r.body).items.some(i => i.slug === w.slug), 'left out of the walks');
     r = await req(port, 'GET', '/ledger'); assert.ok(/is off view for conservation/.test(r.body), 'told on the register');
     r = await req(port, 'GET', '/studio/restoration', { cookie: ck }); assert.ok(r.status === 200 && /In the room/.test(r.body) && new RegExp(`/studio/restoration/${w.id}/rebuild`).test(r.body), 'the room shows it');
+    fs.writeFileSync(origPath, origBytes); // the original restored (from the mirror, say)
     r = await req(port, 'POST', `/studio/restoration/${w.id}/rebuild`, { cookie: ck }); assert.ok(/rebuilt and sound/.test(decodeURIComponent(r.headers.location)), 'rebuilt: ' + decodeURIComponent(r.headers.location));
-    r = await req(port, 'POST', `/studio/restoration/${w.id}/back`, { cookie: ck }); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'back on the walls');
+    assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'back on the walls by itself once it passes');
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!/Off view for conservation/.test(r.body));
     r = await req(port, 'GET', '/healthz'); assert.ok(JSON.parse(r.body).conservation && JSON.parse(r.body).conservation.checked >= 1);
     r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');

@@ -21,11 +21,11 @@ function cameraName(make, model) {
 }
 
 async function inspect(file) {
-  const buf = fs.readFileSync(file);
-  const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
-  const meta = await sharp(buf).rotate().metadata();
+  // hashed as a stream and read by path, so a sixty-megapixel master never sits in memory twice (20 Oct)
+  const sha256 = await new Promise((res, rej) => { const h = crypto.createHash('sha256'); fs.createReadStream(file).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); });
+  const meta = await sharp(file).rotate().metadata();
   let exif = {};
-  try { exif = (await exifr.parse(buf, { pick: ['Make', 'Model', 'LensModel', 'DateTimeOriginal', 'Artist', 'Copyright'] })) || {}; } catch (e) { exif = {}; }
+  try { exif = (await exifr.parse(file, { pick: ['Make', 'Model', 'LensModel', 'DateTimeOriginal', 'Artist', 'Copyright'] })) || {}; } catch (e) { exif = {}; }
   const camera = cameraName(exif.Make, exif.Model);
   const takenAt = exif.DateTimeOriginal instanceof Date ? exif.DateTimeOriginal.toISOString() : null;
   // EXIF orientation: report the displayed size

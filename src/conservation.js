@@ -79,11 +79,20 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
   // The condition check of one work.
   async function check(w, { renders = true } = {}) {
     const findings = []; let decode = null, fixity = null, dims = null, rends = null;
-    let file = null;
-    try { file = await originalPath(w); } catch (e) { findings.push(`The original is missing from the vault: ${e.message}`); }
+    let file = null, transient = false;
+    // A vault or disk hiccup (the network, a full disk, a fetch cut short) is the house's trouble, not the work's: it is
+    // noted and tried again later, never a reason to take the work off the walls (20 Oct: eighty works left the walls
+    // in one minute while masters were being uploaded).
+    try { file = await originalPath(w); } catch (e) { transient = true; findings.push(`The original could not be fetched from the vault just now: ${e.message}`); }
     if (file) {
-      const d = await P.decodes(file); decode = d.ok ? 1 : 0; if (!d.ok) findings.push(`The original does not decode whole: ${d.error}`);
-      const h = sha256(fs.readFileSync(file)); fixity = h === w.sha256 ? 1 : 0; if (!fixity) findings.push('The original’s bytes no longer match the fingerprint on the register.');
+      const d = await P.decodes(file); decode = d.ok ? 1 : 0;
+      if (!d.ok) {
+        // a cut-short local copy is a hiccup: drop it so the next check fetches afresh
+        if (/truncated|premature|unexpected end|Input buffer/i.test(d.error || '') && store.kind === 's3') { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push(`The local copy of the original was incomplete and has been dropped; it will be fetched again: ${d.error}`); }
+        else findings.push(`The original does not decode whole: ${d.error}`);
+      }
+      const h = sha256(fs.readFileSync(file)); fixity = h === w.sha256 ? 1 : 0;
+      if (!fixity) { if (transient) { /* the same hiccup */ } else if (store.kind === 's3') { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push('The local copy of the original did not match the fingerprint and has been dropped; it will be fetched again.'); } else findings.push('The original’s bytes no longer match the fingerprint on the register.'); }
       if (d.ok && w.width && w.height) { const rot = d.width === w.height && d.height === w.width; dims = (d.width === w.width && d.height === w.height) || rot ? 1 : 0; if (!dims) findings.push(`The original is ${d.width}×${d.height}; the record says ${w.width}×${w.height}.`); }
       if (renders && d.ok && fixity) {
         const files = renditionsOf(w.slug).filter(f => sizeOf(f) !== 'thumb'); rends = 1; const bad = [];
@@ -91,20 +100,33 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
           try { const j = await P.judge(file, f, images.SIZES[sizeOf(f)]); if (!j.ok) { bad.push(`${path.basename(f)}: blocks ${j.blocks} (limit ${j.limits.blocks}), ${j.db} dB (floor ${j.limits.db})`); } }
           catch (e) { bad.push(`${path.basename(f)}: unreadable (${e.message.slice(0, 80)})`); }
         }
-        if (bad.length) { rends = 0; findings.push(`Display copies fail the standard: ${bad.join('; ')}`); }
+        // A bad display copy is the house's to remake, not the work's fault: it is removed at once and made again from
+        // the original before the picture is next asked for. Only a copy that fails again after a fresh make is reported.
+        if (bad.length) {
+          for (const f of files) { try { fs.unlinkSync(f); } catch (e) { /* gone */ } }
+          let again = [];
+          try { await images.warm(file, cache, w.slug); for (const f of renditionsOf(w.slug).filter(f => sizeOf(f) !== 'thumb')) { const j = await P.judge(file, f, images.SIZES[sizeOf(f)]); if (!j.ok) again.push(`${path.basename(f)}: blocks ${j.blocks}, ${j.db} dB`); } }
+          catch (e) { transient = true; again = []; findings.push(`The display copies could not be remade just now: ${e.message.slice(0, 120)}`); }
+          if (again.length) { rends = 0; findings.push(`Display copies fail the standard even when remade from the original: ${again.join('; ')}`); }
+        }
       }
     }
     const ok = findings.length === 0;
+    // Off view only on a hard finding (the original itself does not decode, or its bytes are wrong in the vault), and
+    // only when the check before this one found the same: one bad moment never empties a wall.
+    const hard = !ok && !transient;
+    const before = db.prepare('SELECT ok FROM conditions WHERE work_id=? ORDER BY id DESC LIMIT 1').get(w.id);
     db.prepare('INSERT INTO conditions (work_id, ok, decode, fixity, dims, renders, findings) VALUES (?,?,?,?,?,?,?)').run(w.id, ok ? 1 : 0, decode, fixity, dims, rends, findings.length ? JSON.stringify(findings) : null);
-    db.prepare("UPDATE works SET condition=? WHERE id=?").run(ok ? 'sound' : 'unsound', w.id);
-    if (!ok && (w.status === 'held')) offView(w, findings);
-    return { ok, findings };
+    if (ok || hard) db.prepare("UPDATE works SET condition=? WHERE id=?").run(ok ? 'sound' : 'unsound', w.id);
+    if (hard && w.status === 'held' && before && before.ok === 0) offView(w, findings);
+    if (ok && w.status === 'restoring') backOnView(w);
+    return { ok, findings, transient };
   }
   let running = false;
   async function condition(limit = CHECK_N) {
     if (running) return { ran: 0 }; running = true; let ran = 0, bad = 0;
     try {
-      const rows = db.prepare(`SELECT w.* FROM works w LEFT JOIN (SELECT work_id, MAX(checked_at) last FROM conditions GROUP BY work_id) c ON c.work_id=w.id WHERE w.original_file IS NOT NULL AND w.status IN ('held','hidden') ORDER BY c.last IS NOT NULL, c.last LIMIT ?`).all(limit);
+      const rows = db.prepare(`SELECT w.* FROM works w LEFT JOIN (SELECT work_id, MAX(checked_at) last FROM conditions GROUP BY work_id) c ON c.work_id=w.id WHERE w.original_file IS NOT NULL AND w.status IN ('held','hidden','restoring') ORDER BY w.status='restoring' DESC, c.last IS NOT NULL, c.last LIMIT ?`).all(limit);
       for (const w of rows) { ran++; const r = await check(w); if (!r.ok) bad++; }
     } finally { running = false; }
     return { ran, bad };
@@ -179,6 +201,9 @@ ${rows.length ? `<ul class="cv-l">${rows.map(w => { const c = lastOf(w); const f
   app.post('/studio/restoration/:id/retire', studioOnly, (req, res) => { const w = wk(req.params.id); if (!w) return res.sendStatus(404); db.prepare("UPDATE works SET status='hidden', status_before=NULL WHERE id=?").run(w.id); if (app.locals.findIndexDirty) app.locals.findIndexDirty(); ledger.append(db, 'work.retired', w.slug, { by: 'house' }); res.redirect('/studio/restoration?ok=' + encodeURIComponent(`${tidy(w.title)} is retired to the record.`)); });
 
   if (process.env.NODE_ENV !== 'test') {
+    // Recovery (20 Oct): every work off view for conservation is checked again, one at a time, and goes back on the
+    // walls the moment it passes; a work whose original is truly damaged stays in the room.
+    setTimeout(async () => { try { const rows = db.prepare("SELECT * FROM works WHERE status='restoring' ORDER BY id").all(); let back = 0; for (const w of rows) { const r = await check(w); if (r.ok) back++; } if (rows.length) console.log(`[conservation] recovery: ${back} of ${rows.length} back on view`); } catch (e) { console.error('[conservation] recovery', e.message); } }, 90000).unref();
     setTimeout(() => condition(CHECK_N).catch(e => console.error('[condition]', e.message)), 150000).unref();
     setInterval(() => condition(CHECK_N).catch(e => console.error('[condition]', e.message)), CHECK_EVERY_MS).unref();
     if (mirror) setInterval(() => mirrorSome(10).catch(e => console.error('[mirror]', e.message)), 10 * 60000).unref();

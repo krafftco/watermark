@@ -78,6 +78,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
     } catch (e) { if (tmp) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } } failed('drill', e); throw e; }
   }
   const last = kind => db.prepare('SELECT * FROM backup_runs WHERE kind=? ORDER BY id DESC LIMIT 1').get(kind);
+  const lastGood = kind => db.prepare('SELECT * FROM backup_runs WHERE kind=? AND ok=1 ORDER BY id DESC LIMIT 1').get(kind);
   const summary = () => { const b = last('backup'), d = last('drill'); return { vault: store.kind, encrypted: !!store.encrypted, keepDays: KEEP_DAYS, last: b ? { at: b.at, ok: !!b.ok, key: b.key, bytes: b.bytes } : null, drill: d ? { at: d.at, ok: !!d.ok, key: d.key } : null, stale: !b || Date.now() - new Date(b.at + 'Z').getTime() > 26 * 3600e3 }; };
 
   // Studio → Backups: what is in the vault, the last drill, and the two buttons.
@@ -99,14 +100,18 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
   // Nightly at HOUR UTC; a drill on Sundays; and a backup an hour after start if none in the last day.
   function schedule() {
     const tick = async () => {
-      const now = new Date(), b = last('backup');
-      const due = !b || (now.getUTCHours() === HOUR && Date.now() - new Date(b.at + 'Z').getTime() > 20 * 3600e3);
+      // Due when there is no good copy yet, when the last try failed over an hour ago, or when the hour has come and the
+      // last good copy is older than twenty hours. The first look is five minutes after start, because every deploy
+      // restarts the house and an hourly tick from start seldom survived to the hour (20 Oct: no copy since the 19th).
+      const now = new Date(), b = last('backup'), good = lastGood('backup');
+      const age = x => (x ? Date.now() - new Date(x.at + 'Z').getTime() : Infinity);
+      const due = !good || (b && !b.ok && age(b) > 3600e3) || (now.getUTCHours() >= HOUR && age(good) > 20 * 3600e3);
       if (!due) return;
       try { const r = await backup(); console.log('[backup]', r.key); } catch (e) { console.error('[backup]', e.message); return; }
       const d = last('drill');
       if (now.getUTCDay() === 0 || !d || Date.now() - new Date(d.at + 'Z').getTime() > 8 * 864e5) { try { const r = await drill(); console.log('[drill]', r.detail); } catch (e) { console.error('[drill]', e.message); } }
     };
-    setTimeout(tick, 3600e3).unref(); setInterval(tick, 3600e3).unref();
+    setTimeout(tick, 300e3).unref(); setInterval(tick, 3600e3).unref();
   }
   app.locals.backup = { backup, drill, prune, summary, last };
   return { backup, drill, prune, summary, schedule };

@@ -162,11 +162,25 @@ function createApp(cfg = {}) {
   ledger.setKey(cfg.signingSeed || process.env.REGISTER_SEED || process.env.VAULT_KEY || cfg.secret); ledger.ensureSig(db);
   const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, vaultKey: cfg.vaultKey !== undefined ? cfg.vaultKey : process.env.VAULT_KEY, localRoot: path.join(C.dataDir, 'vault') });
   // The original, from the local cache or, if this server is new, from the vault.
+  // The local copy of an original is a cache when the vault is S3: kept under ORIGINALS_CACHE_GB (3) by dropping the
+  // copies least recently used, so sixty-megapixel masters never fill the disk (20 Oct: a 10 GB disk, 50 GB of masters
+  // on the way). Stale upload temp files (incoming/) older than a day go too.
+  const CACHE_BUDGET = Number(process.env.ORIGINALS_CACHE_GB || 3) * 1e9;
+  function trimOriginals(keep) {
+    if (store.kind !== 's3') return;
+    try {
+      const files = fs.readdirSync(originals).map(f => { const p = path.join(originals, f); try { const st = fs.statSync(p); return { p, size: st.size, at: Math.max(st.atimeMs || 0, st.mtimeMs || 0) }; } catch (e) { return null; } }).filter(Boolean);
+      let total = files.reduce((a, f) => a + f.size, 0); if (total <= CACHE_BUDGET) return;
+      for (const f of files.sort((a, b) => a.at - b.at)) { if (total <= CACHE_BUDGET * 0.8) break; if (f.p === keep || (/\.tmp$/.test(f.p) && Date.now() - f.at < 600000)) continue; try { fs.unlinkSync(f.p); total -= f.size; } catch (e) { /* in use */ } }
+    } catch (e) { /* no cache dir yet */ }
+  }
+  setInterval(() => { try { const inc = path.join(C.dataDir, 'incoming'); for (const f of fs.readdirSync(inc)) { const p = path.join(inc, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 86400000) fs.unlinkSync(p); } catch (e) { /* gone */ } } } catch (e) { /* none */ } }, 3600000).unref();
   async function originalPath(w) {
     const p = path.join(originals, w.original_file);
-    if (fs.existsSync(p)) return p;
+    if (fs.existsSync(p)) { try { const now = new Date(); fs.utimesSync(p, now, now); } catch (e) { /* read-only */ } return p; }
     const buf = await store.get('originals/' + w.original_file);
     if (!buf) throw new Error('Original missing from the vault: ' + w.original_file);
+    trimOriginals(p);
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`; fs.writeFileSync(tmp, buf); try { fs.renameSync(tmp, p); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } } return p; // atomic: a second reader never sees a half-written original
   }
   // Database backups: a consistent copy of SQLite, written to the vault.
@@ -1822,7 +1836,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   // The maker's portal for one photograph: upload its full-resolution master. It must be the same picture (by
   // its visual fingerprint) and larger than what is held.
-  app.post('/studio/works/:slug/master', studioOnly, upload.single('file'), async (req, res) => {
+  // One master at a time (20 Oct): a sixty-megapixel file is decoded, fingerprinted, hashed and put in the vault; two
+  // or three at once on a small server run it out of memory. Every arrival waits its turn in the lane.
+  let lane = Promise.resolve(); const inLane = fn => { const run = lane.then(fn, fn); lane = run.catch(() => {}); return run; };
+  app.post('/studio/works/:slug/master', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
     const w = q.work.get(req.params.slug); const back = m => res.redirect('/studio/masters?ok=' + encodeURIComponent(m) + '#need');
     if (!w) return res.sendStatus(404); if (!req.file) return back('Choose an image file.');
     const gone = () => { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); };
@@ -1833,9 +1850,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       await replaceMaster(w, req.file, info, h);
       back(`${tidyT(w.title)} is now held at ${Math.round(info.width * info.height / 1e6)} megapixels.`);
     } catch (e) { gone(); console.error('[master]', e.message); back('That file could not be read.'); }
-  });
+  }));
   const tidyT = t => String(t || '').replace(/[.\s]+$/, '');
-  app.post('/studio/masters/one', studioOnly, upload.single('file'), async (req, res) => {
+  app.post('/studio/masters/one', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     const file = req.file.path, gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
     try {
@@ -1865,10 +1882,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(c.id, nw.id);
       res.json({ ok: true, outcome: 'archive', slug: nw.slug, title: nw.title });
     } catch (e) {
-      gone();
+      gone(); console.error('[masters]', e.message);
       res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
     }
-  });
+  }));
   // Read the Content Credentials of every original already held (once; new arrivals are read as they come).
   let crScan = null;
   app.post('/studio/credentials/scan', studioOnly, (req, res) => {
