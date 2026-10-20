@@ -570,7 +570,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.heldBy = heldBy;
   // The signs: any door the app shuts with a bare status (sendStatus, status().end()) is shown to a browser as a
   // photograph and a way on, never a number. JSON, images and files keep their plain status.
-  const coverFor = () => { try { return db.prepare("SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.width > w.height ORDER BY (CASE WHEN w.curated=1 THEN 3 WHEN w.stars>=4 THEN 2 ELSE 1 END) * RANDOM() DESC LIMIT 1").get() || null; } catch (e) { return null; } };
+  const coverFor = () => { try { return db.prepare("SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.width > w.height ORDER BY (CASE WHEN w.curated=1 THEN 3 WHEN w.stars>=4 THEN 2 ELSE 1 END) * (CASE WHEN w.width>=3840 THEN 4 WHEN w.width>=3000 THEN 2 ELSE 1 END) * RANDOM() DESC LIMIT 1").get() || null; } catch (e) { return null; } };
   const wantsSign = req => req.method === 'GET' && req.accepts('html') && !/^\/(api|img|cab|static|d|portrait|ledger\.json|healthz|sw\.js)/.test(req.path) && !req.xhr;
   app.use((req, res, next) => {
     const sendStatus = res.sendStatus.bind(res);
