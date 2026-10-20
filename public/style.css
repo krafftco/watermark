@@ -3190,3 +3190,21 @@ html.fd-on{overflow:hidden}
 .zn-f{margin:16px 0}.zn-o{display:grid;grid-template-columns:24px 1fr;gap:6px 12px;padding:14px;border:1px solid var(--ln,#ddd);border-radius:4px;margin:0 0 10px;cursor:pointer}.zn-o.on{border-color:var(--ink)}.zn-o b{display:block}.zn-o span{grid-column:2;font-size:14px;color:var(--mu)}
 .zn-door{text-align:center;padding-top:80px}.zn-enter{margin:18px 0}.zn-label{font-size:13px;color:var(--mu);margin:8px 0}.zn-set{margin:22px 0;padding:16px;border:1px solid var(--ln,#ddd);border-radius:4px}.zn-setf label{display:block;margin:8px 0;font-size:13px}.zn-setf input:not([type=checkbox]){display:block;width:100%;max-width:420px;margin-top:4px;padding:8px;border:1px solid var(--ln,#ccc);border-radius:3px}
 @media(max-width:620px){.deed-dl div{grid-template-columns:1fr}.way-s li{grid-template-columns:28px 1fr}.way-s a{grid-column:2}}
+
+/* Ready to hang (20 Oct): the review room and the two floors. */
+.rv{max-width:1100px;margin:0 auto;padding:24px 20px}
+.rv .lede{color:#6b655c}
+.rv-ask{font-style:italic}
+.rv-bio{margin:14px 0;padding-left:14px;border-left:2px solid #d9bc7c;font-family:var(--serif,Georgia,serif);font-size:18px;line-height:1.5}
+.rv-steps{margin:14px 0 6px}
+.rv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin:14px 0}
+.rv-w{display:block;position:relative;background:#0b0a09;border:1px solid #2a2622;padding:8px}
+.rv-w img{display:block;width:100%;height:auto}
+.rv-w input{position:absolute;top:14px;left:14px;width:20px;height:20px;accent-color:#d9bc7c}
+.rv-w:has(input:not(:checked)) img{opacity:.35}
+.rv-cap{display:block;color:#c9c2b6;font-size:12px;margin-top:6px;line-height:1.4}
+.rv-acts{margin:10px 0 18px}
+.rv-no{border-top:1px solid #e6e0d4;padding-top:14px;margin-top:6px}
+.rv-no textarea{width:100%;box-sizing:border-box;margin-top:4px}
+.h-two-g h3{margin-top:0}
+@media (max-width:760px){.rv-grid{grid-template-columns:1fr 1fr}}

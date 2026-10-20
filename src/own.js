@@ -108,7 +108,11 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     db.prepare("UPDATE makers SET door='house', invited_at=datetime('now') WHERE id=?").run(m.id);
     db.prepare("UPDATE house_asks SET answer='Invited to the house.', answered_at=datetime('now') WHERE maker_id=? AND answer IS NULL").run(m.id);
     ledger.append(db, 'maker.invited', m.handle, { by: 'house', from: 'record' });
-    if (m.email) mail.send({ to: m.email, subject: 'The house invites you', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has looked at what you brought in and would like to hang it. From today your work may be published to the collection from your studio: ${C.base}/account\n\nWelcome. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
+    // The first show: the house hangs what it ticked; the rest stays in the record until the maker publishes it.
+    let hang = (req.body || {}).hang; hang = Array.isArray(hang) ? hang : hang ? String(hang).split(',') : []; let hung = 0;
+    for (const slug of hang.slice(0, 60)) { const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status='hidden'").get(String(slug), m.id); if (!w) continue; db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { maker: m.handle, by: 'house', show: 'first' }); hung++; }
+    if (hung && app.locals.findIndexDirty) app.locals.findIndexDirty();
+    if (m.email) mail.send({ to: m.email, subject: 'The house invites you', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has looked at what you brought in and would like to hang it.${hung ? ` The first show is hung: ${hung} of your works are on the walls from today.` : ''} From today your work may be published to the collection from your studio: ${C.base}/account\n\nWelcome. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     res.redirect('/studio/accounts?ok=' + encodeURIComponent(`${m.name} is invited to the house.`));
   });
   app.locals.mayHang = m => !m || m.door !== 'record';
@@ -119,20 +123,12 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
   const lastAsk = m => db.prepare('SELECT * FROM house_asks WHERE maker_id=? ORDER BY id DESC LIMIT 1').get(m.id);
   app.locals.wayIn = (m, ok) => {
     if (!m || m.door !== 'record') return '';
-    const n = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id).n;
-    const ready = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden') AND title IS NOT NULL AND place IS NOT NULL AND (caption IS NOT NULL OR note IS NOT NULL)").get(m.id).n;
-    const graded = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND stars>0").get(m.id).n;
-    const page = !!(m.bio && m.bio.length > 20) || !!m.portrait, priced = db.prepare('SELECT COUNT(*) n FROM uses WHERE maker_id=? AND price_cents>0').get(m.id).n > 0;
-    const ask = lastAsk(m);
-    const steps = [
-      ['Record', n > 0, n ? `${n} work${n === 1 ? '' : 's'} in the vault, each with its deed.` : 'Bring in what you made. Each file gets its deed.', '/account/upload'],
-      ['Prepare', ready >= Math.min(6, Math.max(1, n)) && graded >= Math.min(6, Math.max(1, n)), 'A title, a place, a date and a sentence on each; grade your best with stars. The house looks at your edit, not your volume.', '/account'],
-      ['Your page and your prices', page && priced, 'Who you are, in your own words; what each use costs, or “ask”.', '/account/profile'],
-      ['Ask the house to look', !!ask, ask ? (ask.answer ? `The house answered on ${dayOf(ask.answered_at)}: ${ask.answer}` : `Asked on ${dayOf(ask.at)}. The house looks at six to twelve of your best and writes back.`) : 'When the three above are done, ask. The house answers every ask, in words, within the month.', null],
-    ];
-    const can = steps[0][1] && steps[1][1] && steps[2][1] && !(ask && !ask.answer);
-    return `<section class="hd-way"><div class="hd-h"><h2>The way in</h2><span class="hd-n">${steps.filter(x => x[1]).length} of 4</span></div>
-<p class="way-l">Your work is yours, held and deeded, from the day it arrives. Hanging it in the collection is by the house’s invitation: a doable journey, and one that keeps the walls at a museum’s standard. The house has its own eye; it does not tell you what to make. It looks for craft, honesty and a body of work.</p>
+    const r = app.locals.readiness(m), ask = lastAsk(m);
+    const steps = r.steps.map(s => [s.t, s.done, s.line, s.href]);
+    steps.push(['Ask the house to look', !!ask, ask ? (ask.answer ? `The house answered on ${dayOf(ask.answered_at)}: ${ask.answer}` : `Asked on ${dayOf(ask.at)}. The house looks at your edit, large, and writes back.`) : 'When the four above are done, ask. The house answers every ask, in words, within the month, and hangs the first show itself.', null]);
+    const can = r.can && !(ask && !ask.answer);
+    return `<section class="hd-way"><div class="hd-h"><h2>The way in</h2><span class="hd-n">${steps.filter(x => x[1]).length} of ${steps.length}</span></div>
+<p class="way-l">Everything you bring in is yours, held and deeded, from the day it arrives: the record is the frame on your own wall. The house's walls are a museum's, and hanging there is by invitation. There is a moment when work is ready to be shown, when people will pay for it; the steps below are how the house reads that moment, and a discipline worth keeping either way: title it, place it, date it, grade it, edit it. The house has its own eye; it does not tell you what to make. It looks for craft, honesty and a body of work.</p>
 <ol class="way-s">${steps.map(([t, done, line, href]) => `<li class="${done ? 'done' : ''}"><b>${esc(t)}</b><span>${esc(line)}</span>${href && !done ? `<a href="${href}">Go →</a>` : ''}</li>`).join('')}</ol>
 ${ok === 'asked' ? '<p class="ok">Asked. The house will write back.</p>' : ''}
 ${can ? `<form method="post" action="/account/ask-house" class="way-f"><label>A line to the house, if you like<input name="note" maxlength="240" placeholder="optional"></label><button class="buy-btn">Ask the house to look</button></form>` : ''}</section>`;
@@ -140,6 +136,7 @@ ${can ? `<form method="post" action="/account/ask-house" class="way-f"><label>A 
   app.post('/account/ask-house', (req, res) => {
     const m = makerOf(req); if (!m || m.door !== 'record') return res.sendStatus(403);
     const open = lastAsk(m); if (open && !open.answer) return res.redirect('/account?ok=asked');
+    if (app.locals.readiness && !app.locals.readiness(m).can) return res.redirect('/account?ok=notyet#way'); // the moment is read from the work, not asked for
     db.prepare('INSERT INTO house_asks (maker_id, note) VALUES (?,?)').run(m.id, String((req.body || {}).note || '').replace(/<[^>]*>/g, '').trim().slice(0, 240) || null);
     ledger.append(db, 'house.asked', m.handle, {});
     mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `${m.name} asks the house to look`, text: `${m.name} asks the house to look at their work.
@@ -166,7 +163,7 @@ Watermark, a Krafft company.` }).catch(() => {});
   app.locals.houseAsksBlock = () => {
     const rows = db.prepare('SELECT a.*, m.name, m.handle, m.id AS mid, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id AND w.status IN (\'held\',\'hidden\')) n FROM house_asks a JOIN makers m ON m.id=a.maker_id WHERE a.answer IS NULL ORDER BY a.at').all();
     if (!rows.length) return '';
-    return `<section class="ac-asks"><p class="k">Asking to hang · ${rows.length}</p><ul class="ac-askl">${rows.map(a => `<li><b>${esc(a.name)}</b> · ${a.n} works · asked ${esc(dayOf(a.at))}${a.note ? ` · <em>${esc(a.note)}</em>` : ''} · <a href="/account?maker=${esc(a.handle)}">Look</a>
+    return `<section class="ac-asks"><p class="k">Asking to hang · ${rows.length}</p><ul class="ac-askl">${rows.map(a => `<li><b>${esc(a.name)}</b> · ${a.n} works · asked ${esc(dayOf(a.at))}${a.note ? ` · <em>${esc(a.note)}</em>` : ''} · <a href="/studio/review/${a.mid}">Look</a>
 <form method="post" action="/studio/accounts/${a.mid}/invite" class="inline"><button class="link">Invite to the house</button></form>
 <form method="post" action="/studio/accounts/${a.mid}/answer" class="inline ac-ans"><input name="answer" maxlength="600" placeholder="A word back, in the house’s voice: what you saw, and what would bring it in."><button class="link">Send</button></form></li>`).join('')}</ul></section>`;
   };

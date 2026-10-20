@@ -86,3 +86,7 @@ Three things, in `src/season.js`:
 - **The card.** How two people meet. Over a work, a line or a night, a keyholder leaves a card for another: one sentence, under their name, at most one a day, never the same person twice. If the other says yes, the house introduces them both by letter, at once, and steps back. A no is never told to anyone. Nothing of it on the wall or the register.
 
 Why it is not disgusting, and better than the apps: you meet over the work, under your name, in a sentence, and only when both say yes; the house asks for no photograph of you (the picture on every page is a work); the meeting is meant to end in a room. Discretion: the house never says who came or who holds what outside the room.
+
+## Two floors
+
+Everyone may put work in the day they make it. The record keeps it, fingerprints it, deeds it; it is the frame on your own wall, your work treated as worth making, and the house celebrates it. The walls of the house are a museum's, and hanging there is by invitation. The stock agencies once made a living possible for anyone whose work was good enough; Watermark means to be that again, and the moment is read from the work, not asked for: a body of work, an edit the maker made, professional files, a page and prices. Then the house looks at the edit, large, and hangs the first show itself or writes back in words. The steps are a discipline whether or not the house ever calls: title it, place it, date it, grade it, edit it. What wanders is the edit, so the halls hold up.

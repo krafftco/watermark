@@ -505,6 +505,12 @@ ${demo ? `<p><a class="h-btn h-btn-d" href="/license/${esc(demo.slug)}">See it f
 <p class="h-p">The idea for Watermark began seven years ago with a simple frustration: the photographs travelled and the photographer didn&rsquo;t. It is built by Krafft, a creative company, and its first collection is our own. We built it the way we wanted to be treated: credited, asked, and paid.</p>
 ${strip ? `<div class="h-strip">${strip}</div><p><a class="h-ln h-ln-d" href="/collection">See the collection</a></p>` : ''}</section>
 
+<section class="h-sec h-two" id="ready"><p class="k">Two floors</p><h2 class="h2">Put it in the day you make it. Hang it when it is ready.</h2>
+<div class="h-3 h-two-g"><div><h3>The record</h3><p>Open to everyone, free, from the first frame. Every work you bring in is kept, fingerprinted, deeded and yours; nothing is shown and nothing is sold. It is the frame on your own wall: your work, treated as worth making. <a href="/own">You already own it</a>.</p></div>
+<div><h3>The moment</h3><p>The stock agencies once made a living possible for anyone whose work was good enough. There is a moment when work is ready to be shown, when people will pay for it. The house reads it from what it can see: a body of work, an edit you made yourself, professional files, a page and your prices. Then it looks at your edit, large, and writes back within the month.</p></div>
+<div><h3>The house</h3><p>By invitation. Hung in the collection, in the walks and the stroll, licensed and collected on your terms, 85% of every sale yours. The house has its own eye and never tells you what to make; it looks for craft, honesty and a body of work, and it hangs your first show itself.</p></div></div>
+<p class="h-cta"><a class="h-btn h-btn-d" href="/record">Begin the record</a><a class="h-ln h-ln-d" href="#apply">Or apply to the house now</a></p></section>
+
 <section class="h-sec h-apply" id="apply"><p class="k">Hold your work here</p><h2 class="h2">We are opening Watermark to a small group of makers first.</h2>
 <p class="h-in-already">Already a Watermark maker? <a href="/signin">Sign in to your room</a>.</p>
 ${sent ? '<p class="h-sent">Thank you. We read every application and will write to you personally.</p>' : `<form method="post" action="/apply" class="h-form">

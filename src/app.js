@@ -479,7 +479,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Wander: a photograph you did not go looking for. The best work weighs more; what you just saw is left out.
   app.get('/wander', (req, res) => {
     const from = String(req.query.from || '');
-    const zs = zone.sql(req, 'works');
+    const zs = zone.sql(req, 'works') + app.locals.editSql('works');
     const pick = db.prepare(`SELECT slug FROM works WHERE status='held'${zs} AND slug<>? ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(from)
       || db.prepare(`SELECT slug FROM works WHERE status='held'${zs} ORDER BY RANDOM() LIMIT 1`).get();
     if (!pick) return res.redirect('/collection');
@@ -939,6 +939,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C });
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
+  require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
   require('./own').mountOwn(app, { db, V, C, ledger, stripe, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly, registerWork }); // you already own it: the deed, /own, the open door, the Office one tap, said simply
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
   try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
