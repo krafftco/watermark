@@ -955,6 +955,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/studio/works/${w.slug}/zone`, { cookie: ck, body: {} }); assert.equal(db.prepare('SELECT zone FROM works WHERE id=?').get(w.id).zone, 'all');
   }
   console.log('ok: you already own it, and the rooms');
+  // Yours on a phone (20 Oct): a collector whose email is a maker's gets the maker's door and the Studio | Gallery switch.
+  { const sb = db.prepare("SELECT b.* FROM buyers b JOIN circle c ON c.buyer_id=b.id WHERE c.email='sck@example.com'").get(); assert.ok(sb);
+    const ym = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, buyer_id) VALUES ('yours-maker', 'Yours Maker', 'yours-maker@example.com', 'maker', datetime('now'), ?)").run(sb.id).lastInsertRowid;
+    r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(r.status === 200 && /class="yc-sw"/.test(r.body) && (r.headers['set-cookie'] || []).some(c => c.startsWith('wm_m=')), 'the switch appears and the maker cookie is set');
+    db.prepare('DELETE FROM makers WHERE id=?').run(ym); }
   // For museums (19 Oct): a collection in from a IIIF manifest; the Image API out; the public page.
   { r = await req(port, 'GET', '/museums'); assert.ok(r.status === 200 && /Already built\. Plug in\./.test(r.body) && /info\.json/.test(r.body), 'the museums page');
     const held = db.prepare("SELECT slug, width FROM works WHERE status='held' AND width>500 LIMIT 1").get();

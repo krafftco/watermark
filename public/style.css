@@ -2732,7 +2732,7 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 .fb .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .fb-l{list-style:none;padding:0;margin:0;display:grid;gap:0}.fb-l li{padding:16px 0;border-bottom:1px solid var(--line,#e2e2df)}.fb-l .fb-m{font-size:13px;opacity:.75;margin:0 0 6px}.fb-l .fb-b{margin:0 0 8px;max-width:72ch}.fb-l li.fb-done{opacity:.45}
 .ln-state{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:18px 0 26px;padding:14px 18px;border:1px solid var(--line,#e2e2df)}.ln-state p{margin:0}
-@media (max-width:760px){.brand .beta{display:none}}
+@media (max-width:760px){.brand .beta{display:inline;font-size:8px;top:1px;margin-left:5px}}
 /* Bring a photograph home: the drop zone and its answers. */
 .dr .lede{max-width:56ch}.dr-f{display:grid;gap:14px;margin:22px 0 10px;max-width:560px}
 .dr-zone{position:relative;display:grid;place-items:center;min-height:190px;border:1.5px dashed var(--line,#cfcac0);border-radius:10px;cursor:pointer;text-align:center;padding:24px;transition:border-color .2s,background .2s}
