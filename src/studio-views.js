@@ -255,21 +255,14 @@ ${need.length ? need.map(w => `<div class="ms-row"><img src="/img/${esc(w.slug)}
 <form method="post" action="/studio/works/${esc(w.slug)}/master" enctype="multipart/form-data" class="ms-up"><label><input type="file" name="file" accept="image/jpeg,image/tiff,image/png" required onchange="this.form.submit()"><span>Upload the master</span></label></form></div>`).join('') : '<p class="hd-calm">Every public photograph is held at full resolution.</p>'}</section>
 <form method="post" action="/studio/credentials/scan" class="inline"><button class="link">Read Content Credentials from every original</button></form>
 <form class="form upload bulk" onsubmit="return false">
-<label class="drop"><input type="file" id="mFiles" webkitdirectory directory multiple><b>Choose your exports folder</b><span>Every JPEG, TIFF or PNG inside, in every subfolder. A file that matches a work already held replaces its web copy as the original; one that matches nothing is registered privately in an archive room for its place. Folders starting with an underscore (contact sheets, web exports) are skipped. Files go up one at a time (a sixty-megapixel master is read, fingerprinted and put in the vault before the next). Leave this page open; you can stop and pick up later.</span></label>
+<label class="drop"><input type="file" id="mFiles" webkitdirectory directory multiple><b>Choose your exports folder</b><span>Every JPEG, TIFF or PNG inside, in every subfolder. Each file goes straight into the vault in parts, four at a time, at your connection's full speed; a closed tab or a dropped line picks up where it stopped. The house then takes them in one by one: a file that matches a work already held becomes its master; one that matches nothing is held privately in an archive room for its place. Folders starting with an underscore (contact sheets, web exports) are skipped.</span></label>
 <button type="button" id="mGo" disabled>Choose a folder</button>
+<div class="ms-bar"><i id="mBar"></i></div>
 <p id="mSum" class="small"></p>
 <ol class="bulk-list" id="mList"></ol>
 </form>
-<script>(function(){var inp=document.getElementById('mFiles'),go=document.getElementById('mGo'),sum=document.getElementById('mSum'),list=document.getElementById('mList'),files=[],K='wm-masters-done',done={};
-try{done=JSON.parse(localStorage.getItem(K)||'{}')}catch(e){}
-function keep(f){var p=f.webkitRelativePath||f.name;return /\\.(jpe?g|tiff?|png)$/i.test(f.name)&&!/(^|\\/)[_.]/.test(p)&&!done[p+':'+f.size]}
-inp.onchange=function(){files=[].filter.call(inp.files,keep);go.disabled=!files.length;go.textContent=files.length?'Hold '+files.length+' masters':'Nothing new in that folder';sum.textContent=Object.keys(done).length?Object.keys(done).length+' already done on this computer.':''};
-go.onclick=async function(){go.disabled=true;var n={master:0,archive:0,known:0,smaller:0,skip:0},i=0,t0=Date.now();
-async function one(f){var p=f.webkitRelativePath||f.name,fd=new FormData();fd.append('file',f);fd.append('folder',p.split('/').slice(0,-1).join('/'));
-for(var a=0;a<3;a++){try{var r=await fetch('/studio/masters/one',{method:'POST',body:fd,credentials:'same-origin'});if(r.status===401||r.redirected){sum.textContent='Signed out: sign in again and choose the folder; it picks up where it stopped.';throw 'stop'}var j=await r.json();
-if(j.ok){n[j.outcome]++;done[p+':'+f.size]=1;try{localStorage.setItem(K,JSON.stringify(done))}catch(e){}if(j.outcome==='master'){var li=document.createElement('li');li.className='done';li.innerHTML='<span>'+p+'</span> <a href="/w/'+j.slug+'">'+(j.title||j.slug)+'</a>';list.insertBefore(li,list.firstChild)}}else n.skip++;return}catch(e){if(e==='stop')throw e;await new Promise(function(r){setTimeout(r,2000*(a+1))})}}n.skip++}
-async function worker(){while(i<files.length){var f=files[i++];await one(f);var s=(Date.now()-t0)/1000,left=Math.round(s/i*(files.length-i)/60);go.textContent=i+' of '+files.length+(left?' · about '+left+' min left':'');sum.textContent=n.master+' upgraded to full resolution · '+n.archive+' new to the archive (private) · '+(n.known+n.smaller)+' already held'+(n.skip?' · '+n.skip+' skipped':'')}}
-try{await worker();go.textContent='Done'}catch(e){go.textContent='Stopped'}};})();</script>
+<div class="ms-queue" id="mQueue"></div>
+<script src="/static/arrivals.js" defer></script>
 </section>` });
 }
 

@@ -317,7 +317,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/masters/one', { cookie: ck, body: mp('JOE_FLO-123.jpg', fresh, { folder: 'EUROPE/08_FLORENCE' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } });
   mj = JSON.parse(r.body); assert.strictEqual(mj.outcome, 'archive', r.body); assert.strictEqual(mj.title, 'Florence, Frame 123');
   assert.strictEqual(db.prepare('SELECT status FROM works WHERE slug=?').get(mj.slug).status, 'hidden');
-  r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.includes('1 works held at full resolution'));
+  r = await req(port, 'GET', '/studio/masters', { cookie: ck }); assert.ok(r.body.includes('1 works held at full resolution') && r.body.includes('/static/arrivals.js'), 'the desk and its uploader');
+  // Arrivals (20 Oct): a file goes to the vault first (here the local disk, one put), the house queues it and takes it in by itself.
+  { const px2 = Buffer.alloc(320 * 210 * 3); for (let k = 0; k < px2.length; k++) px2[k] = (k * 104729) % 241;
+    const fresh2 = await sharp2(px2, { raw: { width: 320, height: 210, channels: 3 } }).jpeg().toBuffer();
+    r = await req(port, 'POST', '/studio/arrivals/start', { cookie: ck, body: { name: 'JOE_FLO-124.jpg', size: fresh2.length, type: 'image/jpeg', folder: 'EUROPE/08_FLORENCE' } });
+    let aj = JSON.parse(r.body); assert.ok(aj.ok && aj.id && aj.direct === false, 'an arrival started: ' + r.body);
+    r = await req(port, 'PUT', `/studio/arrivals/${aj.id}/body`, { cookie: ck, body: fresh2, headers: { 'content-type': 'application/octet-stream' } }); assert.ok(JSON.parse(r.body).ok, 'the body put');
+    for (let t = 0; t < 40; t++) { await new Promise(r2 => setTimeout(r2, 100)); if (db.prepare('SELECT status FROM arrivals WHERE id=?').get(aj.id).status === 'done') break; }
+    const ar = db.prepare('SELECT * FROM arrivals WHERE id=?').get(aj.id); assert.equal(ar.status, 'done', 'taken in: ' + JSON.stringify(ar)); assert.equal(ar.outcome, 'archive'); assert.equal(ar.title, 'Florence, Frame 124');
+    r = await req(port, 'GET', '/studio/arrivals/state', { cookie: ck }); const sj = JSON.parse(r.body); assert.ok(sj.counts.archive >= 1 && sj.recent[0].name === 'JOE_FLO-124.jpg', 'the queue reads');
+    r = await req(port, 'POST', '/studio/arrivals/start', { body: { name: 'x.jpg', size: 10 } }); assert.equal(r.status, 302, 'a stranger is sent to the door');
+    assert.ok(!fs.readdirSync(path.join(dir, 'incoming')).some(f => f.startsWith('arrival-')), 'the incoming copy is consumed'); }
   // the trove: collections, catalogue record, public room
   r = await req(port, 'POST', '/studio/collections', { cookie: ck, body: { title: 'Florence, 2025', note: 'The city from below.', public: '1' } }); assert.equal(r.status, 302);
   const cid = db.prepare("SELECT id FROM collections WHERE slug='florence-2025'").get().id;

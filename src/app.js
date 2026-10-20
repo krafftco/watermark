@@ -1852,14 +1852,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     } catch (e) { gone(); console.error('[master]', e.message); back('That file could not be read.'); }
   }));
   const tidyT = t => String(t || '').replace(/[.\s]+$/, '');
-  app.post('/studio/masters/one', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
-    if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
-    const file = req.file.path, gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
+  // One file into the house: a master for a work already held (matched by look, larger), a known file, a smaller
+  // one, or a new frame into a private archive room. Shared by the Masters desk (one request a file) and the
+  // arrivals queue (files that came straight into the vault). The file is consumed either way.
+  async function takeMaster(file, originalname, folder) {
+    const gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
     try {
       await ensureHashes();
       const info = await images.inspect(file);
       const held = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
-      if (held) { gone(); return res.json({ ok: true, outcome: 'known', slug: held.slug }); }
+      if (held) { gone(); return { ok: true, outcome: 'known', slug: held.slug }; }
       const h = await images.dhash(file);
       let best = null, bestD = 99;
       for (const w of db.prepare('SELECT id, slug, dhash, width, height FROM works WHERE dhash IS NOT NULL').all()) {
@@ -1867,24 +1869,31 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
       }
       if (best && bestD <= 6) {
-        if ((best.width || 0) >= info.width) { gone(); return res.json({ ok: true, outcome: 'smaller', slug: best.slug }); }
-        const w = await replaceMaster(q.work.get(best.slug), req.file, info, h);
-        return res.json({ ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD });
+        if ((best.width || 0) >= info.width) { gone(); return { ok: true, outcome: 'smaller', slug: best.slug }; }
+        const w = await replaceMaster(q.work.get(best.slug), { path: file, originalname }, info, h);
+        return { ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6) };
       }
       // Not yet published anywhere: into the archive, private.
-      const place = placeFromFolder(req.body.folder);
-      const frame = (req.file.originalname.match(/(\d+)\.[a-z]+$/i) || [])[1];
-      const nw = await registerWork({ file, originalName: req.file.originalname, title: `${place ? place.split(',')[0] : 'Archive'}${frame ? `, frame ${frame}` : ''}`, place });
+      const place = placeFromFolder(folder);
+      const frame = (String(originalname || '').match(/(\d+)\.[a-z]+$/i) || [])[1];
+      const nw = await registerWork({ file, originalName: originalname, title: `${place ? place.split(',')[0] : 'Archive'}${frame ? `, frame ${frame}` : ''}`, place });
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, 'Krafft Studios') WHERE id=?").run(nw.id);
       const roomSlug = 'archive-' + slugify(place ? place.split(',')[0] : 'unsorted');
       let c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug);
       if (!c) { db.prepare('INSERT INTO collections (slug,title,note,public,sort) VALUES (?,?,?,0,900)').run(roomSlug, `Archive · ${place ? place.split(',')[0] : 'Unsorted'}`, 'Full-resolution frames from the archive, held privately.'); c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug); }
       db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(c.id, nw.id);
-      res.json({ ok: true, outcome: 'archive', slug: nw.slug, title: nw.title });
+      return { ok: true, outcome: 'archive', slug: nw.slug, title: nw.title };
     } catch (e) {
       gone(); console.error('[masters]', e.message);
-      res.status(e.user ? 409 : 400).json({ ok: false, error: e.user ? e.message : 'Could not be read as a photograph.' });
+      return { ok: false, status: e.user ? 409 : 400, error: e.user ? e.message : 'Could not be read as a photograph.' };
     }
+  }
+  app.locals.takeMaster = (file, name, folder) => inLane(() => takeMaster(file, name, folder));
+  require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming') }); // straight into the vault in parts, taken in by a queue
+  app.post('/studio/masters/one', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
+    const r = await takeMaster(req.file.path, req.file.originalname, req.body.folder);
+    res.status(r.ok ? 200 : r.status).json(r);
   }));
   // Read the Content Credentials of every original already held (once; new arrivals are read as they come).
   let crScan = null;

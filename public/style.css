@@ -3311,3 +3311,6 @@ html.fd-on{overflow:hidden}
 .an-none{font-size:12.5px;color:var(--mu);margin:0}.an-health p{margin:0;padding:8px 0;border-top:1px solid var(--line,#eee);font-size:13px;line-height:1.5}.an-health p:first-child{border-top:0}
 .an-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 8px 1px 0;background:#c8c2b6}.an-ok{background:#2f6b3a}.an-bad{background:#b3261e}.an-na{background:#c8c2b6}
 @media (max-width:1000px){.an-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:640px){.an-grid{grid-template-columns:1fr}.an-wide{grid-column:auto}.an-big{font-size:44px}}
+
+/* Arrivals (20 Oct): the Masters desk's progress and the house's queue */
+.ms-bar{height:3px;background:var(--line,#e6e2da);margin:14px 0 8px;overflow:hidden}.ms-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}.ms-queue{margin:28px 0 0;font-size:13px}.ms-queue p{margin:0 0 8px}.bulk-list li.fail{color:#9a3b2d}

@@ -56,6 +56,16 @@ function s3Store({ bucket, region, endpoint, client }) {
     },
     async del(key) { await c.send(new S3.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
     async size(key) { try { const r = await c.send(new S3.HeadObjectCommand({ Bucket: bucket, Key: key })); return r.ContentLength; } catch (e) { return null; } },
+    // Arrivals (20 Oct): a browser uploads straight into the bucket in parts, by signed addresses, never through the
+    // house's server; the house completes the upload and reads the object back when it takes the file in.
+    multipart: {
+      async start(key, type) { const r = await c.send(new S3.CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: type || 'application/octet-stream', ...(isR2 ? {} : { ServerSideEncryption: 'AES256' }) })); return r.UploadId; },
+      async partUrl(key, uploadId, n, expires = 3600) { const { getSignedUrl } = require('@aws-sdk/s3-request-presigner'); return getSignedUrl(c, new S3.UploadPartCommand({ Bucket: bucket, Key: key, UploadId: uploadId, PartNumber: n }), { expiresIn: expires }); },
+      async complete(key, uploadId, parts) { await c.send(new S3.CompleteMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId, MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.n, ETag: p.etag })) } })); },
+      async abort(key, uploadId) { try { await c.send(new S3.AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId })); } catch (e) { /* gone */ } },
+    },
+    // the object as it is, unsealed, written to a file (for an arrival, which came from a browser and is not sealed)
+    async download(key, file) { const r = await c.send(new S3.GetObjectCommand({ Bucket: bucket, Key: key })); await new Promise((res, rej) => { const w = fs.createWriteStream(file); r.Body.pipe(w).on('finish', res).on('error', rej); r.Body.on('error', rej); }); },
   };
 }
 
@@ -69,6 +79,7 @@ function createStore(cfg) {
     list: prefix => raw.list(prefix),
     del: key => raw.del(key),
     size: key => raw.size(key),
+    multipart: raw.multipart || null, download: raw.download || null,
     // A known object proves the key is the right one before anything is written with it.
     async checkKey() {
       if (!k.on) return 'off';
