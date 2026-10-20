@@ -571,7 +571,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.send(V.reported({ w }));
   });
   app.get('/about', (req, res) => res.send(V.about()));
-  require('./director').mountDirector(app, { db, V, C }); // the founding director: /director, the title on the maker page
+  require('./director').mountDirector(app, { db, V, C });
+  require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger }); // museums: a collection in from a IIIF manifest; the Image API out; /museums
   require('./legal').mountLegal(app, { db, V, C, ledger, buyerOf: req => app.locals.buyerOf(req), isStudio }); // /terms, /privacy, /legal/*: the house's agreements

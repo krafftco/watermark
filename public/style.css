@@ -3338,3 +3338,6 @@ html.fd-on{overflow:hidden}
 .bt-n b{font:400 18px/1 var(--serif,Georgia,serif)}.bt-acts{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}.bt-stars,.bt-place{display:inline-flex;gap:6px;align-items:center}.bt-place input{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line,#e6e2da);width:160px}.bt-stars select{font:inherit;font-size:13px}
 .bt-attest{display:block;width:100%;font-size:12.5px;color:var(--mu)}.bt-attest.bt-need{color:#9a3b2d}.bt-attest[hidden]{display:none}.bt-pub{padding:6px 14px;font-size:13px}
 @media (max-width:700px){.ac-row-bt{grid-template-columns:24px 56px minmax(0,1fr) 110px}.bt-bar{top:0}}
+
+/* Owners (20 Oct): the Krafft page, set like the director's. */
+.ow-ol{padding-left:1.2em;margin:0 0 .6em}.ow-ol li{margin:0 0 .7em;line-height:1.5}.ow-ol b{font-family:var(--serif,Georgia,serif);font-weight:500;display:block;font-size:1.08em}.ow-note{max-width:60ch;margin:-.4em auto 1.4em}
