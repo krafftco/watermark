@@ -106,7 +106,7 @@ function deskHeader(path = '') {
 <nav class="dk-nav" aria-label="Your rooms">${(deskGallery ? [MAKER_MAIN[0], ['/account/gallery', 'The gallery'], ...MAKER_MAIN.slice(1)] : MAKER_MAIN).filter(([h]) => h !== '/yours').map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</nav>
 <div class="dk-right"><a href="/" class="dk-out">The collection</a><form method="post" action="/signout" class="dk-form"><button class="dk-out">Sign out</button></form></div></div></header>`;
   return `<header class="dk"><div class="dk-row"><a class="dk-brand" href="/studio"><img src="/static/watermark-logo.svg" alt="Watermark"></a>${SWITCH('house', { admin: true })}
-<nav class="dk-nav" aria-label="The rooms">${DESK_MAIN.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}<details class="dk-more"><summary>Back office</summary><div>${DESK_MORE.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</div></details></nav>
+<nav class="dk-nav" aria-label="The rooms">${DESK_MAIN.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</nav><details class="dk-more"><summary>Back office</summary><div>${DESK_MORE.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</div></details>
 <div class="dk-right"><a href="/" class="dk-out">The collection</a><a href="/studio/logout" class="dk-out">Sign out</a></div></div>
 <div class="dk-status">${deskStatus()}</div></header>`;
 }
