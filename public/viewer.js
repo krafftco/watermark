@@ -21,6 +21,7 @@
       (K ? '<button type="button" class="wv-b" data-walk="prev">' + ic('back') + '<span>Before</span></button>' : '') +
       (hasHat ? '<button type="button" class="wv-b" data-hat aria-pressed="false">' + ic('hat') + '<span>Hat</span></button>' : '') +
       (hasHang ? '<button type="button" class="wv-b" data-hang>' + ic('hang') + '<span>Hang it</span></button>' : '') +
+      (G.easel ? '<a class="wv-b" href="' + G.easel + '">' + ic('wilhelm') + '<span>Study</span></a>' : '') +
       (buyForm ? '<button type="button" class="wv-b wv-buy" data-buy>' + ic('collect') + '<span>Collect' + (G.price ? ', ' + G.price : '') + '</span></button>' : G.collect ? '<a class="wv-b wv-buy" href="' + G.collect + '">' + ic('collect') + '<span>Collect' + (G.price ? ', ' + G.price : '') + '</span></a>' : '') +
       (K ? '<button type="button" class="wv-b" data-walk="next"><span>Next</span>' + ic('next') + '</button>' : '') +
     '</div>';

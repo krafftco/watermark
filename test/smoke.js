@@ -1033,6 +1033,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours/cabinet/book'); assert.equal(r.status, 302, 'nobody else');
   }
   console.log('ok: the physical work');
+  // The easel (20 Oct): the master study.
+  { r = await req(port, 'GET', `/easel/${w.slug}`); assert.ok(r.status === 200 && /data-easel/.test(r.body) && /ez-notan5/.test(r.body) && /The master study/.test(r.body) && /data-ez="hold"/.test(r.body) && /easel\.js/.test(r.body), 'the easel');
+    r = await req(port, 'GET', '/easel/no-such-work'); assert.equal(r.status, 302);
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(new RegExp(`/easel/${w.slug}`).test(r.body), 'the work page opens the easel');
+    r = await req(port, 'GET', '/stroll'); assert.ok(/data-st-easel/.test(r.body), 'the stroll opens the easel');
+    r = await req(port, 'GET', '/static/easel.js'); assert.ok(r.status === 200 && /ez-notan2/.test(r.body)); }
+  console.log('ok: the easel');
+
 
 
 

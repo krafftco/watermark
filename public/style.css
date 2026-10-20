@@ -3268,3 +3268,29 @@ html.fd-on{overflow:hidden}
 .cb-tbl img{width:56px;height:42px;object-fit:cover;display:block}.cb-tbl td,.cb-tbl th{font-size:12.5px;vertical-align:middle;white-space:nowrap}
 .vt-kind select{max-width:100%}
 @media (max-width:760px){.ob-dl{grid-template-columns:1fr}}
+/* The easel (20 Oct): the work held for a study. */
+.ez{position:fixed;inset:0;background:#0b0a09;color:#e9e2d6;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.ez-stage{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;cursor:grab}.ez-stage.ez-held{cursor:default}
+.ez-im{display:block;max-width:none;transform-origin:center;will-change:transform;transition:filter .25s}
+.ez-grid{position:absolute;pointer-events:none;transform-origin:center;background-image:linear-gradient(to right,rgba(217,188,124,.55) 1px,transparent 1px),linear-gradient(to bottom,rgba(217,188,124,.55) 1px,transparent 1px);background-position:-1px -1px}
+.ez-g3{background-size:33.3334% 33.3334%}.ez-g6{background-size:16.6667% 25%}
+.ez-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:linear-gradient(rgba(11,10,9,.85),transparent);pointer-events:none}
+.ez-top>*{pointer-events:auto}
+.ez-back{display:inline-flex;align-items:center;gap:6px;color:#e9e2d6;text-decoration:none;font-size:13px}.ez-back svg{width:18px;height:18px}
+.ez-plate{margin:0;font-size:13px;color:#c9c2b6;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ez-plate b{color:#f6f1e7;font-weight:500}
+.ez-timer{font:400 18px/1 var(--serif,Georgia,serif);color:#d9bc7c;font-variant-numeric:tabular-nums}
+.ez-tools{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:4px;padding:6px;background:rgba(20,18,16,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(217,188,124,.2);border-radius:999px;max-width:calc(100vw - 20px);overflow-x:auto;scrollbar-width:none}
+.ez-tools button{appearance:none;background:none;border:0;color:#c9c2b6;font:500 11px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.06em;padding:8px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer}
+.ez-tools button[aria-pressed="true"]{background:#d9bc7c;color:#1a1612}
+.ez-tools button svg{width:16px;height:16px}
+.ez-k{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid currentColor;border-radius:3px;font-size:9px;opacity:.7}
+@media (pointer:coarse){.ez-k{display:none}}
+.ez-study{position:absolute;right:14px;top:calc(56px + env(safe-area-inset-top));width:min(380px,calc(100vw - 28px));max-height:calc(100vh - 150px);overflow:auto;background:rgba(20,18,16,.92);backdrop-filter:blur(14px);border:1px solid rgba(217,188,124,.25);padding:16px 18px;font-size:14px;line-height:1.5}
+.ez-study .k{color:#d9bc7c;display:flex;align-items:center;gap:6px}.ez-study .k svg{width:22px;height:22px}
+.ez-study ol,.ez-study ul{padding-left:18px;margin:8px 0}.ez-study li{margin:6px 0}.ez-study b{color:#f6f1e7;font-weight:500}.ez-study .note{color:#8a8275;font-size:12.5px}
+.ez-timers{position:absolute;left:50%;bottom:calc(70px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:rgba(20,18,16,.9);border:1px solid rgba(217,188,124,.25);padding:8px 12px;border-radius:999px;font-size:13px;color:#c9c2b6}
+.ez-timers button{appearance:none;background:none;border:1px solid rgba(217,188,124,.4);color:#f6f1e7;border-radius:999px;padding:5px 10px;cursor:pointer;font-size:13px}
+.ap-study{text-decoration:none}.ap-study svg{width:22px;height:22px}
+.ez-timers[hidden],.ez-study[hidden],.ez-grid[hidden]{display:none}
+.ez-timers span:first-child{white-space:nowrap}
+@media (max-width:760px){.ez-tools{left:10px;right:10px;transform:none;max-width:none;justify-content:flex-start}.ez-study{top:calc(52px + env(safe-area-inset-top));right:10px;left:10px;width:auto;max-height:calc(100vh - 170px)}.ez-timers{bottom:calc(66px + env(safe-area-inset-bottom));max-width:calc(100vw - 20px);flex-wrap:wrap;justify-content:center;border-radius:18px}}

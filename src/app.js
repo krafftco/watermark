@@ -393,6 +393,7 @@ function createApp(cfg = {}) {
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
+  require('./easel').mountEasel(app, { db, V, mk, I: require('./icons') }); // the easel: the master study
   require('./conservation').mountConservation(app, { db, V, C, ledger, mail, images, store, cache, originalPath, originals, studioOnly, mk, notify: null }); // the restoration room: if it is not sound, it is not shown (the sign must come before /w)
   // The audit (Will, 19 Oct: security 3/6): every Studio action that changes anything is told on the register, signed into the
   // chain like everything else (`studio.action`, hidden): the route, the fields that matter (never a password, a secret or a key),

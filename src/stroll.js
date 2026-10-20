@@ -142,6 +142,7 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
 ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}">${I.collect}<span>${esc(w.collect.price)}</span></button>` : ''}
 ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Guide</span></button>` : ''}
 <button type="button" class="st-b" data-st-card>${I.card}<span>Card</span></button>
+<a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/stroll?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a>
 <button type="button" class="st-b" data-st-share>${I.send}<span>Share</span></button>
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
