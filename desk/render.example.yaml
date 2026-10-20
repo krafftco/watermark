@@ -1,0 +1,14 @@
+# Not a blueprint (a sync would create a paid service): make the desk by hand on Render.
+# New Web Service → this repo → Root Directory: desk → Build: npm install → Start: npm start.
+# Custom domain: fullerton.cloud (DNS is Will's). Environment:
+#   DESK_EMAIL      who may enter (comma-separated)
+#   DESK_SECRET     a long random string (signs the cookie)
+#   RESEND_API_KEY  for the sign-in code (from watermark.krafftco.com's Resend)
+#   MAIL_FROM       Watermark <house@watermark.krafftco.com>
+#   WATERMARK_BASE  https://watermark.krafftco.com
+#   DESK_KEY        the same value set on the Watermark service
+#   STRIPE_KEY      a restricted key, read only (Balance, Charges, Subscriptions)
+#   NOTION_TOKEN    an internal integration with read access to the Krafft workspace
+#   NOTION_SOURCES  Tasks=c5239e6b-0f1e-4aa7-ac41-e389d7516fda  (Label=data_source_id, comma-separated)
+#   RENDER_API_KEY  optional: service states and the last deploys
+#   GHOST_URL, GHOST_KEY  optional: Studios' latest stories (Content API)
