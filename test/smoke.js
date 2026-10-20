@@ -203,6 +203,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const dck = sc.match(/wm_s=[^;]+/)[0]; r = await req(port, 'GET', '/studio/legal', { cookie: dck }); assert.equal(r.status, 200, 'and the studio answers');
     assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.opened'").get().n >= 1, 'the opening is on the register');
     delete process.env.STUDIO_EMAILS; }
+  // The numbers: every page hit is recorded without a person's name; the room reads today against yesterday, who is on now, speed, errors and health; a stranger is sent to the door.
+  { app.locals.analytics.flush(); const R = app.locals.analytics.report('today'); assert.ok(R.cur.views > 10 && R.cur.visitors >= 1, 'hits were kept'); assert.ok(R.works.length >= 1, 'works most seen');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM hits WHERE path LIKE '/w/%'").get().n >= 1 && !db.prepare("SELECT 1 FROM hits WHERE path LIKE '%?%' OR path LIKE '%@%'").get(), 'paths folded, nothing personal');
+    assert.ok(R.health.register === true && typeof R.health.uptime === 'number' && R.speed.page.n > 0, 'health and speed');
+    r = await req(port, 'GET', '/studio/analytics', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('On the site now') && r.body.toString().includes('Health'), 'the numbers page');
+    r = await req(port, 'GET', '/studio/analytics.json?span=7d', { cookie: ck }); assert.ok(r.status === 200 && JSON.parse(r.body).span === '7d', 'the json');
+    r = await req(port, 'GET', '/studio/analytics'); assert.equal(r.status, 302, 'a stranger is sent to the door'); }
   // The audit: a Studio action is on the register with its fields, never a password; the page lists it.
   { const n0 = db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.action'").get().n;
     r = await req(port, 'POST', '/studio/uses/social', { cookie: ck, body: { price: '5' } });
