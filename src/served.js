@@ -14,7 +14,7 @@ function mountServed(app, { publicDir, cacheDir, express }) {
     const out = path.join(outDir, rel.replace(/[\\/]/g, '__')); let code = fs.readFileSync(src, 'utf8');
     try {
       if (/\.js$/.test(rel) && terser) { const r = await terser.minify(code, { compress: { passes: 1 }, mangle: { toplevel: false }, format: { comments: false } }); if (r.code) code = r.code; }
-      else if (/\.css$/.test(rel)) code = minCss(code);
+      else if (/\.css$/.test(rel) && process.env.STRIP_CSS === '1') code = minCss(code); // CSS left as written unless asked (20 Oct: ruling it out while images are looked at)
     } catch (e) { console.error('[served]', rel, e.message); }
     fs.mkdirSync(outDir, { recursive: true }); fs.writeFileSync(out, code); built.set(rel, { mtime: st.mtimeMs, file: out }); return out;
   }

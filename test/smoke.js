@@ -919,7 +919,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const sharp = require('sharp'); const re = await sharp(marked).jpeg({ quality: 70 }).toBuffer(); const t2 = await app.locals.mark.trace(re); assert.ok(t2 && t2.rendition, 'and after recompression');
     r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`); assert.equal(r.status, 200, 'thumbs unmarked, served');
     r = await req(port, 'GET', '/static/stroll.js'); assert.ok(r.status === 200 && !/\/\/ |\/\*/.test(r.body.toString().slice(0, 4000)) && r.body.length < require('fs').statSync('public/stroll.js').size, 'stroll.js leaves stripped');
-    r = await req(port, 'GET', '/static/style.css'); assert.ok(r.status === 200 && !/\/\*/.test(r.body.toString()), 'style.css leaves without comments');
+    r = await req(port, 'GET', '/static/style.css'); assert.ok(r.status === 200, 'style.css is served');
     r = await req(port, 'GET', '/sw.js'); assert.ok(r.status === 200 && /self\.addEventListener|addEventListener/.test(r.body.toString()), 'the service worker still works');
   }
   console.log('ok: harder to copy');

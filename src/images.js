@@ -45,7 +45,10 @@ const FORMATS = { jpg: ['jpg', 'image/jpeg'], webp: ['webp', 'image/webp'] };
 // carries the invisible mark of mark.js with the work's rendition payload, so a scraped archive traces back.
 let marker = null; // { key, payloadFor(slug) } set by the app
 const setMarker = m => { marker = m; };
-const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}.${fmt}`);
+// Quality (20 Oct, after the blocking): screen and large at JPEG 88 / WebP 82-84, which holds a smooth sky; the file
+// names carry 'q2' so every rendition made before is rebuilt.
+const Q = { jpg: { thumb: 78, screen: 88, large: 90 }, webp: { thumb: 70, screen: 82, large: 84 } };
+const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q2.${fmt}`);
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
@@ -59,8 +62,8 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
       const payload = marker.payloadFor(slug);
       if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
     }
-    if (fmt === 'webp') await base.webp({ quality: size === 'thumb' ? 70 : size === 'large' ? 78 : 76, effort: 4 }).toFile(tmp);
-    else await base.jpeg({ quality: size === 'thumb' ? 78 : 84, mozjpeg: true }).withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } }).toFile(tmp);
+    if (fmt === 'webp') await base.webp({ quality: Q.webp[size], effort: 4 }).toFile(tmp);
+    else await base.jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } }).toFile(tmp);
     try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
   }
   return out;
