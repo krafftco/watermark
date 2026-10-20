@@ -915,8 +915,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the Keyhole Room');
   // Harder to copy (19 Oct): the screen rendition carries the house's mark and /verify says so; served scripts carry no comments.
   { r = await req(port, 'GET', `/img/${w.slug}/screen?f=jpg`); assert.equal(r.status, 200);
-    const t = await app.locals.mark.trace(r.body); assert.ok(t && t.rendition && t.work.slug === w.slug, 'a rendition traces to its work');
-    const sharp = require('sharp'); const re = await sharp(r.body).jpeg({ quality: 70 }).toBuffer(); const t2 = await app.locals.mark.trace(re); assert.ok(t2 && t2.rendition, 'and after recompression');
+    const M = require('../src/mark'); const marked = await M.embed(r.body, M.renditionPayload(w.id), 's'); const t = await app.locals.mark.trace(marked); assert.ok(t && t.rendition && t.work.slug === w.slug, 'a rendition mark traces to its work (off by default on served renditions until masked)');
+    const sharp = require('sharp'); const re = await sharp(marked).jpeg({ quality: 70 }).toBuffer(); const t2 = await app.locals.mark.trace(re); assert.ok(t2 && t2.rendition, 'and after recompression');
     r = await req(port, 'GET', `/img/${w.slug}/thumb?f=jpg`); assert.equal(r.status, 200, 'thumbs unmarked, served');
     r = await req(port, 'GET', '/static/stroll.js'); assert.ok(r.status === 200 && !/\/\/ |\/\*/.test(r.body.toString().slice(0, 4000)) && r.body.length < require('fs').statSync('public/stroll.js').size, 'stroll.js leaves stripped');
     r = await req(port, 'GET', '/static/style.css'); assert.ok(r.status === 200 && !/\/\*/.test(r.body.toString()), 'style.css leaves without comments');

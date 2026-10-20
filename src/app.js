@@ -109,7 +109,9 @@ function createApp(cfg = {}) {
   // (XMP), sealed (Content Credentials) and within the picture (an invisible mark unique to the delivery). Policy, no switch.
   const MARK = require('./mark'); const MARK_KEY = process.env.MARK_KEY || cfg.markKey || C.secret;
   // Renditions carry the work's mark too (19 Oct): a copy scraped from the walls traces to the work and the house.
-  images.setMarker({ key: MARK_KEY, payloadFor: slug => { const w = q.work.get(slug); return w ? MARK.renditionPayload(w.id) : null; } });
+  // 20 Oct: the rendition mark showed as faint blocking in smooth skies and gradients (Will: 'the backgrounds have been
+  // messed up'). Off until the mark is masked to texture (mark.js embedRaw with masking) and proven by eye; RENDITION_MARK=1 turns it back on.
+  if (process.env.RENDITION_MARK === '1') images.setMarker({ key: MARK_KEY, payloadFor: slug => { const w = q.work.get(slug); return w ? MARK.renditionPayload(w.id) : null; } });
   // What a file says about itself, in words a person reads in Photos or Finder: the photograph, its maker, how it is
   // held, and the Watermark number that finds its license. The fingerprint stays in the file, out of the caption.
   const TRACK = require('./track');
