@@ -80,7 +80,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the maker's profile: who they are, on their page ----------
   const portraits = require('path').join(C.dataDir, 'portraits'); fs.mkdirSync(portraits, { recursive: true });
   app.get('/account/profile', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.profile({ m, intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.mine('maker', m.id), used: app.locals.introductions.yearUsed(m).c, limit: app.locals.introductions.MAKER_INTROS_A_YEAR, base: C.base, action: '/account/introductions' }) : '', saved: req.query.ok || null, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle })); });
-  app.post('/account/profile', (req, res, next) => upload().fields([{ name: 'portrait', maxCount: 1 }, { name: 'file', maxCount: 1 }])(req, res, next), async (req, res) => {
+  app.post('/account/profile', (req, res, next) => upload().fields([{ name: 'portrait', maxCount: 1 }, { name: 'file', maxCount: 1 }])(req, res, next), (req, res, next) => app.locals.bagcheck.gate('image')(req, res, next), async (req, res) => {
     req.file = (req.files && ((req.files.portrait || [])[0] || (req.files.file || [])[0])) || null;
     const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.sendStatus(401); }
     const b = req.body || {}, t = (v, n) => String(v || '').trim().slice(0, n) || null;
@@ -218,7 +218,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     }
   }
   app.locals.takeWork = (file, a) => takeWork(file, { originalname: a.name, title: a.title, place: a.place, kind: a.kind, makerId: a.maker_id });
-  app.post('/account/works/one', (req, res, next) => upload().single('file')(req, res, next), async (req, res) => {
+  app.post('/account/works/one', (req, res, next) => upload().single('file')(req, res, next), (req, res, next) => app.locals.bagcheck.gate('image', { json: true })(req, res, next), async (req, res) => {
     const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.status(401).json({ ok: false }); }
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     const r = await takeWork(req.file.path, { originalname: req.file.originalname, title: req.body.title, place: req.body.place, kind: req.body.kind, makerId: m.id });

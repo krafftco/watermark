@@ -26,7 +26,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   const guideOf = h => db.prepare('SELECT id, name, code, public, statement FROM buyers WHERE id=?').get(h.buyer_id) || {};
   const ext = mime => (/mp4|m4a|aac/.test(mime) ? 'm4a' : /ogg/.test(mime) ? 'ogg' : /mpeg|mp3/.test(mime) ? 'mp3' : /wav/.test(mime) ? 'wav' : 'webm');
   // The curator records a word on a work (or the welcome: work 'welcome').
-  app.post('/tour/:id/voice/:work', upload.single('voice'), async (req, res) => {
+  app.post('/tour/:id/voice/:work', upload.single('voice'), (req, res, next) => app.locals.bagcheck.gate('audio', { json: true })(req, res, next), async (req, res) => {
     const h = H().byId(req.params.id); if (!h || !own(req, h)) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(h ? 403 : 404); }
     const wid = req.params.work === 'welcome' ? 0 : (db.prepare('SELECT w.id FROM works w JOIN hang_works hw ON hw.work_id=w.id WHERE hw.hang_id=? AND w.slug=?').get(h.id, String(req.params.work)) || {}).id;
     if (wid == null || !req.file) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(400); }

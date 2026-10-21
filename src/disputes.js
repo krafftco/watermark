@@ -37,7 +37,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug)); if (!w) return res.sendStatus(404);
     res.send(claimForm({ w, maker: mk(w), KINDS, err: req.query.err || null }));
   });
-  app.post('/w/:slug/claim', (req, res, next) => upload.single('file')(req, res, e => (e ? res.redirect(`/w/${req.params.slug}/claim?err=file`) : next())), async (req, res) => {
+  app.post('/w/:slug/claim', (req, res, next) => upload.single('file')(req, res, e => (e ? res.redirect(`/w/${req.params.slug}/claim?err=file`) : next())), (req, res, next) => (req.file ? app.locals.bagcheck.gate('papers')(req, res, next) : next()), async (req, res) => {
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug)); if (!w) return res.sendStatus(404);
     const b = req.body || {}, name = String(b.name || '').trim().slice(0, 120), email = String(b.email || '').trim().slice(0, 200), body = String(b.body || '').trim().slice(0, 6000);
     const kind = KINDS[b.kind] ? b.kind : 'other';

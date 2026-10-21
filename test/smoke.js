@@ -1141,6 +1141,28 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/d/${dl.download_token}`); assert.equal(r.status, 404, 'the licence ended with it');
     console.log('ok: deliveries'); }
+
+  // The bag check (21 Oct): every file is sniffed by its bytes, searched for cargo, decoded whole, before it enters.
+  { const BC = require('../src/bagcheck'); const tmp = require('os').tmpdir();
+    const put = (name, buf) => { const f = path.join(tmp, 'bc-' + name); fs.writeFileSync(f, buf); return f; };
+    let v = await BC.check(put('page.jpg', Buffer.from('<!DOCTYPE html><html><script>alert(1)</script></html>'))); assert.ok(!v.ok && /web page/.test(v.reason), 'an HTML page in a .jpg is turned away: ' + v.reason);
+    v = await BC.check(put('prog.jpg', Buffer.concat([Buffer.from('MZ'), Buffer.alloc(300)]))); assert.ok(!v.ok && /program/.test(v.reason), 'a program is turned away');
+    v = await BC.check(put('svg.png', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>'))); assert.ok(!v.ok && /SVG/.test(v.reason), 'an SVG is turned away');
+    const good = fs.readFileSync(path.join(__dirname, 'fixture.jpg'));
+    v = await BC.check(put('good.jpg', good)); assert.ok(v.ok && v.type === 'jpeg', 'a photograph comes in: ' + v.reason);
+    v = await BC.check(put('poly.jpg', Buffer.concat([good, Buffer.from('PK\x03\x04\x14\x00'), Buffer.alloc(200)]))); assert.ok(!v.ok && /zip/.test(v.reason), 'a zip hidden in a picture is turned away: ' + v.reason);
+    v = await BC.check(put('cargo.jpg', Buffer.concat([good, Buffer.alloc(100 * 1024, 7)]))); assert.ok(!v.ok && /appended/.test(v.reason), 'cargo after the picture is turned away: ' + v.reason);
+    v = await BC.check(put('cut.jpg', good.slice(0, Math.floor(good.length / 2)))); assert.ok(!v.ok && /damaged|cut short|does not open/.test(v.reason), 'a truncated picture is turned away: ' + v.reason);
+    v = await BC.check(put('script.jpg', Buffer.concat([good.slice(0, 4000), Buffer.from('<script>x</script>'), good.slice(4000)]))); assert.ok(!v.ok && /script/.test(v.reason), 'a script in the bytes is turned away');
+    v = await BC.check(put('voice.jpg', good), { expect: 'audio' }); assert.ok(!v.ok && /recording/.test(v.reason), 'a picture at the voice door is turned away');
+    v = await BC.check(put('zip.wmark', Buffer.concat([Buffer.from('PK\x05\x06'), Buffer.alloc(20)])), { expect: 'proof' }); assert.ok(v.ok && v.type === 'zip', 'a .wmark at /verify comes in');
+    // Through the door itself: the Studio's vault refuses a page named .jpg with a plain answer, and the refusal is kept.
+    r = await req(port, 'POST', '/studio/works/one', { cookie: ck, body: mp('evil.jpg', Buffer.from('<html><script>1</script></html>'), { title: 'x' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, accept: 'application/json' } });
+    assert.ok(r.status === 415 && /web page/.test(r.body.toString()), 'the vault turns a page away: ' + r.status);
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM bagcheck WHERE ok=0").get().n >= 1, 'the refusal is kept');
+    r = await req(port, 'GET', '/studio/door', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('evil.jpg'), 'Studio → The door lists it');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('upload.refused') && !r.body.toString().includes('evil.jpg'), 'never on the public register');
+    console.log('ok: the bag check'); }
   // The house's portrait ships with the code (20 Oct).
   { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
     r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
@@ -1633,14 +1655,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(b.includes('<i>The Ada Estate, Genoa, Italy</i>'), 'their name on the plate'); assert.ok(b.includes('"mk":"The Ada Estate"'), 'searchable by maker'); }
   r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('viewBox="1.5 14.2 41 11"') && r.body.toString().includes('href="/m/the-ada-estate"'), 'their mark, their page');
   r = await req(port, 'GET', '/m/the-ada-estate'); assert.equal(r.status, 200);
-  // Voices: the maker records a word on a photograph; anyone looking hears it; others cannot add to it.
+  // Voices: the maker records a word on a photograph; anyone looking hears it; others cannot add to it. (The bag check wants a real header: an M4A's.)
+  const AUDIO_BYTES = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypM4A '), Buffer.from('fakeaudiodata')]);
   r = await req(port, 'GET', `/voices/${w.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('What is said about this photograph'), 'the voices page');
   { const vb = '----wmvo'; const parts = [['kind', 'maker'], ['speaker', 'Will Fullerton'], ['body', 'I stood under it for an hour.'], ['seconds', '3']].map(([k, v]) => `--${vb}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join('');
-    const body = Buffer.concat([Buffer.from(parts + `--${vb}\r\nContent-Disposition: form-data; name="audio"; filename="note.m4a"\r\nContent-Type: audio/mp4\r\n\r\n`), Buffer.from('fakeaudiodata'), Buffer.from(`\r\n--${vb}--\r\n`)]);
+    const body = Buffer.concat([Buffer.from(parts + `--${vb}\r\nContent-Disposition: form-data; name="audio"; filename="note.m4a"\r\nContent-Type: audio/mp4\r\n\r\n`), AUDIO_BYTES, Buffer.from(`\r\n--${vb}--\r\n`)]);
     r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: ck, body, headers: { 'content-type': 'multipart/form-data; boundary=' + vb } }); assert.equal(r.status, 302, 'saved'); }
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('data-voice="/listen/') && r.body.toString().includes('The maker'), 'heard on the page');
   const vo1 = JSON.parse((await req(port, "GET", `/api/voices/${w.slug}`)).body).voices[0]; assert.ok(vo1 && vo1.audio && vo1.speaker === "Will Fullerton");
-  r = await req(port, "GET", vo1.audio); assert.equal(r.status, 200); assert.equal(r.body.toString(), "fakeaudiodata");
+  r = await req(port, "GET", vo1.audio); assert.equal(r.status, 200); assert.ok(r.body.equals(AUDIO_BYTES));
   r = await req(port, 'POST', `/voices/${w.slug}`, { body: { body: 'not mine to say' } }); assert.equal(r.status, 403, 'only the maker or the Studio');
   r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: mck, body: { body: 'nor theirs' } }); assert.equal(r.status, 403, 'not another maker');
   // Makers: the front door is the collection; makers apply, Will approves in one step, and they sign in with a passkey.

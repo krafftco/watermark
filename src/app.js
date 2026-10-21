@@ -316,6 +316,7 @@ function createApp(cfg = {}) {
 
   async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind }) {
     const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
+    await BAG.throwIfBad(file, { name: originalName || path.basename(file), where: 'registerWork', who: `m:${owner.handle}` }); // the bag check: every arrival, by every door
     const info = await images.inspect(file);
     const dupe = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
     if (dupe) { fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e; }
@@ -412,6 +413,7 @@ function createApp(cfg = {}) {
   });
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
+  const BAG = require('./bagcheck').mountBagcheck(app, { db, V, ledger, studioOnly: (req, res, next) => studioOnly(req, res, next), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req) });
   app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
@@ -1809,7 +1811,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
-  app.post('/studio/works', studioOnly, upload.single('file'), async (req, res) => {
+  app.post('/studio/works', studioOnly, upload.single('file'), BAG.gate('image'), async (req, res) => {
     if (!req.file || !req.body.title) return res.status(400).send(S.works({ list: q.allWorks.all(), error: 'Choose a photograph and give it a title.' }));
     try {
       const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, ...req.body });
@@ -1822,7 +1824,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Bulk registration: the page sends one file per request, so hundreds of masters go in one by one,
   // each fingerprinted and on the ledger, with no giant upload to time out. Duplicates are refused.
   const titleFrom = n => String(n || 'Untitled').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) || 'Untitled';
-  app.post('/studio/works/one', studioOnly, upload.single('file'), async (req, res) => {
+  app.post('/studio/works/one', studioOnly, upload.single('file'), BAG.gate('image', { json: true }), async (req, res) => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     try {
       const w = await registerWork({ file: req.file.path, originalName: req.file.originalname, title: String(req.body.title || '').trim() || titleFrom(req.file.originalname), place: req.body.place, source_url: req.body.source_url });
@@ -1876,7 +1878,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // One master at a time (20 Oct): a sixty-megapixel file is decoded, fingerprinted, hashed and put in the vault; two
   // or three at once on a small server run it out of memory. Every arrival waits its turn in the lane.
   let lane = Promise.resolve(); const inLane = fn => { const run = lane.then(fn, fn); lane = run.catch(() => {}); return run; };
-  app.post('/studio/works/:slug/master', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
+  app.post('/studio/works/:slug/master', studioOnly, upload.single('file'), BAG.gate('image'), (req, res) => inLane(async () => {
     const w = q.work.get(req.params.slug); const back = m => res.redirect('/studio/masters?ok=' + encodeURIComponent(m) + '#need');
     if (!w) return res.sendStatus(404); if (!req.file) return back('Choose an image file.');
     const gone = () => { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); };
@@ -1893,6 +1895,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // one, or a new frame into a private archive room. Shared by the Masters desk (one request a file) and the
   // arrivals queue (files that came straight into the vault). The file is consumed either way.
   async function takeMaster(file, originalname, folder) {
+    await BAG.throwIfBad(file, { name: originalname || path.basename(file), where: 'takeMaster', who: 'studio' });
     const gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
     try {
       await ensureHashes();
@@ -1927,7 +1930,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   app.locals.takeMaster = (file, name, folder) => inLane(() => takeMaster(file, name, folder));
   require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming'), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), takeWork: (f, a) => app.locals.takeWork(f, a) }); // straight into the vault in parts, taken in by a queue; the Studio's masters and every maker's own vault
-  app.post('/studio/masters/one', studioOnly, upload.single('file'), (req, res) => inLane(async () => {
+  app.post('/studio/masters/one', studioOnly, upload.single('file'), BAG.gate('image', { json: true }), (req, res) => inLane(async () => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
     const r = await takeMaster(req.file.path, req.file.originalname, req.body.folder);
     res.status(r.ok ? 200 : r.status).json(r);

@@ -26,7 +26,7 @@ function mountVoices(app, { db, C, store, isStudio, makerOf, mk, ledger, V }) {
     const w = work(req.params.slug); if (!may(req, w)) return res.redirect(isStudio(req) ? '/studio' : '/account');
     res.send(V.voicesEdit({ w, maker: mk(w), voices: of(w), kinds: KINDS, saved: req.query.ok }));
   });
-  app.post('/voices/:slug', up.single('audio'), async (req, res) => {
+  app.post('/voices/:slug', up.single('audio'), (req, res, next) => app.locals.bagcheck.gate('audio')(req, res, next), async (req, res) => {
     const w = work(req.params.slug); const x = req.body || {};
     if (!may(req, w)) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(403); }
     const t = (v, n) => String(v || '').trim().slice(0, n) || null;

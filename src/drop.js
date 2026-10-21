@@ -48,7 +48,7 @@ function mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk }) {
     if (!l && r.kind === 'wmark' && r.m && r.m.license) l = db.prepare('SELECT * FROM licenses WHERE ref=?').get(String(r.m.license));
     return { r, l, w: (l && work(l.work_id)) || r.w || null };
   }
-  app.post('/yours/add', (req, res, next) => take.single('file')(req, res, e => (e ? res.send(page('Bring a photograph home', form('That file could not be taken. A photograph or a .wmark archive, up to 120 MB.'))) : next())), async (req, res) => {
+  app.post('/yours/add', (req, res, next) => take.single('file')(req, res, e => (e ? res.send(page('Bring a photograph home', form('That file could not be taken. A photograph or a .wmark archive, up to 120 MB.'))) : next())), (req, res, next) => (req.file ? app.locals.bagcheck.gate('proof')(req, res, next) : next()), async (req, res) => {
     const me = buyerOf(req); if (!me) return res.redirect('/signin?next=' + encodeURIComponent('/yours/add'));
     if (!req.file) return res.redirect('/yours/add');
     let buf; try { buf = fs.readFileSync(req.file.path); } finally { fs.unlink(req.file.path, () => {}); }

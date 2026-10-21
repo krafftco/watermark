@@ -155,7 +155,7 @@ Or drop the file on ${m.verify}.
     return { kind: 'wmark', genuine, held: !!(w && w.sha256 === oh), m, w, checks, h: oh, say: genuine ? 'Genuine. The original and its papers are exactly as the house issued them.' : 'This archive does not verify in every respect.' };
   }
   const take = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 400 * 1024 * 1024 } }); // any file: a .wmark is a zip
-  app.post('/verify', take.single('file'), async (req, res) => {
+  app.post('/verify', take.single('file'), (req, res, next) => (req.file ? app.locals.bagcheck.gate('proof')(req, res, next) : next()), async (req, res) => {
     if (!req.file) return res.redirect('/verify');
     let buf; try { buf = fs.readFileSync(req.file.path); } finally { try { fs.unlinkSync(req.file.path); } catch (e) { /* gone */ } }
     try { const r = await verifyBuffer(buf, req.file.originalname); res.send(V.verifyFile({ r, name: req.file.originalname, maker: r.w ? mk(r.w) : null })); }

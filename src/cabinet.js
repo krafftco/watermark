@@ -55,7 +55,7 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
   const mine = (req, id) => { const b = buyerOf(req), s = showing(id, 'id'); return b && s && s.buyer_id === b.id ? s : null; };
 
   // The cabinet: a work photographed and put in.
-  app.post('/cabinet/add', (req, res, next) => upload.single('file')(req, res, e => (e ? res.redirect('/yours?tab=cabinet&cab=file') : next())), async (req, res) => {
+  app.post('/cabinet/add', (req, res, next) => upload.single('file')(req, res, e => (e ? res.redirect('/yours?tab=cabinet&cab=file') : next())), (req, res, next) => (req.file ? app.locals.bagcheck.gate('image')(req, res, next) : next()), async (req, res) => {
     const b = ensure(req, res), x = req.body || {}; if (!req.file) return res.redirect('/yours?tab=cabinet&cab=file');
     if (holdings(b).length >= CAP) { fs.unlinkSync(req.file.path); return res.redirect('/yours?tab=cabinet&cab=full'); }
     const title = String(x.title || '').trim().slice(0, 160) || 'Untitled';
