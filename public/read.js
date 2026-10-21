@@ -1,7 +1,7 @@
 // The reading room (src/reading.js): chapters without a page load, the place kept on the device, size and light.
 (function () {
   'use strict';
-  var main = document.querySelector('main.rd[data-read]'); if (!main) return;
+  var main = document.querySelector('main.rdr[data-read]'); if (!main) return;
   var R; try { R = JSON.parse(main.getAttribute('data-read')); } catch (e) { return; }
   var key = 'wm_read_' + R.slug, S = {}; try { S = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { S = {}; }
   var pref = {}; try { pref = JSON.parse(localStorage.getItem('wm_read_pref') || '{}'); } catch (e) { pref = {}; }
@@ -11,7 +11,7 @@
   function keep() { S.c = at; S.y = window.scrollY / Math.max(1, document.body.scrollHeight - innerHeight); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } }
   function show(i, y) {
     i = Math.max(0, Math.min(R.n - 1, i)); at = i;
-    var secs = main.querySelectorAll('.rd-ch'); for (var k = 0; k < secs.length; k++) secs[k].hidden = (+secs[k].getAttribute('data-ch') !== i);
+    var secs = main.querySelectorAll('.rdr-ch'); for (var k = 0; k < secs.length; k++) secs[k].hidden = (+secs[k].getAttribute('data-ch') !== i);
     var links = main.querySelectorAll('[data-rd-toc-panel] a'); for (var j = 0; j < links.length; j++) { if (+links[j].getAttribute('data-c') === i) links[j].setAttribute('aria-current', 'page'); else links[j].removeAttribute('aria-current'); }
     try { history.replaceState(null, '', '?c=' + i); } catch (e) { /* */ }
     var toc = main.querySelector('[data-rd-toc-panel]'); if (toc) toc.hidden = true;
@@ -19,7 +19,7 @@
   }
   // The place kept: offered back once, on arrival without a chapter asked for.
   if (!/[?&]c=/.test(location.search) && S.c != null && (S.c !== at || S.y > 0.02)) {
-    var back = document.createElement('div'); back.className = 'rd-resume'; back.innerHTML = '<span>You were reading.</span> <button type="button">Go back to your place</button>';
+    var back = document.createElement('div'); back.className = 'rdr-resume'; back.innerHTML = '<span>You were reading.</span> <button type="button">Go back to your place</button>';
     back.querySelector('button').addEventListener('click', function () { show(S.c, S.y); back.remove(); }); main.appendChild(back); setTimeout(function () { back.classList.add('on'); }, 50); setTimeout(function () { back.remove(); }, 12000);
   }
   main.addEventListener('click', function (e) {
@@ -36,7 +36,7 @@
   });
   var t0 = null; addEventListener('scroll', function () { clearTimeout(t0); t0 = setTimeout(keep, 400); }, { passive: true });
   // Still: the bar fades after a while and comes back on a move.
-  var still = null; function wake() { main.classList.remove('rd-still'); clearTimeout(still); still = setTimeout(function () { main.classList.add('rd-still'); }, 4000); }
+  var still = null; function wake() { main.classList.remove('rdr-still'); clearTimeout(still); still = setTimeout(function () { main.classList.add('rdr-still'); }, 4000); }
   ['mousemove', 'touchstart', 'keydown', 'scroll'].forEach(function (ev) { addEventListener(ev, wake, { passive: true }); }); wake();
   apply();
 })();

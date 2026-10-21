@@ -49,9 +49,9 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
     const mine = i.by_kind === 'house' ? isStudio(req) : (i.by_kind === 'maker' ? ((app.locals.accounts && app.locals.accounts.makerOf(req)) || {}).handle === i.by_id.replace(/^maker:/, '') : false);
     if (!mine && !isStudio(req)) return res.sendStatus(403);
     const qr = require('./qr').svg(url(i), { size: 560 });
-    res.send(V.layout({ title: `${i.label || 'An introduction'} · Watermark`, path: `/i/${i.token}/card`, bare: true, body: `<main class="ic"><section class="ic-card"><p class="k">Watermark${i.label ? ` · ${esc(i.label)}` : ''}</p><h1>${i.opens === 'maker' ? 'Your studio, now.' : 'Your gallery, now.'}</h1>
-<p class="ic-lede">${i.opens === 'maker' ? 'Scan it: your name, your email, and your studio opens. Put a photograph in and it is deeded, fingerprinted and on the register in a minute. The record is free; the price is yours.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
-<div class="ic-qr">${qr}</div><p class="ic-url">${esc(url(i).replace(/^https?:\/\//, ''))}</p><p class="ic-foot">${i.max_uses != null ? `Good for ${i.max_uses - i.uses} more.` : ''} Entered by invitation; introduced by the house.</p></section><p class="ic-print"><button type="button" class="link" onclick="print()">Print</button></p></main>` }));
+    res.send(V.layout({ title: `${i.label || 'An introduction'} · Watermark`, path: `/i/${i.token}/card`, bare: true, body: `<main class="inc"><section class="inc-card"><p class="k">Watermark${i.label ? ` · ${esc(i.label)}` : ''}</p><h1>${i.opens === 'maker' ? 'Your studio, now.' : 'Your gallery, now.'}</h1>
+<p class="inc-lede">${i.opens === 'maker' ? 'Scan it: your name, your email, and your studio opens. Put a photograph in and it is deeded, fingerprinted and on the register in a minute. The record is free; the price is yours.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
+<div class="inc-qr">${qr}</div><p class="inc-url">${esc(url(i).replace(/^https?:\/\//, ''))}</p><p class="inc-foot">${i.max_uses != null ? `Good for ${i.max_uses - i.uses} more.` : ''} Entered by invitation; introduced by the house.</p></section><p class="inc-print"><button type="button" class="link" onclick="print()">Print</button></p></main>` }));
   });
   // Taking one up.
   app.get('/i/:token', (req, res) => {
