@@ -1161,6 +1161,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const P = require('../src/iiif').parseManifest({ sequences: [{ canvases: [{ '@id': 'c1', label: 'One', images: [{ resource: { '@id': 'https://x/i.jpg', service: { '@id': 'https://x/iiif/1', profile: 'http://iiif.io/api/image/2/level1.json' } } }] }] }] }); assert.ok(P.items[0].image === 'https://x/iiif/1/full/full/0/default.jpg', 'v2 manifests too');
   }
   console.log('ok: for museums');
+  { // The rights desk: one door per institution; the ask, the ticket, the answer.
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get(); assert.ok(inst, 'the institution from the manifest');
+    db.prepare("UPDATE works SET status='held' WHERE maker_id=?").run(inst.id);
+    r = await req(port, 'GET', '/rights/musee?q=Harbour'); assert.ok(r.status === 200 && /Rights and reproductions\./.test(r.body) && /Harbour 1/.test(r.body) && /free, with credit/.test(r.body) && /The conditions/.test(r.body), 'the door: a held work found, free with credit, the conditions');
+    r = await req(port, 'POST', '/rights/musee', { body: { kind: 'archive', what: 'Installation views of the 1911 harbour show, for a monograph.', use_kind: 'book', author: 'A. Reader', title: 'The Harbour', publisher: 'A Press', pub_date: '2027', territory: 'World', name: 'Ann Reader', email: 'ann@example.com', affiliation: 'A University', accept: '1' } });
+    assert.ok(/ok=sent&t=RR-\d{4}-\d{5}/.test(r.headers.location), 'a ticket given'); const ticket = decodeURIComponent(r.headers.location.match(/t=([^&]+)/)[1]);
+    r = await req(port, 'POST', '/rights/musee', { body: { kind: 'text', what: 'x', name: 'Bo', email: 'bo@example.com' } }); assert.ok(/ok=check/.test(r.headers.location), 'without the conditions, refused');
+    r = await req(port, 'GET', `/rights/r/${ticket}`); assert.ok(r.status === 200 && /With the rights desk/.test(r.body) && /Installation views/.test(r.body), 'the asker follows it');
+    r = await req(port, 'GET', `/account/rights/${ticket}`); assert.ok([401, 403].includes(r.status), 'a stranger cannot answer');
+    r = await req(port, 'GET', '/studio/rights', { cookie: ck }); assert.ok(/Musée du Port/.test(r.body) && r.body.toString().includes(ticket), 'the Studio sees every desk');
+    r = await req(port, 'POST', `/account/rights/${ticket}`, { cookie: ck, body: { do: 'granted', answer: 'Granted for the monograph. Cite as: The Musée du Port Archives, Marseille.', fee: '150' } }); assert.ok(/granted/.test(r.headers.location), 'answered');
+    const rr = db.prepare('SELECT * FROM rights_requests WHERE ticket=?').get(ticket); assert.ok(rr.status === 'granted' && rr.fee_cents === 15000 && rr.answered_at, 'recorded');
+    r = await req(port, 'GET', `/rights/r/${ticket}`); assert.ok(/Permission granted/.test(r.body) && /\$150/.test(r.body) && /Cite as/.test(r.body), 'the permission in writing, with its ticket');
+    r = await req(port, 'GET', '/museums'); assert.ok(/One door, not four addresses/.test(r.body) && /Three ways in/.test(r.body), 'the pitch');
+    db.prepare("UPDATE works SET status='hidden' WHERE maker_id=?").run(inst.id);
+  }
+  console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
   console.log('ok: the director');

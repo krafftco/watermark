@@ -408,7 +408,7 @@ function createApp(cfg = {}) {
   });
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
-  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); } catch (e) { /* before the Studio exists */ } next(); });
+  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
 
@@ -585,6 +585,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger }); // museums: a collection in from a IIIF manifest; the Image API out; /museums
+  require('./rights').mountRights(app, { db, V, C, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the rights desk: one door per institution (/rights/:slug), answered from /account/rights
   require('./legal').mountLegal(app, { db, V, C, ledger, buyerOf: req => app.locals.buyerOf(req), isStudio }); // /terms, /privacy, /legal/*: the house's agreements
 
   // What the visitor already holds of a work: one row per active license, with its use and any open offer.
