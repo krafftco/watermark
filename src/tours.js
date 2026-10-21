@@ -66,11 +66,11 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
     const works = H().worksOf(h), vm = voiceMap(h), g = guideOf(h);
     const stops = [{ welcome: true, voice: vm[0] ? `/tour/${h.id}/voice/${vm[0].id}` : null }].concat(works.map(w => ({ slug: w.slug, title: w.title, maker: w.maker, handle: w.handle, place: w.place, year: w.taken_at ? String(w.taken_at).slice(0, 4) : '', note: w.note || '', voice: vm[w.id] ? `/tour/${h.id}/voice/${vm[w.id].id}` : null })));
     const at = Math.max(0, stops.findIndex(s => s.slug === req.query.at));
-    res.send(layout({ title: `${h.title} · a tour · Watermark`, path: `/tour/${h.slug}`, desc: `${g.name || 'A guide'} walks you through ${h.title}.`, bare: true, body: `<main class="tr" data-tour='${esc(JSON.stringify({ slug: h.slug, title: h.title, guide: g.name || 'A guide', stops, at }))}'>
-<header class="tr-bar"><a class="tr-back" href="${esc(H().href(h))}">${I.back}<span>The wall</span></a><p class="tr-title"><b>${esc(h.title)}</b><span>a tour with ${esc(g.name || 'a guide')}</span></p><span class="tr-n"></span></header>
-<section class="tr-stage"><div class="tr-welcome"><p class="k">A tour</p><h1>${esc(h.title)}.</h1><p class="tr-guide">${esc(g.name || 'A guide')}${g.statement ? ` · ${esc(g.statement)}` : ''}</p>${h.line ? `<p class="lede">${esc(h.line)}</p>` : ''}<p class="tr-count">${works.length} stop${works.length === 1 ? '' : 's'} · ${Object.keys(vm).length ? 'in the guide’s own voice' : 'in the guide’s words'}</p><button type="button" class="buy-btn tr-begin">Begin</button></div><img class="tr-im" alt="" hidden><div class="tr-plate"><b></b><span></span><p class="tr-note"></p></div></section>
-<footer class="tr-deck"><button type="button" class="tr-prev" aria-label="Back">${I.back}</button><button type="button" class="tr-play" aria-label="Play or pause">${I.play}${I.pause}</button><button type="button" class="tr-next" aria-label="Next">${I.next}</button></footer>
-<audio class="tr-audio" preload="auto"></audio>
+    res.send(layout({ title: `${h.title} · a tour · Watermark`, path: `/tour/${h.slug}`, desc: `${g.name || 'A guide'} walks you through ${h.title}.`, bare: true, body: `<main class="tw" data-tour='${esc(JSON.stringify({ slug: h.slug, title: h.title, guide: g.name || 'A guide', stops, at }))}'>
+<header class="tw-bar"><a class="tw-back" href="${esc(H().href(h))}">${I.back}<span>The wall</span></a><p class="tw-title"><b>${esc(h.title)}</b><span>a tour with ${esc(g.name || 'a guide')}</span></p><span class="tw-n"></span></header>
+<section class="tw-stage"><div class="tw-welcome"><p class="k">A tour</p><h1>${esc(h.title)}.</h1><p class="tw-guide">${esc(g.name || 'A guide')}${g.statement ? ` · ${esc(g.statement)}` : ''}</p>${h.line ? `<p class="lede">${esc(h.line)}</p>` : ''}<p class="tw-count">${works.length} stop${works.length === 1 ? '' : 's'} · ${Object.keys(vm).length ? 'in the guide’s own voice' : 'in the guide’s words'}</p><button type="button" class="buy-btn tw-begin">Begin</button></div><img class="tw-im" alt="" hidden><div class="tw-plate"><b></b><span></span><p class="tw-note"></p></div></section>
+<footer class="tw-deck"><button type="button" class="tw-prev" aria-label="Back">${I.back}</button><button type="button" class="tw-play" aria-label="Play or pause">${I.play}${I.pause}</button><button type="button" class="tw-next" aria-label="Next">${I.next}</button></footer>
+<audio class="tw-audio" preload="auto"></audio>
 <template data-ic="wilhelm">${I.wilhelm}</template></main><script src="/static/tour.js?v=${esc(V.VER)}" defer></script>` }));
   });
   // The guides of the house: everyone whose wall carries their voice.
@@ -86,9 +86,9 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   function recorder(h, w) {
     const v = db.prepare('SELECT * FROM tour_voices WHERE hang_id=? AND work_id=?').get(h.id, w ? w.id : 0);
     const key = w ? w.slug : 'welcome';
-    return `<div class="tr-rec" data-tour-rec="/tour/${h.id}/voice/${esc(key)}" ${v ? `data-has="/tour/${h.id}/voice/${v.id}"` : ''}><button type="button" class="link tr-rec-b">${v ? 'Say it again' : w ? 'Say a word on this one' : 'Record a welcome'}</button>${v ? `<audio controls preload="none" src="/tour/${h.id}/voice/${v.id}"></audio><button type="button" class="link tr-rec-x">Remove</button>` : ''}<span class="tr-rec-s"></span></div>`;
+    return `<div class="tw-rec" data-tour-rec="/tour/${h.id}/voice/${esc(key)}" ${v ? `data-has="/tour/${h.id}/voice/${v.id}"` : ''}><button type="button" class="link tw-rec-b">${v ? 'Say it again' : w ? 'Say a word on this one' : 'Record a welcome'}</button>${v ? `<audio controls preload="none" src="/tour/${h.id}/voice/${v.id}"></audio><button type="button" class="link tw-rec-x">Remove</button>` : ''}<span class="tw-rec-s"></span></div>`;
   }
-  const door = h => (isTour(h) ? `<p class="hg-share tr-door"><a href="/tour/${esc(h.slug)}">${I.guide}<span>Take the tour, in ${esc((guideOf(h).name || 'the guide').split(' ')[0])}’s voice</span></a></p>` : '');
+  const door = h => (isTour(h) ? `<p class="hg-share tw-door"><a href="/tour/${esc(h.slug)}">${I.guide}<span>Take the tour, in ${esc((guideOf(h).name || 'the guide').split(' ')[0])}’s voice</span></a></p>` : '');
   const toursBy = b => (b ? db.prepare('SELECT DISTINCT h.* FROM hangs h JOIN tour_voices v ON v.hang_id=h.id WHERE h.buyer_id=? ORDER BY h.updated_at DESC').all(b.id) : []);
   app.locals.tours = { isTour, recorder, door, toursBy, voices, MAX_SECONDS };
   return app.locals.tours;
