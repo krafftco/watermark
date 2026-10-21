@@ -86,6 +86,7 @@ ${rows.length ? `<table class="tbl tm-t"><tr><th>Name</th><th>Role</th><th>Email
 ${shows.length ? `<a href="/hang/${esc(shows[0].slug)}"><b>On view</b><span>${esc(shows[0].title)}${shows.length > 1 ? ` and ${shows.length - 1} more` : ''}</span></a>` : `<a href="/collectors#shows"><b>On view</b><span>Walls hung by the museum’s curators</span></a>`}
 <a href="/rights/${esc(m.handle)}"><b>Rights and reproductions</b><span>One door for every request, with a ticket to follow</span></a>
 <a href="/stroll?maker=${esc(m.handle)}"><b>Stroll the collection</b><span>One work at a time, with the guide</span></a>
+<a href="/frame/tv?set=maker:${esc(m.handle)}"><b>On your television</b><span>The collection on a Frame at home, free</span></a>
 <a href="/keys/at/${esc(m.handle)}"><b>The Keys at ${esc(m.name)}</b><span>The benches, the tours, the balcony: for those who have just looked</span></a>
 ${m.site ? `<a href="${esc(m.site)}" rel="noopener"><b>Visit</b><span>${esc(m.site.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></a>` : ''}
 </nav>${team.length ? `<p class="mu-team">The desk: ${team.map(s => `${esc(s.name || '')} <i>${esc(ROLES[s.role] || s.role)}</i>`).join(' · ')}.</p>` : ''}</div></section>`;

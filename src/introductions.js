@@ -42,6 +42,17 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
     res.redirect(`/studio/accounts?ok=${encodeURIComponent(`A partner link for ${i.label || 'someone'}: ${url(i)}`)}#introductions`);
   });
 
+  // The card (Will, 21 Oct, for the Leica Meatpacking evening: photographers on board on the spot): a printable page
+  // with the QR of an introduction link, in the house's hand, for a phone to scan; the studio opens at once.
+  app.get('/i/:token/card', (req, res) => {
+    const i = db.prepare('SELECT * FROM introductions WHERE token=?').get(String(req.params.token)); if (!i) return res.sendStatus(404);
+    const mine = i.by_kind === 'house' ? isStudio(req) : (i.by_kind === 'maker' ? ((app.locals.accounts && app.locals.accounts.makerOf(req)) || {}).handle === i.by_id.replace(/^maker:/, '') : false);
+    if (!mine && !isStudio(req)) return res.sendStatus(403);
+    const qr = require('./qr').svg(url(i), { size: 560 });
+    res.send(V.layout({ title: `${i.label || 'An introduction'} · Watermark`, path: `/i/${i.token}/card`, bare: true, body: `<main class="ic"><section class="ic-card"><p class="k">Watermark${i.label ? ` · ${esc(i.label)}` : ''}</p><h1>${i.opens === 'maker' ? 'Your studio, now.' : 'Your gallery, now.'}</h1>
+<p class="ic-lede">${i.opens === 'maker' ? 'Scan it: your name, your email, and your studio opens. Put a photograph in and it is deeded, fingerprinted and on the register in a minute. The record is free; the price is yours.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
+<div class="ic-qr">${qr}</div><p class="ic-url">${esc(url(i).replace(/^https?:\/\//, ''))}</p><p class="ic-foot">${i.max_uses != null ? `Good for ${i.max_uses - i.uses} more.` : ''} Entered by invitation; introduced by the house.</p></section><p class="ic-print"><button type="button" class="link" onclick="print()">Print</button></p></main>` }));
+  });
   // Taking one up.
   app.get('/i/:token', (req, res) => {
     const i = byToken(req.params.token); if (!i || !live(i)) return res.status(404).send(gone());
@@ -96,7 +107,7 @@ ${err ? '<p class="err">Your name and a working email are needed.</p>' : ''}
 
 // On a maker's Your page, and on the Studio's Accounts: the links to give.
 function introBlock({ list, used, limit, base, action, opens = true, studio = false }) {
-  const row = i => `<li class="in-row"><span>${esc(i.label || (i.opens === 'maker' ? 'A maker' : 'Collectors'))}<small>${i.opens === 'maker' ? 'opens a studio' : 'opens galleries'} · ${i.uses} taken${i.max_uses != null ? ` of ${i.max_uses}` : ''}${i.closed ? ' · closed' : ''}${studio && i.who ? ` · by ${esc(i.who.name)}` : ''}</small></span>${i.closed || (i.max_uses != null && i.uses >= i.max_uses) ? '<code class="in-dead">used</code>' : `<code>${esc(base)}/i/${esc(i.token)}</code><button type="button" class="link" data-copy="${esc(base)}/i/${esc(i.token)}">Copy</button>`}${!i.closed ? `<form method="post" action="${action}"><input type="hidden" name="do" value="close"><input type="hidden" name="id" value="${i.id}"><button class="link">Close</button></form>` : ''}</li>`;
+  const row = i => `<li class="in-row"><span>${esc(i.label || (i.opens === 'maker' ? 'A maker' : 'Collectors'))}<small>${i.opens === 'maker' ? 'opens a studio' : 'opens galleries'} · ${i.uses} taken${i.max_uses != null ? ` of ${i.max_uses}` : ''}${i.closed ? ' · closed' : ''}${studio && i.who ? ` · by ${esc(i.who.name)}` : ''}</small></span>${i.closed || (i.max_uses != null && i.uses >= i.max_uses) ? '<code class="in-dead">used</code>' : `<a href="/i/${esc(i.token)}/card" class="in-card">Card</a> <code>${esc(base)}/i/${esc(i.token)}</code><button type="button" class="link" data-copy="${esc(base)}/i/${esc(i.token)}">Copy</button>`}${!i.closed ? `<form method="post" action="${action}"><input type="hidden" name="do" value="close"><input type="hidden" name="id" value="${i.id}"><button class="link">Close</button></form>` : ''}</li>`;
   return `<section class="in" id="introductions"><header class="gh"><h2>Introductions</h2><span>${studio ? 'partner links' : `${used} of ${limit} this year`}</span></header>
 <p class="lede pk-lede">${studio ? 'A partner link opens accounts for a curator, a museum or an artist the house has a relationship with: as many as you set, until you close it. The register records who introduced whom.' : `The house is entered by invitation, and your name is one. You may introduce ${limit} makers a year: a link each, good once, that opens their studio at once; the register records that you introduced them. Introduce collectors without limit.`}</p>
 ${list.length ? `<ul class="in-list">${list.map(row).join('')}</ul>` : ''}
