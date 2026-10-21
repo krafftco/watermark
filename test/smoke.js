@@ -1274,6 +1274,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'X', source_url: 'http://insecure.example/x.mp4' } }); assert.ok(/https address/.test(decodeURIComponent(r.headers.location)), 'only the house’s own https sources');
   }
   console.log('ok: the Screening Room');
+  { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
+    const prev = app.locals.__fetch;
+    const raw = ['The Project Gutenberg eBook of The Long Walk', '', '*** START OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'Produced by Someone', '', 'THE LONG WALK', '', 'By A. Walker', '', 'CHAPTER I.', '', 'It was a long walk, and the road was ' + 'dusty '.repeat(120) + '.', '', 'The second paragraph went on.', '', 'CHAPTER II. THE RIVER', '', 'Water, at last. ' + 'More water. '.repeat(100), '', '*** END OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'License text that is not the book.'].join('\n');
+    app.locals.__fetch = async (u) => { u = String(u); if (/gutendex\.com\/books\?search=/.test(u)) return { ok: true, json: async () => ({ results: [{ id: 777, title: 'The Long Walk', authors: [{ name: 'Walker, A.' }], download_count: 42, languages: ['en'] }] }) }; if (/gutendex\.com\/books\/777$/.test(u)) return { ok: true, json: async () => ({ id: 777, title: 'The Long Walk', authors: [{ name: 'Walker, A.' }], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/777.txt.utf-8', 'text/html': 'https://www.gutenberg.org/ebooks/777.html' } }) }; if (/gutenberg\.org\/ebooks\/777\.txt/.test(u)) return { ok: true, text: async () => raw }; return prev ? prev(u) : { ok: false, status: 404 }; };
+    r = await req(port, 'GET', '/studio/reading?q=long+walk', { cookie: ck }); assert.ok(r.status === 200 && /Bring in No\. 777/.test(r.body) && /Franklin’s shelf/.test(r.body) && /Pilgrim/.test(r.body), 'the search and the shelf');
+    r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/on the shelf: 3 chapters/.test(decodeURIComponent(r.headers.location)), 'brought in: ' + r.headers.location);
+    const bk = db.prepare("SELECT * FROM texts WHERE source='https://www.gutenberg.org/ebooks/777'").get(); assert.ok(bk && bk.kind === 'book' && bk.author === 'Walker, A.' && bk.public === 1 && bk.price_cents == null, 'a free book on the shelf');
+    assert.ok(!/Project Gutenberg|License text|Produced by/.test(bk.body) && /^## THE LONG WALK|## CHAPTER I\./m.test(bk.body) && /## CHAPTER II\. THE RIVER/.test(bk.body), 'the boilerplate gone, the chapters marked: ' + bk.body.slice(0, 120));
+    r = await req(port, 'GET', `/read/${bk.slug}`); assert.equal(r.status, 200); const pg = r.body.toString(); assert.ok(/class="rd"/.test(pg) && /class="rdp"/.test(pg) && /rd-toc/.test(pg) && /CHAPTER II\. THE RIVER/.test(pg) && /Water, at last/.test(pg) && /read\.js/.test(pg), 'the reading room');
+    r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Read it in the reading room/.test(r.body), 'the Library opens the room');
+    r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/Already/.test(decodeURIComponent(r.headers.location)), 'never twice');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
+    app.locals.__fetch = prev;
+  }
+  console.log('ok: the public domain and the reading room');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
