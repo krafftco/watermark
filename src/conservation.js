@@ -49,7 +49,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
   app.locals.mirrorStore = mirror;
   async function mirrorSome(n = 10) {
     if (!mirror) return { on: false };
-    const rows = db.prepare('SELECT w.* FROM works w LEFT JOIN mirrors m ON m.work_id=w.id WHERE w.original_file IS NOT NULL AND m.work_id IS NULL ORDER BY w.id DESC LIMIT ?').all(n);
+    const rows = db.prepare('SELECT w.* FROM works w LEFT JOIN mirrors m ON m.work_id=w.id WHERE w.original_file IS NOT NULL AND COALESCE(w.vaulted,1)=1 AND m.work_id IS NULL ORDER BY w.id DESC LIMIT ?').all(n);
     let done = 0;
     for (const w of rows) {
       try { const buf = fs.readFileSync(await originalPath(w)); if (sha256(buf) !== w.sha256) continue; const key = 'originals/' + w.original_file; await mirror.put(key, buf); db.prepare('INSERT OR REPLACE INTO mirrors (work_id, key, sha256, bytes) VALUES (?,?,?,?)').run(w.id, key, w.sha256, buf.length); done++; }

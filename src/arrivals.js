@@ -104,23 +104,32 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
 
   // The queue: one arrival at a time, fetched from the vault to the incoming folder and taken in.
   let pumping = false;
+  // Two at a time (21 Oct, Will: "it's so slow"): one file's decode overlaps another's download; ARRIVALS_PARALLEL sets it.
+  const PARALLEL = Math.max(1, Number(process.env.ARRIVALS_PARALLEL || 2));
+  let running = 0;
+  async function takeOne(a) {
+    const f = localFile(a);
+    try {
+      if (direct && a.via !== 'house') { await store.download(a.key, f); }
+      const r = a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
+      if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
+      else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);
+      if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
+    } catch (e) {
+      console.error('[arrivals]', a.name, e.message);
+      db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(e.message || e).slice(0, 300), a.id);
+    } finally { try { fs.unlinkSync(f); } catch (e) { /* consumed */ } }
+  }
   async function pump() {
     if (pumping) return; pumping = true;
     try {
       for (;;) {
-        const a = db.prepare("SELECT * FROM arrivals WHERE status='arrived' ORDER BY id LIMIT 1").get(); if (!a) break;
-        db.prepare("UPDATE arrivals SET status='working' WHERE id=?").run(a.id);
-        const f = localFile(a);
-        try {
-          if (direct && a.via !== 'house') { await store.download(a.key, f); }
-          const r = a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
-          if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
-          else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);
-          if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
-        } catch (e) {
-          console.error('[arrivals]', a.name, e.message);
-          db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(e.message || e).slice(0, 300), a.id);
-        } finally { try { fs.unlinkSync(f); } catch (e) { /* consumed */ } }
+        while (running < PARALLEL) {
+          const a = db.prepare("SELECT * FROM arrivals WHERE status='arrived' ORDER BY id LIMIT 1").get(); if (!a) break;
+          db.prepare("UPDATE arrivals SET status='working' WHERE id=?").run(a.id);
+          running++; takeOne(a).finally(() => { running--; setImmediate(pump); });
+        }
+        break;
       }
     } finally { pumping = false; }
   }

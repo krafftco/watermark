@@ -175,10 +175,28 @@ function createApp(cfg = {}) {
     try {
       const files = fs.readdirSync(originals).map(f => { const p = path.join(originals, f); try { const st = fs.statSync(p); return { p, size: st.size, at: Math.max(st.atimeMs || 0, st.mtimeMs || 0) }; } catch (e) { return null; } }).filter(Boolean);
       let total = files.reduce((a, f) => a + f.size, 0); if (total <= CACHE_BUDGET) return;
-      for (const f of files.sort((a, b) => a.at - b.at)) { if (total <= CACHE_BUDGET * 0.8) break; if (f.p === keep || (/\.tmp$/.test(f.p) && Date.now() - f.at < 600000)) continue; try { fs.unlinkSync(f.p); total -= f.size; } catch (e) { /* in use */ } }
+      const hold = unvaulted();
+      for (const f of files.sort((a, b) => a.at - b.at)) { if (total <= CACHE_BUDGET * 0.8) break; if (f.p === keep || hold.has(path.basename(f.p)) || (/\.tmp$/.test(f.p) && Date.now() - f.at < 600000)) continue; try { fs.unlinkSync(f.p); total -= f.size; } catch (e) { /* in use */ } }
     } catch (e) { /* no cache dir yet */ }
   }
   setInterval(() => { try { const inc = path.join(C.dataDir, 'incoming'); for (const f of fs.readdirSync(inc)) { const p = path.join(inc, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 86400000) fs.unlinkSync(p); } catch (e) { /* gone */ } } } catch (e) { /* none */ } }, 3600000).unref();
+  // Vaulting in the background (21 Oct, Will: "it's so slow"; "do the work in the backend so the user is free to go"):
+  // a new original is written to the local disk and the work is whole at once (fingerprinted, deeded, on the register);
+  // the copy to the bucket follows in a queue (`works.vaulted` 0 → 1), retried until it lands; an unvaulted original is
+  // never trimmed from the local cache; `vaultPending()` runs 20 s after start and every 30 s, so a restart loses nothing.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vaulted'").get()) { db.exec('ALTER TABLE works ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 1'); }
+  const unvaulted = () => new Set(db.prepare('SELECT original_file FROM works WHERE vaulted=0').all().map(r => r.original_file));
+  let vaulting = false;
+  async function vaultPending() {
+    if (vaulting || store.kind !== 's3') return; vaulting = true;
+    try {
+      for (const w of db.prepare('SELECT id, slug, original_file FROM works WHERE vaulted=0 ORDER BY id LIMIT 50').all()) {
+        const p = path.join(originals, w.original_file); if (!fs.existsSync(p)) { console.error('[vault] unvaulted original missing on disk', w.slug); continue; }
+        try { await store.put('originals/' + w.original_file, p, /\.png$/i.test(p) ? 'image/png' : /\.tiff?$/i.test(p) ? 'image/tiff' : 'image/jpeg'); db.prepare('UPDATE works SET vaulted=1 WHERE id=?').run(w.id); }
+        catch (e) { console.error('[vault] put', w.slug, e.message); break; }
+      }
+    } finally { vaulting = false; }
+  }
   async function originalPath(w) {
     const p = path.join(originals, w.original_file);
     if (fs.existsSync(p)) { try { const now = new Date(); fs.utimesSync(p, now, now); } catch (e) { /* read-only */ } return p; }
@@ -327,9 +345,11 @@ function createApp(cfg = {}) {
     const dest = path.join(originals, slug + ext);
     // A file staged on another disk (e.g. /tmp beside a mounted volume) can't be renamed across; copy it.
     try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
-    await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
-    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null);
+    const vaultLater = store.kind === 's3' && !cfg.vaultNow; // the copy to the bucket follows in the background (vaultPending)
+    if (!vaultLater) await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
+    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1);
+    if (vaultLater) setTimeout(() => vaultPending().catch(() => {}), 50).unref();
     const nw = q.work.get(slug);
     const kindOk = kind && require('./object').KINDS[kind] ? kind : 'photograph';
     db.prepare("UPDATE works SET accession=?, kind=?, medium=CASE WHEN ?='photograph' THEN COALESCE(medium, 'Digital photograph') ELSE medium END, dhash=?, bytes=? WHERE id=?").run(accession(nw), kindOk, kindOk, await images.dhash(dest).catch(() => null), (() => { try { return fs.statSync(dest).size; } catch (e) { return null; } })(), nw.id);
@@ -341,6 +361,8 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
+  app.locals.vaultPending = vaultPending;
+  if (!cfg.noTimers && store.kind === 's3') { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
@@ -2136,7 +2158,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, vault: { kind: store.kind, cors: app.locals.vaultCors }, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, vault: { kind: store.kind, cors: app.locals.vaultCors, unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n }, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.
