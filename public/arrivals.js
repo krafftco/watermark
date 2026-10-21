@@ -19,13 +19,16 @@
   }
   var viaHouse = false; // once the bucket has refused the browser this visit, every file goes through the house
   async function throughHouse(base, m, f, onBytes) {
-    var r = await fetch(base + '/arrivals/' + m.id + '/body', { method: 'PUT', credentials: 'same-origin', body: f, headers: { 'content-type': 'application/octet-stream' } }).then(function (r) { return r.json(); });
+    var r = await fetch(base + '/arrivals/' + m.id + '/body', { method: 'PUT', credentials: 'same-origin', body: f, headers: { 'content-type': 'application/octet-stream' } }).then(function (r) { if (r.status === 401 || r.redirected) throw 'signed-out'; return r.json(); });
     if (!r.ok) throw new Error(r.error || 'refused'); onBytes(f.size); m.done = true; save(); return m.id;
   }
   async function send(f, o) {
     o = o || {}; var base = o.base || '/studio', k = base + ':' + keyOf(f), m = mem[k] || {}; var folder = (f.webkitRelativePath || '').split('/').slice(0, -1).join('/');
     var onBytes = o.onBytes || function () {}, stopped = o.stopped || function () { return false; };
-    if (m.done && m.id) return m.id;
+    // (21 Oct) A file already finished from this computer is sent afresh, never replayed: the memory resumes a send
+    // that was cut short, it does not stand in for a new one (the same eighteen chosen again showed the old records
+    // and sent nothing). The masters desk still skips files it has sent, through sentBefore.
+    if (m.done) m = {};
     if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
     if (!m.direct || viaHouse) return throughHouse(base, m, f, onBytes);
     var todo = []; for (var n = 1; n <= m.parts; n++) if (!m.etags[n]) todo.push(n); onBytes((m.parts - todo.length) * m.partSize);
