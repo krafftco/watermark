@@ -59,6 +59,7 @@
     var swap = function () { next.classList.add('on'); prev.classList.remove('on'); cur = 1 - cur; next.onload = null; R.classList.remove('drift'); void R.offsetWidth; R.classList.add('drift'); };
     if (instant || next.src === location.origin + w.img || (aheadImg && aheadImg.src === location.origin + w.img && aheadImg.complete)) { next.src = w.img; next.alt = w.title; swap(); }
     else { next.onload = swap; next.src = w.img; next.alt = w.title; }
+    if (window.WMTrue) next.addEventListener('load', function () { WMTrue.cap(next); }, { once: true });
     plate(w); showPlate();
     if (saying) say(w);
     fetchAhead();

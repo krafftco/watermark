@@ -32,6 +32,7 @@
       + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/stroll?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a>'
       + '<button type="button" class="st-b" data-st-share>' + ic.share + '<span>Share</span></button></nav>'
       + '<div class="st-hat-fly" aria-hidden="true">' + ic.hat + '</div>';
+    try { var im0 = el.querySelector('.st-im'); if (window.WMTrue && im0) { WMTrue.cap(im0); im0.addEventListener('load', function () { WMTrue.cap(im0); }, { once: true }); } } catch (e) { /* true size */ }
     return el;
   }
   // More, before the visitor reaches the end.

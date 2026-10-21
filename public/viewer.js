@@ -38,7 +38,7 @@
     // On a computer the photograph keeps a margin of the dark around it, so a tall one is never clipped by the
     // screen's edge, a notch or a rounded corner; on a phone it fills the screen.
     var m = matchMedia('(pointer:fine)').matches ? 0.92 : 1;
-    fit = Math.min(W * m / w, H * m / h); s = fit; x = -w * s / 2; y = -h * s / 2; apply();
+    fit = Math.min(W * m / w, H * m / h); if (window.WMTrue) fit = Math.min(fit, WMTrue.maxScale()); s = fit; x = -w * s / 2; y = -h * s / 2; apply();
   }
   // Into and out of the browser's full screen, or a window resized: set it again if it was at rest.
   function refit() { if (box.classList.contains('on') && !lifting && Math.abs(s - fit) < 1e-6) center(); }
