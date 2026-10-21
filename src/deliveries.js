@@ -39,6 +39,9 @@ function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q
   // Expired deliveries close themselves, hourly.
   function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
   setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref();
+  // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
+  const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
+  if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') setTimeout(() => warmAlbums().catch(() => {}), 90e3).unref();
   const first = s => String(s || '').trim().split(/\s+/)[0] || '';
 
   // The maker's desk.
@@ -84,6 +87,7 @@ ${rows.length ? `<h2>Sent</h2><table class="tbl dv-t"><tr><th>What</th><th>For</
     }
     if (!n) { db.prepare('DELETE FROM deliveries WHERE id=?').run(id); return res.redirect('/account/deliveries?ok=' + encodeURIComponent('None of those photographs are yours to send.')); }
     const d = byToken.get(token);
+    setTimeout(async () => { for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* made on the first download instead */ } } }, 50).unref(); // the copies made now, in the background
     try { ledger.append(db, 'delivery.sent', m.handle, { n, size, days }); } catch (e) { /* */ }
     if (email) mail.send({ to: email, subject: `${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}: ${title}`, text: `${first(client)},\n\n${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}, "${title}".\n\n${url(d)}\n\n${d.note ? d.note + '\n\n' : ''}Each file carries ${m.name}'s name and its licence number inside it; anyone can check a file at ${C.base}/verify.${d.expires_at ? ` The link closes on ${date(d.expires_at)}.` : ''}\n\nWatermark, for ${m.name}` });
     res.redirect(`/account/deliveries?sent=${token}`);
@@ -125,7 +129,8 @@ ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))}
     const fmt = full ? (/\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg') : 'jpeg';
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, size) VALUES (?,?)').run(l.id, full ? 'full' : 'share').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: full ? 'full' : 'share' });
-    const raw = full ? fs.readFileSync(file) : await images.copy(file, 2400); // the copy straight from the master, JPEG 94, nothing in the pixels
+    // the copy: the house's own 2,400-pixel JPEG 94 from the master (the wall's 'large', cached, warmed when the album is made), so Download all streams at once
+    const raw = full ? fs.readFileSync(file) : fs.readFileSync(await images.derivative(file, cache, w.slug, 'large', 'jpg'));
     const buf = full && !/\.(jpe?g|png|tiff?)$/i.test(file) ? raw : await marked(raw, { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share: !full, strip: false, format: fmt });
     const fn = fileName(w, m, l.ref, full ? path.extname(w.original_file).toLowerCase() : '.jpg');
     return { buf, name: fn.utf8 || `${w.slug}.jpg`, ascii: fn.ascii || `${w.slug}.jpg`, type: fmt === 'png' ? 'image/png' : fmt === 'tiff' ? 'image/tiff' : 'image/jpeg' };
