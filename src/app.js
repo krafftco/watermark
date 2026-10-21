@@ -29,6 +29,8 @@ const DEFAULT_USES = [
   // The Reference: the full original, for photographs held at reference quality (40 megapixels or more). Draft price.
   ['reference', 'Collect the Reference', 'The full original at reference quality, straight from the camera file. Yours to keep, to print large and to share, credited. Personal, not for a business.', null, 'license', 0, 2500],
   ['print', 'On a wall', 'An archival print, signed by the photographer, to live with for good.', null, 'print', 4, 25000],
+  // Delivered (21 Oct): the maker's own client, by link, no money through the house; never offered on a wall (kind 'delivery' is left out of q.uses).
+  ['delivery', 'Delivered', 'Delivered by the maker to their own client, under the terms agreed between them. The house keeps the record.', null, 'delivery', 9, null],
 ];
 
 function slugify(s) {
@@ -102,7 +104,7 @@ function createApp(cfg = {}) {
   try { db.prepare("UPDATE uses SET name='Collect', description=? WHERE key='social' AND name='Share it'").run(DEFAULT_USES[0][2]); } catch (e) { /* first boot */ }
   // Downloads are counted. Every license comes with a number of them (drafts), shared with its seats; the
   // share-size file comes with every license, because holding a license includes the right to share it.
-  const DL = { social: 5, reference: 5, editorial: 10, commercial: 25, campaign: 50, print: 5 };
+  const DL = { social: 5, reference: 5, editorial: 10, commercial: 25, campaign: 50, print: 5, delivery: 10 };
   db.exec(`CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, seat_id INTEGER, size TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   for (const [c, t] of [['sha256', 'TEXT'], ['mark', 'INTEGER'], ['work_id', 'INTEGER'], ['to_whom', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('downloads') WHERE name=?").get(c)) db.exec(`ALTER TABLE downloads ADD COLUMN ${c} ${t}`);
   // The mark (mark.js): every image that leaves the house carries its maker, its license and the way back, in the open
@@ -211,6 +213,8 @@ function createApp(cfg = {}) {
     return row;
   }
   const maker = ensureMaker(C.maker);
+  // Every maker gets a use added since they joined (Delivered, 21 Oct), at its default; their own prices are never touched.
+  { const add = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); for (const m of db.prepare('SELECT id FROM makers').all()) DEFAULT_USES.forEach(u => add.run(m.id, ...u)); }
   // Each work belongs to its maker; pages, prices, licenses and emails follow the work.
   const mk = w => (w && w.maker_id && w.maker_id !== maker.id ? db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) : null) || maker;
 
@@ -218,7 +222,7 @@ function createApp(cfg = {}) {
     work: db.prepare("SELECT * FROM works WHERE slug=?"),
     publicWorks: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id DESC"),
     allWorks: db.prepare('SELECT * FROM works ORDER BY id DESC'),
-    uses: db.prepare('SELECT * FROM uses WHERE maker_id=? ORDER BY sort'),
+    uses: db.prepare("SELECT * FROM uses WHERE maker_id=? AND kind!='delivery' ORDER BY sort"),
     use: db.prepare('SELECT * FROM uses WHERE maker_id=? AND key=?'),
     useById: db.prepare('SELECT * FROM uses WHERE id=?'),
     lic: db.prepare('SELECT * FROM licenses WHERE ref=?'),
@@ -1769,6 +1773,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./drop').mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk });
   app.locals.vr = require('./vr').mountVR(app, { db, V });
   app.locals.opening = require('./opening').mountOpening(app, { db, C, V, mail, buyerOf, isStudio });
+  require('./deliveries').mountDeliveries(app, { db, C, V, I: require('./icons'), mail, ledger, grant, nextRef, mk, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, originalPath, images, cache, marked, fileName });
   app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
   app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });

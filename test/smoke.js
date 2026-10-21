@@ -1120,6 +1120,27 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/wander'); assert.ok(/data-st-easel/.test(r.body), 'the stroll opens the easel');
     r = await req(port, 'GET', '/static/easel.js'); assert.ok(r.status === 200 && /ez-notan2/.test(r.body)); }
   console.log('ok: the easel');
+
+  // Deliveries (21 Oct): the maker sends a client their photographs by one link; no payment; each file licensed, marked, counted; the link closes.
+  { r = await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('Make the link'), 'the deliveries desk');
+    const dck = `${ck}; ${(r.headers['set-cookie'] || []).find(c => c.startsWith('wm_as=')).split(';')[0]}`;
+    r = await req(port, 'POST', '/account/deliveries', { cookie: dck, body: { title: 'The thirtieth', client: 'R. D.', email: 'rd@example.com', days: '30', size: 'original', note: 'With love.', works: w.slug } });
+    assert.ok(/sent=/.test(r.headers.location), 'a delivery made'); const dtok = r.headers.location.split('sent=')[1];
+    const dv = db.prepare('SELECT * FROM deliveries WHERE token=?').get(dtok); assert.ok(dv && dv.client_name === 'R. D.' && dv.expires_at, 'the delivery row');
+    const dl = db.prepare("SELECT l.* FROM licenses l JOIN delivery_works dw ON dw.ref=l.ref WHERE dw.delivery_id=?").get(dv.id); assert.ok(dl && dl.status === 'active' && dl.price_cents == null && dl.download_token, 'a free licence of use delivery');
+    assert.equal(db.prepare('SELECT u.key FROM uses u WHERE u.id=?').get(dl.use_id).key, 'delivery');
+    r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Download all') && t.includes('The thirtieth') && t.includes('With love.') && t.includes(`/d/${dl.download_token}`), 'the client door'); }
+    r = await req(port, 'GET', `/d/${dl.download_token}`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']), 'the file by its licence');
+    r = await req(port, 'GET', `/deliver/${dtok}/all.zip`); assert.ok(r.status === 200 && /zip/.test(r.headers['content-type']) && r.body.length > 1000, 'all of it as one zip');
+    assert.ok(db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(dl.id).n >= 2, 'each download counted');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('R. D.'), 'the client is never on the register');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('Delivered'), 'the delivery use is never offered on a wall');
+    r = await req(port, 'GET', `/deliver/${dtok}`); assert.ok(r.body.toString().includes('A thank-you card') && r.body.toString().includes(`name="via" value="${dtok}"`), 'the card to the photographer');
+    r = await req(port, 'POST', `/w/${w.slug}/thanks`, { body: { via: dtok, amount: '499' } }); { const ts = sessions[r.headers.location.split('/').pop()]; assert.ok(ts && /\/deliver\//.test(ts.cancel_url) && /via=/.test(ts.success_url), 'the card returns to the album'); }
+    r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
+    r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
+    r = await req(port, 'GET', `/d/${dl.download_token}`); assert.equal(r.status, 404, 'the licence ended with it');
+    console.log('ok: deliveries'); }
   // The house's portrait ships with the code (20 Oct).
   { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
     r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
@@ -1350,7 +1371,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: curators');
   // The Watermark number and the readable file: twelve digits that find the license; a caption and a name a person reads.
   { const T = require('../src/track'); assert.equal(T.track('WM-2026-000082'), 'WM 2026 0000 8264'); assert.equal(T.ref('wm 2026 0000 8264'), 'WM-2026-000082'); assert.equal(T.ref('WM 2026 0000 8265'), null, 'a mistyped number is caught');
-    const l = db.prepare("SELECT l.*, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.status='active' AND l.download_token IS NOT NULL AND w.original_file LIKE '%.jpg' ORDER BY l.id DESC LIMIT 1").get();
+    const l = db.prepare("SELECT l.*, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.status='active' AND l.download_token IS NOT NULL AND w.original_file LIKE '%.jpg' AND COALESCE(l.intended_use,'') NOT LIKE 'Delivered:%' ORDER BY l.id DESC LIMIT 1").get();
     let r = await req(port, 'GET', '/t/' + T.compact(l.ref)); assert.ok(r.headers.location.includes(encodeURIComponent(l.ref)), 'the number opens the license');
     r = await req(port, 'GET', '/d/' + l.download_token, { headers: { accept: '*/*' } });
     const cd = r.headers['content-disposition'] || ''; assert.ok(cd.includes(T.track(l.ref)) && !/sha256/.test(cd), 'a readable name with the number: ' + cd);

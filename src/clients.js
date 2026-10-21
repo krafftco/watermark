@@ -99,7 +99,7 @@ ${cs.length ? `<ul class="cl-l">${cs.map(c => `<li><a href="/studio/clients/${es
     const c = client(req.params.slug); if (!c) return res.sendStatus(404);
     const list = rows(c), base = C.base;
     const pl = db.prepare(`SELECT p.* FROM placements p JOIN client_licenses x ON x.ref=p.ref WHERE x.client_id=? ORDER BY p.n DESC LIMIT 60`).all(c.id);
-    const uses = db.prepare("SELECT DISTINCT key, name FROM uses WHERE kind!='print' ORDER BY sort").all();
+    const uses = db.prepare("SELECT DISTINCT key, name FROM uses WHERE kind NOT IN ('print','delivery') ORDER BY sort").all();
     const snippet = `&lt;script src="${esc(base)}/site.js" data-client="${esc(c.slug)}" defer&gt;&lt;/script&gt;\n&lt;img data-wm="${esc((list[0] && list[0].slug) || 'the-staircase')}" alt="…"&gt;`;
     res.send(desk(`<h1>${esc(c.name)}.</h1><p class="lede">${esc(hostsOf(c).join(', ') || 'No site on the books yet.')}${c.note ? ` &middot; ${esc(c.note)}` : ''}</p>
 <h2>Licensed</h2>${list.length ? `<table class="tbl"><tr><th></th><th>Photograph</th><th>Use</th><th>Number</th><th>Covered</th><th>Shown</th></tr>${list.map(r => `<tr><td><img class="cat-th" src="/img/${esc(r.slug)}/thumb" alt=""></td><td><a href="/w/${esc(r.slug)}">${esc(tidy(r.title))}</a>${r.place ? `<br><small>${esc(r.place)}</small>` : ''}</td><td>${esc(r.uname)}${r.price_cents ? ` &middot; ${V.money(r.price_cents)}` : ''}</td><td><a href="/c/${esc(r.ref)}">${esc(T.track(r.ref))}</a></td><td>${live(r) ? (r.ends_at ? `until ${esc(String(r.ends_at).slice(0, 10))}` : 'yes') : 'ended'}</td><td>${r.shown} on ${r.pages} page${r.pages === 1 ? '' : 's'}</td></tr>`).join('')}</table>` : '<p>Nothing licensed yet.</p>'}

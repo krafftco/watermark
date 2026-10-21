@@ -1,0 +1,143 @@
+// Deliveries (Will, 21 Oct: "something like ShootProof where I can deliver photos to a client safely through a watermark
+// and a download link; if I send them the link, they can download it without payment"). The maker picks the work (held
+// or kept back), names the client, and sends one link. Each photograph is granted to the client as a license of use
+// 'delivery' (perpetual, no money; the maker's own terms with the client stand outside the house), so every file leaves
+// the house the way every file does: the maker's name, the copyright and the licence number written into it (XMP, the
+// mark within the picture, Content Credentials when signing is on), each download counted and told on the register,
+// and anyone can check a file at /verify. The link /deliver/<token>: the photographs on a dark wall, one download each
+// and all of them as one zip; it closes on the day the maker set (the licences end with it) or when the maker closes it.
+// Nothing of the client is public: `delivery.sent` is hidden on the register; the licences' entries say 'delivered'.
+// Next: a price (the link becomes a Checkout before the files, through the basket's set path); a PIN; proofing (the
+// client picks from a larger set before the maker finishes); the client's own gallery holding what was delivered.
+const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
+const archiver = require('archiver');
+const DAYS = Number(process.env.DELIVERY_DAYS || 30);
+const SIZES = { original: 'The original file', large: 'A 2,400-pixel copy, credited' };
+function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q, makerOf, isStudio, originalPath, images, cache, marked, fileName }) {
+  const { esc, tidy, date } = V;
+  db.exec(`CREATE TABLE IF NOT EXISTS deliveries (id INTEGER PRIMARY KEY, token TEXT NOT NULL UNIQUE, maker_id INTEGER NOT NULL, title TEXT NOT NULL, client_name TEXT NOT NULL, client_email TEXT, note TEXT,
+    size TEXT NOT NULL DEFAULT 'original', expires_at TEXT, status TEXT NOT NULL DEFAULT 'open', opens INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT);
+  CREATE TABLE IF NOT EXISTS delivery_works (delivery_id INTEGER NOT NULL, work_id INTEGER NOT NULL, pos INTEGER NOT NULL DEFAULT 0, ref TEXT NOT NULL, PRIMARY KEY (delivery_id, work_id));`);
+  const byToken = db.prepare('SELECT * FROM deliveries WHERE token=?');
+  const worksOf = d => db.prepare('SELECT w.*, dw.ref, dw.pos FROM delivery_works dw JOIN works w ON w.id=dw.work_id WHERE dw.delivery_id=? ORDER BY dw.pos, w.id').all(d.id);
+  // For the thank-you card: the delivery holding this work, if it is live.
+  const holds = (token, slug) => { const d = byToken.get(token); if (!d || !live(d)) return null; return worksOf(d).some(w => w.slug === slug) ? d : null; };
+  const licOf = ref => db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref);
+  const live = d => d.status === 'open' && !(d.expires_at && new Date(d.expires_at) < new Date());
+  const url = d => `${C.base}/deliver/${d.token}`;
+  const dlCount = d => db.prepare('SELECT COUNT(*) n FROM downloads dl JOIN licenses l ON l.id=dl.license_id JOIN delivery_works dw ON dw.ref=l.ref WHERE dw.delivery_id=?').get(d.id).n;
+  // Closing a delivery ends its licences, so the links stop with it.
+  function close(d) {
+    db.prepare("UPDATE deliveries SET status='closed', closed_at=datetime('now') WHERE id=?").run(d.id);
+    const ended = new Date(Date.now() - 1000).toISOString();
+    for (const w of worksOf(d)) db.prepare("UPDATE licenses SET ends_at=?, updated_at=datetime('now') WHERE ref=? AND status='active'").run(ended, w.ref);
+  }
+  // Expired deliveries close themselves, hourly.
+  function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
+  setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref();
+  const first = s => String(s || '').trim().split(/\s+/)[0] || '';
+
+  // The maker's desk.
+  app.get('/account/deliveries', (req, res) => {
+    const m = makerOf(req); if (!m) return res.redirect('/signin?to=' + encodeURIComponent('/account/deliveries'));
+    const rows = db.prepare('SELECT * FROM deliveries WHERE maker_id=? ORDER BY id DESC LIMIT 100').all(m.id);
+    const works = db.prepare("SELECT id, slug, title, place, status FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY stars DESC, id DESC").all(m.id);
+    const ok = req.query.ok ? String(req.query.ok) : '';
+    const sent = req.query.sent ? byToken.get(String(req.query.sent)) : null;
+    res.send(V.layout({ title: 'Deliveries · Watermark', path: '/account/deliveries', studio: true, body: `<section class="studio-wrap dv-desk"><p class="k">Your studio</p><h1>Deliveries.</h1>
+<p class="lede">Send a client their photographs: one link, no payment, every file carrying your name and its licence inside it, every download counted. The link closes on the day you set.${ok ? ` <b>${esc(ok)}</b>` : ''}</p>
+${sent && sent.maker_id === m.id ? `<div class="dv-sent"><p class="k">Sent</p><h2>${esc(sent.title)}</h2><p>For ${esc(sent.client_name)}${sent.client_email ? `, written to ${esc(sent.client_email)}` : ''}. The link:</p><p class="dv-link"><input readonly value="${esc(url(sent))}" onclick="this.select()"> <button type="button" class="link" data-copy="${esc(url(sent))}">Copy</button></p></div>` : ''}
+<form method="post" action="/account/deliveries" class="dv-f"><h2>A new delivery</h2>
+<div class="dv-grid"><label><span>What it is</span><input name="title" required maxlength="120" placeholder="The wedding, the proofs, the June shoot"></label><label><span>For whom</span><input name="client" required maxlength="120" placeholder="Their name"></label><label><span>Their email (optional: the house writes to them)</span><input type="email" name="email" maxlength="160"></label><label><span>Closes in</span><select name="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">A year</option><option value="0">Never</option></select></label><label><span>The files</span><select name="size">${Object.entries(SIZES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label></div>
+<label class="dv-note"><span>A note to them (optional)</span><textarea name="note" rows="2" maxlength="600"></textarea></label>
+<p class="k">The photographs <small>(tick; held and kept-back alike)</small> · <input type="search" class="dv-find" placeholder="Filter by word" data-dv-find></p>
+<div class="dv-pick" data-dv-pick>${works.map(w => `<label class="dv-w" data-t="${esc((w.title + ' ' + (w.place || '')).toLowerCase())}"><input type="checkbox" name="works" value="${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span>${esc(tidy(w.title))}${w.status === 'hidden' ? ' <i>kept back</i>' : ''}</span></label>`).join('')}</div>
+<p class="dv-row"><button class="buy-btn">Make the link</button> <span class="note">Each photograph is granted to them as a licence of use <i>Delivered</i>, free, with your name and the number written into the file.</span></p></form>
+${rows.length ? `<h2>Sent</h2><table class="tbl dv-t"><tr><th>What</th><th>For</th><th>Photographs</th><th>Opened</th><th>Downloads</th><th>State</th><th></th></tr>${rows.map(d => `<tr><td><a href="/deliver/${esc(d.token)}">${esc(d.title)}</a></td><td>${esc(d.client_name)}</td><td>${db.prepare('SELECT COUNT(*) n FROM delivery_works WHERE delivery_id=?').get(d.id).n}</td><td>${d.opens}</td><td>${dlCount(d)}</td><td>${live(d) ? `Open${d.expires_at ? ` until ${esc(date(d.expires_at))}` : ''}` : 'Closed'}</td><td>${live(d) ? `<form method="post" action="/account/deliveries/${d.id}/close"><button class="link">Close</button></form>` : ''}</td></tr>`).join('')}</table>` : ''}
+<script>(function(){var f=document.querySelector('[data-dv-find]'),p=document.querySelector('[data-dv-pick]');if(f&&p)f.addEventListener('input',function(){var v=f.value.trim().toLowerCase();[].forEach.call(p.children,function(l){l.hidden=!!v&&l.getAttribute('data-t').indexOf(v)<0});});document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;navigator.clipboard&&navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function(){b.textContent='Copied'});});})();</script></section>` }));
+  });
+  app.post('/account/deliveries', (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const b = req.body || {};
+    const title = String(b.title || '').trim().slice(0, 120), client = String(b.client || '').trim().slice(0, 120), email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+    const slugs = [].concat(b.works || []).map(String).slice(0, 300);
+    if (!title || !client || !slugs.length) return res.redirect('/account/deliveries?ok=' + encodeURIComponent('A title, a name and at least one photograph.'));
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect('/account/deliveries?ok=' + encodeURIComponent('That email will not do.'));
+    const u = q.use.get(m.id, 'delivery'); if (!u) return res.redirect('/account/deliveries?ok=' + encodeURIComponent('The delivery use is not set for this studio yet.'));
+    const days = Math.max(0, Math.min(3650, +b.days || 0)); const size = SIZES[b.size] ? b.size : 'original';
+    const token = crypto.randomBytes(18).toString('base64url');
+    const id = Number(db.prepare("INSERT INTO deliveries (token, maker_id, title, client_name, client_email, note, size, expires_at) VALUES (?,?,?,?,?,?,?,?)")
+      .run(token, m.id, title, client, email || null, String(b.note || '').trim().slice(0, 600) || null, size, days ? new Date(Date.now() + days * 864e5).toISOString() : null).lastInsertRowid);
+    let n = 0;
+    for (const slug of slugs) {
+      const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status IN ('held','hidden')").get(slug, m.id); if (!w) continue;
+      const ref = nextRef();
+      // The licence: the client's name, no email on the licence itself (one letter goes out below, not one a photograph).
+      db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status) VALUES (?,?,?,?,?,?,NULL,'requested')").run(ref, w.id, u.id, client, '', `Delivered: ${title}`.slice(0, 400));
+      grant(ref, { paid: false });
+      if (days) db.prepare("UPDATE licenses SET ends_at=? WHERE ref=?").run(new Date(Date.now() + days * 864e5).toISOString(), ref);
+      db.prepare('INSERT INTO delivery_works (delivery_id, work_id, pos, ref) VALUES (?,?,?,?)').run(id, w.id, n++, ref);
+    }
+    if (!n) { db.prepare('DELETE FROM deliveries WHERE id=?').run(id); return res.redirect('/account/deliveries?ok=' + encodeURIComponent('None of those photographs are yours to send.')); }
+    const d = byToken.get(token);
+    try { ledger.append(db, 'delivery.sent', m.handle, { n, size, days }); } catch (e) { /* */ }
+    if (email) mail.send({ to: email, subject: `${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}: ${title}`, text: `${first(client)},\n\n${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}, "${title}".\n\n${url(d)}\n\n${d.note ? d.note + '\n\n' : ''}Each file carries ${m.name}'s name and its licence number inside it; anyone can check a file at ${C.base}/verify.${d.expires_at ? ` The link closes on ${date(d.expires_at)}.` : ''}\n\nWatermark, for ${m.name}` });
+    res.redirect(`/account/deliveries?sent=${token}`);
+  });
+  app.post('/account/deliveries/:id/close', (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const d = db.prepare('SELECT * FROM deliveries WHERE id=? AND maker_id=?').get(+req.params.id, m.id); if (!d) return res.sendStatus(404);
+    close(d); res.redirect('/account/deliveries?ok=' + encodeURIComponent(`${d.title} is closed.`));
+  });
+
+  // The client's door.
+  app.get('/deliver/:token', (req, res) => {
+    const d = byToken.get(String(req.params.token)); if (!d) return res.sendStatus(404);
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
+    res.set('Cache-Control', 'private, no-store');
+    if (!live(d)) return res.status(410).send(V.layout({ title: `${d.title} · Watermark`, bare: true, body: `<main class="dv"><section class="dv-wall"><p class="k">From ${esc(m.name)}</p><h1>${esc(d.title)}</h1><p class="dv-lede">This delivery has closed. Write to ${esc(m.name)} for another.</p></section></main>` }));
+    db.prepare('UPDATE deliveries SET opens=opens+1 WHERE id=?').run(d.id);
+    const ws = worksOf(d), share = d.size === 'large';
+    res.send(V.layout({ title: `${d.title} · Watermark`, bare: true, desc: `${d.title}, from ${m.name}.`, body: `<main class="dv"><section class="dv-wall"><header class="dv-h"><p class="k">From ${esc(m.name)} · for ${esc(d.client_name)}</p><h1>${esc(d.title)}</h1>${d.note ? `<p class="dv-note">${esc(d.note)}</p>` : ''}
+<p class="dv-acts"><a class="dv-all" href="/deliver/${esc(d.token)}/all.zip">${I.in || ''}<span>Download all ${ws.length === 1 ? '' : `(${ws.length})`}</span></a><span class="dv-sz">${esc(SIZES[d.size])}${d.expires_at ? ` · the link closes ${esc(date(d.expires_at))}` : ''}</span></p></header>
+<div class="dv-grid">${ws.map(w => { const l = licOf(w.ref); return `<figure class="dv-w"><a href="/deliver/${esc(d.token)}/${esc(w.slug)}" class="dv-im"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async"></a><figcaption><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}<a href="/d/${esc(l.download_token)}${share ? '?size=share' : ''}" download>Download</a></figcaption></figure>`; }).join('')}</div>
+${ws.length ? `<section class="ty dv-ty" id="thanks"><div class="ty-card"><p class="k">A thank-you card</p>
+${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))} will see it.</p>` : req.query.thanks ? '<p class="ty-done">Not just now; the till is closed.</p>' : ''}
+<form method="post" action="/w/${esc(ws[0].slug)}/thanks" class="ty-f"><input type="hidden" name="via" value="${esc(d.token)}"><p class="ty-say">These are a gift. If you would like to thank ${esc(first(m.name))}, a card goes straight to ${esc(first(m.name))}; the house keeps nothing of it.</p>
+<div class="ty-amts">${[99, 499, 999].map((c, i) => `<label><input type="radio" name="amount" value="${c}" ${i === 1 ? 'checked' : ''}><span>${c < 100 ? `${c}¢` : `$${(c / 100).toFixed(2)}`}</span></label>`).join('')}<label class="ty-own"><input type="radio" name="amount" value="own"><span>$<input name="own" inputmode="decimal" placeholder="your own" aria-label="Your own amount"></span></label></div>
+<input name="word" class="ty-word" placeholder="A word, if you like" maxlength="280" autocomplete="off"><button class="buy-btn">Send the card</button></form></div></section>` : ''}
+<footer class="dv-foot"><p>Each file carries ${esc(m.name)}’s name, the copyright and its licence number inside it, and the house keeps the record of every download. Anyone can check a file at <a href="/verify">watermark.krafftco.com/verify</a>. ${esc(m.name)}’s terms with you stand as agreed between you; the house does not change them.</p><p class="dv-wm">${V.WAVE_MARK || ''} Delivered with Watermark</p></footer></section></main>` }));
+  });
+  // All of it as one zip, each file marked and counted as a download of its own licence.
+  app.get('/deliver/:token/all.zip', async (req, res) => {
+    const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id), ws = worksOf(d), share = d.size === 'large';
+    res.set('Content-Type', 'application/zip'); res.set('Content-Disposition', `attachment; filename="${d.title.replace(/[^\w .-]+/g, ' ').trim() || 'Delivery'}, ${m.name.replace(/[^\w .-]+/g, ' ')} (Watermark).zip"`); res.set('Cache-Control', 'private, no-store');
+    const zip = archiver('zip', { zlib: { level: 1 } }); zip.on('error', () => { try { res.end(); } catch (e) { /* */ } }); zip.pipe(res);
+    for (const w of ws) {
+      const l = licOf(w.ref); if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) continue;
+      try {
+        let file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large');
+        const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
+        const dlId = Number(db.prepare('INSERT INTO downloads (license_id, size) VALUES (?,?)').run(l.id, share ? 'share' : 'full').lastInsertRowid);
+        ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', zip: true });
+        const buf = /\.(jpe?g|png|tiff?)$/i.test(file) ? await marked(fs.readFileSync(file), { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share, format: fmt }) : fs.readFileSync(file);
+        zip.append(buf, { name: fileName(w, m, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()).utf8 || `${w.slug}.jpg` });
+      } catch (e) { console.error('[delivery zip]', w.slug, e.message); }
+    }
+    zip.finalize();
+  });
+  // One photograph's page inside the delivery: the picture large, Download, back.
+  app.get('/deliver/:token/:slug', (req, res) => {
+    const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
+    const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
+    const l = licOf(w.ref), m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
+    res.set('Cache-Control', 'private, no-store');
+    res.send(V.layout({ title: `${tidy(w.title)} · ${d.title} · Watermark`, bare: true, body: `<main class="dv dv-one"><a class="dv-back" href="/deliver/${esc(d.token)}">${I.back || ''}<span>${esc(d.title)}</span></a><img class="dv-big" src="/img/${esc(w.slug)}/large" alt="${esc(tidy(w.title))}"><p class="dv-cap"><b>${esc(tidy(w.title))}</b> · ${esc(m.name)}${w.place ? ` · ${esc(w.place)}` : ''} · <a href="/d/${esc(l.download_token)}${d.size === 'large' ? '?size=share' : ''}" download>Download</a></p></main>` }));
+  });
+  app.locals.deliveries = { url, live, close, worksOf, holds };
+  return app.locals.deliveries;
+}
+module.exports = { mountDeliveries, SIZES };

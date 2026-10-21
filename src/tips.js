@@ -94,11 +94,14 @@ function mountTips(app, { db, C, stripe, maker, slugify, ledger, V, ghost = {}, 
   // is that, for a photograph. The house keeps none of it; the card fee comes out and the rest is theirs.
   const THANKS = [99, 499, 999];
   app.post('/w/:slug/thanks', async (req, res) => {
-    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return res.sendStatus(404);
-    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || maker;
     const x = req.body || {};
+    // From a delivery (21 Oct): a kept-back photograph sent to a client may still be thanked for; the card returns to the delivery.
+    const via = x.via && app.locals.deliveries ? app.locals.deliveries.holds(String(x.via), String(req.params.slug)) : null;
+    const w = db.prepare(via ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return res.sendStatus(404);
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || maker;
+    const home = via ? `/deliver/${via.token}` : `/w/${w.slug}`;
     const cents = x.amount === 'own' ? Math.round(Number(String(x.own || '').replace(/[^0-9.]/g, '')) * 100) : Math.round(Number(x.amount));
-    if (!(cents >= 99 && cents <= 500000)) return res.redirect(`/w/${w.slug}#thanks`);
+    if (!(cents >= 99 && cents <= 500000)) return res.redirect(`${home}#thanks`);
     const grp = require('crypto').randomBytes(9).toString('base64url');
     const word = String(x.word || '').trim().slice(0, 280) || null;
     // From the pocket, when it covers the card: posted at once, no checkout.
@@ -107,26 +110,26 @@ function mountTips(app, { db, C, stripe, maker, slugify, ledger, V, ghost = {}, 
       db.prepare("INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note, status, name, email, paid_at) VALUES (?,?,?,?,?,?,'paid',?,?,datetime('now'))").run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word, b.name || null, b.email || null);
       ledger.append(db, 'thanks.given', `tip-${grp}`, { work: w.slug, to: m.handle, amount: cents, from: 'pocket' });
       if (x.json) return res.json({ ok: true, cents, from: 'pocket' });
-      return res.redirect(`/w/${w.slug}?thanks=given#thanks`);
+      return res.redirect(`${home}?thanks=given#thanks`);
     }
     if (x.json) return res.json({ ok: false, go: `/w/${w.slug}/thanks` });
-    if (!stripe) return res.redirect(`/w/${w.slug}?thanks=off#thanks`);
+    if (!stripe) return res.redirect(`${home}?thanks=off#thanks`);
     db.prepare('INSERT INTO tips (grp, post_slug, maker_id, role, amount_cents, note) VALUES (?,?,?,?,?,?)').run(grp, `work:${w.slug}`, m.id, 'thanks', cents, word);
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment', submit_type: 'donate', customer_creation: 'always',
         line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: cents, product_data: { name: `Thank you, ${m.name}`, description: `For ${String(w.title).replace(/[.\s]+$/, '')}. The house keeps nothing of this; after the card fee it is ${m.name.split(' ')[0]}'s.` } } }],
         metadata: { tip: grp }, payment_intent_data: { metadata: { tip: grp } },
-        success_url: `${C.base}/w/${w.slug}/thanked?grp=${grp}&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/w/${w.slug}#thanks`,
+        success_url: `${C.base}/w/${w.slug}/thanked?grp=${grp}&session_id={CHECKOUT_SESSION_ID}${via ? `&via=${via.token}` : ''}`, cancel_url: `${C.base}${home}#thanks`,
       });
       db.prepare('UPDATE tips SET stripe_session=? WHERE grp=?').run(s.id, grp);
       res.redirect(303, s.url);
-    } catch (e) { console.error('[thanks]', e.message); db.prepare("DELETE FROM tips WHERE grp=? AND status='pending'").run(grp); res.redirect(`/w/${w.slug}?thanks=unavailable#thanks`); }
+    } catch (e) { console.error('[thanks]', e.message); db.prepare("DELETE FROM tips WHERE grp=? AND status='pending'").run(grp); res.redirect(`${home}?thanks=unavailable#thanks`); }
   });
   app.get('/w/:slug/thanked', async (req, res) => {
     const rows = db.prepare('SELECT * FROM tips WHERE grp=?').all(String(req.query.grp || ''));
     if (rows.length && rows[0].stripe_session === req.query.session_id && rows[0].status === 'pending' && stripe) { try { settle(rows[0].grp, await stripe.checkout.sessions.retrieve(req.query.session_id)); } catch (e) { /* the webhook will */ } }
-    res.redirect(`/w/${req.params.slug}?thanks=given#thanks`);
+    res.redirect(`${req.query.via && /^[\w-]+$/.test(String(req.query.via)) ? `/deliver/${req.query.via}` : `/w/${req.params.slug}`}?thanks=given#thanks`);
   });
   // Thank-yous on a work: how many, and the words left with them (shown to the maker; the count to all).
   app.locals.thanksOf = w => ({ n: db.prepare("SELECT COUNT(*) n FROM tips WHERE post_slug=? AND status='paid'").get(`work:${w.slug}`).n, amounts: THANKS,

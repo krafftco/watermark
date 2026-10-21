@@ -34,7 +34,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
     const total = items.length, page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;
     items = items.slice(page * per, page * per + per);
     const makers = db.prepare("SELECT DISTINCT m.* FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held'").all();
-    const useKeys = [...new Map(db.prepare('SELECT key, name FROM uses ORDER BY id').all().map(u => [u.key, u.key === 'social' ? 'Collect' : u.name])).entries()];
+    const useKeys = [...new Map(db.prepare("SELECT key, name FROM uses WHERE kind!='delivery' ORDER BY id").all().map(u => [u.key, u.key === 'social' ? 'Collect' : u.name])).entries()];
     const qs = o => '?' + new URLSearchParams(Object.entries({ ...Q, ...o }).filter(([, v]) => v !== '' && v != null && v !== 0)).toString();
     if (!on(req)) set(res, true); // to arrive here is to ask for the trade
     res.set('Cache-Control', 'private, no-store');
