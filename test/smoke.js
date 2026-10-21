@@ -410,6 +410,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(ex['0th'][piexif.ImageIFD.Copyright].includes(require('../src/track').track(ref1)), 'license stamped in EXIF, as its Watermark number');
   // The mark, policy: the file carries the record in the open (XMP), and a mark within the picture unique to this delivery; it traces back even after recompression.
   { const M = require('../src/mark'); const x = M.readXmp(r.body); assert.ok(x && x.license === ref1 && x.creator, 'XMP names the license and the creator');
+    // The master leaves untouched (21 Oct): the full-size delivery's pixels are the maker's own, byte for byte after the papers; only the display-size copies carry the mark within the picture.
+    { const sharp = require('sharp'); const wrow = db.prepare('SELECT w.* FROM works w JOIN licenses l ON l.work_id=w.id WHERE l.ref=?').get(ref1); const orig = fs.readFileSync(path.join(dir, 'originals', wrow.original_file));
+      const a = await sharp(orig).raw().toBuffer(), b = await sharp(r.body).raw().toBuffer(); assert.ok(a.equals(b), 'the full-size delivery is pixel for pixel the master');
+      const full = await app.locals.mark.trace(r.body); assert.ok(full && full.ref === ref1 && full.how === 'bytes', 'the master traces by its bytes'); }
+    r = await req(port, 'GET', `/d/${l1.download_token}?size=share`);
     const dl = db.prepare('SELECT * FROM downloads WHERE license_id=(SELECT id FROM licenses WHERE ref=?) ORDER BY id DESC LIMIT 1').get(ref1); assert.ok(dl.sha256 && dl.mark === dl.id, 'the delivery recorded with its mark');
     const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok && rd.payload === dl.id, 'the mark reads back');
     const re = await require('sharp')(r.body).jpeg({ quality: 60 }).toBuffer(); const tr = await app.locals.mark.trace(re); assert.ok(tr && tr.ref === ref1 && tr.how === 'mark', 'a recompressed copy still traces to the license');
@@ -1150,6 +1155,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');
     r = await req(port, 'GET', `/d/${dl.download_token}`); assert.equal(r.status, 404, 'the licence ended with it');
     console.log('ok: deliveries'); }
+
+  // A better file on top (Will, 21 Oct): a maker's vault takes a small version, then the full frame of the same picture, which becomes the master of the same record; a smaller one again is declined with the record named.
+  { const sharp = require('sharp'); const mk = db.prepare('SELECT * FROM makers ORDER BY id LIMIT 1').get();
+    const meta = await sharp(SRC).metadata(); const crop = { left: Math.floor(meta.width * 0.3), top: Math.floor(meta.height * 0.2), width: Math.floor(meta.width * 0.5), height: Math.floor(meta.height * 0.6) }; // a different picture from the fixture, so it matches nothing already held
+    const fullUp = path.join(dir, 'full-up.jpg'); await sharp(SRC).extract(crop).flop().jpeg({ quality: 95 }).toFile(fullUp);
+    const small = path.join(dir, 'small-up.jpg'); await sharp(fullUp).resize(300).jpeg({ quality: 90 }).toFile(small);
+    const a = await app.locals.takeWork(small, { name: 'Up 1.jpg', title: 'The Small One', maker_id: mk.id }); assert.ok(a.ok && a.outcome === 'work', JSON.stringify(a));
+    const big = path.join(dir, 'big-up.jpg'); fs.copyFileSync(fullUp, big);
+    const b = await app.locals.takeWork(big, { name: 'Up 1 full.jpg', maker_id: mk.id }); assert.ok(b.ok && b.outcome === 'master' && b.slug === a.slug && /master of/.test(b.note), JSON.stringify(b));
+    const wr = db.prepare('SELECT * FROM works WHERE slug=?').get(a.slug); assert.ok(wr.width > 300 && wr.master_at, 'the record now holds the full frame');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.master' AND subject=?").get(a.slug), 'told on the register');
+    const smaller = path.join(dir, 'smaller-up.jpg'); await sharp(fullUp).resize(500).jpeg({ quality: 90 }).toFile(smaller);
+    const c = await app.locals.takeWork(smaller, { name: 'Up 1 small again.jpg', maker_id: mk.id }); assert.ok(!c.ok && c.outcome === 'smaller' && /no larger/.test(c.error), JSON.stringify(c));
+    assert.ok(!fs.existsSync(smaller), 'the declined file is not kept');
+    console.log('ok: a better file on top'); }
 
   // The bag check (21 Oct): every file is sniffed by its bytes, searched for cargo, decoded whole, before it enters.
   { const BC = require('../src/bagcheck'); const tmp = require('os').tmpdir();

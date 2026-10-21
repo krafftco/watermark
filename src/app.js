@@ -132,8 +132,13 @@ function createApp(cfg = {}) {
     return { utf8: nice + ext, ascii: nice.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').normalize('NFKD').replace(/[^\x20-\x7e]/g, '') + ext };
   }
   const disposition = f => `attachment; filename="${f.ascii.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(f.utf8)}`;
+  // The master leaves untouched (Will, 21 Oct: "never compressing the image in a way that is ever noticeable; our images
+  // have to be the most beautiful digital prints from the master"): a full-size delivery is the maker's own bytes with
+  // the papers added in lossless segments (EXIF, XMP, Content Credentials); it is never decoded and re-encoded, and the
+  // invisible mark within the pixels goes only into the display-size copies (Collect, share), which are made fresh from
+  // a resize anyway. The file is still traced by its bytes (downloads.sha256) and its papers (XMP wm:license).
   async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, format = 'jpeg' }) {
-    let out = await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format });
+    let out = share ? await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format }) : buf;
     if (share) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
       const tmp = path.join(cache, `mark-${dlId}-${Date.now()}.jpg`); fs.writeFileSync(tmp, out);
@@ -1920,7 +1925,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) for (const c of [path.join(cache, `${w.slug}-${sz}.${f}`), images.fileOf(cache, w.slug, sz, f)]) { if (fs.existsSync(c)) fs.unlinkSync(c); }
         const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
         const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
-        if (store.kind === 's3') fs.unlinkSync(dest);
+        // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
     return w;
   }
@@ -1980,6 +1985,24 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
   }
   app.locals.takeMaster = (file, name, folder) => inLane(() => takeMaster(file, name, folder));
+  // A better file on top of one already held (Will, 21 Oct: "allow a higher resolution version to come in on top of
+  // a small one and replace"): the maker's own vault matches a new file to the maker's own works by look (dhash,
+  // same orientation, distance 6 or under); a larger file becomes the master of that record (the slug, deed, licences
+  // and register entries stay), a smaller or equal one is declined with the record named; no match → null, and the
+  // file is registered as new by the caller. The file is consumed only when it becomes a master.
+  app.locals.upgradeIfHeld = (file, originalname, makerId) => inLane(async () => {
+    const info = await images.inspect(file);
+    if (db.prepare('SELECT 1 FROM works WHERE sha256=?').get(info.sha256)) return null; // the same bytes: registerWork answers (held, or come home)
+    const h = await images.dhash(file); let best = null, bestD = 99;
+    for (const w of db.prepare('SELECT id, slug, title, dhash, width, height FROM works WHERE maker_id=? AND dhash IS NOT NULL').all(makerId)) {
+      const d = images.hamming(h, w.dhash);
+      if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
+    }
+    if (!best || bestD > 6) return null;
+    if ((best.width || 0) * (best.height || 0) >= info.width * info.height) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, outcome: 'smaller', slug: best.slug, error: `This looks like ${tidyT(best.title)}, already held at ${Math.round((best.width || 0) * (best.height || 0) / 1e6)} megapixels; this file is no larger. Nothing was changed.` }; }
+    const w = await replaceMaster(q.work.get(best.slug), { path: file, originalname }, info, h);
+    return { ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6), width: info.width, height: info.height, fingerprint: info.sha256.slice(0, 12) };
+  });
   require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming'), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), takeWork: (f, a) => app.locals.takeWork(f, a) }); // straight into the vault in parts, taken in by a queue; the Studio's masters and every maker's own vault
   app.post('/studio/masters/one', studioOnly, upload.single('file'), BAG.gate('image', { json: true }), (req, res) => inLane(async () => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
