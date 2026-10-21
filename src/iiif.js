@@ -69,13 +69,14 @@ async function parseMet(url, doFetch, max) {
 }
 const isMet = url => /^https:\/\/collectionapi\.metmuseum\.org\//.test(url);
 
-function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images, ledger }) {
+function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images, ledger, DEFAULT_USES = [] }) {
   const { esc } = V;
   const doFetch = (...a) => (fetchImpl || fetch)(...a);
   db.exec(`CREATE TABLE IF NOT EXISTS iiif_imports (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, url TEXT NOT NULL, label TEXT, status TEXT NOT NULL DEFAULT 'queued',
     n INTEGER NOT NULL DEFAULT 0, done INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, open TEXT, show INTEGER NOT NULL DEFAULT 0,
     note TEXT, at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`);
   const MAX = Number(process.env.IIIF_MAX) || 300;
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('iiif_imports') WHERE name='max'").get()) db.exec('ALTER TABLE iiif_imports ADD COLUMN max INTEGER');
   const stage = path.join(C.dataDir, 'incoming'); fs.mkdirSync(stage, { recursive: true });
   const placeOf = meta => { const hit = meta.find(x => /^(place|location|geography|site|city)$/i.test(x.label)); return hit ? hit.value.slice(0, 120) : null; };
   const yearOf = (it) => { const hit = it.meta.find(x => /^(date|year|created|dated)$/i.test(x.label)); const m = hit && String(hit.value).match(/\b(1[5-9]\d\d|20\d\d)\b/); return m ? m[1] : null; };
@@ -83,11 +84,11 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   async function run(job) {
     db.prepare("UPDATE iiif_imports SET status='running' WHERE id=?").run(job.id);
     let man;
-    try { if (isMet(job.url)) man = await parseMet(job.url, doFetch, MAX); else { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); } }
+    try { if (isMet(job.url)) man = await parseMet(job.url, doFetch, Math.min(MAX, job.max || MAX)); else { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); } }
     catch (e) { db.prepare("UPDATE iiif_imports SET status='failed', note=?, finished_at=datetime('now') WHERE id=?").run(String(e.message).slice(0, 300), job.id); return; }
-    db.prepare('UPDATE iiif_imports SET label=?, n=? WHERE id=?').run(man.label.slice(0, 200), Math.min(man.items.length, MAX), job.id);
+    const LIM = Math.min(MAX, job.max || MAX); db.prepare('UPDATE iiif_imports SET label=?, n=? WHERE id=?').run(man.label.slice(0, 200), Math.min(man.items.length, LIM), job.id);
     let done = 0, skipped = 0, failed = 0;
-    for (const it of man.items.slice(0, MAX)) {
+    for (const it of man.items.slice(0, LIM)) {
       if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) { skipped++; continue; }
       const tmp = path.join(stage, `iiif-${job.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
       try {
@@ -114,16 +115,30 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(+makerId); if (!m) return res.sendStatus(404);
     const url = String((body || {}).url || '').trim(); if (!/^https?:\/\/\S+$/.test(url)) return res.redirect('/studio/iiif?ok=' + encodeURIComponent('That is not a manifest address.'));
     const open = ['pd', 'cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc'].includes(body.open) ? body.open : (isMet(url) ? 'cc0' : null); // the Met's Open Access is CC0
-    const id = db.prepare('INSERT INTO iiif_imports (maker_id, url, open, show) VALUES (?,?,?,?)').run(m.id, url, open, body.show ? 1 : 0).lastInsertRowid;
+    const id = db.prepare('INSERT INTO iiif_imports (maker_id, url, open, show, max) VALUES (?,?,?,?,?)').run(m.id, url, open, body.show ? 1 : 0, +body.max > 0 ? Math.min(+body.max, MAX) : null).lastInsertRowid;
     kick();
     res.redirect(`/studio/iiif/${id}`);
   }
+  // The demo desk (Will, 21 Oct, for the Met's head of licensing: "do all of the back end stuff first"): one press stands up
+  // a museum desk on the Met's open-access highlights, named plainly as a demonstration (never the Met's own door): the
+  // institution 'museum-demo', its rights desk open with a note, a hundred CC0 highlights shown at once.
+  app.post('/studio/iiif/demo', studioOnly, (req, res) => {
+    let m = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get();
+    if (!m) {
+      db.prepare("INSERT INTO makers (handle, name, kind, bio, email, share_pct, joined_at) VALUES ('museum-demo', 'A museum desk (demonstration)', 'institution', ?, ?, 85, datetime('now'))").run('A demonstration of a museum’s own house on Watermark, built on The Metropolitan Museum of Art’s Open Access objects (CC0). Not the Met’s own door: every object is credited to the museum and free to take, as the Met gives it.', process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com');
+      m = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get();
+      const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); DEFAULT_USES.forEach(u => ins.run(m.id, ...u));
+      try { db.prepare("UPDATE makers SET rights_open=1, rights_note=? WHERE id=?").run('A demonstration desk on open-access objects. Requests here reach the house, not the museum.', m.id); } catch (e) { /* before the rights desk */ }
+    }
+    return enqueue(m.id, { url: 'https://collectionapi.metmuseum.org/public/collection/v1/search?isHighlight=true&hasImages=true&q=painting', open: 'cc0', show: '1', max: String(+(req.body || {}).max || 100) }, res);
+  });
   app.post('/studio/accounts/:id/iiif', studioOnly, (req, res) => enqueue(req.params.id, req.body || {}, res));
   app.get('/studio/iiif', studioOnly, (req, res) => {
     const rows = db.prepare('SELECT i.*, m.name AS maker FROM iiif_imports i JOIN makers m ON m.id=i.maker_id ORDER BY i.id DESC LIMIT 100').all();
     const makers = db.prepare("SELECT id, name, kind FROM makers WHERE COALESCE(kind,'maker')!='writer' ORDER BY kind='institution' DESC, name").all();
     res.send(V.layout({ title: 'IIIF · Studio · Watermark', studio: true, path: '/studio/iiif', body: `<section class="studio-wrap"><p class="k">The house</p><h1>Collections, brought in.</h1>
 <p class="lede">A museum’s collection comes in from its IIIF manifest: every canvas becomes a held work, the full picture fetched once, fingerprinted, sealed and registered. Works arrive held back for review unless shown at once.</p>
+<form method="post" action="/studio/iiif/demo" class="iif-demo"><button class="buy-btn">Stand up the demo desk</button> <small>A museum desk on a hundred of the Met’s open-access highlights, named as a demonstration: /m/museum-demo, /rights/museum-demo, /keys/at/museum-demo.</small></form>
 <form method="post" action="/studio/iiif" class="iif-f"><label>Manifest address, or a Met Open Access search<input name="url" placeholder="https://…/manifest.json · https://collectionapi.metmuseum.org/public/collection/v1/search?q=Vermeer" required></label><label>For<select name="maker">${makers.map(x => `<option value="${x.id}">${esc(x.name)}${x.kind && x.kind !== 'maker' ? ` (${esc(x.kind)})` : ''}</option>`).join('')}</select></label><label>Licence on arrival<select name="open"><option value="">The institution’s terms (licensable)</option><option value="pd">Public domain</option><option value="cc0">CC0</option><option value="cc-by">CC BY</option><option value="cc-by-sa">CC BY-SA</option><option value="cc-by-nc">CC BY-NC</option></select></label><label class="iif-ck"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label><button class="buy-btn">Bring it in</button></form>
 <table class="tbl"><tr><th>When</th><th>For</th><th>Manifest</th><th>Status</th><th>Brought in</th></tr>${rows.map(r => `<tr><td>${esc(r.at.slice(0, 16))}</td><td>${esc(r.maker)}</td><td><a href="/studio/iiif/${r.id}">${esc(r.label || r.url.slice(0, 60))}</a></td><td>${esc(r.status)}${r.note ? ` · ${esc(r.note)}` : ''}</td><td>${r.done} of ${r.n}${r.skipped ? ` · ${r.skipped} already held` : ''}${r.failed ? ` · ${r.failed} failed` : ''}</td></tr>`).join('') || '<tr><td colspan="5">None yet.</td></tr>'}</table></section>` }));
   });

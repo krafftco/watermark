@@ -1191,6 +1191,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const job = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(job.status === 'done' && job.done === 1 && /The Met/.test(job.label), 'one public-domain object in, the other left: ' + JSON.stringify(job));
     const vg = db.prepare("SELECT * FROM works WHERE source_url='https://www.metmuseum.org/art/collection/search/436535'").get(); assert.ok(vg && vg.title === 'Wheat Field with Cypresses' && vg.open === 'cc0' && /1889/.test(vg.taken_at) && /Oil on canvas/.test(vg.medium) && /1993\.132/.test(vg.caption), 'the record: ' + JSON.stringify({ t: vg && vg.title, o: vg && vg.open, m: vg && vg.medium }));
     r = await req(port, 'GET', '/museums/desk'); assert.ok(/Open a rights desk\./.test(r.body) && /The afternoon/.test(r.body), 'the guide');
+    // The demo desk, one press: the institution made, the highlights search enqueued, capped.
+    r = await req(port, 'POST', '/studio/iiif/demo', { cookie: ck, body: { max: '1' } }); assert.ok(/^\/studio\/iiif\/\d+$/.test(r.headers.location), 'enqueued');
+    const dm = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get(); assert.ok(dm && dm.kind === 'institution' && dm.rights_open === 1 && db.prepare('SELECT COUNT(*) n FROM uses WHERE maker_id=?').get(dm.id).n > 0, 'the demo institution with its uses');
+    for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+    const dj = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(dj.status === 'done' && dj.max === 1 && dj.n <= 1, 'capped at one for the test: ' + JSON.stringify(dj));
+    r = await req(port, 'GET', '/rights/museum-demo'); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
     app.locals.__fetch = prev;
   }
   console.log('ok: the Met, in');
