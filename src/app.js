@@ -1662,7 +1662,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       })(),
       { group: 'Words and terms (yours to confirm)', items: [
         { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licenses and prints are drafts' },
-        { ok: false, manual: true, name: 'Shares', detail: FEE.on() ? 'The price is the maker’s; the house’s share (Collect $2.11, else 15%) is paid by the collector; 10% resale royalty and 5% market fee are drafts' : '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
+        { ok: false, manual: true, name: 'Shares', detail: FEE.on() ? `The price is the maker’s; the house’s share (Collect $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}, else ${FEE.schedule()}) is paid by the collector; 10% resale royalty and 5% market fee are drafts` : '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
         { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
     res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, ok: req.query.ok }));

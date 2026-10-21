@@ -16,7 +16,7 @@ function mountEye(app, { db, V }) {
     res.set('Cache-Control', 'no-store').json({
       slug: w.slug, title: j.title, number: j.id, maker: j.maker.name, makerHref: `/m/${j.maker.slug}`, place: j.place, year: j.year,
       copyright: j.copyright.registered ? `© ${j.maker.name}. Registered with the U.S. Copyright Office${j.copyright.registration ? `, ${j.copyright.registration}` : ''}.` : `© ${j.maker.name}, from the moment it was made.`,
-      paid: FEE.on() ? `The price is ${first}’s, every dollar; the house’s share is paid by the collector on top (Collect: $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(2)}; other uses: ${FEE.HOUSE_PCT}%).` : `${share}% of every sale goes to ${first}.`,
+      paid: FEE.on() ? `The price is ${first}’s, every dollar; the house’s share is paid by the collector on top (Collect: $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}; other uses: ${FEE.schedule()}).` : `${share}% of every sale goes to ${first}.`,
       held: holders ? `${holders} ${holders === 1 ? 'person holds' : 'people hold'} it${working ? `; ${working} licensed to use it now` : ''}.` : 'No one holds it yet.',
       uses: (j.uses || []).map(u => ({ name: u.name, price: u.price_cents != null && u.instant ? MONEY(u.price_cents) : 'Ask', href: `/license/${w.slug}?use=${u.key}` })),
       never: (j.rules && j.rules.never || []).map(k => never[k] || k),

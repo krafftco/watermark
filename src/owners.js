@@ -20,6 +20,23 @@ function mountOwners(app, { db, V, C }) {
     ['Small at the centre.', 'The businesses run themselves; headquarters stays a handful of people who choose leaders and allocate capital.'],
     ['Plain words, once a year.', 'The letter reports each business, what it earned, what went wrong and what will be done with the cash. The meeting answers questions for as long as they last.'],
   ];
+  // The house's share, published (Will, 20 Oct: the institution people trust publishes its schedule). One page, one
+  // paragraph each: what the maker receives, what the collector pays on top, what the house does with it.
+  app.get('/share', (req, res) => {
+    const FEE = require('./fee'); const on = FEE.on();
+    res.send(V.layout({ title: 'The house’s share · Watermark', path: '/share', desc: 'What the maker receives, what the collector pays on top, and what the house does with its share.', body: `<article class="dr ow ow-share">
+<header class="dr-h"><div class="dr-hd"><p class="k">The house</p><h1>The house’s share.</h1>
+<p class="lede">${on ? 'The price of a work is the maker’s, every dollar of it. The house’s share is paid by the collector on top, shown in the one number on the wall and itemised on every receipt. This is the whole schedule; there is no other fee.' : `Of every sale, ${85}% is the maker’s and the rest is the house’s. This is the whole schedule; there is no other fee.`}</p></div></header>
+${on ? `<section class="dr-st"><p class="k">The schedule</p>
+<p><b>Collect.</b> The maker’s price plus $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}. A $5 Collect is $${((500 + FEE.COLLECT_HOUSE_CENTS) / 100).toFixed(0)}: $5 to the maker, $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)} to the house.</p>
+<p><b>Every other use, and every print.</b> ${esc(FEE.schedule())} of the maker’s price, on top, by the band, as an auction house’s premium is reckoned. ${(() => { const ex = [35000, 2000000, 10000000].map(m => `$${(m / 100).toLocaleString('en-US')} is paid at $${((m + FEE.premium(m)) / 100).toLocaleString('en-US')}`); return `A price of ${ex[0]}; ${ex[1]}; ${ex[2]}.`; })()}</p>
+<p><b>Memberships</b> (the Club, Keeping, Friends of the house) are dues, not a share, and are priced on their own pages.</p></section>
+<section class="dr-st"><p class="k">What the share pays for</p>
+<p>The card fees, which the house pays out of its share, never the maker’s. The vault, the register, the papers, the delivery, the print room, the guide, the Keys, and the people who keep them. The rest is kept and put back into the house.</p></section>
+<section class="dr-line"><p class="k">What is never touched</p><p>The maker’s price, a collector’s pocket and a curator’s earnings are held apart from the house’s money and paid on schedule. The receipt on every license says what went where; anyone can check a license by its Watermark number.</p></section>` : ''}
+<section class="dr-ask"><p class="k">By letter</p><p>Questions about a particular sale: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}</a>. <a href="/owners">How the company is owned</a> · <a href="/terms">The terms of the house</a>.</p></section>
+</article>` }));
+  });
   app.get('/investors', (req, res) => res.redirect(301, '/owners'));
   app.get('/owners', (req, res) => {
     const n = {

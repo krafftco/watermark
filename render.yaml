@@ -40,9 +40,9 @@ services:
       - key: FEE_SIDE
         value: collector
       - key: COLLECT_HOUSE_CENTS
-        value: "211"
-      - key: HOUSE_PCT
-        value: "15"
+        value: "200"
+      - key: HOUSE_TIERS
+        value: "20:500000,15:5000000,10"
       - key: STRIPE_PUBLISHABLE_KEY
         sync: false
       - key: PAYOUTS
