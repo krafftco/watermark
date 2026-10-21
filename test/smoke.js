@@ -1242,6 +1242,38 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/enterprise'); assert.ok(r.status === 200 && /Your own house\./.test(r.body));
   }
   console.log('ok: the rooms, the clock and a museum’s own house');
+  { // The host's chair as a job: the house offers a night; the keyholder accepts; the night closes with them in the chair; the pocket is paid.
+    const H = app.locals.hosts; const bb = db.prepare('SELECT * FROM buyers WHERE id=?').get(+bck.split('=')[1].split('.')[0]); assert.ok(bb && bb.email, 'the collector');
+    const tonight = H.nightOf();
+    r = await req(port, 'GET', '/hosts'); assert.ok(r.status === 200 && /The hosts\./.test(r.body) && /open/.test(r.body), 'the rota');
+    r = await req(port, 'POST', '/studio/hosts/offer', { cookie: ck, body: { night: tonight, scope: 'house', who: bb.email } }); assert.equal(r.status, 302);
+    let sh = db.prepare("SELECT * FROM host_shifts WHERE night=? AND scope='house'").get(tonight); assert.ok(sh && sh.status === 'offered' && sh.owner === `b:${bb.id}`, 'offered');
+    r = await req(port, 'POST', `/hosts/${sh.id}/accept`, { cookie: bck }); assert.equal(r.status, 302); sh = db.prepare('SELECT * FROM host_shifts WHERE id=?').get(sh.id); assert.equal(sh.status, 'taken');
+    assert.ok(H.isTonightsHost('house', `b:${bb.id}`) && !H.isTonightsHost('house', 'b:999'), 'tonight’s chair is theirs');
+    const before = app.locals.pocket.balance(bb); H.settle('house', tonight, `b:${bb.id}`, 3);
+    assert.equal(app.locals.pocket.balance(bb) - before, H.HOST_CENTS, 'paid for the evening'); assert.ok(app.locals.pocket.cashable(bb) >= H.HOST_CENTS, 'and cashable');
+    assert.equal(db.prepare('SELECT status FROM host_shifts WHERE id=?').get(sh.id).status, 'paid');
+    r = await req(port, 'POST', '/studio/hosts/offer', { cookie: ck, body: { night: tonight, scope: 'house', who: bb.email } }); assert.ok(/taken/.test(decodeURIComponent(r.headers.location)), 'one chair a night');
+    r = await req(port, 'GET', '/studio/hosts', { cookie: ck }); assert.ok(r.status === 200 && /paid/.test(r.body));
+  }
+  console.log('ok: the host’s chair');
+  { // The Screening Room: a film shelved and put on the bill; the lobby before the hour; the room at the hour for keyholders; told after.
+    const SC = app.locals.screening;
+    r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'The Long Gallery', filmmaker: 'A. Restorer', year: '1961', minutes: '90', line: 'Restored from the camera negative.', source_url: 'https://films.example/long-gallery.mp4', notes: '00:00 The first shot was the last we filmed.\n12:40 The light here is real.', chosen_by: 'A. Restorer', chosen_why: 'Because it survives.', status: 'showing' } }); assert.equal(r.status, 302);
+    const f = db.prepare("SELECT * FROM films WHERE slug='the-long-gallery'").get(); assert.ok(f && f.status === 'showing', 'shelved and showing');
+    assert.deepEqual(SC.parseNotes(f.notes)[1], { t: 760, text: 'The light here is real.' }, 'notes by the minute');
+    r = await req(port, 'GET', '/screening'); assert.ok(r.status === 200 && /The Screening Room\./.test(r.body) && /The Long Gallery/.test(r.body), 'the room’s door');
+    r = await req(port, 'GET', '/screening/the-long-gallery'); assert.ok(r.status === 200 && /Not on the bill/.test(r.body) && !/<video/.test(r.body), 'the lobby, no showing set');
+    db.prepare("INSERT INTO film_showings (film_id, at) VALUES (?, datetime('now', '-10 minutes'))").run(f.id);
+    r = await req(port, 'GET', '/screening/the-long-gallery'); assert.ok(/Showing now/.test(r.body) && /bc-door/.test(r.body) && !/<video/.test(r.body), 'a stranger at the window');
+    r = await req(port, 'GET', '/screening/the-long-gallery', { cookie: bck }); assert.ok(/<video/.test(r.body) && /long-gallery\.mp4/.test(r.body) && /join it in progress/.test(r.body), 'a keyholder takes a seat, in progress');
+    assert.equal(db.prepare('SELECT came FROM film_showings WHERE film_id=?').get(f.id).came, 1, 'who came is counted, nothing else');
+    db.prepare("UPDATE film_showings SET at=datetime('now', '-200 minutes') WHERE film_id=?").run(f.id); SC.tell();
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='screening.shown'").get(), 'told on the register');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/The Screening Room showed/.test(r.body));
+    r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'X', source_url: 'http://insecure.example/x.mp4' } }); assert.ok(/https address/.test(decodeURIComponent(r.headers.location)), 'only the house’s own https sources');
+  }
+  console.log('ok: the Screening Room');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }

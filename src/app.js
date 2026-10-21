@@ -1785,6 +1785,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.noTimers = !!cfg.noTimers;
   require('./balcony').mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // the balcony: the Keys' room, open at hours; nothing said is kept
   require('./clock').mountClock(app, { db, V, C, buyerOf }); // the programme by the visitor's hour; the kids' corner
+  require('./hosts').mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the host's chair as a job: the rota, paid from the house's side
+  require('./screening').mountScreening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) }); // the Screening Room: films chosen, shown whole at an hour
   require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe }); // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
   if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();

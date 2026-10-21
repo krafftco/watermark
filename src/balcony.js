@@ -46,6 +46,7 @@ function mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
     if (!r.open) return;
     db.prepare("UPDATE balcony_nights SET host=?, wall=?, piano=?, came=?, closed_at=datetime('now') WHERE id=?").run(r.host ? r.host.name : null, r.wall ? r.wall.slug : null, r.piano ? r.piano.slug : null, r.came.size, r.id);
     try { ledger.append(db, 'balcony.night', r.night, { host: r.host ? r.host.name : null, wall: r.wall ? r.wall.slug : null, came: r.came.size, scope: r.scope }); } catch (e) { /* */ }
+    if (app.locals.hosts) { try { app.locals.hosts.settle(r.scope, r.night, r.host ? String(r.host.id).replace(/^([mb])/, '$1:') : null, r.came.size); } catch (e) { console.error('[hosts]', e.message); } }
     for (const c of r.clients) { try { c.write(`event: closed\ndata: {}\n\n`); c.end(); } catch (e) { /* */ } }
     const f = fresh(r.scope); rooms.set(r.scope, f); if (r === room) room = f; // and everything said is gone
   }
@@ -134,7 +135,8 @@ ${who.keyed ? (room.open ? `<ol class="bc-lines" data-lines></ol><form class="bc
     for (const c of room.clients) if (c.inside && (c.who === to || c.who === who.id)) send(c, 'word', l);
     res.json({ ok: true });
   });
-  app.post('/balcony/host', (req, res) => { const who = whoIs(req); if (!room.open || !who.keyed || !canHost(who) || (room.host && room.host.id !== who.id)) return res.redirect('/balcony'); room.host = { id: who.id, name: who.full }; broadcast('state', state(who), { inside: false }); res.redirect('/balcony'); });
+  const rota = who => { const H = app.locals.hosts; if (!H) return true; const t = H.tonight(room.scope); return !t || who.house || t.owner === String(who.id || '').replace(/^([mb])/, '$1:'); }; // the rota's host has the chair tonight
+  app.post('/balcony/host', (req, res) => { const who = whoIs(req); if (!room.open || !who.keyed || !canHost(who) || (room.host && room.host.id !== who.id) || !rota(who)) return res.redirect('/balcony'); room.host = { id: who.id, name: who.full }; broadcast('state', state(who), { inside: false }); res.redirect('/balcony'); });
   const hostOnly = (req, res) => { const who = whoIs(req); if (!room.open || !(who.house || (room.host && room.host.id === who.id))) { res.redirect('/balcony'); return null; } return who; };
   app.post('/balcony/wall', (req, res) => { const who = hostOnly(req, res); if (!who) return; const w = workOf((req.body || {}).slug); if (w && w.held) { room.wall = w; broadcast('wall', w, { inside: false }); } res.redirect('/balcony'); });
   app.post('/balcony/piano', (req, res) => {

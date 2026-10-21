@@ -21,7 +21,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
   // Credit: money earned in the house (a curator's share, a card received, earnings kept here), posted at once.
   function credit(b, cents, kind, ref, note) { if (!b || !(cents > 0)) return false; db.prepare('INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)').run(b.id, cents, kind, ref || null, note || null); return true; }
   // What was earned here (not put in) may be cashed out: earned, less what has already gone out, never more than the balance.
-  const EARNED = ['curation', 'thanks_in', 'earnings', 'resale'];
+  const EARNED = ['curation', 'thanks_in', 'earnings', 'resale', 'hosting'];
   const earned = b => (b ? db.prepare(`SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted' AND kind IN (${EARNED.map(() => '?').join(',')})`).get(b.id, ...EARNED).s : 0);
   const cashable = b => (b ? Math.max(0, Math.min(balance(b), earned(b) + db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status IN ('posted','pending') AND kind='cashout'").get(b.id).s)) : 0);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('buyers') WHERE name='stripe_account'").get()) db.exec('ALTER TABLE buyers ADD COLUMN stripe_account TEXT');
