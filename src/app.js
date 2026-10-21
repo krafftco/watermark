@@ -1990,6 +1990,36 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // same orientation, distance 6 or under); a larger file becomes the master of that record (the slug, deed, licences
   // and register entries stay), a smaller or equal one is declined with the record named; no match → null, and the
   // file is registered as new by the caller. The file is consumed only when it becomes a master.
+  // Twins (21 Oct): full frames sent before the vault knew to put a better file on top were registered as new works
+  // beside the small ones (eighteen, at 16:0x). `mergeTwins` finds, per maker, a newer hidden work with no licence,
+  // no wall and no edition that matches an older work by look (dhash ≤ 6, same orientation) and is larger, makes its
+  // file the older record's master, and retires the twin (status 'merged': in no listing, never deleted; `work.merged`
+  // hidden on the register). Run once a minute after start, then on demand (app.locals.mergeTwins).
+  async function mergeTwins() {
+    await ensureHashes(); let merged = 0;
+    const twins = db.prepare(`SELECT w.* FROM works w WHERE w.status='hidden' AND w.dhash IS NOT NULL AND w.original_file IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM licenses l WHERE l.work_id=w.id) AND NOT EXISTS (SELECT 1 FROM hang_works h WHERE h.work_id=w.id)
+      AND NOT EXISTS (SELECT 1 FROM print_editions e WHERE e.work_id=w.id) ORDER BY w.id`).all();
+    for (const t of twins) {
+      let best = null, bestD = 99;
+      for (const w of db.prepare('SELECT id, slug, title, dhash, width, height FROM works WHERE maker_id=? AND id<? AND dhash IS NOT NULL AND status IN (\'held\',\'hidden\')').all(t.maker_id, t.id)) {
+        const d = images.hamming(t.dhash, w.dhash); if (d < bestD && (w.width / w.height > 1) === (t.width / t.height > 1)) { best = w; bestD = d; }
+      }
+      if (!best || bestD > 6 || (best.width || 0) * (best.height || 0) >= t.width * t.height) continue;
+      try {
+        const file = await originalPath(t); const tmp = path.join(originals, `twin-${t.id}${path.extname(t.original_file)}`); fs.copyFileSync(file, tmp);
+        const info = await images.inspect(tmp);
+        await inLane(() => replaceMaster(q.work.get(best.slug), { path: tmp, originalname: t.original_file }, info, t.dhash));
+        db.prepare("UPDATE works SET status='merged', status_before='hidden' WHERE id=?").run(t.id);
+        ledger.append(db, 'work.merged', t.slug, { into: best.slug, maker: (mk(t) || {}).handle, width: info.width, height: info.height });
+        if (app.locals.findIndexDirty) app.locals.findIndexDirty(); merged++;
+        console.log('[twins]', t.slug, '→ the master of', best.slug);
+      } catch (e) { console.error('[twins]', t.slug, e.message); }
+    }
+    return merged;
+  }
+  app.locals.mergeTwins = mergeTwins;
+  if (!cfg.noTimers) setTimeout(() => mergeTwins().catch(e => console.error('[twins]', e.message)), 60e3).unref();
   app.locals.upgradeIfHeld = (file, originalname, makerId) => inLane(async () => {
     const info = await images.inspect(file);
     if (db.prepare('SELECT 1 FROM works WHERE sha256=?').get(info.sha256)) return null; // the same bytes: registerWork answers (held, or come home)

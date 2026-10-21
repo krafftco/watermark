@@ -1169,6 +1169,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const smaller = path.join(dir, 'smaller-up.jpg'); await sharp(fullUp).resize(500).jpeg({ quality: 90 }).toFile(smaller);
     const c = await app.locals.takeWork(smaller, { name: 'Up 1 small again.jpg', maker_id: mk.id }); assert.ok(!c.ok && c.outcome === 'smaller' && /no larger/.test(c.error), JSON.stringify(c));
     assert.ok(!fs.existsSync(smaller), 'the declined file is not kept');
+    // Twins from before (the full frame registered beside the small one): mergeTwins makes it the master and retires the twin.
+    { const tw = path.join(dir, 'twin-full.jpg'); await sharp(SRC).extract({ left: 0, top: 0, width: Math.floor(meta.width * 0.45), height: Math.floor(meta.height * 0.7) }).jpeg({ quality: 95 }).toFile(tw);
+      const twS = path.join(dir, 'twin-small.jpg'); await sharp(tw).resize(280).jpeg({ quality: 90 }).toFile(twS);
+      const s1 = await app.locals.takeWork(twS, { name: 'Twin.jpg', title: 'The Twin', maker_id: mk.id }); assert.ok(s1.ok && s1.outcome === 'work');
+      const big2 = await app.locals.registerWork({ file: tw, originalName: 'Twin full.jpg', title: 'The Twin Full', makerId: mk.id }); db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(big2.id);
+      const n = await app.locals.mergeTwins(); assert.ok(n >= 1, 'a twin merged');
+      const old = db.prepare('SELECT * FROM works WHERE slug=?').get(s1.slug), tw2 = db.prepare('SELECT * FROM works WHERE id=?').get(big2.id);
+      assert.ok(old.width > 280 && old.master_at, 'the small record holds the full frame now'); assert.equal(tw2.status, 'merged');
+      r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('The Twin Full'), 'the merge is not told in public'); }
     console.log('ok: a better file on top'); }
 
   // The bag check (21 Oct): every file is sniffed by its bytes, searched for cargo, decoded whole, before it enters.
