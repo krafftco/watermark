@@ -21,7 +21,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.use((req, res, next) => { if (req.query && req.query.maker && isStudio(req)) res.cookie('wm_as', String(req.query.maker), { ...cookieOpts, maxAge: 12 * 3600e3 }); next(); });
   const makerOf = req => {
     const c = req.cookies && req.cookies.wm_m;
-    if (!c) { const h = isStudio(req) ? (req.query && req.query.maker) || (req.cookies && req.cookies.wm_as) : null; return h ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(h)) || null : null; }
+    if (!c) { const h = isStudio(req) ? (req.query && req.query.maker) || (req.cookies && req.cookies.wm_as) : null; if (h) return db.prepare('SELECT * FROM makers WHERE handle=?').get(String(h)) || null; if (app.locals.institutions && req.cookies && req.cookies.wm_staff) { try { return app.locals.institutions.actingFor(req); } catch (e) { return null; } } return null; }
     const [id, exp, mac] = String(c).split('.');
     if (mac !== sign(`m${id}.${exp}`) || Date.now() > +exp) return null;
     return db.prepare('SELECT * FROM makers WHERE id=?').get(+id) || null;

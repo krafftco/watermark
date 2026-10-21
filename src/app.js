@@ -585,6 +585,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger }); // museums: a collection in from a IIIF manifest; the Image API out; /museums
+  require('./institutions').mountInstitutions(app, { db, V, C, mail, ledger, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req), admit: (req, res, email) => (app.locals.admit ? app.locals.admit(req, res, email) : null), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // museums: the team (staff acting for the institution), the museum strip
   require('./rights').mountRights(app, { db, V, C, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the rights desk: one door per institution (/rights/:slug), answered from /account/rights
   require('./legal').mountLegal(app, { db, V, C, ledger, buyerOf: req => app.locals.buyerOf(req), isStudio }); // /terms, /privacy, /legal/*: the house's agreements
 
@@ -1777,6 +1778,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./walk').mountWalk(app, { db, V, SERIES: require('./series') });
   require('./frame').mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket: app.locals.pocket, nextRef, grant, SERIES: require('./series'), collectUse: w => { if (!w) return null; const m = mk(w); const u = q.uses.all(m.id).find(x => x.key === 'social'); return u && u.price_cents > 0 && offered(R.parse(w.rules), 'social', w) ? u : null; } });
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
+  require('./tours').mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio }); // a guide's voice on a wall: /tour/:slug, /guides
   require('./keys').mountKeys(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // The Keys: the club; every maker, collector and curator holds keys
   require('./bench').mountBench(app, { db, V, C, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, mk, notify: app.locals.notify }); // the benches under works and walls: the talk, one door from the wall
   app.locals.noTimers = !!cfg.noTimers;

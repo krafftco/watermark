@@ -43,6 +43,32 @@ function parseManifest(m) {
   return out;
 }
 
+// The Met's Open Access API (Will, 21 Oct: "the Met? I know people there": a desk standing in their name, seeded with
+// their own Open Access works, CC0, through their public API, so the first thing they see is their collection with one
+// door on it). A search address from collectionapi.metmuseum.org is read as a source like a manifest: the search gives
+// object ids; each object gives the full-size primary image (public domain only), title, artist, date, medium,
+// dimensions, credit line, department, accession number and the object's page, shaped into the same items the manifest
+// path takes. Only isPublicDomain objects are taken; anything else is skipped. The Met asks for no key and allows
+// about 80 requests a second; the house takes one object at a time.
+const MET = 'https://collectionapi.metmuseum.org/public/collection/v1/';
+async function parseMet(url, doFetch, max) {
+  const u = new URL(url); if (!u.searchParams.get('q')) u.searchParams.set('q', '*');
+  u.searchParams.set('isPublicDomain', 'true'); u.searchParams.set('hasImages', 'true');
+  const r = await doFetch(u.toString(), { headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(`met search ${r.status}`);
+  const j = await r.json(); const ids = (j.objectIDs || []).slice(0, max);
+  const out = { label: `The Met · ${u.searchParams.get('q')}`, summary: '', items: [], meta: [] };
+  for (const id of ids) {
+    try {
+      const o = await (await doFetch(`${MET}objects/${id}`, { headers: { accept: 'application/json' } })).json();
+      if (!o || !o.isPublicDomain || !o.primaryImage) continue;
+      const meta = [['Artist', o.artistDisplayName], ['Date', o.objectDate], ['Medium', o.medium], ['Dimensions', o.dimensions], ['Credit line', o.creditLine], ['Department', o.department], ['Accession number', o.accessionNumber], ['Culture', o.culture], ['Place', [o.city, o.country].filter(Boolean).join(', ')]].filter(([, v]) => v).map(([label, value]) => ({ label, value: String(value) }));
+      out.items.push({ id: o.objectURL || `${MET}objects/${id}`, label: o.title || 'Untitled', summary: [o.artistDisplayName, o.objectDate].filter(Boolean).join(', '), image: o.primaryImage, meta });
+    } catch (e) { /* one object missed */ }
+  }
+  return out;
+}
+const isMet = url => /^https:\/\/collectionapi\.metmuseum\.org\//.test(url);
+
 function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images, ledger }) {
   const { esc } = V;
   const doFetch = (...a) => (fetchImpl || fetch)(...a);
@@ -57,7 +83,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   async function run(job) {
     db.prepare("UPDATE iiif_imports SET status='running' WHERE id=?").run(job.id);
     let man;
-    try { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); }
+    try { if (isMet(job.url)) man = await parseMet(job.url, doFetch, MAX); else { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); } }
     catch (e) { db.prepare("UPDATE iiif_imports SET status='failed', note=?, finished_at=datetime('now') WHERE id=?").run(String(e.message).slice(0, 300), job.id); return; }
     db.prepare('UPDATE iiif_imports SET label=?, n=? WHERE id=?').run(man.label.slice(0, 200), Math.min(man.items.length, MAX), job.id);
     let done = 0, skipped = 0, failed = 0;
@@ -87,7 +113,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   function enqueue(makerId, body, res) {
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(+makerId); if (!m) return res.sendStatus(404);
     const url = String((body || {}).url || '').trim(); if (!/^https?:\/\/\S+$/.test(url)) return res.redirect('/studio/iiif?ok=' + encodeURIComponent('That is not a manifest address.'));
-    const open = ['pd', 'cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc'].includes(body.open) ? body.open : null;
+    const open = ['pd', 'cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc'].includes(body.open) ? body.open : (isMet(url) ? 'cc0' : null); // the Met's Open Access is CC0
     const id = db.prepare('INSERT INTO iiif_imports (maker_id, url, open, show) VALUES (?,?,?,?)').run(m.id, url, open, body.show ? 1 : 0).lastInsertRowid;
     kick();
     res.redirect(`/studio/iiif/${id}`);
@@ -98,7 +124,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     const makers = db.prepare("SELECT id, name, kind FROM makers WHERE COALESCE(kind,'maker')!='writer' ORDER BY kind='institution' DESC, name").all();
     res.send(V.layout({ title: 'IIIF · Studio · Watermark', studio: true, path: '/studio/iiif', body: `<section class="studio-wrap"><p class="k">The house</p><h1>Collections, brought in.</h1>
 <p class="lede">A museum’s collection comes in from its IIIF manifest: every canvas becomes a held work, the full picture fetched once, fingerprinted, sealed and registered. Works arrive held back for review unless shown at once.</p>
-<form method="post" action="/studio/iiif" class="iif-f"><label>Manifest address<input name="url" placeholder="https://…/manifest.json" required></label><label>For<select name="maker">${makers.map(x => `<option value="${x.id}">${esc(x.name)}${x.kind && x.kind !== 'maker' ? ` (${esc(x.kind)})` : ''}</option>`).join('')}</select></label><label>Licence on arrival<select name="open"><option value="">The institution’s terms (licensable)</option><option value="pd">Public domain</option><option value="cc0">CC0</option><option value="cc-by">CC BY</option><option value="cc-by-sa">CC BY-SA</option><option value="cc-by-nc">CC BY-NC</option></select></label><label class="iif-ck"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label><button class="buy-btn">Bring it in</button></form>
+<form method="post" action="/studio/iiif" class="iif-f"><label>Manifest address, or a Met Open Access search<input name="url" placeholder="https://…/manifest.json · https://collectionapi.metmuseum.org/public/collection/v1/search?q=Vermeer" required></label><label>For<select name="maker">${makers.map(x => `<option value="${x.id}">${esc(x.name)}${x.kind && x.kind !== 'maker' ? ` (${esc(x.kind)})` : ''}</option>`).join('')}</select></label><label>Licence on arrival<select name="open"><option value="">The institution’s terms (licensable)</option><option value="pd">Public domain</option><option value="cc0">CC0</option><option value="cc-by">CC BY</option><option value="cc-by-sa">CC BY-SA</option><option value="cc-by-nc">CC BY-NC</option></select></label><label class="iif-ck"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label><button class="buy-btn">Bring it in</button></form>
 <table class="tbl"><tr><th>When</th><th>For</th><th>Manifest</th><th>Status</th><th>Brought in</th></tr>${rows.map(r => `<tr><td>${esc(r.at.slice(0, 16))}</td><td>${esc(r.maker)}</td><td><a href="/studio/iiif/${r.id}">${esc(r.label || r.url.slice(0, 60))}</a></td><td>${esc(r.status)}${r.note ? ` · ${esc(r.note)}` : ''}</td><td>${r.done} of ${r.n}${r.skipped ? ` · ${r.skipped} already held` : ''}${r.failed ? ` · ${r.failed} failed` : ''}</td></tr>`).join('') || '<tr><td colspan="5">None yet.</td></tr>'}</table></section>` }));
   });
   app.post('/studio/iiif', studioOnly, (req, res) => enqueue((req.body || {}).maker, req.body || {}, res));
@@ -144,6 +170,7 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
 <div><p class="k">For the rights desk</p><h2>Licensing, done for you.</h2><p>Editors and companies license from a dense search built for the trade; the contract is assembled per order from counsel’s pattern; the money settles by Stripe; the delivered file carries its licence inside it. Open works (public domain, CC0) are given away, credited, with the original.</p></div>
 <div><p class="k">For members</p><h2>The Keys.</h2><p>Your members hold keys: the benches under every work, the balcony in the evening, the dinner. Keys are earned, never bought; nothing said on the balcony is kept. A clubhouse the museum does not have to run.</p></div>
 </section>
+<p><a class="link" href="/museums/desk">How to open a rights desk, in an afternoon →</a></p>
 <section class="mu-ways"><p class="k">Three ways in</p><h2>However much you want to move.</h2><ol><li><b>The desk only.</b> Keep your collection where it is; open a rights desk on Watermark in an afternoon and point your rights page at it. The house answers nothing itself; your people do, from one queue.</li><li><b>The manifest.</b> Give the house your IIIF manifest and the collection is held, fingerprinted and sealed, your viewers keep working against the Image API, and every work gains its page, its guide and its licence.</li><li><b>The platform.</b> The open API, the partner bridge and the Keys: your members, your shop, your archive on the house’s rails, under your name. We help you integrate; the engineering is ours, the collection is yours, and it leaves with you if you ever ask.</li></ol></section>
 <section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
   });
@@ -151,4 +178,4 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
   app.locals.iiif = { parseManifest, kick, run };
   return app.locals.iiif;
 }
-module.exports = { mountIIIF, parseManifest };
+module.exports = { mountIIIF, parseManifest, parseMet };

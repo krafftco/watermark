@@ -81,6 +81,23 @@ ${q ? (found.length ? `<ul class="rd-found">${found.map(w => `<li><a href="/m/${
     if (notify) notify({ maker_id: m.id, kind: 'rights', title: `A rights request, ${ticket}`, body: what.slice(0, 120), href: `/account/rights/${ticket}` }).catch(() => {});
     res.redirect(303, `/rights/${m.handle}?ok=sent&t=${encodeURIComponent(ticket)}`);
   });
+  // How to open a desk: the page a museum's rights staff read before the meeting.
+  app.get('/museums/desk', (req, res) => {
+    res.send(V.layout({ title: 'Open a rights desk · Watermark', path: '/museums/desk', desc: 'How an institution opens its rights and reproductions desk on Watermark, in an afternoon, with nothing migrated.', body: `<article class="rd rd-guide">
+<header class="rd-h"><p class="k">For museums</p><h1>Open a rights desk.</h1>
+<p class="lede">One door for every request to reproduce, quote or license from your collection and archives, answered by your own people from one queue, with a ticket the asker can follow. Nothing migrates; nothing leaves your building; your rights page points at the desk and that is all that changes.</p></header>
+<section class="rd-s"><p class="k">What it replaces</p><p>The page of paragraphs: one agency for North America, another for the rest of the world, archival audio to a third address, text permissions to a fourth, and the permission form as a PDF to print, sign and post. Scholars email; nobody knows where a request is; the answer takes weeks and is not recorded anywhere a second person can find it.</p></section>
+<section class="rd-s"><p class="k">What the desk does</p><ol class="ow-ol">
+<li><b>One address.</b> <code>${esc(C.base)}/rights/&lt;your-name&gt;</code>, or under your own domain by letter. Your rights page links it; the old addresses can stay as long as you like.</li>
+<li><b>Every field of your form, once.</b> What, the use, the publication (author, title, publisher, date), territory, deadline, who is asking and where to write. Your conditions, in your words, accepted with a tick. A PDF is no longer needed, though the desk will take one.</li>
+<li><b>A ticket.</b> RR-2026-00042, mailed to the asker and to your rights address. The asker follows it on a page; your staff answer from a queue: grant, answer, decline, with a fee if any, in writing. A grant is the permission, recorded with its number.</li>
+<li><b>The collection, if you choose.</b> Works the house holds for you are licensed on the spot at your prices, and public-domain works are given free with your credit line, so the simple requests never reach a person. Bring works in from your IIIF manifest or your own API; leave the rest where it is.</li>
+<li><b>Third-party rights, said plainly.</b> Where the artist’s estate or a donor must also consent, your answer names it; the desk does not pretend to clear what it cannot.</li></ol></section>
+<section class="rd-s"><p class="k">What it costs, and what it keeps</p><p>The pilot is free for ninety days. The desk’s records are yours: exported on request, deleted on request; the house never sells or shares a requester’s details. The service runs on encrypted storage with nightly sealed backups and a weekly restore drill, behind two-factor doors, with every action by your staff on an audit trail. The agreement is one page and is read by your counsel before anything is turned on.</p></section>
+<section class="rd-s"><p class="k">The afternoon</p><ol class="ow-ol"><li>Write to the house with the institution’s name and the address your rights requests should reach.</li><li>The house opens the desk and sends your rights staff their invitation; they sign in with their email and a passkey, set the conditions in your words, and try a request on themselves.</li><li>Put the link on your rights page. Measure the turnaround.</li></ol>
+<p><a class="buy-btn" href="mailto:${esc(HOUSE)}?subject=${encodeURIComponent('A rights desk for our institution')}">Write to the house</a> <a class="link" href="/museums">For museums</a></p></section>
+</article>` }));
+  });
   // The asker follows it.
   app.get('/rights/r/:ticket', (req, res) => {
     const r = db.prepare('SELECT r.*, m.name AS inst, m.handle FROM rights_requests r JOIN makers m ON m.id=r.maker_id WHERE r.ticket=?').get(String(req.params.ticket).toUpperCase()); if (!r) return res.sendStatus(404);

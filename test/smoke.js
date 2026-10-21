@@ -1177,6 +1177,51 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/museums'); assert.ok(/One door, not four addresses/.test(r.body) && /Three ways in/.test(r.body), 'the pitch');
     db.prepare("UPDATE works SET status='hidden' WHERE maker_id=?").run(inst.id);
   }
+  { // The Met's Open Access API as a source: the search gives ids, each object its public-domain picture and record; CC0 by default.
+    const sharp = require('sharp'); const pic = await sharp({ create: { width: 800, height: 640, channels: 3, background: '#5a4a3a' } }).jpeg().toBuffer();
+    const prev = app.locals.__fetch;
+    app.locals.__fetch = async (u) => { u = String(u); if (/collectionapi\.metmuseum\.org\/public\/collection\/v1\/search/.test(u)) return { ok: true, json: async () => ({ total: 2, objectIDs: [436535, 999]}) };
+      if (/objects\/436535$/.test(u)) return { ok: true, json: async () => ({ objectID: 436535, isPublicDomain: true, primaryImage: 'https://images.metmuseum.org/x/436535.jpg', title: 'Wheat Field with Cypresses', artistDisplayName: 'Vincent van Gogh', objectDate: '1889', medium: 'Oil on canvas', dimensions: '28 7/8 × 36 3/4 in.', creditLine: 'Purchase, The Annenberg Foundation Gift, 1993', department: 'European Paintings', accessionNumber: '1993.132', objectURL: 'https://www.metmuseum.org/art/collection/search/436535' }) };
+      if (/objects\/999$/.test(u)) return { ok: true, json: async () => ({ objectID: 999, isPublicDomain: false, primaryImage: 'https://images.metmuseum.org/x/999.jpg', title: 'Not open' }) };
+      if (/images\.metmuseum\.org/.test(u)) return { ok: true, arrayBuffer: async () => pic };
+      return prev ? prev(u) : { ok: false, status: 404 }; };
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'POST', '/studio/iiif', { cookie: ck, body: { maker: String(inst.id), url: 'https://collectionapi.metmuseum.org/public/collection/v1/search?q=van%20gogh' } });
+    for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+    const job = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(job.status === 'done' && job.done === 1 && /The Met/.test(job.label), 'one public-domain object in, the other left: ' + JSON.stringify(job));
+    const vg = db.prepare("SELECT * FROM works WHERE source_url='https://www.metmuseum.org/art/collection/search/436535'").get(); assert.ok(vg && vg.title === 'Wheat Field with Cypresses' && vg.open === 'cc0' && /1889/.test(vg.taken_at) && /Oil on canvas/.test(vg.medium) && /1993\.132/.test(vg.caption), 'the record: ' + JSON.stringify({ t: vg && vg.title, o: vg && vg.open, m: vg && vg.medium }));
+    r = await req(port, 'GET', '/museums/desk'); assert.ok(/Open a rights desk\./.test(r.body) && /The afternoon/.test(r.body), 'the guide');
+    app.locals.__fetch = prev;
+  }
+  console.log('ok: the Met, in');
+  { // The team: a museum invites its rights desk by letter; the person signs in as themselves and acts for the institution.
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'GET', '/account/staff', { cookie: `${ck}; wm_as=musee` }); assert.equal(r.status, 200); assert.ok(/The team\./.test(r.body), 'the team desk');
+    r = await req(port, 'POST', '/account/staff', { cookie: `${ck}; wm_as=musee`, body: { name: 'Rosa Vale', email: 'rosa@musee.example', role: 'rights' } }); assert.equal(r.status, 302);
+    const st = db.prepare("SELECT * FROM institution_staff WHERE email='rosa@musee.example'").get(); assert.ok(st && st.status === 'invited', 'invited');
+    r = await req(port, 'GET', '/staff/join/' + st.token); assert.equal(r.status, 302); assert.equal(r.headers.location, '/account/rights', 'the rights desk opens for the rights role');
+    const sck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(c => /^wm_(b|staff)=/.test(c)).join('; '); assert.ok(/wm_staff=/.test(sck), 'the seat remembered');
+    r = await req(port, 'GET', '/account/rights', { cookie: sck }); assert.equal(r.status, 200, 'Rosa works the desk as the museum: ' + r.status); assert.ok(r.body.toString().includes(inst.name), 'as the institution');
+    r = await req(port, 'GET', `/m/musee`); assert.ok(/class="mu-strip"/.test(r.body) && /Rights and reproductions/.test(r.body) && /Rosa Vale/.test(r.body), 'the museum strip with the team');
+    r = await req(port, 'GET', '/staff/join/' + st.token); const stranger = await req(port, 'GET', '/account/staff', { cookie: sck }); assert.equal(stranger.status, 200);
+    r = await req(port, 'POST', `/account/staff/${st.id}/end`, { cookie: `${ck}; wm_as=musee` }); r = await req(port, 'GET', '/account/rights', { cookie: sck }); assert.ok(r.status === 401 || r.status === 302 || r.status === 403, 'the seat taken back closes the desk: ' + r.status);
+  }
+  console.log('ok: the team');
+  { // A tour: the curator records a word on a work; the wall becomes a tour; a stranger hears it; /guides lists the guide.
+    const hg = db.prepare("SELECT h.* FROM hangs h JOIN hang_works hw ON hw.hang_id=h.id WHERE h.public=1 GROUP BY h.id ORDER BY h.id LIMIT 1").get(); assert.ok(hg, 'a public wall to walk');
+    const owner = db.prepare('SELECT * FROM buyers WHERE id=?').get(hg.buyer_id); const ow = db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='held' ORDER BY hw.pos LIMIT 1").get(hg.id);
+    r = await req(port, 'GET', `/tour/${hg.slug}`); assert.equal(r.status, 200); assert.ok(/in the guide’s words/.test(r.body), 'a wall with no voice yet');
+    const voice = Buffer.from('OggS' + 'x'.repeat(2000)); const bd = '----wmtour'; const body = Buffer.concat([Buffer.from(`--${bd}\r\nContent-Disposition: form-data; name="seconds"\r\n\r\n12\r\n--${bd}\r\nContent-Disposition: form-data; name="voice"; filename="voice.ogg"\r\nContent-Type: audio/ogg\r\n\r\n`), voice, Buffer.from(`\r\n--${bd}--\r\n`)]);
+    r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}`, { body, headers: { 'content-type': `multipart/form-data; boundary=${bd}` } }); assert.ok(r.status === 403 || r.status === 401, 'a stranger cannot record: ' + r.status);
+    r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}`, { cookie: ck, body, headers: { 'content-type': `multipart/form-data; boundary=${bd}` } }); assert.equal(r.status, 200, 'the house records on any wall: ' + r.body); const vj = JSON.parse(r.body); assert.ok(vj.ok && /\/tour\/\d+\/voice\/\d+/.test(vj.src));
+    assert.ok(app.locals.tours.isTour(hg), 'the wall is a tour now'); assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='tour.opened'").get(), 'told on the register');
+    r = await req(port, 'GET', vj.src, { headers: { range: 'bytes=0-99' } }); assert.equal(r.status, 206); assert.equal(r.headers['content-type'], 'audio/ogg'); assert.equal(r.body.length, 100, 'a range is honoured');
+    r = await req(port, 'GET', `/tour/${hg.slug}`); assert.ok(/in the guide’s own voice/.test(r.body) && r.body.toString().includes(vj.src), 'the tour carries the voice');
+    r = await req(port, 'GET', `/hang/${hg.slug}`); assert.ok(/Take the tour/.test(r.body), 'the door on the wall');
+    r = await req(port, 'GET', '/guides'); assert.ok(r.status === 200 && r.body.toString().includes(`/tour/${hg.slug}`), 'the guide is listed');
+    r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}/remove`, { cookie: ck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.isTour(hg), 'removed');
+  }
+  console.log('ok: tours');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }

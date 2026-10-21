@@ -3354,3 +3354,23 @@ html.fd-on{overflow:hidden}
 .rd-desk .rd-set{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin:14px 0 24px;padding:16px;border:1px solid var(--ln)}.rd-set label{display:flex;flex-direction:column;gap:4px;font-size:13px}.rd-set input,.rd-set textarea{padding:8px 10px;border:1px solid var(--ln);font:inherit}.rd-dl{display:grid;grid-template-columns:120px 1fr;gap:8px 16px;margin:16px 0}.rd-dl dt{color:var(--mut);font-size:13px}.rd-ans{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:16px}.rd-ans label{display:flex;flex-direction:column;gap:4px;font-size:13px}.rd-ans textarea,.rd-ans input{padding:9px 10px;border:1px solid var(--ln);font:inherit}.rd-btns{grid-column:1/-1;display:flex;gap:10px}
 .mu-ways{margin:34px 0;padding-top:22px;border-top:1px solid var(--ln)}.mu-ways h2{font:400 28px/1.15 var(--disp)}.mu-ways ol{padding-left:1.2em}.mu-ways li{margin:0 0 10px;line-height:1.55}
 @media (max-width:760px){.rd-f,.rd-set,.rd-ans{grid-template-columns:1fr}.rd-dl{grid-template-columns:1fr}}
+
+/* The tour (src/tours.js): a guide's voice on a wall. */
+.tr{min-height:100svh;background:#0b0a09;color:#eee;display:grid;grid-template-rows:auto 1fr auto}
+.tr-bar{display:flex;align-items:center;gap:16px;padding:14px 18px;padding-top:calc(14px + env(safe-area-inset-top));font-size:13px}
+.tr-bar .tr-back{display:inline-flex;align-items:center;gap:6px;color:#bbb;text-decoration:none}.tr-bar svg{width:20px;height:20px}
+.tr-title{margin:0;flex:1;display:flex;gap:10px;align-items:baseline}.tr-title b{font-family:var(--serif,Georgia,serif);font-weight:500;font-size:16px}.tr-title span{color:#999}.tr-n{color:#999;font-variant-numeric:tabular-nums}
+.tr-stage{position:relative;display:grid;place-items:center;padding:0 0 12px}
+.tr-welcome{max-width:560px;padding:40px 24px;text-align:center}.tr-welcome h1{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:40px;margin:8px 0 10px}.tr-welcome .lede,.tr-guide,.tr-count{color:#bbb}.tr-guide{font-size:15px}.tr-count{font-size:13px}.tr-begin{margin-top:18px}
+.tr-im{max-width:min(96vw,1600px);max-height:calc(100svh - 190px);width:auto;height:auto;object-fit:contain;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.tr-plate{text-align:center;padding:14px 20px 0;max-width:720px}.tr-plate b{font-family:var(--serif,Georgia,serif);font-weight:500;font-size:17px;display:block}.tr-plate span{color:#999;font-size:13px}.tr-note{color:#ddd;font-size:15px;line-height:1.5;margin:10px 0 0;min-height:1.5em}
+.tr-on .tr-welcome{display:none}
+.tr-deck{display:flex;justify-content:center;gap:10px;padding:10px 0 calc(16px + env(safe-area-inset-bottom))}
+.tr-deck button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#eee;border-radius:999px;width:46px;height:46px;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(8px)}.tr-deck svg{width:22px;height:22px}
+.tr-play svg:last-child,.tr-playing .tr-play svg:first-child{display:none}.tr-playing .tr-play svg:last-child{display:block}.tr:not(.tr-voiced) .tr-play{opacity:.3;pointer-events:none}
+.tr-rec{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;margin-top:6px}.tr-rec audio{height:30px;max-width:220px}.tr-rec-s{color:#777}
+.tr-welcome-rec p.note{margin:4px 0 8px}.tr-door a{display:inline-flex;align-items:center;gap:8px}.tr-door svg{width:20px;height:20px}
+.gd-list{max-width:900px;margin:0 auto;padding:0 20px 60px;display:grid;gap:28px}.gd h2{font-family:var(--serif,Georgia,serif);font-weight:500;margin:0 0 4px}.gd-line{color:var(--muted,#666);margin:0 0 8px}.gd ul{list-style:none;padding:0;margin:0}.gd li{padding:6px 0;border-top:1px solid var(--rule,#e6e2db)}.gd li small{color:var(--muted,#666);margin-left:8px}
+/* The museum strip on an institution's page (src/institutions.js). */
+.mu-strip{background:#111;color:#eee;padding:34px 0}.mu-strip .k{color:#aaa}.mu-doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0 0}.mu-doors a{display:block;padding:18px 16px;border:1px solid rgba(255,255,255,.14);text-decoration:none;color:#eee;background:rgba(255,255,255,.04)}.mu-doors a:hover{background:rgba(255,255,255,.09)}.mu-doors b{display:block;font-family:var(--serif,Georgia,serif);font-weight:500;font-size:20px;margin-bottom:4px}.mu-doors span{font-size:13px;color:#aaa}.mu-team{margin:16px 0 0;font-size:14px;color:#ccc}.mu-team i{color:#999;font-style:normal;font-size:12px;margin-left:3px}
+.tm-f{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;margin:18px 0}.tm-f label{display:grid;gap:4px;font-size:13px}@media(max-width:760px){.tm-f{grid-template-columns:1fr}.tr-welcome h1{font-size:30px}.tr-im{max-height:calc(100svh - 220px)}}
