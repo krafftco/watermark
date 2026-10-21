@@ -48,8 +48,10 @@ let marker = null; // { key, payloadFor(slug) } set by the app
 const setMarker = m => { marker = m; };
 // Quality (20 Oct, after the blocking): screen and large at JPEG 88 / WebP 82-84, which holds a smooth sky; the file
 // names carry 'q2' so every rendition made before is rebuilt.
-const Q = { jpg: { thumb: 78, screen: 88, large: 90, wall: 90 }, webp: { thumb: 72, screen: 90, large: 92, wall: 92 } };
-const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q2.${fmt}`);
+// (21 Oct, Will: "as good as Lightroom or Leica") Up from 88/90 and 90/92: on a grainy frame JPEG 90 sat at 41 dB
+// against the resized master, 94 at 42.6, with the bytes up by two fifths; WebP 94 matches at two thirds the size.
+const Q = { jpg: { thumb: 80, screen: 92, large: 94, wall: 94 }, webp: { thumb: 76, screen: 92, large: 94, wall: 94 } };
+const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q3.${fmt}`); // q3: the qualities of 21 Oct
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
@@ -69,6 +71,11 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   }
   return out;
 }
+// A copy for delivery (21 Oct): made straight from the master, Lanczos, JPEG 94 at full chroma, nothing laid into the
+// pixels (the mark within the picture took a delivered copy from 41 dB to 36.6 and showed on faces). A Buffer.
+async function copy(original, width = 2400, { quality = 94 } = {}) {
+  return sharp(original).rotate().resize({ width, height: width, fit: 'inside', withoutEnlargement: true }).toColourspace('srgb').jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
+}
 // The format a request will take: WebP when the browser says so, else JPEG.
 function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
@@ -87,4 +94,4 @@ async function dhash(file) {
 }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { setMarker, fileOf, inspect, derivative, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { setMarker, fileOf, inspect, derivative, copy, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };

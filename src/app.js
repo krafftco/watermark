@@ -139,8 +139,12 @@ function createApp(cfg = {}) {
   // a resize anyway. The file is still traced by its bytes (downloads.sha256) and its papers (XMP wm:license).
   // `share`: a display-size copy (made from a resize) carries the mark within the picture; `strip` (default with share):
   // the visible credit strip; an album's copies (21 Oct) are marked but carry no strip.
+  // (21 Oct, later) Nothing is laid into the pixels of any delivered file either: the mark within the picture took a
+  // 2,400-pixel copy from 41 dB to 36.6 against the master and showed on a face. A copy is made straight from the
+  // master (images.copy) and leaves with its papers; a share copy also carries the visible credit strip. Every file is
+  // traced by its bytes (downloads.sha256), its XMP and its Content Credentials.
   async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, strip = null, format = 'jpeg' }) {
-    let out = share ? await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format }) : buf;
+    let out = buf;
     if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
       const cap = captionOf({ w, maker, ref, licensee, use, ends });
@@ -1555,13 +1559,14 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
-    let file; try { file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large'); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
     const fname = fileName(w, maker, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()); const name = fname.ascii;
     if (/\.(jpe?g|png|tiff?)$/i.test(file)) {
       try {
         const u = lu;
-        const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
-        const buf = await marked(fs.readFileSync(file), { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, format: fmt });
+        const fmt = share ? 'jpeg' : /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
+        const raw = share ? await images.copy(file, 2400) : fs.readFileSync(file); // a share copy straight from the master (21 Oct), the original untouched
+        const buf = await marked(raw, { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, format: fmt });
         if (fmt !== 'jpeg') { res.set('Content-Disposition', disposition(fname)); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
         res.set('Content-Disposition', disposition(fname));
         // The Shield goes with the file: Content Credentials naming the maker, the copyright holder and this license.

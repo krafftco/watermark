@@ -121,11 +121,12 @@ ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))}
   // Counted as a download of the photograph's own licence. The full file leaves untouched (the master's own pixels).
   async function fileOf(d, w, m, full) {
     const l = licOf(w.ref); if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return null;
-    let file = await originalPath(w); if (!full) file = await images.derivative(file, cache, w.slug, 'large', 'jpg');
+    const file = await originalPath(w);
     const fmt = full ? (/\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg') : 'jpeg';
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, size) VALUES (?,?)').run(l.id, full ? 'full' : 'share').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: full ? 'full' : 'share' });
-    const buf = /\.(jpe?g|png|tiff?)$/i.test(file) ? await marked(fs.readFileSync(file), { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share: !full, strip: false, format: fmt }) : fs.readFileSync(file);
+    const raw = full ? fs.readFileSync(file) : await images.copy(file, 2400); // the copy straight from the master, JPEG 94, nothing in the pixels
+    const buf = full && !/\.(jpe?g|png|tiff?)$/i.test(file) ? raw : await marked(raw, { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share: !full, strip: false, format: fmt });
     const fn = fileName(w, m, l.ref, full ? path.extname(w.original_file).toLowerCase() : '.jpg');
     return { buf, name: fn.utf8 || `${w.slug}.jpg`, ascii: fn.ascii || `${w.slug}.jpg`, type: fmt === 'png' ? 'image/png' : fmt === 'tiff' ? 'image/tiff' : 'image/jpeg' };
   }

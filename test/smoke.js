@@ -415,9 +415,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       const a = await sharp(orig).raw().toBuffer(), b = await sharp(r.body).raw().toBuffer(); assert.ok(a.equals(b), 'the full-size delivery is pixel for pixel the master');
       const full = await app.locals.mark.trace(r.body); assert.ok(full && full.ref === ref1 && full.how === 'bytes', 'the master traces by its bytes'); }
     r = await req(port, 'GET', `/d/${l1.download_token}?size=share`);
-    const dl = db.prepare('SELECT * FROM downloads WHERE license_id=(SELECT id FROM licenses WHERE ref=?) ORDER BY id DESC LIMIT 1').get(ref1); assert.ok(dl.sha256 && dl.mark === dl.id, 'the delivery recorded with its mark');
-    const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok && rd.payload === dl.id, 'the mark reads back');
-    const re = await require('sharp')(r.body).jpeg({ quality: 60 }).toBuffer(); const tr = await app.locals.mark.trace(re); assert.ok(tr && tr.ref === ref1 && tr.how === 'mark', 'a recompressed copy still traces to the license');
+    const dl = db.prepare('SELECT * FROM downloads WHERE license_id=(SELECT id FROM licenses WHERE ref=?) ORDER BY id DESC LIMIT 1').get(ref1); assert.ok(dl.sha256 && dl.mark === dl.id, 'the delivery recorded');
+    // (21 Oct, later) nothing in the pixels of a share copy either: the copy is made straight from the master at JPEG 94 and carries the strip and the papers; it traces by its bytes and its XMP, never by a mark within the picture
+    { const sharp = require('sharp'); const md = await sharp(r.body).metadata(); assert.ok(Math.max(md.width, md.height) <= 2400, 'a 2,400-pixel share copy'); const xs = require('../src/mark').readXmp(r.body); assert.ok(xs && xs.license === ref1, 'the papers on the share copy');
+      const rd = await app.locals.mark.read(r.body); assert.ok(!rd || !rd.ok || rd.payload !== dl.id, 'no mark laid into the picture'); }
+    const re = r.body; // the file as it left (a copy re-encoded elsewhere loses its papers and is a stranger to the house; that is the price of untouched pixels)
     const exact = await app.locals.mark.trace(r.body); assert.equal(exact.how, 'bytes');
     r = await req(port, 'POST', '/verify', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.body.toString().includes('left the house') && r.body.toString().includes(ref1), '/verify tells who has it');
     r = await req(port, 'POST', '/yours/add', { body: mp('found.jpg', re, {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, cookie: bck } }); assert.ok(r.body.toString().includes('Held by someone else'), 'a working license held by a company cannot be brought home by a stranger'); }
@@ -1138,7 +1140,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     // The copy by default (21 Oct: never 30 MB to a friend's phone): 2,400 pixels, marked within, the papers inside, no strip; the full file by ?full=1, the master's own pixels.
     { const sharp = require('sharp'); r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/file`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']), 'the copy');
       const md = await sharp(r.body).metadata(); assert.ok(Math.max(md.width, md.height) <= 2400, `the copy is 2,400 pixels (${md.width}×${md.height})`);
-      const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok, 'the copy carries the mark'); const x = require('../src/mark').readXmp(r.body); assert.ok(x && x.license === dl.ref, 'and the papers');
+      const x = require('../src/mark').readXmp(r.body); assert.ok(x && x.license === dl.ref, 'and the papers');
       r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/file?full=1`); const wrow = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); const orig = fs.readFileSync(path.join(dir, 'originals', wrow.original_file));
       assert.ok((await sharp(orig).raw().toBuffer()).equals(await sharp(r.body).raw().toBuffer()), 'the full file is the master, pixel for pixel'); }
     r = await req(port, 'GET', `/d/${dl.download_token}`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']), 'the file by its licence');
