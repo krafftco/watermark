@@ -116,6 +116,8 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     res.json({ keys, yours });
   });
 
+  // The old address: one word, Wander (Will, 21 Oct). Links in the wild and the app's cache still say /stroll.
+  app.get('/stroll', (req, res) => res.redirect(301, '/wander' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
   app.get('/wander', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const at = req.query.at ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
@@ -152,9 +154,6 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 /div>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
-<div class="st-srow"><p class="st-sk">The guide</p>${V.GUIDE_SWITCH || ''}</div>
-<div class="st-srow"><p class="st-sk">Pace</p><div class="st-pills" data-st-pace><button type="button" data-pace="0">You scroll</button><button type="button" data-pace="15">15 s</button><button type="button" data-pace="30">30 s</button><button type="button" data-pace="90">90 s</button></div></div>
-<div class="st-srow"><p class="st-sk">Sound</p><label class="st-sw"><input type="checkbox" data-st-music><span>Quiet music, made here</span></label><label class="st-sw"><input type="checkbox" data-st-gon><span>The guide read aloud as you arrive</span></label></div>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.wilhelm}Look closer &middot; Wilhelm</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>

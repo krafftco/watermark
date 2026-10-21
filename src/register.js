@@ -104,7 +104,8 @@ function mountRegister(app, { db, V, ledger }) {
     office: { name: 'Copyright Office', types: ['copyright.prepared', 'copyright.filed', 'copyright.registered'] },
   };
   const SPANS = { today: ['Today', '-1 day'], week: ['This week', '-7 days'], month: ['This month', '-30 days'], year: ['This year', '-365 days'], all: ['All time', null] };
-  app.get('/ledger', (req, res) => {
+  const minute = app.locals.minute || (h => h);
+  app.get('/ledger', minute((req, res) => {
     const chapter = CHAPTERS[req.query.chapter] ? req.query.chapter : null, span = SPANS[req.query.span] ? req.query.span : 'all', order = req.query.order === 'oldest' ? 'ASC' : 'DESC';
     const where = [], args = [];
     if (chapter) { where.push(`type IN (${CHAPTERS[chapter].types.map(() => '?').join(',')})`); args.push(...CHAPTERS[chapter].types); }
@@ -114,7 +115,7 @@ function mountRegister(app, { db, V, ledger }) {
     const tally = Object.fromEntries(Object.entries(CHAPTERS).map(([k, c]) => [k, db.prepare(`SELECT COUNT(*) n FROM ledger WHERE type IN (${c.types.map(() => '?').join(',')})${SPANS[span][1] ? " AND at > datetime('now', ?)" : ''}`).get(...c.types, ...(SPANS[span][1] ? [SPANS[span][1]] : [])).n]));
     const counts = { all: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, works: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.registered'").get().n, collected: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('license.granted')").get().n, hats: db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='work.applauded'").get().n };
     res.send(V.registerPage({ told, check: req.query.check === 'full' ? ledger.verifyAll(db) : ledger.verify(db), counts, chapters: CHAPTERS, chapter, spans: SPANS, span, order: order === 'ASC' ? 'oldest' : 'newest', tally }));
-  });
+  }));
   // The last few moments in the house, for the front door.
   // Launch fix 2.1: the same thing happening to the same photograph in a row is one line with a count.
   const GROUPED = { 'work.bravo': (n, w) => `${n} people called Bravo! for ${T(w)}.`, 'file.delivered': (n, w) => `${n} copies of ${T(w)} went out under its license.`, 'work.applauded': (n, w) => `${n} people tipped their hats to ${T(w)}.`,

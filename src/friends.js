@@ -23,9 +23,7 @@ const HOUSES = { watermark: 'Watermark', krafft: 'Krafft' };
 // are set by gigabytes, with a count of photographs as the plainer measure. Prices are drafts until Will confirms.
 const TIERS = [
   { key: 'studio', name: 'The studio', gb: 5, works: 200, cents: 0, gives: 'Free. Every photograph fingerprinted, kept with its master, served at every size, protected by the Shield, on the register.' },
-  { key: 'keeping', name: 'Keeping', gb: 100, works: 2000, cents: 1500, gives: 'For a working archive: masters and derivatives, the .wmark archival master for every work, fixity checks on a schedule.' },
-  { key: 'archive', name: 'The archive', gb: 500, works: 10000, cents: 4500, gives: 'For a life\'s work or an estate: the whole body held, culled and graded, conserved and registered.' },
-  { key: 'vault', name: 'The vault', gb: 2000, works: 50000, cents: 15000, gives: 'For an institution or a collection of masters: two terabytes held at the source. Above it, by letter.' },
+  { key: 'keeping', name: 'Keeping', gb: 100, works: 2000, cents: 1500, gives: 'For a working archive: masters and derivatives, the .wmark archival master for every work, fixity checks on a schedule. A life\'s work, an estate or an institution: by letter.' },
 ];
 const tierOf = key => TIERS.find(t => t.key === key) || TIERS[0];
 const KEEPING = { freeGB: TIERS[0].gb, freeWorks: TIERS[0].works, cents: TIERS[1].cents, name: 'Keeping', gives: TIERS[1].gives, TIERS };

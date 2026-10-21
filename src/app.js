@@ -517,7 +517,21 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     artists.forEach(a => { const st = RG.standing(db, a.id); a.regard = st.standing; a.shown = st.n; a.held = st.held; }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
     res.send(V.artists({ artists }));
   });
-  app.get('/makers', (req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent })));
+  // A minute's cache for the two slowest public rooms (21 Oct: /ledger took 6 s and /makers 3 s on the live house): the
+  // register told entry by entry and every maker's standing, built once a minute for strangers; anyone signed in, or
+  // the Studio, is built fresh. The page is the same for everyone else.
+  const pageCache = new Map();
+  const minute = handler => (req, res) => {
+    const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.bck && !c.wm_staff && !c.wm_as && !req.tenant;
+    if (!anon) return handler(req, res);
+    const key = req.originalUrl + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0), hit = pageCache.get(key); // any entry on the register makes the page new
+    if (hit && Date.now() - hit.at < 60e3) { res.set('Cache-Control', 'public, max-age=30'); return res.send(hit.body); }
+    const send = res.send.bind(res);
+    res.send = body => { if (res.statusCode === 200 && typeof body === 'string') { pageCache.set(key, { at: Date.now(), body }); if (pageCache.size > 40) pageCache.delete(pageCache.keys().next().value); } return send(body); };
+    return handler(req, res);
+  };
+  app.locals.minute = minute;
+  app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent }))));
   app.get(['/', '/collection'], (req, res) => {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
