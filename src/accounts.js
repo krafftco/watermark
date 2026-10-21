@@ -147,16 +147,17 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const recent = db.prepare(`SELECT l.ref, l.price_cents, l.starts_at, u.name AS use_name, u.key, w.title, w.slug FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
       WHERE w.maker_id=? AND ${paid} ORDER BY l.starts_at DESC LIMIT 20`).all(m.id);
     const sum = (sql, ...a) => db.prepare(sql).get(...a).v || 0;
-    const gross = sum(`SELECT SUM(l.price_cents) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid}`, m.id);
-    const gross30 = sum(`SELECT SUM(l.price_cents) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-30 day')`, m.id);
-    const ttm = sum(`SELECT SUM(l.price_cents) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-365 day')`, m.id);
-    const toMaker = c => Math.round(c * pct / 100);
+    const FEE = require('./fee'); const MK = FEE.sqlMaker(pct);
+    const gross = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid}`, m.id);
+    const gross30 = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-30 day')`, m.id);
+    const ttm = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-365 day')`, m.id);
+    const toMaker = c => Math.round(c * pct / 100); const own = c => c; // gross, gross30 and ttm are already the maker's side
     return {
       m, pct, works, byUse, recent, multiple: MULTIPLE,
       jewels: works.filter(w => w.curated),
       totals: { works: works.length, public: works.filter(w => w.status === 'held').length, jewels: works.filter(w => w.curated).length,
-        earned: toMaker(gross), earned30: toMaker(gross30), ttm: toMaker(ttm), shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
-        value: ttm ? toMaker(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0, royalties: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).r : 0, resales: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).n : 0 },
+        earned: own(gross), earned30: own(gross30), ttm: own(ttm), shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
+        value: ttm ? own(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0, royalties: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).r : 0, resales: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).n : 0 },
       toMaker,
     };
   }

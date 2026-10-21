@@ -6,13 +6,14 @@
 // hand from the same statement, and the page says so.
 const { layout, esc, money, date, setDeskPath } = require('./views');
 
+const FEE = require('./fee');
 function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name='stripe_account'").get()) db.exec('ALTER TABLE makers ADD COLUMN stripe_account TEXT');
   db.exec(`CREATE TABLE IF NOT EXISTS maker_payouts (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'paid', how TEXT NOT NULL DEFAULT 'stripe',
     stripe_transfer TEXT, note TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const ON = () => !!stripe && process.env.PAYOUTS === 'stripe';
   const q = {
-    licensed: db.prepare("SELECT COALESCE(SUM(l.price_cents),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0"),
+    licensed: { get: (id, pct) => db.prepare(`SELECT COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${FEE.sqlMaker(pct)}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0`).get(id) },
     thanks: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid'"),
     royalties: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house')"),
     paid: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE maker_id=? AND status='paid'"),
@@ -21,8 +22,8 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   // The statement: gross by kind, the maker's share, what has gone out, what is owed.
   function statement(m) {
     const pct = m.share_pct || 85;
-    const L = q.licensed.get(m.id), T = q.thanks.get(m.id), R = q.royalties.get(m.id), P = q.paid.get(m.id).s;
-    const share = Math.round(L.s * pct / 100);
+    const L = q.licensed.get(m.id, pct), T = q.thanks.get(m.id), R = q.royalties.get(m.id), P = q.paid.get(m.id).s;
+    const share = L.m;
     const G = app.locals.galleries ? { out: app.locals.galleries.cutsOut(m), in: app.locals.galleries.cutsIn(m) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
     const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
     const earned = share + T.s + R.s - G.out.s + G.in.s - S.s;
@@ -104,7 +105,7 @@ function payoutsPage({ m, st, ready, on, ok, viewing = false, why = null }) {
   const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
   const row = (k, v, small) => `<div><dt>${k}</dt><dd>${v}${small ? `<small>${small}</small>` : ''}</dd></div>`;
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
-<p class="lede">Every dollar that reaches you, and where it came from. ${st.pct}% of every license is yours; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
+<p class="lede">Every dollar that reaches you, and where it came from. ${FEE.on() ? 'The price of every license is yours, every dollar of it; the house’s share is paid by the collector on top' : st.pct + '% of every license is yours'}; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
 ${notice ? `<p class="${/paid|bank/.test(ok) ? 'ok' : 'note'}">${esc(notice)}</p>` : ''}
 <div class="gp-cols"><div class="gp-main">
 <div class="gp-big"><span>Owed to you now</span><b>${money(st.owed)}</b></div>

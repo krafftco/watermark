@@ -96,7 +96,7 @@ function mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket, nextRef, g
     if (!items.length) return res.redirect(`/frame/${f.code}?ok=${encodeURIComponent('Every piece on the screen is already yours.')}`);
     const total = items.reduce((s, x) => s + x.u.price_cents, 0);
     const setRef = `frame:${f.code}:${nextRef()}`;
-    const refs = items.map(x => { const ref = nextRef(); db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,set_ref,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)").run(ref, x.w.id, x.u.id, b.name || 'Collector', b.email || '', x.u.price_cents, setRef, b.id); return ref; });
+    const refs = items.map(x => { const ref = nextRef(); db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,set_ref,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)").run(ref, x.w.id, x.u.id, b.name || 'Collector', b.email || '', x.u.price_cents, setRef, b.id); if (x.u.house_cents != null) db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(x.u.house_cents, ref); return ref; });
     if (req.body && req.body.from === 'pocket' && pocket && pocket.spend(b, total, 'collect', refs[0], `The frame: ${items.length} photographs`)) {
       for (const [i, ref] of refs.entries()) { grant(ref, { paid: true, price_cents: items[i].u.price_cents }); ledger.append(db, 'license.paid.pocket', ref, { work: items[i].w.slug, use: items[i].u.key, amount: items[i].u.price_cents, frame: f.code }); }
       db.prepare("UPDATE frames SET updated_at=datetime('now') WHERE id=?").run(f.id);

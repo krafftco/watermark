@@ -14,10 +14,10 @@ function mountSplits(app, { db, V, ledger, isStudio, makerOf, mk }) {
   const others = workId => of(workId).reduce((s, x) => s + x.pct, 0);
   // What the maker's paid sales owe to collaborators: each paid license × the maker's share × each split's share.
   function owedOut(m) {
-    const pct = (m.share_pct || 85) / 100;
-    const rows = db.prepare("SELECT l.price_cents, l.work_id FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.work_id IN (SELECT work_id FROM work_splits)").all(m.id);
+    const pct = (m.share_pct || 85) / 100, FEE = require('./fee');
+    const rows = db.prepare("SELECT l.price_cents, l.house_cents, l.work_id FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.work_id IN (SELECT work_id FROM work_splits)").all(m.id);
     let s = 0, n = 0; const by = {};
-    for (const r of rows) for (const sp of of(r.work_id)) { const c = Math.round(r.price_cents * pct * sp.pct / 100); s += c; n++; by[sp.name] = (by[sp.name] || 0) + c; }
+    for (const r of rows) for (const sp of of(r.work_id)) { const c = Math.round(FEE.makerOf(r, m.share_pct || 85) * sp.pct / 100); s += c; n++; by[sp.name] = (by[sp.name] || 0) + c; }
     return { s, n, by };
   }
   app.locals.splits = { of, releases, owedOut, others };

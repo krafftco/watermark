@@ -149,12 +149,14 @@ function createApp(cfg = {}) {
     if (!d) { try { const r = await MARK.read(buf, MARK_KEY); if (r && r.ok && r.payload && MARK.isRendition(r.payload)) { const rw = db.prepare('SELECT slug, title FROM works WHERE id=?').get(MARK.renditionWork(r.payload)); if (rw) return { rendition: true, work: rw, how: 'mark' }; } if (r && r.ok && r.payload) { d = db.prepare('SELECT d.*, l.ref, l.licensee_name, l.licensee_company FROM downloads d LEFT JOIN licenses l ON l.id=d.license_id WHERE d.id=?').get(r.payload); how = 'mark'; } } catch (e) { /* unreadable */ } }
     return d ? { ...d, how } : null; } };
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='dl_extra'").get()) db.exec('ALTER TABLE licenses ADD COLUMN dl_extra INTEGER NOT NULL DEFAULT 0');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='house_cents'").get()) db.exec('ALTER TABLE licenses ADD COLUMN house_cents INTEGER');
+  const stampHouse = (ref, u) => { if (u && u.house_cents != null) db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(u.house_cents, ref); };
   const dlOf = l => { const u = q.useById.get(l.use_id); const limit = (DL[u ? u.key : 'social'] || 5) + (l.dl_extra || 0); const used = db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(l.id).n; return { limit, used, left: Math.max(0, limit - used) }; };
   // The ladder: as a limited edition fills, its issue price rises, so every collector before the step
   // holds a piece now issued above what they paid. Quarters of the edition at 1x, 1.5x, 2x, 3x (drafts).
   const LADDER = [1, 1.5, 2, 3];
   const ladder = (w, base) => { const e = edition(w); if (!e || base == null) return { price: base, step: 0, base }; const step = Math.min(LADDER.length - 1, Math.floor(e.sold / (e.size / LADDER.length))); return { price: Math.round(base * LADDER[step] / 100) * 100, step, base, next: step < LADDER.length - 1 ? Math.round(base * LADDER[step + 1] / 100) * 100 : null, at: step < LADDER.length - 1 ? Math.ceil(e.size / LADDER.length) * (step + 1) : null }; };
-  const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social') { const base = w.share_cents || u.price_cents; const L = ladder(w, base); v.price_cents = L.price; v.ladder = L; } return v; };
+  const priced = (u, w) => { if (!u || !w) return u; const v = { ...u, needsMaster: !meets(w, u.key) }; if (u.key === 'social') { const base = w.share_cents || u.price_cents; const L = ladder(w, base); v.price_cents = L.price; v.ladder = L; } v.maker_cents = v.price_cents; v.house_cents = FEE.on() && v.price_cents != null ? FEE.house(u.key, v.price_cents) : null; v.price_cents = FEE.total(u.key, v.price_cents); return v; };
   const accession = w => `WM.${String(w.created_at || new Date().toISOString()).slice(0, 4)}.${String(w.id).padStart(4, '0')}`;
   for (const w of db.prepare('SELECT id, created_at FROM works WHERE accession IS NULL').all()) db.prepare('UPDATE works SET accession=? WHERE id=?').run(accession(w), w.id);
   const stripe = cfg.stripeClient || (C.stripeKey ? require('stripe')(C.stripeKey) : null);
@@ -233,25 +235,26 @@ function createApp(cfg = {}) {
 
   // What the two letters of a sale need (src/mail-letters.js): the photograph, its number, the rights in plain words,
   // the agreement, and for the maker what is theirs and how often the work has been chosen.
+  const FEE = require('./fee'); // the house's share, paid by the collector when FEE_SIDE=collector
   const LETTERS = require('./mail-letters');
   function letterFor(g, w, maker, u, token) {
     let t = null; try { t = g.rights ? JSON.parse(g.rights) : null; } catch (e) { t = null; }
     if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: g.price_cents });
     const pr = V.plainRights(g, u, t), k = token ? `?k=${token}` : '';
-    const pct = maker.share_pct || 85, cents = g.price_cents || 0;
+    const pct = FEE.on() && g.house_cents != null ? 100 : (maker.share_pct || 85), cents = g.price_cents || 0;
     const fmtD = d => new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
     const b = g.buyer_id ? db.prepare('SELECT * FROM buyers WHERE id=?').get(g.buyer_id) : null;
     const certUrl = `${C.base}/c/${g.ref}${k}`;
     const times = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0").get(w.id).n;
     const allTimes = db.prepare("SELECT COUNT(*) n FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0").get(maker.id).n;
-    const month = db.prepare("SELECT COALESCE(SUM(l.price_cents),0) c FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?").get(maker.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()).c;
+    const month = db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(maker.share_pct || 85)}),0) c FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?`).get(maker.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()).c;
     return {
       base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
       no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot,
       fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
-      share: V.money(Math.round(cents * pct / 100), g.currency), pct, times, allTimes, month: allTimes > 1 ? V.money(Math.round(month * pct / 100), g.currency) : null,
+      share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
       certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
@@ -270,11 +273,18 @@ function createApp(cfg = {}) {
     const token = u.kind === 'print' ? null : nanoid(32);
     db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=?")
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
+    // The house's part of what was paid (FEE_SIDE=collector): recorded at the sale when the price was built, else here:
+    // a maker's fee paid through a link arrives above the fee named (the difference is the house's), anything else by the rule.
+    if (FEE.on() && extra.paid && l.house_cents == null) {
+      const before = l.price_cents || 0, paid = extra.price_cents ?? before;
+      const house = paid > before ? paid - before : Math.max(0, paid - FEE.makerFromTotal(u.key, paid));
+      db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(house, ref);
+    }
     // Collector No. n of this work: numbers are never reused, so an early number stays early.
     if (extra.paid) db.prepare('UPDATE licenses SET collector_no=(SELECT COALESCE(MAX(collector_no),0)+1 FROM licenses WHERE work_id=?) WHERE ref=? AND collector_no IS NULL').run(l.work_id, ref);
     if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
-    if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85); } catch (e) { console.error('[representation]', e.message); } }
-    ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid });
+    if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85, FEE.makerOf(q.lic.get(ref), maker.share_pct || 85)); } catch (e) { console.error('[representation]', e.message); } }
+    ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid, house: (q.lic.get(ref) || {}).house_cents ?? undefined });
     if (extra.paid && app.locals.legal) { try { app.locals.legal.accept('buyer', l.buyer_id, 'house', null, ref); } catch (e) { console.error('[legal]', e.message); } } // paying accepts the terms of the house
     if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
     if (app.locals.onGrant) { try { app.locals.onGrant(q.lic.get(ref), extra); } catch (e) { console.error('[editions]', e.message); } } // a print edition: the number, the order, the register
@@ -326,7 +336,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
-  app.locals.mark = markApi;
+  app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -760,12 +770,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const noteAll = [wants, note].filter(Boolean).join('\n') || null;
     if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
     if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
-    u.price_cents = t.price;
+    u.price_cents = t.price; t.house = u.house_cents || 0; t.maker = t.price - t.house;
     const ref = nextRef();
     // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
     t.version = 'standard-2021-counsel/v0'; t.hash = require('crypto').createHash('sha256').update(JSON.stringify(K.assemble({ t, work: w.title, maker: maker.name, ref }))).digest('hex');
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, 'Buyer', '', noteAll, u.price_cents, R.conditions(rules) || null, JSON.stringify(t));
+    stampHouse(ref, u);
     if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     const renews = /^WM-\d{4}-\d{6}$/.test(String(req.body.renews || '')) ? String(req.body.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
@@ -825,6 +836,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions) VALUES (?,?,?,?,?,?,'awaiting_payment',?)")
       .run(ref, w.id, u.id, name, email, u.price_cents, R.conditions(R.parse(w.rules)) || null);
+    stampHouse(ref, u);
     if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     try {
       // First Share it from this device: a Stripe customer is made so the card can be remembered for one tap next time.
@@ -865,6 +877,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, (b.email || 'Buyer').split('@')[0], b.email || '', u.price_cents, R.conditions(R.parse(w.rules)) || null, b.id);
+    stampHouse(ref, u);
     if (app.locals.hangs) app.locals.hangs.stampVia(req, ref);
     try {
       const pi = await stripe.paymentIntents.create({ amount: u.price_cents, currency: 'usd', customer: b.customer, payment_method: b.pm, off_session: true, confirm: true,
@@ -1102,7 +1115,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const b = buyerOf(req);
     const total = items.reduce((a, x) => a + x.u.price_cents, 0);
     const setRef = `basket:${nextRef()}`;
-    const refs = items.map(x => { const ref = nextRef(); db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,set_ref,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?,?)").run(ref, x.w.id, x.u.id, (b && b.name) || 'Collector', (b && b.email) || '', x.u.price_cents, R.conditions(R.parse(x.w.rules)) || null, setRef, b ? b.id : null); return ref; });
+    const refs = items.map(x => { const ref = nextRef(); db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,price_cents,status,conditions,set_ref,buyer_id) VALUES (?,?,?,?,?,?,'awaiting_payment',?,?,?)").run(ref, x.w.id, x.u.id, (b && b.name) || 'Collector', (b && b.email) || '', x.u.price_cents, R.conditions(R.parse(x.w.rules)) || null, setRef, b ? b.id : null); stampHouse(ref, x.u); return ref; });
     const pocket = app.locals.pocket;
     if (req.body && req.body.from === 'pocket' && b && pocket && pocket.spend(b, total, 'collect', refs[0], `The basket: ${items.length} photograph${items.length === 1 ? '' : 's'}`)) {
       for (const [i, ref] of refs.entries()) { grant(ref, { paid: true, price_cents: items[i].u.price_cents }); ledger.append(db, 'license.paid.pocket', ref, { work: items[i].w.slug, use: 'social', amount: items[i].u.price_cents, basket: true }); }
@@ -1343,7 +1356,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const s = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: l.licensee_email,
-      line_items: [{ quantity: 1, price_data: { currency: l.currency, unit_amount: l.price_cents, product_data: { name: `${l.use_name} license: ${l.title}`, description: `Watermark ${ref}. Photograph by ${maker.name}.` } } }],
+      line_items: [{ quantity: 1, price_data: { currency: l.currency, unit_amount: l.house_cents != null ? l.price_cents : FEE.total(l.kind === 'print' ? 'print' : (q.useById.get(l.use_id) || {}).key, l.price_cents), product_data: { name: `${l.use_name} license: ${l.title}`, description: `Watermark ${ref}. Photograph by ${maker.name}.` } } }],
       metadata: { ref },
       success_url: `${C.base}/c/${ref}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${C.base}/w/${l.slug}`,
@@ -1649,7 +1662,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       })(),
       { group: 'Words and terms (yours to confirm)', items: [
         { ok: false, manual: true, name: 'Prices', detail: 'Collect, the Reference, the four licenses and prints are drafts' },
-        { ok: false, manual: true, name: 'Shares', detail: '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
+        { ok: false, manual: true, name: 'Shares', detail: FEE.on() ? 'The price is the maker’s; the house’s share (Collect $2.11, else 15%) is paid by the collector; 10% resale royalty and 5% market fee are drafts' : '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
         { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
     res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, ok: req.query.ok }));

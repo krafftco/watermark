@@ -29,6 +29,7 @@ const EDITION_DEFAULTS = [
 ];
 const VIA_DAYS = 30;
 
+const FEE = require('./fee');
 function mountEditions(app, X) {
   const { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf, notify } = X;
   const { esc, money } = V;
@@ -62,13 +63,13 @@ function mountEditions(app, X) {
     const show = viaShow(req); const any = rows.some(r => r.left > 0);
     return `<section class="pe" id="print"><p class="k">The print</p><h2>${any ? 'Have it on your wall.' : 'The editions are sold.'}</h2>
 <p class="pe-lede">An archival pigment print from the house's print room, signed and numbered by ${esc(m.name)}, with its papers; the piece joins your gallery on Watermark the moment it is yours.</p>
-${any ? `<form method="post" action="/w/${esc(w.slug)}/print" class="pe-f" data-pe>
-<div class="pe-sizes">${rows.map((e, i) => `<label class="pe-s${e.left ? '' : ' pe-out'}"><input type="radio" name="edition" value="${e.id}"${e.left ? (i === rows.findIndex(x => x.left) ? ' checked' : '') : ' disabled'} data-price="${e.price_cents}" data-framed="${e.framed_cents || 0}"><span class="pe-l"><b>${esc(e.label)} in</b><i>${esc(sizeOf(w, e))} on ${esc(e.paper || 'archival paper')}</i><i>Edition of ${e.edition_n} · ${e.left ? `${e.left} remain` : 'sold out'}</i></span><span class="pe-p">${money(e.price_cents)}</span></label>`).join('')}</div>
+${any ? `<form method="post" action="/w/${esc(w.slug)}/print" class="pe-f" data-pe data-house-pct="${FEE.on() ? FEE.HOUSE_PCT : 0}">
+<div class="pe-sizes">${rows.map((e, i) => `<label class="pe-s${e.left ? '' : ' pe-out'}"><input type="radio" name="edition" value="${e.id}"${e.left ? (i === rows.findIndex(x => x.left) ? ' checked' : '') : ' disabled'} data-price="${e.price_cents}" data-framed="${e.framed_cents || 0}"><span class="pe-l"><b>${esc(e.label)} in</b><i>${esc(sizeOf(w, e))} on ${esc(e.paper || 'archival paper')}</i><i>Edition of ${e.edition_n} · ${e.left ? `${e.left} remain` : 'sold out'}</i></span><span class="pe-p">${money(FEE.total('print', e.price_cents))}</span></label>`).join('')}</div>
 <div class="pe-opts">${rows.some(r => r.framed_cents) ? `<label class="pe-o"><input type="checkbox" name="framed" value="1"><span>Framed, museum glass<i data-pe-framed></i></span></label>` : ''}
 ${show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" checked><span>Take it home from the show<i>${esc(show.title)}${show.venue ? ` · ${esc(show.venue)}` : ''}</i></span></label><label class="pe-o"><input type="radio" name="how" value="ship"><span>Have it sent<i>Two to three weeks; the address at payment</i></span></label>` : '<p class="pe-ship">Sent in two to three weeks, to the address you give at payment. United States, Canada, the UK and Europe.</p>'}</div>
-<button class="buy-btn pe-go"><span>Acquire it</span><em data-pe-total>${money(rows.find(x => x.left).price_cents)}</em></button>
-<p class="pe-fine">${m.share_pct != null ? m.share_pct : 85}% of it is ${esc(m.name.split(' ')[0])}'s. Yours to keep, to hang, to pass on; the papers say so.</p></form>
-<script>(function(){var f=document.querySelector('[data-pe]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');function up(){var e=f.querySelector('input[name=edition]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]');if(fr)fr.textContent=x?'+$'+(x/100).toLocaleString('en-US'):'';if(c&&c.checked)p+=x;t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script>` : ''}</section>`;
+<button class="buy-btn pe-go"><span>Acquire it</span><em data-pe-total>${money(FEE.total('print', rows.find(x => x.left).price_cents))}</em></button>
+<p class="pe-fine">${FEE.on() ? `The price is ${esc(m.name.split(' ')[0])}’s, every dollar; the house’s share (${FEE.HOUSE_PCT}%) is on top, in the total shown.` : `${m.share_pct != null ? m.share_pct : 85}% of it is ${esc(m.name.split(' ')[0])}'s.`} Yours to keep, to hang, to pass on; the papers say so.</p></form>
+<script>(function(){var f=document.querySelector('[data-pe]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');function up(){var e=f.querySelector('input[name=edition]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]');if(fr)fr.textContent=x?'+$'+(x/100).toLocaleString('en-US'):'';if(c&&c.checked)p+=x;var h=+f.dataset.housePct||0;p=p+Math.ceil(p*h/100);t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script>` : ''}</section>`;
   }
   app.locals.editions = { forWork, canSell, block, sizeOf, EDITION_DEFAULTS, viaShow };
 
@@ -80,14 +81,15 @@ ${show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" chec
     const e = withLeft(rowsOf(w).filter(x => x.id === +req.body.edition))[0]; if (!e || !e.left) return res.redirect(`/w/${w.slug}?ok=printgone#print`);
     const n = (slow.get(req.ip) || 0) + 1; slow.set(req.ip, n); if (n > 20) return res.sendStatus(429);
     const framed = req.body.framed === '1' && e.framed_cents ? 1 : 0; const show = viaShow(req); const pickup = show && req.body.how === 'pickup' ? 1 : 0;
-    const u = priced(printUse(m), w); const price = e.price_cents + (framed ? e.framed_cents : 0);
+    const u = priced(printUse(m), w); const makerPrice = e.price_cents + (framed ? e.framed_cents : 0); const price = FEE.total('print', makerPrice);
     const rules = R.parse(w.rules);
     const t = K.terms({ use: u, add: [], extras: [], never: rules.never, base: price, transfer: rules.transfer || null });
-    t.price = price; t.print = { edition: e.id, label: e.label, size: sizeOf(w, e), paper: e.paper, edition_n: e.edition_n, framed, pickup, show: show ? show.id : null };
+    t.price = price; t.maker = makerPrice; t.house = price - makerPrice; t.print = { edition: e.id, label: e.label, size: sizeOf(w, e), paper: e.paper, edition_n: e.edition_n, framed, pickup, show: show ? show.id : null };
     const ref = nextRef();
     t.version = 'standard-2021-counsel/v0'; t.hash = require('crypto').createHash('sha256').update(JSON.stringify(K.assemble({ t, work: w.title, maker: m.name, ref }))).digest('hex');
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
       .run(ref, w.id, u.id, 'Collector', '', `A print: ${e.label} in on ${e.paper || 'archival paper'}${framed ? ', framed' : ''}${pickup ? `, taken from the show (${show.title})` : ''}`, price, R.conditions(rules) || null, JSON.stringify(t));
+    if (FEE.on()) db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(price - makerPrice, ref);
     if (show) db.prepare('UPDATE licenses SET via=? WHERE ref=?').run(`hang:${show.id}`, ref);
     const b = buyerOf(req); if (b) db.prepare('UPDATE licenses SET buyer_id=?, licensee_name=?, licensee_email=? WHERE ref=?').run(b.id, b.name || 'Collector', b.email || '', ref);
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: 'print', edition: e.label });

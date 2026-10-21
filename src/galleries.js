@@ -28,10 +28,10 @@ function mountGalleries(app, { db, C, V, mail, ledger, makerOf, buyerOf, isStudi
   const galleryByBuyer = b => (b ? db.prepare("SELECT * FROM makers WHERE kind='gallery' AND (buyer_id=? OR (email IS NOT NULL AND email=?)) LIMIT 1").get(b.id, b.email || '') : null);
 
   // The cut, on every paid license of a represented maker's work. The house's share is untouched.
-  function cut(l, w, makerSharePct) {
+  function cut(l, w, makerSharePct, makerCents) {
     const r = galleryOf(w.maker_id); if (!r || !(l.price_cents > 0)) return null;
     if (db.prepare('SELECT 1 FROM gallery_cuts WHERE license_ref=?').get(l.ref)) return null;
-    const cents = Math.round(l.price_cents * (makerSharePct / 100) * (r.pct / 100)); if (cents < 1) return null;
+    const side = makerCents != null ? makerCents : Math.round(l.price_cents * (makerSharePct / 100)); const cents = Math.round(side * (r.pct / 100)); if (cents < 1) return null;
     db.prepare('INSERT INTO gallery_cuts (license_ref, gallery_id, maker_id, cents) VALUES (?,?,?,?)').run(l.ref, r.gallery_id, w.maker_id, cents);
     ledger.append(db, 'representation.earned', l.ref, { gallery: r.gallery_handle, work: w.slug, amount: cents });
     return { gallery: r, cents };

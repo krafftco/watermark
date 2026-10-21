@@ -30,7 +30,7 @@ function mountSteps(app, { db, makerOf, V, base = '' }) {
       { key: 'edit', done: shown > 0 && graded > 0, title: 'Your best in front', line: 'Grade with stars, then publish what you would hang. The rest stays kept, never lost.', href: '/account#holdings', go: 'Grade and publish' },
       { key: 'prices', done: has(m, 'prices'), title: 'Your prices', line: 'The house sets fair drafts for each use. Look them over and change any.', href: '/account/prices', go: 'See your prices' },
       { key: 'key', done: !!keyed, title: 'Your key', line: 'Save a passkey so your studio opens from any device, with no password.', href: '/account#passkey', go: 'Save a passkey' },
-      { key: 'paid', done: !!m.stripe_account, title: 'Getting paid', line: `${m.share_pct || 85}% of every sale is yours. Add your bank and it is paid to you.`, href: '/account/payouts', go: 'Add your bank' },
+      { key: 'paid', done: !!m.stripe_account, title: 'Getting paid', line: `${require('./fee').said(m.share_pct, null).replace(/^The price is the maker’s/, 'The price is yours')} Add your bank and it is paid to you.`, href: '/account/payouts', go: 'Add your bank' },
       { key: 'shared', done: has(m, 'shared'), title: 'Your page, sent', line: 'Send your page to the people who already follow your work.', href: `/m/${slug}`, go: 'Copy your page', copy: `${base}/m/${slug}` },
     ];
     const done = steps.filter(s => s.done).length;

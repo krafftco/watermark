@@ -21,7 +21,7 @@ function mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, gr
   const place = l => { const qu = queue(l.maker_id), i = qu.indexOf(l.ref); return { n: qu.length, at: i < 0 ? 0 : i + 1, next: qu.find((r, j) => r !== l.ref && (i < 0 || j > i)) || qu.find(r => r !== l.ref) || null }; };
   // What to suggest: what this maker last took for the use, else their price for it.
   const suggest = l => { const last = db.prepare("SELECT l.price_cents FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.use_id=l.use_id AND l.use_id=? AND l.status IN ('active','expired','awaiting_payment') AND l.price_cents>0 AND l.ref!=? ORDER BY l.id DESC LIMIT 1").get(l.maker_id, l.use_id, l.ref); return last ? { cents: last.price_cents, from: 'what you last took for this use' } : l.use_price ? { cents: l.use_price, from: 'your price for this use' } : null; };
-  const earnedThisMonth = makerId => { const m = db.prepare('SELECT share_pct FROM makers WHERE id=?').get(makerId), r = db.prepare("SELECT COALESCE(SUM(l.price_cents),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND l.starts_at>=date('now','start of month')").get(makerId); return { cents: Math.round(r.s * ((m && m.share_pct) || 85) / 100), n: r.n }; };
+  const FEE = require('./fee'); const earnedThisMonth = makerId => { const m = db.prepare('SELECT share_pct FROM makers WHERE id=?').get(makerId), r = db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker((m && m.share_pct) || 85)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND l.starts_at>=date('now','start of month')`).get(makerId); return { cents: r.s, n: r.n }; };
 
   // The answers, shared by the maker's desk and the Studio's.
   async function accept(ref, cents, by) {
@@ -63,7 +63,7 @@ function mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, gr
     const l = full(req.params.ref); if (!l) return res.sendStatus(404);
     if (!may(req, l)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl));
     const mk = db.prepare('SELECT share_pct FROM makers WHERE id=?').get(l.maker_id);
-    res.send(requestPage({ l, needs: needsMaster(l), min: MIN_MP[l.use_key] || 0, ok: req.query.ok || null, pay: req.query.pay || null, stripe: !!stripe, place: place(l), suggest: suggest(l), pct: (mk && mk.share_pct) || 85 }));
+    res.send(requestPage({ l, needs: needsMaster(l), min: MIN_MP[l.use_key] || 0, ok: req.query.ok || null, pay: req.query.pay || null, stripe: !!stripe, place: place(l), suggest: suggest(l), pct: (FEE.on() ? 100 : 0) || (mk && mk.share_pct) || 85 }));
   });
   app.post('/account/requests/:ref/accept', async (req, res) => {
     const l = full(req.params.ref); if (!l) return res.sendStatus(404); if (!may(req, l)) return res.sendStatus(401);
