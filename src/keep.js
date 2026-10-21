@@ -34,7 +34,28 @@ const GRADE = { fine: 'Close up, every detail', good: 'Framed, at arm’s length
 const PROOF_CENTS = Number(process.env.PROOF_CENTS || 2500);
 const PROOF_PAPER = 'Hahnemühle Photo Rag';
 
-function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, pocket, setBuyer }) {
+// Instax (Will, 20 Oct: "print your collection into Instax print"; he has a Leica Sofort 2). The Sofort 2 and the Instax
+// mini printers lay down 800 × 600 pixels on a 62 × 46 mm picture (about 330 dpi); the Leica FOTOS app resamples whatever
+// it is given. So the house makes the file the printer actually prints, and nothing is left to the app: the picture
+// cropped to the frame (or fitted, with white), resampled once with Lanczos, sharpened for a small print, and given the
+// house's recipe for instant film, which prints darker, flatter and cooler than a screen: shadows lifted a little, a
+// touch more saturation, sRGB. The recipe is a first draft, to be tuned by eye against the Sofort 2 in the print room.
+// It is the holder's own derivative of their file, made on request; nothing is laid into any picture the house shows.
+const INSTAX = { mini: { w: 800, h: 600, mm: '62 × 46 mm', name: 'Instax mini' }, square: { w: 800, h: 800, mm: '62 × 62 mm', name: 'Instax Square' }, wide: { w: 1260, h: 840, mm: '99 × 62 mm', name: 'Instax Wide' } };
+async function instaxFile(src, { film = 'mini', mode = 'fill', mono = false } = {}) {
+  const sharp = require('sharp'); const F = INSTAX[film] || INSTAX.mini;
+  const meta = await sharp(src).metadata();
+  const portrait = (meta.height || 0) > (meta.width || 0) && F.w !== F.h;
+  const W = portrait ? F.h : F.w, H = portrait ? F.w : F.h;
+  let img = sharp(src, { failOn: 'none' }).rotate().toColorspace('srgb');
+  img = mode === 'fit' ? img.resize(W, H, { fit: 'contain', background: '#ffffff', kernel: 'lanczos3' }) : img.resize(W, H, { fit: 'cover', position: 'attention', kernel: 'lanczos3' });
+  // The recipe: a gentle lift of the shadows (gamma), a little more colour, then sharpening for 330 dpi on film.
+  img = img.gamma(1.0, 1.08).modulate({ saturation: mono ? 1 : 1.06, brightness: 1.02 }).sharpen({ sigma: 0.8, m1: 0.6, m2: 1.2 });
+  if (mono) img = img.greyscale();
+  return { buf: await img.jpeg({ quality: 96, chromaSubsampling: '4:4:4' }).withMetadata().toBuffer(), W, H, film: F };
+}
+
+function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, pocket, setBuyer, originalPath }) {
   db.exec(`CREATE TABLE IF NOT EXISTS print_orders (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, buyer_id INTEGER, size TEXT, paper TEXT,
     frame INTEGER NOT NULL DEFAULT 0, email TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')))`);
   for (const [col, def] of [['kind', "TEXT NOT NULL DEFAULT 'ask'"], ['cents', 'INTEGER'], ['paid', 'INTEGER NOT NULL DEFAULT 0'], ['stripe_session', 'TEXT'], ['ship_name', 'TEXT'], ['address', 'TEXT']]) {
@@ -91,6 +112,14 @@ ${file ? `<a class="buy-btn kp-take" href="${file}" download>Take the print file
 ${proof}
 ${canRef ? `<p class="kp-up">To print larger, <a href="/license/${esc(w.slug)}?use=reference">collect the Reference</a>, ${money(ref.price_cents)}: the full original, ${(w.width || 0).toLocaleString('en-US')} × ${(w.height || 0).toLocaleString('en-US')} pixels, for prints to ${esc((sizes(Math.max(w.width, w.height), Math.min(w.width, w.height)).filter(s => s.grade).pop() || {}).image || 'wall size')} in.</p>` : ''}
 
+${live ? `<div class="kp-way kp-instax" id="instax"><p class="k">Instax</p><h3>Print it in your hand, in ninety seconds.</h3>
+<p>For a Leica Sofort 2 or any Instax printer. The house makes the exact file the printer lays down (800 × 600 pixels on a 62 × 46 mm picture), already cropped, sharpened and set for instant film, which prints darker and flatter than a screen. Nothing is left to the app.</p>
+<form method="get" action="/yours/p/${esc(l.ref)}/instax" class="kp-f kp-ix">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}
+<label><span>Film</span><select name="film"><option value="mini">Instax mini (Sofort 2)</option><option value="square">Instax Square</option><option value="wide">Instax Wide</option></select></label>
+<label><span>The frame</span><select name="mode"><option value="fill">Fill the frame</option><option value="fit">Whole picture, white edges</option></select></label>
+<button class="buy-btn">Take the Instax file</button></form>
+<ol class="kp-steps kp-ixs"><li>Save the file to your phone (it lands in Photos).</li><li>Open <b>Leica FOTOS</b> (or the Instax app), choose <b>Print</b>, and pick the file from your photos.</li><li>Leave every filter and effect off: the file is already set.</li><li>Print, and let it develop face down for ninety seconds. Record it below.</li></ol>
+<p class="note">The recipe is the house’s own and a first draft, tuned by eye against the Sofort 2 in the print room. It never counts against your downloads.</p></div>` : ''}
 <div class="kp-two">
 <div class="kp-way"><p class="k">Print it yourself</p><h3>Five steps, one afternoon.</h3><ol class="kp-steps">
 <li><b>Take the file</b> above. Send it to the lab exactly as it is: no sharpening, no resizing; it is already set for print.</li>
@@ -137,6 +166,19 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
     if (!mine(req, l)) return res.redirect(`/c/${encodeURIComponent(l.ref)}`);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     res.send(room({ l, w, maker: mk(w), b: buyerOf(req), ok: req.query.ok || null, kq: req.query.k && l.download_token === String(req.query.k) ? l.download_token : '' }));
+  });
+  // The Instax file, made on request from the holder's own file (the original; or the 2400 px copy's source is the same original).
+  app.get('/yours/p/:ref/instax', async (req, res) => {
+    const l = lic(req.params.ref); if (!l || !mine(req, l)) return res.sendStatus(404);
+    if (l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(410);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) return res.sendStatus(404);
+    try {
+      const src = await originalPath(w);
+      const out = await instaxFile(src, { film: String(req.query.film || 'mini'), mode: req.query.mode === 'fit' ? 'fit' : 'fill' });
+      const name = `${tidy(w.title)}, ${mk(w).name} (${out.film.name}).jpg`.replace(/[\/:*?"<>|]/g, '');
+      ledger.append(db, 'print.instax', l.ref, { film: out.film.name, w: out.W, h: out.H });
+      res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`, 'Cache-Control': 'private, no-store' }).send(out.buf);
+    } catch (e) { console.error('[instax]', e.message); res.sendStatus(500); }
   });
   const hits = new Map(), slow = k => { const now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 36e5); a.push(now); hits.set(k, a); return a.length > 6; };
   app.post('/yours/p/:ref/order', (req, res) => {
@@ -256,4 +298,4 @@ ${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>
   });
   return { sizes };
 }
-module.exports = { mountKeep, sizes, PROOF_CENTS, PROOF_PAPER };
+module.exports = { mountKeep, sizes, PROOF_CENTS, PROOF_PAPER, instaxFile, INSTAX };

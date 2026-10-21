@@ -118,6 +118,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); let kp = r.body.toString();
   assert.ok(r.status === 200 && kp.includes('See it in person') && kp.includes('kp-sz') && kp.includes('Ask for the print') && kp.includes('The certificate'), 'the holder\'s room');
   r = await req(port, 'GET', `/yours/p/${dj.ref}`); assert.equal(r.status, 302, 'a stranger goes to the license page');
+  { r = await req(port, 'GET', `/yours/p/${dj.ref}/instax?film=mini&mode=fill`, { cookie: bck }); assert.equal(r.status, 200, 'the Instax file');
+    const im = await require('sharp')(r.body).metadata(); assert.ok((im.width === 800 && im.height === 600) || (im.width === 600 && im.height === 800), 'the printer’s own pixels: ' + im.width + '×' + im.height); assert.ok(/Instax mini/.test(r.headers['content-disposition']), 'named for the film');
+    r = await req(port, 'GET', `/yours/p/${dj.ref}/instax?film=wide&mode=fit`, { cookie: bck }); const im2 = await require('sharp')(r.body).metadata(); assert.ok(Math.max(im2.width, im2.height) === 1260, 'wide too');
+    r = await req(port, 'GET', `/yours/p/${dj.ref}/instax`); assert.equal(r.status, 404, 'a stranger gets no file');
+    assert.ok(kp.includes('Take the Instax file'), 'the Instax card in the room'); }
   r = await req(port, 'POST', `/yours/p/${dj.ref}/order`, { cookie: bck, body: { size: '10 × 7½ in, on 10 × 8', paper: 'Cotton rag, matte', frame: '1', email: 'tap@example.com' } });
   assert.ok(r.status === 303 && /ok=asked/.test(r.headers.location), 'a print asked for');
   r = await req(port, 'GET', `/yours/p/${dj.ref}`, { cookie: bck }); assert.ok(r.body.toString().includes('with the house'), 'the order shows');
