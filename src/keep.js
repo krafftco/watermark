@@ -42,15 +42,28 @@ const PROOF_PAPER = 'Hahnemühle Photo Rag';
 // touch more saturation, sRGB. The recipe is a first draft, to be tuned by eye against the Sofort 2 in the print room.
 // It is the holder's own derivative of their file, made on request; nothing is laid into any picture the house shows.
 const INSTAX = { mini: { w: 800, h: 600, mm: '62 × 46 mm', name: 'Instax mini' }, square: { w: 800, h: 800, mm: '62 × 62 mm', name: 'Instax Square' }, wide: { w: 1260, h: 840, mm: '99 × 62 mm', name: 'Instax Wide' } };
-async function instaxFile(src, { film = 'mini', mode = 'fill', mono = false } = {}) {
+// Looks (Will, 20 Oct, with the first two prints in hand: "a little flat"): the film lifts the blacks, flattens the
+// middle, lets the highlights go to paper white and warms everything; so the file goes the other way. `linear` is
+// contrast about a point above the middle (so the shadows take most of the stretch and the highlights are held) with the black point pulled down (Will: 'lacking depth of darkness'), `recomb`
+// cools the cast a hair, saturation makes up what the film loses. Plain = no recipe, for a side-by-side.
+const LOOKS = {
+  plain: null,
+  film: { contrast: 1.20, pivot: 136, black: 8, sat: 1.10, cool: 0.015 },
+  rich: { contrast: 1.32, pivot: 136, black: 14, sat: 1.14, cool: 0.02 },
+};
+async function instaxFile(src, { film = 'mini', mode = 'fill', mono = false, look = 'film' } = {}) {
   const sharp = require('sharp'); const F = INSTAX[film] || INSTAX.mini;
   const meta = await sharp(src).metadata();
   const portrait = (meta.height || 0) > (meta.width || 0) && F.w !== F.h;
   const W = portrait ? F.h : F.w, H = portrait ? F.w : F.h;
   let img = sharp(src, { failOn: 'none' }).rotate().toColorspace('srgb');
   img = mode === 'fit' ? img.resize(W, H, { fit: 'contain', background: '#ffffff', kernel: 'lanczos3' }) : img.resize(W, H, { fit: 'cover', position: 'attention', kernel: 'lanczos3' });
-  // The recipe: a gentle lift of the shadows (gamma), a little more colour, then sharpening for 330 dpi on film.
-  img = img.gamma(1.0, 1.08).modulate({ saturation: mono ? 1 : 1.06, brightness: 1.02 }).sharpen({ sigma: 0.8, m1: 0.6, m2: 1.2 });
+  const L = LOOKS[look] === undefined ? LOOKS.film : LOOKS[look];
+  if (L) {
+    img = img.linear(L.contrast, -(L.pivot * (L.contrast - 1)) - (L.black || 0)); // contrast about the pivot (y = c·x − p(c−1)), the black point pulled down `black` levels: depth in the darks, the highlights held
+    if (!mono) img = img.modulate({ saturation: L.sat }).recomb([[1 - L.cool, 0, 0], [0, 1 - L.cool / 2, 0], [0, 0, 1 + L.cool]]);
+  }
+  img = img.sharpen({ sigma: 0.8, m1: 0.6, m2: 1.2 });
   if (mono) img = img.greyscale();
   return { buf: await img.jpeg({ quality: 96, chromaSubsampling: '4:4:4' }).withMetadata().toBuffer(), W, H, film: F };
 }
@@ -117,9 +130,10 @@ ${live ? `<div class="kp-way kp-instax" id="instax"><p class="k">Instax</p><h3>P
 <form method="get" action="/yours/p/${esc(l.ref)}/instax" class="kp-f kp-ix">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}
 <label><span>Film</span><select name="film"><option value="mini">Instax mini (Sofort 2)</option><option value="square">Instax Square</option><option value="wide">Instax Wide</option></select></label>
 <label><span>The frame</span><select name="mode"><option value="fill">Fill the frame</option><option value="fit">Whole picture, white edges</option></select></label>
+<label><span>The look</span><select name="look"><option value="film">Film: set for instant film</option><option value="rich">Rich: more, for dark or soft scenes</option><option value="plain">Plain: no recipe</option></select></label>
 <button class="buy-btn">Take the Instax file</button></form>
 <ol class="kp-steps kp-ixs"><li>Save the file to your phone (it lands in Photos).</li><li>Open <b>Leica FOTOS</b> (or the Instax app), choose <b>Print</b>, and pick the file from your photos.</li><li>Leave every filter and effect off: the file is already set.</li><li>Print, and let it develop face down for ninety seconds. Record it below.</li></ol>
-<p class="note">The recipe is the house’s own and a first draft, tuned by eye against the Sofort 2 in the print room. It never counts against your downloads.</p></div>` : ''}
+<p class="note">The recipe is the house’s own, tuned by eye against the Sofort 2 in the print room: instant film flattens and warms, so the file is set the other way. It never counts against your downloads.</p></div>` : ''}
 <div class="kp-two">
 <div class="kp-way"><p class="k">Print it yourself</p><h3>Five steps, one afternoon.</h3><ol class="kp-steps">
 <li><b>Take the file</b> above. Send it to the lab exactly as it is: no sharpening, no resizing; it is already set for print.</li>
@@ -174,9 +188,9 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) return res.sendStatus(404);
     try {
       const src = await originalPath(w);
-      const out = await instaxFile(src, { film: String(req.query.film || 'mini'), mode: req.query.mode === 'fit' ? 'fit' : 'fill' });
+      const out = await instaxFile(src, { film: String(req.query.film || 'mini'), mode: req.query.mode === 'fit' ? 'fit' : 'fill', look: String(req.query.look || 'film') });
       const name = `${tidy(w.title)}, ${mk(w).name} (${out.film.name}).jpg`.replace(/[\/:*?"<>|]/g, '');
-      ledger.append(db, 'print.instax', l.ref, { film: out.film.name, w: out.W, h: out.H });
+      ledger.append(db, 'print.instax', l.ref, { film: out.film.name, w: out.W, h: out.H, look: String(req.query.look || 'film') });
       res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`, 'Cache-Control': 'private, no-store' }).send(out.buf);
     } catch (e) { console.error('[instax]', e.message); res.sendStatus(500); }
   });
@@ -298,4 +312,4 @@ ${rows.length ? `<table class="tbl"><tr><th></th><th>Work</th><th>Print</th><th>
   });
   return { sizes };
 }
-module.exports = { mountKeep, sizes, PROOF_CENTS, PROOF_PAPER, instaxFile, INSTAX };
+module.exports = { mountKeep, sizes, PROOF_CENTS, PROOF_PAPER, instaxFile, INSTAX, LOOKS };
