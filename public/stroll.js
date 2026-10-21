@@ -290,7 +290,13 @@
   var TOUCH = matchMedia('(pointer:coarse)').matches, ARR = 2600, TAP = 4000;
   var stillT = null, lineT = null, STILL = TOUCH ? ARR : 6000, LINE = 20000, arrivals = [], sitting = false, sitT = null, SIT = 90000;
   function firstLine(g) { var t = String(g || '').split(/\n{2,}/)[0]; var m = t.match(/^.{20,180}?[.!?](?=\s|$)/); return (m ? m[0] : t.slice(0, 160)).trim(); }
-  function quiet(ms) { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden) { root.classList.add('st-still'); root.classList.remove('st-arr'); } }, sitting ? 1500 : (ms || STILL)); }
+  // Over the chrome (21 Oct, Will: the buttons did weird things under the cursor): while the pointer rests on the rail or
+  // the top bar the chrome never fades, so a button is where the hand left it.
+  var overChrome = false;
+  if (!TOUCH) [].forEach.call(root.querySelectorAll('.st-top'), function (el) { el.addEventListener('pointerenter', function () { overChrome = true; clearTimeout(stillT); root.classList.remove('st-still'); }); el.addEventListener('pointerleave', function () { overChrome = false; quiet(); }); });
+  if (!TOUCH) root.addEventListener('pointerover', function (e) { var r = e.target.closest && e.target.closest('.st-rail'); if (r && !overChrome) { overChrome = true; clearTimeout(stillT); root.classList.remove('st-still'); } });
+  if (!TOUCH) root.addEventListener('pointerout', function (e) { var r = e.target.closest && e.target.closest('.st-rail'); if (r && !(e.relatedTarget && r.contains(e.relatedTarget))) { overChrome = false; quiet(); } });
+  function quiet(ms) { clearTimeout(stillT); root.classList.remove('st-still'); stillT = setTimeout(function () { if (sheet.hidden && !overChrome) { root.classList.add('st-still'); root.classList.remove('st-arr'); } }, sitting ? 1500 : (ms || STILL)); }
   ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (TOUCH && (t === 'touchstart' || t === 'wheel')) return; if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
   if (TOUCH) { var movingT = null; scroller.addEventListener('scroll', function () { if (!movingT) { clearTimeout(stillT); root.classList.add('st-still'); root.classList.remove('st-arr'); } clearTimeout(movingT); movingT = setTimeout(function () { movingT = null; }, 180); }, { passive: true }); }
   var firstArr = true;
