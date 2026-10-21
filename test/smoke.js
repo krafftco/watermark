@@ -688,7 +688,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/static/app/manifest.webmanifest'); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).display, 'standalone');
   r = await req(port, 'GET', '/sw.js'); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('PRIVATE'));
   r = await req(port, 'GET', '/app'); assert.ok(r.body.toString().includes('Add to Dock'));
-  r = await req(port, 'GET', '/offline'); assert.ok(r.body.toString().includes('cannot be reached'));
+  r = await req(port, 'GET', '/offline'); assert.ok(r.body.toString().includes('caught a cold'));
   r = await req(port, 'GET', '/collection'); assert.ok(r.body.toString().includes('rel="manifest"') && r.body.toString().includes('speculationrules'), 'the app in every page');
   // The pocket and the thank-you card: ten dollars in once (a Checkout, settled by the webhook); a 99-cent card with a word goes with one tap, lands on the maker, and is on the register.
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('A thank-you card') && r.body.toString().includes('Fill a pocket'), 'the card, and the pocket offered');
@@ -1134,10 +1134,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const dv = db.prepare('SELECT * FROM deliveries WHERE token=?').get(dtok); assert.ok(dv && dv.client_name === 'R. D.' && dv.expires_at, 'the delivery row');
     const dl = db.prepare("SELECT l.* FROM licenses l JOIN delivery_works dw ON dw.ref=l.ref WHERE dw.delivery_id=?").get(dv.id); assert.ok(dl && dl.status === 'active' && dl.price_cents == null && dl.download_token, 'a free licence of use delivery');
     assert.equal(db.prepare('SELECT u.key FROM uses u WHERE u.id=?').get(dl.use_id).key, 'delivery');
-    r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Download all') && t.includes('The thirtieth') && t.includes('With love.') && t.includes(`/d/${dl.download_token}`), 'the client door'); }
+    r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Download all') && t.includes('The thirtieth') && t.includes('With love.') && t.includes(`/deliver/${dtok}/${w.slug}/file`) && t.includes(`/deliver/${dtok}/${w.slug}/file?full=1`), 'the client door: the copy, and the full file'); }
+    // The copy by default (21 Oct: never 30 MB to a friend's phone): 2,400 pixels, marked within, the papers inside, no strip; the full file by ?full=1, the master's own pixels.
+    { const sharp = require('sharp'); r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/file`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']), 'the copy');
+      const md = await sharp(r.body).metadata(); assert.ok(Math.max(md.width, md.height) <= 2400, `the copy is 2,400 pixels (${md.width}×${md.height})`);
+      const rd = await app.locals.mark.read(r.body); assert.ok(rd.ok, 'the copy carries the mark'); const x = require('../src/mark').readXmp(r.body); assert.ok(x && x.license === dl.ref, 'and the papers');
+      r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/file?full=1`); const wrow = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); const orig = fs.readFileSync(path.join(dir, 'originals', wrow.original_file));
+      assert.ok((await sharp(orig).raw().toBuffer()).equals(await sharp(r.body).raw().toBuffer()), 'the full file is the master, pixel for pixel'); }
     r = await req(port, 'GET', `/d/${dl.download_token}`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']), 'the file by its licence');
     r = await req(port, 'GET', `/deliver/${dtok}/all.zip`); assert.ok(r.status === 200 && /zip/.test(r.headers['content-type']) && r.body.length > 1000, 'all of it as one zip');
-    assert.ok(db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(dl.id).n >= 2, 'each download counted');
+    r = await req(port, 'GET', `/deliver/${dtok}/all.zip?full=1`); assert.ok(r.status === 200 && /zip/.test(r.headers['content-type']) && r.body.length > 1000, 'and the full files');
+    assert.ok(db.prepare('SELECT COUNT(*) n FROM downloads WHERE license_id=?').get(dl.id).n >= 5, 'each download counted');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('R. D.'), 'the client is never on the register');
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('Delivered'), 'the delivery use is never offered on a wall');
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.ok(r.body.toString().includes('A thank-you card') && r.body.toString().includes(`name="via" value="${dtok}"`), 'the card to the photographer');

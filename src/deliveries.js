@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const DAYS = Number(process.env.DELIVERY_DAYS || 30);
-const SIZES = { original: 'The original file', large: 'A 2,400-pixel copy, credited' };
+const SIZES = { original: 'The 2,400-pixel copy, and the full file too', large: 'The 2,400-pixel copy only' }; // (21 Oct) the copy is what friends download: a couple of megabytes for a phone and for sharing; the full file is a second door
 function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q, makerOf, isStudio, originalPath, images, cache, marked, fileName }) {
   const { esc, tidy, date } = V;
   db.exec(`CREATE TABLE IF NOT EXISTS deliveries (id INTEGER PRIMARY KEY, token TEXT NOT NULL UNIQUE, maker_id INTEGER NOT NULL, title TEXT NOT NULL, client_name TEXT NOT NULL, client_email TEXT, note TEXT,
@@ -101,14 +101,14 @@ ${rows.length ? `<h2>Sent</h2><table class="tbl dv-t"><tr><th>What</th><th>For</
     res.set('Cache-Control', 'private, no-store');
     if (!live(d)) return res.status(410).send(V.layout({ title: `${d.title} · Watermark`, bare: true, body: `<main class="dv"><section class="dv-wall"><p class="k">From ${esc(m.name)}</p><h1>${esc(d.title)}</h1><p class="dv-lede">This delivery has closed. Write to ${esc(m.name)} for another.</p></section></main>` }));
     db.prepare('UPDATE deliveries SET opens=opens+1 WHERE id=?').run(d.id);
-    const ws = worksOf(d), share = d.size === 'large';
+    const ws = worksOf(d);
     const wander = `/wander?in=delivery:${esc(d.token)}`, logo = `<a class="dv-logo" href="/" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark" width="150" height="40"></a>`;
     res.send(V.layout({ title: `${d.title} · Watermark`, bare: true, desc: `${d.title}, from ${m.name}.`, body: `<main class="dv"><section class="dv-wall">
 <header class="dv-h">${logo}<p class="k">From ${esc(m.name)} · for ${esc(d.client_name)}</p><h1>${esc(d.title)}</h1>
 <p class="dv-gift">${ws.length === 1 ? 'A photograph' : `${ws.length} photographs`} by ${esc(m.name)}, made for you and yours to keep: download them, print them, share them. Each one carries ${esc(first(m.name))}’s name inside it, the way a print carries a signature.</p>
 ${d.note ? `<blockquote class="dv-note"><p>${esc(d.note)}</p><footer>— ${esc(first(m.name))}</footer></blockquote>` : ''}
-<p class="dv-acts"><a class="dv-wander" href="${wander}">${V.WAVE_MARK || ''}<span>Wander through them</span><i>One at a time, edge to edge</i></a><a class="dv-all" href="/deliver/${esc(d.token)}/all.zip">${I.in || ''}<span>Download all ${ws.length === 1 ? '' : `(${ws.length})`}</span></a><span class="dv-sz">${esc(SIZES[d.size])}${d.expires_at ? ` · the link closes ${esc(date(d.expires_at))}` : ''}</span></p></header>
-<div class="dv-grid">${ws.map(w => { const l = licOf(w.ref); return `<figure class="dv-w"><a href="${wander}&at=${esc(w.slug)}" class="dv-im"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}></a><figcaption><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}<a href="/d/${esc(l.download_token)}${share ? '?size=share' : ''}" download>Download</a></figcaption></figure>`; }).join('')}</div>
+<p class="dv-acts"><a class="dv-wander" href="${wander}">${V.WAVE_MARK || ''}<span>Wander through them</span><i>One at a time, edge to edge</i></a><a class="dv-all" href="/deliver/${esc(d.token)}/all.zip">${I.in || ''}<span>Download all ${ws.length === 1 ? '' : `(${ws.length})`}</span></a><span class="dv-sz">2,400 pixels, a few megabytes each: right for a phone and for sharing.${allowsFull(d) ? ` <a href="/deliver/${esc(d.token)}/all.zip?full=1">The full files</a> (${esc(fullSize(ws))}) for printing.` : ''}${d.expires_at ? ` The link closes ${esc(date(d.expires_at))}.` : ''}</span></p></header>
+<div class="dv-grid">${ws.map(w => { const l = licOf(w.ref); return `<figure class="dv-w"><a href="${wander}&at=${esc(w.slug)}" class="dv-im"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}></a><figcaption><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}<a href="/deliver/${esc(d.token)}/${esc(w.slug)}/file" download>Download</a>${allowsFull(d) ? `<a class="dv-full" href="/deliver/${esc(d.token)}/${esc(w.slug)}/file?full=1" download title="The full file, for printing">Full size</a>` : ''}</figcaption></figure>`; }).join('')}</div>
 ${ws.length ? `<section class="ty dv-ty" id="thanks"><div class="ty-card"><p class="k">A thank-you card</p>
 ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))} will see it.</p>` : req.query.thanks ? '<p class="ty-done">Not just now; the till is closed.</p>' : ''}
 <form method="post" action="/w/${esc(ws[0].slug)}/thanks" class="ty-f"><input type="hidden" name="via" value="${esc(d.token)}"><p class="ty-say">These are a gift. If you would like to thank ${esc(first(m.name))}, a card goes straight to ${esc(first(m.name))}; the house keeps nothing of it.</p>
@@ -116,21 +116,39 @@ ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))}
 <input name="word" class="ty-word" placeholder="A word, if you like" maxlength="280" autocomplete="off"><button class="buy-btn">Send the card</button></form></div></section>` : ''}
 <footer class="dv-foot"><p>Each file carries ${esc(m.name)}’s name, the copyright and its licence number inside it, and the house keeps the record of every download. Anyone can check a file at <a href="/verify">watermark.krafftco.com/verify</a>. ${esc(m.name)}’s terms with you stand as agreed between you; the house does not change them.</p><p class="dv-wm">${logo}<span>Delivered with Watermark · Where great work is kept.</span></p></footer></section></main>` }));
   });
-  // All of it as one zip, each file marked and counted as a download of its own licence.
+  // One file of the album (21 Oct): the 2,400-pixel copy by default (marked within, the papers inside, no strip: a
+  // couple of megabytes, right for a phone and for sharing), or the full file with ?full=1 when the album allows it.
+  // Counted as a download of the photograph's own licence. The full file leaves untouched (the master's own pixels).
+  async function fileOf(d, w, m, full) {
+    const l = licOf(w.ref); if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return null;
+    let file = await originalPath(w); if (!full) file = await images.derivative(file, cache, w.slug, 'large', 'jpg');
+    const fmt = full ? (/\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg') : 'jpeg';
+    const dlId = Number(db.prepare('INSERT INTO downloads (license_id, size) VALUES (?,?)').run(l.id, full ? 'full' : 'share').lastInsertRowid);
+    ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: full ? 'full' : 'share' });
+    const buf = /\.(jpe?g|png|tiff?)$/i.test(file) ? await marked(fs.readFileSync(file), { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share: !full, strip: false, format: fmt }) : fs.readFileSync(file);
+    const fn = fileName(w, m, l.ref, full ? path.extname(w.original_file).toLowerCase() : '.jpg');
+    return { buf, name: fn.utf8 || `${w.slug}.jpg`, ascii: fn.ascii || `${w.slug}.jpg`, type: fmt === 'png' ? 'image/png' : fmt === 'tiff' ? 'image/tiff' : 'image/jpeg' };
+  }
+  const allowsFull = d => d.size !== 'large';
+  const fullSize = ws => { const b = ws.reduce((a, w) => a + (w.bytes || 0), 0); return b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`; };
+  app.get('/deliver/:token/:slug/file', async (req, res) => {
+    const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
+    const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
+    const full = req.query.full === '1' && allowsFull(d); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
+    try { const f = await fileOf(d, w, m, full); if (!f) return res.sendStatus(410);
+      res.set('Content-Type', f.type); res.set('Content-Disposition', `attachment; filename="${f.ascii.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(f.name)}`); res.set('Cache-Control', 'private, no-store'); res.send(f.buf);
+    } catch (e) { console.error('[delivery file]', w.slug, e.message); res.sendStatus(500); }
+  });
+  // All of it as one zip: the copies by default, the full files with ?full=1; each file marked and counted as a
+  // download of its own licence; one file in memory at a time (the zip waits for each entry to be written).
   app.get('/deliver/:token/all.zip', async (req, res) => {
     const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
-    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id), ws = worksOf(d), share = d.size === 'large';
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id), ws = worksOf(d), full = req.query.full === '1' && allowsFull(d);
     res.set('Content-Type', 'application/zip'); res.set('Content-Disposition', `attachment; filename="${d.title.replace(/[^\w .-]+/g, ' ').trim() || 'Delivery'}, ${m.name.replace(/[^\w .-]+/g, ' ')} (Watermark).zip"`); res.set('Cache-Control', 'private, no-store');
     const zip = archiver('zip', { zlib: { level: 1 } }); zip.on('error', () => { try { res.end(); } catch (e) { /* */ } }); zip.pipe(res);
     for (const w of ws) {
-      const l = licOf(w.ref); if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) continue;
-      try {
-        let file = await originalPath(w); if (share) file = await images.derivative(file, cache, w.slug, 'large');
-        const fmt = /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
-        const dlId = Number(db.prepare('INSERT INTO downloads (license_id, size) VALUES (?,?)').run(l.id, share ? 'share' : 'full').lastInsertRowid);
-        ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', zip: true });
-        const buf = /\.(jpe?g|png|tiff?)$/i.test(file) ? await marked(fs.readFileSync(file), { w, maker: m, ref: l.ref, licensee: d.client_name, use: 'Delivered', ends: l.ends_at, dlId, share, format: fmt }) : fs.readFileSync(file);
-        zip.append(buf, { name: fileName(w, m, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()).utf8 || `${w.slug}.jpg` });
+      try { const f = await fileOf(d, w, m, full); if (!f) continue;
+        const written = new Promise(r => zip.once('entry', r)); zip.append(f.buf, { name: f.name }); await written;
       } catch (e) { console.error('[delivery zip]', w.slug, e.message); }
     }
     zip.finalize();
@@ -141,7 +159,7 @@ ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))}
     const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
     const l = licOf(w.ref), m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
     res.set('Cache-Control', 'private, no-store');
-    res.send(V.layout({ title: `${tidy(w.title)} · ${d.title} · Watermark`, bare: true, body: `<main class="dv dv-one"><a class="dv-back" href="/deliver/${esc(d.token)}">${I.back || ''}<span>${esc(d.title)}</span></a><img class="dv-big" src="/img/${esc(w.slug)}/large" alt="${esc(tidy(w.title))}"><p class="dv-cap"><b>${esc(tidy(w.title))}</b> · ${esc(m.name)}${w.place ? ` · ${esc(w.place)}` : ''} · <a href="/d/${esc(l.download_token)}${d.size === 'large' ? '?size=share' : ''}" download>Download</a> · <a href="/wander?in=delivery:${esc(d.token)}&at=${esc(w.slug)}">Wander from here</a></p></main>` }));
+    res.send(V.layout({ title: `${tidy(w.title)} · ${d.title} · Watermark`, bare: true, body: `<main class="dv dv-one"><a class="dv-back" href="/deliver/${esc(d.token)}">${I.back || ''}<span>${esc(d.title)}</span></a><img class="dv-big" src="/img/${esc(w.slug)}/large" alt="${esc(tidy(w.title))}"><p class="dv-cap"><b>${esc(tidy(w.title))}</b> · ${esc(m.name)}${w.place ? ` · ${esc(w.place)}` : ''} · <a href="/deliver/${esc(d.token)}/${esc(w.slug)}/file" download>Download</a>${allowsFull(d) ? ` · <a href="/deliver/${esc(d.token)}/${esc(w.slug)}/file?full=1" download>Full size</a>` : ''} · <a href="/wander?in=delivery:${esc(d.token)}&at=${esc(w.slug)}">Wander from here</a></p></main>` }));
   });
   app.locals.deliveries = { url, live, close, worksOf, holds, set };
   return app.locals.deliveries;

@@ -68,9 +68,12 @@ const APP = `<script type="speculationrules">{"prerender":[{"where":{"and":[{"hr
 addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__wmInstall=e;document.documentElement.classList.add('can-install');var b=document.querySelector('[data-install]');if(b)b.hidden=false;});
 document.addEventListener('click',function(e){var b=e.target.closest('[data-install]');if(!b||!window.__wmInstall)return;e.preventDefault();window.__wmInstall.prompt();window.__wmInstall=null;b.hidden=true;});</script>`;
 function offline() {
-  return layout({ title: 'The house cannot be reached · Watermark', bare: false, body: `<section class="nf"><span class="nf-im nf-blank"></span><div class="nf-t"><p class="k">Between rooms</p><h1>The house cannot be reached just now.</h1>
-<p class="lede">You may be offline, or a new version is being hung. The rooms you have already walked are still here; everything else will be back in a minute.</p>
-<p class="nf-row"><a class="buy-btn" href="/collection">The collection</a><a class="nf-alt" href="/wander">Wander</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
+  // (Will, 21 Oct: "oh, oops, Watermark caught a cold; this will work in a second; try again") The page the app shows
+  // when the house cannot be reached; it tries again by itself every few seconds and goes back where you were.
+  return layout({ title: 'Watermark caught a cold · Watermark', bare: false, body: `<section class="nf"><span class="nf-im nf-blank"></span><div class="nf-t"><p class="k">Oh, oops</p><h1>Watermark caught a cold.</h1>
+<p class="lede">This will work in a second. The house is hanging a new version, or your phone has wandered out of signal. The rooms you have already walked are still here; everything else is back in a minute.</p>
+<p class="nf-row"><a class="buy-btn" href="javascript:location.reload()" data-retry>Try again</a><a class="nf-alt" href="/collection">The collection</a><a class="nf-alt" href="/wander">Wander</a></p><p class="nf-cold" data-cold>Trying again by itself…</p></div></section>
+<script>(function(){var n=0;function go(){n++;fetch(location.href,{cache:'no-store',headers:{accept:'text/html'}}).then(function(r){if(r.ok&&r.headers.get('content-type')&&r.headers.get('content-type').indexOf('text/html')>=0)location.reload();else again()}).catch(again)}function again(){var e=document.querySelector('[data-cold]');if(e)e.textContent='Trying again by itself\u2026 ('+n+')';setTimeout(go,Math.min(15000,3000+n*1000))}setTimeout(go,3000)})();</script>` });
 }
 function appPage({ standalone = false }) {
   return layout({ title: 'Watermark, as an app · Watermark', desc: 'Put Watermark on your Dock or your home screen: the house without the browser around it.', path: '/app', body: `<section class="narrow ap"><p class="k">The app</p><h1>${standalone ? 'You are in the app.' : 'Watermark, on your Dock.'}</h1>

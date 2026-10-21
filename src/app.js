@@ -137,13 +137,14 @@ function createApp(cfg = {}) {
   // the papers added in lossless segments (EXIF, XMP, Content Credentials); it is never decoded and re-encoded, and the
   // invisible mark within the pixels goes only into the display-size copies (Collect, share), which are made fresh from
   // a resize anyway. The file is still traced by its bytes (downloads.sha256) and its papers (XMP wm:license).
-  async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, format = 'jpeg' }) {
+  // `share`: a display-size copy (made from a resize) carries the mark within the picture; `strip` (default with share):
+  // the visible credit strip; an album's copies (21 Oct) are marked but carry no strip.
+  async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, strip = null, format = 'jpeg' }) {
     let out = share ? await MARK.embed(buf, dlId >>> 0, MARK_KEY, { format }) : buf;
-    if (share) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
+    if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
-      const tmp = path.join(cache, `mark-${dlId}-${Date.now()}.jpg`); fs.writeFileSync(tmp, out);
       const cap = captionOf({ w, maker, ref, licensee, use, ends });
-      try { out = prov.stampJpeg(tmp, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ } finally { fs.rmSync(tmp, { force: true }); }
+      try { out = prov.stampJpegBuffer(out, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ }
       out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, noAI: R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
     }
     db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
