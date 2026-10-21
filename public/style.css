@@ -2319,6 +2319,7 @@ main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;
 .st-t{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:clamp(20px,5.6vw,26px);line-height:1.15}
 .st-k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(242,239,233,.55)}
 .st-rail{position:absolute;right:10px;bottom:calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;align-items:center;z-index:2;transition:opacity .4s,transform .4s}
+.st-more{display:flex;flex-direction:column;gap:14px;align-items:center;padding:10px 0 2px;border-top:1px solid rgba(255,255,255,.18);margin-top:2px}.st-moreb[aria-expanded=true]{opacity:.6}
 .st-b{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:#f2efe9;font-family:inherit;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;padding:4px;cursor:pointer;text-shadow:0 1px 10px rgba(0,0,0,.9);-webkit-tap-highlight-color:transparent}
 .st-b .ic{width:28px;height:28px;filter:drop-shadow(0 1px 8px rgba(0,0,0,.8))}.st-b[aria-pressed=true] .ic{color:#fff;fill:rgba(255,255,255,.18)}
 .st-b span:empty{display:none}.st-held{opacity:.7}.st-buy .ic{color:#fff}
@@ -3424,3 +3425,6 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 @keyframes wm-swim{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
 @keyframes wm-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @media (prefers-reduced-motion:reduce){.wm-wave-w,.wm-wave-r{animation:none}}
+
+/* The hint under the plate speaks to the device (21 Oct): a thumb is told to tap and swipe, a mouse to click and use the arrows. */
+.lot-hint-t{display:none}@media (pointer:coarse){.lot-hint-c{display:none}.lot-hint-t{display:inline}}

@@ -28,7 +28,7 @@
     sheet.innerHTML = '<div class="ps-veil"></div><div class="ps-card"><button type="button" class="ps-x" aria-label="Close">&times;</button>'
       + '<div class="ps-buy"><div class="ps-head"><div class="ps-mat"><img class="ps-img" alt=""></div><div class="ps-row"><p class="ps-t"></p><p class="ps-p">' + esc(C.price) + '</p></div><p class="ps-k">Collect it &middot; yours to share</p></div>'
       + '<div class="ps-ece"></div><p class="ps-wait">One moment&hellip;</p><button type="button" class="ps-card-link">Pay by card instead</button>'
-      + '<p class="ps-fine">85% goes to the photographer. Your card is remembered here, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
+      + '<p class="ps-fine"><span class="ps-fine-s">85% goes to the photographer.</span> Your card is remembered here, so next time it&rsquo;s one tap. <button type="button" class="ps-forget">Don&rsquo;t remember</button></p></div>'
       + '<div class="ps-done" hidden><span class="ps-stamp" aria-hidden="true">' + (window.__WM_MARK || '') + '</span><h2>Yours.</h2><p class="ps-dt"></p>'
       + '<a class="ps-dl" href="#" download>Save the photograph</a><button type="button" class="ps-copy">Copy the credit</button><a class="ps-lic" href="#">Your license</a></div></div>';
     document.body.appendChild(sheet);
@@ -108,11 +108,14 @@
   }
   function hideToast() { if (tEl) tEl.classList.remove('in'); }
 
+  var fine = '';
   async function open(slug, title, img, noTap, amount) {
     amount = +amount || C.amount;
+    if (window.WMWave) WMWave.hide(); // the sheet takes the form over: no navigation, so no wave
     if (!noTap && hasTap()) return tap(slug, title);
     if (!sheet) build();
     cur = { slug: slug, amount: amount };
+    var fs = sheet.querySelector('.ps-fine-s'); if (fs && fine) fs.textContent = fine;
     sheet.querySelector('.ps-p').textContent = '$' + (amount / 100);
     sheet.classList.remove('is-done'); sheet.querySelector('.ps-buy').hidden = false; sheet.querySelector('.ps-done').hidden = true;
     sheet.querySelector('.ps-img').src = img || '/img/' + slug + '/thumb'; sheet.querySelector('.ps-t').textContent = title || '';
@@ -140,6 +143,7 @@
     e.preventDefault();
     var slug = f.dataset.share || (f.action.split('/buy/')[1] || '').split(/[?#]/)[0];
     var title = f.dataset.title || (document.getElementById('lbT') || {}).textContent || '';
+    fine = f.getAttribute('data-fine') || '';
     open(slug, title, null, false, f.dataset.amount);
   }, true);
 })();

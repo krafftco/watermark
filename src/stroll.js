@@ -143,15 +143,14 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
 <button type="button" class="st-b" data-st-hang>${I.hang}<span>Hang</span></button>
 ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}">${I.collect}<span>${esc(w.collect.price)}</span></button>` : ''}
 ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Guide</span></button>` : ''}
-<button type="button" class="st-b" data-st-card>${I.card}<span>Card</span></button>
-<a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/wander?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a>
 <button type="button" class="st-b" data-st-share>${I.send}<span>Share</span></button>
+<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">${I.more}<span>More</span></button>
+<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card>${I.card}<span>Card</span></button><a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/wander?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a></div>
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
 <header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon" data-st-settings aria-label="Settings" title="The guide, the pace, the sound">${I.dial}<span>Settings</span></button><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
-/div>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>

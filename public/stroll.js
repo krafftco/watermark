@@ -12,7 +12,7 @@
   function say(m, ms) { if (sayHold > Date.now() && m.indexOf('A hat is') !== 0) { setTimeout(function () { say(m, ms); }, sayHold - Date.now()); return; } toast.textContent = m; toast.hidden = false; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 400); }, ms || 2200); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
-  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
+  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
 
   function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
@@ -28,9 +28,10 @@
       + '<button type="button" class="st-b" data-st-hang>' + ic.hang + '<span>Hang</span></button>'
       + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '">' + ic.collect + '<span>' + esc(w.collect.price) + '</span></button>' : '')
       + (w.guide ? '<button type="button" class="st-b" data-st-guide>' + ic.guide + '<span>Guide</span></button>' : '')
-      + '<button type="button" class="st-b" data-st-card>' + ic.card + '<span>Card</span></button>'
-      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a>'
-      + '<button type="button" class="st-b" data-st-share>' + ic.share + '<span>Share</span></button></nav>'
+      + '<button type="button" class="st-b" data-st-share>' + ic.share + '<span>Share</span></button>'
+      + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
+      + '<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card>' + ic.card + '<span>Card</span></button>'
+      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a></div></nav>'
       + '<div class="st-hat-fly" aria-hidden="true">' + ic.hat + '</div>';
     try { var im0 = el.querySelector('.st-im'); if (window.WMTrue && im0) { WMTrue.cap(im0); im0.addEventListener('load', function () { WMTrue.cap(im0); }, { once: true }); } } catch (e) { /* true size */ }
     return el;
@@ -352,6 +353,8 @@
   if (cur) arrive(cur);
   // The guide's setting, the same one as on every photograph's page: Off · Hints · Full.
   function paintG() { var g = document.documentElement.getAttribute('data-guide') || 'hints'; [].forEach.call(root.querySelectorAll('[data-guide-set]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-guide-set') === g ? 'true' : 'false'); }); root.classList.toggle('st-gfull', g === 'full'); }
+  // More (21 Oct, the cut): Card, Study and the basket live behind one button; a tap elsewhere on the screen folds it.
+  root.addEventListener('click', function (e) { var mb = e.target.closest && e.target.closest('[data-st-more]'); var rail = e.target.closest && e.target.closest('.st-rail'); if (!mb) { if (!rail) [].forEach.call(root.querySelectorAll('[data-st-morebox]:not([hidden])'), function (x) { x.hidden = true; var m = x.parentNode.querySelector('[data-st-more]'); if (m) m.setAttribute('aria-expanded', 'false'); }); return; } var box = mb.parentNode.querySelector('[data-st-morebox]'); if (!box) return; box.hidden = !box.hidden; mb.setAttribute('aria-expanded', box.hidden ? 'false' : 'true'); }, true);
   root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-guide-set]'); if (!b) return; var g = b.getAttribute('data-guide-set'); document.documentElement.setAttribute('data-guide', g); try { localStorage.setItem('wm_guide', g); } catch (x) {} paintG(); if (g === 'off') [].forEach.call(root.querySelectorAll('.st-line'), function (l) { l.remove(); }); say(g === 'off' ? 'The guide is off. It is always here when you want it.' : g === 'full' ? 'The guide in full.' : 'Hints: a line for those who stay.'); });
   paintG();
   // Settings: a sheet from the top bar (18 Oct). Find is the house's own (find.js), opened from the bar's Find.

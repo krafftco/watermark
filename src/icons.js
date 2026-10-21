@@ -42,6 +42,7 @@ const I = {
   full: wrap('<path d="M4 9.2V4h5.2M14.8 4H20v5.2M20 14.8V20h-5.2M9.2 20H4v-5.2"/>'),
   close: wrap('<path d="M6 6l12 12M18 6 6 18"/>'),
   // The wave alone, for Wander: the house's line, walking.
+  more: '<svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>',
   wave: '<svg class="ic ic-wave" viewBox="0 0 28 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1.5 6c2-3 4-3 6 0s4 3 6 0 4-3 6 0 4 3 6 0"/></svg>',
   // The wanderer: a figure mid-stride, for Wander.
   wander: wrap('<circle cx="13.6" cy="4.4" r="1.9"/><path d="M12.7 7.6 11.2 13M12.4 8.6 9.2 11.4M12.4 8.6l3.4 2.2 1.4 2.6M11.2 13l3.2 3.2.8 4.4M11.2 13l-2.8 3.6-1.2 4"/>'),

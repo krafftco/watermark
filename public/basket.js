@@ -46,7 +46,7 @@
       var slug = it.getAttribute('data-slug');
       var b = document.createElement('button'); b.type = 'button'; b.className = 'st-b'; b.setAttribute('data-bk-add', slug);
       b.innerHTML = BAG + '<span data-bk-t>Basket</span>';
-      var share = rail.querySelector('[data-st-share]'); rail.insertBefore(b, share || null);
+      var box = rail.querySelector('[data-st-morebox]'); if (box) box.appendChild(b); else { var share = rail.querySelector('[data-st-share]'); rail.insertBefore(b, share || null); }
     });
   }
   document.addEventListener('click', function (e) {

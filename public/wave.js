@@ -31,9 +31,10 @@
     var a = e.target.closest('a[href]'); if (!a || a.target === '_blank' || a.hasAttribute('download') || a.getAttribute('href').charAt(0) === '#') return;
     var u; try { u = new URL(a.href, location.href); } catch (x) { return; }
     if (u.origin !== location.origin || (u.pathname === location.pathname && u.search === location.search)) return;
-    show();
+    setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
   }, true);
-  document.addEventListener('submit', function (e) { if (!e.defaultPrevented) show(); }, true);
+  // A form a script takes over (the pay sheet, the hat) never navigates: look again after the other listeners have run.
+  document.addEventListener('submit', function (e) { setTimeout(function () { if (!e.defaultPrevented) show(); }, 0); }, true);
   addEventListener('pageshow', hide); addEventListener('pagehide', hide); addEventListener('load', hide);
   // A navigation that a script cancelled after the click (the stroll's own taps, the viewer) must not leave it up.
   setInterval(function () { if (el && el.parentNode && el.classList.contains('on') && !el.classList.contains('wm-wave-in') && document.visibilityState === 'visible' && Date.now() - t0 > 12000) hide(); }, 2000);
