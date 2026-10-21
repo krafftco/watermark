@@ -17,25 +17,27 @@
     return fetch(url, { method: 'PUT', body: blob }).then(function (r) { if (!r.ok) throw new Error('the vault answered ' + r.status); var et = r.headers.get('ETag') || r.headers.get('etag'); if (!et) throw new Error(CORS); return et.replace(/"/g, ''); })
       .catch(function (e) { if (e.message === CORS) throw e; if (e instanceof TypeError) { if (tries > 0) return new Promise(function (res) { setTimeout(res, 1200); }).then(function () { return putPart(url, blob, tries - 1); }); throw new Error(CORS); } if (tries > 0) return new Promise(function (res) { setTimeout(res, 1500 * (4 - tries)); }).then(function () { return putPart(url, blob, tries - 1); }); throw e; });
   }
+  var viaHouse = false; // once the bucket has refused the browser this visit, every file goes through the house
+  async function throughHouse(base, m, f, onBytes) {
+    var r = await fetch(base + '/arrivals/' + m.id + '/body', { method: 'PUT', credentials: 'same-origin', body: f, headers: { 'content-type': 'application/octet-stream' } }).then(function (r) { return r.json(); });
+    if (!r.ok) throw new Error(r.error || 'refused'); onBytes(f.size); m.done = true; save(); return m.id;
+  }
   async function send(f, o) {
     o = o || {}; var base = o.base || '/studio', k = base + ':' + keyOf(f), m = mem[k] || {}; var folder = (f.webkitRelativePath || '').split('/').slice(0, -1).join('/');
     var onBytes = o.onBytes || function () {}, stopped = o.stopped || function () { return false; };
     if (m.done && m.id) return m.id;
     if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
-    if (!m.direct) {
-      var r = await fetch(base + '/arrivals/' + m.id + '/body', { method: 'PUT', credentials: 'same-origin', body: f, headers: { 'content-type': 'application/octet-stream' } }).then(function (r) { return r.json(); });
-      if (!r.ok) throw new Error(r.error || 'refused'); onBytes(f.size); m.done = true; save(); return m.id;
-    }
+    if (!m.direct || viaHouse) return throughHouse(base, m, f, onBytes);
     var todo = []; for (var n = 1; n <= m.parts; n++) if (!m.etags[n]) todo.push(n); onBytes((m.parts - todo.length) * m.partSize);
     var i = 0;
     async function worker() {
       while (i < todo.length && !stopped()) {
         var n = todo[i++]; var u = await post(base + '/arrivals/' + m.id + '/urls', { parts: String(n) }); if (!u.ok || !u.urls[n]) throw new Error('no address for part ' + n);
         var blob = f.slice((n - 1) * m.partSize, Math.min(f.size, n * m.partSize));
-        var et = await putPart(u.urls[n], blob, 3); m.etags[n] = et; save(); onBytes(blob.size);
+        var et; try { et = await putPart(u.urls[n], blob, 3); } catch (e) { if (e.message === CORS) { viaHouse = true; if (o.onVia) o.onVia('house'); throw 'via-house'; } throw e; } m.etags[n] = et; save(); onBytes(blob.size);
       }
     }
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    try { await Promise.all([worker(), worker(), worker(), worker()]); } catch (e) { if (e === 'via-house') { m.etags = {}; save(); return throughHouse(base, m, f, onBytes); } throw e; }
     if (stopped()) throw 'stopped';
     var parts = []; for (var j = 1; j <= m.parts; j++) parts.push({ n: j, etag: m.etags[j] });
     var d = await post(base + '/arrivals/' + m.id + '/done', { parts: JSON.stringify(parts) }); if (!d.ok) throw new Error(d.error || 'the vault refused');

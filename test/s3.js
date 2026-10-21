@@ -7,6 +7,8 @@ const client = { async send(cmd) {
   if (n === 'PutObjectCommand') { objs[i.Key] = i.Body; return {}; }
   if (n === 'GetObjectCommand') { if (!objs[i.Key]) { const e = new Error('nope'); e.name = 'NoSuchKey'; throw e; } const b = objs[i.Key]; return { Body: { transformToByteArray: async () => new Uint8Array(b) } }; }
   if (n === 'ListObjectsV2Command') return { Contents: Object.keys(objs).filter(k => k.startsWith(i.Prefix)).map(Key => ({ Key })) };
+  if (n === 'GetBucketCorsCommand') { if (!client.cors) { const e = new Error('none'); e.name = 'NoSuchCORSConfiguration'; throw e; } return { CORSRules: client.cors }; }
+  if (n === 'PutBucketCorsCommand') { if (client.corsForbidden) { const e = new Error('no'); e.$metadata = { httpStatusCode: 403 }; throw e; } client.cors = i.CORSConfiguration.CORSRules; return {}; }
 } };
 (async () => {
   const s = createStore({ bucket: 'krafft-watermark-vault', client });
@@ -16,6 +18,10 @@ const client = { async send(cmd) {
   assert.equal(await s.get('originals/missing.jpg'), null);
   assert.deepEqual(await s.list('originals/'), ['originals/a.jpg']);
   // Watermark's own key: S3 only ever holds sealed bytes; wrong key refuses to start
+  // The bucket's door for the browser (21 Oct): set by the house, idempotent, and 'forbidden' said plainly when the key cannot.
+  assert.equal(await s.ensureCors(['https://watermark.krafftco.com']), 'set'); assert.ok(client.cors[0].ExposeHeaders.includes('ETag') && client.cors[0].AllowedMethods.includes('PUT'));
+  assert.equal(await s.ensureCors(['https://watermark.krafftco.com']), 'ok', 'already set: left alone');
+  client.corsForbidden = true; client.cors = null; assert.equal(await s.ensureCors(['https://x.example']), 'forbidden'); client.corsForbidden = false;
   const key = require('crypto').randomBytes(32).toString('base64');
   const v = createStore({ bucket: 'b', client, vaultKey: key });
   assert.equal(await v.checkKey(), 'set'); assert.equal(await v.checkKey(), 'ok');

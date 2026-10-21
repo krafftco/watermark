@@ -377,6 +377,11 @@ function createApp(cfg = {}) {
     return d;
   }
   app.locals.registerDomain = registerDomain;
+  // The bucket's door for the browser (21 Oct): set by the house itself; the answer on /healthz `vault`.
+  app.locals.vaultCors = store.kind === 's3' ? 'unknown' : 'n/a';
+  async function ensureVaultCors() { if (!store.ensureCors) return; try { app.locals.vaultCors = await store.ensureCors([C.base.replace(/\/$/, '')]); } catch (e) { app.locals.vaultCors = 'error: ' + e.message.slice(0, 80); } console.log('[vault] cors', app.locals.vaultCors); }
+  if (!cfg.noTimers && store.kind === 's3') { setTimeout(ensureVaultCors, 10e3).unref(); setInterval(ensureVaultCors, 6 * 3600e3).unref(); }
+  app.locals.ensureVaultCors = ensureVaultCors;
   if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => registerDomain().then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
@@ -2131,7 +2136,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, vault: { kind: store.kind, cors: app.locals.vaultCors }, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

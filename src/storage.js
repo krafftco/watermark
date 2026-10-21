@@ -64,6 +64,20 @@ function s3Store({ bucket, region, endpoint, client }) {
       async complete(key, uploadId, parts) { await c.send(new S3.CompleteMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId, MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.n, ETag: p.etag })) } })); },
       async abort(key, uploadId) { try { await c.send(new S3.AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId })); } catch (e) { /* gone */ } },
     },
+    // The bucket's door for the browser (21 Oct, Will: "I don't think any of my photos got accepted because of some
+    // CORS deal; we have to do this reliably"): the house sets the bucket's CORS rule itself at start (PUT from the
+    // house's origin, ETag exposed), so arrivals never wait on a hand-set rule. Needs s3:GetBucketCORS/PutBucketCORS on
+    // the key; when the bucket refuses, the browser falls back to sending through the house (arrivals.js /body).
+    async ensureCors(origins) {
+      const want = { AllowedOrigins: origins, AllowedMethods: ['PUT', 'GET', 'HEAD'], AllowedHeaders: ['*'], ExposeHeaders: ['ETag', 'etag'], MaxAgeSeconds: 3600 };
+      let rules = [];
+      try { const r = await c.send(new S3.GetBucketCorsCommand({ Bucket: bucket })); rules = r.CORSRules || []; }
+      catch (e) { if (!/NoSuchCORSConfiguration/.test(e.name || '') && !(e.$metadata && e.$metadata.httpStatusCode === 404)) { if (e.$metadata && e.$metadata.httpStatusCode === 403) return 'forbidden'; return 'error: ' + e.message.slice(0, 80); } }
+      const has = rules.some(r => origins.every(o => (r.AllowedOrigins || []).includes(o) || (r.AllowedOrigins || []).includes('*')) && (r.AllowedMethods || []).includes('PUT') && (r.ExposeHeaders || []).some(h => /^etag$/i.test(h)));
+      if (has) return 'ok';
+      try { await c.send(new S3.PutBucketCorsCommand({ Bucket: bucket, CORSConfiguration: { CORSRules: [...rules.filter(r => !(r.AllowedOrigins || []).some(o => origins.includes(o))), want] } })); return 'set'; }
+      catch (e) { if (e.$metadata && e.$metadata.httpStatusCode === 403) return 'forbidden'; return 'error: ' + e.message.slice(0, 80); }
+    },
     // the object as it is, unsealed, written to a file (for an arrival, which came from a browser and is not sealed)
     async download(key, file) { const r = await c.send(new S3.GetObjectCommand({ Bucket: bucket, Key: key })); await new Promise((res, rej) => { const w = fs.createWriteStream(file); r.Body.pipe(w).on('finish', res).on('error', rej); r.Body.on('error', rej); }); },
   };
@@ -79,7 +93,7 @@ function createStore(cfg) {
     list: prefix => raw.list(prefix),
     del: key => raw.del(key),
     size: key => raw.size(key),
-    multipart: raw.multipart || null, download: raw.download || null,
+    multipart: raw.multipart || null, download: raw.download || null, ensureCors: raw.ensureCors || null,
     // A known object proves the key is the right one before anything is written with it.
     async checkKey() {
       if (!k.on) return 'off';

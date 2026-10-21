@@ -28,7 +28,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   db.exec(`CREATE TABLE IF NOT EXISTS arrivals (id INTEGER PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT, folder TEXT, upload_id TEXT, parts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'uploading', outcome TEXT, slug TEXT, title TEXT, error TEXT, by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), arrived_at TEXT, done_at TEXT,
     purpose TEXT NOT NULL DEFAULT 'master', place TEXT, kind TEXT, maker_id INTEGER, result TEXT)`);
-  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS arrivals_status ON arrivals (status, id)');
   fs.mkdirSync(incoming, { recursive: true });
   const direct = !!(store.kind === 's3' && store.multipart);
@@ -62,13 +62,13 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     const urls = {}; for (const n of ns) urls[n] = await store.multipart.partUrl(a.key, a.upload_id, n);
     res.json({ ok: true, urls });
   });
-  // The whole file in one put, when the vault is the local disk (development, the test house): streamed to disk.
+  // The whole file in one put, through the house: the local vault's only way (development, the test house), and every
+  // vault's fallback when the bucket will not let the browser in (21 Oct): streamed to disk, taken in from there.
   app.put(`${base}/arrivals/:id/body`, guard, (req, res) => {
     const a = mine(req, base); if (!a || a.status !== 'uploading') return res.status(404).json({ ok: false });
-    if (direct) return res.status(400).json({ ok: false, error: 'This vault takes parts.' });
     const f = localFile(a); const w = fs.createWriteStream(f); let n = 0;
     req.on('data', d => { n += d.length; if (n > a.size + 1024) req.destroy(); }); req.pipe(w);
-    w.on('finish', () => { db.prepare("UPDATE arrivals SET status='arrived', arrived_at=datetime('now') WHERE id=?").run(a.id); res.json({ ok: true }); setImmediate(pump); });
+    w.on('finish', () => { if (n < a.size) { try { fs.unlinkSync(f); } catch (e) { /* */ } return res.status(400).json({ ok: false, error: 'The file arrived short; send it again.' }); } if (direct && a.upload_id) store.multipart.abort(a.key, a.upload_id).catch(() => {}); db.prepare("UPDATE arrivals SET status='arrived', via='house', arrived_at=datetime('now') WHERE id=?").run(a.id); res.json({ ok: true }); setImmediate(pump); });
     w.on('error', e => { res.status(500).json({ ok: false, error: e.message }); });
   });
   app.post(`${base}/arrivals/:id/done`, guard, async (req, res) => {
@@ -112,11 +112,11 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
         db.prepare("UPDATE arrivals SET status='working' WHERE id=?").run(a.id);
         const f = localFile(a);
         try {
-          if (direct) { await store.download(a.key, f); }
+          if (direct && a.via !== 'house') { await store.download(a.key, f); }
           const r = a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
           if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
           else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);
-          if (direct) { try { await store.del(a.key); } catch (e) { /* later */ } }
+          if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
         } catch (e) {
           console.error('[arrivals]', a.name, e.message);
           db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(e.message || e).slice(0, 300), a.id);

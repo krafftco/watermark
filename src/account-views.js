@@ -147,7 +147,7 @@ function settle(f,j){var li=f._li,st=li.querySelectorAll('[data-s]'),m=li.queryS
 go.onclick=async function(){go.disabled=true;inp.disabled=true;var ok=0,ids={},pending=0;
   // 1. every file straight into the vault, one after another (its parts four at a time)
   for(var i=0;i<files.length;i++){var f=files[i],li=f._li,st=li.querySelectorAll('[data-s]'),m=li.querySelector('.vt-m'),bar=li.querySelector('.vt-bar i'),sent=0;li.classList.add('busy');
-    try{var id=await A.send(f,{base:'/account',meta:{kind:document.getElementById('aKind').value,place:document.getElementById('aPlace').value},onBytes:function(b){sent+=b;bar.style.width=Math.min(100,sent/f.size*100)+'%'}});st[0].classList.add('on');bar.style.width='100%';m.textContent='In the vault; being read\u2026';ids[id]=f;pending++}
+    try{var id=await A.send(f,{base:'/account',meta:{kind:document.getElementById('aKind').value,place:document.getElementById('aPlace').value},onBytes:function(b){sent+=b;bar.style.width=Math.min(100,sent/f.size*100)+'%'},onVia:function(v){if(v==='house')status.textContent='The vault is taking the files through the house (a little slower). Sending '+(i+1)+' of '+files.length+'.';}});st[0].classList.add('on');bar.style.width='100%';m.textContent='In the vault; being read\u2026';ids[id]=f;pending++}
     catch(e){li.classList.remove('busy');li.classList.add('skip');m.textContent=e==='signed-out'?'Signed out: sign in and try again.':(e.message||'Could not be sent.')}
     go.textContent=(i+1)+' of '+files.length+' sent';status.textContent='Sending: '+(i+1)+' of '+files.length+' in the vault. The house is reading them as they land; you can leave this page and come back to your studio.'}
   // 2. the house reads them in its own time; the page follows
