@@ -1222,6 +1222,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}/remove`, { cookie: ck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.isTour(hg), 'removed');
   }
   console.log('ok: tours');
+  { // The rooms, scoped and on the clock; the kids' corner; a museum's own house on its own domain.
+    r = await req(port, 'GET', '/keys'); assert.ok(/class="ck"/.test(r.body) && /your time/.test(r.body), 'the programme on the Keys');
+    r = await req(port, 'GET', '/keys/at/musee'); assert.equal(r.status, 200); assert.ok(/The Keys at /.test(r.body) && /The balcony/.test(r.body) && /balcony\/at\/musee/.test(r.body), 'a collection’s own rooms');
+    r = await req(port, 'GET', '/kids'); assert.equal(r.status, 200); assert.ok(/kids’ corner/.test(r.body) && !/\$\d/.test(r.body.toString().replace(/[\s\S]*<main>/, '').replace(/<footer[\s\S]*/, '')), 'the corner shows no price');
+    // The balcony at a collection: a stranger at the window; one who stood before its work in the last three hours is in.
+    r = await req(port, 'GET', '/balcony/at/musee'); const rck = r.headers['set-cookie'].find(c => c.startsWith('wm_room=')).split(';')[0]; assert.equal(r.headers.location, '/balcony');
+    r = await req(port, 'GET', '/balcony', { cookie: rck }); assert.ok(/The balcony at /.test(r.body) && /bc-door/.test(r.body), 'the door, to one who has not looked');
+    r = await req(port, 'GET', '/api/balcony', { cookie: rck }); let bj = JSON.parse(r.body); assert.equal(bj.scope, 'm:musee');
+    r = await req(port, 'GET', '/balcony/at/house', { cookie: rck }); assert.ok((r.headers['set-cookie'] || []).some(c => /^wm_room=;/.test(c)), 'back to the house’s');
+    // A museum's own house: the domain points here; / is the museum; the wordmark is theirs; Made with Watermark.
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'GET', '/account/house', { cookie: `${ck}; wm_as=musee` }); assert.equal(r.status, 200);
+    r = await req(port, 'POST', '/account/house', { cookie: `${ck}; wm_as=musee`, body: { domain: 'collection.musee.example', accent: '#7a1f2b', on: '1' } }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', '/', { headers: { host: 'collection.musee.example' } }); assert.equal(r.status, 200); const th = r.body.toString(); assert.ok(th.includes('brand-tn') && th.includes(inst.name) && /Made with Watermark/.test(th) && !/a Krafft company/.test(th) && !/house\.js/.test(th) && /--accent:#7a1f2b/.test(th), 'the museum’s own front door');
+    r = await req(port, 'GET', '/stroll', { headers: { host: 'collection.musee.example' } }); assert.equal(r.headers.location, '/stroll?maker=musee');
+    r = await req(port, 'GET', '/keys', { headers: { host: 'collection.musee.example' } }); assert.equal(r.headers.location, '/keys/at/musee');
+    r = await req(port, 'GET', '/'); assert.ok(!/brand-tn/.test(r.body) && /a Krafft company/.test(r.body), 'the house itself is untouched');
+    r = await req(port, 'GET', '/enterprise'); assert.ok(r.status === 200 && /Your own house\./.test(r.body));
+  }
+  console.log('ok: the rooms, the clock and a museum’s own house');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }

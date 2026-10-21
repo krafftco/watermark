@@ -21,26 +21,52 @@ function mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
   const nightOf = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
   const byHours = () => process.env.BALCONY_ALWAYS === '1' || (hourNow() >= OPEN && hourNow() < CLOSE);
 
-  // The room, in memory.
-  let room = fresh();
-  function fresh() { return { night: null, open: false, host: null, wall: null, piano: null, present: new Map(), lines: [], seq: 0, clients: new Set(), came: new Set(), words: new Map(), asks: new Map(), forced: false, id: null }; }
-  function openRoom(how) {
-    if (room.open) return room;
-    room = fresh(); room.open = true; room.night = nightOf(); room.forced = how === 'house';
-    room.id = db.prepare('INSERT INTO balcony_nights (night) VALUES (?)').run(room.night).lastInsertRowid;
-    return room;
+  // The rooms, in memory: the house's balcony, and one for each collection (Will, 21 Oct: "the balcony is for people
+  // who have just looked at the Met's collection, not the Brooklyn Museum"; "a context reference, like a game's lobby").
+  // A room is keyed by its scope: 'house', or 'm:<handle>' for a maker's or an institution's own balcony. The scope a
+  // visitor is in is the cookie `wm_room` (set by /balcony/at/:handle, cleared by /balcony/at/house), so the client's
+  // fixed addresses (/balcony/stream, /say, …) reach the right room. The door of a collection's room: you have stood
+  // before its work in the last three hours (`stood.last_at`), or you made it, or you work there, or you are the house.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('balcony_nights') WHERE name='scope'").get()) db.exec("ALTER TABLE balcony_nights ADD COLUMN scope TEXT NOT NULL DEFAULT 'house'");
+  const rooms = new Map();
+  function fresh(scope = 'house') { return { scope, night: null, open: false, host: null, wall: null, piano: null, present: new Map(), lines: [], seq: 0, clients: new Set(), came: new Set(), words: new Map(), asks: new Map(), forced: false, id: null }; }
+  const roomFor = scope => { if (!rooms.has(scope)) rooms.set(scope, fresh(scope)); return rooms.get(scope); };
+  let room = roomFor('house');
+  const scopeOf = req => { const c = req.cookies && req.cookies.wm_room; return c && /^m:[a-z0-9-]+$/.test(c) && db.prepare("SELECT 1 FROM makers WHERE handle=?").get(c.slice(2)) ? c : 'house'; };
+  const scopeMaker = scope => (scope === 'house' ? null : db.prepare('SELECT * FROM makers WHERE handle=?').get(scope.slice(2)) || null);
+  // Each request on the balcony is served in its visitor's room (the handlers are synchronous; the stream keeps its own).
+  app.use(['/balcony', '/balcony/*splat', '/api/balcony'], (req, res, next) => { room = roomFor(scopeOf(req)); next(); });
+  function openRoom(how, r = room) {
+    if (r.open) return r;
+    const f = fresh(r.scope); rooms.set(r.scope, f); if (r === room) room = f; r = f; r.open = true; r.night = nightOf(); r.forced = how === 'house';
+    r.id = db.prepare('INSERT INTO balcony_nights (night, scope) VALUES (?, ?)').run(r.night, r.scope).lastInsertRowid;
+    return r;
   }
-  function closeRoom() {
-    if (!room.open) return;
-    const r = room;
+  function closeRoom(r = room) {
+    if (!r.open) return;
     db.prepare("UPDATE balcony_nights SET host=?, wall=?, piano=?, came=?, closed_at=datetime('now') WHERE id=?").run(r.host ? r.host.name : null, r.wall ? r.wall.slug : null, r.piano ? r.piano.slug : null, r.came.size, r.id);
-    try { ledger.append(db, 'balcony.night', r.night, { host: r.host ? r.host.name : null, wall: r.wall ? r.wall.slug : null, came: r.came.size }); } catch (e) { /* */ }
+    try { ledger.append(db, 'balcony.night', r.night, { host: r.host ? r.host.name : null, wall: r.wall ? r.wall.slug : null, came: r.came.size, scope: r.scope }); } catch (e) { /* */ }
     for (const c of r.clients) { try { c.write(`event: closed\ndata: {}\n\n`); c.end(); } catch (e) { /* */ } }
-    room = fresh(); // and everything said is gone
+    const f = fresh(r.scope); rooms.set(r.scope, f); if (r === room) room = f; // and everything said is gone
   }
-  // The hours: a tick every minute opens and closes the room.
-  function tick() { if (byHours() && !room.open) openRoom('hours'); else if (!byHours() && room.open && !room.forced) closeRoom(); }
+  // The hours: a tick every minute opens and closes every room.
+  function tick() { for (const r of [...rooms.values()]) { if (byHours() && !r.open) openRoom('hours', r); else if (!byHours() && r.open && !r.forced) closeRoom(r); } }
   if (!app.locals.noTimers) setInterval(tick, 60e3).unref();
+  // The door of a collection's room.
+  function admitted(req, who, scope) {
+    if (scope === 'house' || who.house) return true;
+    const m = scopeMaker(scope); if (!m) return false;
+    if (who.m && who.m.id === m.id) return true;
+    const v = req.cookies && req.cookies.wm_v; const args = [m.id]; let w = 'viewer=?'; args.push(String(v || '-').slice(0, 16)); if (who.b) { w = '(viewer=? OR buyer_id=?)'; args.push(who.b.id); }
+    return !!db.prepare(`SELECT 1 FROM stood s JOIN works w ON w.id=s.work_id WHERE w.maker_id=? AND ${w} AND COALESCE(s.last_at, s.at) > datetime('now', '-3 hours') LIMIT 1`).get(...args);
+  }
+  // Into a collection's own room, or back to the house's.
+  app.get('/balcony/at/:handle', (req, res) => {
+    const h = String(req.params.handle); const opts = { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 6 * 3600e3 };
+    if (h === 'house') { res.clearCookie('wm_room'); return res.redirect('/balcony'); }
+    if (!db.prepare('SELECT 1 FROM makers WHERE handle=?').get(h)) return res.sendStatus(404);
+    res.cookie('wm_room', 'm:' + h, opts); res.redirect('/balcony');
+  });
 
   // Who is this, on the balcony: a keyholder with a first name, else a looker at the window.
   function whoIs(req) {
@@ -48,21 +74,23 @@ function mountBalcony(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
     const name = ((m && m.name) || (b && b.name) || '').trim();
     const id = m ? `m${m.id}` : b ? `b${b.id}` : null;
     const keyed = Object.keys(held).length > 0 && !!name && !!id;
-    return { b, m, id, name: name.split(' ')[0] || null, full: name || null, keyed, house: isStudio(req), kinds: Object.keys(held) };
+    const who = { b, m, id, name: name.split(' ')[0] || null, full: name || null, keyed, house: isStudio(req), kinds: Object.keys(held), scope: room.scope };
+    if (!admitted(req, who, room.scope)) who.keyed = false; // at a collection's door without having stood before its work: the window only
+    return who;
   }
   const canHost = who => who.house || who.kinds.includes('maker') || who.kinds.includes('curator');
   const send = (c, ev, data) => { try { c.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`); } catch (e) { /* */ } };
   const broadcast = (ev, data, { inside = true } = {}) => { for (const c of room.clients) if (!inside || c.inside) send(c, ev, data); };
   const presence = () => ({ n: room.present.size, names: [...room.present.values()].map(p => p.name) });
-  const state = who => ({ open: room.open, night: room.night, host: room.host ? { name: room.host.name } : null, wall: room.wall, piano: room.piano && (who.keyed || who.house) ? room.piano : (room.piano ? { title: 'Something new, for those present' } : null), present: presence(), hours: { open: OPEN, close: CLOSE, tz: TZ }, you: who.keyed ? { id: who.id, name: who.name, canHost: canHost(who), host: !!(room.host && room.host.id === who.id) } : null });
+  const state = who => ({ scope: room.scope, at: scopeMaker(room.scope) ? { name: scopeMaker(room.scope).name, handle: scopeMaker(room.scope).handle } : null, admitted: admitted({ cookies: {} }, { ...who, house: who.house }, 'house') && who.keyed, open: room.open, night: room.night, host: room.host ? { name: room.host.name } : null, wall: room.wall, piano: room.piano && (who.keyed || who.house) ? room.piano : (room.piano ? { title: 'Something new, for those present' } : null), present: presence(), hours: { open: OPEN, close: CLOSE, tz: TZ }, you: who.keyed ? { id: who.id, name: who.name, canHost: canHost(who), host: !!(room.host && room.host.id === who.id) } : null });
   const workOf = slug => { const w = db.prepare('SELECT w.slug, w.title, w.place, w.width, w.height, w.status, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.slug=?').get(String(slug)); return w ? { slug: w.slug, title: tidy(w.title), maker: w.maker, place: w.place, r: w.width && w.height ? +(w.width / w.height).toFixed(3) : 1.5, held: w.status === 'held' } : null; };
 
   // The page.
   app.get('/balcony', (req, res) => {
     tick();
     const who = whoIs(req); const st = state(who);
-    res.send(V.layout({ title: 'The balcony · The Keys · Watermark', path: '/balcony', bare: false, desc: 'The Keys’ room. Open in the evening; what is said here is not kept.', body: `<section class="bc${room.open ? ' on' : ''}" data-balcony data-keyed="${who.keyed ? 1 : 0}">
-<header class="bc-top"><p class="k">${(app.locals.keys && app.locals.keys.MARK && app.locals.keys.MARK.bunch) || ''}<a href="/keys">The Keys</a> · The balcony</p><p class="bc-hours">${room.open ? `Open tonight${room.host ? ` · ${esc(room.host.name)} is hosting` : ''}` : `Opens at ${OPEN > 12 ? OPEN - 12 : OPEN} in the evening, New York time, and closes at midnight.`}</p></header>
+    res.send(V.layout({ title: `The balcony${st.at ? ' at ' + st.at.name : ''} · The Keys · Watermark`, path: '/balcony', bare: false, desc: 'The Keys’ room. Open in the evening; what is said here is not kept.', body: `<section class="bc${room.open ? ' on' : ''}" data-balcony data-keyed="${who.keyed ? 1 : 0}">
+<header class="bc-top"><p class="k">${(app.locals.keys && app.locals.keys.MARK && app.locals.keys.MARK.bunch) || ''}<a href="/keys">The Keys</a> · The balcony${st.at ? ` at <a href="/m/${esc(st.at.handle)}">${esc(st.at.name)}</a> · <a href="/balcony/at/house">the house’s</a>` : ''}</p>${st.at && !who.keyed && !who.house ? `<p class="bc-door">This balcony is for those who have just looked at ${esc(st.at.name)}’s collection. <a href="/stroll?maker=${esc(st.at.handle)}">Stand before its work</a>, then come up; the room is open to you for three hours after.</p>` : ''}<p class="bc-hours">${room.open ? `Open tonight${room.host ? ` · ${esc(room.host.name)} is hosting` : ''}` : `Opens at ${OPEN > 12 ? OPEN - 12 : OPEN} in the evening, New York time, and closes at midnight.`}</p></header>
 <div class="bc-wall" data-wall>${room.wall ? `<figure style="--r:${room.wall.r}"><img src="/img/${esc(room.wall.slug)}/large" alt="${esc(room.wall.title)}"><figcaption><i>${esc(room.wall.title)}</i> · ${esc(room.wall.maker)}${room.wall.place ? `, ${esc(room.wall.place)}` : ''} · the wall tonight</figcaption></figure>` : `<p class="bc-empty">${room.open ? 'No wall yet tonight. The host hangs one.' : 'The room is dark until the evening.'}</p>`}</div>
 <aside class="bc-side">
 <div class="bc-present" data-present><p class="k">In the room</p><p class="bc-names">${st.present.n ? esc(st.present.names.join(' · ')) : (room.open ? 'No one yet. Be first.' : 'Nobody; it is closed.')}</p></div>
@@ -82,12 +110,12 @@ ${who.keyed ? (room.open ? `<ol class="bc-lines" data-lines></ol><form class="bc
     const who = whoIs(req);
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' }); res.flushHeaders();
     res.inside = who.keyed && room.open; res.who = who.id;
-    room.clients.add(res);
+    const r0 = room; room.clients.add(res);
     if (res.inside) { if (!room.present.has(who.id)) { room.present.set(who.id, { name: who.name, full: who.full, at: Date.now(), n: 1 }); room.came.add(who.id); broadcast('presence', presence(), { inside: false }); } else room.present.get(who.id).n++; }
     send(res, 'state', state(who));
     if (res.inside) for (const l of room.lines.slice(-80)) send(res, 'line', l);
     const beat = setInterval(() => { try { res.write(': beat\n\n'); } catch (e) { /* */ } }, 25e3);
-    req.on('close', () => { clearInterval(beat); room.clients.delete(res); if (res.inside && room.present.has(who.id)) { const p = room.present.get(who.id); p.n--; if (p.n <= 0) { room.present.delete(who.id); for (const k of [...room.words.keys()]) if (k.includes(who.id)) room.words.delete(k); broadcast('presence', presence(), { inside: false }); } } });
+    req.on('close', () => { clearInterval(beat); r0.clients.delete(res); if (res.inside && r0.present.has(who.id)) { const p = r0.present.get(who.id); p.n--; if (p.n <= 0) { r0.present.delete(who.id); for (const k of [...r0.words.keys()]) if (k.includes(who.id)) r0.words.delete(k); const was = room; room = r0; broadcast('presence', presence(), { inside: false }); room = was; } } });
   });
   const speaker = (req, res) => { const who = whoIs(req); if (!room.open) { res.status(409).json({ ok: false, why: 'closed' }); return null; } if (!who.keyed) { res.status(403).json({ ok: false, why: 'keys' }); return null; } return who; };
   app.post('/balcony/say', (req, res) => {

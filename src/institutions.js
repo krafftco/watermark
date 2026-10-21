@@ -36,6 +36,7 @@ function mountInstitutions(app, { db, V, C, mail, ledger, isStudio, makerOf, buy
 <p class="lede">Everyone who works the desk for ${esc(m.name)}: invited by letter, signed in as themselves, acting for the institution. Take a seat back any time.${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}</p>
 <form method="post" action="/account/staff" class="tm-f"><label><span>Name</span><input name="name" required maxlength="120"></label><label><span>Email</span><input type="email" name="email" required maxlength="160"></label><label><span>Role</span><select name="role">${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label><button class="buy-btn">Send the invitation</button></form>
 ${rows.length ? `<table class="tbl tm-t"><tr><th>Name</th><th>Role</th><th>Email</th><th>State</th><th></th></tr>${rows.map(s => `<tr><td>${esc(s.name || '')}</td><td>${esc(ROLES[s.role] || s.role)}</td><td>${esc(s.email)}</td><td>${s.status === 'on' ? `Joined ${esc(date(s.joined_at))}` : `Invited ${esc(date(s.invited_at))}`}</td><td><form method="post" action="/account/staff/${s.id}/end"><button class="link">Take the seat back</button></form></td></tr>`).join('')}</table>` : '<p>No one yet. Invite your rights desk first.</p>'}
+<p class="hg-share"><a href="/account/house">Your own house: your address, your name on the door</a></p>
 <p class="note">What a seat opens: the studio and the vault, the rights desk, the curators’ keys, the collection’s records, getting paid. Roles are shown beside each name; finer doors by role come with the first museum’s wishes.</p></section>` }));
   });
   app.post('/account/staff', (req, res) => {
@@ -85,6 +86,7 @@ ${rows.length ? `<table class="tbl tm-t"><tr><th>Name</th><th>Role</th><th>Email
 ${shows.length ? `<a href="/hang/${esc(shows[0].slug)}"><b>On view</b><span>${esc(shows[0].title)}${shows.length > 1 ? ` and ${shows.length - 1} more` : ''}</span></a>` : `<a href="/collectors#shows"><b>On view</b><span>Walls hung by the museum’s curators</span></a>`}
 <a href="/rights/${esc(m.handle)}"><b>Rights and reproductions</b><span>One door for every request, with a ticket to follow</span></a>
 <a href="/stroll?maker=${esc(m.handle)}"><b>Stroll the collection</b><span>One work at a time, with the guide</span></a>
+<a href="/keys/at/${esc(m.handle)}"><b>The Keys at ${esc(m.name)}</b><span>The benches, the tours, the balcony: for those who have just looked</span></a>
 ${m.site ? `<a href="${esc(m.site)}" rel="noopener"><b>Visit</b><span>${esc(m.site.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></a>` : ''}
 </nav>${team.length ? `<p class="mu-team">The desk: ${team.map(s => `${esc(s.name || '')} <i>${esc(ROLES[s.role] || s.role)}</i>`).join(' · ')}.</p>` : ''}</div></section>`;
   }

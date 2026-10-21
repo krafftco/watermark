@@ -98,6 +98,34 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
   }
   const roomCard = r => `<${r.href ? `a href="${esc(r.href)}"` : 'div'} class="kr${r.now ? ' open' : ''}${r.soon ? ' soon' : ''}"><span class="kr-g">${I[r.glyph] || I.key}</span><span class="kr-st">${r.now ? 'Open now' : r.soon ? 'Not yet open' : 'Closed'}</span><b>${esc(r.name)}</b><i>${esc(r.line)}</i><small>${esc(r.hours)}</small><em>${esc(r.cta)}${r.href ? ' →' : ''}</em></${r.href ? 'a' : 'div'}>`;
   app.locals.keyRooms = rooms;
+  // A collection's own rooms (Will, 21 Oct: the Met's balcony is for people who have just looked at the Met; "a context
+  // reference, like a game's lobby"): /keys/at/:handle. The same club, scoped: the programme at this collection, the
+  // benches under its work (the last lines), its tours, its balcony (door: stood before its work in the last three hours),
+  // its team's desk for the team. Reached from the museum strip and the maker page.
+  app.get('/keys/at/:handle', (req, res) => {
+    const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m) return res.sendStatus(404);
+    const held = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(m.id).n;
+    const lines = db.prepare("SELECT bl.body, bl.name, bl.at, w.slug, w.title FROM bench_lines bl JOIN works w ON w.id=bl.subject_id WHERE bl.kind='work' AND w.maker_id=? ORDER BY bl.id DESC LIMIT 6").all(m.id);
+    const tours = db.prepare("SELECT DISTINCT h.slug, h.title, h.line, b.name AS guide FROM hangs h JOIN tour_voices v ON v.hang_id=h.id JOIN buyers b ON b.id=h.buyer_id JOIN hang_works hw ON hw.hang_id=h.id JOIN works w ON w.id=hw.work_id WHERE h.public=1 AND w.maker_id=? ORDER BY h.updated_at DESC LIMIT 6").all(m.id);
+    const stood = db.prepare("SELECT COUNT(DISTINCT s.viewer) n FROM stood s JOIN works w ON w.id=s.work_id WHERE w.maker_id=? AND COALESCE(s.last_at, s.at) > datetime('now','-3 hours')").get(m.id).n;
+    const p = app.locals.clock ? app.locals.clock.programme(req, { maker: m }) : null;
+    const T = (app.locals.institutions && m.kind === 'institution') ? db.prepare("SELECT name, role FROM institution_staff WHERE maker_id=? AND status='on'").all(m.id) : [];
+    res.send(V.layout({ title: `The Keys at ${m.name} · Watermark`, path: `/keys/at/${m.handle}`, desc: `The club's rooms at ${m.name}: the benches under its work, its tours, its balcony.`, body: `<section class="ky ky-at">
+<header class="ky-cover ky-cover-s"><div class="ky-cover-in"><a class="ky-mark" href="/keys" title="The Keys">${MARK.mark}</a><p class="ky-since">at <a href="/m/${esc(m.handle)}">${esc(m.name)}</a></p></div><div class="ky-damask" aria-hidden="true"></div></header>
+<div class="ky-h"><p class="k">The club, at one collection</p><h1>The Keys at ${esc(m.name)}.</h1>
+<p class="lede">The same rooms, kept for the people who have just looked at ${esc(m.name)}’s work: ${held.toLocaleString('en-US')} work${held === 1 ? '' : 's'} on its walls${stood ? `, ${stood} ${stood === 1 ? 'person' : 'people'} before them in the last three hours` : ''}. The talk here is about this collection; the house’s own rooms are <a href="/keys">one door down</a>.</p></div>
+${p ? app.locals.clock.clockBlock(p, { maker: m }) : ''}
+<section class="ky-rm"><p class="k">The rooms at ${esc(m.name)}</p><h2>Where to sit.</h2><div class="kr-grid">
+<a class="kr open" href="/stroll?maker=${esc(m.handle)}"><span class="kr-g">${I.guide}</span><span class="kr-st">Always lit</span><b>The viewing room</b><span>${esc(m.name)}’s work alone on the dark wall, one at a time, the guide read.</span></a>
+<a class="kr${lines.length ? ' open' : ''}" href="${lines.length ? `/bench/${esc(lines[0].slug)}` : `/m/${esc(m.handle)}`}"><span class="kr-g">${I.key}</span><span class="kr-st">${lines.length ? 'Talk under the work' : 'Quiet'}</span><b>The benches</b><span>${lines.length ? `“${esc(lines[0].body.slice(0, 110))}${lines[0].body.length > 110 ? '…' : ''}” — ${esc(lines[0].name)}, under ${esc(lines[0].title)}` : 'Stand before a work for a minute and the bench under it opens to you.'}</span></a>
+<a class="kr${tours.length ? ' open' : ''}" href="${tours.length ? `/tour/${esc(tours[0].slug)}` : '/guides'}"><span class="kr-g">${I.guide}</span><span class="kr-st">${tours.length ? `${tours.length} tour${tours.length === 1 ? '' : 's'}` : 'No tour yet'}</span><b>The tours</b><span>${tours.length ? `${esc(tours[0].title)}, with ${esc(tours[0].guide || 'a guide')}` : 'Hang a wall of this collection and say a word on each work: be its first guide.'}</span></a>
+<a class="kr" href="/balcony/at/${esc(m.handle)}"><span class="kr-g">${MARK.bunch || I.key}</span><span class="kr-st">Nine to midnight, New York</span><b>The balcony</b><span>For those who have just looked at ${esc(m.name)}’s work. A host, the wall of the night, nothing kept.</span></a>
+${m.kind === 'institution' ? `<a class="kr" href="/rights/${esc(m.handle)}"><span class="kr-g">${I.page}</span><span class="kr-st">Always open</span><b>The rights desk</b><span>One door for every request to reproduce, with a ticket to follow.</span></a>` : ''}
+<a class="kr" href="/kids?at=${esc(m.handle)}"><span class="kr-g">${I.wilhelm}</span><span class="kr-st">All day</span><b>The kids’ corner</b><span>Six works for today, three things to find under each, the easel. Nothing to buy.</span></a>
+</div>${T.length ? `<p class="mu-team">The desk: ${T.map(s => `${esc(s.name || '')} <i>${esc(s.role)}</i>`).join(' · ')}.</p>` : ''}</section>
+${lines.length ? `<section class="ky-lines"><p class="k">Lately, on the benches</p>${lines.map(l => `<p class="ky-ln">“${esc(l.body)}” <small>— ${esc(l.name)}, under <a href="/bench/${esc(l.slug)}">${esc(l.title)}</a></small></p>`).join('')}</section>` : ''}
+</section>` }));
+  });
 
   // The door.
   app.get('/keys', (req, res) => {
@@ -117,6 +145,7 @@ ${room('maker', KINDS.maker, 'You make the work.', 'Given with a studio, by invi
 ${room('collector', KINDS.collector, 'You keep the work.', `Given with the first piece you collect. It opens your gallery and your walls, the benches under every work, the balcony, and the dinner. The first hundred collectors are founders, for good.${(() => { const F = app.locals.founders && app.locals.founders.first(); return F ? ` The first collector of the house: ${F.public && F.code ? `<a href="/g/${esc(F.code)}">${esc(F.name || 'a collector')}</a>` : esc(F.name || 'a collector')}${app.locals.founders.note() ? `, ${esc(app.locals.founders.note())}` : ''}.` : ''; })()}`, b ? '/yours' : '/collection', 'Your gallery')}
 ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who hands you the keys to an archive, by a gallery that opens here, or when a wall you hung is shown and placed. It opens the archives you have been given, the right to hang shows, the curation share, and hosting.', '/curate', 'The archives open to you')}
 </div>
+${app.locals.clock ? app.locals.clock.clockBlock(app.locals.clock.programme(req)) : ''}
 <section class="ky-rm"><p class="k">The club</p><h2>The rooms.</h2><p class="ky-rml">Open all day and all night, all over the world. Some rooms keep hours; the rest are always lit. Each is curated: a host, a wall, a programme. Two are built for a day the house has not yet reached, and their doors say so.</p><div class="kr-grid">${rooms().map(roomCard).join('')}</div><p class="ky-rml ky-enjoy">The rooms reach into your own: <a href="/enjoy">how to enjoy the work in the real world</a>, on a television, through good speakers, in a headset, on paper.</p></section>
 <section class="ky-rules" id="dinner"><h2>The rules of the house.</h2><ul>
 <li><b>Nothing social on the wall.</b> No comment, count or feed ever sits beside a work. The talk is here, one door away.</li>

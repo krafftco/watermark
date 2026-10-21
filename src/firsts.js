@@ -9,6 +9,7 @@ function mountFirsts(app, { db, buyerOf, V }) {
   db.exec(`CREATE TABLE IF NOT EXISTS stood (id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL, viewer TEXT NOT NULL, buyer_id INTEGER, n INTEGER, at TEXT NOT NULL DEFAULT (datetime('now')), seconds INTEGER NOT NULL DEFAULT 0, UNIQUE (work_id, viewer))`);
   db.exec('CREATE INDEX IF NOT EXISTS stood_buyer ON stood (buyer_id, at)');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('stood') WHERE name='visits'").get()) db.exec('ALTER TABLE stood ADD COLUMN visits INTEGER NOT NULL DEFAULT 1');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('stood') WHERE name='last_at'").get()) db.exec('ALTER TABLE stood ADD COLUMN last_at TEXT'); // when they last stood (the rooms' door reads it)
   const work = slug => db.prepare("SELECT id, slug, title FROM works WHERE slug=? AND status='held'").get(String(slug));
   const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th');
 
@@ -19,7 +20,7 @@ function mountFirsts(app, { db, buyerOf, V }) {
     const v = String(b.v || '').replace(/[^a-z0-9]/gi, '').slice(0, 16); if (!v) return res.sendStatus(204);
     const buyer = buyerOf(req); const secs = Math.max(0, Math.min(3600, Math.round(Number(b.s) || 0)));
     const had = db.prepare('SELECT id, n FROM stood WHERE work_id=? AND viewer=?').get(w.id, v);
-    if (had) { db.prepare('UPDATE stood SET seconds=seconds+?, visits=visits+?, buyer_id=COALESCE(buyer_id, ?) WHERE id=?').run(secs, secs === 0 ? 1 : 0, buyer ? buyer.id : null, had.id); return res.json({ n: had.n }); }
+    if (had) { db.prepare("UPDATE stood SET seconds=seconds+?, visits=visits+?, buyer_id=COALESCE(buyer_id, ?), last_at=datetime('now') WHERE id=?").run(secs, secs === 0 ? 1 : 0, buyer ? buyer.id : null, had.id); return res.json({ n: had.n }); }
     const n = db.prepare('SELECT COUNT(*) n FROM stood WHERE work_id=?').get(w.id).n + 1;
     db.prepare('INSERT OR IGNORE INTO stood (work_id, viewer, buyer_id, n, seconds) VALUES (?,?,?,?,?)').run(w.id, v, buyer ? buyer.id : null, n, secs);
     res.json({ n, first: n <= FIRST, line: n <= FIRST ? `You are the ${ord(n)} person to stand in front of this.` : null });
