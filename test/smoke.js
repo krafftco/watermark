@@ -1137,8 +1137,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('Delivered'), 'the delivery use is never offered on a wall');
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.ok(r.body.toString().includes('A thank-you card') && r.body.toString().includes(`name="via" value="${dtok}"`), 'the card to the photographer');
     r = await req(port, 'POST', `/w/${w.slug}/thanks`, { body: { via: dtok, amount: '499' } }); { const ts = sessions[r.headers.location.split('/').pop()]; assert.ok(ts && /\/deliver\//.test(ts.cancel_url) && /via=/.test(ts.success_url), 'the card returns to the album'); }
+    // Wander the album (Will, 21 Oct): the door on the album, a kept-back photograph wanders too, the set's own label and way back, the card carries the album.
+    { const hid = db.prepare("SELECT * FROM works WHERE status='hidden' AND maker_id=? ORDER BY id DESC LIMIT 1").get(dv.maker_id) || (() => { const x = db.prepare("SELECT * FROM works WHERE status='held' AND maker_id=? AND slug!=? ORDER BY id DESC LIMIT 1").get(dv.maker_id, w.slug); db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(x.id); return { ...x, status: 'hidden' }; })();
+      db.prepare('INSERT OR IGNORE INTO delivery_works (delivery_id, work_id, pos, ref) VALUES (?,?,?,?)').run(dv.id, hid.id, 9, dl.ref);
+      r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(t.includes(`/wander?in=delivery:${dtok}`) && t.includes('Wander through them') && t.includes('watermark-logo.svg') && t.includes('yours to keep'), 'the album as a present, with the door to wander'); }
+      r = await req(port, 'GET', `/wander?in=delivery:${dtok}&at=${hid.slug}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes(`"slug":"${hid.slug}"`) && t.includes('The thirtieth') && t.includes(`"via":"${dtok}"`), 'a kept-back photograph wanders inside its album'); }
+      r = await req(port, 'GET', `/api/stroll?in=delivery:${dtok}&n=8`); { const j = JSON.parse(r.body); assert.ok(j.items.some(i => i.slug === hid.slug) && j.items.some(i => i.slug === w.slug) && j.label === 'The thirtieth', 'the album as a set'); }
+      r = await req(port, 'GET', `/wander?in=delivery:no-such-album`); assert.equal(r.status, 302, 'no album: its own door answers');
+      db.prepare("UPDATE works SET status='held' WHERE id=?").run(hid.id); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
+    r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');
     r = await req(port, 'GET', `/d/${dl.download_token}`); assert.equal(r.status, 404, 'the licence ended with it');
     console.log('ok: deliveries'); }
 

@@ -144,10 +144,13 @@
   sheet.addEventListener('click', function (e) { if (e.target === sheet) stopGuide(); });
   // A card for the maker: 99 cents from the pocket in one tap; else the card page with every amount.
   function card(w) {
-    fetch('/w/' + w.slug + '/thanks', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'amount=99&json=1' }).then(function (r) { return r.json(); }).then(function (j) {
+    // From an album (a delivery), the card carries the album's token so a kept-back photograph may be thanked for, and
+    // the card page is the album's own.
+    var via = S.set && S.set.via ? S.set.via : '', home = via ? '/deliver/' + via + '#thanks' : '/w/' + w.slug + '/thanks';
+    fetch('/w/' + w.slug + '/thanks', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'amount=99&json=1' + (via ? '&via=' + encodeURIComponent(via) : '') }).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.ok) { say('A card sent to ' + w.maker.split(' ')[0] + ', 99\u00a2.'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} }
-      else location.href = (j && j.go) || ('/w/' + w.slug + '/thanks');
-    }).catch(function () { location.href = '/w/' + w.slug + '/thanks'; });
+      else location.href = (j && j.go) || home;
+    }).catch(function () { location.href = home; });
   }
   function share(w) {
     var url = location.origin + '/m/' + w.makerSlug + '/' + w.slug, text = w.title + ', a photograph by ' + w.maker + ' on Watermark';

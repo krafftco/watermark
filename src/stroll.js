@@ -41,16 +41,20 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
       return { label: 'Your gallery', href: '/yours', works };
     }
     if (key === 'studio') { const m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null; if (!m) return null; const v = setOf('maker:' + m.handle); return v ? Object.assign({}, v, { label: 'Your work', href: '/account' }) : null; }
+    // A delivery (Will, 21 Oct: the friend wanders the album as one wanders the house; the work stays the maker's):
+    // the album's photographs, held or kept back, in the album's order, for as long as the link is live.
+    if (key.startsWith('delivery:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(9)) : null;
     return setOf(key);
   }
+  const isDelivery = key => String(key || '').startsWith('delivery:');
   function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
     const v = mine(req, key); if (!v || !v.works.length) return null;
     const slugs = v.works.map(w => w.slug), not = new Set(seen);
     let i = slugs.indexOf(at || seen[seen.length - 1]); if (i < 0) i = -1;
     const out = [];
     for (let k = 1; k <= slugs.length && out.length < n; k++) { const sl = slugs[(i + k) % slugs.length]; if (!not.has(sl) && sl !== at) { out.push(sl); not.add(sl); } }
-    const rows = out.map(sl => db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(sl)).filter(Boolean);
-    return { label: v.label, href: v.href, n: slugs.length, items: rows.map(w => wanderJSON(w, req)) };
+    const rows = out.map(sl => db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(sl)).filter(Boolean);
+    return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, items: rows.map(w => wanderJSON(w, req)) };
   }
   app.get('/api/stroll', (req, res) => {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
@@ -120,13 +124,15 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   app.get('/stroll', (req, res) => res.redirect(301, '/wander' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
   app.get('/wander', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
-    const at = req.query.at ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
-    const key = String(req.query.in || '').slice(0, 80); const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
+    const key = String(req.query.in || '').slice(0, 80);
+    const at = req.query.at ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
+    const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
+    if (isDelivery(key) && !set) return res.redirect('/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
     let items = set ? set.items : next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (at) items = [wanderJSON(at, req), ...items];
     const mk = set ? null : makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n } : null, I }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null } : null, I }));
   });
 }
 
