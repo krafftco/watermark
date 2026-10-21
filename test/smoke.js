@@ -1163,6 +1163,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/studio/door', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('evil.jpg'), 'Studio → The door lists it');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('upload.refused') && !r.body.toString().includes('evil.jpg'), 'never on the public register');
     console.log('ok: the bag check'); }
+
+  // Every inline script compiles (21 Oct: the vault's script had died on a backslash eaten by its template string, so choosing files did nothing).
+  { const pages = [['/', null], ['/collection', null], [`/w/${w.slug}`, null], ['/wander', null], ['/keys', null], ['/yours', gck], [`/account/upload?maker=${me}`, ck], [`/account?maker=${me}`, ck], ['/studio', ck], ['/studio/masters', ck]];
+    for (const [u, cookie] of pages) { r = await req(port, 'GET', u, cookie ? { cookie } : {}); assert.equal(r.status, 200, 'page ' + u);
+      const html = r.body.toString(); const re = /<script(?![^>]*\bsrc=)(?![^>]*type="(?:module|application\/(?:ld\+)?json|speculationrules)")[^>]*>([\s\S]*?)<\/script>/g; let mm, n = 0;
+      while ((mm = re.exec(html))) { n++; try { new Function(mm[1]); } catch (e) { assert.fail(`inline script on ${u} does not compile: ${e.message} :: ${mm[1].slice(0, 120)}`); } }
+      assert.ok(n >= 1, 'scripts found on ' + u); }
+    console.log('ok: every inline script compiles'); }
   // The house's portrait ships with the code (20 Oct).
   { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
     r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
