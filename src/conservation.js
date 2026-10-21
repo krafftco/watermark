@@ -100,16 +100,19 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     // A vault or disk hiccup (the network, a full disk, a fetch cut short) is the house's trouble, not the work's: it is
     // noted and tried again later, never a reason to take the work off the walls (20 Oct: eighty works left the walls
     // in one minute while masters were being uploaded).
-    try { file = await originalPath(w); } catch (e) { transient = true; findings.push(`The original could not be fetched from the vault just now: ${e.message}`); }
+    // An original not yet copied to the bucket (`works.vaulted` 0) has one copy in the world, the local one: it is never
+    // dropped to be fetched again (21 Oct: fourteen new arrivals were dropped this way and were gone).
+    const onlyCopy = store.kind === 's3' && w.vaulted === 0;
+    try { file = await originalPath(w); } catch (e) { transient = !onlyCopy; findings.push(onlyCopy ? 'The original is not on disk and never reached the vault; the file must be brought in again.' : `The original could not be fetched from the vault just now: ${e.message}`); }
     if (file) {
       const d = await P.decodes(file); decode = d.ok ? 1 : 0;
       if (!d.ok) {
         // a cut-short local copy is a hiccup: drop it so the next check fetches afresh
-        if (/truncated|premature|unexpected end|Input buffer/i.test(d.error || '') && store.kind === 's3') { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push(`The local copy of the original was incomplete and has been dropped; it will be fetched again: ${d.error}`); }
+        if (/truncated|premature|unexpected end|Input buffer/i.test(d.error || '') && store.kind === 's3' && !onlyCopy) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push(`The local copy of the original was incomplete and has been dropped; it will be fetched again: ${d.error}`); }
         else findings.push(`The original does not decode whole: ${d.error}`);
       }
       const h = sha256(fs.readFileSync(file)); fixity = h === w.sha256 ? 1 : 0;
-      if (!fixity) { if (transient) { /* the same hiccup */ } else if (store.kind === 's3') { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push('The local copy of the original did not match the fingerprint and has been dropped; it will be fetched again.'); } else findings.push('The original’s bytes no longer match the fingerprint on the register.'); }
+      if (!fixity) { if (transient) { /* the same hiccup */ } else if (store.kind === 's3' && !onlyCopy) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } transient = true; findings.push('The local copy of the original did not match the fingerprint and has been dropped; it will be fetched again.'); } else findings.push('The original’s bytes no longer match the fingerprint on the register.'); }
       if (d.ok && w.width && w.height) { const rot = d.width === w.height && d.height === w.width; dims = (d.width === w.width && d.height === w.height) || rot ? 1 : 0; if (!dims) findings.push(`The original is ${d.width}×${d.height}; the record says ${w.width}×${w.height}.`); }
       if (renders && d.ok && fixity) {
         const files = renditionsOf(w.slug).filter(f => sizeOf(f) !== 'thumb'); rends = 1; const bad = [];

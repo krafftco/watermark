@@ -187,14 +187,26 @@ function createApp(cfg = {}) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vaulted'").get()) { db.exec('ALTER TABLE works ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 1'); }
   const unvaulted = () => new Set(db.prepare('SELECT original_file FROM works WHERE vaulted=0').all().map(r => r.original_file));
   let vaulting = false;
+  const vaultState = { lastError: null, lastErrorAt: null, lastOkAt: null, lost: [] }; // told on /healthz `vault`
   async function vaultPending() {
     if (vaulting || store.kind !== 's3') return; vaulting = true;
     try {
-      for (const w of db.prepare('SELECT id, slug, original_file FROM works WHERE vaulted=0 ORDER BY id LIMIT 50').all()) {
-        const p = path.join(originals, w.original_file); if (!fs.existsSync(p)) { console.error('[vault] unvaulted original missing on disk', w.slug); continue; }
-        try { await store.put('originals/' + w.original_file, p, /\.png$/i.test(p) ? 'image/png' : /\.tiff?$/i.test(p) ? 'image/tiff' : 'image/jpeg'); db.prepare('UPDATE works SET vaulted=1 WHERE id=?').run(w.id); }
-        catch (e) { console.error('[vault] put', w.slug, e.message); break; }
+      const lost = [];
+      for (const w of db.prepare('SELECT * FROM works WHERE vaulted=0 ORDER BY id LIMIT 50').all()) {
+        const p = path.join(originals, w.original_file);
+        if (!fs.existsSync(p)) {
+          // Not on disk: perhaps the bucket already has it (a put that landed as the process died); else the only copy
+          // is gone, and the work goes off view for conservation with the finding, never a 500 on its picture.
+          const inBucket = await store.size('originals/' + w.original_file).catch(() => null);
+          if (inBucket && (!w.bytes || inBucket === w.bytes)) { db.prepare('UPDATE works SET vaulted=1 WHERE id=?').run(w.id); continue; }
+          lost.push(w.slug); console.error('[vault] unvaulted original missing on disk', w.slug);
+          if (app.locals.conservation && w.status !== 'restoring') try { app.locals.conservation.offView(w, ['The original is not on disk and never reached the vault; the file must be brought in again.']); } catch (e) { /* told on /healthz */ }
+          continue;
+        }
+        try { await store.put('originals/' + w.original_file, p, /\.png$/i.test(p) ? 'image/png' : /\.tiff?$/i.test(p) ? 'image/tiff' : 'image/jpeg'); db.prepare('UPDATE works SET vaulted=1 WHERE id=?').run(w.id); vaultState.lastOkAt = new Date().toISOString(); vaultState.lastError = null; }
+        catch (e) { console.error('[vault] put', w.slug, e.message); vaultState.lastError = `${w.slug}: ${e.message}`.slice(0, 200); vaultState.lastErrorAt = new Date().toISOString(); break; }
       }
+      vaultState.lost = lost;
     } finally { vaulting = false; }
   }
   async function originalPath(w) {
@@ -336,8 +348,19 @@ function createApp(cfg = {}) {
     const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
     await BAG.throwIfBad(file, { name: originalName || path.basename(file), where: 'registerWork', who: `m:${owner.handle}` }); // the bag check: every arrival, by every door
     const info = await images.inspect(file);
-    const dupe = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
-    if (dupe) { fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e; }
+    const dupe = db.prepare('SELECT * FROM works WHERE sha256=?').get(info.sha256);
+    if (dupe) {
+      // The same file for a record whose only copy was lost (vaulted 0, nothing on disk): the file comes home to its
+      // record, which keeps its slug, deed and register entry; the queue vaults it and conservation puts it back on view.
+      const home = path.join(originals, dupe.original_file || '');
+      if (dupe.vaulted === 0 && dupe.original_file && !fs.existsSync(home)) {
+        try { fs.renameSync(file, home); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, home); fs.unlinkSync(file); }
+        if (dupe.status === 'restoring' && app.locals.conservation) app.locals.conservation.backOnView(dupe);
+        setTimeout(() => vaultPending().catch(() => {}), 50).unref();
+        const back = q.work.get(dupe.slug); back.cameHome = true; return back;
+      }
+      fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e;
+    }
     title = require('./titles').titleCase(title);
     let slug = slugify(title), i = 2;
     while (q.work.get(slug)) slug = `${slugify(title)}-${i++}`;
@@ -354,7 +377,8 @@ function createApp(cfg = {}) {
     const kindOk = kind && require('./object').KINDS[kind] ? kind : 'photograph';
     db.prepare("UPDATE works SET accession=?, kind=?, medium=CASE WHEN ?='photograph' THEN COALESCE(medium, 'Digital photograph') ELSE medium END, dhash=?, bytes=? WHERE id=?").run(accession(nw), kindOk, kindOk, await images.dhash(dest).catch(() => null), (() => { try { return fs.statSync(dest).size; } catch (e) { return null; } })(), nw.id);
     const cred = await CR.inspect(dest); if (cred) db.prepare('UPDATE works SET credentials=? WHERE id=?').run(JSON.stringify(cred), nw.id);
-    if (store.kind === 's3') fs.unlinkSync(dest); // the vault holds it; the disk is only a cache
+    // (21 Oct) The local copy stays: it is the cache, trimmed by budget, and until the bucket has it (vaultPending) it is
+    // the only copy in the world. The old line unlinked it here, and fourteen new arrivals were lost that way.
     ledger.append(db, 'work.registered', slug, { maker: owner.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
     return q.work.get(slug);
   }
@@ -701,7 +725,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       res.type(images.FORMATS[fmt][1]).sendFile(file);
-    } catch (e) { res.sendStatus(500); }
+    } catch (e) { console.error('[img]', w.slug, req.params.size, e.message); res.set('Cache-Control', 'no-store'); res.sendStatus(/missing from the vault/.test(e.message) ? 404 : 500); }
   });
 
   // JSON for embeds
@@ -2158,7 +2182,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     return deskLine;
   });
-  app.get('/healthz', (req, res) => res.json({ ok: true, vault: { kind: store.kind, cors: app.locals.vaultCors, unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n }, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
+  app.get('/healthz', (req, res) => res.json({ ok: true, vault: { kind: store.kind, cors: app.locals.vaultCors, unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, ledger: ledger.verify(db).ok, mail: mail.on(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }));
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.
