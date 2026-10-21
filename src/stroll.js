@@ -90,7 +90,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     }
     // Your door: the wallet, as a maker or a collector.
     let yours = '';
-    if (!b && !m) yours = `<header class="sd-h"><p class="k">Yours</p><h3>Your gallery, your wallet.</h3><p class="sd-m">Sign in and what you hold, your pocket and your walls are one swipe away.</p><a class="buy-btn" href="/signin?next=/stroll">Sign in</a></header>`;
+    if (!b && !m) yours = `<header class="sd-h"><p class="k">Yours</p><h3>Your gallery, your wallet.</h3><p class="sd-m">Sign in and what you hold, your pocket and your walls are one swipe away.</p><a class="buy-btn" href="/signin?next=/wander">Sign in</a></header>`;
     else {
       const bal = P && b ? P.balance(b) : 0, cash = P && b ? P.cashable(b) : 0;
       const pieces = b ? db.prepare("SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.buyer_id=? AND l.status='active' AND w.status='held' ORDER BY l.id DESC LIMIT 6").all(b.id) : [];
@@ -99,7 +99,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
       const basket = String((req.cookies && req.cookies.wm_bk) || '').split(',').filter(Boolean).length;
       const collector = `<div class="sd-pane" data-sd-as="collector">
 <section class="sd-wallet"><p class="k">Your pocket</p><p class="sd-sum">${money(bal)}</p><p class="sd-m">${cash >= 100 ? `${money(cash)} earned, yours to cash out.` : 'One tap collects from it.'}</p><div class="sd-row"><a href="/yours?tab=settings#pocket">Top up</a>${cash >= 100 ? '<a href="/yours?tab=settings#pocket">Cash out</a>' : ''}</div></section>
-<section class="sd-sec"><p class="k">Your gallery · ${nHeld}</p>${pieces.length ? `<a class="sd-stroll" href="/stroll?in=mine${w ? '' : ''}">${I.wave || ''}<b>Stroll your gallery</b><i>Your pieces, one at a time, edge to edge</i></a><div class="sd-th">${pieces.map(p => `<a href="/yours" title="${esc(p.title)}"><img src="/img/${esc(p.slug)}/thumb" alt=""></a>`).join('')}</div>` : '<p class="sd-m">Nothing yet. Collect what stops you.</p>'}<a class="sd-go" href="/yours">Open your gallery →</a></section>
+<section class="sd-sec"><p class="k">Your gallery · ${nHeld}</p>${pieces.length ? `<a class="sd-stroll" href="/wander?in=mine${w ? '' : ''}">${I.wave || ''}<b>Wander your gallery</b><i>Your pieces, one at a time, edge to edge</i></a><div class="sd-th">${pieces.map(p => `<a href="/yours" title="${esc(p.title)}"><img src="/img/${esc(p.slug)}/thumb" alt=""></a>`).join('')}</div>` : '<p class="sd-m">Nothing yet. Collect what stops you.</p>'}<a class="sd-go" href="/yours">Open your gallery →</a></section>
 <div class="sd-doors">${door('/yours?tab=walls', 'Yours', walls ? `${walls} wall${walls === 1 ? '' : 's'}` : 'Your walls', 'Hang what you love, show it')}${basket ? door('/basket', 'Yours', `Basket · ${basket}`, 'Collect them all at once') : ''}${door('/yours?tab=papers', 'Yours', 'Your papers', 'Licenses, certificates, the register')}${door('/collection', 'The museum', 'The collection', 'Every work, the wings, the masterworks')}</div></div>`;
       let maker = '';
       if (m) {
@@ -116,7 +116,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     res.json({ keys, yours });
   });
 
-  app.get('/stroll', (req, res) => {
+  app.get('/wander', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const at = req.query.at ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
     const key = String(req.query.in || '').slice(0, 80); const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
@@ -134,7 +134,7 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
   const card = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
-<div class="st-plate"><a class="st-by" href="/stroll?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/stroll?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
+<div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
 <button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
 <nav class="st-rail" aria-label="Acts">
 <button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}">${I.bravo}<span>Bravo</span></button>
@@ -142,13 +142,13 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
 ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}">${I.collect}<span>${esc(w.collect.price)}</span></button>` : ''}
 ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Guide</span></button>` : ''}
 <button type="button" class="st-b" data-st-card>${I.card}<span>Card</span></button>
-<a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/stroll?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a>
+<a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/wander?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a>
 <button type="button" class="st-b" data-st-share>${I.send}<span>Share</span></button>
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
-  return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}The stroll · Watermark`, desc: 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: '/stroll', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/stroll" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon" data-st-settings aria-label="Settings" title="The guide, the pace, the sound">${I.dial}<span>Settings</span></button><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
+  return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
+<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon" data-st-settings aria-label="Settings" title="The guide, the pace, the sound">${I.dial}<span>Settings</span></button><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 /div>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
@@ -156,7 +156,7 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 <div class="st-srow"><p class="st-sk">Pace</p><div class="st-pills" data-st-pace><button type="button" data-pace="0">You scroll</button><button type="button" data-pace="15">15 s</button><button type="button" data-pace="30">30 s</button><button type="button" data-pace="90">90 s</button></div></div>
 <div class="st-srow"><p class="st-sk">Sound</p><label class="st-sw"><input type="checkbox" data-st-music><span>Quiet music, made here</span></label><label class="st-sw"><input type="checkbox" data-st-gon><span>The guide read aloud as you arrive</span></label></div>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
-<div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/stroll">Stroll on</a></section>`}</div>
+<div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.wilhelm}Look closer &middot; Wilhelm</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 <p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Yours: your gallery and your wallet">${I.collect}<span>Yours</span></button><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="The Keys">${BUNCH}<span>The Keys</span></button>

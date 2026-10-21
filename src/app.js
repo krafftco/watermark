@@ -462,12 +462,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // --- public pages ---
   // Never a break (Will, 18 Oct): a link to a photograph no longer shown goes on to the next one, on a phone in the stroll.
   const isPhone = req => /iPhone|iPod|Android.+Mobile|Mobile Safari/i.test(String(req.get('user-agent') || '')) && !/iPad/i.test(String(req.get('user-agent') || ''));
-  function onward(req, from) { return isPhone(req) ? '/stroll' : `/wander?from=${encodeURIComponent(from || '')}`; }
+  function onward(req, from) { return isPhone(req) ? '/wander' : `/wander?from=${encodeURIComponent(from || '')}`; }
   app.locals.onward = onward; app.locals.isPhone = isPhone;
   // The front door is the collection; makers have their own entrance.
   // The viewing room: the picture alone on a dark wall, the guide read aloud, and on to the next by itself.
   app.get('/wander/room', (req, res) => {
-    if (isPhone(req)) return res.redirect(req.query.at ? `/stroll?at=${encodeURIComponent(String(req.query.at))}` : '/stroll'); // on a phone, the stroll
+    if (isPhone(req)) return res.redirect(req.query.at ? `/wander?at=${encodeURIComponent(String(req.query.at))}` : '/wander'); // on a phone, the stroll
     const from = String(req.query.from || '').split(',').filter(Boolean).slice(-12);
     const start = req.query.at ? q.work.get(String(req.query.at)) : null;
     const w = (start && start.status === 'held' ? start : null) || db.prepare(`SELECT * FROM works WHERE status='held'${from.length ? ` AND slug NOT IN (${from.map(() => '?').join(',')})` : ''} ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(...from);
@@ -508,15 +508,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.todays = todays;
   app.get('/today', (req, res) => { const t = todays(); res.redirect(t ? `/w/${t.slug}?today=1` : '/collection'); });
   // Wander: a photograph you did not go looking for. The best work weighs more; what you just saw is left out.
-  app.get('/wander', (req, res) => {
-    const from = String(req.query.from || '');
-    const zs = zone.sql(req, 'works') + app.locals.editSql('works');
-    const pick = db.prepare(`SELECT slug FROM works WHERE status='held'${zs} AND slug<>? ORDER BY (CASE WHEN curated=1 THEN 3 WHEN stars>=4 THEN 2 WHEN stars>=3 THEN 1 ELSE 0 END) * RANDOM() DESC, RANDOM() LIMIT 1`).get(from)
-      || db.prepare(`SELECT slug FROM works WHERE status='held'${zs} ORDER BY RANDOM() LIMIT 1`).get();
-    if (!pick) return res.redirect('/collection');
-    if (isPhone(req)) return res.redirect(`/stroll?at=${encodeURIComponent(pick.slug)}`); // on a phone, wandering is the stroll
-    res.redirect(`/w/${pick.slug}?wander=1`);
-  });
+  // /wander is the stroll now (stroll.js); the old random-work redirect is gone (Will, 21 Oct: one word, Wander).
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
   app.get('/artists', (req, res) => {
     const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') GROUP BY m.id ORDER BY n DESC, m.id`).all();
@@ -697,7 +689,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const shown = works.filter(w => !w.ask).length;
     let credits = null; try { const cr = app.locals.creditsOf ? await app.locals.creditsOf(post) : null; if (cr && cr.people.length) credits = { people: cr.people.map(p => ({ name: p.name, label: p.label })), tip: stripe ? `${C.base}/tip/${post}` : null }; } catch (e) { /* none */ }
     const firstHeld = works.find(x => x.slug);
-    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, wander: firstHeld ? `${C.base}/wander/room?at=${firstHeld.slug}` : null, works, credits,
+    res.json({ base: C.base, room: room && room.public && shown ? { slug: room.slug, title: room.title, url: `${C.base}/rooms/${room.slug}`, n: shown } : null, wander: firstHeld ? `${C.base}/wander?at=${firstHeld.slug}` : null, works, credits,
       patron: stripe ? `${C.base}/m/${slugify(maker.name)}#patron` : null, license: 'https://www.krafftco.com/license', mark: 'K' });
   });
   // A Krafft image anywhere (krafftco.com/license?image=…): which work is it?

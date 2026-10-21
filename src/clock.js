@@ -61,7 +61,7 @@ function mountClock(app, { db, V, C, buyerOf }) {
       const t = pick(texts)[0]; if (t) link(`/library/${t.slug}`, t.title, t.author || 'From the shelf', 'To read late');
       work(pick(guided, 3)[2] || pick(guided)[0], 'One more, before bed');
     } else {
-      link(maker ? `/stroll?maker=${maker.handle}` : '/stroll', 'The night room', 'The collection alone on the dark wall. Sit a while: ninety seconds a work, the guide read, quiet music.', 'The small hours');
+      link(maker ? `/wander?maker=${maker.handle}` : '/wander', 'The night room', 'The collection alone on the dark wall. Sit a while: ninety seconds a work, the guide read, quiet music.', 'The small hours');
       work(pick(starred, 2)[1] || pick(starred)[0], 'Hold on this one');
       const t = pick(texts, 2)[1] || pick(texts)[0]; if (t) link(`/library/${t.slug}`, t.title, t.author || 'From the shelf', 'For the sleepless');
     }

@@ -27,7 +27,7 @@
     var as = list.querySelectorAll('a'); var q = inp.value.trim();
     if (sel >= 0 && as[sel]) { location.href = as[sel].href; return; }
     if (rows.length && rows[0].kind === 'work' && as[0]) { location.href = as[0].href; return; }
-    if (q) location.href = '/stroll?q=' + encodeURIComponent(q);
+    if (q) location.href = '/wander?q=' + encodeURIComponent(q);
   }
   function workRow(w) { return '<a class="fd-w" href="' + esc(hrefOf(w)) + '" role="option"><img src="' + esc(w.img) + '" alt="" loading="lazy"><span><b>' + esc(w.title) + '</b><small>' + esc(w.maker) + (w.place ? ' · ' + esc(w.place) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
   function wayRow(x, k) { return '<a class="fd-w fd-way" href="' + esc(hrefOf(x)) + '" role="option">' + (x.img ? '<img src="' + esc(x.img) + '" alt="" loading="lazy">' : '<span class="fd-blank"></span>') + '<span><b>' + esc(x.name) + '</b><small>' + k + (x.by ? ' · ' + esc(x.by) : '') + (x.n ? ' · ' + x.n + ' work' + (x.n === 1 ? '' : 's') : '') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
@@ -48,14 +48,14 @@
     (d.rooms || []).forEach(function (r) { out += wayRow(r, 'Room'); rows.push(r); });
     (d.hangs || []).forEach(function (w) { out += wayRow(w, 'A wall'); rows.push(w); });
     if (!out) out = '<p class="fd-none">' + (IC.wilhelm || '') + '<span>Nothing by that word yet. Try a place, a maker, or a year.</span></p>';
-    else if (d.works && d.works.length) out += '<a class="fd-all" href="/stroll?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
+    else if (d.works && d.works.length) out += '<a class="fd-all" href="/wander?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
     list.innerHTML = out; foot.innerHTML = d.works && d.works.length ? (IC.wilhelm || '') + '<span>' + (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') + '</span>' : '';
   }
   var ctl = null;
   function load(q) {
     if (q === lastQ) return; lastQ = q;
-    if (ctl) ctl.abort(); ctl = new AbortController();
-    fetch('/api/find?q=' + encodeURIComponent(q), { credentials: 'same-origin', signal: ctl.signal }).then(function (r) { return r.json(); }).then(function (d) { if ((d.q || '') === (inp.value.trim())) render(d); }).catch(function () {});
+    if (ctl) ctl.abort(); ctl = new AbortController(); if (window.WMWave) WMWave.show();
+    fetch('/api/find?q=' + encodeURIComponent(q), { credentials: 'same-origin', signal: ctl.signal }).then(function (r) { return r.json(); }).then(function (d) { if (window.WMWave) WMWave.hide(); if ((d.q || '') === (inp.value.trim())) render(d); }).catch(function () {});
   }
   function open(opts) {
     opts = opts || {}; mode = opts.mode || 'page'; build();

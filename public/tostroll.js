@@ -25,6 +25,6 @@
     var slug = slugOf(a); if (!slug) return;
     if (document.querySelector('.hg-own')) return; // arranging your own wall
     e.preventDefault(); e.stopPropagation();
-    location.href = '/stroll?at=' + encodeURIComponent(slug) + (key ? '&in=' + encodeURIComponent(key) : '');
+    location.href = '/wander?at=' + encodeURIComponent(slug) + (key ? '&in=' + encodeURIComponent(key) : '');
   }, true); // first, ahead of the page's own lightbox
 })();

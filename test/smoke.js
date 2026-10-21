@@ -146,11 +146,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     let n = await app.locals.wallLetters(); assert.ok(n >= 1, 'wall letters went'); assert.ok(!db.prepare('SELECT 1 FROM wall_letters WHERE license_id=?').get(db.prepare('SELECT id FROM licenses WHERE ref=?').get(dj.ref).id), 'the piece with a proof is left alone');
     n = await app.locals.wallLetters(); assert.equal(n, 0, 'never twice'); }
   // find: straight to the picture
-  r = await req(port, 'GET', '/api/find?q=dome'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length && fj.works[0].href.startsWith('/m/') && fj.works[0].stroll.startsWith('/stroll?at='), 'find by title: ' + r.body.slice(0, 200)); }
+  r = await req(port, 'GET', '/api/find?q=dome'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length && fj.works[0].href.startsWith('/m/') && fj.works[0].stroll.startsWith('/wander?at='), 'find by title: ' + r.body.slice(0, 200)); }
   r = await req(port, 'GET', '/api/find?q=dmoe'); { const fj = JSON.parse(r.body); assert.ok(fj.works.length, 'a typo forgiven'); }
   r = await req(port, 'GET', '/api/find', { cookie: bck }); { const fj = JSON.parse(r.body); assert.ok(fj.before && fj.before.yours.length >= 1 && fj.before.places.length, 'before typing: yours and the ways in'); }
   r = await req(port, 'GET', '/find?q=dome'); assert.ok(r.status === 200 && r.body.toString().includes('class="fd-w"'), 'the find page');
-  r = await req(port, 'GET', '/stroll'); assert.ok(r.body.toString().includes('data-find-open="stroll"') && r.body.toString().includes('data-st-ssheet') && r.body.toString().includes('data-pace="30"'), 'the stroll carries Find and Settings');
+  r = await req(port, 'GET', '/wander'); assert.ok(r.body.toString().includes('data-find-open="stroll"') && r.body.toString().includes('data-st-ssheet') && r.body.toString().includes('data-pace="30"'), 'the stroll carries Find and Settings');
   r = await req(port, 'POST', '/yours', { cookie: bck, body: { name: "Tap's collection", public: '1' } });
   const code = db.prepare("SELECT code FROM buyers WHERE name=?").get("Tap's collection").code;
   r = await req(port, 'GET', `/collector/${code}`); yb = r.body.toString(); assert.ok(yb.includes('Tap&#39;s collection') || yb.includes("Tap's collection"), 'public by choice');
@@ -899,19 +899,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/tv'); assert.equal(r.headers.location, '/frame/tv'); }
   console.log('ok: the frame');
   // The stroll: the first photographs in the page, more by the API, never what was already seen, a word to stroll through.
-  { r = await req(port, 'GET', '/stroll'); assert.equal(r.status, 200); assert.ok(/class="st-i"/.test(r.body) && /__WM_STROLL/.test(r.body) && /data-st-hat/.test(r.body), 'the stroll opens with photographs and the rail');
+  { r = await req(port, 'GET', '/wander'); assert.equal(r.status, 200); assert.ok(/class="st-i"/.test(r.body) && /__WM_STROLL/.test(r.body) && /data-st-hat/.test(r.body), 'the stroll opens with photographs and the rail');
     r = await req(port, 'GET', '/api/stroll?n=3'); const s1 = JSON.parse(r.body); assert.equal(s1.items.length, 3); assert.ok(s1.items.every(w => /\/img\//.test(w.img) && w.maker && w.makerSlug));
     r = await req(port, 'GET', '/api/stroll?n=20&seen=' + s1.items.map(w => w.slug).join(',')); const s2 = JSON.parse(r.body); assert.ok(s2.items.length && !s2.items.some(w => s1.items.find(x => x.slug === w.slug)), 'never the same twice');
     r = await req(port, 'GET', '/api/stroll?n=5&q=zzzz-no-such'); assert.equal(JSON.parse(r.body).items.length, 0);
-    r = await req(port, 'GET', '/stroll?at=' + s1.items[0].slug); assert.ok(r.body.indexOf('data-slug="' + s1.items[0].slug + '"') < r.body.indexOf('data-slug="', r.body.indexOf('data-slug="' + s1.items[0].slug + '"') + 10), 'opens at the one asked for'); }
+    r = await req(port, 'GET', '/wander?at=' + s1.items[0].slug); assert.ok(r.body.indexOf('data-slug="' + s1.items[0].slug + '"') < r.body.indexOf('data-slug="', r.body.indexOf('data-slug="' + s1.items[0].slug + '"') + 10), 'opens at the one asked for'); }
     // The doors beside the stroll (19 Oct): a swipe left opens the Keys, a swipe right Yours (the wallet, as a collector or a maker).
     const sd1 = JSON.parse((await req(port, 'GET', '/api/stroll?n=1')).body).items[0].slug;
-    r = await req(port, 'GET', '/stroll'); assert.ok(/data-st-side="keys"/.test(r.body) && /data-st-side="yours"/.test(r.body) && /data-st-doors="keys"/.test(r.body), 'the two doors and their tabs are in the page');
+    r = await req(port, 'GET', '/wander'); assert.ok(/data-st-side="keys"/.test(r.body) && /data-st-side="yours"/.test(r.body) && /data-st-doors="keys"/.test(r.body), 'the two doors and their tabs are in the page');
     r = await req(port, 'GET', '/stroll/side/' + sd1); let sd = JSON.parse(r.body); assert.ok(/The bench/.test(sd.keys) && /The balcony/.test(sd.keys) && /kmk-mark/.test(sd.keys) && /The collection/.test(sd.keys) && /Sign in/.test(sd.yours), 'a stranger sees the Keys and a sign-in');
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); sd = JSON.parse(r.body); assert.ok(/Your pocket/.test(sd.yours) && /Your gallery/.test(sd.yours) && !/data-sd-switch/.test(sd.yours), 'a collector sees the wallet, no switch');
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: mck }); sd = JSON.parse(r.body); assert.ok(/data-sd-switch="maker"/.test(sd.yours) && /Owed to you/.test(sd.yours) && /Your pocket/.test(sd.yours), 'a maker sees both sides and the switch');
-    r = await req(port, 'GET', '/stroll?in=mine', { cookie: sck }); assert.ok(r.status === 200 && /Your gallery/.test(r.body) && /class="st-i"/.test(r.body), 'a collector strolls their own gallery');
-    r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); assert.ok(/\/stroll\?in=mine/.test(JSON.parse(r.body).yours), 'the door offers it');
+    r = await req(port, 'GET', '/wander?in=mine', { cookie: sck }); assert.ok(r.status === 200 && /Your gallery/.test(r.body) && /class="st-i"/.test(r.body), 'a collector strolls their own gallery');
+    r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); assert.ok(/\/wander\?in=mine/.test(JSON.parse(r.body).yours), 'the door offers it');
     r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/yc-stroll/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
     r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
@@ -1118,7 +1118,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { r = await req(port, 'GET', `/easel/${w.slug}`); assert.ok(r.status === 200 && /data-easel/.test(r.body) && /ez-notan5/.test(r.body) && /The master study/.test(r.body) && /data-ez="hold"/.test(r.body) && /easel\.js/.test(r.body), 'the easel');
     r = await req(port, 'GET', '/easel/no-such-work'); assert.equal(r.status, 302);
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(new RegExp(`/easel/${w.slug}`).test(r.body), 'the work page opens the easel');
-    r = await req(port, 'GET', '/stroll'); assert.ok(/data-st-easel/.test(r.body), 'the stroll opens the easel');
+    r = await req(port, 'GET', '/wander'); assert.ok(/data-st-easel/.test(r.body), 'the stroll opens the easel');
     r = await req(port, 'GET', '/static/easel.js'); assert.ok(r.status === 200 && /ez-notan2/.test(r.body)); }
   console.log('ok: the easel');
   // The house's portrait ships with the code (20 Oct).
@@ -1242,7 +1242,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/account/house', { cookie: `${ck}; wm_as=musee` }); assert.equal(r.status, 200);
     r = await req(port, 'POST', '/account/house', { cookie: `${ck}; wm_as=musee`, body: { domain: 'collection.musee.example', accent: '#7a1f2b', on: '1' } }); assert.equal(r.status, 302);
     r = await req(port, 'GET', '/', { headers: { host: 'collection.musee.example' } }); assert.equal(r.status, 200); const th = r.body.toString(); assert.ok(th.includes('brand-tn') && th.includes(inst.name) && /Made with Watermark/.test(th) && !/a Krafft company/.test(th) && !/house\.js/.test(th) && /--accent:#7a1f2b/.test(th), 'the museum’s own front door');
-    r = await req(port, 'GET', '/stroll', { headers: { host: 'collection.musee.example' } }); assert.equal(r.headers.location, '/stroll?maker=musee');
+    r = await req(port, 'GET', '/wander', { headers: { host: 'collection.musee.example' } }); assert.equal(r.headers.location, '/wander?maker=musee');
     r = await req(port, 'GET', '/keys', { headers: { host: 'collection.musee.example' } }); assert.equal(r.headers.location, '/keys/at/musee');
     r = await req(port, 'GET', '/'); assert.ok(!/brand-tn/.test(r.body) && /a Krafft company/.test(r.body), 'the house itself is untouched');
     r = await req(port, 'GET', '/enterprise'); assert.ok(r.status === 200 && /Your own house\./.test(r.body));
@@ -1373,12 +1373,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/w/' + w.slug); assert.ok(/data-eye=/.test(r.body.toString()), 'the eye on the plate');
     db.prepare("UPDATE works SET status='private' WHERE id=?").run(w.id);
     r = await req(port, 'GET', '/w/' + w.slug); assert.equal(r.status, 302); assert.ok(/\/wander/.test(r.headers.location), 'goes on: ' + r.headers.location);
-    r = await req(port, 'GET', '/w/' + w.slug, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile Safari' } }); assert.equal(r.headers.location, '/stroll');
+    r = await req(port, 'GET', '/w/' + w.slug, { headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile Safari' } }); assert.equal(r.headers.location, '/wander');
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); }
   console.log('ok: see the watermark');
   // The stroll through one set: from the photograph tapped, in the set's own order, never past its end.
   { const all = db.prepare("SELECT slug FROM works WHERE status='held'").all().map(r => r.slug);
-    let r = await req(port, 'GET', '/stroll?at=' + all[0] + '&in=collection'); assert.equal(r.status, 200); assert.ok(/st-set/.test(r.body.toString()), 'the set is named up top');
+    let r = await req(port, 'GET', '/wander?at=' + all[0] + '&in=collection'); assert.equal(r.status, 200); assert.ok(/st-set/.test(r.body.toString()), 'the set is named up top');
     const got = new Set([all[0]]); let seen = [all[0]], end = false;
     for (let k = 0; k < 20 && !end; k++) { r = await req(port, 'GET', '/api/stroll?n=8&in=collection&seen=' + encodeURIComponent(seen.join(','))); const j = JSON.parse(r.body.toString()); j.items.forEach(w => { assert.ok(!got.has(w.slug), 'never twice: ' + w.slug); got.add(w.slug); seen.push(w.slug); }); end = j.end; }
     assert.ok(end && got.size === all.length, 'the whole set, then the end: ' + got.size + ' of ' + all.length);

@@ -14,7 +14,7 @@
 function mountEasel(app, { db, V, mk, I }) {
   const { esc, tidy } = V;
   app.get('/easel/:slug', (req, res) => {
-    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug); if (!w) return res.redirect('/stroll');
+    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug); if (!w) return res.redirect('/wander');
     if (app.locals.zone && app.locals.zone.mature(w) && !app.locals.zone.open(req)) return res.redirect(`/w/${encodeURIComponent(w.slug)}`);
     const m = mk(w); const back = String(req.query.back || `/w/${w.slug}`).replace(/[^\w\-/?=&.%]/g, '') || `/w/${w.slug}`;
     let look = []; try { const c = w.closer ? JSON.parse(w.closer) : null; look = (c && c.study && c.study.look) ? c.study.look.slice(0, 3).map(x => (typeof x === 'string' ? x : x.what || x.text || '')).filter(Boolean) : []; } catch (e) { look = []; }

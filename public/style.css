@@ -3411,3 +3411,14 @@ html[data-rd-theme="paper"]{--rd-bg:#f6f1e7;--rd-ink:#1d1a16;--rd-mute:#7a716a;-
 /* The introduction card (src/introductions.js): a QR to hand across a table. */
 .inc{min-height:100svh;display:grid;place-items:center;background:#f6f1e7;color:#1d1a16;padding:24px}.inc-card{max-width:520px;text-align:center;padding:40px 32px;border:1px solid #d9d0bf;background:#fffdf8}.inc-card h1{font-family:var(--disp,'Instrument Serif',Georgia,serif);font-weight:400;font-size:44px;margin:6px 0 10px}.inc-lede{font-size:16px;line-height:1.5;color:#4a443c}.inc-qr{margin:24px auto 12px;width:min(280px,70vw)}.inc-qr svg{width:100%;height:auto}.inc-url{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#6f675d;margin:0}.inc-foot{font-size:12px;color:#8a8176;margin-top:14px}.inc-print{margin-top:16px}
 @media print{.inc{background:#fff;padding:0}.inc-print{display:none}.inc-card{border:0}}
+/* The wave that swims (public/wave.js): the house's loading mark. */
+.wm-wave{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translate(-50%,-6px);z-index:9999;opacity:0;transition:opacity .35s ease,transform .5s cubic-bezier(.2,.7,.2,1);pointer-events:none;color:#0b0a09;mix-blend-mode:multiply}
+html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
+.wm-wave.on{opacity:.92;transform:translate(-50%,0)}
+.wm-wave-w{width:46px;height:14px;overflow:hidden;animation:wm-bob 1.6s ease-in-out infinite}
+.wm-wave-r{display:flex;width:300%;height:100%;animation:wm-swim 1.4s linear infinite}
+.wm-wave-r svg{width:33.333%;height:100%;flex:none;display:block}
+.wm-wave-in{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1.6);mix-blend-mode:normal;color:rgba(242,239,233,.9)}.wm-wave-in.on{transform:translate(-50%,-50%) scale(1.6)}
+@keyframes wm-swim{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
+@keyframes wm-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.wm-wave-w,.wm-wave-r{animation:none}}

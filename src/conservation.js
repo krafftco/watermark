@@ -173,7 +173,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     const m1 = req.path.match(/^\/w\/([^/]+)\/?$/) || req.path.match(/^\/m\/[^/]+\/([^/]+)\/?$/); if (!m1) return next();
     const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='restoring'").get(m1[1]); if (!w) return next();
     const maker = mk(w);
-    res.status(200).send(V.layout({ title: `${tidy(w.title)} · Off view`, path: '/w', body: `<article class="cv-sign"><p class="k">Off view for conservation</p><h1>${esc(tidy(w.title))}</h1><p class="lede">${maker ? `A work by <a href="/m/${esc(maker.handle)}">${esc(maker.name)}</a>` : 'A work'} is in the restoration room. The original and its record are held; the house shows nothing it cannot show whole. It will return.</p><p><a href="/stroll">Wander on</a> · <a href="/collection">The collection</a>${maker ? ` · <a href="/m/${esc(maker.handle)}">${esc(maker.name)}’s room</a>` : ''}</p></article>` }));
+    res.status(200).send(V.layout({ title: `${tidy(w.title)} · Off view`, path: '/w', body: `<article class="cv-sign"><p class="k">Off view for conservation</p><h1>${esc(tidy(w.title))}</h1><p class="lede">${maker ? `A work by <a href="/m/${esc(maker.handle)}">${esc(maker.name)}</a>` : 'A work'} is in the restoration room. The original and its record are held; the house shows nothing it cannot show whole. It will return.</p><p><a href="/wander">Wander on</a> · <a href="/collection">The collection</a>${maker ? ` · <a href="/m/${esc(maker.handle)}">${esc(maker.name)}’s room</a>` : ''}</p></article>` }));
   });
 
   // The room.

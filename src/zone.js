@@ -43,7 +43,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
     const fam = zoneOf(req) === 'family';
     res.status(200).send(V.layout({ title: `${tidy(w.title)} · Watermark`, path: '/w', body: `<article class="zn-door"><p class="k">A room not for children</p><h1>${esc(tidy(w.title))}</h1><p class="lede">A photograph by ${esc(m ? m.name : '')}${w.zone_note ? `: ${esc(w.zone_note)}` : ''}. The house hangs it as the work it is; it is not for children.</p>
 ${fam ? '<p>This device is set to Family, so this door stays closed. <a href="/zone">The rooms</a>.</p>' : `<form method="post" action="/zone/enter" class="zn-enter"><input type="hidden" name="back" value="${esc(req.originalUrl)}"><button class="buy-btn">I am an adult; open the room</button></form><p class="note">Opening it opens every adult room on this device. <a href="/zone">Choose otherwise</a>.</p>`}
-<p><a href="/collection">Back to the collection</a> · <a href="/stroll">Wander instead</a></p></article>` }));
+<p><a href="/collection">Back to the collection</a> · <a href="/wander">Wander instead</a></p></article>` }));
   };
   app.use((req, res, next) => {
     if (req.method !== 'GET' || open(req)) return next();

@@ -20,7 +20,7 @@
   function screenFor(w) {
     var el = document.createElement('section'); el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
-      + '<div class="st-plate"><a class="st-by" href="/stroll?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/stroll?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
+      + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
@@ -29,7 +29,7 @@
       + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '">' + ic.collect + '<span>' + esc(w.collect.price) + '</span></button>' : '')
       + (w.guide ? '<button type="button" class="st-b" data-st-guide>' + ic.guide + '<span>Guide</span></button>' : '')
       + '<button type="button" class="st-b" data-st-card>' + ic.card + '<span>Card</span></button>'
-      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/stroll?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a>'
+      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a>'
       + '<button type="button" class="st-b" data-st-share>' + ic.share + '<span>Share</span></button></nav>'
       + '<div class="st-hat-fly" aria-hidden="true">' + ic.hat + '</div>';
     try { var im0 = el.querySelector('.st-im'); if (window.WMTrue && im0) { WMTrue.cap(im0); im0.addEventListener('load', function () { WMTrue.cap(im0); }, { once: true }); } } catch (e) { /* true size */ }
@@ -37,13 +37,13 @@
   }
   // More, before the visitor reaches the end.
   function more() {
-    if (loading || done) return; loading = true;
+    if (loading || done) return; loading = true; if (window.WMWave) WMWave.show();
     fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { return r.json(); }).then(function (j) {
       var list = (j && j.items) || [];
-      if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/stroll">Stroll everything</a>'; scroller.appendChild(e); }, 0); }
+      if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/wander">Wander everything</a>'; scroller.appendChild(e); }, 0); }
       else if (!list.length) { done = true; return; }
       list.forEach(function (w) { if (items[w.slug]) return; var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); });
-    }).catch(function () {}).then(function () { loading = false; });
+    }).catch(function () {}).then(function () { loading = false; if (window.WMWave) WMWave.hide(); });
   }
   // Which photograph is before you now; the one before it is told to the house.
   function stood(slug, s) { if (!slug || s < 2) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
@@ -71,7 +71,7 @@
       if (cur) stood(cur, Math.round((Date.now() - since) / 1000));
       cur = slug; since = Date.now();
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 4) more();
-      try { history.replaceState(null, '', '/stroll?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
+      try { history.replaceState(null, '', '/wander?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);
       arrive(slug);
     });
@@ -117,7 +117,7 @@
     fetch('/hang/add', { method: 'post', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'work=' + encodeURIComponent(w.slug) + '&hang=wander&title=From+my+wandering&json=1' })
       .then(function (r) { return r.json(); }).then(function (j) { say(j && j.ok ? 'Hung on your wall.' : 'Sign in to hang it.'); }).catch(function () { say('Could not hang it just now.'); });
   }
-  function checkout(w) { var f = document.createElement('form'); f.method = 'post'; f.action = w.collect.url + '?back=' + encodeURIComponent('/stroll?at=' + w.slug); f.innerHTML = '<input type="hidden" name="use" value="social">'; document.body.appendChild(f); f.submit(); }
+  function checkout(w) { var f = document.createElement('form'); f.method = 'post'; f.action = w.collect.url + '?back=' + encodeURIComponent('/wander?at=' + w.slug); f.innerHTML = '<input type="hidden" name="use" value="social">'; document.body.appendChild(f); f.submit(); }
   function buy(w, b) {
     if (!w.collect) return;
     if (b.getAttribute('data-pocket') !== '1') return checkout(w);

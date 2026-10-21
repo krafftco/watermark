@@ -2,7 +2,7 @@
 // and it's powered by Watermark"; "we earn their trust that way"). An institution (or any maker the Studio allows) turns
 // on its own house at /account/house: a domain of theirs (collection.<museum>.org, CNAME to the house; the certificate
 // is Render's), its name as the wordmark, an accent colour, its portrait as the mark. Requests arriving on that domain
-// are the same house, scoped: `/` and `/collection` show the institution's page; `/stroll`, `/wander` and `/keys` go to
+// are the same house, scoped: `/` and `/collection` show the institution's page; `/wander`, `/wander` and `/keys` go to
 // its own; `/balcony` is its balcony; the header carries its name, the footer 'Made with Watermark' and nothing else of
 // ours; every other address (a work, a tour, the rights desk, Yours) works as it does. One codebase, one database:
 // `makers.white_domain`, `makers.white_on`, `makers.white_accent`. The map domain → maker is read once a minute.
@@ -22,7 +22,7 @@ function mountTenants(app, { db, V, C, isStudio, makerOf }) {
     if (!t || req.method !== 'GET') return next();
     const p = req.path;
     if (p === '/' || p === '/collection' || p === '/makers' || p === '/artists') { req.url = `/m/${t.handle}` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''); return next(); }
-    if ((p === '/stroll' || p === '/wander' || p === '/wander/room') && !req.query.maker && !req.query.in && !req.query.q) return res.redirect(`/stroll?maker=${t.handle}${req.query.at ? '&at=' + encodeURIComponent(req.query.at) : ''}`);
+    if ((p === '/wander' || p === '/wander' || p === '/wander/room') && !req.query.maker && !req.query.in && !req.query.q) return res.redirect(`/wander?maker=${t.handle}${req.query.at ? '&at=' + encodeURIComponent(req.query.at) : ''}`);
     if (p === '/keys') return res.redirect(`/keys/at/${t.handle}`);
     if (p === '/balcony' && !(req.cookies && req.cookies.wm_room)) return res.redirect(`/balcony/at/${t.handle}`);
     next();
@@ -35,7 +35,7 @@ function mountTenants(app, { db, V, C, isStudio, makerOf }) {
 <p class="lede">The same house, under your name and your address: <code>collection.yourmuseum.org</code> shows your collection, your team’s desk, your rights desk, your tours and your balcony, with your name as the wordmark and <i>Made with Watermark</i> in the footer. Everything else of ours stays out of sight.${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}</p>
 <form method="post" action="/account/house" class="cl-f"><label><span>Your address</span><input name="domain" value="${esc(m.white_domain || '')}" placeholder="collection.yourmuseum.org" maxlength="120" pattern="[a-z0-9.-]+"></label><label><span>An accent colour (optional)</span><input name="accent" value="${esc(m.white_accent || '')}" placeholder="#7a1f2b" maxlength="9"></label><label class="cl-oath"><input type="checkbox" name="on" value="1" ${m.white_on ? 'checked' : ''}> Open the house at this address</label><button class="buy-btn">Keep</button></form>
 <h2>Pointing the address here</h2><ol class="wh-steps"><li>At your DNS, add a <b>CNAME</b> for the address above to <code>${esc(houseHost)}</code>.</li><li>Write to <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">the house</a> with the address; the certificate is issued within the day.</li><li>Open the house above. Your mark is the portrait on <a href="/account/profile">your page</a>; your name is the wordmark.</li></ol>
-<p class="note">What visitors see on your address: your page as the front door; the collection, the stroll and the Keys scoped to your work; your balcony. What stays the same: every work’s own page, the register, the deed, verification, the open API. Your data is yours; the standard is the house’s.</p></section>` }));
+<p class="note">What visitors see on your address: your page as the front door; the collection, Wander and the Keys scoped to your work; your balcony. What stays the same: every work’s own page, the register, the deed, verification, the open API. Your data is yours; the standard is the house’s.</p></section>` }));
   });
   app.post('/account/house', (req, res) => {
     const m = makerOf(req); if (!m || !may(req, m)) return res.sendStatus(401);
