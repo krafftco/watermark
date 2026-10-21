@@ -27,7 +27,7 @@
       + '<div><dt>Copyright</dt><dd>' + esc(j.copyright.holder) + (j.copyright.registered ? ' &middot; U.S. registered ' + esc(j.copyright.registration) : '') + '</dd></div>'
       + '<div><dt>Never</dt><dd>' + (j.rules.never.length ? esc(j.rules.never.map(function (k) { return ({ ai: 'Training AI', alter: 'Altering it beyond crop and resize', political: 'Political campaigns', tobacco: 'Tobacco', firearms: 'Firearms', adult: 'Adult content', sensitive: 'Sensitive subjects' })[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }).join(' · ')) : 'No restrictions beyond the license') + '</dd></div>'
       + '<div><dt>Credit</dt><dd>' + esc(j.credit) + '</dd></div></dl>'
-      + '<ul class="tr-uses">' + j.uses.map(function (u) { return '<li><a href="' + esc(String(u.url).replace(/^https?:\/\/[^/]+/, '')) + '"><span>' + esc(u.name) + '</span><b>' + (u.price_cents != null ? '$' + (u.price_cents / 100).toLocaleString() : 'Ask') + '</b></a></li>'; }).join('') + '</ul>'
+      + '<ul class="tr-uses">' + j.uses.map(function (u) { return '<li><a href="' + esc(String(u.url).replace(/^https?:\/\/[^/]+/, '')) + '"><span>' + esc(u.name) + '</span><b>' + (u.instant && u.price_cents != null ? '$' + (u.price_cents / 100).toLocaleString() : 'Ask') + '</b></a></li>'; }).join('') + '</ul>'
       + '<p class="tr-acts"><a href="/comp/' + encodeURIComponent(j.slug) + '" download>Comp for a layout</a> &middot; <a href="/trade">The trade search</a> &middot; <a href="/trade/off?back=' + encodeURIComponent(location.pathname) + '">Back to the gallery view</a></p>';
     entry.appendChild(box);
   }).catch(function () {});

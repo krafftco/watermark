@@ -29,7 +29,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
     const rel = u => String(u || '').replace(C.base, '') || '/';
     let items = rows.map(w => { const j = J(w); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); return { w, j }; });
     if (Q.use) items = items.filter(x => x.j.uses.some(u => u.key === Q.use));
-    if (Q.max) items = items.filter(x => x.j.uses.some(u => (!Q.use || u.key === Q.use) && u.price_cents != null && u.price_cents <= Q.max * 100));
+    if (Q.max) items = items.filter(x => x.j.uses.some(u => (!Q.use || u.key === Q.use) && u.instant && u.price_cents != null && u.price_cents <= Q.max * 100));
     items.sort(Q.sort === 'new' ? (a, b) => String(b.w.taken_at || '').localeCompare(String(a.w.taken_at || '')) : Q.sort === 'big' ? (a, b) => (mp(b.w) || 0) - (mp(a.w) || 0) : (a, b) => (b.w.curated - a.w.curated) || ((b.w.stars || 0) - (a.w.stars || 0)) || (b.w.id - a.w.id));
     const total = items.length, page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;
     items = items.slice(page * per, page * per + per);
@@ -54,7 +54,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
 <a class="tr-th" href="${esc(j.pages.work)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"></a>
 <div class="tr-t"><a href="${esc(j.pages.work)}"><b>${esc(j.title)}</b></a><span>${esc(j.maker.name)}${j.place ? ` &middot; ${esc(j.place)}` : ''}${j.year ? ` &middot; ${esc(j.year)}` : ''}</span>
 <small class="tr-spec">${d ? `${d.width.toLocaleString()} &times; ${d.height.toLocaleString()} px &middot; ${d.megapixels} MP &middot; ${ORIENT[orient(w)] || ''}` : ''}${w.camera ? ` &middot; ${esc(w.camera)}` : ''}${w.accession ? ` &middot; ${esc(w.accession)}` : ''}${j.copyright.registered ? ' &middot; U.S. registered' : ''}</small></div>
-<ul class="tr-uses">${j.uses.map(u => `<li${Q.use === u.key ? ' class="hit"' : ''}><a href="${esc(u.url)}"><span>${esc(u.name)}</span><b>${u.price_cents != null ? V.money(u.price_cents) : 'Ask'}</b></a></li>`).join('')}</ul>
+<ul class="tr-uses">${j.uses.map(u => `<li${Q.use === u.key ? ' class="hit"' : ''}><a href="${esc(u.url)}"><span>${esc(u.name)}</span><b>${u.instant && u.price_cents != null ? V.money(u.price_cents) : 'Ask'}</b></a></li>`).join('')}</ul>
 <div class="tr-act"><a href="/comp/${esc(w.slug)}" download>Comp</a><button type="button" class="hg-open tr-lb" data-hang-open="${esc(w.slug)}">Lightbox</button></div></li>`; }).join('') || '<li class="tr-none">Nothing matches. Loosen a filter.</li>'}</ol>
 <div class="tr-qbar" data-tr-qbar hidden><span><b data-tr-n>0</b> chosen</span><select name="use" aria-label="For"><option value="">For which use?</option>${useKeys.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join('')}</select><input name="company" placeholder="Company" maxlength="120"><input name="email" type="email" placeholder="Email" required maxlength="160"><input name="note" placeholder="The job, the run, the territory" maxlength="600"><button class="buy-btn">Ask for a quote</button></div>
 </form>
