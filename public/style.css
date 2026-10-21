@@ -8,7 +8,6 @@ img{max-width:100%}
 .top nav{display:flex;margin-left:auto;gap:clamp(14px,2.4vw,32px);font-size:11px;letter-spacing:.22em;text-transform:uppercase;white-space:nowrap;min-width:0;overflow-x:auto;scrollbar-width:none}.top nav::-webkit-scrollbar{display:none}
 .top nav a{text-decoration:none;color:var(--mu)}.top nav a:hover{color:var(--ink)}
 main{min-height:70vh}
-.foot{display:flex;justify-content:space-between;gap:16px;padding:40px clamp(16px,4vw,56px);border-top:1px solid var(--ln);margin-top:96px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}
 .foot a{text-decoration:none}
 .k{margin:0 0 14px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--mu)}
 h1{margin:0 0 18px;font-family:var(--read);font-weight:300;font-size:clamp(34px,4vw,60px);line-height:1.04;letter-spacing:-.02em;text-wrap:balance}
@@ -2377,23 +2376,27 @@ main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;
 .st-gon{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:rgba(242,239,233,.6);font-family:inherit;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:6px;cursor:pointer}.st-gon .ic{width:20px;height:20px}.st-gon[aria-pressed=true]{color:#fff;text-shadow:0 0 12px rgba(255,255,255,.5)}
 @media (max-width:420px){.st-gon span{display:none}}
 .st-top>*{flex:none}.st-top .st-search{flex:1 1 auto;min-width:40px}.st-chip{max-width:32vw}.st-gon{padding:6px 4px}
-/* The footer, calm (Will, 17 Oct: "a wild footer"): a list, not a run-on line; separators only where there is room. */
-.foot{align-items:flex-start}
-.foot-h{margin:0;flex:none}
-.foot-l{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px 0;max-width:62%}
-.foot-l a{white-space:nowrap}.foot-l a+a::before{content:"\00b7";margin:0 .7em;color:var(--mu)}
-@media (max-width:700px){
-  .foot{flex-direction:column;gap:22px;margin-top:40px;padding:28px 16px calc(32px + env(safe-area-inset-bottom));font-size:12.5px;letter-spacing:.04em;text-transform:none}
-  .foot-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase}.foot-h span{display:none}
-  .foot-l{max-width:none;display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;justify-content:start}
-  .foot-l a+a::before{content:none}
-  .foot-l a{color:var(--ink);white-space:normal}
+/* The footer (Will, 21 Oct: beautiful, with the logo; fewer links): the wordmark and the wave, four short columns, one line. */
+.foot{margin-top:112px;border-top:1px solid var(--ln);padding:56px clamp(16px,4vw,56px) calc(40px + env(safe-area-inset-bottom));color:var(--ink)}
+.ft-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:44px}
+.ft-brand img{display:block;width:150px;height:auto}
+.ft-wander{display:inline-flex;align-items:center;gap:12px;color:var(--ink);font:italic 22px/1.2 var(--disp)}.ft-wander svg{width:44px;height:12px;flex:none;animation:ft-swim 2.6s ease-in-out infinite}
+@keyframes ft-swim{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.ft-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 32px;padding-bottom:40px;border-bottom:1px solid var(--ln)}
+.ft-col{display:flex;flex-direction:column;gap:9px}.ft-col a{font-size:14px;color:var(--ink);line-height:1.35}.ft-col a:hover{text-decoration:underline;text-underline-offset:3px}
+.ft-k{margin:0 0 6px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu)}
+.ft-line{display:flex;flex-wrap:wrap;gap:8px 28px;margin:22px 0 0;font-size:12.5px;color:var(--mu);line-height:1.5}.ft-line a{color:var(--mu);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--ln)}.ft-line a:hover{color:var(--ink)}
+.ft-line .foot-beta{color:var(--ink)}
+@media (max-width:760px){
+  .foot{margin-top:56px;padding:36px 16px calc(32px + env(safe-area-inset-bottom))}
+  .ft-top{margin-bottom:30px}.ft-brand img{width:120px}.ft-wander{font-size:18px}
+  .ft-cols{grid-template-columns:1fr 1fr;gap:26px 20px;padding-bottom:28px}
+  .ft-line{flex-direction:column;gap:6px;margin-top:18px}
 }
 /* The record on a phone: the folded sections sit close; no long empty drop to the footer. */
 @media (max-width:999px){.lot-rec{gap:28px;padding-bottom:24px}.lot-rec .lot-fold+.lot-fold{margin-top:-12px}.lot-fold{padding:16px 0 4px}}
 /* On Watermark the ghost K sits in the header row, beside the mark, never on it. */
 .top .kh-dot.kh-in{position:static;width:26px;height:26px;margin-right:10px;flex:none;order:-1;background:none;color:var(--ink);backdrop-filter:none;-webkit-backdrop-filter:none;opacity:.32;transform:none;box-shadow:none}.top .kh-dot.kh-in svg{width:13px;height:13px}.top .kh-dot.kh-in:active{opacity:.8}
-.foot-l{gap:8px 1.6em}.foot-l a+a::before{content:none}
 /* The basket (18 Oct). */
 .bk-add{display:inline-flex;align-items:center;gap:8px;margin:2px 0 10px;background:none;border:0;padding:6px 0;color:var(--ink);font:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;border-bottom:1px solid transparent}
 .bk-add .ic{width:18px;height:18px}.bk-add:hover{border-bottom-color:currentColor}.bk-add[aria-pressed=true]{color:var(--mu)}
@@ -2727,7 +2730,6 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 /* The beta and the test house. */
 .brand{position:relative}
 .brand .beta{position:absolute;left:100%;top:2px;margin-left:6px;font:500 9px/1 "Archivo",sans-serif;letter-spacing:.16em;text-transform:uppercase;opacity:.45}
-.foot-beta{font-size:13px;opacity:.7;margin:6px 0 14px}.foot-beta a{text-decoration:underline;text-underline-offset:3px}
 .stg{position:sticky;top:0;z-index:9999;background:#b4572e;color:#fff;font:500 12px/1.4 "Archivo",sans-serif;letter-spacing:.04em;text-align:center;padding:6px 16px}.stg a{color:#fff;text-decoration:underline}
 .fb .lede{max-width:52ch}.fb-f{display:grid;gap:16px;max-width:560px}.fb-k{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 18px}.fb-k legend{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin-bottom:8px}
 .fb .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
