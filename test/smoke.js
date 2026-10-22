@@ -189,7 +189,10 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { const b = await app.locals.backup.backup(); assert.ok(b.key.startsWith('backups/db/') && b.bytes > 0, 'backed up to the vault');
     const d = await app.locals.backup.drill(); assert.ok(d.ok && /matches the live one/.test(d.detail), 'the drill restores and checks');
     r = await req(port, 'GET', '/studio/backups', { cookie: ck }); assert.ok(r.body.toString().includes(b.key) && r.body.toString().includes('drill'), 'the backups desk');
-    r = await req(port, 'GET', '/healthz'); { const j = JSON.parse(r.body); assert.ok(j.backup && j.backup.last && j.backup.last.ok && j.backup.drill && j.backup.drill.ok, '/healthz reports the backup'); }
+    // /healthz (22 Oct): the street gets up/down and counts; the Studio (or HEALTH_KEY) gets the report.
+    r = await req(port, 'GET', '/healthz'); { const j = JSON.parse(r.body); assert.ok(j.ok && typeof j.ledger === 'boolean' && typeof j.works === 'number' && !('backup' in j) && !('dataDir' in (j.vault || {})) && !('lost' in j.vault && Array.isArray(j.vault.lost)), 'the public answer names nothing inside'); }
+    r = await req(port, 'GET', '/healthz', { cookie: ck }); { const j = JSON.parse(r.body); assert.ok(j.backup && j.backup.last && j.backup.last.ok && j.backup.drill && j.backup.drill.ok, '/healthz reports the backup to the Studio'); assert.ok(j.vault && 'dataDir' in j.vault, 'the full report'); }
+    r = await req(port, 'GET', '/.well-known/security.txt'); assert.ok(r.status === 200 && /Contact: mailto:/.test(r.body) && /Expires:/.test(r.body), 'security.txt');
     // tamper: a backup whose register has a different hash at the same seq must fail
     const zlib = require('zlib'); const Database = require('better-sqlite3'); const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.db`);
     fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key))); const t = new Database(tmp); t.prepare("UPDATE ledger SET hash='0000' WHERE seq=(SELECT MAX(seq) FROM ledger)").run(); t.close();
@@ -1099,7 +1102,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/studio/restoration/${w.id}/rebuild`, { cookie: ck }); assert.ok(/rebuilt and sound/.test(decodeURIComponent(r.headers.location)), 'rebuilt: ' + decodeURIComponent(r.headers.location));
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'back on the walls by itself once it passes');
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!/Off view for conservation/.test(r.body));
-    r = await req(port, 'GET', '/healthz'); assert.ok(JSON.parse(r.body).conservation && JSON.parse(r.body).conservation.checked >= 1);
+    r = await req(port, 'GET', '/healthz', { cookie: ck }); assert.ok(JSON.parse(r.body).conservation && JSON.parse(r.body).conservation.checked >= 1);
     r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');
   }
   console.log('ok: the restoration room');
