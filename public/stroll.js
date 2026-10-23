@@ -265,6 +265,7 @@
     if (e.touches.length === 2 && !e.target.closest('button, a, input')) {
       var w = items[cur]; var img = w && w.el && w.el.querySelector('.st-im'); if (!img) return;
       if (Z.img && Z.img !== img) { Z.img.style.transform = ''; Z.s = 1; Z.x = 0; Z.y = 0; }
+      if (!img.__wmBig && /\/screen(\?|$)/.test(img.getAttribute('src') || '')) { img.__wmBig = 1; var big = new Image(); big.onload = function () { img.src = big.src; }; big.src = img.getAttribute('src').replace(/\/screen(\?|$)/, '/large$1'); }
       Z.img = img; var a = e.touches[0], b = e.touches[1]; Z.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); Z.s0 = Z.s;
       var r = img.getBoundingClientRect(); if (Z.s <= 1.001) { Z.mx = (a.clientX + b.clientX) / 2 - r.left; Z.my = (a.clientY + b.clientY) / 2 - r.top; img.style.transformOrigin = Z.mx + 'px ' + Z.my + 'px'; }
       Z.px = (a.clientX + b.clientX) / 2; Z.py = (a.clientY + b.clientY) / 2; Z.on = true; Z.pan = null; root.classList.add('st-zoom'); sx0 = null; e.preventDefault(); return;

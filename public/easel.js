@@ -5,7 +5,8 @@
   var stage = root.querySelector('[data-ez-stage]'), img = root.querySelector('[data-ez-im]'), grid = root.querySelector('[data-ez-grid]'), study = root.querySelector('[data-ez-study]'), timers = root.querySelector('[data-ez-timers]'), clock = root.querySelector('[data-ez-clock]');
   var s = 1, x = 0, y = 0, fit = 1, held = false, state = { grid: 0, mirror: false, values: false, squint: false, notan: 0 };
   // The wall copy when the screen can use it.
-  if (Math.max(screen.width, screen.height) * (devicePixelRatio || 1) > 2400 && root.dataset.wall) { var big = new Image(); big.onload = function () { img.src = root.dataset.wall; }; big.src = root.dataset.wall; }
+  // The easel is for looking close (Will, 23 Oct): always the wall copy, 3840 px, once it has arrived.
+  if (root.dataset.wall) { var big = new Image(); big.onload = function () { img.src = root.dataset.wall; }; big.src = root.dataset.wall; }
   function size() { var W = stage.clientWidth, H = stage.clientHeight, ar = parseFloat(root.dataset.ar) || 1.5; var w = W, h = W / ar; if (h > H) { h = H; w = H * ar; } img.style.width = w + 'px'; img.style.height = h + 'px'; grid.style.width = w + 'px'; grid.style.height = h + 'px'; fit = 1; }
   function apply() { var t = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')' + (state.mirror ? ' scaleX(-1)' : ''); img.style.transform = t; grid.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')'; }
   function clamp() { var max = Math.max(0, (img.offsetWidth * s - stage.clientWidth) / 2 + stage.clientWidth * 0.4), may = Math.max(0, (img.offsetHeight * s - stage.clientHeight) / 2 + stage.clientHeight * 0.4); x = Math.max(-max, Math.min(max, x)); y = Math.max(-may, Math.min(may, y)); }
