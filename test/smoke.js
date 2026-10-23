@@ -491,11 +491,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account', { cookie: mck }); let ab = r.body.toString(); assert.ok(ab.includes('The Ada Estate.') && ab.includes('Nothing here yet'), 'their own dashboard');
   r = await req(port, 'POST', `/account/works/${w.slug}/jewel`, { cookie: mck }); assert.equal(r.status, 404, 'cannot touch another maker\'s work');
   { // first steps: the newly opened studio shows the way; each step ticks itself
-    assert.ok(ab.includes('First steps') && ab.includes('0 of 7'), 'first steps on a new studio');
+    assert.ok(ab.includes('First steps') && ab.includes('0 of 3'), 'first steps on a new studio: three first (23 Oct)');
     r = await req(port, 'GET', '/account/prices', { cookie: mck }); assert.equal(r.status, 200);
-    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('1 of 7'), 'opening the prices ticks a step');
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('1 of 3'), 'opening the prices ticks a step');
     r = await req(port, 'POST', '/account/steps/shared', { cookie: mck, headers: { accept: 'application/json' } }); assert.equal(r.status, 200);
-    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('2 of 7'));
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('1 of 3'), 'the rest waits until the first three are done');
     r = await req(port, 'POST', '/account/steps/bogus', { cookie: mck }); assert.equal(r.status, 400);
     console.log('ok: first steps');
   }

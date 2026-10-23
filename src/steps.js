@@ -33,9 +33,13 @@ function mountSteps(app, { db, makerOf, V, base = '' }) {
       { key: 'paid', done: !!m.stripe_account, title: 'Getting paid', line: `${require('./fee').said(m.share_pct, null).replace(/^The price is the maker’s/, 'The price is yours')} Add your bank and it is paid to you.`, href: '/account/payouts', go: 'Add your bank' },
       { key: 'shared', done: has(m, 'shared'), title: 'Your page, sent', line: 'Send your page to the people who already follow your work.', href: `/m/${slug}`, go: 'Copy your page', copy: `${base}/m/${slug}` },
     ];
-    const done = steps.filter(s => s.done).length;
-    if (done === steps.length) return null;
-    return { steps, done, total: steps.length, next: steps.find(s => !s.done) };
+    // Three first (23 Oct, for a photographer with a phone in a gallery): one photograph in, graded and shown, a price.
+    // The other four come once those are done. Nothing is dropped; the order is the night's.
+    const first = ['work', 'edit', 'prices'].map(k => steps.find(s => s.key === k)), rest = steps.filter(s => !first.includes(s));
+    const list = first.some(s => !s.done) ? first : rest;
+    const done = list.filter(s => s.done).length;
+    if (done === list.length) return null;
+    return { steps: list, done, total: list.length, next: list.find(s => !s.done), phase: list === first ? 'first' : 'rest' };
   }
   return { of, mark };
 }
