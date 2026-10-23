@@ -110,7 +110,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     ledger.append(db, 'maker.invited', m.handle, { ...who, from: 'record' });
     // The first show: what was ticked hangs; the rest stays in the record until the maker publishes it.
     let hung = 0;
-    for (const slug of hang.slice(0, 60)) { const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status='hidden'").get(String(slug), m.id); if (!w) continue; db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { maker: m.handle, ...who, show: 'first' }); hung++; }
+    for (const slug of hang.slice(0, 60)) { const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status='hidden'").get(String(slug), m.id); if (!w) continue; db.prepare("UPDATE works SET status='held', stars=MAX(COALESCE(stars,0),4) WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { maker: m.handle, ...who, show: 'first' }); hung++; } // the house's choice is a grade: a first show wanders at once (23 Oct)
     if (hung && app.locals.findIndexDirty) app.locals.findIndexDirty();
     if (m.email) mail.send({ to: m.email, subject: 'The house invites you', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has looked at what you brought in and would like to hang it.${hung ? ` The first show is hung: ${hung} of your works are on the walls from today.` : ''} From today your work may be published to the collection from your studio: ${C.base}/account\n\nWelcome. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     return hung;

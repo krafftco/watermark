@@ -1028,6 +1028,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/studio/review/${rm.id}`, { cookie: ck }); assert.ok(r.status === 200 && /The house looks/.test(r.body) && /8 in the edit/.test(r.body) && (String(r.body).match(/name="hang"/g) || []).length === 8 && /hang the first show/.test(r.body), 'the review room shows the edit');
     r = await req(port, 'POST', `/studio/accounts/${rm.id}/invite`, { cookie: ck, body: { hang: recSlugs.slice(0, 3) } }); assert.equal(db.prepare('SELECT door FROM makers WHERE id=?').get(rm.id).door, 'house');
     assert.equal(db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(rm.id).n, 3, 'the first show is hung by the house; the rest stays in the record');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held' AND stars>=4").get(rm.id).n, 3, 'the house’s choice is a grade: the first show wanders at once');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.published' AND subject=? AND data LIKE '%\"by\":\"house\"%'").get(recSlugs[0]), 'told on the register');
     db.prepare("DELETE FROM works WHERE slug LIKE 'rec-body-%'").run();
     r = await req(port, 'POST', `/account/works/${j.slug}/show`, { cookie: rck, body: { attest: '1' } }); assert.ok(!/need=/.test(r.headers.location), 'invited: it hangs');
