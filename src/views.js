@@ -489,7 +489,7 @@ function home({ maker, works, uses, sent }) {
     jsonld: { '@context': 'https://schema.org', '@type': 'Organization', name: 'Watermark', url: BASE(), logo: `${BASE()}/static/watermark-logo.svg`, slogan: 'Leave your mark.', description: 'Hold, show, license and protect art at the source.', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } },
     body: `<section class="h-hero">${hero ? `<img src="/img/${esc(hero.slug)}/large" alt="" draggable="false">` : ''}<div class="h-shade"></div>
 <div class="h-in"><p class="k">Watermark</p><h1>For those who make.</h1>
-<p class="h-lede">Hold your work. Set your terms. Get paid the moment someone uses it properly.</p>
+<p class="h-lede">The record is free, forever. The price is yours, every dollar. The house is paid by the collector, on top, and only when money moves.</p>
 <p class="h-cta"><a class="h-btn" href="#apply">Hold your work here</a><a class="h-ln" href="/collection">See the collection</a></p></div>
 ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.name)}</p>` : ''}</section>
 
@@ -1357,6 +1357,8 @@ function about() {
 <p>And then I wanted to wander. To find things I was not looking for, one after another, the way you do in a museum when you turn a corner. To stand in front of something, learn what it is, who made it, when and why, and where it sits in the rest of their work. If they have written, filmed or recorded anything, to find that too. To leave a line in the book. To take a photograph home, numbered, for five dollars, or license it for a story or a wall with the agreement in plain language. Watermark is that place.</p>
 <h2>For the people who make the work</h2>
 <p>A gallery is also a business. Watermark is the studio tool: the vault that keeps the originals, fingerprinted on arrival and checked for fixity on a schedule; the register that records every sale and every change of hands; the licenses, the certificates and the contract; the requests, answered from your own desk; the Copyright Office bridge; the archival master with its papers. The copyright stays yours; ${FEE.on() ? 'The price is yours, every dollar of it; the house&rsquo;s share is paid by the collector.' : '85% of every sale is yours.'} The aim is to take every entrepreneurial, legal and financial problem off an artist's desk, so what is left is the work, and the people who want to see it.</p>
+<h2>Where the money comes from</h2>
+<p>The record is free, forever: any photograph you made can be deeded, fingerprinted and written to the register at no cost, and it stays yours. The price of a work is the maker&rsquo;s, every dollar. The house is paid by the collector, on top, on a <a href="/share">published schedule</a>, and only when money moves. Above the free line, a maker may pay to keep an archive here; a museum may pay for a house of its own. Nothing is taken that cannot be explained in one line on a receipt.</p>
 <h2>No advertising, ever</h2>
 <p>Nothing here is paid for by interrupting you. The house is kept by the people who use it: collectors, licensees, and the <a href="/friends">friends of the house</a>, who give because they like coming here. It stays a walled garden where what you meet is beautiful or thoughtful, and nothing else.</p>
 <h2>Krafft and Watermark</h2>
