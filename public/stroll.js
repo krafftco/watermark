@@ -294,8 +294,8 @@
       if (e.touches.length >= 2) return;
       if (e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; Z.s0 = Z.s; return; }
       var tap = Z.pan && Date.now() - Z.pan.t < 250 && Math.hypot(e.changedTouches[0].clientX - Z.pan.x0, e.changedTouches[0].clientY - Z.pan.y0) < 8;
-      if (Z.s < 1.08 || tap) { zEnd(true); } else { Z.s0 = Z.s; zClamp(); zApply(true); }
-      Z.pan = null; return;
+      // Let go and it settles back (23 Oct: a zoom that stayed read as the scroll having died): the look is the pinch.
+      void tap; zEnd(true); Z.pan = null; return;
     }
     if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
     if (lock !== 'x' || !el) return;
