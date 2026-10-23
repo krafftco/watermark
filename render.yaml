@@ -2,12 +2,16 @@ services:
   - type: web
     name: watermark
     runtime: docker
-    plan: starter
+    # 23 Oct: a legitimate business on 2 CPU / 4 GB (Render 'pro', $85); the disk is the SQLite file, the originals
+    # cache and the renditions (the vault is S3). With the box, set in Render: NODE_OPTIONS=--max-old-space-size=2048,
+    # SHARP_CONCURRENCY=2, SHARP_CACHE_MB=256, ORIGINALS_CACHE_GB=8. The workspace plan (Pro, 25 GB bandwidth) is set
+    # on the workspace, not here.
+    plan: pro
     healthCheckPath: /healthz
     disk:
       name: watermark-data
       mountPath: /data
-      sizeGB: 10
+      sizeGB: 25
     envVars:
       - key: BASE_URL
         sync: false

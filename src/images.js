@@ -3,7 +3,9 @@
 const sharp = require('sharp');
 // Launch fix 6.1: libvips keeps a cache of decoded images and runs a thread per core; on a 512 MB instance that
 // tipped the process over its limit. One thread and a small cache are plenty for one photograph at a time.
-sharp.cache({ memory: 48, files: 0, items: 40 }); sharp.concurrency(1);
+// Memory (23 Oct): the caps follow the box. On the 512 MB starter one decode at a time and a 48 MB cache; on a bigger
+// box set SHARP_CONCURRENCY and SHARP_CACHE_MB in Render beside NODE_OPTIONS=--max-old-space-size (see render.yaml).
+sharp.cache({ memory: Number(process.env.SHARP_CACHE_MB) || 48, files: 0, items: 40 }); sharp.concurrency(Number(process.env.SHARP_CONCURRENCY) || 1);
 const exifr = require('exifr');
 const crypto = require('crypto');
 const fs = require('fs');
