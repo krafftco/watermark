@@ -273,7 +273,7 @@
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
-  }, { passive: true });
+  }, { passive: false });
   scroller.addEventListener('touchmove', function (e) {
     if (Z.on) {
       e.preventDefault();
@@ -290,6 +290,7 @@
     sideSet(sEl, sEl === sideR ? sBase - open : open - sBase, false);
     shade.style.opacity = String(0.6 * open / sBase);
   }, { passive: false });
+  scroller.addEventListener('touchcancel', function () { if (Z.on) zEnd(true); }, { passive: true });
   scroller.addEventListener('touchend', function (e) {
     if (Z.on) {
       if (e.touches.length >= 2) return;
