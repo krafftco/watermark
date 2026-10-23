@@ -50,13 +50,15 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
     if (!mine && !isStudio(req)) return res.sendStatus(403);
     const qr = require('./qr').svg(url(i), { size: 560 });
     res.send(V.layout({ title: `${i.label || 'An introduction'} · Watermark`, path: `/i/${i.token}/card`, bare: true, body: `<main class="inc"><section class="inc-card"><p class="k">Watermark${i.label ? ` · ${esc(i.label)}` : ''}</p><h1>${i.opens === 'maker' ? 'Your studio, now.' : 'Your gallery, now.'}</h1>
-<p class="inc-lede">${i.opens === 'maker' ? 'Scan it: your name, your email, and your studio opens. Put a photograph in and it is deeded, fingerprinted and on the register in a minute. The record is free; the price is yours.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
+<p class="inc-lede">${i.opens === 'maker' ? 'Scan it. Photographers: your name, your email, and your studio opens; put a photograph in and it is deeded, fingerprinted and on the register in a minute. Everyone else: wander, and collect one for seven dollars.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
 <div class="inc-qr">${qr}</div><p class="inc-url">${esc(url(i).replace(/^https?:\/\//, ''))}</p><p class="inc-foot">${i.max_uses != null ? `Good for ${i.max_uses - i.uses} more.` : ''} Entered by invitation; introduced by the house.</p></section><p class="inc-print"><button type="button" class="link" onclick="print()">Print</button></p></main>` }));
   });
   // Taking one up.
+  // The cover: one of the house's best, wide, behind the door.
+  const coverOf = () => db.prepare("SELECT slug, title FROM works WHERE status='held' AND width > height*1.3 AND (curated=1 OR stars>=4) ORDER BY curated DESC, stars DESC, RANDOM() LIMIT 1").get() || db.prepare("SELECT slug, title FROM works WHERE status='held' AND width > height*1.3 ORDER BY RANDOM() LIMIT 1").get() || null;
   app.get('/i/:token', (req, res) => {
     const i = byToken(req.params.token); if (!i || !live(i)) return res.status(404).send(gone());
-    res.send(introPage({ i, who: introducer(i), err: req.query.err || null }));
+    res.send(introPage({ i, who: introducer(i), err: req.query.err || null, cover: coverOf(), make: req.query.make === '1' }));
   });
   app.post('/i/:token', (req, res) => {
     const i = byToken(req.params.token); if (!i || !live(i)) return res.status(404).send(gone());
@@ -96,15 +98,27 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
 
 function gone() { return layout({ title: 'An introduction · Watermark', body: `<section class="narrow cl"><p class="k">An introduction</p><h1>This introduction has been used, or closed.</h1><p class="lede">The house is entered by invitation. If you make photographs, <a href="/join">apply with the work</a>; if you collect, the <a href="/collection">collection</a> is open to walk, and a gallery of your own begins with the first piece you collect.</p></section>` }); }
 
-function introPage({ i, who, err }) {
+function introPage({ i, who, err, cover = null, make = false }) {
+  // One door for everyone in the room (23 Oct, the Magnum night): the photograph behind, the question in front. A
+  // maker's introduction asks "did you make something, or did you come to look?": makers give a name and an email and
+  // their studio opens; everyone else wanders, and a gallery opens with the first Collect. A collector's introduction
+  // opens the gallery at once.
   const maker = i.opens === 'maker';
-  return layout({ title: 'An introduction · Watermark', body: `<section class="narrow cl"><p class="k">An introduction${i.label ? ` · ${esc(i.label)}` : ''}</p><h1>${who && who.name !== 'the house' ? `${esc(who.name)} introduces you.` : 'The house opens its door.'}</h1>
-<p class="lede">${maker ? 'Watermark is entered by invitation. An introduction from someone the house trusts opens a studio at once: your photographs are fingerprinted, registered and protected the moment they arrive, shown when you say, licensed at the source, and ' + require('./fee').yours(85) + '. The register will record who introduced you.' : 'Watermark is a house of photographs and the people who keep them. This introduction opens a gallery of your own: everything you collect hangs there, numbered; your cabinet is yours alone; the walls you curate earn when people collect through them.'}</p>
-${err ? '<p class="err">Your name and a working email are needed.</p>' : ''}
-<form method="post" action="/i/${esc(i.token)}" class="cl-f"><label><span>Your name</span><input name="name" required maxlength="120" autocomplete="name"></label><label><span>Email</span><input name="email" type="email" required maxlength="160" autocomplete="email"></label>${maker ? '<label><span>Where the work can be seen (optional)</span><input name="site" maxlength="300" placeholder="https://"></label>' : ''}<button class="buy-btn">${maker ? 'Open my studio' : 'Open my gallery'}</button></form>
-<p class="note">By entering you accept the house's <a href="/terms">terms</a> and its <a href="/about">standard</a>. Nothing is published until you say.</p></section>` });
+  const FEE = require('./fee');
+  const form = `<form method="post" action="/i/${esc(i.token)}" class="inv-f"><label><span>Your name</span><input name="name" required maxlength="120" autocomplete="name" autofocus></label><label><span>Email</span><input name="email" type="email" required maxlength="160" autocomplete="email" inputmode="email"></label>${maker ? '<label><span>Where your work can be seen <em>(optional)</em></span><input name="site" maxlength="300" placeholder="https://" inputmode="url"></label>' : ''}<button class="inv-go">${maker ? 'Open my studio' : 'Open my gallery'}</button>
+<p class="inv-note">By entering you accept the house\u2019s <a href="/terms">terms</a>. Nothing is published until you say.</p></form>`;
+  const body = maker && !make && !err
+    ? `<div class="inv-doors"><a class="inv-door" href="/i/${esc(i.token)}?make=1"><small>I make photographs</small><b>Open my studio.</b><i>Your name and your email. Put one photograph in tonight: it is yours, deeded and on the register in a minute. ${esc(FEE.yours(85).replace(/^the/, 'The'))}.</i></a><a class="inv-door" href="/wander${cover ? `?at=${esc(cover.slug)}` : ''}" data-nv-wander><small>I came to look</small><b>Wander.</b><i>One work at a time, edge to edge. Collect one for seven dollars and a gallery of your own opens, numbered, with its papers.</i></a></div>`
+    : `${err ? '<p class="inv-err">Your name and a working email are needed.</p>' : ''}${form}`;
+  return layout({ title: `${i.label || 'An introduction'} \u00b7 Watermark`, path: `/i/${i.token}`, bare: true, body: `<main class="inv">${cover ? `<img class="inv-bg" src="/img/${esc(cover.slug)}/large" alt="" draggable="false">` : ''}<div class="inv-card">
+<p class="k inv-k">${WAVE} Watermark${i.label ? ` \u00b7 ${esc(i.label)}` : ''}</p>
+<h1>${who && who.name !== 'the house' ? `${esc(who.name)} introduces you.` : maker && !make && !err ? 'Welcome to the house.' : maker ? 'Your studio, now.' : 'Your gallery, now.'}</h1>
+${maker && !make && !err ? '<p class="inv-lede">Watermark is where great work is kept: held by the person who made it, shown when they say, collected and licensed at the source. Which door?</p>' : ''}
+${body}
+${maker && (make || err) ? `<p class="inv-back"><a href="/i/${esc(i.token)}">\u2190 I came to look</a></p>` : ''}
+</div>${cover ? `<p class="inv-cap">${esc(cover.title)}</p>` : ''}</main>` });
 }
-
+const WAVE = require('./views').WAVE_MARK;
 // On a maker's Your page, and on the Studio's Accounts: the links to give.
 function introBlock({ list, used, limit, base, action, opens = true, studio = false }) {
   const row = i => `<li class="in-row"><span>${esc(i.label || (i.opens === 'maker' ? 'A maker' : 'Collectors'))}<small>${i.opens === 'maker' ? 'opens a studio' : 'opens galleries'} · ${i.uses} taken${i.max_uses != null ? ` of ${i.max_uses}` : ''}${i.closed ? ' · closed' : ''}${studio && i.who ? ` · by ${esc(i.who.name)}` : ''}</small></span>${i.closed || (i.max_uses != null && i.uses >= i.max_uses) ? '<code class="in-dead">used</code>' : `<a href="/i/${esc(i.token)}/card" class="in-card">Card</a> <code>${esc(base)}/i/${esc(i.token)}</code><button type="button" class="link" data-copy="${esc(base)}/i/${esc(i.token)}">Copy</button>`}${!i.closed ? `<form method="post" action="${action}"><input type="hidden" name="do" value="close"><input type="hidden" name="id" value="${i.id}"><button class="link">Close</button></form>` : ''}</li>`;

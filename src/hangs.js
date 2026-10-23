@@ -199,7 +199,7 @@ const plate = (w, note, i) => `<figure class="hg-fig"><a class="hg-im" href="/w/
 function hangsPage({ hangs, me }) {
   return layout({ title: 'Hangs · Watermark', desc: 'Walls hung by people with an eye: works from the collection, chosen and ordered.', path: '/hangs', body: `<section class="cx-intro"><p class="k">Hangs</p><h1>Walls hung by people with an eye.</h1>
 <p class="lede">A curator need not own a thing. They choose, and order, and say why. Walk a hang; collect from it, and the curator earns a share of that sale from the house, never from the maker. <a href="/yours?tab=hangs">Hang a wall of your own.</a></p></section>
-<section class="gal">${hangs.length ? `<div class="hg-cards">${hangs.map(hangCard).join('')}</div>` : '<p class="note">No wall is hung yet. Yours could be the first.</p>'}</section><script src="/static/hang.js" defer></script>${rec || tour ? `<script src="/static/tour.js?v=${esc(require('./views').VER)}" defer></script>` : ''}` });
+<section class="gal">${hangs.length ? `<div class="hg-cards">${hangs.map(hangCard).join('')}</div>` : '<p class="note">No wall is hung yet. Yours could be the first.</p>'}</section><script src="/static/hang.js" defer></script>` });
 }
 const hangCard = h => `<a class="hg-card" href="${esc(href(h))}"><span class="hg-th">${h.thumbs.map(w => `<img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false">`).join('')}</span><b>${esc(h.title)}</b><span>Hung by ${esc(h.curator || 'a curator')} · ${h.n} photograph${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} collected from it` : ''}</span>${h.line ? `<small>${esc(h.line)}</small>` : ''}</a>`;
 

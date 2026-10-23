@@ -3511,3 +3511,20 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .dh-g{position:relative;flex:none}.dh-g>div{position:absolute;left:-14px;top:43px;background:#fff;border:1px solid var(--ink);min-width:200px;padding:6px 0;display:grid;z-index:30;box-shadow:0 14px 40px rgba(0,0,0,.12)}
 .dh-g>div a{padding:8px 16px;color:var(--ink);text-decoration:none;font-size:12.5px;font-weight:400;white-space:nowrap}.dh-g>div a:hover,.dh-g>div a[aria-current]{background:var(--soft)}
 @media (max-width:760px){.dh-rooms{overflow-x:auto;scrollbar-width:none}.dh-rooms::-webkit-scrollbar{display:none}.dh-g>div{position:fixed;left:16px;right:16px;top:calc(86px + env(safe-area-inset-top))}.dh-top{height:46px;gap:14px}.dh-brand span{display:none}.dh-as{gap:12px}.dh-right{gap:12px}.dh-out:not(button){display:none}.dh-find span{display:none}.dh-rooms{height:40px}.dh-rooms>a,.dh-g summary{height:40px}}
+
+/* The introduction (23 Oct): the photograph behind, the door in front; one QR for everyone in the room. */
+.inv{position:relative;min-height:100svh;display:grid;place-items:center;padding:clamp(20px,5vw,64px) 16px calc(48px + env(safe-area-inset-bottom));background:#0b0a09;color:#f2efe9;overflow:hidden}
+.inv-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55;filter:saturate(.9)}
+.inv:before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(11,10,9,.15),rgba(11,10,9,.75) 100%)}
+.inv-card{position:relative;z-index:1;width:min(100%,560px);background:rgba(247,246,243,.96);color:#141311;padding:clamp(24px,4vw,44px) clamp(20px,4vw,40px);box-shadow:0 40px 120px rgba(0,0,0,.5)}
+.inv-k{display:flex;align-items:center;gap:8px;color:#6b665e}.inv-k svg{width:22px;height:auto}
+.inv-card h1{font-family:var(--disp,Georgia),Georgia,serif;font-weight:400;font-size:clamp(32px,4.2vw,46px);line-height:1.02;letter-spacing:-.01em;margin:10px 0 12px}
+.inv-lede{font:400 16.5px/1.5 var(--read,Georgia),Georgia,serif;color:#3a3732;margin:0 0 22px}
+.inv-doors{display:grid;gap:12px}
+.inv-door{display:grid;gap:4px;padding:18px 20px;border:1px solid #141311;text-decoration:none;color:#141311;background:#fff;transition:background .2s}.inv-door:hover{background:#141311;color:#f7f6f3}
+.inv-door small{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:inherit;opacity:.65}.inv-door b{font:400 24px/1.1 var(--disp,Georgia),Georgia,serif}.inv-door i{font-style:normal;font-size:13.5px;line-height:1.5;opacity:.8}
+.inv-f{display:grid;gap:14px}.inv-f label{display:grid;gap:6px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6b665e}.inv-f label em{font-style:normal;text-transform:none;letter-spacing:0}.inv-f input{font:inherit;font-size:17px;padding:12px 12px;border:1px solid #141311;background:#fff;color:#141311;border-radius:0}
+.inv-go{font:inherit;font-size:15px;font-weight:500;padding:16px;width:100%;border-radius:0;background:#141311;color:#f7f6f3;border:0;cursor:pointer;margin-top:4px}
+.inv-note{font-size:12px;color:#6b665e;margin:4px 0 0}.inv-note a{color:inherit}.inv-err{color:#9a3b2d;font-size:14px;margin:0 0 10px}
+.inv-back{margin:18px 0 0;font-size:13px}.inv-back a{color:#6b665e}
+.inv-cap{position:absolute;right:16px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:1;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,239,233,.6);margin:0}
