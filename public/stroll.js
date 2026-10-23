@@ -97,6 +97,7 @@
       if (!e.isIntersecting || e.intersectionRatio < 0.6) return;
       var slug = e.target.getAttribute('data-slug'); if (slug === cur) return;
       if (cur) stood(cur, Math.round((Date.now() - since) / 1000));
+      if (Z.on) zEnd(false);
       cur = slug; since = Date.now();
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 4) more();
       try { history.replaceState(null, '', '/wander?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
@@ -253,12 +254,32 @@
     if (!sideOpen) return; var el = sideOpen === 'keys' ? sideR : sideL; var w = sideW(el);
     sideSet(el, sideOpen === 'keys' ? w : -w, anim !== false); el.classList.remove('on'); sideOpen = null; root.classList.remove('st-side-on'); shade.hidden = true;
   }
-  var sx0 = null, sy0 = null, sLock = null, sEl = null, sBase = 0, sX = 0;
+  // Pinch (Will, 23 Oct, with the Duo in hand: "you need to be able to zoom and pinch inside Wander"): two fingers on
+  // the photograph scale it about the pinch, up to five times; one finger then pans; a tap sets it back; while zoomed
+  // the chrome rests and the scroll is held, so the next photograph waits. The browser's own page zoom never fires.
+  var Z = { on: false, s: 1, x: 0, y: 0, img: null, d0: 0, s0: 1, mx: 0, my: 0, px: 0, py: 0, pan: null };
+  function zApply(anim) { if (!Z.img) return; Z.img.style.transition = anim ? 'transform .35s cubic-bezier(.2,.8,.2,1)' : 'none'; Z.img.style.transform = Z.s > 1.001 ? 'translate(' + Z.x + 'px,' + Z.y + 'px) scale(' + Z.s + ')' : ''; }
+  function zClamp() { if (!Z.img) return; var r = Z.img.getBoundingClientRect(), W = innerWidth, H = innerHeight; var ox = Z.mx, oy = Z.my; var w = Z.img.offsetWidth * Z.s, h = Z.img.offsetHeight * Z.s; var left = -ox * (Z.s - 1) + Z.x, top = -oy * (Z.s - 1) + Z.y; var minX = Math.min(0, W - w), minY = Math.min(0, H - h); var nl = Math.max(minX, Math.min(0, left)), nt = Math.max(minY, Math.min(0, top)); if (w <= W) nl = (W - w) / 2; if (h <= H) nt = (H - h) / 2; Z.x += nl - left; Z.y += nt - top; void r; }
+  function zEnd(anim) { Z.s = 1; Z.x = 0; Z.y = 0; zApply(anim !== false); root.classList.remove('st-zoom'); Z.on = false; var im = Z.img; setTimeout(function () { if (im && Z.img !== im) im.style.transform = ''; }, 400); }
   scroller.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 2 && !e.target.closest('button, a, input')) {
+      var w = items[cur]; var img = w && w.el && w.el.querySelector('.st-im'); if (!img) return;
+      if (Z.img && Z.img !== img) { Z.img.style.transform = ''; Z.s = 1; Z.x = 0; Z.y = 0; }
+      Z.img = img; var a = e.touches[0], b = e.touches[1]; Z.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); Z.s0 = Z.s;
+      var r = img.getBoundingClientRect(); if (Z.s <= 1.001) { Z.mx = (a.clientX + b.clientX) / 2 - r.left; Z.my = (a.clientY + b.clientY) / 2 - r.top; img.style.transformOrigin = Z.mx + 'px ' + Z.my + 'px'; }
+      Z.px = (a.clientX + b.clientX) / 2; Z.py = (a.clientY + b.clientY) / 2; Z.on = true; Z.pan = null; root.classList.add('st-zoom'); sx0 = null; e.preventDefault(); return;
+    }
+    if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
   }, { passive: true });
   scroller.addEventListener('touchmove', function (e) {
+    if (Z.on) {
+      e.preventDefault();
+      if (e.touches.length >= 2) { var a = e.touches[0], b = e.touches[1], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); Z.s = Math.max(1, Math.min(5, Z.s0 * d / Z.d0)); var cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2; Z.x += cx - Z.px; Z.y += cy - Z.py; Z.px = cx; Z.py = cy; zClamp(); zApply(false); }
+      else if (Z.pan && e.touches.length === 1) { Z.x = e.touches[0].clientX - Z.pan.x; Z.y = e.touches[0].clientY - Z.pan.y; zClamp(); zApply(false); }
+      return;
+    }
     if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
     if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
       if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } }
@@ -269,6 +290,13 @@
     shade.style.opacity = String(0.6 * open / sBase);
   }, { passive: false });
   scroller.addEventListener('touchend', function (e) {
+    if (Z.on) {
+      if (e.touches.length >= 2) return;
+      if (e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; Z.s0 = Z.s; return; }
+      var tap = Z.pan && Date.now() - Z.pan.t < 250 && Math.hypot(e.changedTouches[0].clientX - Z.pan.x0, e.changedTouches[0].clientY - Z.pan.y0) < 8;
+      if (Z.s < 1.08 || tap) { zEnd(true); } else { Z.s0 = Z.s; zClamp(); zApply(true); }
+      Z.pan = null; return;
+    }
     if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
     if (lock !== 'x' || !el) return;
     shade.style.opacity = '';
