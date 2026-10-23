@@ -1723,7 +1723,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/collection">Collection<\/a><a href="\/makers">Makers<\/a><a href="\/signin"[^>]*>Sign in<\/a><\/nav>/.test(r.body.toString()), 'the menu, in order'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
-    assert.ok(b.includes('<a href="/m/the-ada-estate">The Ada Estate</a>'), 'a gallery of their own'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');
+    assert.ok(b.includes('id="maker-the-ada-estate"') && b.includes('data-href="/m/the-ada-estate"'), 'a room of their own on the map (23 Oct)'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');
     assert.ok(b.includes('<i>The Ada Estate, Genoa, Italy</i>'), 'their name on the plate'); assert.ok(b.includes('"mk":"The Ada Estate"'), 'searchable by maker'); }
   r = await req(port, 'GET', `/w/${aj.slug}`); assert.ok(r.body.toString().includes('viewBox="1.5 14.2 41 11"') && r.body.toString().includes('href="/m/the-ada-estate"'), 'their mark, their page');
   r = await req(port, 'GET', '/m/the-ada-estate'); assert.equal(r.status, 200);

@@ -3536,3 +3536,20 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .dv-ks-me{margin:0;font-size:13px;color:#a39d92}
 .dv-ks label{display:grid;gap:5px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a39d92}.dv-ks input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid rgba(233,228,218,.4);background:#141311;color:#f6f1e7;border-radius:0}
 .dv-ks-row{display:flex;gap:18px;align-items:center;margin:4px 0 0}.dv-ks-row .link{color:#a39d92}
+
+/* The map (23 Oct): the collection's rooms as tiles that open in place. */
+.mpg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:0 clamp(16px,4vw,56px) 56px}
+.mpg .gal.mp{padding:0}
+.mp{border:1px solid var(--ln);background:#fff;min-width:0}
+.mp-s{list-style:none;cursor:pointer;display:grid;grid-template-rows:auto auto;min-height:100%}
+.mp-s::-webkit-details-marker{display:none}
+.mp-s img,.mp-no{display:block;width:100%;aspect-ratio:3/2;object-fit:cover;background:#0b0a09}
+.mp-t{display:grid;gap:2px;padding:10px 12px 12px}.mp-t b{font:400 18px/1.15 var(--read,Georgia),Georgia,serif;color:var(--ink)}.mp-t i{font-style:normal;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+.mp:hover{border-color:var(--ink)}
+.mp[open]{grid-column:1/-1;border-color:var(--ink)}
+.mp[open] .mp-s{display:flex;min-height:0;align-items:center;gap:16px;padding:0 12px 0 0;border-bottom:1px solid var(--ln)}
+.mp[open] .mp-s img,.mp[open] .mp-no{width:120px;aspect-ratio:3/2}
+.mp[open] .mp-t{padding:10px 0}.mp[open] .mp-t b{font-size:22px}
+.mp[open] .mp-s::after{content:"Close";font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-left:auto;padding-right:12px}
+.mp-b{padding:16px 12px 8px}.mp-go{margin:12px 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase}.mp-go a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink)}
+@media (max-width:760px){.mpg{grid-template-columns:repeat(2,1fr);gap:10px;padding:0 16px 40px}.mp-t b{font-size:16px}.mp[open] .mp-s{gap:10px}.mp[open] .mp-s img{width:84px}}
