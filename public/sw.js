@@ -2,7 +2,7 @@
 // house and the last copy of each is kept so the rooms you have walked are there when the connection is
 // not; photographs are kept as you see them, up to a few hundred, oldest out first. Nothing private is
 // cached: the studio, your gallery, the Studio, sign-in and anything with a key go straight to the house.
-const V = 'wm-2026-10-23cold';
+const V = 'wm-2026-10-23pack';
 const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline'];
 const PRIVATE = /^\/(notices|api\/notices|basket|api\/basket|stroll|wander|api\/stroll|frame\/|tv$|show\/|cab\/|cabinet|showings|hang\/.*\/g\/|account|yours|studio|signin|signout|auth|api\/me|c\/|d\/|seat\/|k\/|collector\/|swap|market\/.*\/bid|library\/d\/|w\/[^/]+\/archive)/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -11,6 +11,13 @@ const trim = async (name, max) => { const c = await caches.open(name); const ks 
 self.addEventListener('fetch', e => {
   const r = e.request; if (r.method !== 'GET') return;
   const u = new URL(r.url); if (u.origin !== location.origin) return;
+  // Wander in the subway (Will, 23 Oct): the room itself is kept, one copy, so it opens with no signal; what hangs in
+  // it then comes from the pack the page keeps (stroll.js). Only the room, never the feed and never a drawer.
+  if (u.pathname === '/wander' && (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html'))) {
+    e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic') caches.open(V + '-pages').then(c => c.put('/wander', res.clone())); if (res.status >= 502 && res.status <= 504) return (await caches.match('/wander')) || (await caches.match('/offline')) || res; return res; })
+      .catch(async () => (await caches.match('/wander')) || (await caches.match('/offline')) || new Response('The house cannot be reached.', { status: 503, headers: { 'Content-Type': 'text/plain' } })));
+    return;
+  }
   if (PRIVATE.test(u.pathname) || u.searchParams.has('k')) return;
   // The shell: cache first, refreshed in the background.
   if (u.pathname.startsWith('/static/')) { e.respondWith(caches.open(V).then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok) c.put(r, res.clone()); return res; }).catch(() => hit); return hit || net; })); return; }

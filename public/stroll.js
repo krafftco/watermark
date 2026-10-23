@@ -36,16 +36,43 @@
     try { var im0 = el.querySelector('.st-im'); if (window.WMTrue && im0) { WMTrue.cap(im0); im0.addEventListener('load', function () { WMTrue.cap(im0); }, { once: true }); } } catch (e) { /* true size */ }
     return el;
   }
+  // The pack (Will, 23 Oct: "you need to be able to wander in the subway", like Spotify; "lost connection, restored
+  // connection", so people feel their work is always there). Forty works are kept on this phone: their records in
+  // localStorage, their pictures in the app's cache, warmed one at a time while the signal is good. When the feed cannot
+  // be reached the next screens come from the pack, and the room says so once; when the house answers again it says that too.
+  var PACK_N = 40, pack = [], packing = false, offline = false, packedAt = 0;
+  try { var pk0 = JSON.parse(localStorage.getItem('wm_pack') || '{}'); pack = pk0.items || []; packedAt = pk0.at || 0; } catch (e) { pack = []; }
+  function strip(w) { var o = {}; for (var k in w) if (k !== 'el' && k !== 'pre' && Object.prototype.hasOwnProperty.call(w, k)) o[k] = w[k]; return o; }
+  function savePack() { try { localStorage.setItem('wm_pack', JSON.stringify({ at: Date.now(), items: pack.slice(0, PACK_N) })); } catch (e) { /* full */ } }
+  function warm(i) { var w = pack[i]; if (!w) return; fetch(w.img, { credentials: 'same-origin' }).catch(function () {}).then(function () { setTimeout(function () { warm(i + 1); }, 900); }); }
+  function packUp() {
+    if (packing || q || maker || set || !navigator.onLine) return; if (pack.length >= PACK_N && Date.now() - packedAt < 6 * 3600000) { warm(0); return; }
+    packing = true;
+    fetch('/api/stroll?n=' + PACK_N + '&seen=').then(function (r) { return r.json(); }).then(function (j) { var list = (j && j.items) || []; if (!list.length) return; pack = list.map(strip); packedAt = Date.now(); savePack(); warm(0); }).catch(function () {}).then(function () { packing = false; });
+  }
+  function fromPack(n) { var out = []; for (var i = 0; i < pack.length && out.length < n; i++) if (!items[pack[i].slug]) out.push(pack[i]); return out; }
+  function lost() { if (offline) return; offline = true; say(pack.length ? 'No connection. Wandering what you brought with you.' : 'No connection. The house will be back.', 3200); }
+  function found() { if (!offline) return; offline = false; say('Connected again.', 2000); if (!done) more(); }
+  addEventListener('online', found); addEventListener('offline', lost);
+  var hadNet = false;
   // More, before the visitor reaches the end.
   function more() {
     if (loading || done) return; loading = true; if (window.WMWave) WMWave.show();
-    fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { return r.json(); }).then(function (j) {
+    fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { if (!r.ok) throw new Error('no feed'); return r.json(); }).then(function (j) {
+      if (hadNet) found(); hadNet = true;
       var list = (j && j.items) || [];
       if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/wander">Wander everything</a>'; scroller.appendChild(e); }, 0); }
       else if (!list.length) { done = true; return; }
       list.forEach(function (w) { if (items[w.slug]) return; var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); });
-    }).catch(function () {}).then(function () { loading = false; if (window.WMWave) WMWave.hide(); });
+      if (!packing && !pack.length) setTimeout(packUp, 1500);
+    }).catch(function () {
+      // The house cannot be reached: the pack, if there is one.
+      if (!set) { var list = fromPack(8); lost(); list.forEach(function (w) { var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); }); }
+    }).then(function () { loading = false; if (window.WMWave) WMWave.hide(); });
   }
+  // Opened with no signal (the room itself kept by the app): what hangs comes from the pack.
+  if (!navigator.onLine && pack.length && !set) { var open0 = fromPack(8); if (open0.length) { scroller.querySelectorAll('.st-i').forEach(function (el) { el.remove(); }); items = {}; order = []; seen = []; open0.forEach(function (w) { var el = screenFor(w); scroller.appendChild(el); register(w, el); }); lost(); } }
+  setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
   function stood(slug, s) { if (!slug || s < 2) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
   function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
