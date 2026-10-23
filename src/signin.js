@@ -21,7 +21,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   // Who this email is on Watermark: a collector (buyers.email), a maker (makers.email), or new.
   const whois = email => ({
     buyer: db.prepare('SELECT * FROM buyers WHERE lower(email)=lower(?) ORDER BY CASE WHEN customer<>\'\' THEN 0 ELSE 1 END, id LIMIT 1').get(email) || null,
-    maker: db.prepare('SELECT * FROM makers WHERE lower(email)=lower(?) ORDER BY id LIMIT 1').get(email) || null,
+    maker: db.prepare('SELECT * FROM makers WHERE lower(email)=lower(?) ORDER BY id LIMIT 1').get(email) || db.prepare("SELECT * FROM makers WHERE emails IS NOT NULL AND emails<>'' AND (',' || replace(lower(emails), ' ', '') || ',') LIKE ('%,' || lower(?) || ',%') ORDER BY id LIMIT 1").get(email) || null,
   });
 
   // Let them in: the collection on this device joins the one the email names; a maker opens their room too.
