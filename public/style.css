@@ -3490,3 +3490,24 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 @media (max-width:760px){.yx{grid-template-columns:1fr;gap:28px;padding-top:24px}.yx-tile{width:min(100%,320px)}.yx-t h1{font-size:36px}}
 @media (prefers-reduced-motion:reduce){.yx-tile,.yx-pic img,.yx-pencil{animation:none!important;opacity:1;filter:none;transform:rotate(-2.2deg)}}
 .pk-tap{margin:14px 0 4px;font-size:14px}.pk-tap label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.pk-tap small{display:block;margin:4px 0 0 26px;color:var(--mu);font-size:12.5px}
+
+/* The desk's header (23 Oct): two rows, the same for the house and for a maker. The first: the wordmark and where you
+   are, the three doors (The house · My studio · Gallery) as plain words, Find, the bell, the front door, Sign out.
+   The second: the rooms, one weight, a hairline under the one you are in; the back office as four short menus. */
+.dh{background:#fff;border-bottom:1px solid var(--ink)}
+.dh-top{display:flex;align-items:center;gap:clamp(18px,3vw,40px);padding:0 clamp(16px,4vw,56px);height:50px;border-bottom:1px solid var(--ln)}
+.dh-brand{display:inline-flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);flex:none}.dh-brand img{height:20px;width:auto;display:block}.dh-brand span{font:italic 400 17px/1 var(--disp,Georgia),Georgia,serif;color:var(--ink);padding-left:12px;border-left:1px solid var(--ln)}
+.dh-as{display:flex;gap:18px;font-size:12px;letter-spacing:.04em}.dh-as a{color:var(--mu);text-decoration:none}.dh-as a[aria-current]{color:var(--ink);font-weight:500}.dh-as a:hover{color:var(--ink)}
+.yc-sw .dh-as{margin:0}
+.dh-right{margin-left:auto;display:flex;align-items:center;gap:18px;white-space:nowrap}
+.dh-find{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;color:var(--mu);background:none;border:0;padding:0;cursor:pointer}.dh-find svg{width:15px;height:15px}.dh-find:hover{color:var(--ink)}
+.dh-bell{flex:none}
+.dh-out{font-size:12px;line-height:1;color:var(--mu);text-decoration:none}.dh-out:hover{color:var(--ink)}.dh-form{display:inline}.dh-form button{font:inherit;font-size:12px;line-height:1;color:var(--mu);background:none;border:0;padding:0;cursor:pointer}.dh-form button:hover{color:var(--ink)}
+.dh-rooms{display:flex;align-items:stretch;gap:clamp(14px,2vw,26px);padding:0 clamp(16px,4vw,56px);height:44px;font-size:12.5px;letter-spacing:.02em;font-weight:500}
+.dh-rooms>a,.dh-g summary{display:inline-flex;align-items:center;color:var(--mu);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;list-style:none;height:44px}
+.dh-rooms>a[aria-current],.dh-g summary[aria-current]{color:var(--ink);border-color:var(--ink)}.dh-rooms>a:hover,.dh-g summary:hover{color:var(--ink)}
+.dh-g summary::-webkit-details-marker{display:none}.dh-g summary i{display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin:0 0 3px 7px}
+.dh-sep{width:1px;background:var(--ln);margin:12px 4px;flex:none}
+.dh-g{position:relative;flex:none}.dh-g>div{position:absolute;left:-14px;top:43px;background:#fff;border:1px solid var(--ink);min-width:200px;padding:6px 0;display:grid;z-index:30;box-shadow:0 14px 40px rgba(0,0,0,.12)}
+.dh-g>div a{padding:8px 16px;color:var(--ink);text-decoration:none;font-size:12.5px;font-weight:400;white-space:nowrap}.dh-g>div a:hover,.dh-g>div a[aria-current]{background:var(--soft)}
+@media (max-width:760px){.dh-rooms{overflow-x:auto;scrollbar-width:none}.dh-rooms::-webkit-scrollbar{display:none}.dh-g>div{position:fixed;left:16px;right:16px;top:calc(86px + env(safe-area-inset-top))}.dh-top{height:46px;gap:14px}.dh-brand span{display:none}.dh-as{gap:12px}.dh-right{gap:12px}.dh-out:not(button){display:none}.dh-find span{display:none}.dh-rooms{height:40px}.dh-rooms>a,.dh-g summary{height:40px}}

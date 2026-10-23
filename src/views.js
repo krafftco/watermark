@@ -97,27 +97,44 @@ let deskStatus = () => '', deskPath = '';
 const setDeskPath = h => { deskPath = h || ''; };
 const setDeskStatus = fn => { deskStatus = fn; };
 const DESK_MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const DESK_MORE = [['/studio/launch', 'Launch'], ['/studio/analytics', 'The numbers'], ['/studio/door', 'The door'], ['/studio/founders', 'Founders'], ['/studio/hosts', 'Hosts'], ['/studio/screening', 'Screening Room'], ['/studio/reading', 'The public domain'], ['/studio/committee', 'The committees'], ['/studio/season', 'The season'], ['/studio/iiif', 'Collections in'], ['/studio/rights', 'Rights desks'], ['/studio/feedback', 'Feedback'], ['/studio/clients', 'Companies'], ['/studio/prints', 'Prints'], ['/studio/works', 'Add work'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/fixity', 'Conservation'], ['/studio/restoration', 'Restoration'], ['/studio/backups', 'Backups'], ['/studio/audit', 'Audit'], ['/studio/library', 'Library'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/hangs', 'Hangs'], ['/studio/accounts', 'Accounts'], ['/studio/hall', 'Hall of Patrons'], ['/studio/partners', 'Partners']];
 const MAKER_MAIN = [['/account', 'Your studio'], ['/account/requests', 'Requests'], ['/account/upload', 'The vault'], ['/account/profile', 'Your page'], ['/account/payouts', 'Getting paid'], ['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/yours', 'Your gallery']];
 // Every maker is a collector. One switch, the same in the studio and the gallery: Studio | Gallery.
 let houseMaker = null; const setHouseMaker = h => { houseMaker = h; };
-const SWITCH = (on, { admin = false } = {}) => `<nav class="dk-sw" aria-label="Studio or gallery">${admin ? `<a href="/studio"${on === 'house' ? ' aria-current="page"' : ''}>The house</a>` : ''}<a href="${admin && houseMaker ? `/account?maker=${esc(houseMaker)}` : '/account'}"${on === 'studio' ? ' aria-current="page"' : ''}>${admin ? 'My studio' : 'Studio'}</a><a href="/yours"${on === 'gallery' ? ' aria-current="page"' : ''}>Gallery</a></nav>`;
+const SWITCH = (on, { admin = false } = {}) => `<nav class="dh-as" aria-label="Studio or gallery">${admin ? `<a href="/studio"${on === 'house' ? ' aria-current="page"' : ''}>The house</a>` : ''}<a href="${admin && houseMaker ? `/account?maker=${esc(houseMaker)}` : '/account'}"${on === 'studio' ? ' aria-current="page"' : ''}>${admin ? 'My studio' : 'Studio'}</a><a href="/yours"${on === 'gallery' ? ' aria-current="page"' : ''}>Gallery</a></nav>`;
 let deskAdmin = false; const setDeskAdmin = v => { deskAdmin = !!v; };
 let TENANT = null; const setTenant = t => { TENANT = t || null; }; // a museum's own house (tenants.js): its name as the wordmark, Made with Watermark in the footer
 let deskGallery = false; const setDeskGallery = v => { deskGallery = !!v; };
 let deskInstitution = false; const setDeskInstitution = v => { deskInstitution = !!v; };
+// The back office's rooms, grouped (23 Oct, Will: the header and its sub-menu were confusing and inconsistent): four
+// menus in the rooms row instead of one list of thirty-three, the same row for the house and for a maker.
+const DESK_GROUPS = [
+  ['Work', [['/studio/works', 'Add work'], ['/studio/masters', 'Masters'], ['/studio/editions', 'Editions'], ['/studio/uses', 'Prices'], ['/studio/copyright', 'Copyright Office'], ['/studio/fixity', 'Conservation'], ['/studio/restoration', 'Restoration'], ['/studio/library', 'Library'], ['/studio/iiif', 'Collections in']]],
+  ['People', [['/studio/accounts', 'Accounts'], ['/studio/founders', 'Founders'], ['/studio/committee', 'The committees'], ['/studio/hosts', 'Hosts'], ['/studio/clients', 'Companies'], ['/studio/partners', 'Partners'], ['/studio/rights', 'Rights desks'], ['/studio/hall', 'Hall of Patrons']]],
+  ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
+  ['House', [['/studio/analytics', 'The numbers'], ['/studio/launch', 'Launch'], ['/studio/feedback', 'Feedback'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/audit', 'Audit'], ['/studio/backups', 'Backups'], ['/studio/door', 'The door']]],
+];
+const MAKER_MORE = [['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];
 function deskHeader(path = '') {
   path = path || deskPath;
   const maker = /^\/(account|yours|closer)/.test(path);
   const cur = h => (path === h || (!['/studio', '/account'].includes(h) && path && path.startsWith(h))) ? ' aria-current="page"' : '';
-  if (maker) return `<header class="dk"><div class="dk-row"><a class="dk-brand" href="/account"><img src="/static/watermark-logo.svg" alt="Watermark"></a>${SWITCH('studio', { admin: deskAdmin })}<a href="/notices" class="nv-bell dk-bell" data-nv-bell hidden aria-label="Notifications">${I.bell}<i data-nv-n></i></a>
-<nav class="dk-nav" aria-label="Your rooms">${(deskGallery ? [MAKER_MAIN[0], ['/account/gallery', 'The gallery'], ...MAKER_MAIN.slice(1)] : deskInstitution ? [MAKER_MAIN[0], ['/account/rights', 'Rights desk'], ...MAKER_MAIN.slice(1)] : MAKER_MAIN).filter(([h]) => h !== '/yours').map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</nav>
-<div class="dk-right"><a href="/" class="dk-out">The collection</a><form method="post" action="/signout" class="dk-form"><button class="dk-out">Sign out</button></form></div></div></header>`;
-  return `<header class="dk"><div class="dk-row"><a class="dk-brand" href="/studio"><img src="/static/watermark-logo.svg" alt="Watermark"></a>${SWITCH('house', { admin: true })}
-<nav class="dk-nav" aria-label="The rooms">${DESK_MAIN.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</nav><details class="dk-more"><summary>Back office</summary><div>${DESK_MORE.map(([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`).join('')}</div></details>
-<div class="dk-right"><a href="/" class="dk-out">The collection</a><a href="/studio/logout" class="dk-out">Sign out</a></div></div>
-<div class="dk-status">${deskStatus()}</div></header>`;
+  const room = ([h, t]) => `<a href="${h}"${cur(h)}>${t}</a>`;
+  const group = (name, list) => { const open = list.some(([h]) => cur(h)); return `<details class="dh-g" name="dh"${open ? ' open' : ''}><summary${open ? ' aria-current="page"' : ''}>${name}<i aria-hidden="true"></i></summary><div>${list.map(room).join('')}</div></details>`; };
+  const find = `<button type="button" class="dh-find" data-find-open aria-label="Find">${I.find}<span>Find</span></button>`;
+  const bell = `<a href="/notices" class="nv-bell dh-bell" data-nv-bell hidden aria-label="Notifications">${I.bell}<i data-nv-n></i></a>`;
+  if (maker) {
+    const main = (deskGallery ? [MAKER_MAIN[0], ['/account/gallery', 'The gallery'], ...MAKER_MAIN.slice(1, 5)] : deskInstitution ? [MAKER_MAIN[0], ['/account/rights', 'Rights desk'], ...MAKER_MAIN.slice(1, 5)] : MAKER_MAIN.slice(0, 5));
+    return `<header class="dk dh"><div class="dh-top"><a class="dh-brand" href="/account"><img src="/static/watermark-logo.svg" alt="Watermark"><span>${deskInstitution ? 'The desk' : deskGallery ? 'The gallery' : 'The studio'}</span></a>
+<nav class="dh-as" aria-label="Studio or gallery">${deskAdmin ? '<a href="/studio">The house</a>' : ''}<a href="/account" aria-current="page">${deskAdmin ? 'My studio' : 'Studio'}</a><a href="/yours">Gallery</a></nav>
+<div class="dh-right">${find}${bell}<a href="/" class="dh-out">The front door</a><form method="post" action="/signout" class="dh-form"><button class="dh-out">Sign out</button></form></div></div>
+<nav class="dh-rooms" aria-label="Your rooms">${main.map(room).join('')}${group('More', MAKER_MORE)}</nav>${DH_SCRIPT}</header>`;
+  }
+  return `<header class="dk dh"><div class="dh-top"><a class="dh-brand" href="/studio"><img src="/static/watermark-logo.svg" alt="Watermark"><span>The house</span></a>
+<nav class="dh-as" aria-label="The house, your studio or your gallery"><a href="/studio" aria-current="page">The house</a><a href="${houseMaker ? `/account?maker=${esc(houseMaker)}` : '/account'}">My studio</a><a href="/yours">Gallery</a></nav>
+<div class="dh-right">${find}${bell}<a href="/" class="dh-out">The front door</a><a href="/studio/logout" class="dh-out">Sign out</a></div></div>
+<nav class="dh-rooms" aria-label="The rooms">${DESK_MAIN.map(room).join('')}<span class="dh-sep" aria-hidden="true"></span>${DESK_GROUPS.map(([n, l]) => group(n, l)).join('')}</nav>${DH_SCRIPT}</header>`;
 }
+const DH_SCRIPT = `<script>document.addEventListener('click',function(e){document.querySelectorAll('.dh-g[open]').forEach(function(d){if(!d.contains(e.target))d.open=false;});});</script>`;
 // Beta and the test house. BETA is the live house before launch (a quiet word by the wordmark and a way to tell
 // us what you find); the Studio turns it off at launch (setLaunched). STAGING is the test house: a band on every page.
 let LAUNCHED = false; const setLaunched = v => { LAUNCHED = !!v; };

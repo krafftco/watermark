@@ -714,7 +714,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/studio/payouts/${mw.handle}`, { cookie: ck, body: { amount: '1', note: 'By cheque' } }); assert.equal(r.status, 302);
     assert.equal(app.locals.payouts.statement(mw).paid, 100, 'recorded'); }
   // Every maker is a collector: the switch on both sides; the pocket pays for a Collect with one tap; the money stays in the house.
-  r = await req(port, 'GET', '/account', { cookie: gck }); assert.ok(r.body.toString().includes('dk-sw') && r.body.toString().includes('>Gallery<'), 'the switch in the studio');
+  r = await req(port, 'GET', '/account', { cookie: gck }); assert.ok(r.body.toString().includes('dh-as') && r.body.toString().includes('>Gallery<'), 'the switch in the studio');
   const tmp4 = path.join(dir, 'in4.jpg'); await require('sharp')(SRC).resize({ width: 1700 }).rotate(90).modulate({ brightness: 1.15, hue: 40 }).toFile(tmp4);
   const w4 = await registerWork({ file: tmp4, originalName: 'q.jpg', title: 'Test Quay', place: 'Venice' });
   r = await req(port, 'GET', `/w/${w4.slug}`, { cookie: bck }); assert.ok(r.body.toString().includes('data-pocket="1"') && r.body.toString().includes('From your pocket, one tap'), 'the pocket covers the Collect');
