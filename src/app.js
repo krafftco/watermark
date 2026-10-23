@@ -395,7 +395,7 @@ function createApp(cfg = {}) {
 
   // ---------- app ----------
   const app = express();
-  app.locals.vaultPending = vaultPending;
+  app.locals.vaultPending = vaultPending; app.locals.vaultState = vaultState;
   if (!cfg.noTimers && store.kind === 's3') { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;

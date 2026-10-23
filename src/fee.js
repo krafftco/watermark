@@ -46,4 +46,6 @@ const makerOf = (l, pct) => (l.house_cents != null ? (l.price_cents || 0) - l.ho
 const sqlMaker = (pct, a = 'l') => `(${a}.price_cents - COALESCE(${a}.house_cents, CAST(ROUND(${a}.price_cents * (100 - ${+pct || 85}) / 100.0) AS INTEGER)))`;
 // Said on the wall: how the money goes.
 const said = (pct, first) => (on() ? `The price is ${first ? first + '’s' : 'the maker’s'}, every dollar of it; the house’s share is paid by the collector on top.` : `${pct || 85}% of every sale is ${first ? first + '’s' : 'the maker’s'}.`);
-module.exports = { on, house, total, premium, makerOf, makerFromTotal, sqlMaker, said, schedule, TIERS, HOUSE_PCT, COLLECT_HOUSE_CENTS };
+// The short form, inside a sentence: 'the price of every sale is yours' / '85% of every sale is yours'.
+const yours = (pct, whose = 'yours') => (on() ? `the price of every sale is ${whose}, every dollar` : `${pct || 85}% of every sale is ${whose}`);
+module.exports = { on, house, total, premium, makerOf, makerFromTotal, sqlMaker, said, yours, schedule, TIERS, HOUSE_PCT, COLLECT_HOUSE_CENTS };

@@ -315,6 +315,16 @@
     var told = false; try { told = sessionStorage.getItem('wm_stay') === '1'; } catch (e) {}
     if (arrivals.length >= 15 && !told) { try { sessionStorage.setItem('wm_stay', '1'); } catch (e) {} hold(); }
   }
+  // The newcomer's nudge (23 Oct, for a phone handed over in a gallery): once per device, if the first photograph is
+  // still on screen four seconds in and this phone has never swiped here, one line and a chevron, 'Swipe up for the
+  // next'; the first scroll takes it away and the phone remembers.
+  (function () {
+    if (!TOUCH) return; var swiped = false; try { swiped = localStorage.getItem('wm_swiped') === '1'; } catch (e) {}
+    if (swiped) return; var nd = root.querySelector('[data-st-swipe]'); if (!nd) return;
+    var away = function () { try { localStorage.setItem('wm_swiped', '1'); } catch (e) {} clearTimeout(t); nd.classList.remove('on'); setTimeout(function () { nd.hidden = true; }, 700); scroller.removeEventListener('scroll', away); };
+    scroller.addEventListener('scroll', away, { passive: true });
+    var t = setTimeout(function () { if (scroller.scrollTop > 10) return away(); nd.hidden = false; requestAnimationFrame(function () { nd.classList.add('on'); }); setTimeout(away, 9000); }, 4000);
+  })();
   function hold() {
     var st = root.querySelector('[data-st-stay]'); if (!st) return; st.hidden = false; requestAnimationFrame(function () { st.classList.add('on'); });
     scroller.style.overflowY = 'hidden';

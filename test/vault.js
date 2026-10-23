@@ -42,7 +42,7 @@ const client = { async send(cmd) {
   assert.equal(w.status, 'restoring', 'off view for conservation'); assert.equal(w.vaulted, 0);
   const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
   assert.equal((await fetch(`${base}/img/${w.slug}/screen`)).status, 404, 'a missing original is 404, not 500');
-  const h = await (await fetch(`${base}/healthz`)).json(); assert.ok(h.vault.lost.includes(w.slug), JSON.stringify(h.vault));
+  const h = await (await fetch(`${base}/healthz`)).json(); assert.equal(h.vault.lost, 1, JSON.stringify(h.vault)); assert.ok(app.locals.vaultState.lost.includes(w.slug), 'the slug is named in the full report');
   // 3. The same file sent again comes home to its record (never "already held"): vaulted on the next pass, the bucket
   // holds it, back on view.
   const again = path.join(dir, 'again.jpg'); fs.writeFileSync(again, whole);
