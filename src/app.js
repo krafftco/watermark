@@ -1557,7 +1557,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
     const lu = q.useById.get(l.use_id);
-    const share = size === 'share' || (lu && lu.key === 'social');
+    // A licence may fix its own size and strip (23 Oct: a photograph kept from an album leaves at the album's size, with no credit strip, like the album's own files).
+    let R = {}; try { R = l.rights ? JSON.parse(l.rights) : {}; } catch (e) { R = {}; }
+    const share = size === 'share' || (lu && lu.key === 'social') || R.size === 'share';
     const dl = dlOf(l);
     if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
@@ -1569,7 +1571,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         const u = lu;
         const fmt = share ? 'jpeg' : /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
         const raw = share ? await images.copy(file, 2400) : fs.readFileSync(file); // a share copy straight from the master (21 Oct), the original untouched
-        const buf = await marked(raw, { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, format: fmt });
+        const buf = await marked(raw, { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, strip: R.strip === false ? false : null, format: fmt });
         if (fmt !== 'jpeg') { res.set('Content-Disposition', disposition(fname)); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
         res.set('Content-Disposition', disposition(fname));
         // The Shield goes with the file: Content Credentials naming the maker, the copyright holder and this license.
