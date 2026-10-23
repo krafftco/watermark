@@ -128,6 +128,9 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
       bravos: t('SELECT COUNT(*) n FROM bravos WHERE at>=? AND at<?', f, g),
       collects: t("SELECT COUNT(*) n FROM licenses WHERE status IN ('active','expired') AND price_cents>0 AND starts_at>=? AND starts_at<?", f, g),
       cents: t("SELECT COALESCE(SUM(price_cents),0) n FROM licenses WHERE status IN ('active','expired') AND price_cents>0 AND starts_at>=? AND starts_at<?", f, g),
+      // Strangers (23 Oct, the Magnum night's test: do strangers pay?): collectors whose first paid piece is in the span.
+      firstTimers: t("SELECT COUNT(*) n FROM (SELECT buyer_id, MIN(starts_at) first FROM licenses WHERE status IN ('active','expired') AND price_cents>0 AND buyer_id IS NOT NULL GROUP BY buyer_id) WHERE first>=? AND first<?", f, g),
+      newMakers: t("SELECT COUNT(*) n FROM makers WHERE joined_at>=? AND joined_at<?", f, g),
       asked: t("SELECT COUNT(*) n FROM licenses WHERE status='requested' AND created_at>=? AND created_at<?", f, g),
       signins: t('SELECT COUNT(*) n FROM signins WHERE used_at IS NOT NULL AND used_at>=? AND used_at<?', f, g),
       notes: t('SELECT COUNT(*) n FROM notes WHERE at>=? AND at<?', f, g),
@@ -206,7 +209,7 @@ ${minuteRows.length ? bars(minuteRows, 'k', 'v', r => `${r.k}: ${r.v} requests, 
 ${R.now.where.length ? `<ul class="an-where">${R.now.where.map(w => `<li><span>${esc(w.path)}</span><i>${esc(w.device)}</i></li>`).join('')}</ul>` : ''}</article>
 
 <article class="an-card an-wide"><h2>${esc(R.label)}<small> against the ${R.days === 1 ? 'day' : R.days === 7 ? 'seven days' : 'thirty days'} before</small></h2>
-<div class="an-stats">${stat('visitors', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
+<div class="an-stats">${stat('visitors', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('first-time collectors', c.firstTimers, p.firstTimers)}${stat('makers joined', c.newMakers, p.newMakers)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
 ${bars(hourRows, 'k', 'v', r => `${r.k}: ${r.v} views, ${r.u} visitors`)}<p class="an-axis"><span>${esc(hourRows[0] ? hourRows[0].k : '')}</span><span>${esc(hourRows[hourRows.length - 1] ? hourRows[hourRows.length - 1].k : '')}</span></p></article>
 
 <article class="an-card"><h2>Works, most seen</h2>${list(R.works, [r => `<a href="/w/${esc(r.slug || r.path.slice(3))}">${esc(r.title || r.path)}</a>`, r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>
