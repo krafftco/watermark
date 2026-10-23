@@ -232,7 +232,7 @@ ${hangs.length ? `<div class="hg-list">${hangs.map(h => `<a class="hd-ev" href="
 function hangIt({ w, hangs, hung }) {
   return `<div class="hg-it" id="hang" data-hangit="${esc(w.slug)}">${hung ? `<p class="ok">Hung. <a href="${esc(hangHref(hung))}">See the wall</a>.</p>` : ''}<button type="button" class="hg-open" data-hang-open>${I.hang}<span>Hang it</span></button>
 <noscript><form method="post" action="/hang/add" class="hg-itf"><input type="hidden" name="work" value="${esc(w.slug)}"><select name="hang">${hangs.map(h => `<option value="${h.id}">${esc(h.title)}</option>`).join('')}<option value="new">On a new wall…</option></select><input name="title" placeholder="Title of the new wall" maxlength="80"><button class="link">Hang</button></form></noscript>
-<p class="note">A wall you curate from the whole collection, yours to show; ${CURATOR_PCT}% of what is collected through it is yours.</p></div>`;
+<span class="hg-why">A wall you curate; ${CURATOR_PCT}% of what is collected through it is yours.</span></div>`;
 }
 
 // Studio → Hangs: every wall in the house, and the house's own.

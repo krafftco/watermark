@@ -546,6 +546,10 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .lot-fold summary::after{content:"+";float:right;font-weight:300;font-size:16px;letter-spacing:0}
 .lot-fold[open] summary::after{content:"\2013"}
 .lot-fold[open] summary{margin-bottom:16px}
+/* The folds on the work page (23 Oct: the page read like six screens; the card, the book and the record fold to a line each). */
+.lot-fold summary{position:relative;padding-right:28px}.lot-fold summary::after{float:none;position:absolute;right:0;top:-2px}.lot-fold summary>span{display:block;font-size:12px;letter-spacing:0;text-transform:none;color:var(--mu);margin-top:3px;font-family:var(--sans,system-ui),system-ui,sans-serif}
+.ty-fold .ty,.nt-fold .nt{margin-top:0}.ty-fold .ty-card{margin-top:0}
+.hg-it{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.hg-why{font-size:12px;color:var(--mu)}.hg-it .ok{flex:1 1 100%;margin:0}
 @media (min-width:1000px){
   .lot{grid-template-columns:minmax(0,1fr) 440px;align-items:stretch}
   .lot-wall{min-height:calc(100vh - 130px);position:sticky;top:0}
