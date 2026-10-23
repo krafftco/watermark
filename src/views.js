@@ -493,12 +493,7 @@ function home({ maker, works, uses, sent }) {
 <p class="h-cta"><a class="h-btn" href="#apply">Hold your work here</a><a class="h-ln" href="/collection">See the collection</a></p></div>
 ${hero ? `<p class="h-cr">${esc(hero.title)} &middot; Photograph by ${esc(maker.name)}</p>` : ''}</section>
 
-<section class="h-sec" id="makers"><p class="k">Why it is broken</p><h2 class="h2">Your work travels. You don&rsquo;t go with it.</h2>
-<div class="h-3"><div><h3>It is taken.</h3><p>A screenshot makes any photograph free to anyone who wants it. The credit is the first thing lost.</p></div>
-<div><h3>It is hard to buy.</h3><p>Licensing means a quote, a contract and a week of email. Most people give up and take it instead.</p></div>
-<div><h3>It pays someone else.</h3><p>The platforms set the price, keep most of it, and decide where your work appears.</p></div></div></section>
-
-<section class="h-sec h-dark"><p class="k">The maker&rsquo;s say</p><h2 class="h2">Your work. Your terms. Written into every license.</h2>
+<section class="h-sec h-dark" id="makers"><p class="k">The maker&rsquo;s say</p><h2 class="h2">Your work. Your terms. Written into every license.</h2>
 <div class="h-say">
 <div class="h-card"><p class="h-ck">Lake Como, Morning</p>
 <button type="button" class="h-row" role="switch" aria-checked="true"><span>In a story</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="true"><span>For a company</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="false"><span>Before an audience</span><i></i></button><button type="button" class="h-row" role="switch" aria-checked="true"><span>On a wall</span><i></i></button><button type="button" class="h-row h-sep" role="switch" aria-checked="false" data-approve><span>Approve each license myself</span><i></i></button>
@@ -532,12 +527,6 @@ c.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)re
 <li><b>They tap once.</b>Apple Pay, Google Pay or a card. No account and no form.</li>
 <li><b>It is done.</b>The file, the certificate and the receipt arrive at once. You are paid, and you get a note saying so.</li></ol>
 ${demo ? `<p><a class="h-btn h-btn-d" href="/license/${esc(demo.slug)}">See it for yourself</a></p>` : ''}</section>
-
-<section class="h-sec h-num"><p class="h-big">${FEE.on() ? '100%' : '85%'}</p><div><h2 class="h2">${FEE.on() ? 'Of the price goes to the maker.' : 'Of every license goes to the maker.'}</h2><p>Watermark&rsquo;s share covers payment, delivery, the record and the protection. You own your work, your buyers and your record of sales.</p></div></section>
-
-<section class="h-sec h-by"><p class="k">By image makers</p><h2 class="h2">Built by a photographer, for photographers.</h2>
-<p class="h-p">The idea for Watermark began seven years ago with a simple frustration: the photographs travelled and the photographer didn&rsquo;t. It is built by Krafft, a creative company, and its first collection is our own. We built it the way we wanted to be treated: credited, asked, and paid.</p>
-${strip ? `<div class="h-strip">${strip}</div><p><a class="h-ln h-ln-d" href="/collection">See the collection</a></p>` : ''}</section>
 
 <section class="h-sec h-two" id="ready"><p class="k">Two floors</p><h2 class="h2">Put it in the day you make it. Hang it when it is ready.</h2>
 <div class="h-3 h-two-g"><div><h3>The record</h3><p>Open to everyone, free, from the first frame. Every work you bring in is kept, fingerprinted, deeded and yours; nothing is shown and nothing is sold. It is the frame on your own wall: your work, treated as worth making. <a href="/own">You already own it</a>.</p></div>
