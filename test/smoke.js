@@ -1167,6 +1167,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', `/api/stroll?in=delivery:${dtok}&n=8`); { const j = JSON.parse(r.body); assert.ok(j.items.some(i => i.slug === hid.slug) && j.items.some(i => i.slug === w.slug) && j.label === 'The thirtieth', 'the album as a set'); }
       r = await req(port, 'GET', `/wander?in=delivery:no-such-album`); assert.equal(r.status, 302, 'no album: its own door answers');
       db.prepare("UPDATE works SET status='held' WHERE id=?").run(hid.id); }
+    // Keep it (23 Oct): a stranger keeps a photograph of the album with an email; a gallery opens, the piece hangs in it for good, the page is the tile; the maker is told; nothing on the public register.
+    { r = await req(port, 'GET', `/deliver/${dtok}`); assert.ok(r.body.toString().includes(`data-dv-keep="${w.slug}"`) && r.body.toString().includes('Keep it'), 'Keep it under each photograph');
+      r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'Nia Friend', email: 'nia@example.com' } }); assert.ok(/^\/thanks\/WM-[0-9-]+\?k=/.test(r.headers.location), 'kept: the tile'); const kck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_b=')); assert.ok(kck, 'a gallery of her own');
+      const kl = db.prepare("SELECT * FROM licenses WHERE licensee_email='nia@example.com' AND work_id=?").get(w.id); assert.ok(kl && kl.status === 'active' && kl.price_cents == null && !kl.ends_at && /^Kept from /.test(kl.intended_use) && kl.buyer_id, 'a free licence for good, hers');
+      r = await req(port, 'GET', r.headers.location); assert.ok(r.status === 200 && r.body.toString().includes('class="yx in"') && r.body.toString().includes('A gift') && r.body.toString().includes('Kept &middot;'), 'the page says it was a gift');
+      r = await req(port, 'GET', '/yours', { cookie: kck.split(';')[0] }); assert.ok(r.body.toString().includes(w.slug), 'it hangs in her gallery');
+      r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'Nia Friend', email: 'nia@example.com' } }); const kl2 = db.prepare("SELECT COUNT(*) n FROM licenses WHERE licensee_email='nia@example.com' AND work_id=?").get(w.id).n; assert.equal(kl2, 1, 'kept once, however often it is asked');
+      r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'No Mail' } }); assert.ok(/keep=email/.test(r.headers.location), 'an email is needed');
+      r = await req(port, 'GET', '/ledger'); assert.ok(!/Nia Friend|nia@example/.test(r.body.toString()) && !/license\.kept/.test(r.body.toString()), 'the friend is never named on the public register'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');

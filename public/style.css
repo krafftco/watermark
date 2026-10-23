@@ -3528,3 +3528,11 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .inv-note{font-size:12px;color:#6b665e;margin:4px 0 0}.inv-note a{color:inherit}.inv-err{color:#9a3b2d;font-size:14px;margin:0 0 10px}
 .inv-back{margin:18px 0 0;font-size:13px}.inv-back a{color:#6b665e}
 .inv-cap{position:absolute;right:16px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:1;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,239,233,.6);margin:0}
+
+/* Keep it, from an album (23 Oct): a gold word under each photograph; the sheet that takes a name and an email. */
+.dv-keep{font:inherit;font-size:13px;font-weight:500;color:#d9bc7c;background:none;border:0;border-bottom:1px solid rgba(217,188,124,.6);padding:0 0 1px;cursor:pointer}.dv-keep:hover{color:#f2e6c8}
+.dv-ks{margin:28px auto 0;max-width:520px;padding:22px 24px;border:1px solid rgba(217,188,124,.5);background:rgba(255,255,255,.04);display:grid;gap:12px}.dv-ks[hidden]{display:none}
+.dv-ks-t{margin:0;font:400 16px/1.5 var(--read,Georgia),Georgia,serif;color:#e9e4da}.dv-ks-t b{font-weight:400;color:#f6f1e7;display:block;font-size:20px;margin-bottom:4px}
+.dv-ks-me{margin:0;font-size:13px;color:#a39d92}
+.dv-ks label{display:grid;gap:5px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a39d92}.dv-ks input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid rgba(233,228,218,.4);background:#141311;color:#f6f1e7;border-radius:0}
+.dv-ks-row{display:flex;gap:18px;align-items:center;margin:4px 0 0}.dv-ks-row .link{color:#a39d92}

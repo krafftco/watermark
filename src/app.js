@@ -997,7 +997,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   function collected(b) {
     const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
-      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 ORDER BY l.starts_at DESC`).all(b.id);
+      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
     const rooms = ids.length ? db.prepare(`SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
       FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
@@ -1840,7 +1840,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./drop').mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk });
   app.locals.vr = require('./vr').mountVR(app, { db, V });
   app.locals.opening = require('./opening').mountOpening(app, { db, C, V, mail, buyerOf, isStudio });
-  require('./deliveries').mountDeliveries(app, { db, C, V, I: require('./icons'), mail, ledger, grant, nextRef, mk, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, originalPath, images, cache, marked, fileName });
+  require('./deliveries').mountDeliveries(app, { db, C, V, I: require('./icons'), mail, ledger, grant, nextRef, mk, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, originalPath, images, cache, marked, fileName, buyerOf, setBuyer });
   app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
   app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });
