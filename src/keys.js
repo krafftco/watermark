@@ -134,10 +134,9 @@ ${lines.length ? `<section class="ky-lines"><p class="k">Lately, on the benches<
     const b = buyerOf(req), m = makerOf(req);
     const room = (kind, title, line, how, href, cta) => `<section class="ky-room ky-${kind}${mine[kind] ? ' held' : ''}"><div class="ky-key">${I.key}</div><p class="k">${esc(title)}</p><h2>${esc(line)}</h2><p>${how}</p>${mine[kind] ? `<p class="ky-no">Yours: No. ${mine[kind].no}. <a href="${href}">${cta} →</a></p>` : `<p class="ky-how">${counts[kind] || 0} given.</p>`}</section>`;
     res.send(V.layout({ title: 'The Keys · Watermark', path: '/keys', desc: 'The house’s private members’ club, since 1947. Every maker, collector and curator holds keys.', body: `<section class="ky">
-<header class="ky-cover"><div class="ky-cover-in"><a class="ky-mark" href="/keys/story" title="The story of the Keys">${MARK.mark}</a><p class="ky-since">Indianapolis, 1947 · Watermark, 2026</p></div><div class="ky-damask" aria-hidden="true"></div></header>
+<header class="ky-cover"><div class="ky-cover-in"><a class="ky-mark" href="/keys/story" title="The story of the Keys">${MARK.mark}</a><p class="ky-since">Indianapolis, 1947 · Watermark, 2026 · <a href="/keys/story">The story</a></p></div><div class="ky-damask" aria-hidden="true"></div></header>
 <div class="ky-h"><p class="k">The house</p><h1>The Keys.</h1>
 <p class="lede">The Keys is the club: the house’s own, private, for its members. The galleries below are silent, as a museum’s are; up here the members talk, about what they just saw, what they hold, what they are making. Keys are earned, never bought. ${kinds.length ? `You hold ${kinds.length === 1 ? 'one' : kinds.length}.` : 'Anyone may look in through the window.'}</p>
-<p class="ky-comm"><span class="ky-script">Keys Comments</span> The Keys was born in 1947 on North Meridian Street, Indianapolis, a restaurant kept by two sisters; the keys it gave its guests opened the front door. The house carries the name, the keys and the manner on. <a href="/keys/story">The story →</a></p>
 <p class="ky-ep">“It is my extreme pleasure to welcome you among our honored guests.” <span>Mary Helen Krafft, 1968. The house’s standard since.</span></p>
 <p class="ky-q">Are you a maker, a collector, or a curator?</p></div>
 <div class="ky-rooms">
@@ -146,15 +145,15 @@ ${room('collector', KINDS.collector, 'You keep the work.', `Given with the first
 ${room('curator', KINDS.curator, 'You choose what hangs.', 'Given by a maker who hands you the keys to an archive, by a gallery that opens here, or when a wall you hung is shown and placed. It opens the archives you have been given, the right to hang shows, the curation share, and hosting.', '/curate', 'The archives open to you')}
 </div>
 ${app.locals.clock ? app.locals.clock.clockBlock(app.locals.clock.programme(req)) : ''}
-<section class="ky-rm"><p class="k">The club</p><h2>The rooms.</h2><p class="ky-rml">Open all day and all night, all over the world. Some rooms keep hours; the rest are always lit. Each is curated: a host, a wall, a programme. Two are built for a day the house has not yet reached, and their doors say so.</p><div class="kr-grid">${rooms().map(roomCard).join('')}</div><p class="ky-rml ky-enjoy">The rooms reach into your own: <a href="/enjoy">how to enjoy the work in the real world</a>, on a television, through good speakers, in a headset, on paper.</p></section>
-<section class="ky-rules" id="dinner"><h2>The rules of the house.</h2><ul>
+<section class="ky-rm"><p class="k">The club</p><h2>The rooms.</h2><p class="ky-rml">Open all day and all night, all over the world. Some rooms keep hours; the rest are always lit. Each is curated: a host, a wall, a programme.</p><div class="kr-grid">${rooms().filter(r => !r.soon).map(roomCard).join('')}</div><p class="ky-rml ky-enjoy">The rooms reach into your own: <a href="/enjoy">how to enjoy the work in the real world</a>, on a television, through good speakers, in a headset, on paper.</p></section>
+<details class="ky-rules lot-fold" id="dinner"><summary>The rules of the house</summary><ul>
 <li><b>Nothing social on the wall.</b> No comment, count or feed ever sits beside a work. The talk is here, one door away.</li>
 <li><b>You may speak once you have stood before it.</b> A bench under a work opens to those who have looked, held, or been well seen.</li>
 <li><b>Signed, and a sentence at least.</b> No reactions, no down-votes, no leaderboard. The makers’ and curators’ regard is the only rating.</li>
 <li><b>Hours.</b> The balcony opens in the evening and closes at midnight; the night is shelved for those who were there.</li>
 <li><b>Discretion.</b> No one’s looking is shown to anyone. What is said on the balcony stays with the members of that night.</li>
-<li><b>The dinner.</b> Once a month, twelve keyholders at one table, in a city. Shot by Studios.</li></ul>
-<p class="ky-foot"><a href="/balcony">The balcony</a> opens in the evening; the benches are under every work and wall. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section></section>` }));
+<li><b>The dinner.</b> Once a month, twelve keyholders at one table, in a city. Shot by Studios.</li></ul></details>
+<p class="ky-foot"><a href="/balcony">The balcony</a> opens in the evening; the benches are under every work and wall. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section>` }));
   });
 
   // The story (Will, 19 Oct: "my great-grandmother started this restaurant, the Keys; we need to tell that story",
