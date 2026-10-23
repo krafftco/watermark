@@ -75,6 +75,35 @@ function offline() {
 <p class="nf-row"><a class="buy-btn" href="javascript:location.reload()" data-retry>Try again</a><a class="nf-alt" href="/collection">The collection</a><a class="nf-alt" href="/wander">Wander</a></p><p class="nf-cold" data-cold>Trying again by itself…</p></div></section>
 <script>(function(){addEventListener('load',function(){var f=document.querySelector('.nf-blank');if(window.WMWave&&f)window.WMWave.show(f);});var n=0;function go(){n++;fetch(location.href,{cache:'no-store',headers:{accept:'text/html'}}).then(function(r){if(r.ok&&r.headers.get('content-type')&&r.headers.get('content-type').indexOf('text/html')>=0)location.reload();else again()}).catch(again)}function again(){var e=document.querySelector('[data-cold]');if(e)e.textContent='Trying again by itself\u2026 ('+n+')';setTimeout(go,Math.min(15000,3000+n*1000))}setTimeout(go,3000)})();</script>` });
 }
+// The tour (Will, 23 Oct, the Magnum night: "show people how to use the app"): one page, a minute long, by who you are.
+// Wilhelm says it; the glyphs are the ones on the walls, so a newcomer recognises them when they meet them.
+function startPage() {
+  const step = (ic, t, l) => `<li>${ic}<div><b>${t}</b><span>${l}</span></div></li>`;
+  const body = `<section class="tut"><header class="tut-h">${I.wilhelm}<div><p class="k">Wilhelm, at the door</p><h1>How the house works.</h1><p class="lede">A minute, then you will never need it again. Everything here is a photograph and a way on.</p></div></header>
+<div class="tut-cols">
+<div class="tut-c"><p class="k">If you came to look</p><ol class="tut-l">
+${step(WAVE_MARK, 'Wander', 'Press the wave anywhere. One photograph fills the screen; swipe up for the next. Pinch to look closer. It never runs out.')}
+${step(I.hat, 'Hat', 'A nod: I saw it. Double-tap the picture, or press Hat. Free, as many as you like.')}
+${step(I.bravo, 'Bravo', 'A shout: it floored me. Three a month, so it means something. The maker is told at once.')}
+${step(I.guide, 'Guide', 'What to look for, read by Wilhelm. As much or as little as you want.')}
+${step(I.hang, 'Hang', 'Save it to a wall of your own. Your walls are yours to show or keep.')}
+</ol><a class="buy-btn" href="/wander" data-nv-wander>Wander now</a></div>
+<div class="tut-c"><p class="k">If you collect</p><ol class="tut-l">
+${step(I.collect, 'Collect, $7', 'One tap, Apple Pay. $5 to the maker, every dollar; the house’s share is on top. You hold a numbered copy, with papers.')}
+${step(I.page, 'It’s yours', 'The next screen is the photograph in your hand: save it to Photos, print it on Instax, order the 5 × 7 proof, hang it on your wall.')}
+${step(I.key, 'Your gallery', 'Everything you hold, in one room, with its papers. Sign in with your email; a code comes by mail, no password.')}
+${step(I.send, 'Pass it on', 'A numbered piece can be sent to another gallery, or traded, one for one.')}
+</ol><a class="buy-btn" href="/yours">Your gallery</a></div>
+<div class="tut-c"><p class="k">If you make photographs</p><ol class="tut-l">
+${step(I.in, 'Put work in', 'Your studio → The vault. Drop in the masters, full size. Each is fingerprinted, deeded and entered on the register as it arrives. It is yours from that moment; nothing is shown until you say.')}
+${step(I.check, 'Grade and publish', 'Stars 1–5 on your studio. Publish what you would hang. The rest is kept, never lost.')}
+${step(I.collect, 'Your prices', 'The house drafts fair prices for each use. Change any. The price is yours, every dollar.')}
+${step(I.card, 'Get paid', 'Add your bank once (Stripe). Every sale is paid to you; the collector pays the house’s share on top.')}
+</ol><a class="buy-btn" href="/makers">For those who make</a></div>
+</div>
+<p class="tut-foot">The house is open always. If anything is unclear, <a href="/feedback">tell us</a>, and we will make it clear.</p></section>`;
+  return layout({ title: 'How the house works · Watermark', path: '/start', desc: 'A minute on how to use Watermark: wander, hat, bravo, collect, and put your work in.', body });
+}
 function appPage({ standalone = false }) {
   return layout({ title: 'Watermark, as an app · Watermark', desc: 'Put Watermark on your Dock or your home screen: the house without the browser around it.', path: '/app', body: `<section class="narrow ap"><p class="k">The app</p><h1>${standalone ? 'You are in the app.' : 'Watermark, on your Dock.'}</h1>
 <p class="lede">${standalone ? 'The house, without the browser around it. Wander from the icon; the rooms you have walked stay with you when the connection does not.' : 'The house without the browser around it: its own window and icon, instant pages, the photographs you have seen kept on the device, and the rooms you have walked there when the connection is not. Nothing to download from a store; nothing it can see but the house.'}</p>
@@ -144,7 +173,7 @@ const STG = () => process.env.STAGING === '1';
 // here is reached from the room it belongs to (Who hangs from /makers, Enjoying it from the Keys, the frame from the
 // Collection, the Copyright Office from /own, Sign in and Find from the header).
 const FOOT = [
-  ['Look', [['/wander', 'Wander'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/today', 'Today’s work']]],
+  ['Look', [['/wander', 'Wander'], ['/start', 'How it works'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/today', 'Today’s work']]],
   ['Collect', [['/yours', 'Yours'], ['/market', 'Market'], ['/verify', 'Check a work'], ['/own', 'You already own it'], ['/print', 'Print your work']]],
   ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/club', 'The Club'], ['/guides', 'Guides'], ['/kids', 'The kids’ corner'], ['/library', 'The Library']]],
   ['The house', [['/about', 'About'], ['/director', 'The director'], ['/ledger', 'The register'], ['/friends', 'Friends of the house'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
@@ -1079,7 +1108,7 @@ function thanks({ lic, w, maker, use }) {
 <h1><em>${esc(tidy(w.title))}</em> is yours.</h1>
 <p class="yx-no">${lic.collector_no ? `You are collector No.&nbsp;${lic.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}. ` : ''}It hangs in <a href="/yours">your gallery</a> now${lic.licensee_email ? `, and the letter is on its way to ${esc(lic.licensee_email)}` : ''}.</p>
 ${kept ? `<ul class="yx-money"><li><b>A gift</b> from ${esc(first)}: ${esc(lic.intended_use.replace(/^Kept from /, 'from “'))}”. Nothing to pay.</li></ul>` : `<ul class="yx-money"><li><b>${money(mk)}</b> to ${esc(first)}, on its way.</li>${house > 0 ? `<li><b>${money(house)}</b> <a href="/share">the house&rsquo;s share</a>.</li>` : ''}</ul>`}
-<div class="yx-acts">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Save the photograph</a>` : ''}<a class="yx-l" href="/yours">Your gallery</a><a class="yx-l" href="/wander?at=${esc(w.slug)}" data-nv-wander>Wander on</a></div>
+<div class="yx-acts">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Save the photograph</a><a class="buy-btn yx-instax" href="/yours/p/${esc(lic.ref)}/instax?film=mini&k=${esc(lic.download_token)}" download title="The exact pixels for Instax mini: it lands in Photos; print it from the Instax or Leica FOTOS app">Print on Instax</a>` : ''}<a class="yx-l" href="/yours">Your gallery</a><a class="yx-l" href="/wander?at=${esc(w.slug)}" data-nv-wander>Wander on</a></div>
 <p class="yx-more">${lic.collector_no ? `<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">The proof, a 5&nbsp;&times;&nbsp;7 print in your hand</a> &middot; ` : ''}<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">Print it, hang it, live with it</a> &middot; <a href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">The papers</a></p>
 <p class="yx-thanks">Thank you for collecting.</p></div></section>` });
   }
@@ -1613,7 +1642,7 @@ ${rows.length ? `<ul class="cn-c">${rows.map(p => `<li><div><b>${esc(p.name)}</b
 <p class="note">A partner reads <code>${esc(base)}/api/partner/v1</code> with <code>Authorization: Bearer &lt;key&gt;</code>.</p></section>` });
 }
 
-module.exports = { setTenant, setDeskInstitution, vrPage, setLaunched, feedbackPage, feedbackDesk, connections, splitsPage, partnersDesk, GUIDE_SWITCH, plainRights, savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
+module.exports = { startPage, setTenant, setDeskInstitution, vrPage, setLaunched, feedbackPage, feedbackDesk, connections, splitsPage, partnersDesk, GUIDE_SWITCH, plainRights, savePage, noticesPage, basketPage, WAVE_MARK, VER, handPage, sign, SIGNS, setHouseMaker, setDeskAdmin, setDeskGallery, openShelf: (...a) => require('./open').openShelf(...a), offline, appPage, library: (...a) => require('./library').library(...a), text: (...a) => require('./library').text(...a), verifyFile, hall, hallDesk, indexRow, notFound, setDeskPath, setDeskStatus, viewingRoom, farewell, artists, copyrightPage, swapNew, swap, guestbook, friends, friendThanks, keeping, makerSlug, mlink, seat, contractBody, contractPage, closerEdit, regTag, isRegistered, isReference, refTag, tidy, K_MARK, tip, tipThanks, SHIELD, shieldBlock, voicesEdit, signin, series, setThanks, claim, makerPage, patronThanks, journal, patronage, collectors, collector, layout, room, viewer, life, home, reported, collection, work, buy, ask, thanks, licenseForm, requested, certificate, verify, registerPage, about, terms, esc, money, date, termText };
 
 // Tell us (beta): one page, a few fields, no account needed. What lands is read at Studio → Feedback.
 function feedbackPage({ from = '', sent = false, err = '' }) {

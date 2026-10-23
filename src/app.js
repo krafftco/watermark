@@ -805,6 +805,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   app.get('/sw.js', async (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-cache').set('Service-Worker-Allowed', '/'); let f = null; try { f = await served.serve('sw.js'); } catch (e) { /* source */ } res.sendFile(f || path.join(__dirname, '..', 'public', 'sw.js')); });
   app.get('/offline', (req, res) => res.send(V.offline()));
+  app.get('/start', (req, res) => res.send(V.startPage()));
   app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=60, must-revalidate').set('Access-Control-Allow-Origin', '*'); // one minute: a change to the bar reaches every site at once

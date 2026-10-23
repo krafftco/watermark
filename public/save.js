@@ -8,7 +8,7 @@
   var can = false;
   try { can = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [new File([new Uint8Array([255, 216, 255])], 'x.jpg', { type: 'image/jpeg' })] })); } catch (e) { can = false; }
   if (!phone || !can) return;
-  function isFile(a) { var h = a.getAttribute('href') || ''; return /^\/d\/|\/d\/[A-Za-z0-9_-]+/.test(h) || (a.hasAttribute('download') && /\.(jpe?g|png|webp|heic|tiff?)(\?|$)|\/d\//i.test(h)); }
+  function isFile(a) { var h = a.getAttribute('href') || ''; return /^\/d\/|\/d\/[A-Za-z0-9_-]+/.test(h) || (a.hasAttribute('download') && /\.(jpe?g|png|webp|heic|tiff?)(\?|$)|\/d\/|\/instax(\?|$)/i.test(h)); }
   // Say so: the link reads as what it now does.
   function relabel(root) {
     var r = root || document, list = [].slice.call(r.querySelectorAll('a[href]')); if (r.matches && r.matches('a[href]')) list.push(r);

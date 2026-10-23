@@ -3558,3 +3558,11 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .st.st-zoom .st-scroll{overflow:hidden;scroll-snap-type:none;touch-action:none}
 .st.st-zoom .st-i>.st-im{will-change:transform;z-index:3}
 .st.st-zoom .st-top,.st.st-zoom .st-plate,.st.st-zoom .st-rail,.st.st-zoom .st-eye,.st.st-zoom .bk-pill,.st.st-zoom .st-line,.st.st-zoom .st-tab{opacity:0;pointer-events:none}
+.yx-acts .yx-instax{background:none;color:var(--ink);border:1px solid var(--ink)}
+/* The tour, /start (23 Oct): a minute on how the house works, by who you are. */
+.tut{max-width:1180px;margin:0 auto;padding:48px 20px 72px}
+.tut-h{display:flex;gap:22px;align-items:flex-start;margin-bottom:40px}.tut-h>svg{width:72px;height:auto;flex:none}.tut-h h1{font-size:clamp(28px,4vw,42px);margin:4px 0 10px}.tut-h .lede{max-width:34em}
+.tut-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+.tut-l{list-style:none;margin:14px 0 22px;padding:0}.tut-l li{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid rgba(0,0,0,.1)}.tut-l li>svg{width:26px;height:26px;flex:none;margin-top:2px}.tut-l b{display:block;font-family:var(--serif);font-weight:400;font-size:19px;margin-bottom:3px}.tut-l span{display:block;font-size:14px;line-height:1.5;color:var(--ink2,#444)}
+.tut-foot{margin-top:44px;font-size:14px;color:var(--ink2,#444)}
+@media (max-width:760px){.tut{padding:28px 16px 56px}.tut-cols{grid-template-columns:1fr;gap:28px}.tut-h{gap:14px}.tut-h>svg{width:52px}}
