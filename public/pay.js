@@ -66,6 +66,8 @@
   }
 
   function done(d) {
+    // (23 Oct) The moment after paying is a page of its own, the photograph developing on its tile: go there.
+    if (d.thanks) { location.href = d.thanks; return; }
     sheet.querySelector('.ps-buy').hidden = true;
     var x = sheet.querySelector('.ps-done'); x.hidden = false;
     sheet.querySelector('.ps-dt').textContent = d.title + '. ' + d.credit + '.';

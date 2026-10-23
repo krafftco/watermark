@@ -98,7 +98,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
     const file = live && l.download_token && dl.left ? `/d/${esc(l.download_token)}` : null;
     const note = { asked: 'Asked. The house will write within a day with the paper, the size, the price and when it will be ready.', recorded: 'Recorded. The print is part of this piece’s life now.', check: 'Choose a size, and say where to write.', proof: 'Yours. The proof is with the print room; it will be posted within the week, and you will be written to when it goes.', proofcheck: 'Your name, the address and where to write, please.', proofoff: 'The proof cannot be paid for just now. Write to the house and we will arrange it.' }[ok];
     const proofs = orders.filter(o => o.kind === 'proof' && o.paid), proofSz = sizes(f.L, f.S)[0];
-    const bal = b && pk() ? pk().balance(b) : 0, proofPocket = bal >= PROOF_CENTS;
+    const bal = b && pk() ? pk().tap(b) : 0, proofPocket = bal >= PROOF_CENTS;
     const proof = live ? `<div class="kp-proof"><div class="kp-proof-pic" style="--r:${r}"><img src="/img/${esc(w.slug)}/thumb" alt=""></div><div class="kp-proof-t"><p class="k">The proof</p><h3>Hold it in your hand, ${money(PROOF_CENTS)}.</h3>
 <p>A 5 × 7 print of <i>${esc(title)}</i> from the house’s own print room: pigment on ${PROOF_PAPER}, the picture ${proofSz ? esc(proofSz.image) + ' inches' : 'fitted to the sheet'} with a white border, ${l.collector_no ? 'your number' : 'the title'} in pencil beneath. Posted to you${proofs.length ? `. You have ${proofs.length === 1 ? 'one' : proofs.length}` : ''}.</p>
 <form method="post" action="/yours/p/${esc(l.ref)}/proof" class="kp-f kp-pf">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}

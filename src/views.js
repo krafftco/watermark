@@ -1053,6 +1053,24 @@ function setThanks({ items, name }) {
 
 function thanks({ lic, w, maker, use }) {
   const done = lic.status === 'active';
+  // A personal piece (Will, 23 Oct: "instant gratification, like you've just received that Instax postcard"): the
+  // photograph develops on an instant-film tile, the wave in its corner and the number in pencil; whose money went
+  // where, in one line each; then the acts: save it, your gallery, wander on. The papers and the proof beneath.
+  const personal = done && use && (use.key === 'social' || use.key === 'reference') && use.kind !== 'print';
+  if (personal) {
+    const first = maker.name.split(' ')[0], T = require('./track'), FEE = require('./fee');
+    const mk = FEE.makerOf(lic, maker.share_pct), house = (lic.price_cents || 0) - mk;
+    const year = w.taken_at ? String(w.taken_at).slice(0, 4) : '';
+    return layout({ title: `It's yours · ${w.title}`, path: '/thanks', body: `<section class="yx in">
+<div class="yx-tile" aria-hidden="true"><div class="yx-pic"><img src="/img/${esc(w.slug)}/screen" alt="" draggable="false"></div><div class="yx-foot"><span class="yx-pencil">${lic.collector_no ? `No.&nbsp;${lic.collector_no}${w.edition_size ? `/${w.edition_size}` : ''} &middot; ` : ''}${esc(tidy(w.title))}${year ? `, ${year}` : ''} &middot; ${esc(maker.name)}</span><span class="yx-wave">${WAVE_MARK}</span></div></div>
+<div class="yx-t"><p class="k">Collected &middot; ${esc(T.track(lic.ref))}</p>
+<h1><em>${esc(tidy(w.title))}</em> is yours.</h1>
+<p class="yx-no">${lic.collector_no ? `You are collector No.&nbsp;${lic.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}. ` : ''}It hangs in <a href="/yours">your gallery</a> now${lic.licensee_email ? `, and the letter is on its way to ${esc(lic.licensee_email)}` : ''}.</p>
+<ul class="yx-money"><li><b>${money(mk)}</b> to ${esc(first)}, on its way.</li>${house > 0 ? `<li><b>${money(house)}</b> <a href="/share">the house&rsquo;s share</a>.</li>` : ''}</ul>
+<div class="yx-acts">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Save the photograph</a>` : ''}<a class="yx-l" href="/yours">Your gallery</a><a class="yx-l" href="/wander?at=${esc(w.slug)}" data-nv-wander>Wander on</a></div>
+<p class="yx-more">${lic.collector_no ? `<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">The proof, a 5&nbsp;&times;&nbsp;7 print in your hand</a> &middot; ` : ''}<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">Print it, hang it, live with it</a> &middot; <a href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">The papers</a></p>
+<p class="yx-thanks">Thank you for collecting.</p></div></section>` });
+  }
   return layout({
     title: done ? `It's yours · ${w.title}` : 'One moment · Watermark',
     body: `${done ? '' : '<meta http-equiv="refresh" content="3">'}<section class="yours${done ? ' in' : ''}">

@@ -73,7 +73,7 @@ function mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket, nextRef, g
     const unheld = st.works.filter(w => !w.held);
     const collect = unheld.length ? unheld.map(w => ({ w, u: collectUse(db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug)) })).filter(x => x.u) : [];
     const total = collect.reduce((s, x) => s + x.u.price_cents, 0);
-    res.send(remotePage({ f: frame(f.code), st, b, hangs, makers, series: SERIES || [], own: mine(req, f), ok: req.query.ok || null, collect: { n: collect.length, total, pocket: b && pocket ? pocket.balance(b) : 0, on: !!stripe } }));
+    res.send(remotePage({ f: frame(f.code), st, b, hangs, makers, series: SERIES || [], own: mine(req, f), ok: req.query.ok || null, collect: { n: collect.length, total, pocket: b && pocket ? pocket.tap(b) : 0, on: !!stripe } }));
   });
   app.post('/frame/:code', (req, res) => {
     const f = frame(req.params.code); if (!f) return res.sendStatus(404); if (!mine(req, f)) return res.sendStatus(403);

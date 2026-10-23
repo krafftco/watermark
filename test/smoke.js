@@ -719,7 +719,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const w4 = await registerWork({ file: tmp4, originalName: 'q.jpg', title: 'Test Quay', place: 'Venice' });
   r = await req(port, 'GET', `/w/${w4.slug}`, { cookie: bck }); assert.ok(r.body.toString().includes('data-pocket="1"') && r.body.toString().includes('From your pocket, one tap'), 'the pocket covers the Collect');
   { const pb = db.prepare("SELECT b.* FROM buyers b WHERE b.id=(SELECT buyer_id FROM pocket WHERE kind='topup' ORDER BY id DESC LIMIT 1)").get(); const before = app.locals.pocket.balance(pb);
-    r = await req(port, 'POST', `/buy/${w4.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(r.headers.location.includes('collected=1'), 'collected from the pocket, no checkout');
+    r = await req(port, 'POST', `/buy/${w4.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(/^\/thanks\/WM-[0-9-]+\?k=/.test(r.headers.location), 'collected from the pocket, no checkout: the thanks page');
+    { const tp = await req(port, 'GET', r.headers.location, { cookie: bck }); assert.equal(tp.status, 200); const tb = tp.body.toString(); assert.ok(tb.includes('class="yx in"') && tb.includes('is yours.') && tb.includes('yx-pencil'), 'the photograph on its tile'); }
+    { const t0 = await req(port, 'GET', r.headers.location.replace(/k=.*/, 'k=wrong'), { cookie: bck }); assert.equal(t0.status, 302, 'a wrong key is sent to the license page'); }
     const after = app.locals.pocket.balance(pb);
     const lic = db.prepare("SELECT * FROM licenses WHERE ref=(SELECT subject FROM ledger WHERE type='license.paid.pocket' ORDER BY seq DESC LIMIT 1)").get(); assert.equal(lic.status, 'active'); assert.ok(lic.collector_no, 'numbered'); assert.equal(before - after, lic.price_cents, 'the pocket paid exactly the price'); }
   // Curators: Ada hangs a wall from the collection, shows it; a visitor collects through it; Ada's pocket gets the curator's share; she can cash out.
@@ -819,7 +821,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/account/representation/${rep.id}`, { cookie: artck, body: { answer: 'accept' } }); assert.ok(decodeURIComponent(r.headers.location).includes('represents you now'), 'accepted');
     r = await req(port, 'GET', `/m/${art.handle}`); assert.ok(r.body.toString().includes('Represented by') && r.body.toString().includes('Meatpacking Pictures'), 'the maker page says so');
     const pb = db.prepare("SELECT b.* FROM buyers b WHERE b.id=(SELECT buyer_id FROM pocket WHERE kind='topup' ORDER BY id DESC LIMIT 1)").get(); db.prepare("INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)").run(pb.id, 1000, 'topup', 'test', 'for the show');
-    r = await req(port, 'POST', `/buy/${w5.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(r.headers.location.includes('collected=1'), 'collected');
+    r = await req(port, 'POST', `/buy/${w5.slug}`, { cookie: bck, body: { use: 'social', from: 'pocket' } }); assert.ok(/^\/thanks\//.test(r.headers.location), 'collected');
     const cutRow = db.prepare('SELECT * FROM gallery_cuts WHERE gallery_id=?').get(gal.id); assert.ok(cutRow && cutRow.cents === Math.round(500 * ((art.share_pct || 85) / 100) * .4), `the gallery's cut: ${cutRow && cutRow.cents}`);
     r = await req(port, 'GET', '/account/payouts', { cookie: galck }); assert.ok(r.body.toString().includes('Representation') && r.body.toString().includes(require('../src/views').money(cutRow.cents)), 'on the gallery statement');
     r = await req(port, 'GET', '/account/payouts', { cookie: artck }); assert.ok(r.body.toString().includes('To your gallery'), 'and on the maker\'s');

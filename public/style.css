@@ -3465,3 +3465,28 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 
 /* The vault tells you (21 Oct): one honest line above the list; a record link on each held row. */
 .vt-status{font-size:14px;color:var(--mu);margin:14px 0 6px}.vt-rec{display:inline-block;margin:6px 0 0;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+
+/* It's yours (Will, 23 Oct: "instant gratification, like you've just received that Instax postcard"): the photograph
+   develops on an instant-film tile, the wave in the corner, the number in pencil; the money in a line each; the acts. */
+.yx{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1.1fr);gap:clamp(28px,6vw,96px);align-items:center;padding:clamp(32px,6vw,96px) clamp(16px,4vw,56px);max-width:1180px;margin:0 auto}
+.yx-tile{justify-self:center;width:min(100%,380px);background:#fbfaf7;padding:14px 14px 0;box-shadow:0 2px 3px rgba(0,0,0,.08),0 24px 60px -18px rgba(0,0,0,.45);transform:rotate(-2.2deg) translateY(28px);opacity:0}
+.yx.in .yx-tile{animation:yx-drop 1.1s .1s cubic-bezier(.2,.8,.2,1) both}
+.yx-pic{background:#0b0a09;aspect-ratio:1/1;display:grid;place-items:center;overflow:hidden}
+.yx-pic img{width:100%;height:100%;object-fit:cover;display:block;filter:brightness(2.4) contrast(.2) sepia(.4);opacity:.2}
+.yx.in .yx-pic img{animation:yx-dev 2.6s .5s ease-out both}
+.yx-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;height:72px;padding:0 4px}
+.yx-pencil{font:400 13px/1.35 var(--read,Georgia),Georgia,serif;color:#4a4642;letter-spacing:.01em;opacity:0}.yx.in .yx-pencil{animation:yx-ink 1.2s 2.4s ease-out both}
+.yx-wave{width:30px;color:#2a2622;flex:none;display:inline-flex}.yx-wave svg{width:100%;height:auto}
+.yx-t .k{color:var(--mu)}.yx-t h1{font-family:var(--disp,Georgia),Georgia,serif;font-weight:400;font-size:clamp(34px,4.6vw,58px);line-height:1.02;letter-spacing:-.01em;margin:8px 0 16px}.yx-t h1 em{font-style:italic}
+.yx-no{font:400 17px/1.5 var(--read,Georgia),Georgia,serif;margin:0 0 18px}
+.yx-money{list-style:none;margin:0 0 24px;padding:14px 0 6px;border-top:1px solid var(--ink)}.yx-money li{padding:7px 0;border-bottom:1px solid var(--ln);font-size:14.5px;color:var(--mu)}.yx-money b{color:var(--ink);font-weight:500;display:inline-block;min-width:3.4em}
+.yx-acts{display:flex;align-items:center;gap:8px 22px;flex-wrap:wrap}.yx-acts .buy-btn{margin:0}.yx-l{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink);padding-bottom:2px}
+.yx-more{margin:26px 0 0;font-size:13px;color:var(--mu);line-height:1.7}.yx-more a{color:var(--ink)}
+.yx-thanks{margin:28px 0 0;font:italic 400 17px/1.4 var(--disp,Georgia),Georgia,serif;color:var(--mu)}
+.yx.in .yx-t{animation:rise .8s .9s var(--e,ease) both}
+@keyframes yx-drop{from{transform:rotate(-7deg) translateY(-60px) scale(1.04);opacity:0}to{transform:rotate(-2.2deg) translateY(0);opacity:1}}
+@keyframes yx-dev{0%{filter:brightness(2.4) contrast(.2) sepia(.4);opacity:.2}60%{filter:brightness(1.25) contrast(.8) sepia(.15);opacity:1}100%{filter:none;opacity:1}}
+@keyframes yx-ink{from{opacity:0}to{opacity:1}}
+@media (max-width:760px){.yx{grid-template-columns:1fr;gap:28px;padding-top:24px}.yx-tile{width:min(100%,320px)}.yx-t h1{font-size:36px}}
+@media (prefers-reduced-motion:reduce){.yx-tile,.yx-pic img,.yx-pencil{animation:none!important;opacity:1;filter:none;transform:rotate(-2.2deg)}}
+.pk-tap{margin:14px 0 4px;font-size:14px}.pk-tap label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.pk-tap small{display:block;margin:4px 0 0 26px;color:var(--mu);font-size:12.5px}

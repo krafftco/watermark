@@ -11,10 +11,17 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     status TEXT NOT NULL DEFAULT 'posted', stripe_session TEXT, at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE INDEX IF NOT EXISTS pocket_buyer ON pocket(buyer_id, at)`);
   const balance = b => (b ? db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted'").get(b.id).s : 0);
+  // One tap from the pocket is a choice (Will, 23 Oct: with credit in his account every Collect skipped Apple Pay, so the
+  // demo never showed the pay sheet). `buyers.pocket_tap` 1 (default) spends the pocket first; 0 pays by card or wallet
+  // every time and the pocket keeps its balance. `tap(b)` is the balance a one-tap may use: the balance, or nothing.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('buyers') WHERE name='pocket_tap'").get()) db.exec('ALTER TABLE buyers ADD COLUMN pocket_tap INTEGER NOT NULL DEFAULT 1');
+  const tapOn = b => !!b && (b.pocket_tap == null || Number(b.pocket_tap) === 1);
+  const tap = b => (tapOn(b) ? balance(b) : 0);
+  app.post('/pocket/tap', (req, res) => { const b = buyerOf(req); if (b) db.prepare('UPDATE buyers SET pocket_tap=? WHERE id=?').run(req.body && req.body.on === '1' ? 1 : 0, b.id); res.redirect((req.body && req.body.back) || '/yours?tab=settings#pocket'); });
   const history = b => (b ? db.prepare("SELECT * FROM pocket WHERE buyer_id=? AND status='posted' ORDER BY id DESC LIMIT 40").all(b.id) : []);
   // Spend: returns true when the pocket covered it.
   function spend(b, cents, kind, ref, note) {
-    if (!b || !(cents > 0) || balance(b) < cents) return false;
+    if (!b || !(cents > 0) || !tapOn(b) || balance(b) < cents) return false;
     db.prepare('INSERT INTO pocket (buyer_id, cents, kind, ref, note) VALUES (?,?,?,?,?)').run(b.id, -cents, kind, ref || null, note || null);
     return true;
   }
@@ -78,16 +85,17 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     res.redirect('/yours?tab=settings&pocket=filled#pocket');
   });
   app.locals.pocketEvent = event => { if (event.type === 'checkout.session.completed') { const s = event.data.object; if (s.metadata && s.metadata.pocket) settle(s.metadata.pocket, s); } };
-  app.locals.pocket = { balance, spend, credit, earned, cashable, history, TOPUPS, settle };
+  app.locals.pocket = { balance, tap, tapOn, spend, credit, earned, cashable, history, TOPUPS, settle };
   return app.locals.pocket;
 }
 
 // The pocket on Yours → Settings.
-function pocketBlock({ balance, history, state, on, cashable = 0, bank = false }) {
+function pocketBlock({ balance, history, state, on, cashable = 0, bank = false, tap = true }) {
   const notice = { filled: 'Filled. Thank-you cards now go out with one tap.', off: 'The till is closed for the moment.', unavailable: 'The payment could not be started. Try again in a moment.', cashed: 'Cashed out. It is on its way to your bank, or the house will send it by hand.', bank: 'Your bank is connected.', small: 'A dollar at least to cash out.' }[state];
   return `<section class="pocket" id="pocket"><header class="gh"><h2>Your pocket</h2><span>${money(balance)}</span></header>
 <p class="lede pk-lede">Small money for small things: ninety-nine-cent thank-you cards to the people who made what you love, sent with one tap, no checkout each time. Put a little in; it is spent here and only here.</p>
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+<form method="post" action="/pocket/tap" class="pk-tap"><input type="hidden" name="on" value="${tap ? '0' : '1'}"><label><input type="checkbox" onchange="this.form.on.value=this.checked?'1':'0';this.form.requestSubmit()" ${tap ? 'checked' : ''}> One tap from the pocket when it covers a Collect or a card</label><small>${tap ? 'On. Turn it off to pay by card or Apple Pay every time; the pocket keeps its balance.' : 'Off: every Collect and card goes through the pay sheet. The pocket keeps its balance.'}</small></form>
 <form method="post" action="/pocket/add" class="pk-add">${TOPUPS.map(c => `<button name="amount" value="${c}" ${on ? '' : 'disabled'}>Add ${money(c)}</button>`).join('')}</form>
 ${history.length ? `<ul class="pk-hist">${history.map(h => `<li><span>${esc(h.at.slice(0, 10))}</span><span>${h.kind === 'topup' ? 'Put in' : h.kind === 'earnings' ? 'Your earnings, kept in the house' : h.kind === 'thanks' ? `Thank you${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'collect' ? `Collected${h.note ? `: ${esc(h.note)}` : ''}` : h.kind === 'curation' ? `Your eye: ${esc(h.note || '')}` : h.kind === 'thanks_in' ? esc(h.note || 'A card for you') : h.kind === 'cashout' ? 'Cashed out' : esc(h.kind)}</span><b class="${h.cents < 0 ? 'out' : 'in'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></li>`).join('')}</ul>` : ''}
 ${cashable >= 100 ? `<div class="pk-out"><p><b>${money(cashable)}</b> of this you earned here: a curator's share, cards received. Spend it in the house, or take it out.</p><form method="post" action="/pocket/cashout"><button class="link">Cash out ${money(cashable)}</button></form>${bank ? '' : `<form method="post" action="/pocket/connect"><button class="link">Add your bank</button></form>`}</div>` : ''}
