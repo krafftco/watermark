@@ -3021,10 +3021,10 @@ html.fd-on{overflow:hidden}
 .fd-go{margin:18px 0 0}.fd-page .fd-none{color:var(--mu)}
 /* Landscape on a phone (18 Oct): the photograph alone, edge to edge, in a dark room; the bar, the plate and the acts
    come only on a tap, and the plate sits small in a corner. */
-@media (orientation:landscape) and (max-height:520px) and (pointer:coarse){
+@media (orientation:landscape) and (max-height:700px) and (pointer:coarse){
   .st .st-i>.st-im{padding:0}
-  .st .st-plate{left:16px;bottom:12px;max-width:50vw}.st .st-plate .st-t{font-size:17px}.st .st-plate .st-by,.st .st-plate .st-k{font-size:10px}
-  .st .st-rail{right:12px;bottom:12px;flex-direction:row;gap:10px}.st .st-rail .st-b span{display:none}
+  .st .st-plate{left:16px;bottom:10px;max-width:50vw}.st .st-plate .st-t{font-size:17px}.st .st-plate .st-by,.st .st-plate .st-k{font-size:10px}
+  .st .st-rail{right:12px;bottom:10px;flex-direction:row;gap:12px}.st .st-rail .st-b span{display:none}
   .st .st-top{padding:8px 14px}.st .st-eye{top:10px;right:12px}.st .bk-pill{top:10px}
   .st .st-line{display:none}
 }
