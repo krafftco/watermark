@@ -3573,3 +3573,8 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .tc-ax{position:absolute;right:2px;top:12px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);text-decoration:none;border:1px solid var(--ink);border-radius:999px;padding:4px 9px;background:#fff}
 /* The switch, seen (Will, 23 Oct, at the gallery: "I can't toggle between collector and maker"): a pill, not a grey line. */
 .yc-sw .dh-as{gap:0;border:1px solid var(--ink);border-radius:999px;padding:3px;font-size:13px;letter-spacing:.08em;text-transform:uppercase}.yc-sw .dh-as a{padding:8px 16px;border-radius:999px;color:var(--ink)}.yc-sw .dh-as a[aria-current]{background:var(--ink);color:#fff}
+/* The Duo open, sideways (Will, 23 Oct: "those buttons are untouchable"): the phone's own cluster sits over the top-right corner of every page, so every header keeps 150px of the right edge clear of it. */
+@media (orientation:landscape) and (max-height:700px) and (pointer:coarse){
+  .top,.dh-top,.dh-row,.cx-bar{padding-right:160px}
+  .kh-in,.kh{padding-right:160px}
+}
