@@ -3023,9 +3023,9 @@ html.fd-on{overflow:hidden}
    come only on a tap, and the plate sits small in a corner. */
 @media (orientation:landscape) and (max-height:700px) and (pointer:coarse){
   .st .st-i>.st-im{padding:0}
-  .st .st-plate{left:16px;bottom:calc(10px + env(safe-area-inset-bottom));max-width:34vw}.st .st-plate .st-t{font-size:17px}.st .st-plate .st-by,.st .st-plate .st-k{font-size:10px}
+  .st .st-plate{left:18px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:34vw}.st .st-plate .st-t{font-size:24px}.st .st-plate .st-by,.st .st-plate .st-k{font-size:10px}
   /* Sideways (Will, 23 Oct, on the Duo: the row along the bottom 'doesn't look great'): the rail stays a column, at the right edge, centred, where a portrait picture leaves the dark. */
-  .st .st-rail{right:10px;bottom:auto;top:50%;transform:translateY(-50%);flex-direction:column;gap:6px}.st .st-rail .st-b span{display:none}.st .st-rail .st-b{padding:3px}
+  .st .st-rail{right:14px;bottom:calc(14px + env(safe-area-inset-bottom));top:auto;transform:none;flex-direction:column;gap:12px}.st .st-rail .st-b span{display:none}.st .st-rail .st-b{padding:4px}.st .st-rail .st-b svg,.st .st-rail .st-b .ic{width:30px;height:30px}
   .st .st-top{padding:8px 14px}.st .st-eye{top:10px;right:12px}.st .bk-pill{top:10px}
   .st .st-line{display:none}
 }
