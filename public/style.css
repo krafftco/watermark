@@ -3566,3 +3566,5 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .tut-l{list-style:none;margin:14px 0 22px;padding:0}.tut-l li{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid rgba(0,0,0,.1)}.tut-l li>svg{width:26px;height:26px;flex:none;margin-top:2px}.tut-l b{display:block;font-family:var(--serif);font-weight:400;font-size:19px;margin-bottom:3px}.tut-l span{display:block;font-size:14px;line-height:1.5;color:var(--ink2,#444)}
 .tut-foot{margin-top:44px;font-size:14px;color:var(--ink2,#444)}
 @media (max-width:760px){.tut{padding:28px 16px 56px}.tut-cols{grid-template-columns:1fr;gap:28px}.tut-h{gap:14px}.tut-h>svg{width:52px}}
+/* Instax, one tap (Will, 23 Oct, the Magnum night): first act in the holder's room; a small tab on each gallery card. */
+.tc-ax{position:absolute;right:2px;top:12px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);text-decoration:none;border:1px solid var(--ink);border-radius:999px;padding:4px 9px;background:#fff}
