@@ -3553,3 +3553,4 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .mp[open] .mp-s::after{content:"Close";font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-left:auto;padding-right:12px}
 .mp-b{padding:16px 12px 8px}.mp-go{margin:12px 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase}.mp-go a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink)}
 @media (max-width:760px){.mpg{grid-template-columns:repeat(2,1fr);gap:10px;padding:0 16px 40px}.mp-t b{font-size:16px}.mp[open] .mp-s{gap:10px}.mp[open] .mp-s img{width:84px}}
+.hd-fresh{margin:8px 0 28px;padding:16px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--ln);font:400 16px/1.5 var(--read,Georgia),Georgia,serif;color:var(--mu)}
