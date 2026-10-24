@@ -1407,6 +1407,24 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Read it in the reading room/.test(r.body), 'the Library opens the room');
     r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/Already/.test(decodeURIComponent(r.headers.location)), 'never twice');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
+    // The book (24 Oct): the cover with the imprint, the progress line, Pages, the colophon; the author said as a person says it.
+    assert.ok(/data-rd-cover/.test(pg) && /Watermark Publishing/.test(pg) && /A\. Walker/.test(pg) && /rdr-prog/.test(pg) && /data-rd-mode/.test(pg) && /rdr-colophon/.test(pg) && /❦/.test(pg), 'a book, not a web page');
+    r = await req(port, 'GET', `/read/${bk.slug}?c=1`); assert.ok(/data-rd-cover hidden/.test(r.body), 'a chapter asked for opens past the cover');
+    // The canon: found by title and author on Gutendex, the best-taken edition; shelved in the background; never twice.
+    app.locals.__fetch = async (u) => { u = String(u); if (/gutendex\.com\/books\?search=/.test(u)) { const q = decodeURIComponent(u.split('search=')[1].split('&')[0]); return { ok: true, json: async () => ({ results: /Meditations/.test(q) ? [{ id: 2680, title: 'Meditations', authors: [{ name: 'Marcus Aurelius, Emperor of Rome' }], download_count: 9000, languages: ['en'], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/2680.txt.utf-8' } }, { id: 1, title: 'Meditations on First Philosophy', authors: [{ name: 'Descartes' }], download_count: 99999, languages: ['en'], formats: { 'text/plain': 'x' } }] : [] }) }; } if (/gutendex\.com\/books\/2680/.test(u)) return { ok: true, json: async () => ({ id: 2680, title: 'Meditations', authors: [{ name: 'Marcus Aurelius, Emperor of Rome' }], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/2680.txt.utf-8' } }) }; if (/2680\.txt/.test(u)) return { ok: true, text: async () => '*** START OF THE PROJECT GUTENBERG EBOOK MEDITATIONS ***\n\nBOOK I\n\n' + 'From my grandfather Verus I learned good morals and the government of my temper. '.repeat(40) + '\n\nBOOK II\n\n' + 'Begin the morning by saying to thyself, I shall meet with the busy-body. '.repeat(40) + '\n\n*** END OF THE PROJECT GUTENBERG EBOOK' }; return prev ? prev(u) : { ok: false, status: 404 }; };
+    const RD = app.locals.reading; const found = await RD.find('Meditations', 'Marcus Aurelius'); assert.ok(found && found.id === 2680, 'the author’s own, not the best-taken stranger');
+    r = await req(port, 'GET', '/studio/reading', { cookie: ck }); assert.ok(/The first shelf/.test(r.body) && /Shelve the canon/.test(r.body) && /Meditations/.test(r.body), 'the canon on the desk');
+    r = await req(port, 'POST', '/studio/reading/canon', { cookie: ck }); assert.equal(r.status, 302);
+    for (let i = 0; i < 400 && RD.job.on; i++) await new Promise(x => setTimeout(x, 50));
+    const med = db.prepare("SELECT * FROM texts WHERE source LIKE '%ebooks/2680%'").get(); assert.ok(med && med.kind === 'book' && /BOOK II/.test(med.body) && /One of the first shelf/.test(med.summary), 'Meditations on the shelf');
+    assert.ok(RD.job.missed.length >= RD.CANON.length - 2, 'the rest reported not found, not guessed');
+    r = await req(port, 'GET', '/publishing'); assert.ok(r.status === 200 && /Watermark Publishing\./.test(r.body) && /pub-card/.test(r.body) && /Meditations/.test(r.body) && /Publish with the house/.test(r.body), 'the imprint');
+    // A photo book from a wall: each plate a page, the first the cover, read in the room.
+    const hg = db.prepare('SELECT * FROM hangs WHERE public=1 ORDER BY id LIMIT 1').get(); assert.ok(hg, 'a public wall to make a book from');
+    r = await req(port, 'POST', '/studio/publishing/photobook', { cookie: ck, body: { hang: hg.slug, title: 'The Great Rooms, a book', author: 'Will Fullerton', price: '25', line: 'Six rooms, one evening.' } }); assert.equal(r.status, 302, 'made: ' + r.headers.location);
+    const pbk = db.prepare("SELECT * FROM texts WHERE kind='photobook' ORDER BY id DESC LIMIT 1").get(); assert.ok(pbk && pbk.price_cents === 2500 && pbk.cover_work_id && JSON.parse(pbk.plates).length >= 1, 'a priced photo book with plates');
+    r = await req(port, 'GET', `/read/${pbk.slug}`); assert.ok(r.status === 200 && /rdr-pb/.test(r.body) && /rdr-pl/.test(r.body) && /plates/.test(r.body) && /Will Fullerton/.test(r.body), 'read a plate at a time');
+    r = await req(port, 'GET', '/library'); assert.ok(/Photo books/.test(r.body), 'the Library knows the kind');
     app.locals.__fetch = prev;
   }
   console.log('ok: the public domain and the reading room');

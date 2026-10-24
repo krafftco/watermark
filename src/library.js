@@ -9,7 +9,7 @@ const { nanoid } = require('nanoid');
 const PDFDocument = require('pdfkit');
 const { layout, esc, money, date, tidy } = require('./views');
 
-const KINDS = [['book', 'Books'], ['journal', 'Journals'], ['essay', 'Essays'], ['paper', 'Papers'], ['document', 'Documents'], ['history', 'Art history']];
+const KINDS = [['book', 'Books'], ['photobook', 'Photo books'], ['journal', 'Journals'], ['essay', 'Essays'], ['paper', 'Papers'], ['document', 'Documents'], ['history', 'Art history']];
 const kindName = k => (KINDS.find(x => x[0] === k) || KINDS[2])[1];
 const slugify = s => String(s).toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 
@@ -29,6 +29,7 @@ function mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf
     summary TEXT, body TEXT, file TEXT, pages INTEGER, bytes INTEGER, sha256 TEXT, public INTEGER NOT NULL DEFAULT 1, price_cents INTEGER, terms TEXT, source TEXT, cover_work_id INTEGER,
     status TEXT NOT NULL DEFAULT 'held', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT);
     CREATE TABLE IF NOT EXISTS text_orders (id INTEGER PRIMARY KEY, ref TEXT UNIQUE NOT NULL, text_id INTEGER NOT NULL, buyer_id INTEGER, email TEXT, status TEXT NOT NULL DEFAULT 'pending', stripe_session TEXT, token TEXT UNIQUE, price_cents INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT)`);
+  try { db.exec('ALTER TABLE texts ADD COLUMN plates TEXT'); } catch (e) { /* has it */ } // a photo book's plates (reading.js)
   const texts = () => db.prepare("SELECT t.*, w.slug AS cover, w.width, w.height FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' ORDER BY t.kind, t.year DESC, t.id DESC").all();
   const one = slug => db.prepare("SELECT t.*, w.slug AS cover, w.width, w.height, w.title AS cover_title FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.slug=?").get(String(slug || ''));
   const nextRef = () => `WL-${new Date().getUTCFullYear()}-${String(db.prepare('SELECT COUNT(*) n FROM text_orders').get().n + 1).padStart(5, '0')}`;
@@ -163,7 +164,7 @@ function text({ t, html, words, mine, taken, stripe, ok, studio }) {
 <header class="lb-head">${t.cover ? `<a class="lb-hero" href="/w/${esc(t.cover)}"><img src="/img/${esc(t.cover)}/large" alt="${esc(tidy(t.cover_title || ''))}"></a>` : ''}
 <p class="k"><a href="/library">The Library</a> · ${esc(kindName(t.kind))}</p><h1>${esc(tidy(t.title))}</h1>
 <p class="lb-by">${esc(t.author || 'The house')}${t.year ? ` · ${esc(t.year)}` : ''}${t.pages ? ` · ${t.pages} pages` : words ? ` · ${words.toLocaleString()} words` : ''}${taken ? ` · taken ${taken} time${taken === 1 ? '' : 's'}` : ''}</p>
-${t.summary ? `<p class="lede">${esc(t.summary)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}${t.public && t.body && !t.file ? `<p class="lb-take"><a class="buy-btn" href="/read/${esc(t.slug)}">Read it in the reading room</a><small>Set for reading: your size, your light, your place kept.</small></p>` : ''}${take}${studio ? `<p class="note"><a href="/studio/library/${esc(t.slug)}">Edit in the Studio</a></p>` : ''}</header>
+${t.summary ? `<p class="lede">${esc(t.summary)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}${t.public && (t.body || t.plates) && !t.file ? `<p class="lb-take"><a class="buy-btn" href="/read/${esc(t.slug)}">${t.kind === 'photobook' ? 'Open the book' : 'Read it in the reading room'}</a><small>Set for reading: your size, your light, your place kept.</small></p>` : ''}${take}${studio ? `<p class="note"><a href="/studio/library/${esc(t.slug)}">Edit in the Studio</a></p>` : ''}</header>
 ${t.public ? (t.file ? `<div class="lb-pdf"><iframe src="/library/${esc(t.slug)}/read" title="${esc(tidy(t.title))}"></iframe></div>` : html ? (t.kind === 'book' ? `<details class="lb-body lb-fold"><summary>The text, here on the page</summary>${html}</details>` : `<div class="lb-body">${html}</div>`) : '') : '<p class="note">This volume is held, not shown. Take a copy to read it.</p>'}
 ${t.source ? `<p class="note lb-src">Source: ${esc(t.source)}</p>` : ''}${t.terms ? `<p class="note">${esc(t.terms)}</p>` : ''}
 <p class="note lb-reg">${t.sha256 ? `Fingerprint <code>sha256:${esc(t.sha256.slice(0, 16))}…</code> · ` : ''}On the <a href="/ledger">register</a> as ${esc(t.slug)}.</p></article>` });

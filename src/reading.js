@@ -30,9 +30,27 @@ const FRANKLIN = [
   { title: 'Characteristics of Men, Manners, Opinions, Times', author: 'Shaftesbury, Anthony Ashley Cooper', why: 'With Collins, the books that made him a doubter.' },
   { title: 'Poor Richard\'s Almanack', author: 'Franklin, Benjamin', why: 'The sayings, as he gathered them.' },
 ];
+// The canon (Will, 24 Oct: "start importing books of public record"; the Library of Alexandria): the house's first
+// shelf, the books a curious person is handed first. Each is found on Gutenberg by title and author (never a number
+// guessed), the best-taken English edition chosen; `shelveCanon()` brings them in one at a time in the background.
+const CANON = [
+  ['Meditations', 'Marcus Aurelius'], ['The Odyssey', 'Homer'], ['The Iliad', 'Homer'], ['The Republic', 'Plato'], ['Nicomachean Ethics', 'Aristotle'],
+  ['The Prince', 'Machiavelli'], ['Essays of Michel de Montaigne', 'Montaigne'], ['Hamlet', 'Shakespeare'], ['King Lear', 'Shakespeare'], ['The Sonnets', 'Shakespeare'],
+  ['Don Quixote', 'Cervantes'], ['Paradise Lost', 'Milton'], ['Pensées', 'Pascal'], ['Robinson Crusoe', 'Defoe'], ['Gulliver\'s Travels', 'Swift'],
+  ['The Wealth of Nations', 'Smith, Adam'], ['The Federalist Papers', 'Hamilton'], ['Pride and Prejudice', 'Austen'], ['Emma', 'Austen'], ['Frankenstein', 'Shelley, Mary'],
+  ['Jane Eyre', 'Brontë, Charlotte'], ['Wuthering Heights', 'Brontë, Emily'], ['Moby Dick', 'Melville'], ['Walden', 'Thoreau'], ['Leaves of Grass', 'Whitman'],
+  ['Self-Reliance', 'Emerson'], ['Great Expectations', 'Dickens'], ['A Tale of Two Cities', 'Dickens'], ['Middlemarch', 'Eliot, George'], ['Anna Karenina', 'Tolstoy'],
+  ['War and Peace', 'Tolstoy'], ['Crime and Punishment', 'Dostoyevsky'], ['The Brothers Karamazov', 'Dostoyevsky'], ['Madame Bovary', 'Flaubert'], ['Les Misérables', 'Hugo'],
+  ['The Count of Monte Cristo', 'Dumas'], ['Adventures of Huckleberry Finn', 'Twain'], ['The Picture of Dorian Gray', 'Wilde'], ['Heart of Darkness', 'Conrad'], ['Dubliners', 'Joyce'],
+  ['The Souls of Black Folk', 'Du Bois'], ['Narrative of the Life of Frederick Douglass', 'Douglass'], ['The Origin of Species', 'Darwin'], ['Thus Spake Zarathustra', 'Nietzsche'], ['The Interpretation of Dreams', 'Freud'],
+  ['The Art of War', 'Sunzi'], ['Tao Te Ching', 'Laozi'], ['The Analects of Confucius', 'Confucius'], ['The Divine Comedy', 'Dante'], ['Metamorphoses', 'Ovid'],
+  ['The Confessions of St. Augustine', 'Augustine'], ['Utopia', 'More, Thomas'], ['The Scarlet Letter', 'Hawthorne'], ['The Call of the Wild', 'London'], ['The Age of Innocence', 'Wharton'],
+  ['Notes from the Underground', 'Dostoyevsky'], ['Grimms\' Fairy Tales', 'Grimm'], ['Alice\'s Adventures in Wonderland', 'Carroll'], ['Treasure Island', 'Stevenson'], ['The Time Machine', 'Wells'],
+];
 const GUTENDEX = process.env.GUTENDEX || 'https://gutendex.com/books';
 function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   const { esc, tidy } = V;
+  try { db.exec('ALTER TABLE texts ADD COLUMN plates TEXT'); } catch (e) { /* has it */ }
   const doFetch = (...a) => (fetchImpl || fetch)(...a);
   const slugify = t => String(t).toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70) || 'book';
   // Gutenberg's text, cut to the book.
@@ -75,21 +93,89 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     try { ledger.append(db, 'text.shelved', slug, { title, author, from: 'gutenberg', by }); } catch (e) { /* */ }
     return { slug, title, author, chapters: chs.length, words: body.split(/\s+/).length };
   }
+  // A book by title and author: Gutendex's search, the best-taken English edition whose author matches.
+  const norm = x => String(x || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  async function find(title, author) {
+    const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(`${title} ${author.split(',')[0]}`)}&languages=en`); if (!r.ok) throw new Error(`Gutendex ${r.status}`);
+    const j = await r.json(); const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
+    const ok = (j.results || []).filter(b => (b.authors || []).some(a => norm(a.name).includes(sur)) && norm(b.title).includes(want.split(' ').slice(0, 3).join(' ')) && Object.keys(b.formats || {}).some(k => /^text\/plain/.test(k)));
+    ok.sort((a, b) => (b.download_count || 0) - (a.download_count || 0));
+    return ok[0] || null;
+  }
+  const shelvedBy = (title, author) => { const want = norm(title).slice(0, 18), sur = norm(author.split(',')[0]).split(' ').pop(); return db.prepare("SELECT slug, title, author FROM texts WHERE status='held'").all().find(h => norm(h.title).startsWith(want) || (h.author && norm(h.author).includes(sur) && norm(h.title).includes(want.split(' ')[0]) && want.split(' ')[0].length > 3)) || null; };
+  const job = { on: false, at: 0, done: [], missed: [], startedAt: null };
+  async function shelveCanon({ by = 'the house' } = {}) {
+    if (job.on) return job; job.on = true; job.at = 0; job.done = []; job.missed = []; job.startedAt = new Date().toISOString();
+    (async () => {
+      for (const [title, author] of CANON) {
+        job.at++; if (shelvedBy(title, author)) continue;
+        try { const b = await find(title, author); if (!b) { job.missed.push(`${title}: not found`); continue; } const r = await bring(b.id, { by, why: `${title}, ${author.split(',').reverse().join(' ').trim()}. One of the first shelf. From Project Gutenberg, No. ${b.id}.` }); job.done.push(r.title || title); }
+        catch (e) { job.missed.push(`${title}: ${e.message}`); }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      job.on = false;
+    })();
+    return job;
+  }
+  app.post('/studio/reading/canon', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); shelveCanon(); res.redirect('/studio/reading?ok=' + encodeURIComponent('The canon is coming in, one book every few seconds. This page shows each as it lands.')); });
   async function search(q) { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}`); if (!r.ok) throw new Error(`Gutendex ${r.status}`); const j = await r.json(); return (j.results || []).slice(0, 12).map(b => ({ id: b.id, title: b.title, author: (b.authors[0] || {}).name || '', downloads: b.download_count, languages: b.languages })); }
   // The reader.
+  // Authors come from the catalogue as 'Last, First'; the page says them the way a person does.
+  const byName = a => { const x = String(a || '').trim(); if (!x) return ''; const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}`.replace(/\s+/g, ' ') : x; };
+  const IMPRINT = 'Watermark Publishing';
   app.get('/read/:slug', (req, res) => {
     const t = db.prepare("SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.slug=?").get(String(req.params.slug));
-    if (!t || !t.body || (!t.public && !isStudio(req)) || t.status !== 'held') return res.sendStatus(404);
+    if (!t || (!t.body && !t.plates) || (!t.public && !isStudio(req)) || t.status !== 'held') return res.sendStatus(404);
+    const I = require('./icons');
     const chs = []; let cur = { head: null, paras: [] };
-    for (const p of String(t.body).split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^##?\s/.test(p)) { if (cur.head || cur.paras.length) chs.push(cur); cur = { head: p.replace(/^#+\s*/, ''), paras: [] }; } else cur.paras.push(p); }
+    for (const p of String(t.body || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^##?\s/.test(p)) { if (cur.head || cur.paras.length) chs.push(cur); cur = { head: p.replace(/^#+\s*/, ''), paras: [] }; } else cur.paras.push(p); }
     if (cur.head || cur.paras.length) chs.push(cur);
-    const at = Math.max(0, Math.min(chs.length - 1, +(req.query.c || 0) || 0));
-    const words = String(t.body).split(/\s+/).length;
-    res.send(V.layout({ title: `${t.title} · Watermark`, path: `/read/${t.slug}`, desc: `${t.title}${t.author ? ', ' + t.author : ''}. Read in the house.`, bare: true, body: `<main class="rdr" data-read='${esc(JSON.stringify({ slug: t.slug, n: chs.length, at }))}'>
-<header class="rdr-bar"><a class="rdr-back" href="/library/${esc(t.slug)}">${require('./icons').back}<span>The Library</span></a><p class="rdr-run"><b>${esc(t.title)}</b>${t.author ? `<span>${esc(t.author)}</span>` : ''}</p><div class="rdr-ctl"><button type="button" data-rd-toc aria-label="Chapters">${require('./icons').page}<span>Chapters</span></button><button type="button" data-rd-size="-" aria-label="Smaller">A−</button><button type="button" data-rd-size="+" aria-label="Larger">A+</button><button type="button" data-rd-theme aria-label="Paper, sepia or night">${require('./icons').dial || ''}<span>Light</span></button></div></header>
-<nav class="rdr-toc" data-rd-toc-panel hidden><p class="k">Chapters · ${chs.length}</p><ol>${chs.map((c, i) => `<li><a href="?c=${i}" data-c="${i}"${i === at ? ' aria-current="page"' : ''}>${esc(c.head || (i === 0 ? 'The beginning' : `Part ${i + 1}`))}</a></li>`).join('')}</ol><p class="rdr-src">${esc(words.toLocaleString('en-US'))} words${t.source ? ` · <a href="${esc(t.source)}" rel="noopener">the source</a>` : ''} · ${esc(t.terms || 'Public domain')}</p></nav>
-<article class="rdr-page">${chs.map((c, i) => `<section class="rdr-ch" data-ch="${i}"${i === at ? '' : ' hidden'}>${c.head ? `<p class="rdr-no">${i === 0 && chs.length > 1 && !/\d|[IVXLC]/.test(c.head) ? '' : `${i + 1} of ${chs.length}`}</p><h2>${esc(c.head)}</h2>` : (i === 0 ? `<h1 class="rdr-title">${esc(t.title)}</h1>${t.author ? `<p class="rdr-author">${esc(t.author)}</p>` : ''}` : `<p class="rdr-no">${i + 1} of ${chs.length}</p>`)}${c.paras.map((p, j) => `<p${j === 0 ? ' class="rdr-first"' : ''}>${esc(p)}</p>`).join('')}<footer class="rdr-foot">${i > 0 ? `<a href="?c=${i - 1}" data-c="${i - 1}" class="rdr-prev">← ${esc(chs[i - 1].head || 'Before')}</a>` : '<span></span>'}${i < chs.length - 1 ? `<a href="?c=${i + 1}" data-c="${i + 1}" class="rdr-next">${esc(chs[i + 1].head || 'On')} →</a>` : `<a href="/library" class="rdr-next">The end. The Library →</a>`}</footer></section>`).join('')}</article>
+    // A photo book: each plate is a page of its own, the picture alone with its line beneath.
+    let plates = []; try { plates = t.plates ? JSON.parse(t.plates) : []; } catch (e) { plates = []; }
+    for (const pl of plates) { const w = db.prepare("SELECT slug, title, place, taken_at FROM works WHERE slug=? AND status='held'").get(pl.slug); if (w) chs.push({ head: null, paras: [], plate: { ...w, note: pl.note || '' } }); }
+    if (!chs.length) return res.sendStatus(404);
+    const asked = /[?&]c=/.test(req.url); const at = Math.max(0, Math.min(chs.length - 1, +(req.query.c || 0) || 0));
+    const words = String(t.body || '').split(/\s+/).filter(Boolean).length, mins = Math.max(1, Math.round(words / 230));
+    const author = byName(t.author); const edition = t.source && /gutenberg/.test(t.source) ? 'The house’s edition, set from the Project Gutenberg text' : t.maker_id ? 'Published by the house' : 'The house’s edition';
+    const chapterTitle = (c, i) => c.plate ? (c.plate.title || `Plate ${i + 1}`) : (c.head || (i === 0 ? 'The beginning' : `Part ${i + 1}`));
+    res.send(V.layout({ title: `${t.title} · Watermark`, path: `/read/${t.slug}`, desc: `${t.title}${author ? ', ' + author : ''}. Read in the house.`, bare: true, body: `<main class="rdr${plates.length ? ' rdr-pb' : ''}" data-read='${esc(JSON.stringify({ slug: t.slug, n: chs.length, at, cover: !asked }))}'>
+<div class="rdr-prog" aria-hidden="true"><i data-rd-prog style="width:${Math.round(100 * (at + 1) / chs.length)}%"></i></div>
+<header class="rdr-bar"><a class="rdr-back" href="/library/${esc(t.slug)}">${I.back}<span>The Library</span></a><p class="rdr-run"><b>${esc(t.title)}</b>${author ? `<span>${esc(author)}</span>` : ''}</p><div class="rdr-ctl"><button type="button" data-rd-toc aria-label="Contents">${I.page}<span>Contents</span></button><button type="button" data-rd-mode aria-label="Pages or scroll">${I.full}<span>Pages</span></button><button type="button" data-rd-size="-" aria-label="Smaller">A−</button><button type="button" data-rd-size="+" aria-label="Larger">A+</button><button type="button" data-rd-theme aria-label="Paper, sepia or night">${I.dial || ''}<span>Light</span></button></div></header>
+<nav class="rdr-toc" data-rd-toc-panel hidden><p class="k">Contents · ${chs.length}</p><ol>${chs.map((c, i) => `<li><a href="?c=${i}" data-c="${i}"${i === at ? ' aria-current="page"' : ''}>${esc(chapterTitle(c, i))}</a></li>`).join('')}</ol><p class="rdr-src">${words ? `${esc(words.toLocaleString('en-US'))} words · about ${mins} min` : `${plates.length} plates`}${t.source ? ` · <a href="${esc(t.source)}" rel="noopener">the source</a>` : ''} · ${esc(t.terms || 'Public domain')}</p></nav>
+<section class="rdr-cover" data-rd-cover${asked ? ' hidden' : ''}>${t.cover ? `<figure class="rdr-cover-pic"><img src="/img/${esc(t.cover)}/large" alt=""></figure>` : ''}<div class="rdr-cover-t"><p class="k">${esc(IMPRINT)}</p><h1>${esc(t.title)}</h1>${author ? `<p class="rdr-cover-by">${esc(author)}</p>` : ''}${t.summary ? `<p class="rdr-cover-line">${esc(t.summary)}</p>` : ''}<p class="rdr-cover-meta">${chs.length} ${plates.length ? 'plates' : 'chapters'}${words ? ` · about ${mins} minutes` : ''} · ${esc(t.terms || 'Public domain')}</p><button type="button" class="buy-btn" data-rd-begin>Begin</button><p class="rdr-cover-ed">${esc(edition)}.</p></div></section>
+<article class="rdr-page" data-rd-page>${chs.map((c, i) => `<section class="rdr-ch${c.plate ? ' rdr-plate' : ''}" data-ch="${i}"${i === at && asked ? '' : ' hidden'}>${c.plate ? `<figure class="rdr-pl"><img src="/img/${esc(c.plate.slug)}/large" alt="${esc(c.plate.title || '')}" loading="lazy"><figcaption><b>${esc(c.plate.title || '')}</b>${c.plate.place ? `<span>${esc(c.plate.place)}</span>` : ''}${c.plate.note ? `<p>${esc(c.plate.note)}</p>` : ''}</figcaption></figure>` : (c.head ? `<p class="rdr-no">${i === 0 && chs.length > 1 && !/\d|[IVXLC]/.test(c.head) ? '' : `${i + 1} of ${chs.length}`}</p><h2>${esc(c.head)}</h2>` : (i === 0 ? `<h1 class="rdr-title">${esc(t.title)}</h1>${author ? `<p class="rdr-author">${esc(author)}</p>` : ''}` : `<p class="rdr-no">${i + 1} of ${chs.length}</p>`))}${c.paras.map((p, j) => `<p${j === 0 ? ' class="rdr-first"' : ''}>${esc(p)}</p>`).join('')}${c.plate ? '' : '<p class="rdr-orn" aria-hidden="true">❦</p>'}<footer class="rdr-foot">${i > 0 ? `<a href="?c=${i - 1}" data-c="${i - 1}" class="rdr-prev">← ${esc(chapterTitle(chs[i - 1], i - 1))}</a>` : '<span></span>'}${i < chs.length - 1 ? `<a href="?c=${i + 1}" data-c="${i + 1}" class="rdr-next">${esc(chapterTitle(chs[i + 1], i + 1))} →</a>` : `<a href="/library" class="rdr-next">The end. The Library →</a>`}</footer>${i === chs.length - 1 ? `<aside class="rdr-colophon"><p class="k">Colophon</p><p>${esc(t.title)}${author ? `, by ${esc(author)}` : ''}. ${esc(edition)}, in Newsreader, for the house’s reading room. ${esc(t.terms || 'Public domain')}: read it freely, keep it, pass it on.</p><p><a href="/publishing">${esc(IMPRINT)}</a> · <a href="/library">The Library</a></p></aside>` : ''}</section>`).join('')}</article>
+<button type="button" class="rdr-turn rdr-turn-l" data-rd-turn="-1" aria-label="Previous page" hidden></button><button type="button" class="rdr-turn rdr-turn-r" data-rd-turn="1" aria-label="Next page" hidden></button>
 </main><script src="/static/read.js?v=${esc(V.VER)}" defer></script>` }));
+  });
+// Watermark Publishing (Will, 24 Oct: "we need to make Krafft Publishing or Watermark Publishing"; "books and photo
+  // books, for sale and also available"): the house's imprint. Three shelves: the public domain, set beautifully and
+  // free; the house's editions and the work of its writers, priced or free as the author says; photo books, a maker's
+  // sequence of held work with a line on each, made from a wall. Every word a draft for Will.
+  app.get('/publishing', (req, res) => {
+    const all = db.prepare("SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.id DESC").all();
+    const pd = all.filter(t => t.kind === 'book' && (!t.price_cents) && /gutenberg|public domain/i.test(`${t.source || ''} ${t.terms || ''}`)), pbs = all.filter(t => t.kind === 'photobook'), eds = all.filter(t => !pd.includes(t) && !pbs.includes(t));
+    const FEE = require('./fee');
+    const card = t => `<a class="pub-card" href="${t.kind === 'photobook' || (t.body && !t.file) ? `/read/${esc(t.slug)}` : `/library/${esc(t.slug)}`}">${t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : `<span class="pub-spine"><b>${esc(t.title)}</b></span>`}<span class="pub-t"><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<small>${t.price_cents ? V.money(t.price_cents) : 'Free'}</small></span></a>`;
+    const shelf = (k, h, line, list, more) => `<section class="pub-shelf"><header><p class="k">${k}</p><h2>${h}</h2><p class="lede">${line}</p></header>${list.length ? `<div class="pub-row">${list.slice(0, 12).map(card).join('')}</div>` : `<p class="note">${more}</p>`}</section>`;
+    res.send(V.layout({ title: 'Watermark Publishing', path: '/publishing', desc: 'The house’s imprint: the public domain set beautifully and free, the house’s editions, and photo books made from the work it holds.', body: `<section class="pub"><header class="pub-h"><p class="k">The house’s imprint</p><h1>Watermark Publishing.</h1><p class="lede">Books set the way a great library would set them, read in a room made for reading. The public domain, free to all; the house’s own editions; and photo books made from the work the house holds. ${FEE.yours(85, 'the author’s').replace(/^the/, 'The')}.</p></header>
+${shelf('The first shelf', 'The public domain.', 'The books a curious person is handed first, brought in from the public record, the boilerplate cut away, the chapters found, and set in the reading room. Free, always.', pd, 'The first shelf is being set. Come back in an hour.')}
+${shelf('Photo books', 'A sequence, with a line on each.', 'A maker’s photographs in the order they chose, each with its words, read a plate at a time. Made from a wall in the house.', pbs, 'The first photo book is being made.')}
+${shelf('Editions', 'The house’s own.', 'Essays, journals and books from the house and its writers. Priced as the author says, or free.', eds, 'Nothing yet beyond the public domain.')}
+<section class="pub-for"><h2>Publish with the house.</h2><p>Writers and photographers publish here by invitation, as makers do. A book is held like a photograph: deeded, entered on the register, yours. Read it in the room, sell it from the Library, keep every dollar of the price. <a href="/join">Apply with the work</a>, or write to the house.</p></section></section>` }));
+  });
+  // A photo book from a wall: the wall's works in its order, each with its line, the first as the cover.
+  app.post('/studio/publishing/photobook', (req, res) => {
+    if (!isStudio(req)) return res.sendStatus(403);
+    const b = req.body || {}; const h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(String(b.hang || '').trim());
+    if (!h) return res.redirect('/studio/reading?ok=' + encodeURIComponent('No wall by that address.'));
+    const rows = db.prepare('SELECT w.slug, hw.note FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status=\'held\' ORDER BY hw.pos, hw.rowid').all(h.id);
+    if (!rows.length) return res.redirect('/studio/reading?ok=' + encodeURIComponent('That wall holds nothing shown.'));
+    const title = String(b.title || h.title).trim().slice(0, 160); let slug = slugify(title); if (db.prepare('SELECT 1 FROM texts WHERE slug=?').get(slug)) slug = `${slug}-${Date.now().toString(36)}`;
+    const cover = db.prepare('SELECT id FROM works WHERE slug=?').get(rows[0].slug);
+    const author = String(b.author || '').trim().slice(0, 120) || null; const price = b.price ? Math.round(parseFloat(b.price) * 100) || null : null;
+    db.prepare("INSERT INTO texts (slug, kind, title, author, summary, body, public, price_cents, terms, source, cover_work_id, status, plates) VALUES (?,?,?,?,?,?,?,?,?,?,?,'held',?)").run(slug, 'photobook', title, author, String(b.line || h.line || '').trim().slice(0, 400) || null, String(b.body || '').trim() || null, 1, price, 'All rights reserved', `/hang/${h.slug}`, cover ? cover.id : null, JSON.stringify(rows.map(r => ({ slug: r.slug, note: r.note || '' }))));
+    try { ledger.append(db, 'text.shelved', slug, { title, kind: 'photobook', from: 'wall', plates: rows.length }); } catch (e) { /* */ }
+    res.redirect(`/read/${slug}`);
   });
   // The Studio: the public domain comes in.
   app.get('/studio/reading', async (req, res) => {
@@ -102,6 +188,10 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
 <form method="get" class="cl-f pd-s"><label><span>Search Gutenberg</span><input name="q" value="${esc(String(req.query.q || ''))}" placeholder="a title, an author"></label><button class="buy-btn">Look</button></form>
 <form method="post" action="/studio/reading/bring" class="cl-f pd-s"><label><span>Or a Gutenberg number</span><input name="id" inputmode="numeric" placeholder="20203"></label><button class="buy-btn">Bring it in</button></form>
 ${found.length ? `<table class="tbl"><tr><th>Title</th><th>Author</th><th>Taken</th><th></th></tr>${found.map(b => `<tr><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${(b.downloads || 0).toLocaleString('en-US')}</td><td><form method="post" action="/studio/reading/bring"><input type="hidden" name="id" value="${b.id}"><button class="link">Bring in No. ${b.id}</button></form></td></tr>`).join('')}</table>` : ''}
+<h2>A photo book from a wall</h2><form method="post" action="/studio/publishing/photobook" class="cl-f pd-s"><label><span>The wall’s address (its slug)</span><input name="hang" placeholder="the-great-rooms"></label><label><span>Title (else the wall’s)</span><input name="title"></label><label><span>By</span><input name="author" placeholder="Will Fullerton"></label><label><span>Price, $ (blank: free)</span><input name="price" inputmode="decimal" placeholder="25"></label><label><span>A line</span><input name="line"></label><button class="buy-btn">Make the book</button></form>
+<h2>The first shelf</h2><p class="note">${CANON.length} books a curious person is handed first. ${job.on ? `Coming in now: ${job.at} of ${CANON.length} looked at, ${job.done.length} shelved${job.missed.length ? `, ${job.missed.length} not found` : ''}.` : `<form method="post" action="/studio/reading/canon" style="display:inline"><button class="buy-btn">Shelve the canon</button></form> Each is found on Gutenberg by title and author; already-shelved books are skipped.`}</p>
+${job.missed.length ? `<p class="note">Not found: ${job.missed.map(esc).join(' · ')}</p>` : ''}
+<table class="tbl"><tr><th>Book</th><th></th></tr>${CANON.map(([t, a]) => { const h = shelvedBy(t, a); return `<tr><td><b>${esc(t)}</b> <small>${esc(a)}</small></td><td>${h ? `<a href="/read/${esc(h.slug)}">On the shelf</a>` : '<small>Not yet</small>'}</td></tr>`; }).join('')}</table>
 <h2>Franklin’s shelf</h2><p class="note">The books Franklin names in the Autobiography as the ones that made him, and his own. Each press searches Gutenberg by title and author and shows what it finds; the house never guesses a number.</p>
 <table class="tbl"><tr><th>Book</th><th>Why</th><th></th></tr>${FRANKLIN.map(b => { const h = shelved(b); return `<tr><td><b>${esc(b.title)}</b><br><small>${esc(b.author)}</small></td><td><small>${esc(b.why)}</small></td><td>${h ? `<a href="/read/${esc(h.slug)}">On the shelf</a>` : `<a href="?q=${encodeURIComponent(b.title + ' ' + b.author.split(',')[0])}">Find it</a>`}</td></tr>`; }).join('')}</table>
 ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a href="/read/${esc(h.slug)}">${esc(h.title)}</a>${h.author ? ` <small>${esc(h.author)}</small>` : ''}</li>`).join('')}</ul>` : ''}</section>` }));
@@ -111,7 +201,7 @@ ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a
     try { const r = await bring(req.body.id, { by: 'the house' }); res.redirect('/studio/reading?ok=' + encodeURIComponent(r.already ? 'Already on the shelf.' : `${r.title} is on the shelf: ${r.chapters} chapters, ${r.words.toLocaleString('en-US')} words.`)); }
     catch (e) { res.redirect('/studio/reading?ok=' + encodeURIComponent('Could not bring it in: ' + e.message)); }
   });
-  app.locals.reading = { bring, search, strip, chapters, FRANKLIN };
+  app.locals.reading = { bring, search, strip, chapters, find, shelveCanon, job, FRANKLIN, CANON };
   return app.locals.reading;
 }
-module.exports = { mountReading, FRANKLIN };
+module.exports = { mountReading, FRANKLIN, CANON };
