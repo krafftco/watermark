@@ -1428,6 +1428,33 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.__fetch = prev;
   }
   console.log('ok: the public domain and the reading room');
+  { // The Bookshop: a want left; a signed copy offered by the house (the want told); bought with an address through Checkout; settled by the webhook; moved along on the desk; told on the register without a name.
+    const bk = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a book on the shelf');
+    r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/id="bookshop"/.test(r.body) && /No copy is offered today/.test(r.body) && /Tell me when a copy turns up/.test(r.body), 'the shelves on the book’s page');
+    r = await req(port, 'POST', '/bookshop/want', { body: { text: bk.slug, email: 'reader@example.com', kind: 'signed' } }); assert.equal(r.status, 302);
+    const sent0 = (app.locals.mailLog || []).length;
+    r = await req(port, 'POST', '/studio/bookshop/offer', { cookie: ck, body: { text: bk.slug, kind: 'signed', line: 'Signed by the author on the half-title, 1923', condition: 'Very good', price: '450', qty: '1' } }); assert.ok(/On the shelf/.test(decodeURIComponent(r.headers.location)), 'offered: ' + r.headers.location);
+    const cp = db.prepare("SELECT * FROM copies WHERE text_id=? ORDER BY id DESC LIMIT 1").get(bk.id); assert.ok(cp && cp.kind === 'signed' && cp.price_cents === 45000 && cp.seller_kind === 'house', 'a signed copy at the seller’s price');
+    assert.ok(db.prepare('SELECT told_at FROM wants WHERE email=?').get('reader@example.com').told_at, 'the want was told');
+    r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Signed copy/.test(r.body) && /Signed by the author/.test(r.body) && /as the seller attests/.test(r.body) && /Buy it, shipped/.test(r.body), 'the copy on the page, labelled as the seller’s word');
+    r = await req(port, 'GET', '/bookshop'); assert.ok(r.status === 200 && /The Bookshop\./.test(r.body) && /bs-card/.test(r.body) && /Signed copy/.test(r.body) && /Read free/.test(r.body), 'the shop’s front');
+    r = await req(port, 'POST', `/bookshop/copy/${cp.id}/buy`, { body: { name: 'Ada Reader', email: 'ada@example.com', street: '1 Main St', city: 'Dallas', state: 'tx', zip: '75201' } }); assert.equal(r.status, 303, 'to Checkout: ' + r.headers.location);
+    const cs = sessions[r.headers.location.split('/').pop()]; assert.ok(cs && cs.metadata.copy_order && /Signed copy: /.test(cs.line_items[0].price_data.product_data.name), 'the session names the copy');
+    const co = db.prepare('SELECT * FROM copy_orders WHERE id=?').get(Number(cs.metadata.copy_order)); assert.ok(co && !co.paid && /^CB-\d{4}-\d{5}$/.test(co.ref) && /Dallas, TX 75201/.test(co.address), 'the order, unpaid, with the address');
+    { const payload = JSON.stringify({ id: 'evt_copy', type: 'checkout.session.completed', data: { object: { ...cs, payment_status: 'paid', amount_total: cs.line_items[0].price_data.unit_amount } } });
+      const sg = stripe.webhooks.generateTestHeaderString({ payload, secret: 'whsec_test' }); r = await req(port, 'POST', '/stripe/webhook', { body: payload, headers: { 'content-type': 'application/json', 'stripe-signature': sg } }); assert.equal(r.status, 200); }
+    const co2 = db.prepare('SELECT * FROM copy_orders WHERE id=?').get(co.id); assert.ok(co2.paid === 1 && co2.status === 'asked', 'paid and asked');
+    assert.equal(db.prepare('SELECT status, qty FROM copies WHERE id=?').get(cp.id).status, 'sold', 'the only copy is sold');
+    r = await req(port, 'GET', `/bookshop/o/${co.ref}`); assert.ok(/is coming to you/.test(r.body) && /Asked/.test(r.body), 'the buyer’s page');
+    r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/No copy is offered today/.test(r.body), 'gone from the shelf');
+    r = await req(port, 'GET', '/studio/bookshop', { cookie: ck }); assert.ok(/Ada Reader/.test(r.body) && /Asked/.test(r.body) && /Withdraw|sold/.test(r.body), 'the desk');
+    r = await req(port, 'POST', `/studio/bookshop/order/${co.id}/move`, { cookie: ck, body: { to: 'sent' } }); assert.equal(r.status, 302);
+    assert.equal(db.prepare('SELECT status FROM copy_orders WHERE id=?').get(co.id).status, 'sent');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/Ada Reader/.test(r.body), 'no buyer named on the register');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='copy.sold'").get() && db.prepare("SELECT 1 FROM ledger WHERE type='copy.offered'").get(), 'offered and sold on the register');
+    void sent0;
+  }
+  console.log('ok: the Bookshop');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }

@@ -36,6 +36,8 @@ function mountRegister(app, { db, V, ledger }) {
       case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };
       case 'work.guide': return { ...k, work: w, text: `${T(w)} received its wall text.` };
       case 'work.master': return { ...k, work: w, text: `${T(w)} received its master.` };
+      case 'copy.offered': return { ...k, kind: 'sale', work: null, text: `${esc({ first: 'A first edition', signed: 'A signed copy', reprint: 'A reprint', proof: 'A proof copy' }[d.kind] || 'A copy')} of <a href="/library/${esc(e.subject)}#bookshop">${esc(d.title || e.subject)}</a> was offered in the Bookshop.` };
+      case 'copy.sold': return { ...k, kind: 'sale', work: null, text: `${esc({ first: 'A first edition', signed: 'A signed copy', reprint: 'A reprint', proof: 'A proof copy' }[d.kind] || 'A copy')} of <a href="/library/${esc(e.subject)}">${esc(d.title || e.subject)}</a> went to a new shelf.` };
       case 'text.shelved': return { ...k, kind: 'birth', work: null, text: `<a href="/library/${esc(e.subject)}">${esc(d.title || e.subject)}</a> was shelved in the Library.` };
       case 'text.taken': return { ...k, kind: 'sale', work: null, text: `A copy of <a href="/library/${esc(e.subject)}">${esc(e.subject.replace(/-/g, ' '))}</a> was taken from the Library.` };
       case 'archive.issued': return { ...k, work: w, text: `The archival master of ${T(w)} was issued, with its papers.` };
