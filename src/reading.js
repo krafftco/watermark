@@ -31,21 +31,23 @@ const FRANKLIN = [
   { title: 'Poor Richard\'s Almanack', author: 'Franklin, Benjamin', why: 'The sayings, as he gathered them.' },
 ];
 // The canon (Will, 24 Oct: "start importing books of public record"; the Library of Alexandria): the house's first
-// shelf, the books a curious person is handed first. Each is found on Gutenberg by title and author (never a number
-// guessed), the best-taken English edition chosen; `shelveCanon()` brings them in one at a time in the background.
+// shelf, the books a curious person is handed first. Each carries the Gutenberg number the house believes is the
+// author's own edition; that number is checked against the book's record (title and author must match) before anything
+// is shelved, and a wrong or missing one falls back to a search by title and author. Never shelved unverified.
+// `shelveCanon()` brings them in one at a time in the background.
 const CANON = [
-  ['Meditations', 'Marcus Aurelius'], ['The Odyssey', 'Homer'], ['The Iliad', 'Homer'], ['The Republic', 'Plato'], ['Nicomachean Ethics', 'Aristotle'],
-  ['The Prince', 'Machiavelli'], ['Essays of Michel de Montaigne', 'Montaigne'], ['Hamlet', 'Shakespeare'], ['King Lear', 'Shakespeare'], ['The Sonnets', 'Shakespeare'],
-  ['Don Quixote', 'Cervantes'], ['Paradise Lost', 'Milton'], ['Pensées', 'Pascal'], ['Robinson Crusoe', 'Defoe'], ['Gulliver\'s Travels', 'Swift'],
-  ['The Wealth of Nations', 'Smith, Adam'], ['The Federalist Papers', 'Hamilton'], ['Pride and Prejudice', 'Austen'], ['Emma', 'Austen'], ['Frankenstein', 'Shelley, Mary'],
-  ['Jane Eyre', 'Brontë, Charlotte'], ['Wuthering Heights', 'Brontë, Emily'], ['Moby Dick', 'Melville'], ['Walden', 'Thoreau'], ['Leaves of Grass', 'Whitman'],
-  ['Self-Reliance', 'Emerson'], ['Great Expectations', 'Dickens'], ['A Tale of Two Cities', 'Dickens'], ['Middlemarch', 'Eliot, George'], ['Anna Karenina', 'Tolstoy'],
-  ['War and Peace', 'Tolstoy'], ['Crime and Punishment', 'Dostoyevsky'], ['The Brothers Karamazov', 'Dostoyevsky'], ['Madame Bovary', 'Flaubert'], ['Les Misérables', 'Hugo'],
-  ['The Count of Monte Cristo', 'Dumas'], ['Adventures of Huckleberry Finn', 'Twain'], ['The Picture of Dorian Gray', 'Wilde'], ['Heart of Darkness', 'Conrad'], ['Dubliners', 'Joyce'],
-  ['The Souls of Black Folk', 'Du Bois'], ['Narrative of the Life of Frederick Douglass', 'Douglass'], ['The Origin of Species', 'Darwin'], ['Thus Spake Zarathustra', 'Nietzsche'], ['The Interpretation of Dreams', 'Freud'],
-  ['The Art of War', 'Sunzi'], ['Tao Te Ching', 'Laozi'], ['The Analects of Confucius', 'Confucius'], ['The Divine Comedy', 'Dante'], ['Metamorphoses', 'Ovid'],
-  ['The Confessions of St. Augustine', 'Augustine'], ['Utopia', 'More, Thomas'], ['The Scarlet Letter', 'Hawthorne'], ['The Call of the Wild', 'London'], ['The Age of Innocence', 'Wharton'],
-  ['Notes from the Underground', 'Dostoyevsky'], ['Grimms\' Fairy Tales', 'Grimm'], ['Alice\'s Adventures in Wonderland', 'Carroll'], ['Treasure Island', 'Stevenson'], ['The Time Machine', 'Wells'],
+  ['Meditations', 'Marcus Aurelius', 2680], ['The Odyssey', 'Homer', 1727], ['The Iliad', 'Homer', 6130], ['The Republic', 'Plato', 1497], ['Nicomachean Ethics', 'Aristotle', 8438],
+  ['The Prince', 'Machiavelli', 1232], ['Essays of Michel de Montaigne', 'Montaigne', 3600], ['Hamlet', 'Shakespeare', 1524], ['King Lear', 'Shakespeare', 1532], ['The Sonnets', 'Shakespeare', 1041],
+  ['Don Quixote', 'Cervantes', 996], ['Paradise Lost', 'Milton', 26], ['Pensées', 'Pascal', 18269], ['Robinson Crusoe', 'Defoe', 521], ['Gulliver\'s Travels', 'Swift', 829],
+  ['The Wealth of Nations', 'Smith, Adam', 3300], ['The Federalist Papers', 'Hamilton', 1404], ['Pride and Prejudice', 'Austen', 1342], ['Emma', 'Austen', 158], ['Frankenstein', 'Shelley, Mary', 84],
+  ['Jane Eyre', 'Brontë, Charlotte', 1260], ['Wuthering Heights', 'Brontë, Emily', 768], ['Moby Dick', 'Melville', 2701], ['Walden', 'Thoreau', 205], ['Leaves of Grass', 'Whitman', 1322],
+  ['Self-Reliance', 'Emerson', 16643], ['Great Expectations', 'Dickens', 1400], ['A Tale of Two Cities', 'Dickens', 98], ['Middlemarch', 'Eliot, George', 145], ['Anna Karenina', 'Tolstoy', 1399],
+  ['War and Peace', 'Tolstoy', 2600], ['Crime and Punishment', 'Dostoyevsky', 2554], ['The Brothers Karamazov', 'Dostoyevsky', 28054], ['Madame Bovary', 'Flaubert', 2413], ['Les Misérables', 'Hugo', 135],
+  ['The Count of Monte Cristo', 'Dumas', 1184], ['Adventures of Huckleberry Finn', 'Twain', 76], ['The Picture of Dorian Gray', 'Wilde', 174], ['Heart of Darkness', 'Conrad', 219], ['Dubliners', 'Joyce', 2814],
+  ['The Souls of Black Folk', 'Du Bois', 408], ['Narrative of the Life of Frederick Douglass', 'Douglass', 23], ['The Origin of Species', 'Darwin', 1228], ['Thus Spake Zarathustra', 'Nietzsche', 1998], ['The Interpretation of Dreams', 'Freud'],
+  ['The Art of War', 'Sunzi', 132], ['Tao Te Ching', 'Laozi', 216], ['The Analects of Confucius', 'Confucius', 3330], ['The Divine Comedy', 'Dante', 8800], ['Metamorphoses', 'Ovid', 21765],
+  ['The Confessions of St. Augustine', 'Augustine', 3296], ['Utopia', 'More, Thomas', 2130], ['The Scarlet Letter', 'Hawthorne', 25344], ['The Call of the Wild', 'London', 215], ['The Age of Innocence', 'Wharton', 541],
+  ['Notes from the Underground', 'Dostoyevsky', 600], ['Grimms\' Fairy Tales', 'Grimm', 2591], ['Alice\'s Adventures in Wonderland', 'Carroll', 11], ['Treasure Island', 'Stevenson', 120], ['The Time Machine', 'Wells', 35],
 ];
 const GUTENDEX = process.env.GUTENDEX || 'https://gutendex.com/books';
 function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
@@ -54,7 +56,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   // Gutendex sits behind a gate that turns a bare server away (403, 24 Oct); the house asks as a browser would, and if
   // the index still refuses, reads Gutenberg's own OPDS search (Atom) instead. The text always comes from gutenberg.org.
   const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 Watermark/1 (+https://watermark.krafftco.com)', 'Accept': 'application/json, text/xml;q=0.9, */*;q=0.5' };
-  const doFetch = (u, o) => (fetchImpl || fetch)(u, { ...(o || {}), headers: { ...UA, ...((o && o.headers) || {}) } });
+  const doFetch = (u, o) => (fetchImpl || fetch)(u, { signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined, ...(o || {}), headers: { ...UA, ...((o && o.headers) || {}) } });
   const unx = x => String(x || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
   async function opds(q) {
     const r = await doFetch(`https://www.gutenberg.org/ebooks/search.opds/?query=${encodeURIComponent(q)}`); if (!r.ok) throw new Error(`gutenberg ${r.status}`);
@@ -104,24 +106,36 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   }
   const toBody = chs => chs.map(c => (c.head ? `## ${/^[A-Z0-9 .,:;'’—-]+$/.test(c.head) && /[A-Z]{3}/.test(c.head) ? titleCase(c.head) : c.head}\n\n` : '') + c.paras.map(p => /^[\s*\-_—·]{3,}$/.test(p) ? '* * *' : polish(p)).join('\n\n')).join('\n\n');
   // A Gutenberg book, by number: metadata from Gutendex, the text from gutenberg.org.
-  async function bring(id, { why = null, by = 'the house' } = {}) {
+  async function bring(id, { why = null, by = 'the house', meta: given = null } = {}) {
     id = +id; if (!id) throw new Error('a number');
     const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ?").get(`%gutenberg.org/ebooks/${id}%`); if (had) return { slug: had.slug, already: true };
-    let meta = null; try { const mr = await doFetch(`${GUTENDEX}/${id}`); if (mr.ok) meta = await mr.json(); } catch (e) { /* below */ }
-    if (!meta) { const pr = await doFetch(`https://www.gutenberg.org/ebooks/${id}`); if (!pr.ok) throw new Error(`gutenberg ${pr.status}`); const h = await pr.text(); meta = { id, title: unx((h.match(/<meta name="title" content="([^"]*)"/) || h.match(/<title>([^<|]*)/) || ['', `Gutenberg ${id}`])[1]).replace(/\s+by\s+[^|]+$/i, ''), authors: [...h.matchAll(/<a href="\/ebooks\/author\/\d+"[^>]*>([^<]+)</g)].map(m => ({ name: unx(m[1]).replace(/,\s*\d{3,4}-\d{0,4}$/, '').trim() })), formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` } }; }
-    const f = meta.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
+    const rec = given || await meta(id);
+    const f = rec.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
     const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); const raw = await tr.text();
     const text = strip(raw); if (text.length < 2000) throw new Error('too little text');
     const chs = chapters(text); const body = toBody(chs);
-    const author = (meta.authors && meta.authors[0] && meta.authors[0].name) || null; const title = tidy(String(meta.title || `Gutenberg ${id}`).split(/\r?\n/)[0].slice(0, 160));
+    const author = (rec.authors && rec.authors[0] && rec.authors[0].name) || null; const title = tidy(String(rec.title || `Gutenberg ${id}`).split(/\r?\n/)[0].slice(0, 160));
     let slug = slugify(title); if (db.prepare('SELECT 1 FROM texts WHERE slug=?').get(slug)) slug = `${slug}-${id}`;
-    const year = (meta.authors && meta.authors[0] && meta.authors[0].death_year) ? null : null;
+    const year = (rec.authors && rec.authors[0] && rec.authors[0].death_year) ? null : null;
     db.prepare("INSERT INTO texts (slug, kind, title, author, year, summary, body, public, price_cents, terms, source, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'held')").run(slug, 'book', title, author, year, why || `From Project Gutenberg, No. ${id}. Public domain; set by the house.`, body, 1, null, 'Public domain. Read freely; the house asks only that you credit the author.', `https://www.gutenberg.org/ebooks/${id}`);
     try { ledger.append(db, 'text.shelved', slug, { title, author, from: 'gutenberg', by }); } catch (e) { /* */ }
     return { slug, title, author, chapters: chs.length, words: body.split(/\s+/).length };
   }
   // A book by title and author: Gutendex's search, the best-taken English edition whose author matches.
   const norm = x => String(x || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  // A book's record by number: Gutendex, else Gutenberg's own page.
+  async function meta(id) {
+    try { const mr = await doFetch(`${GUTENDEX}/${id}`); if (mr.ok) return await mr.json(); } catch (e) { /* below */ }
+    const pr = await doFetch(`https://www.gutenberg.org/ebooks/${id}`); if (!pr.ok) throw new Error(`gutenberg ${pr.status}`); const h = await pr.text();
+    return { id, title: unx((h.match(/<meta name="title" content="([^"]*)"/) || h.match(/<title>([^<|]*)/) || ['', `Gutenberg ${id}`])[1]).replace(/\s+by\s+[^|]+$/i, '').trim(), authors: [...h.matchAll(/<a href="\/ebooks\/author\/\d+"[^>]*>([^<]+)</g)].map(m => ({ name: unx(m[1]).replace(/,\s*\d{3,4}-\d{0,4}$/, '').trim() })), formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` } };
+  }
+  // The number the house believes, checked against the record before it is trusted.
+  async function verify(id, title, author) {
+    const m = await meta(id); const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
+    const okT = norm(m.title).includes(want.split(' ').slice(0, 3).join(' ')) || want.includes(norm(m.title).split(' ').slice(0, 3).join(' '));
+    const okA = (m.authors || []).some(a => norm(a.name).includes(sur));
+    return okT && okA ? m : null;
+  }
   async function find(title, author) {
     const q = `${title} ${author.split(',')[0]}`; let results = null;
     try { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&languages=en`); if (r.ok) results = (await r.json()).results || []; } catch (e) { /* the index is down; Gutenberg's own search below */ }
@@ -136,9 +150,9 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   async function shelveCanon({ by = 'the house' } = {}) {
     if (job.on) return job; job.on = true; job.at = 0; job.done = []; job.missed = []; job.startedAt = new Date().toISOString();
     (async () => {
-      for (const [title, author] of CANON) {
+      for (const [title, author, hint] of CANON) {
         job.at++; if (shelvedBy(title, author)) continue;
-        try { const b = await find(title, author); if (!b) { job.missed.push(`${title}: not found`); continue; } const r = await bring(b.id, { by, why: `${title}, ${author.split(',').reverse().join(' ').trim()}. One of the first shelf. From Project Gutenberg, No. ${b.id}.` }); job.done.push(r.title || title); }
+        try { let b = null; if (hint) { try { b = await verify(hint, title, author); } catch (e) { b = null; } } if (!b) b = await find(title, author); if (!b) { job.missed.push(`${title}: not found`); continue; } const r = await bring(b.id, { by, why: `${title}, ${author.split(',').reverse().join(' ').trim()}. One of the first shelf. From Project Gutenberg, No. ${b.id}.`, meta: b.formats ? b : null }); job.done.push(r.title || title); }
         catch (e) { job.missed.push(`${title}: ${e.message}`); }
         await new Promise(r => setTimeout(r, 1500));
       }
@@ -230,7 +244,7 @@ ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a
     try { const r = await bring(req.body.id, { by: 'the house' }); res.redirect('/studio/reading?ok=' + encodeURIComponent(r.already ? 'Already on the shelf.' : `${r.title} is on the shelf: ${r.chapters} chapters, ${r.words.toLocaleString('en-US')} words.`)); }
     catch (e) { res.redirect('/studio/reading?ok=' + encodeURIComponent('Could not bring it in: ' + e.message)); }
   });
-  app.locals.reading = { bring, search, strip, chapters, find, shelveCanon, job, polish, titleCase, FRANKLIN, CANON };
+  app.locals.reading = { bring, search, strip, chapters, find, verify, meta, shelveCanon, job, polish, titleCase, FRANKLIN, CANON };
   return app.locals.reading;
 }
 module.exports = { mountReading, FRANKLIN, CANON };
