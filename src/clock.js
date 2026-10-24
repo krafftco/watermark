@@ -79,7 +79,7 @@ function mountClock(app, { db, V, C, buyerOf }) {
     const I = require('./icons');
     res.send(V.layout({ title: 'The kids’ corner · Watermark', path: '/kids', desc: 'A room for children: look, find, draw. Nothing to buy.', body: `<section class="cx-intro kd"><p class="k">The house · all day</p><h1>The kids’ corner.</h1>
 <p class="lede">A room for looking. Six works chosen for today; under each, three things to find and a game at the easel. Nothing here is for sale and nobody here will talk to you; bring a grown-up to the bench if you want to say something.</p>
-<p class="kd-wil">${I.wilhelm}<span>Wilhelm says: look first for a long time. Then look again.</span></p></section>
+<p class="kd-wil">${I.wilhelm}<span>Al says: look first for a long time. Then look again.</span></p></section>
 <section class="kd-grid">${picks.map(w => `<article class="kd-c"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy"></a><h2>${esc(tidy(w.title))}</h2><p class="kd-by">${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}</p>${firstLine(w) ? `<p class="kd-line">${esc(firstLine(w))}</p>` : ''}<p class="kd-acts"><a href="/easel/${esc(w.slug)}?back=/kids">Find the three things</a> · <a href="/easel/${esc(w.slug)}?back=/kids">Draw it in five minutes</a></p></article>`).join('') || '<p class="note">The corner is being hung. Come back in the morning.</p>'}</section>
 <section class="cx-intro kd-foot"><p class="note">For grown-ups: the corner shows only work marked for everyone, graded four stars and up by its maker; the easel’s tools send nothing anywhere. <a href="/zone">The rooms and how the house keeps them</a>.</p></section>` }));
   });

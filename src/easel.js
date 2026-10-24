@@ -7,7 +7,7 @@
 //   Mirror (M) to see your drawing's errors fresh; Values (V) to see light and dark without colour; Squint (S) to
 //   lose the detail and keep the masses; Notan (N): two values, then five (an SVG filter, nothing uploaded, nothing
 //   changed on the server); Timer (T): 5, 15, 30 or 60 minutes with a quiet chime, like a life-drawing session;
-//   Wilhelm's three studies (the thumbnail of values in five minutes; the gesture in two lines; the copy in an hour),
+//   Al's three studies (the thumbnail of values in five minutes; the gesture in two lines; the copy in an hour),
 //   from the guide's 'What to look for' when there is one. Esc, or Back, returns where you came from.
 //   Reached from the stroll's rail (Study), the viewer's deck and the work page's acts. The picture is the wall copy
 //   when the screen can use it, else large; nothing is laid over the pixels but what the student switches on.
@@ -36,7 +36,7 @@ function mountEasel(app, { db, V, mk, I }) {
 <button type="button" data-ez-hide title="Put the tools away (H, or Tab); a tap on the edge brings them back"><span class="ez-k">H</span>Hide</button>
 </nav>
 <button type="button" class="ez-peek" data-ez-peek hidden title="The tools (H)">${I.dial || I.wilhelm}</button>
-<aside class="ez-study" data-ez-study hidden><p class="k">${I.wilhelm} Wilhelm · The master study</p>
+<aside class="ez-study" data-ez-study hidden><p class="k">${I.wilhelm} Al · The master study</p>
 <ol><li><b>Five minutes: the values.</b> Switch on Squint and Notan. Draw the picture the size of a postage stamp, nothing but the three or four masses of light and dark. Where does the eye go? That is where the biggest contrast is.</li>
 <li><b>Two minutes: the gesture.</b> Grid on. Two or three lines only: the great diagonals and curves that hold the composition. No detail; the detail is a lie until the gesture is true.</li>
 <li><b>An hour: the copy.</b> Fit, then zoom to one passage at a time and Hold it. Draw or paint what you see, not what you know. Check with Mirror; your errors show at once.</li></ol>

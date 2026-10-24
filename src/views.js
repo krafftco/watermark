@@ -79,13 +79,13 @@ function offline() {
 // Wilhelm says it; the glyphs are the ones on the walls, so a newcomer recognises them when they meet them.
 function startPage() {
   const step = (ic, t, l) => `<li>${ic}<div><b>${t}</b><span>${l}</span></div></li>`;
-  const body = `<section class="tut"><header class="tut-h">${I.wilhelm}<div><p class="k">Wilhelm, at the door</p><h1>How the house works.</h1><p class="lede">A minute, then you will never need it again. Everything here is a photograph and a way on.</p></div></header>
+  const body = `<section class="tut"><header class="tut-h">${I.wilhelm}<div><p class="k">Al, at the door</p><h1>How the house works.</h1><p class="lede">A minute, then you will never need it again. Everything here is a photograph and a way on.</p></div></header>
 <div class="tut-cols">
 <div class="tut-c"><p class="k">If you came to look</p><ol class="tut-l">
 ${step(WAVE_MARK, 'Wander', 'Press the wave anywhere. One photograph fills the screen; swipe up for the next. Pinch to look closer. It never runs out.')}
 ${step(I.hat, 'Hat', 'A nod: I saw it. Double-tap the picture, or press Hat. Free, as many as you like.')}
 ${step(I.bravo, 'Bravo', 'A shout: it floored me. Three a month, so it means something. The maker is told at once.')}
-${step(I.guide, 'Guide', 'What to look for, read by Wilhelm. As much or as little as you want.')}
+${step(I.guide, 'Guide', 'What to look for, read by Al. As much or as little as you want.')}
 ${step(I.hang, 'Hang', 'Save it to a wall of your own. Your walls are yours to show or keep.')}
 </ol><a class="buy-btn" href="/wander" data-nv-wander>Wander now</a></div>
 <div class="tut-c"><p class="k">If you collect</p><ol class="tut-l">
@@ -280,7 +280,7 @@ ${wings(wingsList)}`;
     ['/yours', 'I collect.', `Your gallery: what you hold, your walls, your pocket. ${total} works to choose from, each $5 to begin.`, pic(cover), 'Your gallery'],
     ['/makers#ready', 'I make things.', 'Put it in the day you make it; hang it when it is ready. The record is free and yours; the walls are by invitation.', pic(makerRows[0] && makerRows[0].w), 'Two floors'],
   ];
-  const departures = `<section class="gc" id="board" aria-label="Where to"><div class="gh-in"><header class="gc-h gc-wil">${I.wilhelm}<div><p class="k">Wilhelm, at the door</p><h2>Who are you, today?</h2><p class="gh-lede">Tell me and I’ll send you the right way. The whole house is open; this is only the shortest road.</p></div></header>
+  const departures = `<section class="gc" id="board" aria-label="Where to"><div class="gh-in"><header class="gc-h gc-wil">${I.wilhelm}<div><p class="k">Al, at the door</p><h2>Who are you, today?</h2><p class="gh-lede">Tell me and I’ll send you the right way. The whole house is open; this is only the shortest road.</p></div></header>
 <div class="gc-doors">${wdoors.map(([href, name, line, w, act]) => `<a class="gc-door" href="${href}"${/^\/wander/.test(href) ? ' data-nv-wander' : ''}>${t1(w)}<b>${name}</b><i>${esc(line)}</i><span class="gc-act">${esc(act)} &rarr;</span></a>`).join('')}</div>
 </div></section>`;
   return layout({
@@ -335,7 +335,7 @@ ${sec('further', 'Read further', read.length ? `<ul class="sd-f">${read.map(x =>
 const closerBlock = (c, w, edit) => {
   if (!c) return edit ? `<p class="lc-edit"><a href="/closer/${esc(w.slug)}">Look closer: write a guide for this photograph</a></p>` : '';
   const paras = String(c.text).split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
-  return `<section class="lc" id="closer"><button type="button" class="lc-min" data-lc-open aria-label="Open the guide"><span class="lc-min-k">${I.wilhelm}Look closer &middot; read by Wilhelm</span><span class="lc-min-t">${esc(String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 140))}</span><i aria-hidden="true">Open</i></button><div class="lc-h"><p class="k">Look closer <span class="lc-ai">${I.wilhelm}<span>Read by Wilhelm, with AI</span></span></p>${GUIDE_SWITCH}<button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
+  return `<section class="lc" id="closer"><button type="button" class="lc-min" data-lc-open aria-label="Open the guide"><span class="lc-min-k">${I.wilhelm}Look closer &middot; read by Al</span><span class="lc-min-t">${esc(String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 140))}</span><i aria-hidden="true">Open</i></button><div class="lc-h"><p class="k">Look closer <span class="lc-ai">${I.wilhelm}<span>Read by Al, the house’s AI</span></span></p>${GUIDE_SWITCH}<button type="button" class="lc-say" data-say data-say-audio="/closer/${esc(w.slug)}/audio" aria-label="Hear it"><i></i><span>Hear it</span></button></div>
 <div class="lc-t" data-say-text>${paras}</div><button type="button" class="lc-more" data-lc-more>Read on</button>
 ${c.sources && c.sources.length ? `<p class="lc-src"><b>Sources</b> ${c.sources.map(x => /^https?:\/\//.test(x) ? `<a href="${esc(x)}" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(x)).join(' &middot; ')}</p>` : ''}
 ${studyBlock(c, w)}
