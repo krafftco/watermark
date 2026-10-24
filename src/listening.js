@@ -26,6 +26,8 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
   function clear(meta) {
     const url = String(first(meta.licenseurl) || '').toLowerCase(); const coll = [].concat(meta.collection || []).map(String); const year = +yearOf(meta) || 0;
     if (/publicdomain\/mark|publicdomain\/zero|\/zero\//.test(url)) return { ok: true, license: /zero/.test(url) ? 'cc0' : 'pd', url };
+    // 'licenses/publicdomain' and 'choose/publicdomain' are the uploader's word, not a mark: in, but marked so the house looks before it plays.
+    if (/publicdomain/.test(url)) return { ok: true, license: 'pd', url, trust: 'uploader', note: 'said to be public domain by its uploader; the house checks before it plays' };
     if (/\/by-nc|\/nc\b|noncommercial/.test(url)) return { ok: false, why: 'a non-commercial licence (NC): not played in a house that sells work' };
     if (/\/by-sa\//.test(url)) return { ok: true, license: 'cc-by-sa', url };
     if (/\/by-nd\//.test(url)) return { ok: true, license: 'cc-by-nd', url };
@@ -117,7 +119,7 @@ ${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.wh
     res.send(V.layout({ title: 'The Listening Room · Studio', path: '/studio/listening', studio: true, body: `<section class="desk"><header class="dk-h"><p class="k">Programme</p><h1>The Listening Room.</h1><p class="lede">Records brought in from the Internet Archive, cleared at the door (public domain through ${PD_RECORDING_YEAR}, CC0, CC BY / BY-SA / BY-ND; never NC), the sleeve written here, set playing. The files stay at the Archive.</p>${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}</header>
 <form method="get" class="rq-f" action="/studio/listening"><label>Search the Archive<input name="q" value="${esc(q)}" placeholder="Caruso 1920 · Musopen Chopin · Open Goldberg"></label><button class="buy-btn">Search</button></form>
 <form method="post" class="rq-f" action="/studio/listening/bring"><label>Or an identifier or address<input name="id" placeholder="78_…  or https://archive.org/details/…"></label><button class="buy-btn">Bring it in</button></form>
-${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table class="tbl lr-found"><thead><tr><th>Record</th><th>Who</th><th>Year</th><th>At the door</th><th></th></tr></thead><tbody>${found.docs.map(d => `<tr><td><a href="https://archive.org/details/${esc(d.id)}">${esc(d.title || d.id)}</a><br><small>${esc(d.id)}</small></td><td>${esc(d.creator || '')}</td><td>${esc(d.year || '')}</td><td>${d.door.ok ? `<b>${esc(LICENSES[d.door.license])}</b>` : `<small>${esc(d.door.why)}</small>`}</td><td>${d.door.ok ? `<form method="post" action="/studio/listening/bring"><input type="hidden" name="id" value="${esc(d.id)}"><button class="buy-btn small">Bring in</button></form>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table class="tbl lr-found"><thead><tr><th>Record</th><th>Who</th><th>Year</th><th>At the door</th><th></th></tr></thead><tbody>${found.docs.map(d => `<tr><td><a href="https://archive.org/details/${esc(d.id)}">${esc(d.title || d.id)}</a><br><small>${esc(d.id)}</small></td><td>${esc(d.creator || '')}</td><td>${esc(d.year || '')}</td><td>${d.door.ok ? `<b>${esc(LICENSES[d.door.license])}</b>${d.door.trust === 'uploader' ? '<br><small>the uploader’s word: check it</small>' : ''}` : `<small>${esc(d.door.why)}</small>`}</td><td>${d.door.ok ? `<form method="post" action="/studio/listening/bring"><input type="hidden" name="id" value="${esc(d.id)}"><button class="buy-btn small">Bring in</button></form>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
 <h2>The shelf</h2>${rows.length ? rows.map(r => `<details class="lr-row"><summary>${cover(r) ? `<img src="${esc(cover(r))}" alt="">` : ''}<b>${esc(r.title)}</b> <span>${esc(r.performer || '')}${r.year ? ` · ${esc(r.year)}` : ''} · ${esc(LICENSES[r.license] || r.license)} · ${J(r.files).length} tracks · ${r.status === 'playing' ? 'playing' : 'shelved'} · ${r.plays} plays</span></summary>
 <form method="post" action="/studio/listening/${r.id}" class="rq-f"><label>Title<input name="title" value="${esc(r.title)}"></label><label>Performer<input name="performer" value="${esc(r.performer || '')}"></label><label>Composer<input name="composer" value="${esc(r.composer || '')}"></label><label>Year<input name="year" value="${esc(r.year || '')}"></label>
 <label>A line<input name="line" value="${esc(r.line || '')}" maxlength="240"></label><label>Chosen by<input name="chosen_by" value="${esc(r.chosen_by || '')}"></label><label>Why<textarea name="why" rows="2">${esc(r.why || '')}</textarea></label><label>The sleeve<textarea name="body" rows="5">${esc(r.body || '')}</textarea></label>
@@ -134,7 +136,37 @@ ${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table clas
     if (b.status === 'playing' && r.status !== 'playing') { try { ledger.append(db, 'recording.playing', r.slug, { title: s('title', 200) || r.title, performer: s('performer', 200) || r.performer, year: s('year', 12) || r.year }); } catch (e) { /* */ } }
     res.redirect('/studio/listening?ok=' + encodeURIComponent('Saved.'));
   });
-  app.locals.listening = { bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };
+  // The first evening (Will, 24 Oct: "load it up with the stuff that lasts; the work people should listen to, that helps
+  // their brain and mind"): records whose provenance the house trusts without a second look (Musopen's own commissions,
+  // Kimiko Ishizaka's open Bach, the Great 78 Project's discs through 1925), each with a line. Words are drafts.
+  const FIRST = [
+    ['The_Open_Goldberg_Variations-11823', 'Bach, the Goldberg Variations. Kimiko Ishizaka, recorded in 2012 and given to the world. Begin with the Aria; stay for the thirty.'],
+    ['bach-well-tempered-clavier-book-1', 'Bach, the Well-Tempered Clavier, Book I. Twenty-four preludes and fugues, one in every key: the whole of music in one book.'],
+    ['pandacd-715-js-bach-the-art-of-the-fugue-kunst-der-fuge-bwv-1080', 'Bach, The Art of Fugue. His last thought, unfinished: the music stops where his hand did.'],
+    ['musopen-chopin', 'Chopin, complete, recorded for everyone by Musopen. Put on a nocturne after dark.'],
+    ['musopen-mozart-marriage-of-figaro-compressed', 'Mozart, The Marriage of Figaro. Four hours that end in forgiveness.'],
+    ['78_valse-in-d-flat-major_sergei-rachmaninoff-chopin_gbia0012582a', 'Rachmaninoff plays Chopin, 1921. One composer’s hands on another’s waltz.'],
+    ['78_prelude-in-c-sharp-minor_sergei-rachmaninoff_gbia0284165a', 'Rachmaninoff plays his own Prelude in C-sharp minor, 1921, the piece he could never leave a hall without playing.'],
+    ['78_tosca---recondita-armonia-strange-harmony_enrico-caruso-puccini-victor-orchestra_gbia0012569a', 'Caruso, 1909. Recondita armonia: the voice that made the record a thing worth owning.'],
+    ['78_rigoletto---la-donna-e-mobile-woman-is-fickle_enrico-caruso-verdi-victor-orchestr_gbia0012560a', 'Caruso, 1908. La donna è mobile, from a horn, on shellac, a century on.'],
+    ['78_tears_king-olivers-jazz-band-hardin-armstrong-joe-oliver-louis-armstrong-johnny-do_gbia0001053a', 'King Oliver’s Creole Jazz Band with the young Louis Armstrong, 1923. Jazz as it left New Orleans.'],
+    ['78_yellow-dog-blues_bessie-smith-hendersons-hot-six_gbia0464774a', 'Bessie Smith, 1925. The Empress of the Blues, with Fletcher Henderson’s men behind her.'],
+    ['78_songs-my-mother-taught-me_fritz-kreisler-dvorak-kreisler-carl-lamson_gbia0016601a', 'Kreisler, 1916. Dvořák’s song, on a violin, in three minutes.'],
+    ['78_mazurka-in-f-sharp-minor_ignace-jan-paderewski-chopin_gbia0015773a', 'Paderewski plays Chopin, 1924: the pianist who became a prime minister, playing the poet of his country.'],
+    ['78_whispering_paul-whiteman-and-his-ambassador-orchestra-schonberger_gbia0120433a', 'Whispering, 1920. The decade beginning, in a dance band.'],
+    ['78_stars-and-stripes-forever_john-philip-sousa_gbia0086020b', 'Sousa’s own band, 1919. Stand up.'],
+  ];
+  let seeding = false;
+  async function seed() {
+    if (seeding || db.prepare('SELECT COUNT(*) n FROM recordings').get().n) return; seeding = true;
+    for (const [id, line] of FIRST) {
+      try { const out = await bring(id, 'the house'); if (out.ok) { db.prepare("UPDATE recordings SET line=?, status='playing' WHERE slug=?").run(line, out.slug); try { ledger.append(db, 'recording.playing', out.slug, { title: out.title, by: 'the house' }); } catch (e) { /* */ } console.log('[listening] on the turntable:', out.title); } else console.log('[listening] not brought in:', id, out.why); } catch (e) { console.log('[listening] seed', id, e.message); }
+      await new Promise(r => setTimeout(r, 2500));
+    }
+    seeding = false;
+  }
+  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => seed().catch(() => {}), 40000); t.unref && t.unref(); }
+  app.locals.listening = { seed, FIRST, bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };
   return app.locals.listening;
 }
 module.exports = { mountListening, LICENSES };
