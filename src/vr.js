@@ -9,7 +9,7 @@ const path = require('path');
 
 function mountVR(app, { db, V }) {
   const SPACES = {
-    gallery: { name: 'The long gallery', line: 'A gallery under a skylight, the photographs facing one another down its length.' },
+    gallery: { name: 'The long gallery', line: 'A gallery under a skylight, the works facing one another down its length.' },
     rotunda: { name: 'The rotunda', line: 'A round room under a dome, light falling through the oculus.' },
     night: { name: 'The night', line: 'Nothing but the photographs, each in its own light.' },
   };

@@ -138,7 +138,7 @@ ${live ? `<div class="kp-way kp-instax" id="instax"><p class="k">Instax</p><h3>P
 <div class="kp-way"><p class="k">Print it yourself</p><h3>Five steps, one afternoon.</h3><ol class="kp-steps">
 <li><b>Take the file</b> above. Send it to the lab exactly as it is: no sharpening, no resizing; it is already set for print.</li>
 <li><b>Choose a lab</b> that makes fine-art (giclée) prints on cotton or fibre paper. A local one lets you see a proof.</li>
-<li><b>Choose a paper.</b> Cotton rag, matte, for most photographs; baryta for darkroom blacks; lustre for a first proof.</li>
+<li><b>Choose a paper.</b> Cotton rag, matte, for most work; baryta for darkroom blacks; lustre for a first proof.</li>
 <li><b>Choose a size</b> from the table: anything marked holds. Leave a white border of two inches or more; it is where the eye rests.</li>
 <li><b>Frame it</b> behind UV glass, with a mat, and hang its centre at 57 inches from the floor, as museums do.</li></ol>
 <p><a href="/print">The house’s guide to printing →</a></p></div>

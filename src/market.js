@@ -321,7 +321,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   const ratio = r => (r.width && r.height ? (r.width / r.height).toFixed(3) : '1.5');
   const no = r => `No.&nbsp;${r.collector_no}${r.edition_size ? ` of ${r.edition_size}` : ''}`;
   const page = {
-    exchange: ({ open, recent, vol }) => layout({ title: 'The market · Watermark', desc: 'Numbered photographs offered by their collectors, and what has traded.', path: '/market', body: `<section class="cx-intro mk">
+    exchange: ({ open, recent, vol }) => layout({ title: 'The market · Watermark', desc: 'Numbered works offered by their collectors, and what has traded.', path: '/market', body: `<section class="cx-intro mk">
 <p class="k">The market</p><h1>Where collectors pass the work on.</h1>
 <p class="lede">Limited editions are numbered, and when an edition is complete the only way to own one is from a collector who holds it. Pieces offered here are offered by their collectors, at prices they set. Every trade is recorded, so each work carries its own price history.</p>
 <p class="mk-stats"><span><b>${open.length}</b> offered</span><span><b>${vol.n}</b> traded</span><span><b>${money(vol.v)}</b> traded in all</span></p></section>

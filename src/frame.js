@@ -100,13 +100,13 @@ function mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket, nextRef, g
     if (req.body && req.body.from === 'pocket' && pocket && pocket.spend(b, total, 'collect', refs[0], `The frame: ${items.length} photographs`)) {
       for (const [i, ref] of refs.entries()) { grant(ref, { paid: true, price_cents: items[i].u.price_cents }); ledger.append(db, 'license.paid.pocket', ref, { work: items[i].w.slug, use: items[i].u.key, amount: items[i].u.price_cents, frame: f.code }); }
       db.prepare("UPDATE frames SET updated_at=datetime('now') WHERE id=?").run(f.id);
-      return res.redirect(`/frame/${f.code}?ok=${encodeURIComponent(`Yours: ${items.length} photographs, now at full size on the screen.`)}`);
+      return res.redirect(`/frame/${f.code}?ok=${encodeURIComponent(`Yours: ${items.length} works, now at full size on the screen.`)}`);
     }
     if (!stripe) { db.prepare("DELETE FROM licenses WHERE set_ref=?").run(setRef); return res.redirect(`/frame/${f.code}?ok=${encodeURIComponent('Payments are not open yet.')}`); }
     ledger.append(db, 'license.checkout', refs[0], { set: setRef, works: items.map(x => x.w.slug), frame: f.code });
     try {
       const ss = await stripe.checkout.sessions.create({ mode: 'payment', submit_type: 'pay', customer_email: b.email || undefined,
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: total, product_data: { name: `The frame: ${st.title}`, description: `${items.length} photographs, each yours to keep, share and hang, each numbered in your gallery.`, images: items.slice(0, 4).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: total, product_data: { name: `The frame: ${st.title}`, description: `${items.length} works, each yours to keep, share and hang, each numbered in your gallery.`, images: items.slice(0, 4).map(x => `${C.base}/img/${x.w.slug}/thumb`) } } }],
         metadata: { ref: refs[0], set: setRef, frame: f.code },
         success_url: `${C.base}/frame/${f.code}?ok=${encodeURIComponent('Yours. Give the screen a moment.')}`, cancel_url: `${C.base}/frame/${f.code}` });
       db.prepare('UPDATE licenses SET stripe_session=? WHERE set_ref=?').run(ss.id, setRef);
@@ -128,7 +128,7 @@ ${makers.length ? `<optgroup label="One maker">${makers.map(m => opt('maker:' + 
 };
 
 function framePage({ b, hangs, makers, series, frames, on, q }) {
-  return layout({ title: 'The frame · Watermark', desc: 'Photographs from the house, cycling on your television, chosen for the evening.', path: '/frame', body: `<section class="narrow fr">
+  return layout({ title: 'The frame · Watermark', desc: 'Works from the house, cycling on your television, chosen for the evening.', path: '/frame', body: `<section class="narrow fr">
 <p class="k">The frame</p><h1>Photographs on the wall, chosen for the evening.</h1>
 <p class="lede">Open the house on a television and let it cycle: the best of what hangs, one maker, a wall a curator hung, a series, or whatever you ask for ("Florence", "domes", "the sea"). Your phone is the remote. Pieces you have collected show at full size; everything else shows with its plate, and the whole set can be collected in one tap.</p>
 <div class="fr-two">
@@ -139,7 +139,7 @@ function framePage({ b, hangs, makers, series, frames, on, q }) {
 </div>
 ${frames.length ? `<h2>Your screens</h2><ul class="fr-list">${frames.map(f => `<li><a href="/frame/${esc(f.code)}"><b>${esc(f.code)}</b> ${esc(f.title || f.set_kind)}${f.seen_at ? ` · seen ${esc(f.seen_at.slice(0, 16))}` : ''}</a></li>`).join('')}</ul>` : ''}
 <h2>How it is licensed</h2>
-<p>At home, among friends, a screen is a wall: the photographs cycle freely at screen size with their plates, as they hang in the house. A piece you collect ($5, yours to keep and share) shows at full size and without the plate. A restaurant, a lobby, a shop window: that is a public display, by letter to the house, priced for the room. ${on ? '' : 'Collecting opens with payments.'}</p>
+<p>At home, among friends, a screen is a wall: the works cycle freely at screen size with their plates, as they hang in the house. A piece you collect ($5, yours to keep and share) shows at full size and without the plate. A restaurant, a lobby, a shop window: that is a public display, by letter to the house, priced for the room. ${on ? '' : 'Collecting opens with payments.'}</p>
 <p class="note">A draft until Will confirms. Music: the frame can make its own quiet, or play a stream you already have the right to play; the house does not stream music it has not licensed.</p>
 </section><script>document.querySelector('.fr-play').addEventListener('submit',function(e){var q=this.q.value.trim();if(q){this.set.value='q:'+q}this.q.disabled=true});</script>` });
 }

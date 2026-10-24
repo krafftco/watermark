@@ -782,7 +782,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // Introductions: the house issues a partner link that opens studios; a maker introduces one maker; the register says who introduced whom.
   r = await req(port, 'POST', '/studio/introductions', { cookie: ck, body: { label: 'The Fogg Museum', opens: 'maker', max_uses: '2' } }); assert.ok(decodeURIComponent(r.headers.location).includes('/i/'), 'partner link');
   const pl = db.prepare("SELECT * FROM introductions WHERE label='The Fogg Museum'").get();
-  r = await req(port, 'GET', `/i/${pl.token}`); assert.ok(r.body.toString().includes('Welcome to the house') && r.body.toString().includes('I make photographs') && r.body.toString().includes('I came to look'), 'one door for everyone: two ways in');
+  r = await req(port, 'GET', `/i/${pl.token}`); assert.ok(r.body.toString().includes('Welcome to the house') && r.body.toString().includes('I make things') && r.body.toString().includes('I came to look'), 'one door for everyone: two ways in');
   r = await req(port, 'GET', `/i/${pl.token}?make=1`); assert.ok(r.body.toString().includes('Open my studio') && r.body.toString().includes('name="email"'), 'the maker\'s way: the form');
   r = await req(port, 'POST', `/i/${pl.token}`, { body: { name: 'Ines Vardar', email: 'ines@example.com' } }); assert.equal(r.headers.location, '/account?welcome=1'); const ick2 = r.headers['set-cookie'].find(c => c.startsWith('wm_m=')).split(';')[0];
   const ines = db.prepare("SELECT * FROM makers WHERE email='ines@example.com'").get(); assert.ok(ines && ines.joined_at && ines.introduced_by === 'house', 'studio opened at once, introduced by the house');
@@ -1775,7 +1775,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/m/the-ada-estate'); assert.equal(r.status, 200);
   // Voices: the maker records a word on a photograph; anyone looking hears it; others cannot add to it. (The bag check wants a real header: an M4A's.)
   const AUDIO_BYTES = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypM4A '), Buffer.from('fakeaudiodata')]);
-  r = await req(port, 'GET', `/voices/${w.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('What is said about this photograph'), 'the voices page');
+  r = await req(port, 'GET', `/voices/${w.slug}`, { cookie: ck }); assert.ok(r.body.toString().includes('What is said about this work'), 'the voices page');
   { const vb = '----wmvo'; const parts = [['kind', 'maker'], ['speaker', 'Will Fullerton'], ['body', 'I stood under it for an hour.'], ['seconds', '3']].map(([k, v]) => `--${vb}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join('');
     const body = Buffer.concat([Buffer.from(parts + `--${vb}\r\nContent-Disposition: form-data; name="audio"; filename="note.m4a"\r\nContent-Type: audio/mp4\r\n\r\n`), AUDIO_BYTES, Buffer.from(`\r\n--${vb}--\r\n`)]);
     r = await req(port, 'POST', `/voices/${w.slug}`, { cookie: ck, body, headers: { 'content-type': 'multipart/form-data; boundary=' + vb } }); assert.equal(r.status, 302, 'saved'); }

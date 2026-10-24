@@ -3,7 +3,7 @@ const { layout, esc, money, date, termText, setDeskPath, VER } = require('./view
 
 // Four rooms, then the back office in small type. Simple on purpose.
 const MAIN = [['/studio', 'Holdings'], ['/studio/trove', 'Works'], ['/studio/licenses', 'Licenses'], ['/studio/market', 'Market'], ['/studio/makers', 'Makers']];
-const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add photographs'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
+const MORE = [['/studio/launch', 'Launch'], ['/studio/works', 'Add work'], ['/studio/editions', 'Editions'], ['/studio/copyright', 'Copyright'], ['/studio/contract', 'Contract'], ['/studio/activity', 'Activity'], ['/studio/uses', 'Prices'], ['/studio/masters', 'Masters'], ['/studio/sightings', 'Sightings'], ['/studio/accounts', 'Accounts']];
 // The rooms are in the desk header (views.deskHeader); nav() only says which room this is.
 const nav = active => { setDeskPath(active); return ''; };
 
@@ -34,7 +34,7 @@ function works({ list, error, notice, rooms = [] }) {
 <h1>The vault.</h1>${error ? `<p class="err">${esc(error)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <form class="form upload bulk" id="bulk" onsubmit="return false">
 <p class="k">Bring works into the vault</p>
-<label class="drop" id="drop"><input type="file" id="bulkFiles" accept="image/jpeg,image/png,image/tiff" multiple><b>Choose photographs or drop them here</b><span>Full-resolution masters: JPEG, TIFF or PNG. Each is fingerprinted, sealed into the vault and written to the ledger. Titles come from the file names; refine them in each catalogue record.</span></label>
+<label class="drop" id="drop"><input type="file" id="bulkFiles" accept="image/jpeg,image/png,image/tiff" multiple><b>Choose works or drop them here</b><span>Full-resolution masters: JPEG, TIFF or PNG. Each is fingerprinted, sealed into the vault and written to the ledger. Titles come from the file names; refine them in each catalogue record.</span></label>
 <div class="bulk-opts"><label>Place, for all<input id="bulkPlace" placeholder="Florence, Italy"></label>
 <label>Collection<select id="bulkRoom"><option value="">None</option>${rooms.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></label>
 <label class="chk"><input type="checkbox" id="bulkHidden" checked> Keep them private until I publish each one</label></div>
