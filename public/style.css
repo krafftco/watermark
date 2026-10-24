@@ -1468,10 +1468,10 @@ form.ly-up .link{border:0;background:none;padding:0;font:inherit;color:var(--ink
 .gb-on{display:block;font-family:var(--sans);font-style:normal;font-size:11px;color:#9a9185}.gb-on a{color:var(--ink);text-decoration:none;border-bottom:1px solid rgba(0,0,0,.2)}
 .gb-l select{border:0;border-bottom:1px solid var(--ink);background:none;padding:8px 0;font:inherit;font-size:15px;outline:none}
 /* Stars: the maker's grade. */
-.st{display:inline-flex;gap:1px}
-.st button{border:0;background:none;padding:2px 1px;font-size:15px;line-height:1;color:var(--ln);cursor:pointer;border-radius:0;box-shadow:none;transition:color .2s,transform .2s var(--e)}
-.st button.on{color:var(--ink)}
-.st:hover button{color:var(--ln)}.st button:hover,.st button:has(~ button:hover){color:var(--ink)}
+form.st{display:inline-flex;gap:1px}
+form.st button{border:0;background:none;padding:2px 1px;font-size:15px;line-height:1;color:var(--ln);cursor:pointer;border-radius:0;box-shadow:none;transition:color .2s,transform .2s var(--e)}
+form.st button.on{color:var(--ink)}
+form.st:hover button{color:var(--ln)}form.st button:hover,form.st button:has(~ button:hover){color:var(--ink)}
 .st.tick button.on{transform:scale(1.18)}
 .st-bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 24px;margin:0 0 10px}
 .st-f{display:flex;flex-wrap:wrap;gap:2px 16px;font-size:13px}
@@ -2326,7 +2326,12 @@ main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;
 .st-more{position:absolute;right:calc(100% + 6px);bottom:0;display:flex;flex-direction:row;gap:12px;align-items:flex-end;padding:8px 12px;background:rgba(14,13,12,.82);border:1px solid rgba(255,255,255,.14);border-radius:14px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}.st-more[hidden]{display:none}a.st-b{text-decoration:none}.st-moreb[aria-expanded=true]{opacity:.6}
 .st-b{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:#f2efe9;font-family:inherit;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;padding:4px;cursor:pointer;text-shadow:0 1px 10px rgba(0,0,0,.9);-webkit-tap-highlight-color:transparent}
 .st-b .ic{width:28px;height:28px;filter:drop-shadow(0 1px 8px rgba(0,0,0,.8))}.st-b[aria-pressed=true] .ic{color:#fff;fill:rgba(255,255,255,.18)}
-.st-b span:empty{display:none}.st-held{opacity:.7}.st-buy .ic{color:#fff}
+.st-b span:empty{display:none}.st-held{opacity:.7}
+/* Collect is the act (24 Oct): the one filled button, gold, nearest the thumb, saying what you get. */
+.st-buy{margin-top:6px;padding:10px 8px 8px;border-radius:18px;background:linear-gradient(180deg,#e2c788,#c9a24a);color:#1a1508;text-shadow:none;box-shadow:0 2px 18px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);min-width:64px}
+.st-buy .ic{color:#1a1508;filter:none;width:26px;height:26px}.st-buy span{display:flex;flex-direction:column;align-items:center;gap:1px;font-weight:600;letter-spacing:.1em}.st-buy span b{font-weight:700;font-size:12px;letter-spacing:.02em;text-transform:none}
+.st-buy em{display:block;font-style:normal;font-size:8px;letter-spacing:.08em;text-transform:none;color:rgba(26,21,8,.7);margin-top:2px}
+.st-buy:active{transform:scale(.96)}.st-buy[disabled]{opacity:.6}
 .st-hat-fly{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none;z-index:3;color:#fff}.st-hat-fly .ic{width:120px;height:120px;filter:drop-shadow(0 6px 30px rgba(0,0,0,.7))}
 .st-hat-fly.go{animation:st-fly 1s cubic-bezier(.2,.7,.2,1) both}
 @keyframes st-fly{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-14deg)}25%{opacity:1;transform:translate(-50%,-52%) scale(1.05) rotate(-8deg)}60%{opacity:1;transform:translate(-50%,-60%) scale(1) rotate(0)}100%{opacity:0;transform:translate(-50%,-90%) scale(.9) rotate(4deg)}}
@@ -3643,6 +3648,6 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 /* Hold (24 Oct): the work held still, full screen; one badge top centre says so and is the way out. */
 .st.st-holding .st-scroll{overflow:hidden;scroll-snap-type:none;touch-action:none}
 .st.st-holding .st-top,.st.st-holding .st-plate,.st.st-holding .st-rail,.st.st-holding .st-eye,.st.st-holding .bk-pill,.st.st-holding .st-line,.st.st-holding .st-tab,.st.st-holding .st-swipe{opacity:0!important;pointer-events:none!important}
-.st-held{position:fixed;left:50%;top:max(14px,calc(10px + env(safe-area-inset-top)));transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:8px;padding:8px 12px 8px 10px;border:1px solid rgba(242,239,233,.22);border-radius:999px;background:rgba(11,10,9,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#f2efe9;font-family:inherit;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;cursor:pointer;opacity:.85;transition:opacity .3s}
-.st-held:hover{opacity:1}.st-held .ic{width:16px;height:16px}.st-held b{font-weight:600}.st-held span{color:rgba(242,239,233,.6)}.st-held i{display:inline-flex;margin-left:4px;color:rgba(242,239,233,.6)}
-.st.st-holding.st-still .st-held{opacity:.35}
+.st-hld[hidden]{display:none}.st-hld{position:fixed;left:50%;top:max(14px,calc(10px + env(safe-area-inset-top)));transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:8px;padding:8px 12px 8px 10px;border:1px solid rgba(242,239,233,.22);border-radius:999px;background:rgba(11,10,9,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#f2efe9;font-family:inherit;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;cursor:pointer;opacity:.85;transition:opacity .3s}
+.st-hld:hover{opacity:1}.st-hld .ic{width:16px;height:16px}.st-hld b{font-weight:600}.st-hld span{color:rgba(242,239,233,.6)}.st-hld i{display:inline-flex;margin-left:4px;color:rgba(242,239,233,.6)}
+.st.st-holding.st-still .st-hld{opacity:.35}

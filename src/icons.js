@@ -56,6 +56,8 @@ const I = {
   out: wrap('<path d="M12 15V4M7.6 8.4 12 4l4.4 4.4"/><path d="M4.5 16.5v2a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-2"/>'),
   // Arrange: the drag handle.
   grip: wrap('<circle cx="9" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.1" fill="currentColor" stroke="none"/>'),
+  // A pencil: draw it.
+  pencil: wrap('<path d="M4.6 19.4l1.2-4.6L15.6 5a1.8 1.8 0 0 1 2.6 0l.8.8a1.8 1.8 0 0 1 0 2.6l-9.8 9.8z"/><path d="M13.8 6.8l3.4 3.4M5.8 14.8l3.4 3.4"/>'),
   plus: wrap('<path d="M12 5v14M5 12h14"/>'),
   check: wrap('<path d="m5 12.5 4.2 4.2L19 7.4"/>'),
 };

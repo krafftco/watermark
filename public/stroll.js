@@ -29,15 +29,16 @@
       + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
-      + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
-      + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '">' + (ic.bravo || '') + '<span>Bravo</span></button>'
-      + '<button type="button" class="st-b" data-st-hang>' + ic.hang + '<span>Hang</span></button>'
-      + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '">' + ic.collect + '<span>' + esc(w.collect.price) + '</span></button>' : '')
-      + (w.guide ? '<button type="button" class="st-b" data-st-guide>' + ic.guide + '<span>Guide</span></button>' : '')
-      + '<button type="button" class="st-b" data-st-share>' + ic.share + '<span>Share</span></button>'
+      + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
+      + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '" title="Bravo: it floored me. Three a month.">' + (ic.bravo || '') + '<span>Bravo</span></button>'
+      + '<button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">' + ic.hang + '<span>Save</span></button>'
+      + (w.guide ? '<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">' + ic.guide + '<span>Look closer</span></button>' : '')
+      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Draw it: the picture alone, with the easel\'s tools.">' + (ic.easel || '') + '<span>Draw</span></a>'
+      + '<button type="button" class="st-b" data-st-share title="Send it to someone.">' + ic.share + '<span>Share</span></button>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
-      + '<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card>' + ic.card + '<span>Card</span></button>'
-      + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '">' + (ic.easel || '') + '<span>Study</span></a></div></nav>'
+      + '<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">' + ic.card + '<span>Thank</span></button></div>'
+      + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '" title="Collect it: yours to keep, numbered, with the papers. ' + esc(w.collect.price) + '.">' + ic.collect + '<span>Collect<b>' + esc(w.collect.price) + '</b></span><em>Yours to keep</em></button>' : '')
+      + '</nav>'
       + '<div class="st-hat-fly" aria-hidden="true">' + ic.hat + '</div>';
     try { var im0 = el.querySelector('.st-im'); if (window.WMTrue && im0) { WMTrue.cap(im0); im0.addEventListener('load', function () { WMTrue.cap(im0); }, { once: true }); } } catch (e) { /* true size */ }
     return el;
@@ -204,6 +205,8 @@
     else if (b.hasAttribute('data-st-card')) card(w);
     else if (b.hasAttribute('data-st-share')) share(w);
   });
+  // The first Save explains itself once (24 Oct: the buttons must get people to do things; each says what it gets you).
+  root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-st-hang]'); if (!b) return; try { if (localStorage.getItem('wm_save_told')) return; localStorage.setItem('wm_save_told', '1'); } catch (x) { return; } setTimeout(function () { say('Saved to a wall of yours. Find it again in Yours, any time.', 3600); }, 900); });
   // A tap rests or calls the chrome; a double-tap zooms in on the spot, as in every photo app (24 Oct, Will: zooming
   // was not happening; the double-tap had been the hat, so a pinch's two lifts read as one). The hat is on the rail.
   var lastTap = 0, tapT = null, tapX = 0, tapY = 0;
@@ -295,7 +298,7 @@
     }
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; e.preventDefault(); return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
-    if (held) { sx0 = null; if (!e.target.closest('.st-held')) e.preventDefault(); return; }
+    if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
   }, { passive: false });
   scroller.addEventListener('touchmove', function (e) {

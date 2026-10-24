@@ -163,13 +163,14 @@ function strollPage({ items, q = '', maker = null, set = null, I }) {
 <div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
 <button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
 <nav class="st-rail" aria-label="Acts">
-<button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}">${I.bravo}<span>Bravo</span></button>
-<button type="button" class="st-b" data-st-hang>${I.hang}<span>Hang</span></button>
-${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}">${I.collect}<span>${esc(w.collect.price)}</span></button>` : ''}
-${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Guide</span></button>` : ''}
-<button type="button" class="st-b" data-st-share>${I.send}<span>Share</span></button>
+<button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}" title="Hat: a nod, I saw it. Free, as many as you like.">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}" title="Bravo: it floored me. Three a month.">${I.bravo}<span>Bravo</span></button>
+<button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">${I.hang}<span>Save</span></button>
+${w.guide ? `<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">${I.guide}<span>Look closer</span></button>` : ''}
+<a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/wander?at=' + w.slug)}" title="Draw it: the picture alone, with the easel's tools.">${I.pencil}<span>Draw</span></a>
+<button type="button" class="st-b" data-st-share title="Send it to someone.">${I.send}<span>Share</span></button>
 <button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">${I.more}<span>More</span></button>
-<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card>${I.card}<span>Card</span></button><a class="st-b" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/wander?at=' + w.slug)}">${I.wilhelm}<span>Study</span></a></div>
+<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">${I.card}<span>Thank</span></button></div>
+${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}" title="Collect it: yours to keep, numbered, with the papers. ${esc(w.collect.price)}.">${I.collect}<span>Collect<b>${esc(w.collect.price)}</b></span><em>Yours to keep</em></button>` : ''}
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
@@ -178,7 +179,7 @@ ${w.guide ? `<button type="button" class="st-b" data-st-guide>${I.guide}<span>Gu
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
-<button type="button" class="st-held" data-st-held hidden title="Release (L or Esc)">${I.full}<b>Held</b><span data-st-heldfs>full screen</span><i>${I.close}</i></button>
+<button type="button" class="st-hld" data-st-held hidden title="Release (L or Esc)">${I.full}<b>Held</b><span data-st-heldfs>full screen</span><i>${I.close}</i></button>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.wilhelm}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 <p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
