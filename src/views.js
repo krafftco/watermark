@@ -175,7 +175,7 @@ const STG = () => process.env.STAGING === '1';
 const FOOT = [
   ['Look', [['/wander', 'Wander'], ['/start', 'How it works'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/today', 'Today’s work']]],
   ['Collect', [['/yours', 'Yours'], ['/market', 'Market'], ['/verify', 'Check a work'], ['/own', 'You already own it'], ['/print', 'Print your work']]],
-  ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/club', 'The Club'], ['/guides', 'Guides'], ['/kids', 'The kids’ corner'], ['/library', 'The Library']]],
+  ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/club', 'The Club'], ['/guides', 'Guides'], ['/kids', 'The kids’ corner'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
   ['The house', [['/about', 'About'], ['/press', 'The printing house'], ['/publishing', 'Publishing'], ['/bookshop', 'The Bookshop'], ['/director', 'The director'], ['/ledger', 'The register'], ['/friends', 'Friends of the house'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
 ];
 function footer(path) {
