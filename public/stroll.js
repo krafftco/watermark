@@ -223,6 +223,9 @@
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     var w = items[cur]; var h = scroller.clientHeight;
+    if (e.key === 'l' || e.key === 'L') { hold(!held); return; }
+    if (held && (e.key === 'Escape')) { hold(false); return; }
+    if (held && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'j' || e.key === 'k' || e.key === ' ')) { e.preventDefault(); return; }
     if (e.key === 'ArrowDown' || e.key === 'j' || e.key === ' ') { e.preventDefault(); scroller.scrollBy({ top: h, behavior: 'smooth' }); }
     else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); scroller.scrollBy({ top: -h, behavior: 'smooth' }); }
     else if (e.key === 'Escape') { if (!sheet.hidden) stopGuide(); else location.href = '/collection'; }
@@ -292,6 +295,7 @@
     }
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; e.preventDefault(); return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
+    if (held) { sx0 = null; if (!e.target.closest('.st-held')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
   }, { passive: false });
   scroller.addEventListener('touchmove', function (e) {
@@ -301,6 +305,7 @@
       else if (Z.pan && e.touches.length === 1) { Z.x = e.touches[0].clientX - Z.pan.x; Z.y = e.touches[0].clientY - Z.pan.y; zClamp(); zApply(false); }
       return;
     }
+    if (held) { e.preventDefault(); return; }
     if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
     if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
       if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } }
@@ -354,6 +359,7 @@
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (e.key === 'Escape' && sideOpen) { e.preventDefault(); e.stopImmediatePropagation(); sideHide(); }
+    else if (held && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); e.stopImmediatePropagation(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); move(1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); move(-1); }
   }, true);
@@ -415,6 +421,22 @@
     setTimeout(function () { scroller.style.overflowY = ''; st.classList.remove('on'); setTimeout(function () { st.hidden = true; }, 900); }, 3200);
   }
   function next() { scroller.scrollBy({ top: scroller.clientHeight, behavior: 'smooth' }); }
+  // Hold (Will, 24 Oct: "a toggle that comes on and off that shows if you are locked and in full screen; that could be
+  // if you are drawing"): one tap and this work is held: the browser's full screen, the screen kept awake, nothing
+  // scrolls or swipes (pinch, pan and the double-tap still work), the chrome away, and one small badge top centre
+  // saying Held · full screen, which is also the way out (a tap, L or Esc).
+  var held = false, holdB = root.querySelector('[data-st-hold]'), heldB = root.querySelector('[data-st-held]'), heldFs = root.querySelector('[data-st-heldfs]');
+  function paintHold() { root.classList.toggle('st-holding', held); if (holdB) holdB.setAttribute('aria-pressed', held ? 'true' : 'false'); if (heldB) heldB.hidden = !held; if (heldFs) heldFs.textContent = document.fullscreenElement || document.webkitFullscreenElement ? 'full screen' : 'on this screen'; }
+  function hold(on) {
+    held = !!on; var d = document, el = d.documentElement;
+    if (held) { closeSheets(); if (sideOpen) sideHide(); clearTimeout(stillT); root.classList.remove('st-arr'); root.classList.add('st-still'); try { if (!d.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(function () {}); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); } catch (e) {} wake(); say('Held. Pinch to look closer; tap Held to release.', 2600); }
+    else { try { if (d.fullscreenElement && d.exitFullscreen) d.exitFullscreen().catch(function () {}); else if (d.webkitFullscreenElement && d.webkitExitFullscreen) d.webkitExitFullscreen(); } catch (e) {} if (!sitting) { try { lock && lock.release(); } catch (e) {} } root.classList.remove('st-still'); }
+    paintHold();
+  }
+  if (holdB) holdB.addEventListener('click', function () { hold(!held); });
+  if (heldB) heldB.addEventListener('click', function () { hold(false); });
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (t) { document.addEventListener(t, function () { if (held && !(document.fullscreenElement || document.webkitFullscreenElement)) { /* left by the system's own way out: the hold goes too */ hold(false); } else paintHold(); }); });
+  paintHold();
   // Sit: one tap and the stroll becomes a room to sit in. Each photograph held a minute and a half, the guide read
   // in the house voice, quiet music made here (four sines breathing; nothing streamed), the screen kept awake.
   var sitb = root.querySelector('[data-st-sit]'), sitbar = root.querySelector('[data-st-sitbar]'), ac = null, lock = null, wasGuide = false;
