@@ -132,7 +132,8 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   // The number the house believes, checked against the record before it is trusted.
   async function verify(id, title, author) {
     const m = await meta(id); const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
-    const okT = norm(m.title).includes(want.split(' ').slice(0, 3).join(' ')) || want.includes(norm(m.title).split(' ').slice(0, 3).join(' '));
+    const stop = new Set(['the', 'a', 'an', 'of']); const core = x => norm(x).split(' ').filter(w => !stop.has(w)).slice(0, 3).join(' ');
+    const okT = norm(m.title).includes(want.split(' ').slice(0, 3).join(' ')) || want.includes(norm(m.title).split(' ').slice(0, 3).join(' ')) || (core(want) && norm(m.title).includes(core(want)));
     const okA = (m.authors || []).some(a => norm(a.name).includes(sur));
     return okT && okA ? m : null;
   }
