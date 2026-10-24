@@ -12,7 +12,7 @@
   function say(m, ms) { if (sayHold > Date.now() && m.indexOf('A hat is') !== 0) { setTimeout(function () { say(m, ms); }, sayHold - Date.now()); return; } toast.textContent = m; toast.hidden = false; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 400); }, ms || 2200); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
-  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
+  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
 
   function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
@@ -36,7 +36,7 @@
       + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Draw it: the picture alone, with the easel\'s tools.">' + (ic.easel || '') + '<span>Draw</span></a>'
       + '<button type="button" class="st-b" data-st-share title="Send it to someone.">' + ic.share + '<span>Share</span></button>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
-      + '<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">' + ic.card + '<span>Thank</span></button></div>'
+      + '<div class="st-more" data-st-morebox hidden><button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">' + ic.card + '<span>Thank</span></button><button type="button" class="st-b" data-st-settings title="Sit a while: each work held a minute and a half, the guide read, quiet music.">' + (ic.settings || '') + '<span>Sit</span></button></div>'
       + (w.held ? '<span class="st-b st-held">' + ic.collect + '<span>Yours</span></span>' : w.collect ? '<button type="button" class="st-b st-buy" data-st-buy data-url="' + esc(w.collect.url) + '" data-pocket="' + (w.collect.pocket ? 1 : 0) + '" title="Collect it: yours to keep, numbered, with the papers. ' + esc(w.collect.price) + '.">' + ic.collect + '<span>Collect<b>' + esc(w.collect.price) + '</b></span><em>Yours to keep</em></button>' : '')
       + '</nav>'
       + '<div class="st-hat-fly" aria-hidden="true">' + ic.hat + '</div>';
@@ -489,8 +489,7 @@
   var fsheet = null, ssheet = root.querySelector('[data-st-ssheet]');
   function closeSheets() { if (ssheet) ssheet.hidden = true; root.classList.remove('st-sheet-on'); quiet(); }
   function openSheet(el) { closeSheets(); el.hidden = false; root.classList.add('st-sheet-on'); clearTimeout(stillT); root.classList.remove('st-still', 'st-arr'); }
-  var sb = root.querySelector('[data-st-settings]');
-  if (sb) sb.addEventListener('click', function () { openSheet(ssheet); });
+  root.addEventListener('click', function (e) { var sb = e.target.closest && e.target.closest('[data-st-settings]'); if (sb) openSheet(ssheet); });
   [].forEach.call(root.querySelectorAll('[data-st-sx2]'), function (b) { b.addEventListener('click', closeSheets); });
   if (ssheet) ssheet.addEventListener('click', function (e) { if (e.target === ssheet) closeSheets(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ssheet && !ssheet.hidden) { e.stopImmediatePropagation(); closeSheets(); } }, true);

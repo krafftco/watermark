@@ -3034,6 +3034,7 @@ html.fd-on{overflow:hidden}
   /* The Duo's own cluster owns the top-right corner sideways (Will, 23 Oct): the bar keeps 150px clear of it, the eye and the edge tabs step out of it. */
   .st .st-top{padding:8px 150px 8px 14px}.st .st-eye{top:10px;right:160px}.st .bk-pill{top:10px;right:160px}
   .st .st-tab{display:none}
+  .st .st-rail .st-buy span{display:flex;font-size:8.5px}.st .st-rail .st-buy{padding:8px 6px 6px;min-width:58px}.st .st-rail .st-buy em{font-size:7px}
   .st .st-line{display:none}
 }
 .fd-f input::-webkit-search-cancel-button,.fd-form input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
