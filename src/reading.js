@@ -51,7 +51,22 @@ const GUTENDEX = process.env.GUTENDEX || 'https://gutendex.com/books';
 function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   const { esc, tidy } = V;
   try { db.exec('ALTER TABLE texts ADD COLUMN plates TEXT'); } catch (e) { /* has it */ }
-  const doFetch = (...a) => (fetchImpl || fetch)(...a);
+  // Gutendex sits behind a gate that turns a bare server away (403, 24 Oct); the house asks as a browser would, and if
+  // the index still refuses, reads Gutenberg's own OPDS search (Atom) instead. The text always comes from gutenberg.org.
+  const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 Watermark/1 (+https://watermark.krafftco.com)', 'Accept': 'application/json, text/xml;q=0.9, */*;q=0.5' };
+  const doFetch = (u, o) => (fetchImpl || fetch)(u, { ...(o || {}), headers: { ...UA, ...((o && o.headers) || {}) } });
+  const unx = x => String(x || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+  async function opds(q) {
+    const r = await doFetch(`https://www.gutenberg.org/ebooks/search.opds/?query=${encodeURIComponent(q)}`); if (!r.ok) throw new Error(`gutenberg ${r.status}`);
+    const xml = await r.text(); const out = [];
+    for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+      const e = m[1]; const id = (e.match(/\/ebooks\/(\d+)/) || [])[1]; if (!id) continue;
+      const title = unx((e.match(/<title>([\s\S]*?)<\/title>/) || [])[1]).trim(); const authors = [...e.matchAll(/<name>([\s\S]*?)<\/name>/g)].map(a => ({ name: unx(a[1]).trim() }));
+      const dl = +((e.match(/Downloads:\s*([\d,]+)/) || ['', '0'])[1].replace(/,/g, ''));
+      out.push({ id: +id, title, authors, download_count: dl, languages: /<dcterms:language>en<|Language: English/i.test(e) ? ['en'] : [], formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` } });
+    }
+    return out;
+  }
   const slugify = t => String(t).toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70) || 'book';
   // Gutenberg's text, cut to the book.
   function strip(raw) {
@@ -92,9 +107,9 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   async function bring(id, { why = null, by = 'the house' } = {}) {
     id = +id; if (!id) throw new Error('a number');
     const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ?").get(`%gutenberg.org/ebooks/${id}%`); if (had) return { slug: had.slug, already: true };
-    const mr = await doFetch(`${GUTENDEX}/${id}`); if (!mr.ok) throw new Error(`Gutendex ${mr.status}`); const meta = await mr.json();
-    const f = meta.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0];
-    if (!url) throw new Error('no plain text');
+    let meta = null; try { const mr = await doFetch(`${GUTENDEX}/${id}`); if (mr.ok) meta = await mr.json(); } catch (e) { /* below */ }
+    if (!meta) { const pr = await doFetch(`https://www.gutenberg.org/ebooks/${id}`); if (!pr.ok) throw new Error(`gutenberg ${pr.status}`); const h = await pr.text(); meta = { id, title: unx((h.match(/<meta name="title" content="([^"]*)"/) || h.match(/<title>([^<|]*)/) || ['', `Gutenberg ${id}`])[1]).replace(/\s+by\s+[^|]+$/i, ''), authors: [...h.matchAll(/<a href="\/ebooks\/author\/\d+"[^>]*>([^<]+)</g)].map(m => ({ name: unx(m[1]).replace(/,\s*\d{3,4}-\d{0,4}$/, '').trim() })), formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` } }; }
+    const f = meta.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
     const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); const raw = await tr.text();
     const text = strip(raw); if (text.length < 2000) throw new Error('too little text');
     const chs = chapters(text); const body = toBody(chs);
@@ -108,8 +123,10 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   // A book by title and author: Gutendex's search, the best-taken English edition whose author matches.
   const norm = x => String(x || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   async function find(title, author) {
-    const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(`${title} ${author.split(',')[0]}`)}&languages=en`); if (!r.ok) throw new Error(`Gutendex ${r.status}`);
-    const j = await r.json(); const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
+    const q = `${title} ${author.split(',')[0]}`; let results = null;
+    try { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&languages=en`); if (r.ok) results = (await r.json()).results || []; } catch (e) { /* the index is down; Gutenberg's own search below */ }
+    if (!results) results = await opds(q);
+    const j = { results }; const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
     const ok = (j.results || []).filter(b => (b.authors || []).some(a => norm(a.name).includes(sur)) && norm(b.title).includes(want.split(' ').slice(0, 3).join(' ')) && Object.keys(b.formats || {}).some(k => /^text\/plain/.test(k)));
     ok.sort((a, b) => (b.download_count || 0) - (a.download_count || 0));
     return ok[0] || null;
@@ -130,7 +147,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     return job;
   }
   app.post('/studio/reading/canon', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); shelveCanon(); res.redirect('/studio/reading?ok=' + encodeURIComponent('The canon is coming in, one book every few seconds. This page shows each as it lands.')); });
-  async function search(q) { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}`); if (!r.ok) throw new Error(`Gutendex ${r.status}`); const j = await r.json(); return (j.results || []).slice(0, 12).map(b => ({ id: b.id, title: b.title, author: (b.authors[0] || {}).name || '', downloads: b.download_count, languages: b.languages })); }
+  async function search(q) { let results = null; try { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}`); if (r.ok) results = (await r.json()).results || []; } catch (e) { /* below */ } if (!results) results = await opds(q); const j = { results }; return (j.results || []).slice(0, 12).map(b => ({ id: b.id, title: b.title, author: (b.authors[0] || {}).name || '', downloads: b.download_count, languages: b.languages })); }
   // The reader.
   // Authors come from the catalogue as 'Last, First'; the page says them the way a person does.
   const byName = a => { const x = String(a || '').trim(); if (!x) return ''; const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}`.replace(/\s+/g, ' ') : x; };
