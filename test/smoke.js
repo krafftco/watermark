@@ -1402,8 +1402,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/studio/reading?q=long+walk', { cookie: ck }); assert.ok(r.status === 200 && /Bring in No\. 777/.test(r.body) && /Franklin’s shelf/.test(r.body) && /Pilgrim/.test(r.body), 'the search and the shelf');
     r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/on the shelf: 3 chapters/.test(decodeURIComponent(r.headers.location)), 'brought in: ' + r.headers.location);
     const bk = db.prepare("SELECT * FROM texts WHERE source='https://www.gutenberg.org/ebooks/777'").get(); assert.ok(bk && bk.kind === 'book' && bk.author === 'Walker, A.' && bk.public === 1 && bk.price_cents == null, 'a free book on the shelf');
-    assert.ok(!/Project Gutenberg|License text|Produced by/.test(bk.body) && /^## THE LONG WALK|## CHAPTER I\./m.test(bk.body) && /## CHAPTER II\. THE RIVER/.test(bk.body), 'the boilerplate gone, the chapters marked: ' + bk.body.slice(0, 120));
-    r = await req(port, 'GET', `/read/${bk.slug}`); assert.equal(r.status, 200); const pg = r.body.toString(); assert.ok(/class="rdr"/.test(pg) && /class="rdp"/.test(pg) && /rdr-toc/.test(pg) && /CHAPTER II\. THE RIVER/.test(pg) && /Water, at last/.test(pg) && /read\.js/.test(pg), 'the reading room');
+    assert.ok(!/Project Gutenberg|License text|Produced by/.test(bk.body) && /^## The Long Walk|## Chapter I\./m.test(bk.body) && /## Chapter II\. The River/.test(bk.body), 'the boilerplate gone, the chapters marked: ' + bk.body.slice(0, 120));
+    r = await req(port, 'GET', `/read/${bk.slug}`); assert.equal(r.status, 200); const pg = r.body.toString(); assert.ok(/class="rdr"/.test(pg) && /class="rdp"/.test(pg) && /rdr-toc/.test(pg) && /Chapter II\. The River/.test(pg) && /Water, at last/.test(pg) && /read\.js/.test(pg), 'the reading room');
     r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Read it in the reading room/.test(r.body), 'the Library opens the room');
     r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/Already/.test(decodeURIComponent(r.headers.location)), 'never twice');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
@@ -1416,7 +1416,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/studio/reading', { cookie: ck }); assert.ok(/The first shelf/.test(r.body) && /Shelve the canon/.test(r.body) && /Meditations/.test(r.body), 'the canon on the desk');
     r = await req(port, 'POST', '/studio/reading/canon', { cookie: ck }); assert.equal(r.status, 302);
     for (let i = 0; i < 400 && RD.job.on; i++) await new Promise(x => setTimeout(x, 50));
-    const med = db.prepare("SELECT * FROM texts WHERE source LIKE '%ebooks/2680%'").get(); assert.ok(med && med.kind === 'book' && /BOOK II/.test(med.body) && /One of the first shelf/.test(med.summary), 'Meditations on the shelf');
+    const med = db.prepare("SELECT * FROM texts WHERE source LIKE '%ebooks/2680%'").get(); assert.ok(med && med.kind === 'book' && /Book II/.test(med.body) && /One of the first shelf/.test(med.summary), 'Meditations on the shelf');
     assert.ok(RD.job.missed.length >= RD.CANON.length - 2, 'the rest reported not found, not guessed');
     r = await req(port, 'GET', '/publishing'); assert.ok(r.status === 200 && /Watermark Publishing\./.test(r.body) && /pub-card/.test(r.body) && /Meditations/.test(r.body) && /Publish with the house/.test(r.body), 'the imprint');
     // A photo book from a wall: each plate a page, the first the cover, read in the room.
