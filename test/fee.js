@@ -22,7 +22,7 @@ const FEE = require('../src/fee');
   db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
   // The wall shows the total; the API says the price and the split.
   let r = await fetch(B + `/w/${w.slug}`); let t = await r.text();
-  assert.ok(t.includes('$7') && t.includes('The price is the photographer’s'), 'the Collect at $7, said plainly');
+  assert.ok(t.includes('$7') && t.includes('The price is the maker’s'), 'the Collect at $7, said plainly');
   r = await fetch(B + `/api/v1/works/${w.slug}`); const j = await r.json(); const col = j.uses.find(u => u.key === 'social'); assert.equal(col.price_cents, 700, 'the API carries what the collector pays');
   r = await fetch(B + `/api/eye/${w.slug}`); const eye = await r.json(); assert.ok(/every dollar/.test(eye.paid) && /\$2\b/.test(eye.paid), 'the eye says the split');
   // A Collect paid by Checkout: the license is $7 with $2 the house's; the maker's statement says $5.
