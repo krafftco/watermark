@@ -21,7 +21,13 @@
   function sec() { return main.querySelector('.rdr-ch[data-ch="' + at + '"]'); }
   function depth() { var s = sec(); if (!s) return 0; if (paged()) return s.scrollLeft / Math.max(1, s.scrollWidth - s.clientWidth); return window.scrollY / Math.max(1, document.body.scrollHeight - innerHeight); }
   function keep() { if (!cover.hidden) return; S.c = at; S.y = depth(); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } prog(); }
-  function prog() { var p = main.querySelector('[data-rd-prog]'); if (p) p.style.width = Math.round(100 * (at + depth()) / R.n) + '%'; }
+  function prog() {
+    var p = main.querySelector('[data-rd-prog]'); if (p) p.style.width = Math.round(100 * (at + depth()) / R.n) + '%';
+    // The running head and foot in Pages: the chapter's name top right, the page count below, as a printed book has.
+    var s = sec(), hr = main.querySelector('[data-rd-head-r]'), ft = main.querySelector('[data-rd-foot]');
+    if (hr) { var h2 = s && s.querySelector('h2'); hr.textContent = h2 ? h2.textContent : ''; }
+    if (ft && s && paged()) { var w = s.clientWidth || 1, pages = Math.max(1, Math.round(s.scrollWidth / w)), pg = Math.min(pages, Math.round(s.scrollLeft / w) + 1); ft.textContent = (R.n > 1 ? 'Chapter ' + (at + 1) + ' of ' + R.n + ' \u00b7 ' : '') + 'p. ' + pg + ' of ' + pages; }
+  }
   function show(i, y) {
     i = Math.max(0, Math.min(R.n - 1, i)); at = i; cover.hidden = true;
     var secs = main.querySelectorAll('.rdr-ch'); for (var k = 0; k < secs.length; k++) secs[k].hidden = (+secs[k].getAttribute('data-ch') !== i);
@@ -62,7 +68,7 @@
     var s = e.target.closest('[data-rd-size]'); if (s) { pref.size = Math.max(15, Math.min(30, (pref.size || 20) + (s.getAttribute('data-rd-size') === '+' ? 1 : -1))); apply(); savePref(); return; }
     var th = e.target.closest('button[data-rd-theme]'); if (th) { pref.theme = { paper: 'sepia', sepia: 'night', night: 'paper' }[pref.theme || 'paper']; apply(); savePref(); return; }
     // In Pages, a tap on the text's right third turns forward, the left third back.
-    if (paged() && cover.hidden && e.target.closest('.rdr-ch') && !e.target.closest('a, button')) { var r = page.getBoundingClientRect(), f = (e.clientX - r.left) / r.width; if (f > 0.66) turn(1); else if (f < 0.34) turn(-1); }
+    if (paged() && cover.hidden && e.target.closest('.rdr-ch') && !e.target.closest('a, button')) { var r = page.getBoundingClientRect(), f = (e.clientX - r.left) / r.width; if (f > 0.66) turn(1); else if (f < 0.34) turn(-1); else { main.classList.toggle('rdr-still'); clearTimeout(still); if (!main.classList.contains('rdr-still')) still = setTimeout(function () { main.classList.add('rdr-still'); }, 4000); } }
   });
   document.addEventListener('keydown', function (e) {
     if (e.target.closest('input,textarea')) return;
@@ -71,6 +77,10 @@
     else if (e.key === 'Escape') { var p = main.querySelector('[data-rd-toc-panel]'); if (p) p.hidden = true; }
   });
   var t0 = null; addEventListener('scroll', function () { clearTimeout(t0); t0 = setTimeout(keep, 400); }, { passive: true });
+  // Two fingers set the size (the Duo: pinch the type, not the page).
+  var pd0 = 0, ps0 = 0; main.addEventListener('touchstart', function (e) { if (e.touches.length === 2) { pd0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); ps0 = pref.size || 20; } }, { passive: true });
+  main.addEventListener('touchmove', function (e) { if (e.touches.length === 2 && pd0) { e.preventDefault(); var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); var nz = Math.max(15, Math.min(30, Math.round(ps0 * d / pd0))); if (nz !== pref.size) { pref.size = nz; apply(); } } }, { passive: false });
+  main.addEventListener('touchend', function (e) { if (pd0 && e.touches.length < 2) { pd0 = 0; savePref(); if (paged()) show(at, depth()); } }, { passive: true });
   page.addEventListener('scroll', function () { clearTimeout(t0); t0 = setTimeout(keep, 300); }, { passive: true, capture: true });
   // A swipe in Pages turns the page; the columns scroll-snap, so the finger does most of it.
   addEventListener('resize', function () { if (paged()) { var y = depth(); show(at, y); } });
