@@ -1395,6 +1395,25 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'X', source_url: 'http://insecure.example/x.mp4' } }); assert.ok(/https address/.test(decodeURIComponent(r.headers.location)), 'only the house’s own https sources');
   }
   console.log('ok: the Screening Room');
+  { // The Listening Room: a record from the Archive, cleared at the door; an NC record turned away; played whole in the room.
+    const prev = app.locals.__fetch;
+    const meta = id => ({ metadata: { identifier: id, title: id === '78_old' ? 'Ain\'t We Got Fun' : 'A Late Record', creator: id === '78_old' ? 'Van and Schenck' : 'Someone', year: id === '78_old' ? '1921' : '1948', collection: ['georgeblood', '78rpm'], description: 'A 78.' }, files: [{ name: 'side-a.mp3', title: 'Side A', length: '183.2', track: '1' }, { name: 'side-a_spectrogram.png' }, { name: 'side-b.mp3', title: 'Side B', length: '3:02', track: '2' }, { name: 'side-b.flac', length: '182' }] });
+    app.locals.__fetch = async (u) => { u = String(u); const m = u.match(/\/metadata\/([^/?]+)/); if (m) return { ok: true, json: async () => m[1] === 'nc_one' ? { metadata: { title: 'An NC record', licenseurl: 'http://creativecommons.org/licenses/by-nc/4.0/' }, files: [{ name: 'a.mp3' }] } : meta(m[1]) }; if (/advancedsearch/.test(u)) return { ok: true, json: async () => ({ response: { docs: [{ identifier: '78_old', title: 'Ain\'t We Got Fun', creator: 'Van and Schenck', year: '1921', collection: ['georgeblood'] }] } }) }; return prev ? prev(u) : { ok: false, status: 599 }; };
+    r = await req(port, 'GET', '/studio/listening?q=fun', { cookie: ck }); assert.ok(r.status === 200 && /Ain.{1,6}t We Got Fun/.test(r.body) && /Public domain/.test(r.body), 'the Archive searched and read at the door');
+    r = await req(port, 'POST', '/studio/listening/bring', { cookie: ck, body: { id: 'https://archive.org/details/78_old' } }); assert.ok(/On the shelf: Ain/.test(decodeURIComponent(r.headers.location)) && /2 tracks/.test(decodeURIComponent(r.headers.location)), 'brought in: ' + r.headers.location);
+    r = await req(port, 'POST', '/studio/listening/bring', { cookie: ck, body: { id: 'nc_one' } }); assert.ok(/non-commercial/.test(decodeURIComponent(r.headers.location)), 'NC turned away');
+    r = await req(port, 'POST', '/studio/listening/bring', { cookie: ck, body: { id: '78_late' } }); assert.ok(/not yet public domain/.test(decodeURIComponent(r.headers.location)), 'a 1948 78 turned away');
+    const rec = db.prepare("SELECT * FROM recordings WHERE ia_id='78_old'").get(); assert.ok(rec && rec.license === 'pd' && rec.year === '1921' && JSON.parse(rec.files).length === 2 && JSON.parse(rec.files)[1].seconds === 182 && /side-a\.mp3$/.test(JSON.parse(rec.files)[0].url), 'the record: pd, two sides, the mp3 over the flac, the lengths read');
+    r = await req(port, 'GET', '/listening/' + rec.slug); assert.equal(r.status, 404, 'shelved is not shown');
+    r = await req(port, 'POST', '/studio/listening/' + rec.id, { cookie: ck, body: { title: rec.title, performer: rec.performer, year: rec.year, line: 'A side for the evening.', chosen_by: 'the house', status: 'playing' } }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', '/listening'); assert.ok(r.status === 200 && /On the turntable/.test(r.body) && /Ain.{1,6}t We Got Fun/.test(r.body) && /The shellac/.test(r.body), 'the door');
+    r = await req(port, 'GET', '/listening/' + rec.slug); assert.ok(r.status === 200 && /data-lr-audio/.test(r.body) && /archive\.org\/download\/78_old\/side-a\.mp3/.test(r.body) && /Side B/.test(r.body) && /From the Internet Archive, 78_old/.test(r.body) && /A side for the evening/.test(r.body), 'the room: the platter, both sides, the credit');
+    r = await req(port, 'GET', '/keys'); assert.ok(/On the turntable/.test(r.body), 'the Keys card opens');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='recording.playing' AND subject=?").get(rec.slug), 'told on the register');
+    r = await req(port, 'GET', '/ledger'); assert.ok(/is on the turntable/.test(r.body) && !/Listening Room shelved/.test(r.body), 'the playing shown, the shelving hidden');
+    app.locals.__fetch = prev;
+  }
+  console.log('ok: the Listening Room');
   { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
     const prev = app.locals.__fetch;
     const raw = ['The Project Gutenberg eBook of The Long Walk', '', '*** START OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'Produced by Someone', '', 'THE LONG WALK', '', 'By A. Walker', '', 'CHAPTER I.', '', 'It was a long walk, and the road was ' + 'dusty '.repeat(120) + '.', '', 'The second paragraph went on.', '', 'CHAPTER II. THE RIVER', '', 'Water, at last. ' + 'More water. '.repeat(100), '', '*** END OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'License text that is not the book.'].join('\n');

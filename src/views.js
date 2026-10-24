@@ -139,7 +139,7 @@ let deskInstitution = false; const setDeskInstitution = v => { deskInstitution =
 const DESK_GROUPS = [
   ['Work', [['/studio/works', 'Add work'], ['/studio/masters', 'Masters'], ['/studio/editions', 'Editions'], ['/studio/uses', 'Prices'], ['/studio/copyright', 'Copyright Office'], ['/studio/fixity', 'Conservation'], ['/studio/restoration', 'Restoration'], ['/studio/library', 'Library'], ['/studio/iiif', 'Collections in']]],
   ['People', [['/studio/accounts', 'Accounts'], ['/studio/founders', 'Founders'], ['/studio/committee', 'The committees'], ['/studio/hosts', 'Hosts'], ['/studio/clients', 'Companies'], ['/studio/partners', 'Partners'], ['/studio/rights', 'Rights desks'], ['/studio/hall', 'Hall of Patrons']]],
-  ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
+  ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/listening', 'Listening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
   ['House', [['/studio/analytics', 'The numbers'], ['/studio/launch', 'Launch'], ['/studio/feedback', 'Feedback'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/audit', 'Audit'], ['/studio/backups', 'Backups'], ['/studio/door', 'The door']]],
 ];
 const MAKER_MORE = [['/account/writing', 'Writing'], ['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];

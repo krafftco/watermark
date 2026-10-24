@@ -14,7 +14,7 @@ function securityHeaders(base) {
   const csp = [
     "default-src 'self'",
     "img-src 'self' data: blob: https:",
-    "media-src 'self' blob:",
+    "media-src 'self' blob: https://archive.org https://*.archive.org",
     "script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdnjs.cloudflare.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
