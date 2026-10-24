@@ -18,6 +18,9 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     royalties: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house')"),
     paid: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE maker_id=? AND status='paid'"),
     rows: db.prepare('SELECT * FROM maker_payouts WHERE maker_id=? ORDER BY id DESC LIMIT 60'),
+    // The printing house (24 Oct): words sold from the Library (the maker's price, the house's share having ridden on top; else the share) and copies sold from the shelf (the seller's price, whole).
+    words: (id, pct) => { try { return db.prepare(`SELECT COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0`).get(pct, id); } catch (e) { return { s: 0, m: 0, n: 0 }; } },
+    copies: id => { try { return db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1").get(id); } catch (e) { return { s: 0, n: 0 }; } },
   };
   // The statement: gross by kind, the maker's share, what has gone out, what is owed.
   function statement(m) {
@@ -26,8 +29,9 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const share = L.m;
     const G = app.locals.galleries ? { out: app.locals.galleries.cutsOut(m), in: app.locals.galleries.cutsIn(m) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
     const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
-    const earned = share + T.s + R.s - G.out.s + G.in.s - S.s;
-    return { pct, licensed: L, share, thanks: T, royalties: R, gallery: G, splits: S, earned, paid: P, owed: Math.max(0, earned - P), rows: q.rows.all(m.id) };
+    const W = q.words(m.id, pct), Cp = q.copies(m.id);
+    const earned = share + T.s + R.s + W.m + Cp.s - G.out.s + G.in.s - S.s;
+    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, gallery: G, splits: S, earned, paid: P, owed: Math.max(0, earned - P), rows: q.rows.all(m.id) };
   }
   // Pay what is owed, when the maker can be paid and the house is set to pay.
   async function pay(m, { by = 'house' } = {}) {
@@ -113,6 +117,8 @@ ${notice ? `<p class="${/paid|bank/.test(ok) ? 'ok' : 'note'}">${esc(notice)}</p
 ${row('Licensed', money(st.licensed.s), `${st.licensed.n} sale${st.licensed.n === 1 ? '' : 's'}; your ${st.pct}% is ${money(st.share)}`)}
 ${row('Thank-you cards and tips', money(st.thanks.s), `${st.thanks.n}, yours whole`)}
 ${row('Royalties', money(st.royalties.s), `${st.royalties.n} resale${st.royalties.n === 1 ? '' : 's'}`)}
+${st.words && st.words.n ? row('Writing sold', money(st.words.m), `${st.words.n} cop${st.words.n === 1 ? 'y' : 'ies'} from the Library${FEE.on() ? ', your price whole' : ''}`) : ''}
+${st.copies && st.copies.n ? row('Copies from your shelf', money(st.copies.s), `${st.copies.n} shipped, yours whole`) : ''}
 ${st.splits && st.splits.n ? row('To your collaborators', '&minus;' + money(st.splits.s), Object.keys(st.splits.by).map(k => `${k} ${money(st.splits.by[k])}`).join(' · ')) : ''}
 ${st.gallery && st.gallery.out.n ? row('To your gallery', '&minus;' + money(st.gallery.out.s), `${st.gallery.out.n} sale${st.gallery.out.n === 1 ? '' : 's'}, their agreed share of your side`) : ''}
 ${st.gallery && st.gallery.in.n ? row('Representation', money(st.gallery.in.s), `${st.gallery.in.n} sale${st.gallery.in.n === 1 ? '' : 's'} of your artists' work`) : ''}

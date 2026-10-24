@@ -1480,6 +1480,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/press'); assert.ok(r.status === 200 && /The printing house\./.test(r.body) && /Franklin/.test(r.body), 'the printing house, as the public reads it');
   }
   console.log('ok: the printing house');
+  { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
+    const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
+    r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);
+    const px = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get();
+    r = await req(port, 'GET', `/read/${px.slug}.pdf`); assert.equal(r.status, 302, 'a priced text turns a stranger to its page');
+    r = await req(port, 'GET', `/read/${px.slug}.pdf`, { cookie: mck }); assert.equal(r.status, 200, 'the maker takes their own');
+  }
+  console.log('ok: the house’s edition');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
