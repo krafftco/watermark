@@ -3616,3 +3616,10 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .bs-for{padding-top:28px;border-top:1px solid rgba(0,0,0,.1);max-width:42em}
 .bs-o{max-width:40em;margin:0 auto;padding:60px 20px}.bs-of{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;max-width:760px}.bs-of .buy-btn{grid-column:1/-1;justify-self:start}
 @media(max-width:760px){.bs-copy{grid-template-columns:1fr}.bs-front{padding:28px 16px 56px}.bs-row{grid-auto-columns:150px;gap:14px}.bs-of{grid-template-columns:1fr}}
+/* A page from the shelf in Wander (24 Oct): the chapter's opening on the dark wall, set as the reading room sets it. */
+.st-i.st-txt{display:grid;place-items:center;padding:0 clamp(20px,6vw,80px)}
+.st-tx{max-width:32em;color:#ece7dc;font-family:var(--read);font-size:clamp(17px,2.2vw,21px);line-height:1.55}.st-tx .k{font-family:var(--sans);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#a39b8e;margin:0 0 18px}.st-tx h2{font-family:var(--disp);font-weight:400;font-size:clamp(28px,4.4vw,44px);line-height:1.05;margin:0 0 6px;color:#f6f1e7;text-transform:none;letter-spacing:-.01em}.st-txa{font-style:italic;color:#cdc5b6;margin:0 0 22px}.st-txh{font-family:var(--sans);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a39b8e;margin:0 0 14px}
+.st-txb p{margin:0;text-indent:1.4em;hyphens:auto;text-wrap:pretty}.st-txb p:first-child{text-indent:0}.st-txb p:first-child::first-letter{font-size:2.6em;line-height:.8;float:left;margin:.06em .08em 0 0}
+.st-txgo{display:inline-block;margin-top:26px;font-family:var(--sans);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#f6f1e7;text-decoration:none;border:1px solid rgba(246,241,231,.5);border-radius:999px;padding:10px 18px}.st-txgo:hover{border-color:#f6f1e7}
+.st-txb{max-height:46svh;overflow:hidden;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
+@media(max-width:760px){.st-tx{font-size:17px}.st-txb{max-height:50svh}}

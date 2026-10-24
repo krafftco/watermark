@@ -18,7 +18,13 @@
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
 
   function screenFor(w) {
-    var el = document.createElement('section'); el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
+    var el = document.createElement('section');
+    if (w.kind === 'text') {
+      el.className = 'st-i st-txt'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'text');
+      el.innerHTML = '<article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a></article>';
+      return el;
+    }
+    el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
       + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
@@ -74,7 +80,7 @@
   if (!navigator.onLine && pack.length && !set) { var open0 = fromPack(8); if (open0.length) { scroller.querySelectorAll('.st-i').forEach(function (el) { el.remove(); }); items = {}; order = []; seen = []; open0.forEach(function (w) { var el = screenFor(w); scroller.appendChild(el); register(w, el); }); lost(); } }
   setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
-  function stood(slug, s) { if (!slug || s < 2) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
+  function stood(slug, s) { if (!slug || s < 2 || /^t:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
   function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the

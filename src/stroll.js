@@ -24,7 +24,24 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const out = []; let pi = 0;
     for (let i = 0; i < rows.length && out.length < n; i++) { if (pi < picks.length && i % 3 === 1) out.push(picks[pi++]); out.push(rows[i]); }
     while (pi < picks.length && out.length < n) out.push(picks[pi++]);
-    return out.slice(0, n).map(w => wanderJSON(w, req));
+    const items = out.slice(0, n).map(w => wanderJSON(w, req));
+    // Wander across everything (Will, 24 Oct, after StumbleUpon): in the open wander, every sixth screen or so is a
+    // page from the shelf, a chapter's opening set on the wall, with Read on. Never in a set, a word or a maker's walk.
+    if (!q && !mk && items.length >= 4) { const t = textScreen(seen); if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
+    return items;
+  }
+  // A page from the shelf: a public book with a body, a chapter at random, its first paragraphs.
+  const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
+  function textScreen(seen) {
+    let t; try { t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY RANDOM() LIMIT 1").get(); } catch (e) { return null; }
+    if (!t) return null;
+    const chs = []; let cur = { head: null, paras: [] };
+    for (const p of String(t.body).split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^##?\s/.test(p)) { if (cur.head || cur.paras.length) chs.push(cur); cur = { head: p.replace(/^#+\s*/, ''), paras: [] }; } else if (p !== '* * *') cur.paras.push(p); }
+    if (cur.head || cur.paras.length) chs.push(cur);
+    const good = chs.map((c, i) => ({ ...c, i })).filter(c => c.paras.join(' ').length > 400); if (!good.length) return null;
+    const c = good[Math.floor(Math.random() * good.length)]; const slug = `t:${t.slug}:${c.i}`; if (seen.includes(slug)) return null;
+    const ex = []; let len = 0; for (const p of c.paras) { if (len > 520) break; ex.push(p); len += p.length; }
+    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
   }
   // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
   // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.
@@ -140,7 +157,8 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
 function strollPage({ items, q = '', maker = null, set = null, I }) {
   const V = require('./views');
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
-  const card = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
+  const textCard = w => `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text"><article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a></article></section>`;
+  const card = (w, i) => w.kind === 'text' ? textCard(w) : `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
 <button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
