@@ -1455,6 +1455,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     void sent0;
   }
   console.log('ok: the Bookshop');
+  { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
+    r = await req(port, 'GET', '/'); assert.ok(/class="tdy"/.test(r.body) && /Today, /.test(r.body) && /Stand before it/.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door');
+    const N = app.locals.notify; assert.ok(N.KINDS.daily && N.KINDS.daily.on, 'a kind, on by default');
+    const b0 = db.prepare('SELECT id FROM buyers ORDER BY id LIMIT 1').get();
+    db.prepare("INSERT OR IGNORE INTO push_subs (buyer_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/x', 'k', 'a')").run(b0.id);
+    const n1 = await N.daily({ force: true }); assert.ok(n1 >= 1, 'told: ' + n1);
+    const nt = db.prepare("SELECT * FROM notices WHERE kind='daily' ORDER BY id DESC LIMIT 1").get(); assert.ok(nt && /^Today: /.test(nt.title) && /today=1/.test(nt.href), 'the notice names the work');
+    assert.equal(await N.daily(), 0, 'never twice in a day');
+  }
+  console.log('ok: one work a day');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }

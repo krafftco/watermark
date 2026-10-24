@@ -26,7 +26,8 @@ const KINDS = {
   night: { who: 'both', label: 'A night of the season opens, or a place is yours', on: true },
   card: { who: 'both', label: 'A card is left for you, or someone says yes to yours', on: true },
   circle: { who: 'both', label: 'The Club', on: true },
-  kept: { who: 'maker', label: 'Someone keeps a photograph from an album you sent', on: true },
+  kept: { who: 'maker', label: 'Someone keeps a work from an album you sent', on: true },
+  daily: { who: 'both', label: 'The work of the day, each morning at nine', on: true },
 };
 
 function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl }) {
@@ -131,7 +132,24 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
   const me = req => { const m = makerOf(req), b = buyerOf(req); return { maker_id: m ? m.id : null, buyer_id: b ? b.id : null, m, b }; };
   const mine = (w, sql = '', args = []) => { const p = [], a = []; if (w.maker_id) { p.push('maker_id=?'); a.push(w.maker_id); } if (w.buyer_id) { p.push('buyer_id=?'); a.push(w.buyer_id); } return p.length ? { where: `(${p.join(' OR ')})${sql}`, args: [...a, ...args] } : null; };
   const unread = w => { const q = mine(w, ' AND read_at IS NULL'); return q ? db.prepare(`SELECT COUNT(*) n FROM notices WHERE ${q.where}`).get(...q.args).n : 0; };
-  app.locals.notify = { tell, unread, KINDS, vapid };
+  // One work a day (Will, 24 Oct: "we want people to come all the time"): at DAILY_HOUR in New York, every device that
+  // asked is told today's work, by name, with the guide's first line; once a day, never twice (settings daily_<day>).
+  const DAILY_HOUR = +(process.env.DAILY_HOUR || 9);
+  async function daily({ force = false } = {}) {
+    const t = app.locals.todays && app.locals.todays(); if (!t) return 0;
+    const hour = +new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' });
+    if (!force && hour < DAILY_HOUR) return 0;
+    const key = `daily_${t.day}`; if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return 0;
+    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    const owners = db.prepare('SELECT DISTINCT maker_id, buyer_id FROM push_subs').all(); let n = 0;
+    for (const o of owners) {
+      if (!o.maker_id && !o.buyer_id) continue;
+      await tell({ maker_id: o.maker_id, buyer_id: o.buyer_id, kind: 'daily', slug: t.slug, href: `/w/${t.slug}?today=1`, title: `Today: ${V.tidy(t.title)}`, body: t.line || [t.maker, t.place].filter(Boolean).join(' · ') }); n++;
+    }
+    return n;
+  }
+  if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') { const tick = () => daily().catch(e => console.error('[daily]', e.message)); setTimeout(tick, 60e3).unref(); setInterval(tick, 10 * 60e3).unref(); }
+  app.locals.notify = { tell, unread, KINDS, vapid, daily };
 
   app.get('/api/notices', (req, res) => {
     const w = me(req); const q = mine(w); res.set('Cache-Control', 'no-store');

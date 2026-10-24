@@ -571,7 +571,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const pool = rows.length >= 7 ? rows : db.prepare("SELECT id, slug, title, place, width, height FROM works WHERE status='held' ORDER BY id").all();
     if (!pool.length) return null;
     const h = crypto.createHash('sha1').update('today:' + day).digest(); const i = h.readUInt32BE(0) % pool.length;
-    return { ...pool[i], day };
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(pool[i].id) || pool[i]; const m = mk(w) || {};
+    let line = null; try { const c = w.closer ? JSON.parse(w.closer) : null; if (c && c.text) line = String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 180); } catch (e) { /* no guide */ }
+    return { ...pool[i], day, maker: m.name || null, makerSlug: m.handle ? V.makerSlug(m) : null, line, year: w.taken_at ? String(w.taken_at).slice(0, 4) : null };
   }
   app.locals.todays = todays;
   app.get('/today', (req, res) => { const t = todays(); res.redirect(t ? `/w/${t.slug}?today=1` : '/collection'); });
