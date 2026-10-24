@@ -60,12 +60,13 @@ function mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf
     let b = buyerOf(req);
     if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', NULL)").run().lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
     const ref = nextRef();
-    db.prepare('INSERT INTO text_orders (ref, text_id, buyer_id, email, price_cents, status) VALUES (?,?,?,?,?,?)').run(ref, t.id, b.id, b.email || null, t.price_cents, 'pending');
+    const FEE = require('./fee'); const total = FEE.on() && t.maker_id ? t.price_cents + FEE.premium(t.price_cents) : t.price_cents; // the maker's price; the house's share on top
+    db.prepare('INSERT INTO text_orders (ref, text_id, buyer_id, email, price_cents, status) VALUES (?,?,?,?,?,?)').run(ref, t.id, b.id, b.email || null, total, 'pending');
     if (!t.price_cents) { settle(ref, null); return res.redirect(`/library/${t.slug}?ok=taken`); }
     if (!stripe) return res.redirect(`/library/${t.slug}?ok=nopay`);
     try {
       const s = await stripe.checkout.sessions.create({ mode: 'payment', ...(b.customer ? { customer: b.customer } : { customer_creation: 'always' }),
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: t.price_cents, product_data: { name: `${tidy(t.title)} — a copy from the Watermark Library`, description: `${kindName(t.kind)}${t.author ? ` by ${t.author}` : ''}. Yours to keep and read; not for republication.` } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: total, product_data: { name: `${tidy(t.title)} — a copy from the Watermark Library`, description: `${kindName(t.kind)}${t.author ? ` by ${t.author}` : ''}. Yours to keep and read; not for republication.` } } }],
         metadata: { library: ref }, payment_intent_data: { metadata: { library: ref } },
         success_url: `${C.base}/library/${t.slug}/thanks?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/library/${t.slug}` });
       db.prepare('UPDATE text_orders SET stripe_session=? WHERE ref=?').run(s.id, ref);

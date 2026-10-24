@@ -142,7 +142,7 @@ const DESK_GROUPS = [
   ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
   ['House', [['/studio/analytics', 'The numbers'], ['/studio/launch', 'Launch'], ['/studio/feedback', 'Feedback'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/audit', 'Audit'], ['/studio/backups', 'Backups'], ['/studio/door', 'The door']]],
 ];
-const MAKER_MORE = [['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];
+const MAKER_MORE = [['/account/writing', 'Writing'], ['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];
 function deskHeader(path = '') {
   path = path || deskPath;
   const maker = /^\/(account|yours|closer)/.test(path);
@@ -176,7 +176,7 @@ const FOOT = [
   ['Look', [['/wander', 'Wander'], ['/start', 'How it works'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/today', 'Today’s work']]],
   ['Collect', [['/yours', 'Yours'], ['/market', 'Market'], ['/verify', 'Check a work'], ['/own', 'You already own it'], ['/print', 'Print your work']]],
   ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/club', 'The Club'], ['/guides', 'Guides'], ['/kids', 'The kids’ corner'], ['/library', 'The Library']]],
-  ['The house', [['/about', 'About'], ['/publishing', 'Publishing'], ['/bookshop', 'The Bookshop'], ['/director', 'The director'], ['/ledger', 'The register'], ['/friends', 'Friends of the house'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
+  ['The house', [['/about', 'About'], ['/press', 'The printing house'], ['/publishing', 'Publishing'], ['/bookshop', 'The Bookshop'], ['/director', 'The director'], ['/ledger', 'The register'], ['/friends', 'Friends of the house'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
 ];
 function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;
@@ -749,7 +749,7 @@ ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 }
 
 // The moment after paying.
-function makerPage({ museum = '', keys = [], edit = null, introduced = null, rep = null, m, slug, works, collectors, patrons, wall, series, levels, once, open, mine = [], stories = [], lines = [], applause = 0, years = [], collects = null }) {
+function makerPage({ press = '', museum = '', keys = [], edit = null, introduced = null, rep = null, m, slug, works, collectors, patrons, wall, series, levels, once, open, mine = [], stories = [], lines = [], applause = 0, years = [], collects = null }) {
   // Every maker's home, set the way Will's own site is set: a line about who they are, one photograph on a wall,
   // the latest from Studios, the series, recent photographs, then writing and the house, side by side.
   const wide = w => (w.width || 0) >= 1800 && w.width > w.height * 1.3;
@@ -769,6 +769,7 @@ ${m.site || m.instagram || (m.links && m.links !== '[]') ? `<p class="mk-links">
 ${cover ? `<figure class="mh-plate"><a href="/w/${esc(cover.slug)}" style="--r:${cover.width && cover.height ? (cover.width / cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(cover.slug)}/large" alt="${esc(tidy(cover.title))}" fetchpriority="high" draggable="false"></a><figcaption>${esc(tidy(cover.title).replace(/[.\s]+$/, ''))}${cover.place ? `, ${esc(cover.place)}` : ''} · <a href="/w/${esc(cover.slug)}">See the work</a></figcaption></figure>` : ''}</div></section>
 <section class="mh-stats"><div class="mh-wrap"><p class="mk-stats"><span><b>${works.length}</b> works</span><span><b>${collectors}</b> collector${collectors === 1 ? '' : 's'}</span><span><b>${applause}</b> tip${applause === 1 ? '' : 's'} of the hat</span><span><b>${patrons}</b> patron${patrons === 1 ? '' : 's'}</span>${m.kind === 'institution' ? `<span><b>${works.filter(w => w.open).length}</b> open access</span>` : `<span class="mk-split">${FEE.on() ? `The price is <b>${esc(first)}&rsquo;s</b>, every dollar` : `<b>85%</b> of every sale is ${esc(first)}&rsquo;s`}</span>`}</p></div></section>${museum || ''}
 ${stories.length ? `<section class="mh-sec"><div class="mh-wrap"><header class="gh"><h2>Latest, from Studios</h2><a class="wk-more" href="https://studios.krafftco.com/author/${esc(makerSlug(m))}/">Everything</a></header><div class="mh-cards">${stories.slice(0, 3).map(story).join('')}</div></div></section>` : ''}
+${press}
 ${series.length ? `<section class="mh-sec"><div class="mh-wrap"><header class="gh"><h2>Series</h2><a class="wk-more" href="/collection">The collection</a></header><div class="mh-cards">${series.map(x => `<a class="wk-card" href="/series/${esc(x.slug)}"><span class="wk-card-kicker">A series</span><b class="wk-card-title">${esc(x.title)}</b>${x.note ? `<span class="wk-card-text">${esc(x.note)}</span>` : ''}</a>`).join('')}</div></div></section>` : ''}
 ${years.length > 1 ? `<section class="mh-sec"><div class="mh-wrap"><header class="gh"><h2>The body of work</h2><span>${works.length} works · ${years.length} years</span></header>
 <p class="lede mh-lede">An artist is a body of work, not one picture. Here it is, year by year, the most regarded of each first; everything kept.</p>

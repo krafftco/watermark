@@ -1465,6 +1465,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(await N.daily(), 0, 'never twice in a day');
   }
   console.log('ok: one work a day');
+  { // The printing house: a maker publishes words from the studio; they stand on the maker's page, in the Library, in the reading room, on the register; the house's share rides on a priced text.
+    const mkc = (await req(port, 'GET', '/account', { cookie: mck })).status === 200 ? mck : null; assert.ok(mkc, 'a maker signed in');
+    const body = Array.from({ length: 12 }, (_, i) => `Paragraph ${i + 1}. On looking at a photograph for longer than a glance, something changes in the looker, and that change is the subject of this short essay, written from the studio.`).join('\n\n');
+    r = await req(port, 'POST', '/account/writing', { cookie: mck, body: { title: 'On Looking Longer', kind: 'essay', summary: 'A short essay from the studio.', body, price: '4', public: '1' } }); assert.equal(r.status, 302, 'published: ' + (r.headers.location || r.status));
+    const tx = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get(); assert.ok(tx && tx.maker_id && tx.price_cents === 400 && tx.public === 1 && /All rights reserved/.test(tx.terms), 'a priced essay under the maker');
+    const mkr = db.prepare('SELECT * FROM makers WHERE id=?').get(tx.maker_id);
+    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(/pw-sec/.test(r.body) && /On Looking Longer/.test(r.body) && /Writing/.test(r.body), 'on the maker’s page');
+    r = await req(port, 'GET', `/read/${tx.slug}`); assert.ok(r.status === 200 && /On Looking Longer/.test(r.body) && /Published by the house|house’s edition/.test(r.body), 'in the reading room');
+    r = await req(port, 'GET', '/account/writing', { cookie: mck }); assert.ok(/On your shelf/.test(r.body) && /On Looking Longer/.test(r.body) && /Edit/.test(r.body), 'the desk lists it');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(tx.slug), 'on the register');
+    r = await req(port, 'POST', `/account/writing/${tx.id}/hide`, { cookie: mck }); assert.equal(db.prepare('SELECT status FROM texts WHERE id=?').get(tx.id).status, 'hidden', 'taken down');
+    r = await req(port, 'POST', `/account/writing/${tx.id}/hide`, { cookie: mck }); assert.equal(db.prepare('SELECT status FROM texts WHERE id=?').get(tx.id).status, 'held', 'put back');
+    r = await req(port, 'GET', '/press'); assert.ok(r.status === 200 && /The printing house\./.test(r.body) && /Franklin/.test(r.body), 'the printing house, as the public reads it');
+  }
+  console.log('ok: the printing house');
   console.log('ok: the rights desk');
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
