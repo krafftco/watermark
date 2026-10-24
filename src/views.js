@@ -83,7 +83,7 @@ function startPage() {
 <div class="tut-cols">
 <div class="tut-c"><p class="k">If you came to look</p><ol class="tut-l">
 ${step(WAVE_MARK, 'Wander', 'Press the wave anywhere. One photograph fills the screen; swipe up for the next. Pinch to look closer. It never runs out.')}
-${step(I.hat, 'Hat', 'A nod: I saw it. Double-tap the picture, or press Hat. Free, as many as you like.')}
+${step(I.hat, 'Hat', 'A nod: I saw it. Press Hat on the rail. Free, as many as you like. Double-tap the picture to look closer; pinch to look closer still.')}
 ${step(I.bravo, 'Bravo', 'A shout: it floored me. Three a month, so it means something. The maker is told at once.')}
 ${step(I.guide, 'Guide', 'What to look for, read by Al. As much or as little as you want.')}
 ${step(I.hang, 'Hang', 'Save it to a wall of your own. Your walls are yours to show or keep.')}

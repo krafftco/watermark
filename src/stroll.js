@@ -1,7 +1,7 @@
 // The stroll (Will, 17 Oct: seeing photographs has to be as easy as Instagram, and as hard to put down, but the
 // photographs have to be the most beautiful in the world). Watermark on a phone as a full-screen vertical scroll:
 // one photograph fills the screen on the dark wall; a swipe brings the next; it never repeats what you have seen;
-// the best work comes first and what you stand before shapes what comes next. Double-tap tips your hat. A rail
+// the best work comes first and what you stand before shapes what comes next. Double-tap zooms in; the hat is on the rail. A rail
 // of acts on the right; a plate at the foot; a search up top to stroll through one place or one maker.
 const { esc } = require('./views');
 
