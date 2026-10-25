@@ -690,7 +690,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/library/d/${tok}`); assert.equal(r.status, 200); assert.ok(r.headers['content-type'].includes('pdf') && r.body.length > 1000, 'the copy, as a PDF');
   r = await req(port, 'GET', '/ledger'); assert.ok(r.body.toString().includes('shelved in the Library'), 'on the register');
   // The app: installable, with a worker and an offline room.
-  r = await req(port, 'GET', '/static/app/manifest.webmanifest'); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).display, 'standalone');
+  r = await req(port, 'GET', '/static/app/manifest.webmanifest'); assert.equal(r.status, 200); { const m = JSON.parse(r.body.toString()); assert.equal(m.display, 'standalone'); assert.equal(m.name, 'Wander', 'the app is Wander (25 Oct)'); assert.ok(m.start_url.startsWith('/wander'), 'the installed app opens into the feed'); }
+  r = await req(port, 'GET', '/app'); assert.ok(r.body.toString().includes('Install Wander') && r.body.toString().includes('content="Wander"'), 'the install page and the home-screen title say Wander');
   r = await req(port, 'GET', '/sw.js'); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('PRIVATE'));
   r = await req(port, 'GET', '/app'); assert.ok(r.body.toString().includes('Add to Dock'));
   r = await req(port, 'GET', '/offline'); assert.ok(r.body.toString().includes('caught a cold'));

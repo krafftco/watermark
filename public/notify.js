@@ -21,7 +21,7 @@
     prefs.addEventListener('change', function () { var fd = new URLSearchParams(); [].forEach.call(prefs.querySelectorAll('input[name=on]:checked'), function (i) { fd.append('on', i.value); });
       fetch(prefs.action, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: fd.toString(), credentials: 'same-origin' }).then(function () { if (note) { note.textContent = 'Saved.'; note.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { note.textContent = noteT; note.classList.remove('on'); }, 1800); } }); }); }
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    if (isIOS && !standalone) { say('Add Watermark to your Home Screen to be told here.'); ios.hidden = false; } else say('This browser cannot show notifications. The list below is always kept.');
+    if (isIOS && !standalone) { say('Add Wander to your Home Screen to be told here.'); ios.hidden = false; } else say('This browser cannot show notifications. The list below is always kept.');
     return;
   }
   navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
