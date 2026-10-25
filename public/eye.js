@@ -19,14 +19,14 @@
   function row(k, v) { return v ? '<div class="wye-r"><dt>' + k + '</dt><dd>' + v + '</dd></div>' : ''; }
   function draw(d) {
     var made = [esc(d.place), esc(d.year)].filter(Boolean).join(', ');
-    body.innerHTML = '<p class="wye-k">The watermark</p><h2>' + esc(d.title) + '</h2>'
-      + '<p class="wye-l">What this photograph carries, here and inside every copy the house sends out.</p><dl>'
+    body.innerHTML = '<p class="wye-k">The Watermark</p><h2>' + esc(d.title) + '</h2>'
+      + '<p class="wye-l">A registered work: numbered, fingerprinted, on the house\u2019s register, held under lock and key and shown in the open. Look as long as you like. To use it, in a story, a campaign, a product or on a wall, license it here: the maker is paid, and the licence travels inside the file.</p><dl>'
       + row('Made by', '<a href="' + esc(d.makerHref) + '">' + esc(d.maker) + '</a>' + (made ? '<br><span>' + made + '</span>' : ''))
       + row('Its number', '<span class="wye-no">' + esc(d.number) + '</span>')
       + row('Copyright', esc(d.copyright))
       + row('The maker is paid', esc(d.paid))
       + row('Held', esc(d.held))
-      + (d.open ? row('Free to use', 'Open to everyone, with the credit.') : row('To have it', (d.uses || []).map(function (u) { return '<a class="wye-u" href="' + esc(u.href) + '"><b>' + esc(u.name) + '</b><i>' + esc(u.price) + '</i></a>'; }).join('')))
+      + (d.open ? row('Free to use', 'Open to everyone, with the credit.') : row('To use it, license it', (d.uses || []).map(function (u) { return '<a class="wye-u" href="' + esc(u.href) + '"><b>' + esc(u.name) + '</b><i>' + esc(u.price) + '</i></a>'; }).join('')))
       + row('Never', (d.never || []).map(esc).join(' &middot; '))
       + row('Proof', esc(d.proof) + ' <a href="' + esc(d.life) + '">Its life</a> &middot; <a href="' + esc(d.verify) + '">Check a copy</a>')
       + '</dl>';
