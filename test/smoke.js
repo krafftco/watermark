@@ -1487,6 +1487,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/api/find?q=got+fun'); const fr = JSON.parse(r.body); assert.ok(fr.records && fr.records.some(x => /Got Fun/.test(x.name) && /\/listening\//.test(x.href)), 'a record found');
     r = await req(port, 'GET', '/find?q=long+walk'); assert.ok(/From the shelf/.test(r.body) && /Long Walk/.test(r.body), 'on the page');
   }
+  { // Facing pages (25 Oct): a translation beside the text, paragraph by paragraph, made by the house's AI once and kept.
+    const bk = db.prepare("SELECT * FROM texts WHERE slug LIKE 'the-long-walk%' AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a book to face');
+    const hadKey = process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_API_KEY;
+    r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(!/data-rd-facing/.test(r.body), 'no translator, no Facing button');
+    r = await req(port, 'GET', `/read/${bk.slug}/facing?c=0&lang=es`); assert.equal(r.status, 503, 'the API says the house has no translator');
+    process.env.ANTHROPIC_API_KEY = 'test-key'; const prev = app.locals.__fetch; let calls = 0;
+    app.locals.__fetch = async (u, o) => { u = String(u); if (/api\.anthropic\.com/.test(u)) { calls++; const body = JSON.parse(o.body); const m = body.messages[0].content.match(/\[[\s\S]*\]$/); const paras = JSON.parse(m[0]); return { ok: true, json: async () => ({ model: 'mock', content: [{ type: 'text', text: JSON.stringify(paras.map(x => x === '* * *' ? x : 'ES: ' + x)) }] }) }; } return prev ? prev(u, o) : fetch(u, o); };
+    r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(/data-rd-facing/.test(r.body) && /data-rd-lang="es"/.test(r.body) && /Spanish/.test(r.body) && /&quot;facing&quot;:true/.test(r.body), 'the Facing button and its languages');
+    r = await req(port, 'GET', `/read/${bk.slug}/facing?c=1&lang=xx`); assert.equal(r.status, 400, 'an unknown language refused');
+    r = await req(port, 'GET', `/read/${bk.slug}/facing?c=1&lang=es`); assert.equal(r.status, 200); const fj = JSON.parse(r.body);
+    const chs = require('../src/facing').chaptersOf(bk.body); assert.equal(fj.paras.length, chs[1].paras.length, 'one twin per paragraph, in step'); assert.ok(fj.paras.every((t, i) => chs[1].paras[i] === '* * *' ? t === '* * *' : /^ES: /.test(t)), 'each paragraph translated'); assert.equal(fj.label, 'Translated with AI'); assert.equal(fj.name, 'Spanish');
+    assert.ok(db.prepare('SELECT 1 FROM translations WHERE text_id=? AND lang=? AND chapter=1').get(bk.id, 'es'), 'kept');
+    const before = calls; r = await req(port, 'GET', `/read/${bk.slug}/facing?c=1&lang=es`); assert.equal(r.status, 200); assert.equal(calls, before, 'the second reader is served from what is kept');
+    r = await req(port, 'GET', `/read/${bk.slug}/facing?c=1&lang=es&peek=1`); assert.ok(JSON.parse(r.body).kept === true, 'peek sees it');
+    assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('translated'), 'per-chapter translations never on the public register');
+    app.locals.__fetch = prev; if (hadKey) process.env.ANTHROPIC_API_KEY = hadKey; else delete process.env.ANTHROPIC_API_KEY;
+  }
   console.log('ok: the public domain and the reading room');
   { // The Bookshop: a want left; a signed copy offered by the house (the want told); bought with an address through Checkout; settled by the webhook; moved along on the desk; told on the register without a name.
     const bk = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a book on the shelf');

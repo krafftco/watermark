@@ -1958,6 +1958,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.imageOf = async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });
+  require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
   require('./writersdesk').mountWritersDesk(app, { db, V, C, ledger, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Writer's Desk: the binder, the page, the drafts, the press
   require('./almanack').mountAlmanack(app, { db, V, C, ledger, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the almanack: a maker's year as one book
