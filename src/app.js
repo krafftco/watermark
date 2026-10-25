@@ -279,7 +279,8 @@ function createApp(cfg = {}) {
 
   // What the two letters of a sale need (src/mail-letters.js): the photograph, its number, the rights in plain words,
   // the agreement, and for the maker what is theirs and how often the work has been chosen.
-  const FEE = require('./fee'); // the house's share, paid by the collector when FEE_SIDE=collector
+  const EDGE = require('./edge');
+const FEE = require('./fee'); // the house's share, paid by the collector when FEE_SIDE=collector
   const LETTERS = require('./mail-letters');
   function letterFor(g, w, maker, u, token) {
     let t = null; try { t = g.rights ? JSON.parse(g.rights) : null; } catch (e) { t = null; }
@@ -1187,6 +1188,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const collectFor = (b, slug) => { const x = collectable([slug])[0]; if (!x || !offered(R.parse(x.w.rules), 'social', x.w)) return null;
     if (b && db.prepare("SELECT 1 FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) AND u.key IN ('social','reference')").get(x.w.id, b.id)) return null; return x; };
   app.locals.collectFor = collectFor;
+  app.locals.edge = EDGE;
   const basketItems = (req, slugs) => {
     const held = new Set();
     const rows = collectable(slugs).filter(x => offered(R.parse(x.w.rules), 'social', x.w) && !heldBy(req, x.w).some(h => h.key === 'social' || h.key === 'reference'));
@@ -2025,6 +2027,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
         // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
+        EDGE.work(w.slug); // the edge drops its copies of the old picture (25 Oct)
     return w;
   }
   // The maker's portal for one photograph: upload its full-resolution master. It must be the same picture (by

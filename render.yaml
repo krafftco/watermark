@@ -53,6 +53,10 @@ services:
         value: ""
       - key: MAIL_FROM
         value: Watermark <house@watermark.krafftco.com>
+      - key: TRUST_PROXY # 2 behind CloudFront (25 Oct), else 1
+        value: 2
+      - key: CLOUDFRONT_DISTRIBUTION # the edge in front; set so a new master drops the edge's copies at once
+        sync: false
       - key: STUDIO_EMAILS # who may enter the Studio: email code + passkey; set it and ADMIN_PASSWORD is retired
         sync: false
       - key: BACKUP_KEEP_DAYS
