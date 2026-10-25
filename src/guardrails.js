@@ -22,7 +22,7 @@ function securityHeaders(base) {
     `connect-src 'self' https://api.stripe.com https://studios.krafftco.com https://*.krafftco.com${process.env.S3_BUCKET ? ' https://*.amazonaws.com' : ''}${process.env.S3_ENDPOINT ? ' ' + String(process.env.S3_ENDPOINT).replace(/\/$/, '') + ' https://*.' + String(process.env.S3_ENDPOINT).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : ''}`,
     "frame-src https://js.stripe.com https://checkout.stripe.com",
     "frame-ancestors 'self'",
-    "form-action 'self' https://checkout.stripe.com",
+    "form-action 'self' https://checkout.stripe.com https://connect.stripe.com",
     "base-uri 'self'",
     "object-src 'none'",
   ].join('; ');

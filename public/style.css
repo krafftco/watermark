@@ -3437,13 +3437,11 @@ html[data-rd-theme="paper"]{--rd-bg:#f6f1e7;--rd-ink:#1d1a16;--rd-mute:#7a716a;-
 .wm-wave{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translate(-50%,-6px);z-index:9999;opacity:0;transition:opacity .35s ease,transform .5s cubic-bezier(.2,.7,.2,1);pointer-events:none;color:#0b0a09;mix-blend-mode:multiply}
 html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .wm-wave.on{opacity:.92;transform:translate(-50%,0)}
-.wm-wave-w{width:46px;height:14px;overflow:hidden;animation:wm-bob 1.6s ease-in-out infinite}
-.wm-wave-r{display:flex;width:300%;height:100%;animation:wm-swim 1.4s linear infinite}
-.wm-wave-r svg{width:33.333%;height:100%;flex:none;display:block}
+.wm-wave-w{width:52px;height:12px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+.wm-wave-r{display:block;width:300%;height:100%;animation:wm-swim 1.6s linear infinite;will-change:transform}
 .wm-wave-in{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1.6);mix-blend-mode:normal;color:rgba(242,239,233,.9)}.wm-wave-in.on{transform:translate(-50%,-50%) scale(1.6)}
 @keyframes wm-swim{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
-@keyframes wm-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-@media (prefers-reduced-motion:reduce){.wm-wave-w,.wm-wave-r{animation:none}}
+@media (prefers-reduced-motion:reduce){.wm-wave-r{animation:none}}
 
 /* The hint under the plate speaks to the device (21 Oct): a thumb is told to tap and swipe, a mouse to click and use the arrows. */
 .lot-hint-t{display:none}@media (pointer:coarse){.lot-hint-c{display:none}.lot-hint-t{display:inline}}

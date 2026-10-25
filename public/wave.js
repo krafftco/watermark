@@ -1,18 +1,23 @@
 // The wave that swims (Will, 21 Oct: "the watermark W is really the wandering W, the wiggling W; an animation where the
-// wave goes up and down: that's our loading, a beautiful animation"). The house's mark (window.__WM_WAVE, the logo's
-// wave, viewBox 1.5 14.2 41 11) is set three abreast inside a window one wave wide and slid left by one wave over and
-// over, so the crest travels; the window itself breathes up and down. `WMWave.show(where)` puts it up (fixed, top
-// centre, unless `where` is an element to fill); `hide()` takes it down; it never shows for less than 400 ms so it
-// never flickers. Shown by the house: on any same-origin navigation that takes more than 250 ms (a tap on a link, a
-// form sent), while Wander fetches more, while Find searches, and by any script that asks. Reduced motion: it holds
-// still and fades instead.
+// wave goes up and down: that's our loading, a beautiful animation"; 25 Oct: "it doesn't need to go up and down"; the
+// tiled logo showed its seams). One true wave now: a sine drawn at the mark's weight and wavelength, three periods in a
+// window one logo wide, slid left by exactly one window over and over, so the crest travels and nothing ever joins or
+// bobs. `WMWave.show(where)` puts it up (fixed, top centre, unless `where` is an element to fill); `hide()` takes it
+// down; it never shows for less than 400 ms so it never flickers. Shown by the house: on any same-origin navigation
+// that takes more than 250 ms (a tap on a link, a form sent), while Wander fetches more, while Find searches, and by
+// any script that asks. Reduced motion: it holds still and fades instead.
 (function () {
   'use strict';
   var el = null, t0 = 0, pending = null, hideT = null;
+  // The logo's wave: period 14 of its 41-wide box, a crest 2.3 high, a line 1.75 thick. Drawn over nine periods.
+  function path() {
+    var P = 14, A = 2.3, d = '', x;
+    for (x = -42; x <= 126; x += 0.5) d += (x === -42 ? 'M' : 'L') + x.toFixed(1) + ' ' + (5.5 - A * Math.sin(2 * Math.PI * x / P)).toFixed(2);
+    return d;
+  }
   function make() {
-    var svg = window.__WM_WAVE || '';
     var d = document.createElement('div'); d.className = 'wm-wave'; d.setAttribute('aria-hidden', 'true');
-    d.innerHTML = '<div class="wm-wave-w"><div class="wm-wave-r">' + svg + svg + svg + '</div></div>';
+    d.innerHTML = '<div class="wm-wave-w"><svg class="wm-wave-r" viewBox="0 0 126 11" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="' + path() + '"/></svg></div>';
     return d;
   }
   function show(where) {
