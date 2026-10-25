@@ -35,6 +35,7 @@ function mountRegister(app, { db, V, ledger }) {
       case 'work.bravo': return { ...k, kind: 'applause', work: w, text: `Someone called Bravo! for ${T(w)}.` };
       case 'work.applauded': return { ...k, kind: 'applause', work: w, text: `Someone tipped their hat to ${T(w)}.` };
       case 'work.guide': return { ...k, work: w, text: `${T(w)} received its wall text.` };
+      case 'friday.paid': return { ...k, kind: 'patron', text: `Friday pay: ${d.makers} maker${d.makers === 1 ? '' : 's'} were paid ${V.money(d.amount || 0)} for the week. Every Friday, every dollar that has cleared.` };
       case 'work.master': return { ...k, work: w, text: `${T(w)} received its master.` };
       case 'copy.offered': return { ...k, kind: 'sale', work: null, text: `${esc({ first: 'A first edition', signed: 'A signed copy', reprint: 'A reprint', proof: 'A proof copy' }[d.kind] || 'A copy')} of <a href="/library/${esc(e.subject)}#bookshop">${esc(d.title || e.subject)}</a> was offered in the Bookshop.` };
       case 'copy.sold': return { ...k, kind: 'sale', work: null, text: `${esc({ first: 'A first edition', signed: 'A signed copy', reprint: 'A reprint', proof: 'A proof copy' }[d.kind] || 'A copy')} of <a href="/library/${esc(e.subject)}">${esc(d.title || e.subject)}</a> went to a new shelf.` };

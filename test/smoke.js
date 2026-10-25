@@ -708,7 +708,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: 'own', own: '12' } }); assert.equal(r.status, 303, 'more than the pocket holds goes to Checkout'); assert.ok(r.headers.location.includes('checkout'));
   r = await req(port, 'GET', `/w/${w.slug}?thanks=given`); assert.ok(r.body.toString().includes('1 person has said thank you'), 'counted on the work');
   // Getting paid: the maker's statement is exact (85% of licenses, cards whole), payouts through Stripe wait for PAYOUTS=stripe; a payment by hand is recorded.
-  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank'), 'the statement');
+  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank') && r.body.toString().includes('Friday pay.'), 'the statement, with Friday pay');
+  { // Friday pay: a sale made today is clearing, not cleared; cleared + clearing = owed; the Friday run is off until Stripe pays.
+    const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw);
+    assert.ok(st.cleared + st.clearing === st.owed && st.clearing > 0 && st.holdDays === 7 && /day, /.test(st.friday), 'today’s money is clearing: ' + JSON.stringify({ cleared: st.cleared, clearing: st.clearing, owed: st.owed }));
+    const f = await app.locals.payouts.friday({ force: true }); assert.ok(f.ok === false && f.why === 'off', 'Friday pay waits for PAYOUTS=stripe');
+    const pr = await app.locals.payouts.pay(mw); assert.ok(pr.ok === false && pr.why === 'off', 'and so does a maker’s ask');
+  }
   { const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw); assert.ok(st.thanks.s >= 99 && st.share === db.prepare("SELECT l.price_cents p FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").all(mw.id).reduce((a, r) => a + Math.round(r.p * 85 / 100), 0) && st.owed === st.earned - st.paid, 'the sums');
     const r2 = await app.locals.payouts.pay(mw); assert.equal(r2.ok, false); assert.equal(r2.why, 'off', 'no transfer until the house is set to pay');
     r = await req(port, 'POST', `/studio/payouts/${mw.handle}`, { cookie: ck, body: { amount: '1', note: 'By cheque' } }); assert.equal(r.status, 302);

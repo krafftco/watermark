@@ -1,9 +1,13 @@
-// Getting paid. What a maker is owed: their share of every license sold (85%), every thank-you card and tip
-// sent to them, every royalty from a resale; less what has been paid out. The statement is always exact and
-// always theirs to see. Paying it: the maker adds a bank through Stripe (Connect Express; the house never
-// sees the account), and once PAYOUTS=stripe is set in the host's settings, what is owed is transferred on
-// the first of the month and whenever the maker asks, from the house's balance. Until then it is paid by
-// hand from the same statement, and the page says so.
+// Getting paid. What a maker is owed: their share of every license sold, every thank-you card and tip sent to
+// them, every royalty from a resale, their words and their copies; less what has been paid out. The statement
+// is always exact and always theirs to see. Paying it: the maker adds a bank through Stripe (Connect Express;
+// the house never sees the account), and once PAYOUTS=stripe is set in the host's settings the house keeps
+// Friday pay (Will, 25 Oct: "the best, and the one people will celebrate, but makes sense as well"; after
+// Southwest's bags-fly-free: one plain promise, named, kept): every Friday, every dollar that has cleared goes
+// to the maker's bank, from a dollar up, no fee, no minimum to wait for. A sale clears HOLD_DAYS (7) after it is
+// paid, the window in which almost every refund or dispute lands, so the house never pays out money it then
+// returns; a print's share clears when the print is delivered, since the house carries the printing. 'Send it
+// now' pays the cleared amount any day. Until Stripe pays, the house pays by hand from the same statement.
 const { layout, esc, money, date, setDeskPath } = require('./views');
 
 const FEE = require('./fee');
@@ -12,6 +16,12 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   db.exec(`CREATE TABLE IF NOT EXISTS maker_payouts (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'paid', how TEXT NOT NULL DEFAULT 'stripe',
     stripe_transfer TEXT, note TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const ON = () => !!stripe && process.env.PAYOUTS === 'stripe';
+  const HOLD_DAYS = Math.max(0, Number(process.env.PAYOUT_HOLD_DAYS || 7));
+  const PAY_TZ = process.env.PAYOUT_TZ || 'America/New_York';
+  const nyDay = (d = new Date()) => new Intl.DateTimeFormat('en-US', { timeZone: PAY_TZ, weekday: 'short' }).format(d);
+  const nyHour = (d = new Date()) => Number(new Intl.DateTimeFormat('en-US', { timeZone: PAY_TZ, hour: 'numeric', hour12: false }).format(d));
+  // The next Friday, as a person says it ('this Friday', 'Friday the 31st').
+  function nextFriday(d = new Date()) { const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; const i = names.indexOf(nyDay(d)); let add = (5 - i + 7) % 7; if (add === 0 && nyHour(d) >= 12) add = 7; const f = new Date(d.getTime() + add * 864e5); return new Intl.DateTimeFormat('en-US', { timeZone: PAY_TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(f); }
   const q = {
     licensed: { get: (id, pct) => db.prepare(`SELECT COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${FEE.sqlMaker(pct)}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0`).get(id) },
     thanks: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid'"),
@@ -21,6 +31,18 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     // The printing house (24 Oct): words sold from the Library (the maker's price, the house's share having ridden on top; else the share) and copies sold from the shelf (the seller's price, whole).
     words: (id, pct) => { try { return db.prepare(`SELECT COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0`).get(pct, id); } catch (e) { return { s: 0, m: 0, n: 0 }; } },
     copies: id => { try { return db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1").get(id); } catch (e) { return { s: 0, n: 0 }; } },
+    // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
+    clearing: (id, pct) => {
+      const since = `-${HOLD_DAYS} days`; let s = 0, n = 0;
+      const add = r => { if (r) { s += r.s || 0; n += r.n || 0; } };
+      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key<>'print' AND l.created_at > datetime('now', ?)`).get(id, since)); } catch (e) { /* */ }
+      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.status IN ('sent','done','delivered'))`).get(id)); } catch (e) { /* */ }
+      try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid' AND COALESCE(paid_at, created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
+      try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
+      try { add(db.prepare(`SELECT COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)`).get(pct, id, since)); } catch (e) { /* */ }
+      try { add(db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
+      return { s, n };
+    },
   };
   // The statement: gross by kind, the maker's share, what has gone out, what is owed.
   function statement(m) {
@@ -31,19 +53,21 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
     const W = q.words(m.id, pct), Cp = q.copies(m.id);
     const earned = share + T.s + R.s + W.m + Cp.s - G.out.s + G.in.s - S.s;
-    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, gallery: G, splits: S, earned, paid: P, owed: Math.max(0, earned - P), rows: q.rows.all(m.id) };
+    const owed = Math.max(0, earned - P);
+    const Cl = q.clearing(m.id, pct); const clearing = Math.min(owed, Math.max(0, Cl.s)); const cleared = owed - clearing;
+    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, gallery: G, splits: S, earned, paid: P, owed, clearing, clearingN: Cl.n, cleared, holdDays: HOLD_DAYS, friday: nextFriday(), rows: q.rows.all(m.id) };
   }
-  // Pay what is owed, when the maker can be paid and the house is set to pay.
+  // Pay what has cleared, when the maker can be paid and the house is set to pay. From a dollar up.
   async function pay(m, { by = 'house' } = {}) {
-    const st = statement(m);
-    if (!ON() || !m.stripe_account || st.owed < 100) return { ok: false, why: !ON() ? 'off' : !m.stripe_account ? 'nobank' : 'small', owed: st.owed };
+    const st = statement(m); const amt = st.cleared;
+    if (!ON() || !m.stripe_account || amt < 100) return { ok: false, why: !ON() ? 'off' : !m.stripe_account ? 'nobank' : st.owed >= 100 ? 'clearing' : 'small', owed: st.owed, cleared: amt };
     try {
       const a = await stripe.accounts.retrieve(m.stripe_account); if (!a.payouts_enabled) return { ok: false, why: 'notready', owed: st.owed };
-      const tr = await stripe.transfers.create({ amount: st.owed, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by } });
-      const id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, stripe_transfer) VALUES (?,?,'paid','stripe',?)").run(m.id, st.owed, tr.id).lastInsertRowid;
-      ledger.append(db, 'maker.paid', m.handle, { amount: st.owed, transfer: tr.id, by });
-      if (m.email) mail.send({ to: m.email, subject: `${money(st.owed)} on its way to you`, text: `${m.name.split(' ')[0]},\n\nYour Watermark earnings to date, ${money(st.owed)}, have been sent to your bank through Stripe. The statement is at ${C.base}/account/payouts.\n\nWatermark` });
-      return { ok: true, amount: st.owed, id };
+      const tr = await stripe.transfers.create({ amount: amt, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by } });
+      const id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, stripe_transfer, note) VALUES (?,?,'paid','stripe',?,?)").run(m.id, amt, tr.id, by === 'friday' ? 'Friday pay' : null).lastInsertRowid;
+      ledger.append(db, 'maker.paid', m.handle, { amount: amt, transfer: tr.id, by });
+      if (m.email) mail.send({ to: m.email, subject: by === 'friday' ? `Friday pay: ${money(amt)} is on its way` : `${money(amt)} on its way to you`, text: `${m.name.split(' ')[0]},\n\n${money(amt)} has been sent to your bank through Stripe${by === 'friday' ? ': every Friday, every dollar that has cleared' : ''}. The statement is at ${C.base}/account/payouts.\n\nThank you for making work worth keeping.\n\nWatermark` });
+      return { ok: true, amount: amt, id };
     } catch (e) { console.error('[payouts]', m.handle, e.message); return { ok: false, why: 'failed', owed: st.owed }; }
   }
   // Paid by hand (the Studio records it): the statement stays exact either way.
@@ -94,25 +118,37 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     record(m, cents, String((req.body || {}).note || '').slice(0, 200));
     res.redirect(`/studio/accounts?ok=${encodeURIComponent(`${money(cents)} recorded as paid to ${m.name}.`)}`);
   });
-  // The first of the month, and when a bank is added.
+  // Friday pay (every Friday from ten in the morning, New York, once), and when a bank is added.
   const prev = app.locals.patronEvent;
   app.locals.patronEvent = event => { if (prev) prev(event); if (event.type === 'account.updated' && event.data.object.payouts_enabled) { const m = db.prepare('SELECT * FROM makers WHERE stripe_account=?').get(event.data.object.id); if (m) pay(m, { by: 'bank' }).catch(() => {}); } };
-  async function monthly() { if (!ON()) return; if (new Date().getUTCDate() !== 1) return; for (const m of db.prepare('SELECT * FROM makers WHERE stripe_account IS NOT NULL').all()) await pay(m, { by: 'month' }); }
-  if (process.env.NODE_ENV !== 'test') setInterval(() => monthly().catch(() => {}), 6 * 60 * 60 * 1000).unref();
-  app.locals.payouts = { statement, pay, record, ON };
+  db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)');
+  const weekKey = () => { const d = new Date(); const day = new Intl.DateTimeFormat('en-CA', { timeZone: PAY_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); return `friday_pay_${day}`; };
+  async function friday({ force = false } = {}) {
+    if (!ON()) return { ok: false, why: 'off' };
+    if (!force && (nyDay() !== 'Fri' || nyHour() < 10)) return { ok: false, why: 'notfriday' };
+    const key = weekKey(); if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return { ok: false, why: 'done' };
+    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    let n = 0, cents = 0;
+    for (const m of db.prepare('SELECT * FROM makers WHERE stripe_account IS NOT NULL').all()) { const r = await pay(m, { by: 'friday' }); if (r.ok) { n++; cents += r.amount; } }
+    if (n) ledger.append(db, 'friday.paid', 'house', { makers: n, amount: cents });
+    return { ok: true, makers: n, amount: cents };
+  }
+  if (process.env.NODE_ENV !== 'test') setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref();
+  app.locals.payouts = { statement, pay, record, ON, friday, HOLD_DAYS, nextFriday };
   return app.locals.payouts;
 }
 
 function payoutsPage({ m, st, ready, on, ok, viewing = false, why = null }) {
   setDeskPath('/account/payouts');
   const first = m.name.split(' ')[0];
-  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: 'Your bank is with Stripe. Payouts go out on the first of the month, and whenever you ask.', paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each month, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next month.', notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
+  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: `Your bank is with Stripe. Friday pay begins: every Friday, every dollar that has cleared, from a dollar up.`, paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each week, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next Friday.', clearing: `Nothing has cleared yet: a sale clears ${st.holdDays} days after it is paid. It goes out on ${st.friday}.`, notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
   const row = (k, v, small) => `<div><dt>${k}</dt><dd>${v}${small ? `<small>${small}</small>` : ''}</dd></div>`;
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
 <p class="lede">Every dollar that reaches you, and where it came from. ${FEE.on() ? 'The price of every license is yours, every dollar of it; the house’s share is paid by the collector on top' : st.pct + '% of every license is yours'}; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>
 ${notice ? `<p class="${/paid|bank/.test(ok) ? 'ok' : 'note'}">${esc(notice)}</p>` : ''}
 <div class="gp-cols"><div class="gp-main">
-<div class="gp-big"><span>Owed to you now</span><b>${money(st.owed)}</b></div>
+<div class="gp-big"><span>Owed to you now</span><b>${money(st.owed)}</b>${st.clearing > 0 ? `<i class="gp-clear">${money(st.cleared)} cleared, out on ${esc(st.friday)} &middot; ${money(st.clearing)} clearing (${st.clearingN} sale${st.clearingN === 1 ? '' : 's'} inside ${st.holdDays} days)</i>` : st.owed > 0 ? `<i class="gp-clear">All cleared. Out on ${esc(st.friday)}.</i>` : ''}</div>
+<p class="gp-friday"><b>Friday pay.</b> Every Friday, every dollar that has cleared goes to your bank, from a dollar up, with no fee and nothing held back. A sale clears ${st.holdDays} days after it is paid (the week in which almost every refund lands); a print clears when it is delivered. Ask any day and the cleared amount goes at once.</p>
 <dl class="facts gp-st">
 ${row('Licensed', money(st.licensed.s), `${st.licensed.n} sale${st.licensed.n === 1 ? '' : 's'}; your ${st.pct}% is ${money(st.share)}`)}
 ${row('Thank-you cards and tips', money(st.thanks.s), `${st.thanks.n}, yours whole`)}
@@ -129,8 +165,8 @@ ${st.rows.length ? `<h2>Payments to you</h2><table class="tbl"><thead><tr><th>Da
 <p class="note gp-foot">${first}, this statement is yours to keep and to show an accountant: every line on it is on the register. <a href="/account/keeping">Keeping: what the archive holds, and the tiers.</a></p>
 </div><aside class="gp-side">
 <section class="gp-door"><p class="k">Keep it in the house</p><h2>Into your pocket.</h2><p>Every maker is a collector. Put what you are owed in your pocket and spend it here: on other makers' work, on the Library, on thank-you cards. Rembrandt collected; so can you.</p><form method="post" action="/account/payouts/pocket"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Put ${money(st.owed)} in my pocket</button></form></section>
-<section class="gp-door"><p class="k">Your bank</p><h2>${ready ? 'Connected.' : 'Out, to your bank.'}</h2>${ready ? `<p>Your bank is with Stripe; the house never sees it. ${on ? 'Payouts go on the first of the month, or now.' : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.owed < 100 ? 'disabled' : ''}>Send ${money(st.owed)} to my bank</button></form>` : ''}`
-  : `<p>Add your bank through Stripe, a few minutes; the house never sees your details. ${on ? 'From then on what you are owed goes out on the first of the month, or whenever you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each month from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}</section>
+<section class="gp-door"><p class="k">Your bank</p><h2>${ready ? 'Connected.' : 'Out, to your bank.'}</h2>${ready ? `<p>Your bank is with Stripe; the house never sees it. ${on ? `Friday pay goes every Friday; ${money(st.cleared)} has cleared now.` : 'Payouts through Stripe open soon; until then the house pays by hand from this statement.'}</p>${on ? `<form method="post" action="/account/payouts/pay"><button class="jewel gp-pay" ${st.cleared < 100 ? 'disabled' : ''}>Send ${money(st.cleared)} to my bank now</button></form>` : ''}`
+  : `<p>Add your bank through Stripe, a few minutes; the house never sees your details. ${on ? 'From then on, Friday pay: every Friday, every dollar that has cleared, or sooner when you ask.' : 'Until payouts through Stripe are switched on, the house pays by hand each week from this statement.'}</p><form method="post" action="/account/payouts/connect"><button class="jewel gp-pay">${m.stripe_account ? 'Finish adding your bank' : 'Add your bank, through Stripe'}</button></form>`}</section>
 </aside></div>
 </section>` });
 }
