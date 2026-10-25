@@ -3566,7 +3566,7 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 /* Pinch inside Wander (23 Oct): while zoomed the scroll is held and the chrome rests; the picture pans under one finger. */
 /* (the scroller's overflow is left alone while a finger is down: changing it mid-gesture makes iOS cancel the touch) */
 .st.st-zoom .st-i>.st-im{will-change:transform;z-index:3}
-.st.st-zoom .st-top,.st.st-zoom .st-plate,.st.st-zoom .st-rail,.st.st-zoom .st-eye,.st.st-zoom .bk-pill,.st.st-zoom .st-line,.st.st-zoom .st-tab{opacity:0;pointer-events:none}
+.st.st-zoom .st-plate,.st.st-zoom .st-rail,.st.st-zoom .st-eye,.st.st-zoom .bk-pill,.st.st-zoom .st-line,.st.st-zoom .st-tab{opacity:0;pointer-events:none}
 .yx-acts .yx-instax{background:none;color:var(--ink);border:1px solid var(--ink)}
 /* The tour, /start (23 Oct): a minute on how the house works, by who you are. */
 .tut{max-width:1180px;margin:0 auto;padding:48px 20px 72px}

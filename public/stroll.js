@@ -287,17 +287,17 @@
   function zOrigin(cx, cy) { var r = Z.img.getBoundingClientRect(); if (Z.s <= 1.001) { Z.mx = cx - r.left; Z.my = cy - r.top; Z.img.style.transformOrigin = Z.mx + 'px ' + Z.my + 'px'; var r2 = Z.img.getBoundingClientRect(); Z.base = { x: r2.left, y: r2.top }; } }
   // Held: the zoom stays after the fingers lift (Will, 24 Oct: it must zoom like a photo app); one finger pans; a
   // double-tap, a pinch back under 1.08, or moving on sets it to rights.
-  function zHold(moved) { Z.held = Z.s > 1.08; if (moved !== false) Z.at = Date.now(); if (!Z.held) { zEnd(true); return; } Z.on = true; Z.pan = null; root.classList.add('st-zoom'); }
+  function zHold(moved) { Z.held = Z.s > 1.08; if (moved !== false) Z.at = Date.now(); if (!Z.held) { zEnd(true); return; } Z.on = true; Z.pan = null; root.classList.add('st-zoom'); try { if (!localStorage.getItem('wm_zoom_told')) { localStorage.setItem('wm_zoom_told', '1'); say('Zoomed. One finger moves around; a flick, a double-tap or a pinch back lets go.', 3600); } } catch (e) { /* */ } }
   function zEnd(anim) { Z.s = 1; Z.x = 0; Z.y = 0; zApply(anim !== false); root.classList.remove('st-zoom'); Z.on = false; Z.held = false; Z.pan = null; Z.at = Date.now(); var im = Z.img; setTimeout(function () { if (im && (Z.img !== im || Z.s <= 1.001)) { im.style.transform = ''; im.style.transition = ''; } }, 400); }
   function zTap(it, cx, cy) { var img = zPick(); if (!img) return; if (Z.s > 1.08) { zEnd(true); return; } zOrigin(cx, cy); Z.s = 2.5; Z.x = 0; Z.y = 0; zClamp(); zApply(true); zHold(); }
   scroller.addEventListener('touchstart', function (e) {
-    if (e.touches.length === 2 && !e.target.closest('button, a, input')) {
+    if (e.touches.length === 2) {
       var img = zPick(); if (!img) return;
       var a = e.touches[0], b = e.touches[1]; Z.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1; Z.s0 = Z.s;
       zOrigin((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
       Z.px = (a.clientX + b.clientX) / 2; Z.py = (a.clientY + b.clientY) / 2; Z.on = true; Z.pan = null; root.classList.add('st-zoom'); sx0 = null; e.preventDefault(); return;
     }
-    if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; e.preventDefault(); return; }
+    if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY, stuck: 0 }; Z.d0 = 0; sx0 = null; e.preventDefault(); return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
     if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null; sT0 = Date.now(); sTop0 = scroller.scrollTop; sMoved = false;
@@ -306,7 +306,7 @@
     if (Z.on) {
       e.preventDefault();
       if (e.touches.length >= 2) { var a = e.touches[0], b = e.touches[1], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); Z.s = Math.max(1, Math.min(6, Z.s0 * d / Z.d0)); var cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2; Z.x += cx - Z.px; Z.y += cy - Z.py; Z.px = cx; Z.py = cy; zClamp(); zApply(false); }
-      else if (Z.pan && e.touches.length === 1) { Z.x = e.touches[0].clientX - Z.pan.x; Z.y = e.touches[0].clientY - Z.pan.y; zClamp(); zApply(false); }
+      else if (Z.pan && e.touches.length === 1) { var wantY = e.touches[0].clientY - Z.pan.y; Z.x = e.touches[0].clientX - Z.pan.x; Z.y = wantY; zClamp(); Z.pan.stuck = Math.max(Z.pan.stuck || 0, Math.abs(wantY - Z.y)); zApply(false); }
       return;
     }
     if (held) { e.preventDefault(); return; }
@@ -334,6 +334,8 @@
       if (e.touches.length >= 2) return;
       if (e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; Z.s0 = Z.s; return; }
       // The last finger lifts: the zoom holds where it is (a pinch back under 1.08 sets it to rights). A pan that did not move is a tap.
+      // A flick, or a drag that went on past the picture's edge, lets the zoom go and moves on (24 Oct: a held zoom had no way out but a pinch).
+      if (Z.pan) { var dyz = e.changedTouches[0].clientY - Z.pan.y0, dtz = Date.now() - Z.pan.t; var flick = Math.abs(dyz) > 70 && Math.abs(dyz) / Math.max(1, dtz) > 0.6; var past = Z.pan.stuck > 60; if (Z.d0 === 0 && (flick || past)) { zEnd(true); scroller.scrollTo({ top: Math.round(scroller.scrollTop / scroller.clientHeight) * scroller.clientHeight + (dyz < 0 ? 1 : -1) * scroller.clientHeight, behavior: 'smooth' }); Z.pan = null; return; } }
       var moved = !Z.pan || Math.hypot(e.changedTouches[0].clientX - Z.pan.x0, e.changedTouches[0].clientY - Z.pan.y0) > 8; Z.d0 = 0; zHold(moved); return;
     }
     if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0, dyE = e.changedTouches[0].clientY - sy0, dtE = Date.now() - sT0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
