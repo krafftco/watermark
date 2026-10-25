@@ -153,17 +153,43 @@ ${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table clas
     ['78_yellow-dog-blues_bessie-smith-hendersons-hot-six_gbia0464774a', 'Bessie Smith, 1925. The Empress of the Blues, with Fletcher Henderson’s men behind her.'],
     ['78_songs-my-mother-taught-me_fritz-kreisler-dvorak-kreisler-carl-lamson_gbia0016601a', 'Kreisler, 1916. Dvořák’s song, on a violin, in three minutes.'],
     ['78_mazurka-in-f-sharp-minor_ignace-jan-paderewski-chopin_gbia0015773a', 'Paderewski plays Chopin, 1924: the pianist who became a prime minister, playing the poet of his country.'],
-    ['78_whispering_paul-whiteman-and-his-ambassador-orchestra-schonberger_gbia0120433a', 'Whispering, 1920. The decade beginning, in a dance band.'],
-    ['78_stars-and-stripes-forever_john-philip-sousa_gbia0086020b', 'Sousa’s own band, 1919. Stand up.'],
+    ['SymphonyNo.5', 'Beethoven, the Fifth. The four notes everyone knows, and the forty minutes after them that almost no one has sat through.'],
+    ['78_boheme-o-soave-fanciulla-thou-sweetest-maiden_nellie-melba-and-enrico-caruso-pucc_gbia0105023a', 'Melba and Caruso, 1907. O soave fanciulla: two of the great voices of the century, together, on one disc.'],
+    ['78_ave-maria_jascha-heifetz-andr-benoist-schubert-wilhelmj_gbia0294145a', 'Heifetz, 1917, sixteen years old. Schubert’s Ave Maria.'],
+    ['78_cradle-song-brahms-op.-49-no.-4_rosa-ponselle-brahms_gbia0005361a', 'Rosa Ponselle, 1924. Brahms’s lullaby, sung by the voice Caruso discovered.'],
   ];
+  // Said as a person says them: the Archive's own titles read like file names.
+  const NAMES = {
+    'The_Open_Goldberg_Variations-11823': ['The Goldberg Variations', 'Kimiko Ishizaka', 'J. S. Bach'],
+    'bach-well-tempered-clavier-book-1': ['The Well-Tempered Clavier, Book I', 'Kimiko Ishizaka', 'J. S. Bach'],
+    'pandacd-715-js-bach-the-art-of-the-fugue-kunst-der-fuge-bwv-1080': ['The Art of Fugue', 'Kimiko Ishizaka', 'J. S. Bach'],
+    'musopen-chopin': ['Chopin, complete', 'Musopen', 'Frédéric Chopin'],
+    'musopen-mozart-marriage-of-figaro-compressed': ['The Marriage of Figaro', 'Musopen', 'W. A. Mozart'],
+    '78_valse-in-d-flat-major_sergei-rachmaninoff-chopin_gbia0012582a': ['Valse in D-flat major, the Minute Waltz', 'Sergei Rachmaninoff', 'Frédéric Chopin'],
+    '78_prelude-in-c-sharp-minor_sergei-rachmaninoff_gbia0284165a': ['Prelude in C-sharp minor', 'Sergei Rachmaninoff', 'Sergei Rachmaninoff'],
+    '78_tosca---recondita-armonia-strange-harmony_enrico-caruso-puccini-victor-orchestra_gbia0012569a': ['Recondita armonia, from Tosca', 'Enrico Caruso', 'Giacomo Puccini'],
+    '78_rigoletto---la-donna-e-mobile-woman-is-fickle_enrico-caruso-verdi-victor-orchestr_gbia0012560a': ['La donna è mobile, from Rigoletto', 'Enrico Caruso', 'Giuseppe Verdi'],
+    '78_tears_king-olivers-jazz-band-hardin-armstrong-joe-oliver-louis-armstrong-johnny-do_gbia0001053a': ['Tears', 'King Oliver’s Creole Jazz Band, with Louis Armstrong', null],
+    '78_yellow-dog-blues_bessie-smith-hendersons-hot-six_gbia0464774a': ['Yellow Dog Blues', 'Bessie Smith', 'W. C. Handy'],
+    '78_songs-my-mother-taught-me_fritz-kreisler-dvorak-kreisler-carl-lamson_gbia0016601a': ['Songs My Mother Taught Me', 'Fritz Kreisler', 'Antonín Dvořák'],
+    '78_mazurka-in-f-sharp-minor_ignace-jan-paderewski-chopin_gbia0015773a': ['Mazurka in F-sharp minor', 'Ignacy Jan Paderewski', 'Frédéric Chopin'],
+    'SymphonyNo.5': ['Symphony No. 5 in C minor', 'Musopen', 'Ludwig van Beethoven'],
+    '78_boheme-o-soave-fanciulla-thou-sweetest-maiden_nellie-melba-and-enrico-caruso-pucc_gbia0105023a': ['O soave fanciulla, from La bohème', 'Nellie Melba and Enrico Caruso', 'Giacomo Puccini'],
+    '78_ave-maria_jascha-heifetz-andr-benoist-schubert-wilhelmj_gbia0294145a': ['Ave Maria', 'Jascha Heifetz', 'Franz Schubert'],
+    '78_cradle-song-brahms-op.-49-no.-4_rosa-ponselle-brahms_gbia0005361a': ['Wiegenlied, the Cradle Song', 'Rosa Ponselle', 'Johannes Brahms'],
+  };
+  const CUT = ['78_whispering_paul-whiteman-and-his-ambassador-orchestra-schonberger_gbia0120433a', '78_stars-and-stripes-forever_john-philip-sousa_gbia0086020b'];
+  function tidySeed() { for (const id of CUT) { try { db.prepare("UPDATE recordings SET status='shelved' WHERE ia_id=? AND chosen_by='the house'").run(id); } catch (e) { /* */ } } for (const [id, [title, performer, composer]] of Object.entries(NAMES)) { try { db.prepare('UPDATE recordings SET title=?, performer=?, composer=COALESCE(?, composer) WHERE ia_id=?').run(title, performer, composer, id); } catch (e) { /* */ } } }
+  tidySeed();
   let seeding = false;
   async function seed() {
-    if (seeding || db.prepare('SELECT COUNT(*) n FROM recordings').get().n) return; seeding = true;
+    if (seeding) return; seeding = true;
     for (const [id, line] of FIRST) {
+      if (db.prepare('SELECT 1 FROM recordings WHERE ia_id=?').get(id)) continue;
       try { const out = await bring(id, 'the house'); if (out.ok) { db.prepare("UPDATE recordings SET line=?, status='playing' WHERE slug=?").run(line, out.slug); try { ledger.append(db, 'recording.playing', out.slug, { title: out.title, by: 'the house' }); } catch (e) { /* */ } console.log('[listening] on the turntable:', out.title); } else console.log('[listening] not brought in:', id, out.why); } catch (e) { console.log('[listening] seed', id, e.message); }
       await new Promise(r => setTimeout(r, 2500));
     }
-    seeding = false;
+    tidySeed(); seeding = false;
   }
   if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => seed().catch(() => {}), 40000); t.unref && t.unref(); }
   app.locals.listening = { seed, FIRST, bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };

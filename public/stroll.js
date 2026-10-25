@@ -52,7 +52,7 @@
   try { var pk0 = JSON.parse(localStorage.getItem('wm_pack') || '{}'); pack = pk0.items || []; packedAt = pk0.at || 0; } catch (e) { pack = []; }
   function strip(w) { var o = {}; for (var k in w) if (k !== 'el' && k !== 'pre' && Object.prototype.hasOwnProperty.call(w, k)) o[k] = w[k]; return o; }
   function savePack() { try { localStorage.setItem('wm_pack', JSON.stringify({ at: Date.now(), items: pack.slice(0, PACK_N) })); } catch (e) { /* full */ } }
-  function warm(i) { var w = pack[i]; if (!w) return; fetch(w.img, { credentials: 'same-origin' }).catch(function () {}).then(function () { setTimeout(function () { warm(i + 1); }, 900); }); }
+  function warm(i) { var w = pack[i]; if (!w) return; if (!w.img) { warm(i + 1); return; } fetch(w.img, { credentials: 'same-origin' }).catch(function () {}).then(function () { setTimeout(function () { warm(i + 1); }, 900); }); }
   function packUp() {
     if (packing || q || maker || set || !navigator.onLine) return; if (pack.length >= PACK_N && Date.now() - packedAt < 6 * 3600000) { warm(0); return; }
     packing = true;
@@ -83,7 +83,7 @@
   setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
   function stood(slug, s) { if (!slug || s < 2 || /^t:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
-  function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
+  function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && w.img && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
   // turn the current work is held in place, and landscape is its own presentation (the picture alone, edge to edge).
