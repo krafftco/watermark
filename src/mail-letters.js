@@ -193,4 +193,34 @@ function friday(c) {
   return { subject: c.cleared > 0 ? `Friday pay: ${money(c.cleared)} goes out today` : `Your week in the house`, text, html };
 }
 
-module.exports = { collected, sold, ready, frame, friday };
+// The looking letter (Will, 25 Oct: one piece a month, chosen by their own looking, for everyone who has not yet
+// said yes to a standing order): the month in the house, and one work the house would show them next, with Collect.
+function looking(c) {
+  const title = clean(c.pick.title);
+  const rec = c.rec || {}; const n = rec.n || 0;
+  const stood = n ? `Last month you stood before ${n} work${n === 1 ? '' : 's'}${rec.minutes ? `, ${rec.minutes} minute${rec.minutes === 1 ? '' : 's'} in all` : ''}.${rec.longest ? ` The one that held you longest was <i>${esc(clean(rec.longest.title))}</i>${rec.longest.maker ? `, by ${esc(rec.longest.maker)}` : ''}.` : ''}${rec.makers && rec.makers.length ? ` You leaned toward ${rec.makers.map(esc).join(' and ')}.` : ''}` : 'You have been in the house, and the house kept the record.';
+  const html = frame({ base: c.base, preheader: `${title}, by ${c.pick.maker}. ${c.pick.why}`, body: [
+    kicker(`Your month in the house &nbsp;&middot;&nbsp; ${esc(c.month)}`),
+    headline(`One for you.`),
+    lede(esc(c.pick.why)),
+    mount({ img: c.pick.img, href: c.pick.href, title, year: c.pick.year, maker: c.pick.maker }),
+    para(`<i>${esc(title)}</i>, by ${esc(c.pick.maker)}${c.pick.place ? `, ${esc(c.pick.place)}` : ''}. Collect it for ${esc(c.pick.price)}${c.feeOn ? ' (the price is the maker&rsquo;s; the house&rsquo;s share is on top)' : ''}: a numbered copy, yours to keep, the maker paid on Friday.`, '26px'),
+    button(`Collect it · ${c.pick.price}`, c.pick.href),
+    rule(),
+    section('Your looking'),
+    para(stood, '14px'),
+    links([['Your looking', c.lookingUrl], ['Wander on', c.wanderUrl], c.standingUrl ? ['A piece a month', c.standingUrl] : null]),
+    close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for looking. Come back when you like; the doors are never shut.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
+  ].join('') });
+  const text = [
+    `One for you.`,
+    `${c.pick.why}`,
+    `${title}, by ${c.pick.maker}${c.pick.place ? `, ${c.pick.place}` : ''}. Collect it for ${c.pick.price}: ${c.pick.href}`,
+    stood.replace(/<[^>]+>/g, ''),
+    `Your looking: ${c.lookingUrl}\nWander on: ${c.wanderUrl}${c.standingUrl ? `\nA piece a month: ${c.standingUrl}` : ''}`,
+    'Thank you for looking. Come back when you like; the doors are never shut.\nThe house',
+  ].join('\n\n');
+  return { subject: `One for you: ${title}`, text, html };
+}
+
+module.exports = { collected, sold, ready, frame, friday, looking };

@@ -85,21 +85,53 @@ function mountLooking(app, { db, C, buyerOf, mail, fetchImpl = (...a) => fetch(.
   });
   app.get('/api/for-you', async (req, res) => { res.set('Cache-Control', 'private, no-store'); const fy = await forYou(req, Number(req.query.n) || 6); res.json({ by: fy.by, picks: fy.picks.map(p => ({ slug: p.slug, title: tidy(p.title), maker: p.maker, place: p.place, why: p.why, thumb: `/img/${p.slug}/thumb` })) }); });
 
-  // The letter: on the first of the month, to everyone who stood in front of something and has an email, once.
-  async function letters() {
-    if (!mail.on()) return 0;
+  // The letter: on the first of the month, to everyone who stood in front of something and has an email, once:
+  // the month, and one work the house would show them next, with Collect (Will, 25 Oct). Chosen as For you is
+  // (the collector's own looking; Claude when the key is set, else likeness), only among what they may collect.
+  const likenessWhy = (cands, taste, k) => { const said = new Set(); return cands.slice(0, k).map((c, i) => { const kws = String(c.keywords || '').split(/[,;]\s*/).filter(Boolean); const shared = kws.find(kw => taste.some(t => String(t.keywords || '').toLowerCase().includes(kw.toLowerCase()))); const why = shared && !said.has('k' + shared) ? `Because ${shared.toLowerCase()} held you.` : c.place && taste.some(t => t.place === c.place) && !said.has('p') ? `Because you lean toward ${c.place}.` : taste.some(t => t.maker_id === c.maker_id) && !said.has('m' + c.maker_id) ? `More from ${c.maker}.` : i >= k / 2 ? 'Further from what you know; a curator shows range.' : c.curated ? 'One of the house\'s jewels.' : 'Something you have not stood before.'; said.add(shared ? 'k' + shared : c.place ? 'p' : 'm' + c.maker_id); return { ...c, why }; }); };
+  async function pickFor(b) {
+    const cf = app.locals.collectFor; if (!cf) return null;
+    const { picks: cands, taste } = candidates(b, null, 60, 3);
+    const can = cands.map(c => ({ c, x: cf(b, c.slug) })).filter(p => p.x).slice(0, 12);
+    if (!can.length) return null;
+    let chosen = null;
+    if (process.env.ANTHROPIC_API_KEY && taste.length) { try { chosen = (await byClaude(b, null, can.map(p => p.c), taste, 1))[0]; } catch (e) { console.error('[eye]', e.message); } }
+    if (!chosen) chosen = likenessWhy(can.map(p => p.c), taste, 1)[0];
+    const x = can.find(p => p.c.id === chosen.id).x;
+    db.prepare('INSERT INTO shown (buyer_id, viewer, work_id, why, by) VALUES (?,?,?,?,?)').run(b.id, null, chosen.id, chosen.why, 'letter');
+    return { ...chosen, w: x.w, u: x.u };
+  }
+  function letterFor(b, { month = null } = {}) {
+    const since = month ? "datetime('now','start of month','-1 month')" : null;
+    const rec = record(b, null, { since });
+    return pickFor(b).then(p => {
+      if (!p) return null;
+      const mk = db.prepare('SELECT * FROM makers WHERE id=?').get(p.w.maker_id);
+      const href = `${C.base}/m/${require('./views').makerSlug(mk)}/${p.slug}?from=letter`;
+      return { base: C.base, month: new Date(Date.now() - 86400e3 * 15).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/New_York' }), feeOn: require('./fee').on(),
+        pick: { title: p.title, maker: p.maker, place: p.place, year: p.w.taken_at ? String(p.w.taken_at).slice(0, 4) : '', why: p.why, img: `${C.base}/img/${p.slug}/screen?f=jpg`, href, price: money(p.u.price_cents) },
+        rec: { n: rec.totals.n, minutes: rec.totals.secs >= 60 ? Math.round(rec.totals.secs / 60) : 0, longest: rec.longest[0] || null, makers: rec.makers.slice(0, 2).map(m => m.name) },
+        lookingUrl: `${C.base}/yours/looking`, wanderUrl: `${C.base}/wander?at=${p.slug}`, standingUrl: app.locals.standingOrders ? `${C.base}/yours/standing` : null };
+    });
+  }
+  async function letters({ force = false } = {}) {
+    if (!mail.on() && !force) return 0;
     const month = new Date().toISOString().slice(0, 7); let sent = 0;
     const people = db.prepare("SELECT DISTINCT b.* FROM buyers b JOIN stood s ON s.buyer_id=b.id WHERE b.email IS NOT NULL AND b.email<>'' AND s.at > datetime('now','start of month','-1 month')").all();
+    const LETTERS = require('./mail-letters');
     for (const b of people) {
       if (db.prepare('SELECT 1 FROM letters WHERE buyer_id=? AND month=?').get(b.id, month)) continue;
-      const rec = record(b, null, { since: "datetime('now','start of month','-1 month')" }); if (!rec.totals.n) continue;
-      const top = rec.longest[0]; const first = (b.name || '').split(' ')[0];
-      const text = `${first ? first + ',\n\n' : ''}Last month you stood in front of ${rec.totals.n} photograph${rec.totals.n === 1 ? '' : 's'}${rec.totals.secs >= 60 ? `, ${Math.round(rec.totals.secs / 60)} minutes in all` : ''}.${top ? ` The one that held you longest was ${tidy(top.title)}${top.maker ? `, by ${top.maker}` : ''}: ${C.base}/w/${top.slug}` : ''}${rec.makers.length ? `\n\nYou leaned toward ${rec.makers.slice(0, 2).map(m => m.name).join(' and ')}.` : ''}${rec.firsts ? `\nYou were among the first hundred to see ${rec.firsts}.` : ''}\n\nThe whole record, and what the house would show you next, is at ${C.base}/yours/looking\n\nWatermark`;
-      try { await mail.send({ to: b.email, subject: 'Your month in the house', cta: { label: 'Your looking', url: `${C.base}/yours/looking` }, text }); db.prepare('INSERT OR IGNORE INTO letters (buyer_id, month) VALUES (?,?)').run(b.id, month); sent++; } catch (e) { console.error('[letter]', e.message); }
+      if (app.locals.standingOrders && db.prepare("SELECT 1 FROM standing WHERE buyer_id=? AND status IN ('active','ending')").get(b.id)) continue; // a standing order already brings a piece
+      try {
+        const c = await letterFor(b, { month }); if (!c) continue;
+        if (!c.rec.n) continue;
+        await mail.send({ to: b.email, ...LETTERS.looking(c) });
+        db.prepare('INSERT OR IGNORE INTO letters (buyer_id, month) VALUES (?,?)').run(b.id, month); sent++;
+      } catch (e) { console.error('[letter]', e.message); }
     }
     return sent;
   }
-  app.locals.looking = { record, forYou, candidates, letters };
+  app.locals.looking = { record, forYou, candidates, letters, letterFor, pickFor };
   return app.locals.looking;
 }
 

@@ -1584,6 +1584,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger'); assert.ok(!/standing begun/.test(r.body), 'nothing of it on the public register');
     r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(r.status === 200 && (/Come back to collect|A maker’s first sale|Standing orders/.test(r.body) || true), 'the desk stands');
     console.log('ok: a piece a month'); }
+
+  // The looking letter (25 Oct): one piece a month, chosen by the collector's own looking, with Collect; preview on the desk.
+  { const lb = db.prepare("SELECT * FROM buyers WHERE email IS NOT NULL AND email<>'' ORDER BY id LIMIT 1").get(); assert.ok(lb, 'a collector with an email');
+    const lw = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id DESC LIMIT 1").get();
+    db.prepare("INSERT OR IGNORE INTO stood (work_id, viewer, buyer_id, n, seconds, at) VALUES (?,?,?,1,120, datetime('now','start of month','-10 days'))").run(lw.id, 'letterv', lb.id);
+    const lc = await app.locals.looking.letterFor(lb, { month: true }); assert.ok(lc && lc.pick && lc.pick.href && /\$/.test(lc.pick.price) && lc.pick.why, 'one piece chosen, priced, with a why');
+    assert.ok(db.prepare("SELECT 1 FROM shown WHERE buyer_id=? AND by='letter'").get(lb.id), 'the pick remembered as shown');
+    const lo = require('../src/mail-letters').looking(lc); assert.ok(/One for you/.test(lo.html) && lo.html.includes(lc.pick.href) && /Your looking/.test(lo.html) && /One for you:/.test(lo.subject), 'the letter');
+    r = await req(port, 'GET', `/studio/letters?as=looking&buyer=${encodeURIComponent(lb.email)}`, { cookie: ck }); assert.ok(r.status === 200 && /One for you/.test(r.body), 'the preview on the desk');
+    const n0 = db.prepare('SELECT COUNT(*) n FROM letters').get().n; await app.locals.looking.letters({ force: true }); assert.ok(db.prepare('SELECT COUNT(*) n FROM letters').get().n >= n0 + 1, 'sent once'); const n1 = db.prepare('SELECT COUNT(*) n FROM letters').get().n; await app.locals.looking.letters({ force: true }); assert.equal(db.prepare('SELECT COUNT(*) n FROM letters').get().n, n1, 'never twice in a month');
+    console.log('ok: the looking letter'); }
   console.log('ok: owners');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);

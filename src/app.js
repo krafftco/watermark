@@ -516,7 +516,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   // The letters, as they arrive: /studio/letters (the collector's) and ?as=maker (the maker's congratulations),
   // drawn from the latest paid license, or ?ref=. Nothing is sent.
-  app.get('/studio/letters', studioOnly, (req, res) => {
+  app.get('/studio/letters', studioOnly, async (req, res) => {
+    if (req.query.as === 'looking') { const b0 = req.query.buyer ? db.prepare('SELECT * FROM buyers WHERE code=? OR email=?').get(String(req.query.buyer), String(req.query.buyer)) : db.prepare("SELECT b.* FROM buyers b JOIN stood s ON s.buyer_id=b.id WHERE b.email IS NOT NULL ORDER BY s.at DESC LIMIT 1").get(); if (!b0) return res.send('No collector has stood before anything yet.'); const c = await app.locals.looking.letterFor(b0); if (!c) return res.send('Nothing to offer this collector.'); const out = LETTERS.looking(c); return res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`)); }
     if (req.query.as === 'friday') { const m0 = req.query.maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.query.maker)) : maker; if (!m0 || !app.locals.payouts) return res.send('No maker.'); const out = LETTERS.friday(app.locals.payouts.letterFor(m0)); return res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`)); }
     const g = req.query.ref ? q.lic.get(String(req.query.ref)) : db.prepare("SELECT * FROM licenses WHERE status='active' AND price_cents > 0 ORDER BY id DESC LIMIT 1").get();
     if (!g) return res.send('No paid license yet to draw a letter from.');
