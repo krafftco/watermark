@@ -74,8 +74,8 @@ ${shelf('The Library', 'Every book, to read here.', 'The public domain free, the
     tellWants(c); return c;
   }
   app.post('/studio/bookshop/offer', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); try { const b = req.body || {}; let who = { kind: 'house', id: null }; if (b.maker) { const m = db.prepare('SELECT id FROM makers WHERE handle=?').get(String(b.maker).trim()); if (m) who = { kind: 'maker', id: m.id }; } if (b.collector) { const c = db.prepare('SELECT id FROM buyers WHERE code=?').get(String(b.collector).trim()); if (c) who = { kind: 'buyer', id: c.id }; } offer(b, who); res.redirect('/studio/bookshop?ok=' + encodeURIComponent('On the shelf.')); } catch (e) { res.redirect('/studio/bookshop?ok=' + encodeURIComponent(e.message)); } });
-  app.post('/account/bookshop/offer', (req, res) => { const m = makerOf && makerOf(req); if (!m) return res.sendStatus(401); try { offer({ ...req.body, attest: 1 }, { kind: 'maker', id: m.id }); res.redirect(`/library/${encodeURIComponent(String(req.body.text || ''))}?ok=${encodeURIComponent('Your copy is on the shelf.')}#bookshop`); } catch (e) { res.redirect('/library?ok=' + encodeURIComponent(e.message)); } });
-  app.post('/yours/bookshop/offer', (req, res) => { const b = buyerOf && buyerOf(req); if (!b) return res.sendStatus(401); try { offer({ ...req.body, attest: 1 }, { kind: 'buyer', id: b.id }); res.redirect(`/library/${encodeURIComponent(String(req.body.text || ''))}?ok=${encodeURIComponent('Your copy is on the shelf.')}#bookshop`); } catch (e) { res.redirect('/library?ok=' + encodeURIComponent(e.message)); } });
+  app.post('/account/bookshop/offer', (req, res) => { const m = makerOf && makerOf(req); if (!m) return res.sendStatus(401); try { offer({ ...req.body, attest: 1 }, { kind: 'maker', id: m.id }); res.redirect(`/account/bookshop?ok=${encodeURIComponent('Your copy is on the shelf.')}`); } catch (e) { res.redirect('/account/bookshop?ok=' + encodeURIComponent(e.message)); } });
+  app.post('/yours/bookshop/offer', (req, res) => { const b = buyerOf && buyerOf(req); if (!b) return res.sendStatus(401); try { offer({ ...req.body, attest: 1 }, { kind: 'buyer', id: b.id }); res.redirect(`/yours/bookshop?ok=${encodeURIComponent('Your copy is on the shelf.')}`); } catch (e) { res.redirect('/yours/bookshop?ok=' + encodeURIComponent(e.message)); } });
   app.post('/studio/bookshop/copy/:id/withdraw', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare("UPDATE copies SET status='withdrawn' WHERE id=?").run(Number(req.params.id)); res.redirect('/studio/bookshop'); });
   // Buying a copy: name, email, address → Checkout → paid → asked on the desk; the seller and the buyer written to.
   app.post('/bookshop/copy/:id/buy', async (req, res) => {
@@ -140,7 +140,39 @@ ${shelf('The Library', 'Every book, to read here.', 'The public domain free, the
     try { mail.send({ to: o.email, subject: `${tidy(t.title)}: ${STEPS[to].toLowerCase()}`, text: `${o.ref}: ${STEPS[to]}.\n\n${C.base}/bookshop/o/${o.ref}` }); } catch (e) { /* */ }
     res.redirect('/studio/bookshop');
   });
-  app.locals.bookshop = { block, offer, settle, KINDS, STEPS, offered };
+  // The seller's own desk (25 Oct): a maker (/account/bookshop) or a collector (/yours/bookshop) offers copies, sees
+  // the shelf of what they offer (withdraw), and moves their own orders along (Asked → Packed → Sent → Delivered),
+  // the buyer written to at each step, the address shown only to the seller of that copy. The house's Studio desk
+  // sees everything as before.
+  function moveOrder(o, to) {
+    db.prepare("UPDATE copy_orders SET status=?, moved_at=datetime('now') WHERE id=?").run(to, o.id);
+    const c = db.prepare('SELECT * FROM copies WHERE id=?').get(o.copy_id), t = text(c.text_id);
+    try { mail.send({ to: o.email, subject: `${tidy(t.title)}: ${STEPS[to].toLowerCase()}`, text: `${o.ref}: ${STEPS[to]}.\n\n${C.base}/bookshop/o/${o.ref}` }); } catch (e) { /* */ }
+  }
+  function sellerDesk(base, who) {
+    const mine = (w) => ({ copies: db.prepare('SELECT c.*, t.title, t.slug FROM copies c JOIN texts t ON t.id=c.text_id WHERE c.seller_kind=? AND c.seller_id=? ORDER BY c.id DESC').all(w.kind, w.id), orders: db.prepare("SELECT o.*, c.kind, c.line, t.title, t.slug FROM copy_orders o JOIN copies c ON c.id=o.copy_id JOIN texts t ON t.id=c.text_id WHERE c.seller_kind=? AND c.seller_id=? AND o.paid=1 ORDER BY CASE o.status WHEN 'asked' THEN 0 WHEN 'packed' THEN 1 WHEN 'sent' THEN 2 ELSE 3 END, o.id DESC").all(w.kind, w.id) });
+    app.get(base, (req, res) => {
+      const w = who(req); if (!w) return res.status(401).send(V.sign ? V.sign(401) : 'Sign in');
+      const { copies, orders } = mine(w); const books = db.prepare("SELECT slug, title, author FROM texts WHERE status='held' AND public=1 ORDER BY title COLLATE NOCASE LIMIT 400").all();
+      if (V.setDeskPath) V.setDeskPath(base);
+      const earned = orders.filter(o => o.status !== 'declined').reduce((a, o) => a + ((o.cents || 0) - (o.house_cents || 0)), 0);
+      res.send(V.layout({ title: 'Your shelf · The Bookshop · Watermark', studio: w.kind === 'maker', body: `<section class="studio-wrap bs-desk bs-mine"><p class="k">${w.kind === 'maker' ? '<a href="/account">&larr; Your studio</a>' : '<a href="/yours">&larr; Your gallery</a>'} &middot; The Bookshop</p><h1>Your shelf.</h1>
+<p class="lede">Offer a first edition, a signed copy, a proof or a paperback of any book in the Library; the house lists it, takes the payment, and writes to you and the buyer. You pack and post; you move the order along here. 'First edition' and 'signed' are your word, and the page says so.${orders.length ? ` <b>${money(earned)}</b> from ${orders.length} sale${orders.length === 1 ? '' : 's'}.` : ''}</p>
+${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
+<h2>Offer a copy</h2><form method="post" action="${base}/offer" class="cl-f bs-of"><label><span>The book</span><select name="text" required>${books.map(t => `<option value="${esc(t.slug)}">${esc(tidy(t.title))}${t.author ? ` · ${esc(t.author)}` : ''}</option>`).join('')}</select></label><label><span>Kind</span><select name="kind">${Object.entries(KINDS).filter(([k]) => k !== 'reprint').map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label><label><span>A line</span><input name="line" maxlength="160" placeholder="Signed on the half-title, 1923"></label><label><span>Condition</span><input name="condition" maxlength="80" placeholder="Very good; a little foxing"></label><label><span>Your price, in dollars</span><input name="price" inputmode="decimal" required placeholder="450"></label><label><span>How many</span><input name="qty" inputmode="numeric" value="1"></label><label><span>A note (private to the house)</span><input name="note" maxlength="300"></label><label class="bs-attest"><input type="checkbox" name="attest" value="1" required> I hold this copy, it is as I describe it, and I will post it within a week of the sale.</label><button class="buy-btn">Put it on the shelf</button></form>
+<h2>Orders</h2>${orders.length ? `<table class="tbl"><tr><th>Ref</th><th>Book</th><th>To</th><th>Yours</th><th>Status</th><th></th></tr>${orders.map(o => `<tr><td>${esc(o.ref)}</td><td><a href="/library/${esc(o.slug)}">${esc(o.title)}</a><br><small>${esc(KINDS[o.kind] || '')}</small></td><td>${esc(o.name || '')}<br><small>${esc(o.address || '')}</small></td><td>${money((o.cents || 0) - (o.house_cents || 0))}</td><td>${esc(STEPS[o.status] || o.status)}</td><td>${['packed', 'sent', 'done'].filter(k => k !== o.status && STEPS[k]).map(k => `<form method="post" action="${base}/order/${o.id}/move" class="inline"><input type="hidden" name="to" value="${k}"><button class="link">${esc(STEPS[k])}</button></form>`).join(' · ')}</td></tr>`).join('')}</table>` : '<p class="note">No orders yet. A sale writes to you, and shows here with the address to post to.</p>'}
+<h2>On your shelf</h2>${copies.length ? `<table class="tbl"><tr><th>Book</th><th>Copy</th><th>Price</th><th>Left</th><th></th></tr>${copies.map(c => `<tr><td><a href="/library/${esc(c.slug)}#bookshop">${esc(c.title)}</a></td><td>${esc(KINDS[c.kind] || '')}${c.line ? `<br><small>${esc(c.line)}</small>` : ''}</td><td>${money(c.price_cents)}</td><td>${c.status === 'offered' ? c.qty : esc(c.status)}</td><td>${c.status === 'offered' ? `<form method="post" action="${base}/copy/${c.id}/withdraw" class="inline"><button class="link">Withdraw</button></form>` : ''}</td></tr>`).join('')}</table>` : '<p class="note">Nothing offered yet.</p>'}
+</section>` }));
+    });
+    app.post(`${base}/order/:id/move`, (req, res) => {
+      const w = who(req); if (!w) return res.sendStatus(401); const o = db.prepare('SELECT o.* FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE o.id=? AND c.seller_kind=? AND c.seller_id=?').get(Number(req.params.id), w.kind, w.id); const to = String(req.body.to || '');
+      if (!o || !STEPS[to] || to === 'declined') return res.redirect(base); moveOrder(o, to); res.redirect(`${base}?ok=${encodeURIComponent(`${o.ref}: ${STEPS[to].toLowerCase()}. The buyer is written to.`)}`);
+    });
+    app.post(`${base}/copy/:id/withdraw`, (req, res) => { const w = who(req); if (!w) return res.sendStatus(401); db.prepare("UPDATE copies SET status='withdrawn' WHERE id=? AND seller_kind=? AND seller_id=? AND status='offered'").run(Number(req.params.id), w.kind, w.id); res.redirect(base); });
+  }
+  sellerDesk('/account/bookshop', req => { const m = makerOf && makerOf(req); return m ? { kind: 'maker', id: m.id } : null; });
+  sellerDesk('/yours/bookshop', req => { const b = buyerOf && buyerOf(req); return b ? { kind: 'buyer', id: b.id } : null; });
+  app.locals.bookshop = { block, offer, settle, KINDS, STEPS, offered, moveOrder };
   return app.locals.bookshop;
 }
 module.exports = { mountBookshop, KINDS, STEPS };

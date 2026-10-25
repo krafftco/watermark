@@ -3780,3 +3780,6 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 @media (max-width:760px){.mu2-new{grid-template-columns:1fr}.mu2-add{grid-template-columns:1fr}}
 /* The deliveries desk, sorted (25 Oct). */
 .dv-sortrow{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}.dv-sort a{color:var(--mu);text-decoration:none}.dv-sort a[aria-current=page]{color:var(--ink);text-decoration:underline;text-underline-offset:3px}.dv-ph{grid-column:1/-1;margin:10px 0 2px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+/* The seller's own shelf (25 Oct). */
+.bs-mine .bs-of{grid-template-columns:repeat(2,1fr)}.bs-attest{grid-column:1/-1;display:flex!important;gap:8px;align-items:flex-start;font-size:13px;color:var(--mu);text-transform:none;letter-spacing:0}
+@media (max-width:760px){.bs-mine .bs-of{grid-template-columns:1fr}}

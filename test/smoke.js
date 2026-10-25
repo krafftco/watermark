@@ -1504,6 +1504,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger'); assert.ok(!/Ada Reader/.test(r.body), 'no buyer named on the register');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='copy.sold'").get() && db.prepare("SELECT 1 FROM ledger WHERE type='copy.offered'").get(), 'offered and sold on the register');
     void sent0;
+    // The seller's own shelf (25 Oct): a collector offers from Yours, sees it on their shelf, withdraws it; a maker's desk answers; a stranger is refused.
+    r = await req(port, 'GET', '/yours/bookshop'); assert.equal(r.status, 401, 'a stranger has no shelf');
+    r = await req(port, 'POST', '/yours/bookshop/offer', { cookie: bck, body: { text: bk.slug, kind: 'paper', line: 'A reading copy', price: '12', qty: '2', attest: '1' } }); assert.ok(r.status === 302 && /yours\/bookshop/.test(r.headers.location), 'offered from Yours: ' + r.headers.location);
+    r = await req(port, 'GET', '/yours/bookshop', { cookie: bck }); assert.ok(r.status === 200 && /Your shelf\./.test(r.body) && /A reading copy/.test(r.body) && /Withdraw/.test(r.body), 'the collector’s shelf');
+    const cp2 = db.prepare("SELECT * FROM copies WHERE seller_kind='buyer' ORDER BY id DESC LIMIT 1").get(); assert.ok(cp2 && cp2.kind === 'paper' && cp2.qty === 2, 'the copy, the collector’s');
+    r = await req(port, 'POST', `/yours/bookshop/copy/${cp2.id}/withdraw`, { cookie: bck }); assert.equal(db.prepare('SELECT status FROM copies WHERE id=?').get(cp2.id).status, 'withdrawn', 'withdrawn by its seller');
+    r = await req(port, 'GET', '/account/bookshop', { cookie: mck }); assert.ok(r.status === 200 && /Your shelf\./.test(r.body) && /Offer a copy/.test(r.body), 'the maker’s shelf');
   }
   console.log('ok: the Bookshop');
   { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
