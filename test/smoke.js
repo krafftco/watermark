@@ -1594,6 +1594,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/\/account\/table/.test(r.body), 'the desk opens the Library');
   }
   console.log('ok: the Library');
+  { // The Writer's Desk (25 Oct): a manuscript with a binder; pages saved by JSON with the day's words; [[links]] and backlinks; drafts kept and restored; moved; compiled into the press; printed.
+    r = await req(port, 'GET', '/account/desk', { cookie: mck }); assert.ok(r.status === 200 && /The Writer’s Desk\./.test(r.body) && /Jefferson/.test(r.body), 'the desks');
+    r = await req(port, 'POST', '/account/desk', { cookie: mck, body: { title: 'The Long Light', kind: 'novel', target: '60000' } }); const msId = +(r.headers.location || '').split('/').pop(); assert.ok(msId > 0, 'a manuscript opened: ' + r.headers.location);
+    r = await req(port, 'GET', `/account/desk/${msId}`, { cookie: mck }); assert.ok(r.status === 200 && /window\.__WSD=/.test(r.body) && /data-wsd-binder/.test(r.body) && /Chapter One/.test(r.body), 'the desk');
+    r = await req(port, 'GET', `/account/desk/${msId}/pages`, { cookie: mck }); let P = JSON.parse(r.body); const ch1 = P.pages.find(p => p.title === 'Chapter One'), folder = P.pages.find(p => p.kind === 'folder'); assert.ok(ch1 && folder, 'the binder seeded');
+    const text1 = Array.from({ length: 30 }, (_, i) => `Sentence ${i + 1} of the first chapter, in which the light comes late over the harbour and [[Marguerite]] is first seen.`).join(' ');
+    r = await req(port, 'PUT', `/account/desk/${msId}/pages/${ch1.id}`, { cookie: mck, body: { body: text1, title: 'Chapter One', synopsis: 'The harbour at dawn.', status: 'revised' } }); let a = JSON.parse(r.body); assert.ok(a.ok && a.words > 300 && a.today >= a.words && a.total === a.words, 'saved, counted, credited to today: ' + a.words);
+    r = await req(port, 'POST', `/account/desk/${msId}/pages`, { cookie: mck, body: { kind: 'text', title: 'Marguerite', parent: '' } }); a = JSON.parse(r.body); const mg = a.id; assert.ok(mg, 'a page made');
+    r = await req(port, 'GET', `/account/desk/${msId}/pages/${mg}`, { cookie: mck }); a = JSON.parse(r.body); assert.ok(a.backlinks.length === 1 && a.backlinks[0].title === 'Chapter One', 'the backlink from the first chapter');
+    r = await req(port, 'POST', `/account/desk/${msId}/pages/${ch1.id}/snapshot`, { cookie: mck, body: { note: 'Before the rewrite' } }); a = JSON.parse(r.body); assert.ok(a.drafts.length === 1 && a.drafts[0].note === 'Before the rewrite', 'a draft kept by hand');
+    r = await req(port, 'PUT', `/account/desk/${msId}/pages/${ch1.id}`, { cookie: mck, body: { body: 'A shorter opening.' } }); a = JSON.parse(r.body); assert.ok(a.ok && a.words === 3, 'rewritten');
+    r = await req(port, 'POST', `/account/desk/${msId}/pages/${ch1.id}/restore/${JSON.parse((await req(port, 'GET', `/account/desk/${msId}/pages/${ch1.id}`, { cookie: mck })).body).drafts.find(d => d.note === 'Before the rewrite').id}`, { cookie: mck }); a = JSON.parse(r.body); assert.ok(a.ok && a.page.words > 300 && a.drafts.length === 2, 'restored, the short one kept too');
+    r = await req(port, 'POST', `/account/desk/${msId}/pages/${mg}/move`, { cookie: mck, body: { parent: String(folder.id), order: String(mg) } }); a = JSON.parse(r.body); assert.ok(a.ok && a.pages.find(p => p.id === mg).parent_id === folder.id, 'moved into the folder');
+    r = await req(port, 'POST', `/account/desk/${msId}/compile`, { cookie: mck, body: { line: 'A novel of the harbour.', price: '', public: '1' } }); assert.ok(/Shelved/.test(decodeURIComponent(r.headers.location || '')), 'compiled: ' + r.headers.location);
+    const tx = db.prepare("SELECT * FROM texts WHERE title='The Long Light'").get(); assert.ok(tx && tx.maker_id && /## Chapter One/.test(tx.body) && /# Research/.test(tx.body) && /\*\*Marguerite\*\*/.test(tx.body) && tx.public === 1, 'one text of the press, the binder in order');
+    r = await req(port, 'GET', `/read/${tx.slug}`); assert.ok(r.status === 200 && /The Long Light/.test(r.body), 'in the reading room');
+    r = await req(port, 'GET', `/account/desk/${msId}.pdf`, { cookie: mck }); assert.ok(r.status === 200 && /^%PDF/.test(String(r.body).slice(0, 5)), 'the manuscript printed');
+    r = await req(port, 'GET', `/account/desk/${msId}.pdf`); assert.ok(r.status !== 200, 'a stranger refused');
+  }
+  console.log('ok: the Writer’s Desk');
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

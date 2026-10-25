@@ -132,6 +132,7 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
     [`/m/${esc(m.handle)}`, 'Your page', m.bio ? 'As the public sees it' : 'Add a portrait and a line'],
     edit && totals.works >= 5 ? ['/account#holdings', 'The edit', `Standing ${edit.now.standing}${edit.best && edit.best.from ? ` · culling from ${'★'.repeat(edit.best.from)} would give ${edit.best.standing}` : ''}`] : null,
     viewing ? null : ['/account/deliveries', 'Deliver an album', 'To a client or a friend'],
+    viewing ? null : ['/account/desk', 'The Writer’s Desk', 'A manuscript: the binder, the drafts, the press'],
     viewing || !almanack ? null : ['/account/almanack', almanack.has ? `${almanack.y}’s almanack` : 'The almanack', almanack.has ? 'Set; remake it as the year goes on' : `Your ${almanack.y} as one book, in one press`],
   ].filter(Boolean);
   const moneyRows = [
