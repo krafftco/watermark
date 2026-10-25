@@ -7,7 +7,7 @@ const CLOTH = ['#2f4a3a', '#5a1f22', '#23304d', '#6b4b2a', '#8a7a52', '#3b4a5a',
 const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
 const hash = s => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 function book(t, href) {
-  const h = hash(t.title || t.slug); const cloth = CLOTH[(h >> 7) % CLOTH.length]; const tall = 150 + (h % 5) * 8; const wide = 100 + ((h >> 3) % 4) * 6;
+  const h = hash(t.title || t.slug); const cloth = CLOTH[(h >>> 7) % CLOTH.length]; const tall = 150 + (h % 5) * 8; const wide = 100 + ((h >>> 3) % 4) * 6;
   const inner = t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : `<span class="shf-cloth" style="background:${cloth}"><span class="shf-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="shf-rule"></span></span>`;
   return `<a class="shf-bk" href="${esc(href)}" style="--h:${tall}px;--w:${wide}px" title="${esc(t.title)}${t.author ? `, ${esc(byName(t.author))}` : ''}">${inner}</a>`;
 }

@@ -51,7 +51,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const good = chs.map((c, i) => ({ ...c, i })).filter(c => c.paras.join(' ').length > 400); if (!good.length) return null;
     const c = good[Math.floor(Math.random() * good.length)]; const slug = `t:${t.slug}:${c.i}`; if (seen.includes(slug)) return null;
     const ex = []; let len = 0; for (const p of c.paras) { if (len > 520) break; ex.push(p); len += p.length; }
-    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), cloth: CLOTH[(hashOf(t.title || t.slug) >> 7) % CLOTH.length], head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
+    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), cloth: CLOTH[(hashOf(t.title || t.slug) >>> 7) % CLOTH.length], head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
   }
   // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
   // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.

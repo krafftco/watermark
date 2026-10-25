@@ -173,10 +173,10 @@ const STG = () => process.env.STAGING === '1';
 // here is reached from the room it belongs to (Who hangs from /makers, Enjoying it from the Keys, the frame from the
 // Collection, the Copyright Office from /own, Sign in and Find from the header).
 const FOOT = [
-  ['Look', [['/wander', 'Wander'], ['/start', 'How it works'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/today', 'Today’s work']]],
-  ['Collect', [['/yours', 'Yours'], ['/market', 'Market'], ['/verify', 'Check a work'], ['/own', 'You already own it'], ['/print', 'Print your work']]],
-  ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/club', 'The Club'], ['/guides', 'Guides'], ['/kids', 'The kids’ corner'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
-  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/press', 'The printing house'], ['/publishing', 'Publishing'], ['/bookshop', 'The Bookshop'], ['/director', 'The director'], ['/ledger', 'The register'], ['/friends', 'Friends of the house'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
+  ['Look', [['/wander', 'Wander'], ['/collection', 'The collection'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/start', 'How it works']]],
+  ['Collect', [['/yours', 'Yours'], ['/verify', 'Check a work'], ['/print', 'Print your work'], ['/friends', 'Friends of the house']]],
+  ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
+  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/makers', 'For those who make'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
 ];
 function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;
@@ -1416,7 +1416,8 @@ function about() {
 <h2>By invitation</h2>
 <p>Watermark is curated. Work hangs here because someone stood in front of it and said it was ready. That is the honour, and it is the point: the beautiful rises, the body of work is kept whole, and nothing is sold that is not worth keeping. <a href="/join">Apply with the work.</a></p>
 <h2>The papers of the house</h2>
-<p><a href="/owners">How Krafft, the company that owns Watermark, is owned and run</a> &middot; <a href="/share">What the house keeps on each sale</a> &middot; <a href="/hanging">Who hangs, and how it is decided</a> &middot; <a href="/copyright">The Copyright Office</a> &middot; <a href="/enterprise">A house of your own</a> &middot; <a href="/app">The app</a> &middot; <a href="/guestbook">The guest book</a> &middot; <a href="/journal">The journal</a></p>
+<p><a href="/director">The director</a> &middot; <a href="/owners">How Krafft, the company that owns Watermark, is owned and run</a> &middot; <a href="/share">What the house keeps on each sale</a> &middot; <a href="/hanging">Who hangs, and how it is decided</a> &middot; <a href="/own">You already own it</a> &middot; <a href="/copyright">The Copyright Office</a> &middot; <a href="/enterprise">A house of your own</a> &middot; <a href="/app">The app</a> &middot; <a href="/guestbook">The guest book</a> &middot; <a href="/journal">The journal</a></p>
+<p><a href="/press">The printing house</a> &middot; <a href="/publishing">Publishing</a> &middot; <a href="/bookshop">The Bookshop</a> &middot; <a href="/market">The market</a> &middot; <a href="/club">The Club</a> &middot; <a href="/guides">Guides</a> &middot; <a href="/kids">The kids’ corner</a> &middot; <a href="/today">Today’s work</a> &middot; <a href="/patrons">The Hall of Patrons</a> &middot; <a href="/enjoy">Enjoying it</a></p>
 <p class="ab-sig"><a href="/director">Will Fullerton</a><br><small>Founding director &middot; Krafft Studios &middot; Watermark is a Krafft company</small></p></section>`
   });
 }

@@ -10,7 +10,7 @@ function mountRows(app, { db, V, C }) {
   const all = (sql, ...a) => { try { return db.prepare(sql).all(...a); } catch (e) { return []; } };
   const img = s => `/img/${encodeURIComponent(s)}/screen`;
   const CLOTH = ['#2f4a3a', '#5a1f22', '#23304d', '#6b4b2a', '#8a7a52', '#3b4a5a', '#4a3350', '#7a5a2a']; const hash = s => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
-  const cloth = t => `<span class="rw-cloth" style="background:${CLOTH[(hash(t.title || t.slug) >> 7) % CLOTH.length]}"><span class="rw-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="rw-rule"></span></span>`;
+  const cloth = t => `<span class="rw-cloth" style="background:${CLOTH[(hash(t.title || t.slug) >>> 7) % CLOTH.length]}"><span class="rw-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="rw-rule"></span></span>`;
   function rowsFor(req, { works = [], hangs = [], shows = [], rooms = [], today = null, cover = null } = {}) {
     const rows = [];
     // Where to: three doors, by who you are.
