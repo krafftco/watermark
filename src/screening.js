@@ -83,6 +83,28 @@ ${now && !can ? `<p class="bc-door">The screening is on now, for keyholders. <a 
   app.post('/studio/screening/showing', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); const at = nyToUtc(req.body.at); const f = db.prepare('SELECT * FROM films WHERE id=?').get(+req.body.film); if (!at || !f) return res.redirect('/studio/screening?ok=' + encodeURIComponent('A film and a time.')); db.prepare('INSERT INTO film_showings (film_id, at) VALUES (?,?)').run(f.id, at); res.redirect('/studio/screening?ok=' + encodeURIComponent(`${f.title}: ${when(at)}.`)); });
   app.post('/studio/screening/showing/:id/clear', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare('DELETE FROM film_showings WHERE id=?').run(+req.params.id); res.redirect('/studio/screening?ok=Cleared.'); });
   // After a showing ends: told once on the register.
+  // The first film (Will, 24 Oct, "maybe we choose one film"; "go"): Sunrise, Murnau, 1927. Public domain in the United
+  // States (published 1927); the Archive's own 1080p transfer, handed to <video> as it is. A showing is set for the
+  // next evening at nine, New York, when none is coming. Al's notes are a draft; the audio track is to be confirmed
+  // as the 1927 Movietone score before the first public showing (a later orchestral score would not be free).
+  const FIRST = [{
+    slug: 'sunrise-1927', title: 'Sunrise: A Song of Two Humans', filmmaker: 'F. W. Murnau', year: '1927', minutes: 94,
+    line: 'The most beautiful picture of the silent era, and a film about light.',
+    body: 'A man from the country, a woman from the city, and a wife. Murnau, brought to Hollywood by Fox with a free hand, built a whole city on the lot and moved the camera through it as no one had: along a trolley line, through a marsh at night, across a lake in a storm. It won the first Academy Award for Unique and Artistic Picture, a prize given once and never again. Watch the light: every scene is lit as if from one source, and the story is told by where it falls.',
+    poster_url: 'https://archive.org/services/img/sunrise_1927', source_url: 'https://archive.org/download/sunrise_1927/sunrise_1927.mp4',
+    notes: ['0:00 The titles call it a song of two humans, of no place and every place. Hold that: the film never names a town.', '8:00 The whistle from the city. The woman waits in the marsh; the camera follows him through the reeds in one unbroken walk, built on a track through a swamp made for it.', '27:00 The boat. Watch his hands on the oars and hers on the gunwale; the whole film turns on what he does not do here.', '33:00 The trolley from the country into the city, a single ride, the landscape changing behind the windows. The track was laid for this shot alone.', '40:00 The church. A wedding they did not come for; the vow spoken over their heads is the one he is making.', '50:00 The photographer. The first laughter in the film. The headless statue is a joke Murnau lets run just long enough.', '60:00 The fair, the piglet, the peasant dance: the city at its kindest, and the two of them as if newly met.', '77:00 The storm on the lake. The bulrushes he gathered for one purpose serve another.', '85:00 The search by lantern. Count how little is said.', '92:00 Sunrise. The title paid in full.'].join('\n'),
+    chosen_by: 'the house', chosen_why: 'To open the room: a film about looking slowly at light, in a house made for it.',
+  }];
+  function seed() {
+    for (const f of FIRST) {
+      let row = db.prepare('SELECT * FROM films WHERE slug=?').get(f.slug);
+      if (!row) { db.prepare('INSERT INTO films (slug, title, filmmaker, year, minutes, line, body, poster_url, source_url, notes, chosen_by, chosen_why, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(f.slug, f.title, f.filmmaker, f.year, f.minutes, f.line, f.body, f.poster_url, f.source_url, f.notes, f.chosen_by, f.chosen_why, 'showing'); row = db.prepare('SELECT * FROM films WHERE slug=?').get(f.slug); try { ledger.append(db, 'screening.shelved', f.slug, { title: f.title, from: 'first' }); } catch (e) { /* */ } }
+      const coming = db.prepare("SELECT 1 FROM film_showings WHERE film_id=? AND at > datetime('now')").get(row.id);
+      if (!coming) { const d = new Date(Date.now() + 864e5); const ny = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); const at = nyToUtc(`${ny}T21:00`); if (at) db.prepare('INSERT INTO film_showings (film_id, at) VALUES (?,?)').run(row.id, at); }
+    }
+  }
+  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => { try { seed(); } catch (e) { console.warn('[screening] seed', e.message); } }, 50000); if (t.unref) t.unref(); }
+  app.locals.screeningSeed = seed;
   function tell() { for (const s of db.prepare("SELECT s.*, f.title, f.filmmaker, f.slug FROM film_showings s JOIN films f ON f.id=s.film_id WHERE s.told=0 AND datetime(s.at, '+' || COALESCE(f.minutes,120) || ' minutes') <= datetime('now')").all()) { db.prepare('UPDATE film_showings SET told=1 WHERE id=?').run(s.id); try { ledger.append(db, 'screening.shown', s.slug, { title: s.title, by: s.filmmaker, came: s.came }); } catch (e) { /* */ } } }
   if (!app.locals.noTimers) setInterval(tell, 10 * 60e3).unref();
   app.locals.screening = { film, nowShowing, nextShowing, parseNotes, tell, nyToUtc, onBill: () => db.prepare("SELECT s.at, f.slug, f.title, f.filmmaker FROM film_showings s JOIN films f ON f.id=s.film_id WHERE f.status='showing' AND datetime(s.at, '+' || COALESCE(f.minutes,120) || ' minutes') > datetime('now') ORDER BY s.at LIMIT 1").get() || null };

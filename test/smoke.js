@@ -1394,6 +1394,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger'); assert.ok(/The Screening Room showed/.test(r.body));
     r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'X', source_url: 'http://insecure.example/x.mp4' } }); assert.ok(/https address/.test(decodeURIComponent(r.headers.location)), 'only the house’s own https sources');
   }
+  { // The first film: Sunrise, seeded with a showing the next evening at nine, New York; never twice.
+    app.locals.screeningSeed(); app.locals.screeningSeed();
+    const f = db.prepare("SELECT * FROM films WHERE slug='sunrise-1927'").get(); assert.ok(f && f.status === 'showing' && /archive\.org\/download\/sunrise_1927/.test(f.source_url) && /^0:00 /.test(f.notes), 'Sunrise on the bill');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM film_showings WHERE film_id=? AND at > datetime('now')").get(f.id).n, 1, 'one showing, once');
+    r = await req(port, 'GET', '/screening'); assert.ok(/Sunrise/.test(r.body) && /Murnau/.test(r.body), 'on the bill');
+    r = await req(port, 'GET', '/screening/sunrise-1927'); assert.ok(r.status === 200 && /song of two humans/i.test(r.body), 'the lobby');
+  }
   console.log('ok: the Screening Room');
   { // The Listening Room: a record from the Archive, cleared at the door; an NC record turned away; played whole in the room.
     const prev = app.locals.__fetch;
