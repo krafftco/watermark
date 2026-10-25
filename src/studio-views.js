@@ -222,18 +222,21 @@ ${view === 'list' ? `<div class="cat-wrap">${rows.length ? list : '<p class="emp
 
 // Holdings: the collection as a body of assets. One number, where it came from, what needs you, and
 // every work as a line on a statement.
-function holdings({ maker, t, streams, needs, rows, recent, notice }) {
+function holdings({ maker, t, streams, needs, rows, recent, notice, desk = null }) {
+  const col = (title, list, empty) => `<section class="dk2-col"><h2>${title}</h2>${list.length ? `<ul>${list.map(([href, verb, line]) => `<li><a href="${href}"><b>${esc(verb)}</b><span>${esc(line)}</span></a></li>`).join('')}</ul>` : `<p class="dk2-empty">${empty}</p>`}</section>`;
+  const deskHtml = desk ? `<section class="dk2" aria-label="The desk"><header class="dk2-line">${desk.line.map(([b, i]) => `<span><b>${b}</b><i>${esc(i)}</i></span>`).join('')}</header><div class="dk2-cols">${col('Needs the house', desk.needs, 'All clear.')}${col('The work', desk.work, '')}${col('Money', desk.money, '')}</div>${desk.late.length ? `<p class="dk2-late">Lately: ${desk.late.map(l => `<a href="/studio/licenses/${esc(l.ref)}">${esc(l.title)}</a>, ${esc(String(l.use_name || '').toLowerCase())}, ${money(l.price_cents)}`).join(' · ')}</p>` : ''}</section>` : '';
   const pct = n => (t.earned ? Math.round(100 * n / t.earned) : 0);
   const ed = w => w.edition_size ? `<span class="hd-ed"><i style="--p:${Math.min(100, Math.round(100 * w.sold / w.edition_size))}%"></i>${w.sold} of ${w.edition_size}</span>` : `<span class="hd-ed hd-open">Open</span>`;
   const line = w => `<a class="hd-row" href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span class="hd-t"><b>${esc(w.title)}</b><small>${esc(w.accession || '')}${w.place ? ' · ' + esc(w.place) : ''}</small></span>${ed(w)}<span class="hd-c">${w.licensed}</span><span class="hd-c">${w.seen30}</span><span class="hd-v">${money(w.earned)}</span></a>`;
   const need = needs.filter(n => n.n > 0);
   return layout({ studio: true, title: 'Holdings · Watermark', body: `<section class="studio-wrap hd">${nav('/studio')}
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
-<header class="hd-top"><p class="k">${esc(maker.house || maker.name)} · Holdings</p>
+${desk ? `<p class="k">${esc(maker.house || maker.name)} · The desk</p>${deskHtml}` : `<header class="hd-top"><p class="k">${esc(maker.house || maker.name)} · Holdings</p>
 <div class="hd-big"><b>${money(t.earned)}</b><span>earned from the collection, lifetime${t.month ? ` · ${money(t.month)} this month` : ''}</span></div>
 <div class="hd-mix">${streams.map(s => `<div><span class="k">${esc(s.name)}</span><b>${money(s.cents)}${s.per ? `<small>${esc(s.per)}</small>` : ''}</b>${s.note ? `<small>${esc(s.note)}</small>` : `<i style="--p:${pct(s.cents)}%"></i>`}</div>`).join('')}</div>
 <div class="hd-held"><span><b>${t.works}</b> works held</span><span><b>${t.rooms}</b> rooms</span><span><b>${t.numbered}</b> numbered to <b>${t.collectors}</b> collector${t.collectors === 1 ? '' : 's'}</span><span><b>${t.seen30}</b> seen in 30 days</span><span><b>${t.complete}%</b> catalogued</span></div></header>
 <section class="hd-need"><h2>Needs you</h2>${need.length ? `<ul>${need.map(n => `<li><a href="${n.href}"><b>${n.n}</b>${esc(n.label)}<span>→</span></a></li>`).join('')}</ul>` : '<p class="hd-calm">Nothing waiting. The collection is in order.</p>'}</section>
+`}
 <section class="hd-list"><div class="hd-h"><h2>The holdings</h2><a href="/studio/trove">All ${t.works} works →</a></div>
 <div class="hd-head"><span></span><span>Work</span><span>Edition</span><span class="hd-c">Licensed</span><span class="hd-c">Seen, 30d</span><span class="hd-v">Earned</span></div>
 ${rows.map(line).join('') || '<p class="empty">Nothing held yet. <a href="/studio/works">Add photographs</a>.</p>'}</section>

@@ -1788,7 +1788,49 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     ];
     const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
     const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();
-    res.send(S.holdings({ maker, t, streams, needs, rows, recent, notice: req.query.ok }));
+    // The house's desk (Will, 24 Oct, "do it": the same shell as the maker's): the line and three columns, one verb a row.
+    let desk = null;
+    try {
+      const D = app.locals.deskSummary ? app.locals.deskSummary() : null; const q = (sql, dflt = 0) => { try { return db.prepare(sql).get().n; } catch (e) { return dflt; } };
+      const asks = q("SELECT COUNT(*) n FROM house_asks WHERE status='open' OR status IS NULL"), restoring = q("SELECT COUNT(*) n FROM works WHERE status='restoring'"), lost = (vaultState.lost || []).length;
+      const lastBackup = (() => { try { return db.prepare("SELECT at FROM backup_runs WHERE kind='backup' AND ok=1 ORDER BY id DESC LIMIT 1").get(); } catch (e) { return null; } })();
+      const need = needs.filter(x => x.n > 0);
+      const N = D ? D.needs : {};
+      desk = {
+        line: [[V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors']],
+        needs: [
+          N.requests ? ['/studio/licenses', 'Answer', `${N.requests} license request${N.requests === 1 ? '' : 's'}`] : null,
+          N.applications ? ['/studio/makers', 'Decide', `${N.applications} maker${N.applications === 1 ? '' : 's'} asking to join`] : null,
+          asks ? ['/studio/accounts#asking', 'Look', `${asks} asking to hang`] : null,
+          N.claims ? ['/studio/claims', 'Decide', `${N.claims} claim${N.claims === 1 ? '' : 's'} open`] : null,
+          N.prints ? ['/studio/prints', 'Print', `${N.prints} print${N.prints === 1 ? '' : 's'} asked for`] : null,
+          N.dinnerNames ? ['/studio/season', 'Draw the table', `${N.dinnerNames} name${N.dinnerNames === 1 ? '' : 's'} down for dinner`] : null,
+          N.feedback ? ['/studio/feedback', 'Read', `${N.feedback} note${N.feedback === 1 ? '' : 's'} from visitors`] : null,
+          restoring ? ['/studio/restoration', 'Restore', `${restoring} work${restoring === 1 ? '' : 's'} off view`] : null,
+          lost ? ['/studio/restoration', 'Find', `${lost} original${lost === 1 ? '' : 's'} not in the vault`] : null,
+          ...need.filter(x => /masters|sightings/.test(x.label)).map(x => [x.href, /masters/.test(x.label) ? 'Upload masters' : 'Look', /masters/.test(x.label) ? `${x.n} public work${x.n === 1 ? '' : 's'} below full resolution` : `${x.n} sighting${x.n === 1 ? '' : 's'} of the work`]),
+        ].filter(Boolean),
+        work: [
+          ['/studio/trove', 'The holdings', `${t.works} held · ${t.rooms} rooms · ${D ? D.house.hidden : 0} kept back`],
+          ['/studio/masters', 'Masters', (need.find(x => /masters/.test(x.label)) || { n: 0 }).n + ' below full resolution'],
+          ['/studio/accounts', 'The makers', `${D ? D.house.makers : 0} with a studio`],
+          ['/studio/copyright', 'The Copyright Office', (need.find(x => /Copyright/.test(x.label)) || { n: 0 }).n + ' not yet registered'],
+          ['/studio/editions', 'Editions', (need.find(x => /editions/.test(x.label)) || { n: 0 }).n + ' public works not yet numbered'],
+          ['/studio/backups', 'Backups', lastBackup ? 'Last good copy ' + V.date(lastBackup.at) : 'No good copy yet'],
+          ['/studio/analytics', 'The numbers', D ? `${D.stood.week} stood this week` : 'Who is on the site'],
+        ],
+        money: [
+          ['/studio/licenses', 'This month', `${V.money(D ? D.sales.month.c : t.month)} · ${D ? D.sales.month.n : 0} sale${D && D.sales.month.n === 1 ? '' : 's'}`],
+          ['/studio/licenses', 'All time', `${V.money(t.earned)} · ${t.numbered} numbered`],
+          ['/studio/payouts', N.owed >= 100 ? 'Pay the makers' : 'Owed to makers', V.money(N.owed || 0)],
+          D && D.friends.n ? ['/friends', 'Friends of the house', `${D.friends.n} · ${V.money(D.friends.c)} a month`] : null,
+          D && D.circle.n ? ['/studio/circle', 'The Club', `${D.circle.n} member${D.circle.n === 1 ? '' : 's'}`] : null,
+          ['/share', 'The share', require('./fee').on ? 'Paid by the collector, on top' : 'The house keeps its part of each sale'],
+        ].filter(Boolean),
+        late: recent.slice(0, 3),
+      };
+    } catch (e) { console.warn('[desk]', e.message); }
+    res.send(S.holdings({ maker, t, streams, needs, rows, recent, notice: req.query.ok, desk }));
   });
 
   // Collections: the maker's rooms. Private by default; a public room has its own page.
