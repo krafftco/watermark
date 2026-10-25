@@ -60,6 +60,20 @@ function mountRows(app, { db, V, C }) {
   function maker(req, { m, works = [], sort = 'regarded', years = [], texts = [], records = [], series = [], stories = [], collects = null, hangs = [] }) {
     const rows = []; const first = String(m.name || '').split(' ')[0]; const slug = `/m/${encodeURIComponent(m.handle)}`;
     const wt = w => ({ href: `/m/${encodeURIComponent(m.handle)}/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: [w.place, (w.taken_at || '').slice(0, 4)].filter(Boolean).join(' · ') || undefined, wide: (w.width || 0) > (w.height || 0) * 1.3 });
+    // The Gazette (Will, 25 Oct: "each page can become their own media company's newspaper"; Franklin's paper): a
+    // masthead in the maker's name with the day's dateline, then Latest, one stream across works, writing, records
+    // and stories by the day each came out, the newest leading. The issue number is how much has been put out.
+    const when = s => (s ? String(s).replace(' ', 'T') : '');
+    const latest = [
+      ...works.map(w => ({ at: when(w.created_at), kind: w.kind && w.kind !== 'photograph' ? w.kind[0].toUpperCase() + w.kind.slice(1) : 'A photograph', t: wt(w) })),
+      ...texts.map(t => ({ at: when(t.created_at), kind: t.kind === 'photobook' ? 'A photo book' : t.kind ? t.kind[0].toUpperCase() + t.kind.slice(1) : 'Writing', t: { href: t.body && !t.file ? `/read/${t.slug}` : `/library/${t.slug}`, img: t.cover ? img(t.cover) : null, html: t.cover ? null : cloth({ title: tidy(t.title), author: m.name, slug: t.slug }), title: tidy(t.title), book: true } })),
+      ...records.map(r => ({ at: when(r.at), kind: 'A record', t: { href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), disc: true } })),
+      ...stories.map(p => ({ at: when(p.published_at), kind: 'From Studios', t: { href: p.url, img: p.feature_image || null, title: tidy(p.title), wide: true } })),
+    ].filter(x => x.at).sort((a, b) => b.at.localeCompare(a.at));
+    const issue = works.length + texts.length + records.length + stories.length;
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const mast = `<header class="gz"><p class="gz-k">${esc(first)}’s own paper</p><h2 class="gz-m">${esc(m.name)}</h2><p class="gz-d"><span>${esc(today)}</span>${m.place ? `<span>${esc(m.place)}</span>` : ''}<span>No. ${issue}</span><span>Made with Watermark</span></p></header>`;
+    if (latest.length) rows.push({ k: 'latest', id: 'latest', title: 'Latest', line: `the newest, across everything`, mast, tiles: latest.slice(0, 12).map((x, i) => ({ ...x.t, wide: i === 0 ? true : x.t.wide, line: `${x.kind} · ${V.date(x.at)}` })) });
     const sortBar = `<nav class="rw-sort" aria-label="Sort">${SORTS.map(([k, l]) => `<a href="${slug}?sort=${k}#work"${sort === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</nav>`;
     const byDate = [...works].sort((a, b) => String(b.taken_at || b.created_at || '').localeCompare(String(a.taken_at || a.created_at || '')));
     if (sort === 'year') {
@@ -77,7 +91,7 @@ function mountRows(app, { db, V, C }) {
     if (hangs.length) rows.push({ k: 'shows', title: 'Shows and walls', href: '/collectors', tiles: hangs.map(h => ({ href: h.href, img: h.cover ? img(h.cover) : null, title: tidy(h.title), line: h.line, wide: true })) });
     if (stories.length) rows.push({ k: 'stories', title: 'From Studios', line: 'The magazine', href: `https://studios.krafftco.com/author/${encodeURIComponent(V.makerSlug(m))}/`, tiles: stories.slice(0, 12).map(p => ({ href: p.url, img: p.feature_image || null, title: tidy(p.title), line: p.excerpt ? String(p.excerpt).slice(0, 90) : 'A story', wide: true })) });
     if (collects && collects.n) rows.push({ k: 'collects', title: `What ${first} collects`, line: `${collects.n} by other makers`, href: `/g/${collects.code}`, tiles: collects.works.map(w => ({ href: `/w/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: w.maker })) });
-    return `<div class="rws rws-mk" data-rws>${rows.map(r => `<section class="rw"${r.id ? ` id="${r.id}"` : ''} data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.line ? `<span class="rw-l">${esc(r.line)}</span>` : ''}${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header>${r.sort || ''}<div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`;
+    return `<div class="rws rws-mk" data-rws>${rows.map(r => `${r.mast || ''}<section class="rw"${r.id ? ` id="${r.id}"` : ''} data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.line ? `<span class="rw-l">${esc(r.line)}</span>` : ''}${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header>${r.sort || ''}<div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`;
   }
   const html = (req, data) => { const rows = rowsFor(req, data); return `<div class="rws" data-rws>${rows.map(row).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`; };
   app.locals.rows = { rowsFor, html, maker, SORTS };

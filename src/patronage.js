@@ -44,7 +44,7 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
     let rowsHtml = null;
     try {
       const texts = app.locals.press ? (() => { const sh = app.locals.press.shelves(m); return [...sh.books, ...sh.writing]; })() : [];
-      const records = (() => { try { return db.prepare("SELECT slug, title, performer, composer, cover_slug, cover_url FROM recordings WHERE source='maker' AND maker_id=? AND status IN ('playing','shelved') ORDER BY id DESC LIMIT 12").all(m.id); } catch (e) { return []; } })();
+      const records = (() => { try { return db.prepare("SELECT slug, title, performer, composer, cover_slug, cover_url, at FROM recordings WHERE source='maker' AND maker_id=? AND status IN ('playing','shelved') ORDER BY id DESC LIMIT 12").all(m.id); } catch (e) { return []; } })();
       const hangs = (() => { try { return db.prepare("SELECT h.id, h.slug, h.title, h.venue, h.opens_at, b.code, (SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=h.id AND w.status='held' ORDER BY hw.pos LIMIT 1) AS cover FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.public=1 AND EXISTS (SELECT 1 FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=h.id AND w.maker_id=?) ORDER BY h.id DESC LIMIT 12").all(m.id).map(h => ({ ...h, href: `/g/${h.code}/hang/${h.slug}`, line: h.opens_at ? `A show${h.venue ? ' · ' + h.venue : ''}` : 'A wall' })); } catch (e) { return []; } })();
       if (app.locals.rows && app.locals.rows.maker) rowsHtml = app.locals.rows.maker(req, { m, works, sort, years, texts, records, series, stories, collects, hangs });
     } catch (e) { console.error('[maker rows]', e.message); rowsHtml = null; }

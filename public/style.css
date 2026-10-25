@@ -3843,3 +3843,10 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .rl-cloth{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;padding:14px;text-align:center;background:#2f4a3a;color:#e6c875;background-image:linear-gradient(90deg,rgba(0,0,0,.18),rgba(0,0,0,0) 8%,rgba(0,0,0,0) 92%,rgba(0,0,0,.18))}.rl-cloth b{font-family:var(--disp);font-weight:400;font-size:17px;line-height:1.15}.rl-cloth i{font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.8}
 .rl-t{display:grid;gap:3px}.rl-t b{font-family:var(--read);font-weight:400;font-size:16px;line-height:1.2}.rl-t i{font-size:12px;color:var(--mu);font-style:normal}.rl-t small{font-size:11px;color:var(--mu);letter-spacing:.06em}
 .rl-pg{display:block;height:3px;background:var(--ln);border-radius:2px;overflow:hidden;margin-top:4px}.rl-pg i{display:block;height:100%;background:var(--ink)}
+/* The Gazette: the maker's masthead at the head of their rows (25 Oct). */
+.gz{padding:clamp(28px,5vw,56px) clamp(16px,4vw,56px) 6px;text-align:center;color:#f2efe9}
+.gz-k{margin:0 0 8px;font:500 11px/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#8f8a81}
+.gz-m{margin:0;text-transform:none;color:#f2efe9;font-family:var(--read);font-weight:300;font-size:clamp(40px,7vw,96px);line-height:.98;letter-spacing:-.025em;text-wrap:balance}
+.gz-d{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 0;margin:16px auto 0;padding:10px 0;max-width:860px;border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.28);font:500 11px/1.6 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#bdb9b1}
+.gz-d span{padding:0 14px}.gz-d span+span{border-left:1px solid rgba(255,255,255,.22)}
+@media (max-width:760px){.gz-d span{padding:0 8px;letter-spacing:.1em}}
