@@ -617,7 +617,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
-    res.send(V.collection({ front: req.path === '/', maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: todays(), hangs: app.locals.hangs ? app.locals.hangs.publicHangs() : [], shows: showsNow(), collections: publicCollections() }));
+    const front = req.path === '/'; const hangsNow = app.locals.hangs ? app.locals.hangs.publicHangs() : []; const showsList = showsNow(); const td = todays();
+    const rowsHtml = front && app.locals.rows ? app.locals.rows.html(req, { works, hangs: hangsNow, shows: showsList, rooms, today: td, cover: works[0] || null }) : null;
+    res.send(V.collection({ front, rowsHtml, maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections() }));
   });
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
@@ -1871,6 +1873,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./clock').mountClock(app, { db, V, C, buyerOf }); // the programme by the visitor's hour; the kids' corner
   require('./hosts').mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the host's chair as a job: the rota, paid from the house's side
   require('./screening').mountScreening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) });
+  require('./rows').mountRows(app, { db, V, C }); // the front door's rows (Apple TV as a museum)
   require('./listening').mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), fetchImpl: cfg.fetchImpl }); // the Keys' room for sound: records from the Archive, cleared at the door, played whole // the Screening Room: films chosen, shown whole at an hour
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });

@@ -3691,3 +3691,18 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .lr-foot{margin-top:40px;color:rgba(233,226,214,.5);font-size:13px}.lr-foot a{color:inherit}
 .lr-found td small{color:var(--mu)}.lr-row{border-top:1px solid var(--ln);padding:10px 0}.lr-row summary{display:flex;gap:12px;align-items:center;cursor:pointer}.lr-row summary img{width:44px;height:44px;border-radius:50%;object-fit:cover}.lr-row summary span{color:var(--mu);font-size:13px}
 @media (max-width:760px){.lr-deck{grid-template-columns:1fr}.lr-disc{max-width:300px;margin:0 auto}.lr-big{grid-template-columns:120px 1fr;gap:16px;padding:16px}.lr-big img{width:120px;height:120px}.lr-big b{font-size:22px}.lr-room{padding-top:64px}}
+/* The rows (24 Oct, after Apple TV): the front door under the hero as rows of large tiles, each row a bucket of the house. */
+.rws{background:#0b0a09;color:#e9e2d6;padding:28px 0 56px}
+.rw{padding:10px 0 18px}.rw-h{display:flex;align-items:baseline;gap:18px;padding:0 clamp(16px,4vw,56px);margin-bottom:12px}.rw-h h2{font-family:var(--disp);font-weight:400;font-size:clamp(20px,2.2vw,28px);margin:0;letter-spacing:0;text-transform:none;color:#e9e2d6}.rw-h a{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,226,214,.55);text-decoration:none}.rw-h a:hover{color:#d9bc7c}
+.rw-s{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:8px clamp(16px,4vw,56px) 14px;scroll-snap-type:x proximity;scroll-padding-left:clamp(16px,4vw,56px);scrollbar-width:none;-webkit-overflow-scrolling:touch}.rw-s::-webkit-scrollbar{display:none}
+.rw-t{position:relative;flex:none;width:clamp(220px,22vw,320px);aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#1a1816;scroll-snap-align:start;text-decoration:none;color:#f2efe9;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:transform .25s var(--e,ease),box-shadow .25s;outline:none}
+.rw-t:hover,.rw-t:focus-visible{transform:scale(1.04);box-shadow:0 18px 44px rgba(0,0,0,.6),0 0 0 2px rgba(233,226,214,.85);z-index:1}
+.rw-t img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform 6s ease}.rw-t:hover img{transform:scale(1.04)}
+.rw-t:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.72) 100%)}
+.rw-tt{position:absolute;left:14px;right:14px;bottom:12px;z-index:1;display:grid;gap:2px}.rw-tt b{font-family:var(--disp);font-weight:400;font-size:19px;line-height:1.15;text-shadow:0 1px 8px rgba(0,0,0,.6)}.rw-tt i{font-style:normal;font-size:12px;color:rgba(242,239,233,.75);line-height:1.35}
+.rw-wide{width:clamp(280px,30vw,440px);aspect-ratio:16/9}.rw-wide .rw-tt b{font-size:24px}
+.rw-sq{width:clamp(160px,15vw,220px);aspect-ratio:1}.rw-sq img{object-position:50% 20%}
+.rw-disc{width:clamp(170px,16vw,230px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#2a2724 0 28%,#121110 29% 100%)}.rw-disc img{border-radius:50%;clip-path:circle(36% at 50% 50%)}.rw-disc:after{background:radial-gradient(circle at 50% 50%,transparent 36%,rgba(0,0,0,.55) 70%)}.rw-disc .rw-tt{left:0;right:0;bottom:14px;text-align:center}.rw-disc .rw-tt b{font-size:15px}
+.rw-book{width:clamp(150px,14vw,200px);aspect-ratio:2/3;border-radius:3px;background:#2f4a3a}.rw-book .rw-tt b{font-size:16px}
+.rw-dark{background:radial-gradient(120% 90% at 50% 0%,#2a2724,#141311)}.rw-blank{position:absolute;inset:0;display:grid;place-items:center;color:rgba(217,188,124,.5)}.rw-blank .ic{width:48px;height:20px}
+@media (max-width:700px){.rws{padding:18px 0 40px}.rw-t{width:72vw}.rw-wide{width:80vw}.rw-sq,.rw-disc{width:44vw}.rw-book{width:36vw}.rw-s{gap:10px}}
