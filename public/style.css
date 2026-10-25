@@ -3778,3 +3778,5 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .mu2-add{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:end;margin-top:14px}.mu2-add label{display:grid;gap:4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}.mu2-add input[type=text],.mu2-add input:not([type]){font:inherit;font-size:15px;text-transform:none;letter-spacing:0;padding:8px 0;border:0;border-bottom:1px solid var(--ln);background:none}.mu2-file{grid-column:1/-1}.mu2-file span{font-size:12px;letter-spacing:0;text-transform:none}
 .mu2-acts{display:flex;gap:18px;align-items:center;margin-top:16px}
 @media (max-width:760px){.mu2-new{grid-template-columns:1fr}.mu2-add{grid-template-columns:1fr}}
+/* The deliveries desk, sorted (25 Oct). */
+.dv-sortrow{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}.dv-sort a{color:var(--mu);text-decoration:none}.dv-sort a[aria-current=page]{color:var(--ink);text-decoration:underline;text-underline-offset:3px}.dv-ph{grid-column:1/-1;margin:10px 0 2px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
