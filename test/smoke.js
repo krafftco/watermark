@@ -1398,6 +1398,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.screeningSeed(); app.locals.screeningSeed();
     const f = db.prepare("SELECT * FROM films WHERE slug='sunrise-1927'").get(); assert.ok(f && f.status === 'showing' && /archive\.org\/download\/sunrise_1927/.test(f.source_url) && /^0:00 /.test(f.notes), 'Sunrise on the bill');
     assert.equal(db.prepare("SELECT COUNT(*) n FROM film_showings WHERE film_id=? AND at > datetime('now')").get(f.id).n, 1, 'one showing, once');
+    const k = db.prepare("SELECT * FROM films WHERE slug='sherlock-jr-1924'").get(); assert.ok(k && db.prepare('SELECT at FROM film_showings WHERE film_id=?').get(k.id).at > db.prepare('SELECT at FROM film_showings WHERE film_id=?').get(f.id).at, 'Keaton the night after');
     r = await req(port, 'GET', '/screening'); assert.ok(/Sunrise/.test(r.body) && /Murnau/.test(r.body), 'on the bill');
     r = await req(port, 'GET', '/screening/sunrise-1927'); assert.ok(r.status === 200 && /song of two humans/i.test(r.body), 'the lobby');
   }
