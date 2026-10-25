@@ -1559,6 +1559,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the director');
   { r = await req(port, 'GET', '/owners'); assert.ok(r.status === 200 && /One company\./.test(r.body) && /owner’s manual/.test(r.body) && /No share is offered or sold/.test(r.body) && /works held by Watermark/.test(r.body), 'the owners’ page');
     r = await req(port, 'GET', '/investors'); assert.equal(r.headers.location, '/owners'); }
+  r = await req(port, 'GET', '/promises'); assert.ok(r.status === 200 && /The country store/.test(r.body) && /Friday pay\./.test(r.body) && /J\. Ray Weir/.test(r.body) && /class="cst-l"/.test(r.body), 'the country store');
+  r = await req(port, 'GET', '/country-store'); assert.equal(r.status, 200, 'the alias');
+  console.log('ok: the country store');
   console.log('ok: owners');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
