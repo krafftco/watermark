@@ -1454,6 +1454,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/library'); assert.ok(/Photo books/.test(r.body), 'the Library knows the kind');
     app.locals.__fetch = prev;
   }
+  { // Find across everything (24 Oct): books and records answer too.
+    app.locals.findIndexDirty(); r = await req(port, 'GET', '/api/find?q=long+walk'); const fj = JSON.parse(r.body); assert.ok(fj.books && fj.books.some(b => /Long Walk/.test(b.name) && /\/read\//.test(b.href)), 'a book found: ' + JSON.stringify(fj.books));
+    r = await req(port, 'GET', '/api/find?q=got+fun'); const fr = JSON.parse(r.body); assert.ok(fr.records && fr.records.some(x => /Got Fun/.test(x.name) && /\/listening\//.test(x.href)), 'a record found');
+    r = await req(port, 'GET', '/find?q=long+walk'); assert.ok(/From the shelf/.test(r.body) && /Long Walk/.test(r.body), 'on the page');
+  }
   console.log('ok: the public domain and the reading room');
   { // The Bookshop: a want left; a signed copy offered by the house (the want told); bought with an address through Checkout; settled by the webhook; moved along on the desk; told on the register without a name.
     const bk = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a book on the shelf');

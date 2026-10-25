@@ -47,7 +47,9 @@
     (d.places || []).forEach(function (p) { out += wayRow(p, 'Place'); rows.push(p); });
     (d.rooms || []).forEach(function (r) { out += wayRow(r, 'Room'); rows.push(r); });
     (d.hangs || []).forEach(function (w) { out += wayRow(w, 'A wall'); rows.push(w); });
-    if (!out) out = '<p class="fd-none">' + (IC.wilhelm || '') + '<span>Nothing by that word yet. Try a place, a maker, or a year.</span></p>';
+    (d.books || []).forEach(function (b) { out += wayRow(b, 'A book'); rows.push(b); });
+    (d.records || []).forEach(function (b) { out += wayRow(b, 'A record'); rows.push(b); });
+    if (!out) out = '<p class="fd-none">' + (IC.wilhelm || '') + '<span>Nothing by that word yet. Try a place, a maker, a book or a record.</span></p>';
     else if (d.works && d.works.length) out += '<a class="fd-all" href="/wander?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
     list.innerHTML = out; foot.innerHTML = d.works && d.works.length ? (IC.wilhelm || '') + '<span>' + (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') + '</span>' : '';
   }
