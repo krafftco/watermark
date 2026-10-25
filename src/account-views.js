@@ -70,7 +70,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 const I = require('./icons');
-function dashboard({ keys = [], way = '', m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, edit = null, rep = null, steps = null, batch = '', ok = null }) {
+function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, edit = null, rep = null, steps = null, batch = '', ok = null }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
@@ -109,7 +109,23 @@ function dashboard({ keys = [], way = '', m, pct, works, jewels, byUse, recent, 
     keeping && keeping.over ? ['/account/keeping', 'See Keeping', `${keeping.works} works held, above the ${keeping.tier.name} line`] : null,
     !jewels.length && works.length ? ['#holdings', 'Grade', 'Star the works that matter most'] : null,
   ].filter(Boolean);
-  const workRows = [
+  const G = role && role.kind === 'gallery' ? role : null, N = role && role.kind === 'institution' ? role : null;
+  if (G && G.offered && !viewing) needRows.unshift(['/account/gallery', 'Waiting', `${G.offered} offer${G.offered === 1 ? '' : 's'} of representation awaiting the maker`]);
+  if (N && N.rights && !viewing) needRows.unshift(['/account/rights', 'Answer', `${N.rights} rights request${N.rights === 1 ? '' : 's'} waiting`]);
+  const workRows = G ? [
+    ['/account/gallery', 'Represents', `${G.represents} maker${G.represents === 1 ? '' : 's'}`],
+    ['/yours?tab=walls', 'Shows', `${G.shows} wall${G.shows === 1 ? '' : 's'} hung`],
+    ['/account/gallery', 'Offer representation', 'By handle, or your standing link'],
+    [`/m/${esc(m.handle)}`, 'Your page', 'Represents and Shows, as the public sees them'],
+    ['#holdings', 'The holdings', `${totals.works} held · ${totals.public} public`],
+  ] : N ? [
+    ['#holdings', 'The collection', `${totals.works} held · ${totals.public} public · ${N.open} open access`],
+    ['/account/rights', 'The rights desk', N.rightsOpen ? 'Open: one door for every request' : 'Closed: open it in settings'],
+    ['/account/staff', 'The team', `${N.team} seat${N.team === 1 ? '' : 's'}`],
+    viewing ? null : ['/account/upload', 'Add work', 'Into the vault'],
+    ['/account/house', 'Your own house', m.white_on ? m.white_domain || 'On' : 'A white label on your domain'],
+    [`/m/${esc(m.handle)}`, 'Your page', 'As the public sees it'],
+  ] : [
     viewing ? null : ['/account/upload', 'Add work', 'Into the vault'],
     ['#holdings', 'The holdings', `${totals.works} held · ${totals.public} public · ${totals.jewels} jewel${totals.jewels === 1 ? '' : 's'}`],
     ['/account/prices', 'Your prices', byUse.filter(u => u.key !== 'delivery').map(u => u.name).slice(0, 3).join(', ')],
@@ -118,6 +134,7 @@ function dashboard({ keys = [], way = '', m, pct, works, jewels, byUse, recent, 
     viewing ? null : ['/account/deliveries', 'Deliver an album', 'To a client or a friend'],
   ].filter(Boolean);
   const moneyRows = [
+    G ? ['/account/payouts', 'Representation', `${money(G.cutsMonth)} this month · ${money(G.cuts)} in all`] : null,
     ['/account/payouts', 'This month', `${money(totals.month)} · ${totals.monthN} sale${totals.monthN === 1 ? '' : 's'}`],
     ['/account/payouts', 'All time', `${money(totals.earned + (totals.tips || 0) + (totals.royalties || 0))} · ${totals.shares} collected`],
     ['/account/payouts', owed >= 100 ? 'Owed to you' : 'The statement', owed >= 100 ? money(owed) : 'Every sale, line by line'],
@@ -133,7 +150,7 @@ ${recent.length ? `<p class="dk2-late">Lately: ${recent.slice(0, 3).map(l => `<a
 </section>`;
   return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap hd ac">
 ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s studio as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
-<header class="ac-bar"><div><p class="k">${m.kind === 'estate' ? 'The estate' : m.kind === 'gallery' ? 'The gallery' : 'Your studio'}${m.house ? ' &middot; ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1></div>
+<header class="ac-bar"><div><p class="k">${m.kind === 'estate' ? 'The estate' : m.kind === 'gallery' ? 'The gallery' : m.kind === 'institution' ? 'The institution' : 'Your studio'}${m.house ? ' &middot; ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1></div>
 ${viewing ? '' : `<nav><a class="buy-btn ac-up" href="/account/upload">Add work</a><a class="ac-hand" href="/signin/hand?next=/account" title="Open your studio on your phone">Your phone</a><form method="post" action="/signout" class="ac-out"><button>Sign out</button></form></nav>`}</header>
 ${steps ? `<section class="fs" aria-label="First steps"><header class="fs-h"><p class="k">First steps &middot; ${steps.done} of ${steps.total}</p><h2>${steps.done ? 'Nearly open.' : 'Your studio, opened.'}</h2><p>Each step ticks itself when it is done. Next: <a href="${steps.next.href}">${esc(steps.next.title.toLowerCase())}</a>.</p><form method="post" action="/account/steps/away" class="fs-away"><button class="link">Put this away</button></form></header>
 <ol class="fs-l">${steps.steps.map((s, i) => `<li class="${s.done ? 'fs-done' : ''}${s === steps.next ? ' fs-next' : ''}"><span class="fs-n">${s.done ? '&#10003;' : i + 1}</span><span class="fs-t"><b>${esc(s.title)}</b><small>${esc(s.line)}</small></span>${s.done ? '<span class="fs-ok">Done</span>' : s.copy ? `<button type="button" class="fs-go" data-fs-copy="${esc(s.copy)}">${esc(s.go)}</button>` : `<a class="fs-go" href="${s.href}">${esc(s.go)}</a>`}</li>`).join('')}</ol>
