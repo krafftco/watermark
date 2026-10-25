@@ -1547,6 +1547,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/press'); assert.ok(r.status === 200 && /The printing house\./.test(r.body) && /Franklin/.test(r.body), 'the printing house, as the public reads it');
   }
   console.log('ok: the printing house');
+  { // The Gazette and the almanack (25 Oct): the maker's page opens with a masthead and Latest; the year as one book, made in one press, read, set as a PDF with plates, remade at its address.
+    const tx = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get(); const mkr = db.prepare('SELECT * FROM makers WHERE id=?').get(tx.maker_id);
+    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(/class="gz"/.test(r.body) && /gz-m/.test(r.body) && /id="latest"/.test(r.body) && /No\. \d+/.test(r.body), 'the Gazette: the masthead and Latest');
+    const y = String(new Date().getFullYear());
+    r = await req(port, 'GET', '/account/almanack', { cookie: mck }); assert.ok(r.status === 200 && /Almanack\./.test(r.body) && /Make the almanack/.test(r.body), 'the desk');
+    r = await req(port, 'POST', '/account/almanack', { cookie: mck, body: { year: y, note: 'A year of looking.\n\nAnd of making.', price: '', public: '1' } }); assert.equal(r.status, 302, 'made: ' + (r.headers.location || r.status));
+    const al = db.prepare("SELECT * FROM texts WHERE kind='almanack' AND maker_id=?").get(mkr.id); assert.ok(al && al.year === y && /Almanack/.test(al.title) && /A note on the year/.test(al.body) && /A year of looking/.test(al.body) && /The year in numbers/.test(al.body) && /## On Looking Longer/.test(al.body), 'the year as one book');
+    const plates = JSON.parse(al.plates || '[]'); assert.ok(plates.length >= 1 && plates.every(p => db.prepare("SELECT 1 FROM works WHERE slug=? AND maker_id=? AND status='held'").get(p.slug, mkr.id)), 'the year’s photographs as plates: ' + plates.length);
+    r = await req(port, 'GET', `/read/${al.slug}`); assert.ok(r.status === 200 && /rdr-pb/.test(r.body) && /A note on the year/.test(r.body), 'read in the room');
+    r = await req(port, 'GET', `/read/${al.slug}.pdf`); assert.ok(r.status === 200 && /^%PDF/.test(String(r.body).slice(0, 5)) && String(r.body).length > 20000, 'the book as a PDF with plates: ' + String(r.body).length);
+    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(new RegExp(al.slug).test(r.body) && /Almanack ·/.test(r.body), 'on the Gazette’s Latest');
+    r = await req(port, 'POST', '/account/almanack', { cookie: mck, body: { year: y, note: 'A second note.', price: '12', public: '1' } });
+    const al2 = db.prepare("SELECT * FROM texts WHERE kind='almanack' AND maker_id=?").all(mkr.id); assert.ok(al2.length === 1 && al2[0].id === al.id && al2[0].price_cents === 1200 && /A second note/.test(al2[0].body), 'remade at its address, priced');
+  }
+  console.log('ok: the Gazette and the almanack');
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

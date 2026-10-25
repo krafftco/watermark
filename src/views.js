@@ -142,7 +142,7 @@ const DESK_GROUPS = [
   ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/listening', 'Listening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
   ['House', [['/studio/analytics', 'The numbers'], ['/studio/launch', 'Launch'], ['/studio/feedback', 'Feedback'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/audit', 'Audit'], ['/studio/backups', 'Backups'], ['/studio/door', 'The door']]],
 ];
-const MAKER_MORE = [['/account/writing', 'Writing'], ['/account/music', 'Music'], ['/account/bookshop', 'Your shelf'], ['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];
+const MAKER_MORE = [['/account/writing', 'Writing'], ['/account/almanack', 'The almanack'], ['/account/music', 'Music'], ['/account/bookshop', 'Your shelf'], ['/account/deliveries', 'Deliveries'], ['/account/curators', 'Curators'], ['/account/connections', 'Connections'], ['/account/atelier', 'Atelier'], ['/account/keeping', 'Keeping']];
 function deskHeader(path = '') {
   path = path || deskPath;
   const maker = /^\/(account|yours|closer)/.test(path);

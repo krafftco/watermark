@@ -9,7 +9,7 @@ const { nanoid } = require('nanoid');
 const PDFDocument = require('pdfkit');
 const { layout, esc, money, date, tidy } = require('./views');
 
-const KINDS = [['book', 'Books'], ['photobook', 'Photo books'], ['journal', 'Journals'], ['essay', 'Essays'], ['paper', 'Papers'], ['document', 'Documents'], ['history', 'Art history']];
+const KINDS = [['book', 'Books'], ['photobook', 'Photo books'], ['almanack', 'Almanacks'], ['journal', 'Journals'], ['essay', 'Essays'], ['paper', 'Papers'], ['document', 'Documents'], ['history', 'Art history']];
 const kindName = k => (KINDS.find(x => x[0] === k) || KINDS[2])[1];
 const slugify = s => String(s).toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 
