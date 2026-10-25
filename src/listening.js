@@ -86,48 +86,62 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
   // Tonight's record: deterministic by the day, so the room holds still.
   function tonight() { const all = db.prepare("SELECT * FROM recordings WHERE status='playing' ORDER BY id").all(); if (!all.length) return null; const d = new Date(); const n = (d.getUTCFullYear() * 400 + d.getUTCMonth() * 31 + d.getUTCDate()); return all[n % all.length]; }
   const card = r => `<a class="lr-card" href="/listening/${esc(r.slug)}">${cover(r) ? `<img src="${esc(cover(r))}" alt="" loading="lazy">` : `<span class="lr-sleeve"><b>${esc(r.title)}</b></span>`}<span class="lr-ct"><b>${esc(r.title)}</b><i>${esc(r.performer || r.composer || '')}${r.year ? ` · ${esc(r.year)}` : ''}</i><small>${r.seconds ? mmss(r.seconds) + ' · ' : ''}${esc(LICENSES[r.license] || r.license)}</small></span></a>`;
-  // The door.
-  app.get('/listening', (req, res) => {
-    const all = db.prepare("SELECT * FROM recordings WHERE status='playing' ORDER BY id DESC").all(); const t = tonight();
-    const shellac = all.filter(r => r.license === 'pd' && r.year && +r.year <= PD_RECORDING_YEAR), open = all.filter(r => !shellac.includes(r) && r.source === 'archive'), makers = all.filter(r => r.source === 'maker');
-    const shelf = (k, h, list) => list.length ? `<section class="lr-shelf"><p class="k">${k}</p><h2>${h}</h2><div class="lr-grid">${list.map(card).join('')}</div></section>` : '';
-    res.send(V.layout({ title: 'The Listening Room · The Keys · Watermark', path: '/listening', desc: 'Records chosen and played whole: the shellac of the early century, the open recordings of the classical repertoire, and makers’ own masters. With the notes.', body: `<section class="ky-page lr">
-<div class="ky-h"><p class="k"><a href="/keys">The Keys</a></p><h1>The Listening Room.</h1>
-<p class="lede">A record is chosen, set on the turntable, and played whole, with the sleeve notes beside it. The shellac of the early century, digitised from the discs; the open recordings of the classical repertoire; and, as the vault takes sound, makers’ own masters, played as they were made.</p></div>
-${t ? `<section class="lr-tonight"><p class="k">On the turntable</p><a class="lr-big" href="/listening/${esc(t.slug)}">${cover(t) ? `<img src="${esc(cover(t))}" alt="">` : ''}<span><b>${esc(t.title)}</b><i>${esc(t.performer || t.composer || '')}${t.year ? `, ${esc(t.year)}` : ''}</i>${t.line ? `<em>${esc(t.line)}</em>` : ''}<small>${I.play} Play it through</small></span></a></section>` : `<p class="note">The first records are being chosen.</p>`}
-${shelf('The shellac', 'Recordings of the early century.', shellac)}
-${shelf('The open repertoire', 'Recorded and released free.', open)}
-${shelf('From the makers', 'Masters, as they were made.', makers)}
-<section class="ky-rules"><h2>How the room works.</h2><ul><li><b>Chosen, not catalogued.</b> Every record is here because someone in the house chose it and wrote the sleeve.</li><li><b>Played whole.</b> A side plays through. You may lift the needle; the room does not shuffle.</li><li><b>Clear at the door.</b> Public-domain recordings (in the United States, published through ${PD_RECORDING_YEAR}), CC0, and CC BY, BY-SA and BY-ND releases, each with its credit line. Nothing non-commercial, nothing uncleared.</li><li><b>The makers’ own.</b> A maker’s recording is held like a photograph: the master in the vault, the rights the maker’s. ${I.key} A key opens the makers’ shelf.</li></ul></section>
-</section>` }));
-  });
-  // The record.
   // After the last side: the next record on the shelf (by id, round), so the room carries on as a radio does.
   function nextOf(r) { const rows = db.prepare("SELECT slug, title, performer, composer, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY id").all(); if (rows.length < 2) return null; const i = rows.findIndex(x => x.slug === r.slug); const n = rows[(i + 1) % rows.length]; return { href: `/listening/${n.slug}?play=1`, title: n.title, by: n.performer || n.composer || '', img: n.cover_slug ? `/img/${n.cover_slug}/screen` : n.cover_url || null }; }
-  app.get('/listening/:slug', (req, res) => {
-    const r = rec(req.params.slug); if (!r || (r.status !== 'playing' && !isStudio(req))) return res.sendStatus(404);
-    if (r.source === 'maker' && !keyed(req) && !(makerOf(req) && makerOf(req).id === r.maker_id)) return res.status(403).send(V.layout({ title: `${r.title} · The Listening Room`, path: `/listening/${r.slug}`, body: `<section class="ky-page lr"><div class="ky-h"><p class="k"><a href="/listening">The Listening Room</a></p><h1>${esc(r.title)}</h1><p class="bc-door">A maker’s master plays for keyholders. <a href="/keys">The Keys</a>.</p></div></section>` }));
-    const list = tidyTracks(J(r.files)); try { db.prepare('UPDATE recordings SET plays=plays+1 WHERE id=?').run(r.id); } catch (e) { /* */ }
-    res.send(V.layout({ title: `${r.title} · The Listening Room · Watermark`, path: `/listening/${r.slug}`, desc: r.line || r.credit, bare: true, body: `<main class="lr-room" data-lr>
-<header class="sc-top"><a href="/listening" class="tw-back">${I.back}<span>The Listening Room</span></a><p class="tw-title"><b>${esc(r.title)}</b><span>${esc(r.performer || r.composer || '')}${r.year ? `, ${esc(r.year)}` : ''}</span></p></header>
+  // One record as the app reads it.
+  function recordJSON(r) { return { slug: r.slug, title: r.title, performer: r.performer || '', composer: r.composer || '', by: r.performer || r.composer || '', year: r.year || '', cover: cover(r), line: r.line || '', why: r.why || '', body: unmoji(r.body || ''), credit: r.credit || '', license: LICENSES[r.license] || r.license, license_url: r.license_url || null, ia: r.ia_id || null, source: r.source, chosen: r.chosen_by || '', tracks: tidyTracks(J(r.files)).map(t => ({ url: t.url, flac: t.flac || null, title: t.title, seconds: t.seconds || null })), seconds: r.seconds || null }; }
+  function shelves() {
+    const all = db.prepare("SELECT * FROM recordings WHERE status='playing' ORDER BY id DESC").all();
+    const shellac = all.filter(r => r.license === 'pd' && r.year && +r.year <= PD_RECORDING_YEAR), open = all.filter(r => !shellac.includes(r) && r.source === 'archive'), makers = all.filter(r => r.source === 'maker');
+    return { all, groups: [['shellac', 'The shellac', 'Recordings of the early century.', shellac], ['open', 'The open repertoire', 'Recorded and released free.', open], ['makers', 'From the makers', 'Masters, as they were made.', makers]].filter(g => g[3].length) };
+  }
+  // The app's data: every playing record, with its sides, so the room never reloads.
+  app.get('/api/listening', (req, res) => { const sh = shelves(); const t = tonight(); res.set('Cache-Control', 'public, max-age=60'); res.json({ tonight: t ? t.slug : null, groups: sh.groups.map(g => ({ key: g[0], title: g[1], line: g[2], records: g[3].map(r => r.slug) })), records: sh.all.map(recordJSON), pd_year: PD_RECORDING_YEAR }); });
+  // The room is one page (Will, 24 Oct: "a Spotify-like experience": the music never stops when you move). The shelf,
+  // each record and the queue are views of one document; the player is a bar at the foot that stays; the address
+  // follows (/listening, /listening/<record>). Without the script the page still reads: the shelf, or the record.
+  function shell(req, res, slug) {
+    const sh = shelves(); const t = tonight(); const r0 = slug ? rec(slug) : null;
+    if (slug && (!r0 || (r0.status !== 'playing' && !isStudio(req)))) return res.sendStatus(404);
+    if (r0 && r0.source === 'maker' && !keyed(req) && !(makerOf(req) && makerOf(req).id === r0.maker_id)) return res.status(403).send(V.layout({ title: `${r0.title} · The Listening Room`, path: `/listening/${r0.slug}`, body: `<section class="ky-page lr"><div class="ky-h"><p class="k"><a href="/listening">The Listening Room</a></p><h1>${esc(r0.title)}</h1><p class="bc-door">A maker’s master plays for keyholders. <a href="/keys">The Keys</a>.</p></div></section>` }));
+    if (r0) { try { db.prepare('UPDATE recordings SET plays=plays+1 WHERE id=?').run(r0.id); } catch (e) { /* */ } }
+    const data = { tonight: t ? t.slug : null, groups: sh.groups.map(g => ({ key: g[0], title: g[1], line: g[2], records: g[3].map(r => r.slug) })), records: sh.all.concat(r0 && !sh.all.find(x => x.id === r0.id) ? [r0] : []).map(recordJSON), open: r0 ? r0.slug : null, wander: '/wander', pd_year: PD_RECORDING_YEAR };
+    const disc = r => `<a class="lr-card" href="/listening/${esc(r.slug)}" data-lr-open="${esc(r.slug)}">${cover(r) ? `<img src="${esc(cover(r))}" alt="" loading="lazy">` : `<span class="lr-sleeve"><b>${esc(r.title)}</b></span>`}<span class="lr-ct"><b>${esc(r.title)}</b><i>${esc(r.performer || r.composer || '')}${r.year ? ` · ${esc(r.year)}` : ''}</i><small>${r.seconds ? mmss(r.seconds) + ' · ' : ''}${esc(LICENSES[r.license] || r.license)}</small></span></a>`;
+    const shelfHtml = `<section class="lr-shelfv" data-lr-view="shelf"${r0 ? ' hidden' : ''}>
+<div class="ky-h"><p class="k"><a href="/keys">The Keys</a></p><h1>The Listening Room.</h1><p class="lede">A record is chosen, set on the turntable, and played whole, with the sleeve beside it. The shellac of the early century; the open recordings of the repertoire; and, as the vault takes sound, makers’ own masters.</p>${sh.all.length ? `<p class="lr-acts"><button type="button" class="lr-fib lr-gold" data-lr-playall>${I.play}<span>Play the shelf</span></button></p>` : ''}</div>
+${t ? `<section class="lr-tonight"><p class="k">On the turntable</p><a class="lr-big" href="/listening/${esc(t.slug)}" data-lr-open="${esc(t.slug)}">${cover(t) ? `<img src="${esc(cover(t))}" alt="">` : `<span class="lr-sleeve"><b>${esc(t.title)}</b></span>`}<span><b>${esc(t.title)}</b><i>${esc(t.performer || t.composer || '')}${t.year ? `, ${esc(t.year)}` : ''}</i>${t.line ? `<em>${esc(t.line)}</em>` : ''}<small>${I.play} Play it through</small></span></a></section>` : `<p class="note">The first records are being chosen.</p>`}
+${sh.groups.map(g => `<section class="lr-shelf"><p class="k">${esc(g[1])}</p><h2>${esc(g[2])}</h2><div class="lr-grid">${g[3].map(disc).join('')}</div></section>`).join('')}
+<section class="ky-rules"><h2>How the room works.</h2><ul><li><b>Chosen, not catalogued.</b> Every record is here because someone in the house chose it and wrote the sleeve.</li><li><b>Played whole.</b> A side plays through, and the next record follows, as a radio does. You may lift the needle; the room does not shuffle.</li><li><b>Clear at the door.</b> Public-domain recordings (in the United States, published through ${PD_RECORDING_YEAR}), CC0, and CC BY, BY-SA and BY-ND releases, each with its credit line. Nothing non-commercial, nothing uncleared.</li><li><b>The makers’ own.</b> A maker’s recording is held like a photograph: the master in the vault, the rights the maker’s. ${I.key} A key opens the makers’ shelf.</li></ul></section></section>`;
+    const recordHtml = r0 ? recordView(r0) : '<section class="lr-recv" data-lr-view="record" hidden></section>';
+    res.send(V.layout({ title: r0 ? `${r0.title} · The Listening Room · Watermark` : 'The Listening Room · The Keys · Watermark', path: r0 ? `/listening/${r0.slug}` : '/listening', desc: r0 ? (r0.line || r0.credit) : 'Records chosen and played whole: the shellac of the early century, the open recordings of the classical repertoire, and makers’ own masters. With the notes.', bare: true, body: `<main class="lr-room lr-app" data-lr data-lr-app>
+<header class="sc-top"><a href="/keys" class="tw-back lr-home">${I.back}<span>The Keys</span></a><button type="button" class="tw-back lr-toshelf" data-lr-toshelf${r0 ? '' : ' hidden'}>${I.back}<span>The shelf</span></button><p class="tw-title"><b>The Listening Room</b></p></header>
+${shelfHtml}
+${recordHtml}
+<footer class="lr-foot lr-foot-app"><p>Played whole, in the Keys. ${esc(C.base.replace(/^https?:\/\//, ''))}/listening</p></footer>
+<div class="lr-wall" data-lr-wall hidden><div class="lr-mini"><button type="button" class="lr-play lr-play-s" data-lr-play2 aria-label="Play or pause">${I.play}${I.pause}</button><span class="lr-minit"><b data-lr-minib></b><i data-lr-minitr></i></span><button type="button" class="lr-fib" data-lr-wallx>${I.close}<span>The room</span></button></div></div>
+<div class="lr-bar2" data-lr-bar hidden><button type="button" class="lr-bar-cov" data-lr-barcover aria-label="Open the record"><img alt="" data-lr-barimg><span class="lr-sleeve lr-sleeve-s" data-lr-barsl hidden></span></button><span class="lr-bar-t"><b data-lr-bart></b><i data-lr-barby></i></span><span class="lr-bar-c"><button type="button" class="lr-bar-b" data-lr-prev aria-label="Previous">${I.back}</button><button type="button" class="lr-play lr-play-s" data-lr-play aria-label="Play">${I.play}${I.pause}</button><button type="button" class="lr-bar-b" data-lr-nexttr aria-label="Next">${I.next}</button></span><span class="lr-time" data-lr-time>0:00</span><button type="button" class="lr-bar-b" data-lr-queue aria-label="The queue" title="The queue">${I.more}</button><div class="lr-bar-prog" data-lr-bar2prog><i data-lr-fill></i></div></div>
+<aside class="lr-queue" data-lr-queuev hidden><header><p class="k">The queue</p><button type="button" class="lr-fib" data-lr-queuex>${I.close}<span>Close</span></button></header><ol data-lr-queuelist></ol></aside>
+<audio data-lr-audio preload="metadata"></audio><template data-lr-ic="play">${I.play}</template><template data-lr-ic="wave">${I.wave}</template>
+<script>window.__LRA=${JSON.stringify(data).replace(/</g, '\\u003c')}</script>
+</main><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
+  }
+  function recordView(r) {
+    const list = tidyTracks(J(r.files));
+    return `<section class="lr-recv" data-lr-view="record" data-lr-slug="${esc(r.slug)}">
 <section class="lr-deck">
 <figure class="lr-disc"><span class="lr-platter" data-lr-platter>${cover(r) ? `<img src="${esc(cover(r))}" alt="">` : `<span class="lr-label"><b>${esc(r.title)}</b></span>`}</span><span class="lr-arm" data-lr-arm></span></figure>
 <div class="lr-side">
-<p class="k">${esc(r.chosen_by ? `Chosen by ${r.chosen_by}` : 'On the turntable')}</p><h1>${esc(r.title)}</h1><p class="lr-by">${esc(r.performer || '')}${r.composer && r.composer !== r.performer ? ` · ${esc(r.composer)}` : ''}${r.year ? ` · ${esc(r.year)}` : ''}</p>
+<p class="k">${esc(r.chosen_by ? `Chosen by ${r.chosen_by}` : 'On the turntable')}</p><h1 data-lr-h1>${esc(r.title)}</h1><p class="lr-by">${esc(r.performer || '')}${r.composer && r.composer !== r.performer ? ` · ${esc(r.composer)}` : ''}${r.year ? ` · ${esc(r.year)}` : ''}</p>
 ${r.line ? `<p class="lede">${esc(r.line)}</p>` : ''}
-<div class="lr-fi"><button type="button" class="lr-fib" data-lr-fi aria-pressed="false" title="Lossless when the record has it (FLAC); otherwise the light file"><span class="lr-fidot"></span><span data-lr-fit>Light</span></button><button type="button" class="lr-fib" data-lr-wander title="The house's pictures on the wall while it plays">${I.wave}<span>Wander with it</span></button></div>
-<div class="lr-now" data-lr-now><button type="button" class="lr-play" data-lr-play aria-label="Play">${I.play}${I.pause}</button><span class="lr-nowt" data-lr-title>${esc(list[0].title)}</span><span class="lr-time" data-lr-time>0:00</span></div>
-<div class="lr-bar" data-lr-bar><i data-lr-fill></i></div>
+<div class="lr-fi"><button type="button" class="lr-fib lr-gold" data-lr-playrec>${I.play}<span>Play it through</span></button><button type="button" class="lr-fib" data-lr-fi aria-pressed="false" title="Lossless when the record has it (FLAC); otherwise the light file"><span class="lr-fidot"></span><span data-lr-fit>Light</span></button><button type="button" class="lr-fib" data-lr-wander title="The house's pictures on the wall while it plays">${I.wave}<span>Wander with it</span></button></div>
 <ol class="lr-tracks" data-lr-tracks>${list.map((t, i) => `<li><button type="button" data-lr-track="${i}"><span class="lr-n">${i + 1}</span><span class="lr-tt">${esc(t.title)}</span><span class="lr-tl">${t.seconds ? mmss(t.seconds) : ''}</span></button></li>`).join('')}</ol>
-<audio data-lr-audio preload="metadata" src="${esc(list[0].url)}"></audio>
-<a class="lr-nextrec" data-lr-next hidden href="#"><span class="lr-nextk">Next on the turntable</span><b data-lr-nextt></b><i data-lr-nextby></i><em data-lr-count></em></a>
 </div></section>
 ${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.why ? `<p class="lr-why">${esc(r.why)}</p>` : ''}${r.body ? (r.source === 'archive' && !r.why ? `<details class="lr-arch"><summary>From the Archive’s record</summary><p>${esc(unmoji(r.body))}</p></details>` : `<p>${esc(unmoji(r.body))}</p>`) : ''}</section>` : ''}
-<footer class="lr-foot"><p>${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p><p>Played whole, in the Keys. ${esc(C.base.replace(/^https?:\/\//, ''))}/listening</p></footer>
-<div class="lr-wall" data-lr-wall hidden><div class="lr-mini"><button type="button" class="lr-play lr-play-s" data-lr-play2 aria-label="Play or pause">${I.play}${I.pause}</button><span class="lr-minit"><b>${esc(r.title)}</b><i data-lr-minitr></i></span><button type="button" class="lr-fib" data-lr-wallx>${I.close}<span>The room</span></button></div></div>
-<script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, flac: t.flac || null, title: t.title })), next: nextOf(r), title: r.title, by: r.performer || r.composer || '', cover: cover(r) || null, wander: '/wander' })}</script>
-</main><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
-  });
+<p class="lr-credit">${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p>
+</section>`;
+  }
+  app.get('/listening', (req, res) => shell(req, res, null));
+  app.get('/listening/:slug', (req, res) => shell(req, res, String(req.params.slug)));
   // The Studio: search the Archive, bring a record in, write the sleeve, set it playing.
   app.get('/studio/listening', async (req, res) => {
     if (!isStudio(req)) return res.sendStatus(403); V.setDeskPath('/studio/listening');
