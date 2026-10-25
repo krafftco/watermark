@@ -1576,6 +1576,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/account/house/franchise/end', { cookie: mck }); assert.equal(db.prepare('SELECT status FROM franchises WHERE id=?').get(f.id).status, 'ending', 'ending with the month');
     FR.end(FR.byId(f.id), 'test'); assert.ok(!FR.active(mkr) && db.prepare('SELECT white_on FROM makers WHERE id=?').get(mkr.id).white_on === 0, 'closed; the house address off');
     r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(r.status === 200 && /class="gz"/.test(r.body), 'the page on the house stays');
+    r = await req(port, 'GET', '/'); assert.ok(/Latest from the makers/.test(r.body), 'the house’s own Latest on the front door');
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/almanack/.test(r.body), 'the almanack on the desk');
     r = await req(port, 'GET', '/press'); assert.ok(/The franchise/.test(r.body) && /The Gazette and the Almanack/.test(r.body), 'said on the printing house');
   }
   console.log('ok: the franchise');
