@@ -39,8 +39,10 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
   // The files: the audio in a playable form, in the item's order, with the lengths the Archive measured.
   function tracks(id, files) {
     const audio = (files || []).filter(f => /\.(mp3|ogg|oga|m4a|flac)$/i.test(f.name || '') && !/_spectrogram|\.afpk/.test(f.name));
-    const pick = {}; for (const f of audio) { const base = f.name.replace(/\.[^.]+$/, '').replace(/_(vbr|64kb)$/i, ''); const score = /\.mp3$/i.test(f.name) ? 3 : /\.m4a$/i.test(f.name) ? 2 : /\.ogg$|\.oga$/i.test(f.name) ? 1 : 0; if (!pick[base] || pick[base].score < score) pick[base] = { f, score }; }
-    return Object.values(pick).map(({ f }) => ({ name: f.name, url: `https://archive.org/download/${encodeURIComponent(id)}/${encodeURIComponent(f.name).replace(/%2F/g, '/')}`, title: tidy(String(f.title || f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))), seconds: f.length ? (/:/.test(String(f.length)) ? String(f.length).split(':').reduce((a, b) => a * 60 + (+b), 0) : Math.round(+f.length)) : null, track: f.track ? +String(f.track).split('/')[0] : null })).sort((a, b) => (a.track || 999) - (b.track || 999) || a.name.localeCompare(b.name));
+    const pick = {}, lossless = {}; const urlOf = f => `https://archive.org/download/${encodeURIComponent(id)}/${encodeURIComponent(f.name).replace(/%2F/g, '/')}`;
+    for (const f of audio) { const base = f.name.replace(/\.[^.]+$/, '').replace(/_(vbr|64kb)$/i, ''); if (/\.flac$/i.test(f.name)) { lossless[base] = urlOf(f); continue; } const score = /\.mp3$/i.test(f.name) ? 3 : /\.m4a$/i.test(f.name) ? 2 : /\.ogg$|\.oga$/i.test(f.name) ? 1 : 0; if (!pick[base] || pick[base].score < score) pick[base] = { f, score }; }
+    for (const base of Object.keys(lossless)) if (!pick[base]) pick[base] = { f: audio.find(f => f.name.replace(/\.[^.]+$/, '') === base && /\.flac$/i.test(f.name)), score: 0 };
+    return Object.values(pick).map(({ f }) => ({ name: f.name, url: urlOf(f), flac: lossless[f.name.replace(/\.[^.]+$/, '').replace(/_(vbr|64kb)$/i, '')] || null, title: tidy(String(f.title || f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))), seconds: f.length ? (/:/.test(String(f.length)) ? String(f.length).split(':').reduce((a, b) => a * 60 + (+b), 0) : Math.round(+f.length)) : null, track: f.track ? +String(f.track).split('/')[0] : null })).sort((a, b) => (a.track || 999) - (b.track || 999) || a.name.localeCompare(b.name));
   }
   // Bring a record in by its Archive identifier.
   async function bring(id, by) {
@@ -102,6 +104,7 @@ ${shelf('From the makers', 'Masters, as they were made.', makers)}
 <div class="lr-side">
 <p class="k">${esc(r.chosen_by ? `Chosen by ${r.chosen_by}` : 'On the turntable')}</p><h1>${esc(r.title)}</h1><p class="lr-by">${esc(r.performer || '')}${r.composer && r.composer !== r.performer ? ` · ${esc(r.composer)}` : ''}${r.year ? ` · ${esc(r.year)}` : ''}</p>
 ${r.line ? `<p class="lede">${esc(r.line)}</p>` : ''}
+<div class="lr-fi"><button type="button" class="lr-fib" data-lr-fi aria-pressed="false" title="Lossless when the record has it (FLAC); otherwise the light file"><span class="lr-fidot"></span><span data-lr-fit>Light</span></button><button type="button" class="lr-fib" data-lr-wander title="The house's pictures on the wall while it plays">${I.wave}<span>Wander with it</span></button></div>
 <div class="lr-now" data-lr-now><button type="button" class="lr-play" data-lr-play aria-label="Play">${I.play}${I.pause}</button><span class="lr-nowt" data-lr-title>${esc(list[0].title)}</span><span class="lr-time" data-lr-time>0:00</span></div>
 <div class="lr-bar" data-lr-bar><i data-lr-fill></i></div>
 <ol class="lr-tracks" data-lr-tracks>${list.map((t, i) => `<li><button type="button" data-lr-track="${i}"><span class="lr-n">${i + 1}</span><span class="lr-tt">${esc(t.title)}</span><span class="lr-tl">${t.seconds ? mmss(t.seconds) : ''}</span></button></li>`).join('')}</ol>
@@ -110,7 +113,8 @@ ${r.line ? `<p class="lede">${esc(r.line)}</p>` : ''}
 </div></section>
 ${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.why ? `<p class="lr-why">${esc(r.why)}</p>` : ''}${r.body ? `<p>${esc(r.body)}</p>` : ''}</section>` : ''}
 <footer class="lr-foot"><p>${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p><p>Played whole, in the Keys. ${esc(C.base.replace(/^https?:\/\//, ''))}/listening</p></footer>
-<script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, title: t.title })), next: nextOf(r) })}</script>
+<div class="lr-wall" data-lr-wall hidden><div class="lr-mini"><button type="button" class="lr-play lr-play-s" data-lr-play2 aria-label="Play or pause">${I.play}${I.pause}</button><span class="lr-minit"><b>${esc(r.title)}</b><i data-lr-minitr></i></span><button type="button" class="lr-fib" data-lr-wallx>${I.close}<span>The room</span></button></div></div>
+<script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, flac: t.flac || null, title: t.title })), next: nextOf(r), title: r.title, by: r.performer || r.composer || '', cover: cover(r) || null, wander: '/wander' })}</script>
 </main><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
   });
   // The Studio: search the Archive, bring a record in, write the sleeve, set it playing.

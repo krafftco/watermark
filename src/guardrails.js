@@ -21,14 +21,14 @@ function securityHeaders(base) {
     // the vault, for arrivals put straight into the bucket from the Masters desk (S3, or an S3-compatible endpoint)
     `connect-src 'self' https://api.stripe.com https://studios.krafftco.com https://*.krafftco.com${process.env.S3_BUCKET ? ' https://*.amazonaws.com' : ''}${process.env.S3_ENDPOINT ? ' ' + String(process.env.S3_ENDPOINT).replace(/\/$/, '') + ' https://*.' + String(process.env.S3_ENDPOINT).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : ''}`,
     "frame-src https://js.stripe.com https://checkout.stripe.com",
-    "frame-ancestors 'none'",
+    "frame-ancestors 'self'",
     "form-action 'self' https://checkout.stripe.com",
     "base-uri 'self'",
     "object-src 'none'",
   ].join('; ');
   return (req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
-    res.set('X-Frame-Options', 'DENY');
+    res.set('X-Frame-Options', 'SAMEORIGIN');
     res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.stripe.com"), xr-spatial-tracking=(self), interest-cohort=()');
     res.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
