@@ -44,6 +44,17 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
     for (const base of Object.keys(lossless)) if (!pick[base]) pick[base] = { f: audio.find(f => f.name.replace(/\.[^.]+$/, '') === base && /\.flac$/i.test(f.name)), score: 0 };
     return Object.values(pick).map(({ f }) => ({ name: f.name, url: urlOf(f), flac: lossless[f.name.replace(/\.[^.]+$/, '').replace(/_(vbr|64kb)$/i, '')] || null, title: tidy(String(f.title || f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))), seconds: f.length ? (/:/.test(String(f.length)) ? String(f.length).split(':').reduce((a, b) => a * 60 + (+b), 0) : Math.round(+f.length)) : null, track: f.track ? +String(f.track).split('/')[0] : null })).sort((a, b) => (a.track || 999) - (b.track || 999) || a.name.localeCompare(b.name));
   }
+  function tidyTracks(list) {
+    const clean = t => String(t || '').replace(/_/g, ' ').replace(/\s+/g, ' ').replace(/\s*-\s*$/, '').trim();
+    let names = list.map(t => clean(t.title));
+    if (names.length > 1) { // the prefix they all share ('Ludwig van Beethoven - symphony no. 5 in c minor, op. 67 - ') goes
+      let p = names[0]; for (const n of names) { let k = 0; while (k < p.length && k < n.length && p[k] === n[k]) k++; p = p.slice(0, k); }
+      const cut = p.lastIndexOf(' - '); if (cut > 0) names = names.map(n => n.slice(cut + 3));
+    } else if (names.length === 1) { const parts = names[0].split(/\s+-\s+/); if (parts.length >= 2) names = [parts[parts.length - 1]]; }
+    return list.map((t, i) => { let n = names[i] || t.title; n = n.replace(/^\d+[\s.-]+/, '').replace(/\b([ivx]+)\.(?=\s|$)/gi, (m, r) => r.toUpperCase() + '.').replace(/\b(allegro|adagio|andante|largo|presto|scherzo|menuetto|finale|rondo|vivace|moderato|lento|grave|allegretto|andantino|prestissimo)\b/gi, m => m[0].toUpperCase() + m.slice(1).toLowerCase()); n = n.charAt(0).toUpperCase() + n.slice(1); return { ...t, title: n || t.title }; });
+  }
+  // The Archive's words come through a wrong decoding now and then (1804â08): put the common ones right.
+  const unmoji = x => String(x || '').replace(/â\u0080\u0094/g, '—').replace(/â\u0080\u0093/g, '–').replace(/â\u0080\u0099/g, '’').replace(/â\u0080\u0098/g, '‘').replace(/â\u0080\u009c|â\u0080\u009d/g, '"').replace(/â\u0080\u00a6/g, '…').replace(/Ã©/g, 'é').replace(/Ã¨/g, 'è').replace(/Ã¶/g, 'ö').replace(/Ã¼/g, 'ü').replace(/Ã¤/g, 'ä').replace(/Ã\u00a0/g, 'à').replace(/Â/g, '');
   // Bring a record in by its Archive identifier.
   async function bring(id, by) {
     id = String(id || '').trim().replace(/^https?:\/\/archive\.org\/(details|download)\//, '').split(/[/?#]/)[0]; if (!id) return { ok: false, why: 'No identifier.' };
@@ -54,7 +65,7 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
   function shelveMeta(id, data, by) {
     const meta = data.metadata || {}; if (!meta.title) return { ok: false, why: 'No such record at the Archive.' };
     const lic = clear(meta); if (!lic.ok) return { ok: false, why: `Turned away at the door: ${lic.why}.` };
-    const list = tracks(id, data.files || []); if (!list.length) return { ok: false, why: 'The record carries no playable audio.' };
+    const list = tidyTracks(tracks(id, data.files || [])); if (!list.length) return { ok: false, why: 'The record carries no playable audio.' };
     const title = tidy(String(first(meta.title)).slice(0, 200)); let slug = slugify(title); if (db.prepare('SELECT 1 FROM recordings WHERE slug=?').get(slug)) slug = `${slug}-${id.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)}`;
     const performer = tidy(String([].concat(meta.creator || meta.artist || []).join(', ')).slice(0, 200)) || null; const composer = tidy(String(first(meta.composer) || '').slice(0, 200)) || null;
     const seconds = list.reduce((a, t) => a + (t.seconds || 0), 0) || null;
@@ -96,7 +107,7 @@ ${shelf('From the makers', 'Masters, as they were made.', makers)}
   app.get('/listening/:slug', (req, res) => {
     const r = rec(req.params.slug); if (!r || (r.status !== 'playing' && !isStudio(req))) return res.sendStatus(404);
     if (r.source === 'maker' && !keyed(req) && !(makerOf(req) && makerOf(req).id === r.maker_id)) return res.status(403).send(V.layout({ title: `${r.title} · The Listening Room`, path: `/listening/${r.slug}`, body: `<section class="ky-page lr"><div class="ky-h"><p class="k"><a href="/listening">The Listening Room</a></p><h1>${esc(r.title)}</h1><p class="bc-door">A maker’s master plays for keyholders. <a href="/keys">The Keys</a>.</p></div></section>` }));
-    const list = J(r.files); try { db.prepare('UPDATE recordings SET plays=plays+1 WHERE id=?').run(r.id); } catch (e) { /* */ }
+    const list = tidyTracks(J(r.files)); try { db.prepare('UPDATE recordings SET plays=plays+1 WHERE id=?').run(r.id); } catch (e) { /* */ }
     res.send(V.layout({ title: `${r.title} · The Listening Room · Watermark`, path: `/listening/${r.slug}`, desc: r.line || r.credit, bare: true, body: `<main class="lr-room" data-lr>
 <header class="sc-top"><a href="/listening" class="tw-back">${I.back}<span>The Listening Room</span></a><p class="tw-title"><b>${esc(r.title)}</b><span>${esc(r.performer || r.composer || '')}${r.year ? `, ${esc(r.year)}` : ''}</span></p></header>
 <section class="lr-deck">
@@ -111,7 +122,7 @@ ${r.line ? `<p class="lede">${esc(r.line)}</p>` : ''}
 <audio data-lr-audio preload="metadata" src="${esc(list[0].url)}"></audio>
 <a class="lr-nextrec" data-lr-next hidden href="#"><span class="lr-nextk">Next on the turntable</span><b data-lr-nextt></b><i data-lr-nextby></i><em data-lr-count></em></a>
 </div></section>
-${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.why ? `<p class="lr-why">${esc(r.why)}</p>` : ''}${r.body ? `<p>${esc(r.body)}</p>` : ''}</section>` : ''}
+${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.why ? `<p class="lr-why">${esc(r.why)}</p>` : ''}${r.body ? (r.source === 'archive' && !r.why ? `<details class="lr-arch"><summary>From the Archive’s record</summary><p>${esc(unmoji(r.body))}</p></details>` : `<p>${esc(unmoji(r.body))}</p>`) : ''}</section>` : ''}
 <footer class="lr-foot"><p>${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p><p>Played whole, in the Keys. ${esc(C.base.replace(/^https?:\/\//, ''))}/listening</p></footer>
 <div class="lr-wall" data-lr-wall hidden><div class="lr-mini"><button type="button" class="lr-play lr-play-s" data-lr-play2 aria-label="Play or pause">${I.play}${I.pause}</button><span class="lr-minit"><b>${esc(r.title)}</b><i data-lr-minitr></i></span><button type="button" class="lr-fib" data-lr-wallx>${I.close}<span>The room</span></button></div></div>
 <script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, flac: t.flac || null, title: t.title })), next: nextOf(r), title: r.title, by: r.performer || r.composer || '', cover: cover(r) || null, wander: '/wander' })}</script>
@@ -199,7 +210,7 @@ ${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table clas
     tidySeed(); seeding = false;
   }
   if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => seed().catch(() => {}), 40000); t.unref && t.unref(); }
-  app.locals.listening = { seed, FIRST, bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };
+  app.locals.listening = { tidyTracks, unmoji, seed, FIRST, bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };
   return app.locals.listening;
 }
 module.exports = { mountListening, LICENSES };
