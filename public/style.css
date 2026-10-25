@@ -3113,7 +3113,7 @@ html.fd-on{overflow:hidden}
 .bc-top .k a{color:var(--kgold);text-decoration:none}
 .bn-door .kmk-bunch{width:22px;height:22px;color:#b8963f}
 /* The doors beside the stroll (19 Oct): Yours on the left, the Keys on the right; a swipe or the edge tab opens them. */
-.st-scroll{touch-action:pan-y}
+.st-scroll{touch-action:pan-y}@media (pointer:coarse){.st-scroll{touch-action:none}}
 .st-tab{position:absolute;top:calc(env(safe-area-inset-top) + 112px);z-index:6;background:rgba(11,10,9,.45);border:0;color:rgba(242,239,233,.55);padding:10px 6px;display:grid;justify-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .4s,color .3s;backdrop-filter:blur(6px)}.st-tab svg{width:18px;height:18px}.st-tab span{font:600 8px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
 .st-tab-l{left:0;border-radius:0 8px 8px 0}.st-tab-r{right:0;border-radius:8px 0 0 8px;color:rgba(224,166,60,.7)}
 .st-still .st-tab,.st-rest .st-tab,.st-side-on .st-tab{opacity:0;pointer-events:none}

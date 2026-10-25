@@ -300,7 +300,7 @@
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; sx0 = null; e.preventDefault(); return; }
     if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
     if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
-    sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null;
+    sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null; sT0 = Date.now(); sTop0 = scroller.scrollTop; sMoved = false;
   }, { passive: false });
   scroller.addEventListener('touchmove', function (e) {
     if (Z.on) {
@@ -313,6 +313,7 @@
     if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
     if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
       if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } }
+    if (sLock === 'y' && OWN) { e.preventDefault(); sMoved = true; if (!sManual) { sManual = true; scroller.style.scrollSnapType = 'none'; } scroller.scrollTop = sTop0 - dy; return; }
     if (sLock !== 'x' || !sEl) return;
     e.preventDefault();
     var open = sEl === sideR ? Math.max(0, Math.min(sBase, -dx)) : Math.max(0, Math.min(sBase, dx)); sX = open;
@@ -335,11 +336,22 @@
       // The last finger lifts: the zoom holds where it is (a pinch back under 1.08 sets it to rights). A pan that did not move is a tap.
       var moved = !Z.pan || Math.hypot(e.changedTouches[0].clientX - Z.pan.x0, e.changedTouches[0].clientY - Z.pan.y0) > 8; Z.d0 = 0; zHold(moved); return;
     }
-    if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
+    if (sx0 == null) return; var dx = e.changedTouches[0].clientX - sx0, dyE = e.changedTouches[0].clientY - sy0, dtE = Date.now() - sT0; var lock = sLock, el = sEl; sx0 = null; sLock = null; sEl = null;
+    if (lock === 'y' && OWN && sManual) { settle(dyE, dtE); return; }
     if (lock !== 'x' || !el) return;
     shade.style.opacity = '';
     if (sX > sBase * 0.3 || Math.abs(dx) > 90) sideShow(el === sideR ? 'keys' : 'yours'); else { sideSet(el, el === sideR ? sBase : -sBase, true); el.classList.remove('on'); shade.hidden = !sideOpen; }
   }, { passive: true });
+  // Settle (24 Oct): after a one-finger drag the wall goes to the next screen, the one before, or stays, by how far and
+  // how fast; native snap is handed back once it has arrived, so wheel and keys scroll as they always did.
+  var OWN = matchMedia('(pointer:coarse)').matches, sT0 = 0, sTop0 = 0, sMoved = false, sManual = false, settleT = null;
+  function settle(dy, dt) {
+    var h = scroller.clientHeight, v = dy / Math.max(1, dt); var dir = 0;
+    if (Math.abs(dy) > h * 0.18 || Math.abs(v) > 0.45) dir = dy < 0 ? 1 : -1;
+    var target = Math.max(0, Math.round(sTop0 / h) * h + dir * h);
+    scroller.scrollTo({ top: target, behavior: 'smooth' });
+    clearTimeout(settleT); settleT = setTimeout(function () { scroller.scrollTop = target; scroller.style.scrollSnapType = ''; sManual = false; }, 420);
+  }
   // Closing: the shade, Esc, or a swipe back on the door itself.
   shade.addEventListener('click', function () { sideHide(); });
   (function () { var x0 = null; shade.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true }); shade.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) >= 60) move(dx < 0 ? 1 : -1); }, { passive: true }); })();
