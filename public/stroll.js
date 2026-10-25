@@ -13,15 +13,21 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
+  ['play', 'pause'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t) ic[k] = t.innerHTML; });
 
   function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
 
   function screenFor(w) {
     var el = document.createElement('section');
+    if (w.kind === 'record') {
+      el.className = 'st-i st-rec'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'record');
+      el.innerHTML = '<article class="st-rc"><a class="st-rdisc" href="' + esc(w.href) + '"><img src="' + esc(w.img) + '" alt="" loading="lazy"></a><p class="k">From the Listening Room</p><h2>' + esc(w.title) + '</h2><p class="st-rby">' + esc(w.by) + (w.composer ? ' · ' + esc(w.composer) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</p>' + (w.line ? '<p class="st-rline">' + esc(w.line) + '</p>' : '') + '<div class="st-racts"><button type="button" class="st-rplay" data-st-rplay data-src="' + esc(w.url) + '">' + (ic.play || '') + (ic.pause || '') + '<span>Play ' + esc(w.side) + '</span></button><a class="st-rgo" href="' + esc(w.href) + '">Into the room' + (w.n > 1 ? ' · ' + w.n + ' sides' : '') + '</a></div></article>';
+      return el;
+    }
     if (w.kind === 'text') {
       el.className = 'st-i st-txt'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'text');
-      el.innerHTML = '<article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a></article>';
+      el.innerHTML = '<a class="st-bk" href="/read/' + esc(w.book) + '" style="--cloth:' + esc(w.cloth || '#2f4a3a') + '">' + (w.cover ? '<img src="' + esc(w.cover) + '" alt="">' : '<span class="st-bkc"><i></i><b>' + esc(w.title) + '</b>' + (w.author ? '<small>' + esc(w.author) + '</small>' : '') + '<i></i></span>') + '</a><article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a></article>';
       return el;
     }
     el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
@@ -82,7 +88,7 @@
   if (!navigator.onLine && pack.length && !set) { var open0 = fromPack(8); if (open0.length) { scroller.querySelectorAll('.st-i').forEach(function (el) { el.remove(); }); items = {}; order = []; seen = []; open0.forEach(function (w) { var el = screenFor(w); scroller.appendChild(el); register(w, el); }); lost(); } }
   setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
-  function stood(slug, s) { if (!slug || s < 2 || /^t:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
+  function stood(slug, s) { if (!slug || s < 2 || /^[tr]:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
   function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && w.img && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
@@ -411,7 +417,17 @@
   ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (TOUCH && (t === 'touchstart' || t === 'wheel')) return; if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
   if (TOUCH) { var movingT = null; scroller.addEventListener('scroll', function () { if (!movingT) { clearTimeout(stillT); root.classList.add('st-still'); root.classList.remove('st-arr'); } clearTimeout(movingT); movingT = setTimeout(function () { movingT = null; }, 180); }, { passive: true }); }
   var firstArr = true;
+  // A record's side plays in its screen (one audio for the whole wall); moving on lifts the needle.
+  var rA = null, rBtn = null;
+  function rStop() { if (rA) { try { rA.pause(); } catch (e) {} } if (rBtn) { rBtn.classList.remove('on'); rBtn.closest('.st-i') && rBtn.closest('.st-i').classList.remove('st-ron'); } rBtn = null; }
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-st-rplay]'); if (!b) return; e.preventDefault();
+    if (rBtn === b && rA && !rA.paused) { rStop(); return; }
+    rStop(); if (!rA) { rA = new Audio(); rA.preload = 'auto'; rA.addEventListener('ended', rStop); rA.addEventListener('pause', function () { if (rBtn) rBtn.classList.remove('on'); }); rA.addEventListener('play', function () { if (rBtn) rBtn.classList.add('on'); }); }
+    rA.src = b.getAttribute('data-src'); rBtn = b; b.closest('.st-i').classList.add('st-ron'); rA.play().catch(function () { rStop(); });
+  });
   function arrive(slug) {
+    if (rBtn && (!rBtn.closest('.st-i') || rBtn.closest('.st-i').getAttribute('data-slug') !== slug)) rStop();
     // The first screen keeps its bar and acts a few seconds longer, so a newcomer sees Find and Settings exist.
     if (TOUCH && !firstArr) root.classList.add('st-arr');
     quiet(firstArr && TOUCH ? 5000 : undefined); firstArr = false; clearTimeout(lineT);

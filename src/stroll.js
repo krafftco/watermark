@@ -5,6 +5,7 @@
 // of acts on the right; a plate at the foot; a search up top to stroll through one place or one maker.
 const { esc } = require('./views');
 
+const I = require('./icons');
 function mountStroll(app, { db, V, wanderJSON, I }) {
   const PAGE = 8;
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
@@ -27,11 +28,20 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const items = out.slice(0, n).map(w => wanderJSON(w, req));
     // Wander across everything (Will, 24 Oct, after StumbleUpon): in the open wander, every sixth screen or so is a
     // page from the shelf, a chapter's opening set on the wall, with Read on. Never in a set, a word or a maker's walk.
-    if (!q && !mk && items.length >= 4) { const t = textScreen(seen); if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
+    if (!q && !mk && items.length >= 4) { const t = Math.random() < 0.6 ? textScreen(seen) : recordScreen(seen); if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
     return items;
   }
   // A page from the shelf: a public book with a body, a chapter at random, its first paragraphs.
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
+  const CLOTH = ['#2f4a3a', '#5a1f22', '#23304d', '#6b4b2a', '#8a7a52', '#3b4a5a', '#4a3350', '#7a5a2a']; const hashOf = x => { let h = 7; for (const ch of String(x)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  // A record from the Listening Room (Will, 24 Oct: Wander across everything): the disc on the wall, one side to play here.
+  function recordScreen(seen) {
+    let r; try { r = db.prepare("SELECT slug, title, performer, composer, year, line, files, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY RANDOM() LIMIT 1").get(); } catch (e) { return null; }
+    if (!r) return null; const slug = `r:${r.slug}`; if (seen.includes(slug)) return null;
+    let files = []; try { files = JSON.parse(r.files || '[]'); } catch (e) { /* */ } if (!files.length) return null;
+    const img = r.cover_slug ? `/img/${r.cover_slug}/screen` : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`;
+    return { kind: 'record', slug, record: r.slug, title: r.title, by: r.performer || r.composer || '', composer: r.composer && r.composer !== r.performer ? r.composer : '', year: r.year || '', line: r.line || '', img, url: files[0].url, side: files[0].title || 'Side A', href: `/listening/${r.slug}?play=1`, n: files.length };
+  }
   function textScreen(seen) {
     let t; try { t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY RANDOM() LIMIT 1").get(); } catch (e) { return null; }
     if (!t) return null;
@@ -41,7 +51,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const good = chs.map((c, i) => ({ ...c, i })).filter(c => c.paras.join(' ').length > 400); if (!good.length) return null;
     const c = good[Math.floor(Math.random() * good.length)]; const slug = `t:${t.slug}:${c.i}`; if (seen.includes(slug)) return null;
     const ex = []; let len = 0; for (const p of c.paras) { if (len > 520) break; ex.push(p); len += p.length; }
-    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
+    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), cloth: CLOTH[(hashOf(t.title || t.slug) >> 7) % CLOTH.length], head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
   }
   // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
   // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.
@@ -157,8 +167,10 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
 function strollPage({ items, q = '', maker = null, set = null, I }) {
   const V = require('./views');
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
-  const textCard = w => `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text"><article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a></article></section>`;
-  const card = (w, i) => w.kind === 'text' ? textCard(w) : `<section class="st-i" data-slug="${esc(w.slug)}">
+  const bookObj = w => `<a class="st-bk" href="/read/${esc(w.book)}" style="--cloth:${esc(w.cloth || '#2f4a3a')}">${w.cover ? `<img src="${esc(w.cover)}" alt="">` : `<span class="st-bkc"><i></i><b>${esc(w.title)}</b>${w.author ? `<small>${esc(w.author)}</small>` : ''}<i></i></span>`}</a>`;
+  const recordCard = w => `<section class="st-i st-rec" data-slug="${esc(w.slug)}" data-kind="record"><article class="st-rc"><a class="st-rdisc" href="${esc(w.href)}"><img src="${esc(w.img)}" alt="" loading="lazy"></a><p class="k">From the Listening Room</p><h2>${esc(w.title)}</h2><p class="st-rby">${esc(w.by)}${w.composer ? ` · ${esc(w.composer)}` : ''}${w.year ? ` · ${esc(w.year)}` : ''}</p>${w.line ? `<p class="st-rline">${esc(w.line)}</p>` : ''}<div class="st-racts"><button type="button" class="st-rplay" data-st-rplay data-src="${esc(w.url)}">${I.play}${I.pause}<span>Play ${esc(w.side)}</span></button><a class="st-rgo" href="${esc(w.href)}">Into the room${w.n > 1 ? ` · ${w.n} sides` : ''}</a></div></article></section>`;
+  const textCard = w => `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text">${bookObj(w)}<article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a></article></section>`;
+  const card = (w, i) => w.kind === 'text' ? textCard(w) : w.kind === 'record' ? recordCard(w) : `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span></div>
 <button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="See the watermark">${I.eye}</button>
@@ -183,6 +195,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Yours: your gallery and your wallet">${I.collect}<span>Yours</span></button><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="The Keys">${BUNCH}<span>The Keys</span></button>
 <aside class="st-side st-side-l" data-st-side="yours" aria-label="Yours"><div class="sdr" data-sd-body></div></aside><aside class="st-side st-side-r" data-st-side="keys" aria-label="The Keys"><div class="sdr" data-sd-body></div></aside><div class="st-shade" data-st-shade hidden></div>
+<template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>
 <p class="st-swipe" data-st-swipe hidden><span>Swipe up for the next</span><i></i></p>

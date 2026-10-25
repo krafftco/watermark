@@ -96,7 +96,7 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
     const shellac = r.license === 'pd' && r.year && +r.year <= PD_RECORDING_YEAR; const h = hashOf(r.slug);
     const [bg, fg] = (shellac ? LABELS : CREAM)[h % (shellac ? LABELS.length : CREAM.length)];
     const title = wrap(r.title, 22), fs1 = title.some(l => l.length > 16) ? 30 : 36; const comp = r.composer && r.composer !== r.performer ? r.composer : ''; const perf = r.performer || '';
-    const ty = 226 - (title.length - 1) * fs1 * 0.6;
+    const ty = 218 - (title.length - 1) * fs1 * 0.62;
     const tx = (txt, y, size, extra = '') => `<text x="256" y="${y}" text-anchor="middle" font-size="${size}" ${extra}>${esc(txt)}</text>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
 <defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#1a1917"/><stop offset=".55" stop-color="#121110"/><stop offset=".56" stop-color="#1c1b19"/><stop offset=".62" stop-color="#111"/><stop offset=".7" stop-color="#1b1a18"/><stop offset=".8" stop-color="#0f0e0d"/><stop offset=".9" stop-color="#1a1917"/><stop offset="1" stop-color="#0c0b0a"/></radialGradient></defs>
