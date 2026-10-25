@@ -26,6 +26,7 @@ const KINDS = {
   night: { who: 'both', label: 'A night of the season opens, or a place is yours', on: true },
   card: { who: 'both', label: 'A card is left for you, or someone says yes to yours', on: true },
   circle: { who: 'both', label: 'The Club', on: true },
+  standing: { who: 'buyer', label: 'This month’s piece, from your standing order', on: true },
   kept: { who: 'maker', label: 'Someone keeps a work from an album you sent', on: true },
   daily: { who: 'both', label: 'The work of the day, each morning at nine', on: true },
 };

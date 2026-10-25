@@ -465,6 +465,7 @@ function createApp(cfg = {}) {
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (app.locals.keepEvent) app.locals.keepEvent(event); // a proof paid for
     if (app.locals.seasonEvent) app.locals.seasonEvent(event); // the Circle: joined, or ended
+    if (app.locals.standingEvent) app.locals.standingEvent(event); // a piece a month: begun, a month paid, or ended
     if (app.locals.ownEvent) app.locals.ownEvent(event); // a Copyright Office filing paid for
     if (app.locals.bookshopEvent) app.locals.bookshopEvent(event); // a copy bought from the Bookshop
     if (event.type === 'payment_intent.succeeded') { // Share it, paid in place
@@ -1179,6 +1180,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // lives in the visitor's browser (cookie wm_bk, slugs); nothing is reserved until payment.
   const BASKET_MAX = 40;
   const basketOf = req => [...new Set(String((req.cookies && req.cookies.wm_bk) || '').split(',').map(x => decodeURIComponent(x).trim()).filter(x => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, BASKET_MAX);
+  // Can this collector collect this work now? (the standing order asks without a request)
+  const collectFor = (b, slug) => { const x = collectable([slug])[0]; if (!x || !offered(R.parse(x.w.rules), 'social', x.w)) return null;
+    if (b && db.prepare("SELECT 1 FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) AND u.key IN ('social','reference')").get(x.w.id, b.id)) return null; return x; };
+  app.locals.collectFor = collectFor;
   const basketItems = (req, slugs) => {
     const held = new Set();
     const rows = collectable(slugs).filter(x => offered(R.parse(x.w.rules), 'social', x.w) && !heldBy(req, x.w).some(h => h.key === 'social' || h.key === 'reference'));
@@ -1803,6 +1808,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const lastBackup = (() => { try { return db.prepare("SELECT at FROM backup_runs WHERE kind='backup' AND ok=1 ORDER BY id DESC LIMIT 1").get(); } catch (e) { return null; } })();
       const need = needs.filter(x => x.n > 0);
       const N = D ? D.needs : {};
+      // Two numbers the business runs on (Will, 25 Oct): do collectors come back, and how long does a maker wait for a first sale.
+      const so = app.locals.standingOrders ? app.locals.standingOrders.summary() : null;
+      const again = (() => { const r = db.prepare(`WITH p AS (SELECT l.buyer_id, MIN(l.starts_at) first FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.buyer_id IS NOT NULL AND l.price_cents > 0 AND l.status IN ('active','expired') AND u.key IN ('social','reference') GROUP BY l.buyer_id)
+        SELECT COUNT(*) n, SUM(EXISTS (SELECT 1 FROM licenses l2 WHERE l2.buyer_id=p.buyer_id AND l2.price_cents > 0 AND l2.status IN ('active','expired') AND l2.starts_at > p.first AND l2.starts_at <= datetime(p.first, '+60 days'))) back FROM p WHERE p.first <= datetime('now', '-60 days') OR EXISTS (SELECT 1 FROM licenses l3 WHERE l3.buyer_id=p.buyer_id AND l3.price_cents > 0 AND l3.starts_at > p.first)`).get();
+        return r && r.n >= 3 ? `${Math.round(100 * (r.back || 0) / r.n)}% of ${r.n} collectors, within 60 days` : null; })();
+      const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING d >= 0 ORDER BY d`).all().map(r => r.d);
+        if (days.length < 2) return null; const med = days[Math.floor(days.length / 2)]; return `${Math.round(med)} day${Math.round(med) === 1 ? '' : 's'} from joining, the median of ${days.length}`; })();
       desk = {
         line: [[V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors']],
         needs: [
@@ -1838,6 +1850,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
           ['/studio/payouts', N.owed >= 100 ? 'Pay the makers' : 'Owed to makers', V.money(N.owed || 0)],
           D && D.friends.n ? ['/friends', 'Friends of the house', `${D.friends.n} · ${V.money(D.friends.c)} a month`] : null,
           D && D.circle.n ? ['/studio/circle', 'The Club', `${D.circle.n} member${D.circle.n === 1 ? '' : 's'}`] : null,
+          so && so.n ? ['/studio/licenses', 'Standing orders', `${so.n} · ${V.money(so.cents)} a month`] : null,
+          again ? ['/studio/analytics', 'Come back to collect', again] : null,
+          firstSale ? ['/studio/accounts', 'A maker’s first sale', firstSale] : null,
           resale.n ? ['/studio/market', 'Resale', `${resale.n} trade${resale.n === 1 ? '' : 's'} · ${V.money(resale.r)} royalties, ${V.money(resale.f)} fees`] : null,
           ['/share', 'The share', require('./fee').on ? 'Paid by the collector, on top' : 'The house keeps its part of each sale'],
         ].filter(Boolean),
@@ -1937,6 +1952,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./press').mountPress(app, { db, V, C, ledger, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the printing house: every maker publishes words
   require('./bookshop').mountBookshop(app, { db, V, C, buyerOf, setBuyer, mail, ledger, isStudio, stripe, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // first editions, signed copies, reprints // the public domain shelf (Gutenberg) and the reading room /read/:slug
   require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
+  require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe }); // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
   if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
@@ -2291,6 +2307,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.warmAll = warmAll;
   if (!cfg.noTimers) { setTimeout(() => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); }).catch(e => console.error('[warm]', e.message)), 15e3).unref(); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
   if (!cfg.noTimers) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
+  if (!cfg.noTimers) { const su = () => app.locals.standingOrders && app.locals.standingOrders.catchUp().then(n => { if (n) console.log('[standing]', n, 'caught up'); }).catch(e => console.error('[standing]', e.message)); setTimeout(su, 150e3).unref(); setInterval(su, 24 * 3600e3).unref(); }
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   const BK = require('./backup').mountBackup(app, { db, C, store, ledger, mail, isStudio, V }); // nightly to the vault, a weekly restore drill, Studio → Backups

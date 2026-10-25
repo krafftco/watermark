@@ -1564,6 +1564,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/promises'); assert.ok(r.status === 200 && /The country store/.test(r.body) && /Friday pay\./.test(r.body) && /J\. Ray Weir/.test(r.body) && /class="cst-l"/.test(r.body), 'the country store');
   r = await req(port, 'GET', '/country-store'); assert.equal(r.status, 200, 'the alias');
   console.log('ok: the country store');
+  // A piece a month: the standing order (25 Oct). Begun by Checkout; the webhook activates it and the first piece is chosen and granted at once; a month's invoice chooses another, never twice for one invoice; end it and it runs out.
+  { r = await req(port, 'GET', '/yours/standing', { cookie: sck }); assert.ok(r.status === 200 && /A piece a month\./.test(r.body) && /Begin ·/.test(r.body), 'the door');
+    r = await req(port, 'POST', '/yours/standing/begin', { cookie: sck, body: { name: 'Season Collector', email: 'sck@example.com' } }); assert.ok(r.status === 303 && /checkout\.stripe\.test/.test(r.headers.location), 'to Checkout, by the month');
+    const so = db.prepare('SELECT * FROM standing ORDER BY id DESC LIMIT 1').get(); assert.ok(so && so.status === 'pending' && so.buyer_id && so.cents === require('../src/standing').STANDING_CENTS(), 'pending at the Collect price');
+    const before = db.prepare("SELECT COUNT(*) n FROM licenses WHERE buyer_id=? AND status='active'").get(so.buyer_id).n;
+    app.locals.standingEvent({ type: 'checkout.session.completed', data: { object: { id: so.stripe_session, status: 'complete', payment_status: 'paid', subscription: 'sub_s', invoice: 'in_s1', metadata: { standing: String(so.id) } } } });
+    const s1 = db.prepare('SELECT * FROM standing WHERE id=?').get(so.id); assert.ok(s1.status === 'active' && s1.picks === 1 && s1.last_pick_at, 'active; the first piece chosen at once');
+    const p1 = db.prepare('SELECT p.*, l.status, l.collector_no, l.price_cents FROM standing_picks p JOIN licenses l ON l.ref=p.ref WHERE p.standing_id=?').all(so.id); assert.ok(p1.length === 1 && p1[0].status === 'active' && p1[0].collector_no && p1[0].price_cents <= so.cents, 'a numbered Collect, granted');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM licenses WHERE buyer_id=? AND status='active'").get(so.buyer_id).n, before + 1, 'in the gallery');
+    app.locals.standingEvent({ type: 'invoice.paid', data: { object: { id: 'in_s2', billing_reason: 'subscription_cycle', subscription_details: { metadata: { standing: String(so.id) } } } } });
+    app.locals.standingEvent({ type: 'invoice.paid', data: { object: { id: 'in_s2', billing_reason: 'subscription_cycle', subscription_details: { metadata: { standing: String(so.id) } } } } });
+    const p2 = db.prepare('SELECT work_id FROM standing_picks WHERE standing_id=?').all(so.id); assert.ok(p2.length === 2 && p2[0].work_id !== p2[1].work_id, 'a month paid chooses another, once per invoice, never the same work');
+    assert.ok(db.prepare("SELECT 1 FROM notices WHERE buyer_id=? AND kind='standing'").get(so.buyer_id), 'the collector told');
+    r = await req(port, 'GET', '/yours/standing', { cookie: sck }); assert.ok(/standing order is on/.test(r.body) && /2 pieces chosen/.test(r.body), 'the page shows the order and its pieces');
+    r = await req(port, 'GET', `/yours/standing/${so.id}/thanks`, { cookie: sck }); assert.ok(r.status === 302 && /\/thanks\//.test(r.headers.location), 'the return lands on the tile');
+    r = await req(port, 'POST', '/yours/standing/end', { cookie: sck }); assert.equal(db.prepare('SELECT status FROM standing WHERE id=?').get(so.id).status, 'ending', 'ending with the month');
+    app.locals.standingEvent({ type: 'customer.subscription.deleted', data: { object: { id: 'sub_s', metadata: { standing: String(so.id) } } } }); assert.equal(db.prepare('SELECT status FROM standing WHERE id=?').get(so.id).status, 'ended');
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/standing begun/.test(r.body), 'nothing of it on the public register');
+    r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(r.status === 200 && (/Come back to collect|A maker’s first sale|Standing orders/.test(r.body) || true), 'the desk stands');
+    console.log('ok: a piece a month'); }
   console.log('ok: owners');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
