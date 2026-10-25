@@ -380,7 +380,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); assert.equal(r.status, 302);
   const cookie = r.headers['set-cookie'][0].split(';')[0];
   r = await req(port, 'GET', '/studio/activity', { cookie }); assert.equal(r.status, 200); assert.ok(r.body.includes('requests waiting'));
-  r = await req(port, 'GET', '/studio', { cookie }); assert.ok(r.body.includes('Holdings') && r.body.includes('Needs you') && r.body.includes('WM.'), 'holdings');
+  r = await req(port, 'GET', '/studio', { cookie }); assert.ok(r.body.includes('Holdings') && /Needs (you|the house)/.test(r.body) && r.body.includes('WM.'), 'holdings');
   r = await req(port, 'GET', '/studio/trove', { cookie }); assert.ok(r.body.includes('The works') && r.body.includes('WM.'), 'works with accession numbers');
   r = await req(port, 'GET', '/studio/launch', { cookie }); assert.ok(r.body.includes('Before Watermark takes real money') && r.body.includes('customer.subscription.deleted'), 'launch checks');
   r = await req(port, 'GET', '/studio/editions', { cookie }); assert.ok(r.body.includes('Number the collection') && /name="size_\d+"/.test(r.body), 'editions proposed');
