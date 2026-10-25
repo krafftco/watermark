@@ -3850,3 +3850,5 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .gz-d{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 0;margin:16px auto 0;padding:10px 0;max-width:860px;border-top:1px solid rgba(255,255,255,.28);border-bottom:1px solid rgba(255,255,255,.28);font:500 11px/1.6 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#bdb9b1}
 .gz-d span{padding:0 14px}.gz-d span+span{border-left:1px solid rgba(255,255,255,.22)}
 @media (max-width:760px){.gz-d span{padding:0 8px;letter-spacing:.1em}}
+/* The franchise: a maker's own house at a fee (25 Oct). */
+.fch-on{padding:18px 20px;border:1px solid var(--line,#ddd);border-radius:10px;margin:0 0 28px}.fch-on p{margin:0 0 10px}.fch-f{display:grid;gap:10px;justify-items:start;margin:0 0 32px}.fch-f small{max-width:48em;color:var(--mu)}.fch-list{padding-left:1.2em;max-width:44em;font-family:var(--read);font-size:17px;line-height:1.5}.fch-list li{margin:0 0 8px}

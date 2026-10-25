@@ -1562,6 +1562,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const al2 = db.prepare("SELECT * FROM texts WHERE kind='almanack' AND maker_id=?").all(mkr.id); assert.ok(al2.length === 1 && al2[0].id === al.id && al2[0].price_cents === 1200 && /A second note/.test(al2[0].body), 'remade at its address, priced');
   }
   console.log('ok: the Gazette and the almanack');
+  { // The franchise (25 Oct): a maker's own house at a fee by the month; the door to /account/house opens with it and closes with it; the page on the house stays.
+    const FR = app.locals.franchise; assert.ok(FR && FR.CENTS() >= 100, 'the fee');
+    const mkr = db.prepare("SELECT m.* FROM makers m JOIN texts t ON t.maker_id=m.id WHERE t.title='On Looking Longer'").get();
+    r = await req(port, 'GET', '/account/house', { cookie: mck }); assert.ok(r.status >= 300 && r.status < 400 && /\/account\/house\/franchise/.test(r.headers.location || ''), 'a maker without a house is shown the offer: ' + r.status);
+    r = await req(port, 'GET', '/account/house/franchise', { cookie: mck }); assert.ok(r.status === 200 && /Your own house\./.test(r.body) && /Open my house/.test(r.body) && /Franklin/.test(r.body), 'the offer');
+    r = await req(port, 'POST', '/account/house/franchise/begin', { cookie: mck }); assert.ok(r.status === 303 && /checkout\.stripe\.test/.test(r.headers.location || ''), 'to Checkout by the month: ' + (r.headers.location || r.status));
+    const f = db.prepare("SELECT * FROM franchises WHERE maker_id=? ORDER BY id DESC LIMIT 1").get(mkr.id); assert.ok(f && f.status === 'pending' && f.stripe_session, 'pending');
+    FR.activate(f.id, { id: f.stripe_session, status: 'complete', payment_status: 'paid', subscription: 'sub_test' }); assert.ok(FR.active(mkr), 'open');
+    r = await req(port, 'GET', '/account/house', { cookie: mck }); assert.ok(r.status === 200 && /Your own house\./.test(r.body) && /by the month/.test(r.body), 'the door opens');
+    r = await req(port, 'GET', '/account/house/franchise', { cookie: mck }); assert.ok(/Your house is open/.test(r.body) && /Close the house/.test(r.body), 'shown open');
+    assert.ok(!db.prepare("SELECT 1 FROM ledger WHERE type='franchise.begun'").get() || require('../src/register').HIDDEN.has('franchise.begun'), 'hidden on the register');
+    r = await req(port, 'POST', '/account/house/franchise/end', { cookie: mck }); assert.equal(db.prepare('SELECT status FROM franchises WHERE id=?').get(f.id).status, 'ending', 'ending with the month');
+    FR.end(FR.byId(f.id), 'test'); assert.ok(!FR.active(mkr) && db.prepare('SELECT white_on FROM makers WHERE id=?').get(mkr.id).white_on === 0, 'closed; the house address off');
+    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(r.status === 200 && /class="gz"/.test(r.body), 'the page on the house stays');
+    r = await req(port, 'GET', '/press'); assert.ok(/The franchise/.test(r.body) && /The Gazette and the Almanack/.test(r.body), 'said on the printing house');
+  }
+  console.log('ok: the franchise');
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

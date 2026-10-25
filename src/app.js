@@ -468,6 +468,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (app.locals.keepEvent) app.locals.keepEvent(event); // a proof paid for
     if (app.locals.seasonEvent) app.locals.seasonEvent(event); // the Circle: joined, or ended
+    if (app.locals.franchiseEvent) app.locals.franchiseEvent(event); // a maker's own house: opened or closed
     if (app.locals.standingEvent) app.locals.standingEvent(event); // a piece a month: begun, a month paid, or ended
     if (app.locals.ownEvent) app.locals.ownEvent(event); // a Copyright Office filing paid for
     if (app.locals.bookshopEvent) app.locals.bookshopEvent(event); // a copy bought from the Bookshop
@@ -1960,6 +1961,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./press').mountPress(app, { db, V, C, ledger, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the printing house: every maker publishes words
   require('./bookshop').mountBookshop(app, { db, V, C, buyerOf, setBuyer, mail, ledger, isStudio, stripe, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // first editions, signed copies, reprints // the public domain shelf (Gutenberg) and the reading room /read/:slug
   require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
+  require('./franchise').mountFranchise(app, { db, V, C, ledger, stripe, mail, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the franchise: a maker's own house at a fee by the month
   require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe }); // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
   if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();

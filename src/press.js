@@ -75,6 +75,8 @@ ${!t && rows.length ? `<h2>On your shelf</h2><table class="tbl"><tr><th>Title</t
 <div><h2>Books and copies</h2><p>Photo books made from your walls; signed copies and first editions from your shelf, sold shipped. <a href="/bookshop">The Bookshop</a></p></div>
 <div><h2>The record and the post</h2><p>Every arrival, sale and publication on the signed register; letters and notices carry the news to the people who follow your work. <a href="/ledger">The register</a></p></div>
 <div><h2>The subscription</h2><p>Friends of the house, and Keeping for the archive, after the Library Company: a small dues that keeps the doors open. <a href="/friends">Friends of the house</a></p></div>
+<div><h2>The Gazette and the Almanack</h2><p>Your page is your own paper: a masthead in your name, the latest across your pictures, words and records; and your year set as one book, the almanack, read in the room or printed. <a href="/makers">For those who make</a></p></div>
+<div><h2>The franchise</h2><p>Franklin set printers up in other towns with a press and type and took a share; then the shop was theirs. The whole house under your name at your own address, for a fee by the month: the press stays ours, the paper is yours. <a href="/enterprise">Your own house</a></p></div>
 <div><h2>The Junto</h2><p>The Keys: benches under the work, the balcony at night, the dinner. Where the makers and the collectors meet. <a href="/keys">The Keys</a></p></div>
 </div>
 <p class="pw-n">${n ? `${n} maker${n === 1 ? ' has' : 's have'} published words here so far.` : 'The first words are being set.'} Makers publish from their studio under Writing; by invitation, as everything in the house is. <a href="/join">Apply with the work</a>.</p></section>` }));
