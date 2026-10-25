@@ -1421,6 +1421,25 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger'); assert.ok(/is on the turntable/.test(r.body) && !/Listening Room shelved/.test(r.body), 'the playing shown, the shelving hidden');
     app.locals.__fetch = prev;
   }
+  { // The makers' own music (25 Oct): a record made on the desk, a WAV side into the vault (fingerprinted, on the register), on the turntable for keyholders; a stranger refused; a page named .wav turned away.
+    r = await req(port, 'POST', '/account/music', { cookie: mck, body: { title: 'Nocturne for the Harbour', performer: 'Ada Magnum', composer: 'Ada Magnum', year: '2026', line: 'Recorded at night on the quay.' } }); assert.equal(r.status, 302);
+    const mrec = db.prepare("SELECT * FROM recordings WHERE slug='nocturne-for-the-harbour'").get(); assert.ok(mrec && mrec.source === 'maker' && mrec.status === 'shelved' && mrec.license === 'maker', 'the record made, shelved');
+    const wav = (n => { const d = Buffer.alloc(n * 2); for (let i = 0; i < n; i++) d.writeInt16LE(Math.round(8000 * Math.sin(i / 20)), i * 2); const h = Buffer.alloc(44); h.write('RIFF', 0); h.writeUInt32LE(36 + d.length, 4); h.write('WAVE', 8); h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(44100, 24); h.writeUInt32LE(88200, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(d.length, 40); return Buffer.concat([h, d]); })(44100);
+    r = await req(port, 'POST', '/account/music/nocturne-for-the-harbour/sides', { cookie: mck, body: mp('side-a.wav', wav, { title: 'Side A' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.status === 302 && /fingerprint/.test(decodeURIComponent(r.headers.location)), 'the side in: ' + r.headers.location);
+    const side = db.prepare('SELECT * FROM music_sides WHERE recording_id=?').get(mrec.id); assert.ok(side && side.n === 1 && side.bytes === wav.length && /^[0-9a-f]{64}$/.test(side.sha256) && side.mime === 'audio/wav', 'the side, fingerprinted');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='music.registered' AND subject='nocturne-for-the-harbour'").get(), 'on the register');
+    r = await req(port, 'POST', '/account/music/nocturne-for-the-harbour/sides', { cookie: mck, body: mp('page.wav', Buffer.from('<html><script>alert(1)</script></html>'), { title: 'Not a side' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(r.status === 415 || /not a recording|web page/.test(r.body), 'a page named .wav turned away: ' + r.status);
+    r = await req(port, 'GET', '/music/nocturne-for-the-harbour/1'); assert.equal(r.status, 403, 'shelved: no one hears it');
+    r = await req(port, 'POST', '/account/music/nocturne-for-the-harbour/status', { cookie: mck, body: { to: 'playing' } }); assert.equal(r.status, 302);
+    assert.equal(db.prepare('SELECT status FROM recordings WHERE id=?').get(mrec.id).status, 'playing');
+    r = await req(port, 'GET', '/music/nocturne-for-the-harbour/1'); assert.equal(r.status, 403, 'a stranger is refused');
+    r = await req(port, 'GET', '/music/nocturne-for-the-harbour/1', { cookie: ck, headers: { range: 'bytes=0-99' } }); assert.ok(r.status === 206 && r.headers['content-range'] === 'bytes 0-99/' + wav.length && r.body.slice(0, 4).toString() === 'RIFF', 'a keyholder streams a range');
+    r = await req(port, 'GET', '/listening', { cookie: ck }); assert.ok(/From the makers/.test(r.body) && /Nocturne for the Harbour/.test(r.body), 'on the makers’ shelf');
+    r = await req(port, 'GET', '/listening/nocturne-for-the-harbour'); assert.ok(r.status === 403 && /keyholders/.test(r.body), 'the window for others');
+    r = await req(port, 'GET', '/listening/nocturne-for-the-harbour', { cookie: ck }); assert.ok(r.status === 200 && /\/music\/nocturne-for-the-harbour\/1/.test(r.body) && /all rights reserved/i.test(r.body), 'the room plays the house’s own address');
+    r = await req(port, 'GET', '/account/music', { cookie: mck }); assert.ok(/Your records\./.test(r.body) && /On the turntable/.test(r.body) && /Side A/.test(r.body), 'the desk');
+  }
+  console.log('ok: the makers’ own music');
   console.log('ok: the Listening Room');
   { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
     const prev = app.locals.__fetch;

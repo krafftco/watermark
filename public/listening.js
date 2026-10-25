@@ -55,7 +55,7 @@
   function nextPos() { var r = cur(); if (!r) return null; if (Q.t < r.tracks.length - 1) return { i: Q.i, t: Q.t + 1 }; if (Q.i < Q.list.length - 1) return { i: Q.i + 1, t: 0 }; return null; }
   function warm() { var n = nextPos(); if (!n) { pre = null; return; } try { pre = new Audio(); pre.preload = 'auto'; pre.src = urlOf(byslug[Q.list[n.i]].tracks[n.t]); } catch (e) { pre = null; } }
   function startQueue(list, i, t, go) { Q.list = list.filter(function (s) { return byslug[s] && byslug[s].tracks.length; }); Q.i = Math.max(0, Math.min(Q.list.length - 1, i || 0)); Q.t = t || 0; if (!Q.list.length) return; load(go !== false); }
-  function playRecord(slug, t) { var r = cur(); if (r && r.slug === slug && (t == null || t === Q.t)) { toggle(); return; } startQueue(fromShelf(slug), 0, t || 0, true); }
+  function playRecord(slug, t) { if (byslug[slug] && byslug[slug].locked) { toast('A maker’s master plays for keyholders. The Keys are earned: collect a work, hang a wall, or publish.'); return; } var r = cur(); if (r && r.slug === slug && (t == null || t === Q.t)) { toggle(); return; } startQueue(fromShelf(slug), 0, t || 0, true); }
   function stepTrack(d) { var r = cur(); if (!r) return; var t = Q.t + d; if (t >= 0 && t < r.tracks.length) { Q.t = t; load(true); } else if (d > 0 && Q.i < Q.list.length - 1) { Q.i++; Q.t = 0; load(true); toast('Next: ' + cur().title); } else if (d < 0 && Q.i > 0) { Q.i--; Q.t = cur().tracks.length - 1; load(true); } }
   function toggle() { if (!track()) { if (order.length) startQueue(fromShelf(D.open || D.tonight || order[0]), 0, 0, true); return; } if (a.paused) a.play().catch(function () {}); else a.pause(); }
 

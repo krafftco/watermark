@@ -21,7 +21,7 @@ const MAX_PIXELS = Number(process.env.BAGCHECK_MAX_MP || 400) * 1e6;
 const MAX_SIDE = Number(process.env.BAGCHECK_MAX_SIDE || 30000);
 const TRAIL = 64 * 1024; // bytes allowed after a JPEG's EOI (some cameras and editors leave a little)
 const IMAGE = { jpeg: ['.jpg', 'image/jpeg'], png: ['.png', 'image/png'], tiff: ['.tif', 'image/tiff'], webp: ['.webp', 'image/webp'] };
-const AUDIO = { webm: ['.webm', 'audio/webm'], ogg: ['.ogg', 'audio/ogg'], mp4: ['.m4a', 'audio/mp4'], mp3: ['.mp3', 'audio/mpeg'], wav: ['.wav', 'audio/wav'] };
+const AUDIO = { webm: ['.webm', 'audio/webm'], ogg: ['.ogg', 'audio/ogg'], mp4: ['.m4a', 'audio/mp4'], mp3: ['.mp3', 'audio/mpeg'], wav: ['.wav', 'audio/wav'], flac: ['.flac', 'audio/flac'], aiff: ['.aiff', 'audio/aiff'] };
 const EXPECT = { image: Object.keys(IMAGE), audio: Object.keys(AUDIO), archive: ['zip'], papers: ['pdf', ...Object.keys(IMAGE)], proof: ['zip', ...Object.keys(IMAGE)] };
 
 // What a file is, from its first bytes; and what it must never be.
@@ -32,6 +32,8 @@ function sniff(head) {
   if ((h[0] === 0x49 && h[1] === 0x49 && h[2] === 0x2a && h[3] === 0) || (h[0] === 0x4d && h[1] === 0x4d && h[2] === 0 && h[3] === 0x2a)) return 'tiff';
   if (s.startsWith('RIFF') && s.slice(8, 12) === 'WEBP') return 'webp';
   if (s.startsWith('RIFF') && s.slice(8, 12) === 'WAVE') return 'wav';
+  if (s.startsWith('fLaC')) return 'flac';
+  if (s.startsWith('FORM') && /^(AIFF|AIFC)$/.test(s.slice(8, 12))) return 'aiff';
   if (h.slice(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'webm';
   if (s.startsWith('OggS')) return 'ogg';
   if (s.slice(4, 8) === 'ftyp') return /^(heic|heix|hevc|mif1|msf1|avif)/.test(s.slice(8, 12)) ? 'heic' : 'mp4';
@@ -83,7 +85,7 @@ async function check(file, { expect = 'image', name = '', where = '', who = '', 
   const fd = fs.openSync(file, 'r'); const head = Buffer.alloc(64); const n = fs.readSync(fd, head, 0, 64, 0); fs.closeSync(fd);
   const type = sniff(head.slice(0, n));
   if (!allowed.includes(type)) {
-    const want = expect === 'audio' ? 'a recording (WebM, MP4, MP3, WAV or Ogg)' : expect === 'archive' ? 'a .wmark archival master' : expect === 'papers' ? 'a photograph or a PDF' : expect === 'proof' ? 'a photograph or a .wmark' : 'a photograph (JPEG, PNG, TIFF or WebP)';
+    const want = expect === 'audio' ? 'a recording (WAV, FLAC, AIFF, MP3, M4A, Ogg or WebM)' : expect === 'archive' ? 'a .wmark archival master' : expect === 'papers' ? 'a photograph or a PDF' : expect === 'proof' ? 'a photograph or a .wmark' : 'a photograph (JPEG, PNG, TIFF or WebP)';
     const why = type === 'heic' ? 'This is a HEIC. Export it as a JPEG or a TIFF and bring that.' : `This is ${say(type)}, not ${want}.`;
     return verdict(false, type, why);
   }
