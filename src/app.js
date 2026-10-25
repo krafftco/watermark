@@ -516,6 +516,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The letters, as they arrive: /studio/letters (the collector's) and ?as=maker (the maker's congratulations),
   // drawn from the latest paid license, or ?ref=. Nothing is sent.
   app.get('/studio/letters', studioOnly, (req, res) => {
+    if (req.query.as === 'friday') { const m0 = req.query.maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.query.maker)) : maker; if (!m0 || !app.locals.payouts) return res.send('No maker.'); const out = LETTERS.friday(app.locals.payouts.letterFor(m0)); return res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`)); }
     const g = req.query.ref ? q.lic.get(String(req.query.ref)) : db.prepare("SELECT * FROM licenses WHERE status='active' AND price_cents > 0 ORDER BY id DESC LIMIT 1").get();
     if (!g) return res.send('No paid license yet to draw a letter from.');
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(g.work_id), u = q.useById.get(g.use_id);

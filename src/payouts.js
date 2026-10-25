@@ -135,8 +135,35 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     if (n || people) ledger.append(db, 'friday.paid', 'house', { makers: n, amount: cents, people, people_amount: pcents });
     return { ok: true, makers: n, amount: cents, people, people_amount: pcents };
   }
-  if (process.env.NODE_ENV !== 'test') setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref();
-  app.locals.payouts = { statement, pay, record, ON, friday, HOLD_DAYS, nextFriday };
+  // The Friday letter, nine in the morning New York, before the pay: the maker's week. `letterFor(m)` builds it;
+  // `fridayLetters()` sends one to every maker with an email who sold something, was paid, or asked (makers.friday_letter, on by default).
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name='friday_letter'").get()) db.exec('ALTER TABLE makers ADD COLUMN friday_letter INTEGER NOT NULL DEFAULT 1');
+  function letterFor(m) {
+    const st = statement(m); const pct = st.pct;
+    const sales = db.prepare(`SELECT l.id, l.price_cents, l.house_cents, l.created_at, w.title, w.slug, substr(w.taken_at,1,4) AS year, l.collector_no, u.name AS label, u.key FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND l.created_at > datetime('now','-7 days') ORDER BY l.id DESC`).all(m.id);
+    const how = r => (r.key === 'social' ? 'collected' : r.key === 'reference' ? 'the Reference' : r.key === 'print' ? 'a print' : `licensed: ${r.label || r.key}`);
+    const mk = r => (FEE.on() && r.house_cents != null ? r.price_cents - r.house_cents : Math.round(r.price_cents * pct / 100));
+    let stood = 0; try { stood = db.prepare("SELECT COUNT(*) n FROM stood s JOIN works w ON w.id=s.work_id WHERE w.maker_id=? AND s.at > datetime('now','-7 days')").get(m.id).n; } catch (e) { /* */ }
+    const top = sales[0]; const date = new Intl.DateTimeFormat('en-US', { timeZone: PAY_TZ, month: 'long', day: 'numeric' }).format(new Date());
+    return { base: C.base, money, date, on: ON(), maker: m.name, cleared: st.cleared, clearing: st.clearing, earned: st.earned, sold: sales.length, stood,
+      sales: sales.map(r => ({ title: r.title, how: how(r), cents: mk(r) })),
+      img: top ? `${C.base}/img/${encodeURIComponent(top.slug)}/screen?f=jpg` : null, workUrl: top ? `${C.base}/w/${encodeURIComponent(top.slug)}` : null, title: top ? top.title : '', year: top ? top.year : '', no: top ? top.collector_no : null,
+      statementUrl: `${C.base}/account/payouts` };
+  }
+  async function fridayLetters({ force = false } = {}) {
+    if (!force && (nyDay() !== 'Fri' || nyHour() < 9)) return { ok: false, why: 'notfriday' };
+    const key = `friday_letter_${weekKey().slice(11)}`; if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return { ok: false, why: 'done' };
+    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    let n = 0;
+    for (const m of db.prepare("SELECT * FROM makers WHERE email IS NOT NULL AND email<>'' AND COALESCE(friday_letter,1)=1").all()) {
+      const c = letterFor(m); if (!c.sold && !c.cleared && !c.stood) continue;
+      try { const L = require('./mail-letters').friday(c); await mail.send({ to: m.email, subject: L.subject, text: L.text, html: L.html }); n++; } catch (e) { console.error('[friday letter]', m.handle, e.message); }
+    }
+    return { ok: true, sent: n };
+  }
+  app.locals.fridayLetterFor = letterFor;
+  if (process.env.NODE_ENV !== 'test') { setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref(); setInterval(() => fridayLetters().catch(() => {}), 30 * 60 * 1000).unref(); }
+  app.locals.payouts = { statement, pay, record, ON, friday, fridayLetters, letterFor, HOLD_DAYS, nextFriday };
   return app.locals.payouts;
 }
 

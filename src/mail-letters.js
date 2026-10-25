@@ -167,4 +167,30 @@ function ready(c) {
   return { subject: `${title}: ready to hang`, text, html };
 }
 
-module.exports = { collected, sold, ready, frame };
+// The Friday letter (Will, 25 Oct: the maker's week, before the pay, so the deposit is never a surprise): what sold,
+// what cleared and goes out today, what is still clearing, one photograph collected this week.
+function friday(c) {
+  const money = v => c.money(v);
+  const rows = (c.sales || []).slice(0, 8).map(x => `<tr><td style="padding:8px 0;border-top:1px solid ${LINE};font:14px/1.4 ${BODY};color:${INK}"><i>${esc(clean(x.title))}</i><span style="color:${MUTED}"> &middot; ${esc(x.how)}</span></td><td align="right" style="padding:8px 0;border-top:1px solid ${LINE};font:14px/1.4 ${BODY};color:${INK};white-space:nowrap">${esc(money(x.cents))}</td></tr>`).join('');
+  const html = frame({ base: c.base, preheader: c.cleared > 0 ? `${money(c.cleared)} goes to your bank today.` : `Your week in the house.`, body: [
+    kicker(`Friday &nbsp;&middot;&nbsp; ${esc(c.date)}`),
+    headline(c.cleared > 0 ? `${esc(money(c.cleared))} goes out today.` : c.sold ? `Your week.` : `A quiet week.`),
+    lede(c.on ? (c.cleared > 0 ? `Friday pay: every Friday, every dollar that has cleared, to your bank, from a dollar up. Here is where it came from.` : c.sold ? `Nothing has cleared yet: a sale clears seven days after it is paid. What sold this week goes out next Friday.` : `Nothing sold this week. The work is on the wall, and the house is open.`) : `Payouts through Stripe are not switched on yet; the house pays what is owed by hand from your statement. Here is your week.`),
+    c.img ? mount({ img: c.img, href: c.workUrl, title: c.title, year: c.year, maker: c.maker, no: c.no ? `No.&nbsp;${c.no}` : '', of: c.of }) : '',
+    rows ? `<tr><td style="padding:26px 48px 0" class="wm-pad"><p style="margin:0 0 6px;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">Sold this week &middot; ${c.sold}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table></td></tr>` : '',
+    `<tr><td style="padding:26px 48px 0" class="wm-pad"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font:14px/1.6 ${BODY};color:#3c3933"><tr><td>Cleared, out today</td><td align="right"><b style="color:${INK}">${esc(money(c.cleared))}</b></td></tr><tr><td>Still clearing (inside seven days)</td><td align="right">${esc(money(c.clearing))}</td></tr><tr><td>Earned, all time</td><td align="right">${esc(money(c.earned))}</td></tr>${c.stood ? `<tr><td>Stood before your work this week</td><td align="right">${c.stood}</td></tr>` : ''}</table></td></tr>`,
+    button('Your statement', c.statementUrl),
+    close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for making work worth keeping.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
+  ].join('') });
+  const text = [
+    `Friday, ${c.date}.`,
+    c.cleared > 0 ? `${money(c.cleared)} goes to your bank today: every Friday, every dollar that has cleared.` : c.sold ? `Nothing has cleared yet; what sold this week goes out next Friday.` : `Nothing sold this week.`,
+    (c.sales || []).map(x => `${clean(x.title)} · ${x.how} · ${money(x.cents)}`).join('\n'),
+    `Cleared, out today: ${money(c.cleared)}\nStill clearing: ${money(c.clearing)}\nEarned, all time: ${money(c.earned)}`,
+    `Your statement: ${c.statementUrl}`,
+    'Thank you for making work worth keeping.\nThe house',
+  ].filter(Boolean).join('\n\n');
+  return { subject: c.cleared > 0 ? `Friday pay: ${money(c.cleared)} goes out today` : `Your week in the house`, text, html };
+}
+
+module.exports = { collected, sold, ready, frame, friday };
