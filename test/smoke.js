@@ -1581,6 +1581,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/press'); assert.ok(/The franchise/.test(r.body) && /The Gazette and the Almanack/.test(r.body), 'said on the printing house');
   }
   console.log('ok: the franchise');
+  { // The Library (25 Oct): Lightroom's grid for the maker's work; flags, stars and publish by JSON, the works' state answered.
+    const mkr = db.prepare("SELECT m.* FROM makers m JOIN texts t ON t.maker_id=m.id WHERE t.title='On Looking Longer'").get();
+    r = await req(port, 'GET', '/account/table', { cookie: mck }); assert.ok(r.status === 200 && /The Library\./.test(r.body) && /window\.__LIB=/.test(r.body) && /data-lib-grid/.test(r.body) && /data-lib-loupe/.test(r.body), 'the room');
+    r = await req(port, 'GET', '/account/table.json', { cookie: mck }); const J = JSON.parse(r.body); assert.ok(J.works.length >= 1 && J.works[0].slug && 'flag' in J.works[0], 'the works as JSON');
+    r = await req(port, 'GET', '/account/table.json'); assert.equal(r.status, 401, 'a stranger refused');
+    const two = J.works.slice(0, 2).map(w => w.slug);
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: two.join(','), do: 'flag', flag: 'pick', json: '1' } }); let a = JSON.parse(r.body); assert.ok(a.ok && /2 picked/.test(a.msg) && a.works.length === 2 && a.works.every(w => w.flag === 'pick'), 'picked: ' + a.msg);
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: two[0], do: 'stars', stars: '4', json: '1' } }); a = JSON.parse(r.body); assert.ok(a.works[0].stars === 4, 'graded by JSON');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: two.join(','), do: 'flag', flag: 'none', json: '1' } }); a = JSON.parse(r.body); assert.ok(a.works.every(w => w.flag === null) && /unflagged/.test(a.msg), 'unflagged');
+    r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: '', do: 'hide', json: '1' } }); a = JSON.parse(r.body); assert.ok(a.ok === false, 'nothing selected, said');
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/\/account\/table/.test(r.body), 'the desk opens the Library');
+  }
+  console.log('ok: the Library');
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

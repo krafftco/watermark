@@ -105,9 +105,9 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
     claims ? ['/account/claims', 'Answer', `${claims} claim${claims === 1 ? '' : 's'} about your work`] : null,
     rep ? ['/account/representation', 'Decide', `${rep} offers to represent you`] : null,
     owed >= 100 && !bank ? ['/account/payouts', 'Add your bank', `${money(owed)} is owed to you`] : null,
-    privateN ? ['#holdings', 'Publish', `${privateN} work${privateN === 1 ? '' : 's'} waiting in the vault`] : null,
+    privateN ? ['/account/table?f=private', 'Publish', `${privateN} work${privateN === 1 ? '' : 's'} waiting in the vault`] : null,
     keeping && keeping.over ? ['/account/keeping', 'See Keeping', `${keeping.works} works held, above the ${keeping.tier.name} line`] : null,
-    !jewels.length && works.length ? ['#holdings', 'Grade', 'Star the works that matter most'] : null,
+    !jewels.length && works.length ? ['/account/table', 'Grade', 'Star the works that matter most'] : null,
   ].filter(Boolean);
   const G = role && role.kind === 'gallery' ? role : null, N = role && role.kind === 'institution' ? role : null;
   if (G && G.offered && !viewing) needRows.unshift(['/account/gallery', 'Waiting', `${G.offered} offer${G.offered === 1 ? '' : 's'} of representation awaiting the maker`]);
@@ -127,7 +127,7 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
     [`/m/${esc(m.handle)}`, 'Your page', 'As the public sees it'],
   ] : [
     viewing ? null : ['/account/upload', 'Add work', 'Into the vault'],
-    ['#holdings', 'The holdings', `${totals.works} held · ${totals.public} public · ${totals.jewels} jewel${totals.jewels === 1 ? '' : 's'}`],
+    ['/account/table', 'The Library', `${totals.works} held · ${totals.public} public · ${totals.jewels} jewel${totals.jewels === 1 ? '' : 's'}: select, grade, publish`],
     ['/account/prices', 'Your prices', byUse.filter(u => u.key !== 'delivery').map(u => u.name).slice(0, 3).join(', ')],
     [`/m/${esc(m.handle)}`, 'Your page', m.bio ? 'As the public sees it' : 'Add a portrait and a line'],
     edit && totals.works >= 5 ? ['/account#holdings', 'The edit', `Standing ${edit.now.standing}${edit.best && edit.best.from ? ` · culling from ${'★'.repeat(edit.best.from)} would give ${edit.best.standing}` : ''}`] : null,
@@ -159,7 +159,7 @@ ${steps ? `<section class="fs" aria-label="First steps"><header class="fs-h"><p 
 ${!viewing && !keyed ? `<div class="pk" id="passkey" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) brings you back to your studio from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
 ${desk()}
 ${jewels.length ? `<section class="hd-list"><div class="hd-h"><h2>Your jewels</h2></div><div class="ac-js">${jewels.map(jewel).join('')}</div></section>` : ''}
-<section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${all.length ? `<span class="hd-n">${works.length === all.length ? `${all.length} work${all.length === 1 ? '' : 's'}` : `${works.length} of ${all.length}`}</span>` : ''}</div>
+<section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${viewing ? '' : '<a class="hd-lib" href="/account/table">Open the Library: select, grade and publish as in Lightroom &rarr;</a>'}${all.length ? `<span class="hd-n">${works.length === all.length ? `${all.length} work${all.length === 1 ? '' : 's'}` : `${works.length} of ${all.length}`}</span>` : ''}</div>
 ${all.length ? `<div class="st-bar"><nav class="st-f" aria-label="By stars"><a href="/account#holdings"${stars ? '' : ' aria-current="page"'}>All</a>${counts.map(([n, c]) => `<a href="/account?stars=${n}#holdings"${stars === n ? ' aria-current="page"' : ''}${c ? '' : ' class="is-0"'}>${n ? '&#9733;'.repeat(n) : 'Ungraded'}<small>${c}</small></a>`).join('')}</nav>
 ${viewing ? '' : `<form method="post" action="/account/cull" class="st-cull"><span>Keep public from</span><select name="from" aria-label="Stars"><option value="3">&#9733;&#9733;&#9733;</option><option value="4">&#9733;&#9733;&#9733;&#9733;</option><option value="5">&#9733;&#9733;&#9733;&#9733;&#9733;</option><option value="2">&#9733;&#9733;</option></select><button class="link">Cull</button></form>`}</div>
 ${culled ? `<p class="ok">Culled from ${'&#9733;'.repeat(culled.from)}: ${culled.down} made private, ${culled.up} brought back. Nothing is deleted; every photograph stays fingerprinted and registered, and culled work weighs a quarter toward Keeping.</p>` : ''}

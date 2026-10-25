@@ -34,18 +34,25 @@ function mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf, mayHang, K
         db.prepare('UPDATE works SET kind=? WHERE id=?').run(kind, w.id); done++;
       } else if (act === 'curate' || act === 'uncurate') {
         db.prepare('UPDATE works SET curated=? WHERE id=?').run(act === 'curate' ? 1 : 0, w.id); done++;
+      } else if (act === 'flag') { // Lightroom's flags (25 Oct): pick, reject, or none; nothing else changes.
+        const f = ['pick', 'reject'].includes(String(body.flag)) ? String(body.flag) : null;
+        try { db.prepare('UPDATE works SET flag=? WHERE id=?').run(f, w.id); done++; } catch (e) { refused++; why = 'flags'; }
       }
     }
     if (done && app.locals.findIndexDirty) app.locals.findIndexDirty();
-    const word = { publish: 'published', hide: 'made private', stars: 'graded', place: 'given a place', kind: 'given a kind', curate: 'marked curated', uncurate: 'unmarked' }[act] || 'touched';
+    const word = { publish: 'published', hide: 'made private', stars: 'graded', place: 'given a place', kind: 'given a kind', curate: 'marked curated', uncurate: 'unmarked', flag: body.flag === 'pick' ? 'picked' : body.flag === 'reject' ? 'rejected' : 'unflagged' }[act] || 'touched';
     return `${done} ${word}${refused ? `; ${refused} not: ${why}` : ''}.`;
   }
   app.post('/account/works/batch', (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
-    const slugs = parse(req.body.slugs); if (!slugs.length) return res.redirect('/account?ok=' + encodeURIComponent('Tick some works first.'));
+    const slugs = parse(req.body.slugs); if (!slugs.length) return req.body.json ? res.json({ ok: false, msg: 'Select some works first.' }) : res.redirect('/account?ok=' + encodeURIComponent('Tick some works first.'));
     const works = db.prepare(`SELECT * FROM works WHERE maker_id=? AND slug IN (${slugs.map(() => '?').join(',')})`).all(m.id, ...slugs);
     const msg = run(works, req.body, m.handle, m);
     if (req.body.do === 'publish' && app.locals.legal && works.length) { try { app.locals.legal.accept('maker', m.id, 'makers', req.ip, 'batch'); } catch (e) { /* quiet */ } }
+    if (req.body.json) { // the Library (25 Oct): the answer and each work's state, so the tiles repaint without a reload
+      const now = db.prepare(`SELECT slug, status, stars, curated, flag, place, kind FROM works WHERE maker_id=? AND slug IN (${slugs.map(() => '?').join(',')})`).all(m.id, ...slugs);
+      return res.json({ ok: true, msg, works: now.map(w => ({ slug: w.slug, status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, place: w.place || '', kind: w.kind || 'photograph' })) });
+    }
     res.redirect('/account?ok=' + encodeURIComponent(msg) + '#works');
   });
   app.post('/studio/works/batch', studioOnly, (req, res) => {
