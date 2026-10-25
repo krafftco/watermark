@@ -3706,3 +3706,11 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .rw-book{width:clamp(150px,14vw,200px);aspect-ratio:2/3;border-radius:3px;background:#2f4a3a}.rw-book .rw-tt b{font-size:16px}
 .rw-dark{background:radial-gradient(120% 90% at 50% 0%,#2a2724,#141311)}.rw-blank{position:absolute;inset:0;display:grid;place-items:center;color:rgba(217,188,124,.5)}.rw-blank .ic{width:48px;height:20px}
 @media (max-width:700px){.rws{padding:18px 0 40px}.rw-t{width:72vw}.rw-wide{width:80vw}.rw-sq,.rw-disc{width:44vw}.rw-book{width:36vw}.rw-s{gap:10px}}
+
+/* Read next and the ribbon (24 Oct). */
+.rdr-nextbk{margin-top:28px}.rdr-nextrow{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}.rdr-nextrow .shf-bk{--h:132px!important;--w:88px!important;transform:none}.rdr-nextt{display:grid;gap:10px;align-self:center}.rdr-nextt a{text-decoration:none;color:inherit;display:grid}.rdr-nextt b{font-weight:400;font-size:1.1em}.rdr-nextt i{font-style:normal;font-size:.85em;color:var(--rd-mute)}
+.rdr-ribg{display:inline-block;width:10px;height:18px;background:#8a1e2a;clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);vertical-align:-3px;margin-right:6px}
+[data-rd-rib][aria-pressed=true] .rdr-ribg{background:#c9a24a}.rdr-cover-rib{display:inline-flex;align-items:center;margin-left:12px;background:none;border:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline}
+[data-rd-toc-panel] a.rdr-ribbed:before{content:"";display:inline-block;width:7px;height:12px;background:#8a1e2a;margin-right:8px;clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)}
+
+.lr-nextrec{display:grid;gap:2px;margin-top:22px;padding:14px 16px;border:1px solid rgba(217,188,124,.5);border-radius:6px;text-decoration:none;color:#e9e2d6;background:rgba(217,188,124,.06)}.lr-nextrec[hidden]{display:none}.lr-nextk{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#d9bc7c}.lr-nextrec b{font-family:var(--disp);font-weight:400;font-size:20px}.lr-nextrec i{font-style:normal;color:rgba(233,226,214,.7)}.lr-nextrec em{font-style:normal;font-size:12px;color:rgba(233,226,214,.5);margin-top:4px}

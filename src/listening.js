@@ -89,6 +89,8 @@ ${shelf('From the makers', 'Masters, as they were made.', makers)}
 </section>` }));
   });
   // The record.
+  // After the last side: the next record on the shelf (by id, round), so the room carries on as a radio does.
+  function nextOf(r) { const rows = db.prepare("SELECT slug, title, performer, composer, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY id").all(); if (rows.length < 2) return null; const i = rows.findIndex(x => x.slug === r.slug); const n = rows[(i + 1) % rows.length]; return { href: `/listening/${n.slug}?play=1`, title: n.title, by: n.performer || n.composer || '', img: n.cover_slug ? `/img/${n.cover_slug}/screen` : n.cover_url || null }; }
   app.get('/listening/:slug', (req, res) => {
     const r = rec(req.params.slug); if (!r || (r.status !== 'playing' && !isStudio(req))) return res.sendStatus(404);
     if (r.source === 'maker' && !keyed(req) && !(makerOf(req) && makerOf(req).id === r.maker_id)) return res.status(403).send(V.layout({ title: `${r.title} · The Listening Room`, path: `/listening/${r.slug}`, body: `<section class="ky-page lr"><div class="ky-h"><p class="k"><a href="/listening">The Listening Room</a></p><h1>${esc(r.title)}</h1><p class="bc-door">A maker’s master plays for keyholders. <a href="/keys">The Keys</a>.</p></div></section>` }));
@@ -104,10 +106,11 @@ ${r.line ? `<p class="lede">${esc(r.line)}</p>` : ''}
 <div class="lr-bar" data-lr-bar><i data-lr-fill></i></div>
 <ol class="lr-tracks" data-lr-tracks>${list.map((t, i) => `<li><button type="button" data-lr-track="${i}"><span class="lr-n">${i + 1}</span><span class="lr-tt">${esc(t.title)}</span><span class="lr-tl">${t.seconds ? mmss(t.seconds) : ''}</span></button></li>`).join('')}</ol>
 <audio data-lr-audio preload="metadata" src="${esc(list[0].url)}"></audio>
+<a class="lr-nextrec" data-lr-next hidden href="#"><span class="lr-nextk">Next on the turntable</span><b data-lr-nextt></b><i data-lr-nextby></i><em data-lr-count></em></a>
 </div></section>
 ${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.why ? `<p class="lr-why">${esc(r.why)}</p>` : ''}${r.body ? `<p>${esc(r.body)}</p>` : ''}</section>` : ''}
 <footer class="lr-foot"><p>${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p><p>Played whole, in the Keys. ${esc(C.base.replace(/^https?:\/\//, ''))}/listening</p></footer>
-<script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, title: t.title })) })}</script>
+<script>window.__LR=${JSON.stringify({ tracks: list.map(t => ({ url: t.url, title: t.title })), next: nextOf(r) })}</script>
 </main><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
   });
   // The Studio: search the Archive, bring a record in, write the sleeve, set it playing.

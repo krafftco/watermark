@@ -34,7 +34,7 @@
     var links = main.querySelectorAll('[data-rd-toc-panel] a'); for (var j = 0; j < links.length; j++) { if (+links[j].getAttribute('data-c') === i) links[j].setAttribute('aria-current', 'page'); else links[j].removeAttribute('aria-current'); }
     try { history.replaceState(null, '', '?c=' + i); } catch (e) { /* */ }
     var toc = main.querySelector('[data-rd-toc-panel]'); if (toc) toc.hidden = true;
-    apply();
+    apply(); paintRib();
     requestAnimationFrame(function () {
       var s = sec();
       if (paged()) { window.scrollTo(0, 0); if (s) s.scrollLeft = (y || 0) * Math.max(0, s.scrollWidth - s.clientWidth); }
@@ -50,6 +50,12 @@
     if (dir < 0 && x <= 4) { if (at > 0) show(at - 1, 1); return; }
     s.scrollTo({ left: Math.max(0, Math.min(max, Math.round(x / w) * w + dir * w)), behavior: 'smooth' }); setTimeout(keep, 450);
   }
+  // The ribbon (24 Oct): R, or the ribbon button, marks the place; the cover and the chapters show where it lies; 'Go to the ribbon' opens it.
+  var rib = null; try { rib = JSON.parse(localStorage.getItem(key + '_rib') || 'null'); } catch (e) { rib = null; }
+  function paintRib() { var b = main.querySelector('[data-rd-rib]'); if (b) b.setAttribute('aria-pressed', rib && rib.c === at ? 'true' : 'false'); var l = main.querySelectorAll('[data-rd-toc-panel] a'); for (var i = 0; i < l.length; i++) l[i].classList.toggle('rdr-ribbed', !!(rib && +l[i].getAttribute('data-c') === rib.c)); var g = main.querySelector('[data-rd-torib]'); if (g) g.hidden = !rib; }
+  function setRib() { if (rib && rib.c === at) rib = null; else rib = { c: at, y: depth() }; try { localStorage.setItem(key + '_rib', JSON.stringify(rib)); } catch (e) { /* */ } paintRib(); }
+  main.addEventListener('click', function (e) { if (e.target.closest('[data-rd-rib]')) setRib(); else if (e.target.closest('[data-rd-torib]') && rib) show(rib.c, rib.y); });
+  document.addEventListener('keydown', function (e) { if (e.target.closest('input,textarea')) return; if (e.key === 'r' || e.key === 'R') setRib(); });
   // The cover: Begin opens the first chapter, or the place you were at.
   if (cover && !cover.hidden) {
     var resume = S.c != null && (S.c !== 0 || S.y > 0.02);
@@ -87,5 +93,5 @@
   // Still: the bar fades after a while and comes back on a move.
   var still = null; function wake() { main.classList.remove('rdr-still'); clearTimeout(still); still = setTimeout(function () { main.classList.add('rdr-still'); }, 4000); }
   ['mousemove', 'touchstart', 'keydown', 'scroll'].forEach(function (ev) { addEventListener(ev, wake, { passive: true }); }); wake();
-  apply(); prog();
+  apply(); prog(); paintRib();
 })();
