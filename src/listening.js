@@ -81,7 +81,37 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
     try { const r = await doFetch(url); if (!r.ok) return { error: `The Archive answered ${r.status}.` }; const j = await r.json(); return { docs: ((j.response || {}).docs || []).map(d => ({ id: d.identifier, title: first(d.title), creator: [].concat(d.creator || []).join(', '), year: first(d.year), door: clear({ licenseurl: d.licenseurl, collection: d.collection, year: d.year }) })) }; } catch (e) { return { error: e.message }; }
   }
   const rec = slug => db.prepare('SELECT r.*, m.handle AS maker_handle, m.name AS maker_name FROM recordings r LEFT JOIN makers m ON m.id=r.maker_id WHERE r.slug=?').get(String(slug));
-  const cover = r => r.cover_slug ? `/img/${encodeURIComponent(r.cover_slug)}/screen` : r.cover_url || null;
+  // The cover: a held work when one is set, the Archive's picture when it has one, else the house's own label (below):
+  // every record has a face, so the shelf, the rows, the bar and the lock screen never show a blank.
+  const cover = r => r.cover_slug ? `/img/${encodeURIComponent(r.cover_slug)}/screen` : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`;
+  // The house's record label (Will, 24 Oct: what to show for a record with no picture, at least for now): drawn here,
+  // after the paper labels of the period: a disc with a coloured label, a gold ring, the composer in small capitals,
+  // the title in the serif, the performer beneath, the year; the shellac dark and oxblood or deep blue, the open
+  // repertoire on cream. SVG so it is sharp at every size; PNG for the lock screen's artwork.
+  const LABELS = [['#5e0b14', '#e6c875'], ['#1f2f55', '#e6c875'], ['#1e3a2f', '#e6c875'], ['#2a2420', '#e6c875'], ['#5a3a16', '#f0dca8']];
+  const CREAM = [['#e9dcc0', '#3a2a1a'], ['#d9c9a5', '#2a2a2a'], ['#e3d4b4', '#5e0b14']];
+  const hashOf = x => { let h = 7; for (const c of String(x)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  const wrap = (t, n) => { const words = String(t || '').split(/\s+/); const lines = []; let cur = ''; for (const w of words) { if ((cur + ' ' + w).trim().length > n && cur) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); } if (cur) lines.push(cur); return lines.slice(0, 3); };
+  function labelSvg(r) {
+    const shellac = r.license === 'pd' && r.year && +r.year <= PD_RECORDING_YEAR; const h = hashOf(r.slug);
+    const [bg, fg] = (shellac ? LABELS : CREAM)[h % (shellac ? LABELS.length : CREAM.length)];
+    const title = wrap(r.title, 22), fs1 = title.some(l => l.length > 16) ? 30 : 36; const comp = r.composer && r.composer !== r.performer ? r.composer : ''; const perf = r.performer || '';
+    const ty = 226 - (title.length - 1) * fs1 * 0.6;
+    const tx = (txt, y, size, extra = '') => `<text x="256" y="${y}" text-anchor="middle" font-size="${size}" ${extra}>${esc(txt)}</text>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#1a1917"/><stop offset=".55" stop-color="#121110"/><stop offset=".56" stop-color="#1c1b19"/><stop offset=".62" stop-color="#111"/><stop offset=".7" stop-color="#1b1a18"/><stop offset=".8" stop-color="#0f0e0d"/><stop offset=".9" stop-color="#1a1917"/><stop offset="1" stop-color="#0c0b0a"/></radialGradient></defs>
+<circle cx="256" cy="256" r="256" fill="url(#g)"/>
+<circle cx="256" cy="256" r="150" fill="${bg}"/><circle cx="256" cy="256" r="150" fill="none" stroke="${fg}" stroke-opacity=".9" stroke-width="2"/><circle cx="256" cy="256" r="140" fill="none" stroke="${fg}" stroke-opacity=".35" stroke-width="1"/>
+<g fill="${fg}" font-family="Georgia, 'Times New Roman', serif">
+${comp ? tx(comp.toUpperCase(), 142, 12, 'letter-spacing="3" opacity=".9"') : tx('THE LISTENING ROOM', 142, 11, 'letter-spacing="3" opacity=".7"')}
+${title.map((l, i) => tx(l, ty + i * fs1 * 1.1, fs1)).join('')}
+${perf ? tx(perf, 312, 15, 'font-style="italic" opacity=".92"') : ''}
+${r.year ? tx(String(r.year), 350, 12, 'letter-spacing="2" opacity=".75"') : ''}
+${tx('WATERMARK', 384, 9, 'letter-spacing="4" opacity=".55"')}
+</g><circle cx="256" cy="256" r="6" fill="#0b0a09" stroke="${fg}" stroke-opacity=".4"/></svg>`;
+  }
+  app.get('/listening/:slug/label.svg', (req, res) => { const r = rec(req.params.slug); if (!r) return res.sendStatus(404); res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(labelSvg(r)); });
+  app.get('/listening/:slug/label.png', async (req, res) => { const r = rec(req.params.slug); if (!r) return res.sendStatus(404); try { const png = await require('sharp')(Buffer.from(labelSvg(r)), { density: 144 }).resize(512, 512).png().toBuffer(); res.type('image/png').set('Cache-Control', 'public, max-age=86400').send(png); } catch (e) { res.redirect(`/listening/${encodeURIComponent(r.slug)}/label.svg`); } });
   const K = () => app.locals.keys; const keyed = req => { const k = K() ? K().holds(req) : {}; return Object.keys(k).length > 0 || isStudio(req); };
   // Tonight's record: deterministic by the day, so the room holds still.
   function tonight() { const all = db.prepare("SELECT * FROM recordings WHERE status='playing' ORDER BY id").all(); if (!all.length) return null; const d = new Date(); const n = (d.getUTCFullYear() * 400 + d.getUTCMonth() * 31 + d.getUTCDate()); return all[n % all.length]; }
@@ -89,7 +119,7 @@ function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fet
   // After the last side: the next record on the shelf (by id, round), so the room carries on as a radio does.
   function nextOf(r) { const rows = db.prepare("SELECT slug, title, performer, composer, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY id").all(); if (rows.length < 2) return null; const i = rows.findIndex(x => x.slug === r.slug); const n = rows[(i + 1) % rows.length]; return { href: `/listening/${n.slug}?play=1`, title: n.title, by: n.performer || n.composer || '', img: n.cover_slug ? `/img/${n.cover_slug}/screen` : n.cover_url || null }; }
   // One record as the app reads it.
-  function recordJSON(r) { return { slug: r.slug, title: r.title, performer: r.performer || '', composer: r.composer || '', by: r.performer || r.composer || '', year: r.year || '', cover: cover(r), line: r.line || '', why: r.why || '', body: unmoji(r.body || ''), credit: r.credit || '', license: LICENSES[r.license] || r.license, license_url: r.license_url || null, ia: r.ia_id || null, source: r.source, chosen: r.chosen_by || '', tracks: tidyTracks(J(r.files)).map(t => ({ url: t.url, flac: t.flac || null, title: t.title, seconds: t.seconds || null })), seconds: r.seconds || null }; }
+  function recordJSON(r) { return { slug: r.slug, art: r.cover_slug || r.cover_url ? cover(r) : `/listening/${encodeURIComponent(r.slug)}/label.png`, title: r.title, performer: r.performer || '', composer: r.composer || '', by: r.performer || r.composer || '', year: r.year || '', cover: cover(r), line: r.line || '', why: r.why || '', body: unmoji(r.body || ''), credit: r.credit || '', license: LICENSES[r.license] || r.license, license_url: r.license_url || null, ia: r.ia_id || null, source: r.source, chosen: r.chosen_by || '', tracks: tidyTracks(J(r.files)).map(t => ({ url: t.url, flac: t.flac || null, title: t.title, seconds: t.seconds || null })), seconds: r.seconds || null }; }
   function shelves() {
     const all = db.prepare("SELECT * FROM recordings WHERE status='playing' ORDER BY id DESC").all();
     const shellac = all.filter(r => r.license === 'pd' && r.year && +r.year <= PD_RECORDING_YEAR), open = all.filter(r => !shellac.includes(r) && r.source === 'archive'), makers = all.filter(r => r.source === 'maker');

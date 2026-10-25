@@ -118,7 +118,7 @@
   function session() {
     if (!('mediaSession' in navigator)) return; var r = cur(), t = track(); if (!r || !t) return;
     try {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: r.by || '', album: r.title + ' · The Listening Room, Watermark', artwork: r.cover ? [{ src: r.cover, sizes: '512x512', type: 'image/jpeg' }] : [] });
+      navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: r.by || '', album: r.title + ' · The Listening Room, Watermark', artwork: r.art || r.cover ? [{ src: r.art || r.cover, sizes: '512x512', type: /\.png$/.test(r.art || '') ? 'image/png' : 'image/jpeg' }] : [] });
       navigator.mediaSession.setActionHandler('play', function () { a.play().catch(function () {}); });
       navigator.mediaSession.setActionHandler('pause', function () { a.pause(); });
       navigator.mediaSession.setActionHandler('previoustrack', function () { stepTrack(-1); });

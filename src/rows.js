@@ -9,6 +9,8 @@ function mountRows(app, { db, V, C }) {
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
   const all = (sql, ...a) => { try { return db.prepare(sql).all(...a); } catch (e) { return []; } };
   const img = s => `/img/${encodeURIComponent(s)}/screen`;
+  const CLOTH = ['#2f4a3a', '#5a1f22', '#23304d', '#6b4b2a', '#8a7a52', '#3b4a5a', '#4a3350', '#7a5a2a']; const hash = s => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  const cloth = t => `<span class="rw-cloth" style="background:${CLOTH[(hash(t.title || t.slug) >> 7) % CLOTH.length]}"><span class="rw-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="rw-rule"></span></span>`;
   function rowsFor(req, { works = [], hangs = [], shows = [], rooms = [], today = null, cover = null } = {}) {
     const rows = [];
     // Where to: three doors, by who you are.
@@ -34,16 +36,16 @@ function mountRows(app, { db, V, C }) {
     try { const prog = app.locals.clock ? app.locals.clock.programme(req) : null; if (prog && prog.items && prog.items.length) rows.push({ k: 'The Keys', title: `${prog.slot && prog.slot.name ? prog.slot.name : 'Tonight'} in the Keys`, href: '/keys', tiles: prog.items.slice(0, 8).map(it => ({ href: it.href, img: it.img || null, title: it.title, line: it.why || it.line || '', dark: !it.img })) }); } catch (e) { /* the clock is optional */ }
     // On the turntable.
     const recs = all("SELECT slug, title, performer, composer, year, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY id DESC LIMIT 12");
-    if (recs.length) rows.push({ k: 'The Listening Room', title: 'The Listening Room', href: '/listening', tiles: recs.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url, title: tidy(r.title), line: `${r.performer || r.composer || ''}${r.year ? ' · ' + r.year : ''}`, disc: true })) });
+    if (recs.length) rows.push({ k: 'The Listening Room', title: 'The Listening Room', href: '/listening', tiles: recs.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: `${r.performer || r.composer || ''}${r.year ? ' · ' + r.year : ''}`, disc: true })) });
     // From the shelf.
     const books = all("SELECT t.slug, t.title, t.author, t.kind, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND (t.body IS NOT NULL OR t.plates IS NOT NULL) ORDER BY t.id DESC LIMIT 12");
-    if (books.length) rows.push({ k: 'The Library', title: 'The Library', href: '/library', tiles: books.map(t => ({ href: `/read/${t.slug}`, img: t.cover ? img(t.cover) : null, title: tidy(t.title), line: byName(t.author) || (t.kind === 'photobook' ? 'A photo book' : 'A book'), book: true })) });
+    if (books.length) rows.push({ k: 'The Library', title: 'The Library', href: '/library', tiles: books.map(t => ({ href: `/read/${t.slug}`, img: t.cover ? img(t.cover) : null, html: t.cover ? null : cloth(t), title: tidy(t.title), line: byName(t.author) || (t.kind === 'photobook' ? 'A photo book' : 'A book'), book: true })) });
     // The Screening Room, when something is on the bill.
     const films = all("SELECT f.slug, f.title, f.filmmaker, f.poster_slug, f.poster_url FROM films f WHERE f.status='showing' ORDER BY f.id DESC LIMIT 8");
     if (films.length) rows.push({ k: 'The Screening Room', title: 'The Screening Room', href: '/screening', tiles: films.map(f => ({ href: `/screening/${f.slug}`, img: f.poster_slug ? img(f.poster_slug) : f.poster_url, title: tidy(f.title), line: f.filmmaker || '' })) });
     return rows;
   }
-  const tile = t => `<a class="rw-t${t.wide ? ' rw-wide' : ''}${t.square ? ' rw-sq' : ''}${t.disc ? ' rw-disc' : ''}${t.book ? ' rw-book' : ''}${t.dark ? ' rw-dark' : ''}" href="${esc(t.href)}"${t.wander ? ' data-nv-wander' : ''} tabindex="0">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="rw-blank">${I.wave}</span>`}<span class="rw-tt"><b>${esc(t.title)}</b>${t.line ? `<i>${esc(t.line)}</i>` : ''}</span></a>`;
+  const tile = t => `<a class="rw-t${t.wide ? ' rw-wide' : ''}${t.square ? ' rw-sq' : ''}${t.disc ? ' rw-disc' : ''}${t.book ? ' rw-book' : ''}${t.dark ? ' rw-dark' : ''}" href="${esc(t.href)}"${t.wander ? ' data-nv-wander' : ''} tabindex="0">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" decoding="async" draggable="false">` : t.html || `<span class="rw-blank">${I.wave}</span>`}<span class="rw-tt"><b>${esc(t.title)}</b>${t.line ? `<i>${esc(t.line)}</i>` : ''}</span></a>`;
   const row = r => `<section class="rw" data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header><div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`;
   const html = (req, data) => { const rows = rowsFor(req, data); return `<div class="rws" data-rws>${rows.map(row).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`; };
   app.locals.rows = { rowsFor, html };
