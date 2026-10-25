@@ -418,17 +418,45 @@
   ['touchstart', 'pointermove', 'keydown', 'wheel'].forEach(function (t) { addEventListener(t, function (e) { if (TOUCH && (t === 'touchstart' || t === 'wheel')) return; if (t === 'pointermove' && e.pointerType === 'touch') return; quiet(); }, { passive: true }); });
   if (TOUCH) { var movingT = null; scroller.addEventListener('scroll', function () { if (!movingT) { clearTimeout(stillT); root.classList.add('st-still'); root.classList.remove('st-arr'); } clearTimeout(movingT); movingT = setTimeout(function () { movingT = null; }, 180); }, { passive: true }); }
   var firstArr = true;
-  // A record's side plays in its screen (one audio for the whole wall); moving on lifts the needle.
-  var rA = null, rBtn = null;
-  function rStop() { if (rA) { try { rA.pause(); } catch (e) {} } if (rBtn) { rBtn.classList.remove('on'); rBtn.closest('.st-i') && rBtn.closest('.st-i').classList.remove('st-ron'); } rBtn = null; }
+  // The turntable (Will, 25 Oct: "keep playing music throughout the wander experience; keep serving songs if someone
+  // starts playing from a thing"): a record started from a screen keeps playing through the whole wander, side after
+  // side, and when it ends the next record on the shelf follows, as the Listening Room does; a small bar (`.st-tt`)
+  // shows what is on with pause, next and ×; where you were is kept (sessionStorage `wm_tt`), so leaving Wander for
+  // a work and coming back resumes at the same second on the first touch. Moving on never lifts the needle now.
+  var TT = { a: null, rec: null, i: 0, list: null, bar: null, want: false };
+  function ttList() { if (TT.list) return Promise.resolve(TT.list); return fetch('/api/listening', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { TT.list = (j.records || []).filter(function (r) { return r.tracks && r.tracks.length; }); return TT.list; }).catch(function () { return []; }); }
+  function ttAudio() { if (TT.a) return TT.a; var a = new Audio(); a.preload = 'auto'; a.addEventListener('ended', function () { ttNext(); }); a.addEventListener('play', function () { TT.want = false; ttPaint(); }); a.addEventListener('pause', ttPaint); a.addEventListener('timeupdate', ttKeep); TT.a = a; return a; }
+  function ttSide(i, t) {
+    var r = TT.rec; if (!r || !r.tracks[i]) return ttNextRecord();
+    TT.i = i; var a = ttAudio(); a.src = r.tracks[i].url; ttKeepT = 0; try { sessionStorage.setItem('wm_tt', JSON.stringify({ slug: r.slug, i: i, t: t || 0 })); } catch (e) {} if (t) { a.addEventListener('loadedmetadata', function once() { a.removeEventListener('loadedmetadata', once); try { a.currentTime = t; } catch (e) {} }); }
+    ttPaint(); return a.play().catch(function () { TT.want = true; ttPaint(); });
+  }
+  function ttPlay(slug, i, t) { return ttList().then(function (list) { var r = null; for (var k = 0; k < list.length; k++) if (list[k].slug === slug) r = list[k]; if (!r) return; TT.rec = r; ttSide(i || 0, t || 0); try { if (navigator.mediaSession) { navigator.mediaSession.metadata = new MediaMetadata({ title: r.tracks[TT.i].title || r.title, artist: r.by, album: r.title + ' · Watermark', artwork: [{ src: r.art, sizes: '512x512' }] }); navigator.mediaSession.setActionHandler('nexttrack', ttNext); navigator.mediaSession.setActionHandler('pause', function () { TT.a && TT.a.pause(); }); navigator.mediaSession.setActionHandler('play', function () { TT.a && TT.a.play(); }); } } catch (e) {} }); }
+  function ttNext() { if (!TT.rec) return; if (TT.rec.tracks[TT.i + 1]) ttSide(TT.i + 1); else ttNextRecord(); }
+  function ttNextRecord() { ttList().then(function (list) { if (!list.length) return ttOff(); var k = -1; for (var j = 0; j < list.length; j++) if (TT.rec && list[j].slug === TT.rec.slug) k = j; var n = list[(k + 1) % list.length]; if (!n || (TT.rec && n.slug === TT.rec.slug && list.length === 1)) return ttOff(); TT.rec = n; ttSide(0); }); }
+  function ttOff() { if (TT.a) { try { TT.a.pause(); TT.a.removeAttribute('src'); TT.a.load(); } catch (e) {} } TT.rec = null; TT.want = false; try { sessionStorage.removeItem('wm_tt'); } catch (e) {} ttPaint(); }
+  var ttKeepT = 0; function ttKeep() { var now = Date.now(); if (now - ttKeepT < 4000 || !TT.rec || !TT.a) return; ttKeepT = now; try { sessionStorage.setItem('wm_tt', JSON.stringify({ slug: TT.rec.slug, i: TT.i, t: Math.floor(TT.a.currentTime) })); } catch (e) {} }
+  function ttPaint() {
+    var on = !!TT.rec; root.classList.toggle('st-tton', on);
+    if (!TT.bar) { TT.bar = document.createElement('div'); TT.bar.className = 'st-tt'; TT.bar.innerHTML = '<img alt=""><span class="st-ttt"><b></b><i></i></span><button type="button" data-tt-pp aria-label="Pause"></button><button type="button" data-tt-next aria-label="Next">' + (ic.next || '→') + '</button><button type="button" data-tt-off aria-label="Lift the needle">' + (ic.close || '×') + '</button>'; root.appendChild(TT.bar);
+      TT.bar.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; if (b.hasAttribute('data-tt-pp')) { if (!TT.a) return; if (TT.a.paused) { TT.want = false; TT.a.play().catch(function () {}); } else TT.a.pause(); } else if (b.hasAttribute('data-tt-next')) ttNext(); else if (b.hasAttribute('data-tt-off')) ttOff(); });
+      TT.bar.querySelector('.st-ttt').addEventListener('click', function () { if (TT.rec) location.href = '/listening/' + encodeURIComponent(TT.rec.slug); }); }
+    TT.bar.hidden = !on; if (!on) { root.querySelectorAll('.st-ron').forEach(function (el) { el.classList.remove('st-ron'); }); root.querySelectorAll('[data-st-rplay].on').forEach(function (b) { b.classList.remove('on'); }); return; }
+    var playing = TT.a && !TT.a.paused; var side = TT.rec.tracks[TT.i] || {};
+    TT.bar.querySelector('img').src = TT.rec.cover || TT.rec.art; TT.bar.querySelector('b').textContent = TT.rec.title; TT.bar.querySelector('i').textContent = (side.title ? side.title + ' · ' : '') + (TT.rec.by || '') + (TT.want ? ' · Tap to resume' : '');
+    TT.bar.querySelector('[data-tt-pp]').innerHTML = playing ? (ic.pause || '❚❚') : (ic.play || '▶'); TT.bar.classList.toggle('on', playing);
+    root.querySelectorAll('.st-i.st-rec').forEach(function (el) { var mine = el.getAttribute('data-slug') === 'r:' + TT.rec.slug; el.classList.toggle('st-ron', mine && playing); var b = el.querySelector('[data-st-rplay]'); if (b) { b.classList.toggle('on', mine && playing); var sp = b.querySelector('span'); if (sp && mine) sp.textContent = playing ? 'Playing · ' + (side.title || '') : 'Paused'; } });
+  }
   root.addEventListener('click', function (e) {
     var b = e.target.closest('[data-st-rplay]'); if (!b) return; e.preventDefault();
-    if (rBtn === b && rA && !rA.paused) { rStop(); return; }
-    rStop(); if (!rA) { rA = new Audio(); rA.preload = 'auto'; rA.addEventListener('ended', rStop); rA.addEventListener('pause', function () { if (rBtn) rBtn.classList.remove('on'); }); rA.addEventListener('play', function () { if (rBtn) rBtn.classList.add('on'); }); }
-    rA.src = b.getAttribute('data-src'); rBtn = b; b.closest('.st-i').classList.add('st-ron'); rA.play().catch(function () { rStop(); });
+    var slug = (b.closest('.st-i').getAttribute('data-slug') || '').replace(/^r:/, '');
+    if (TT.rec && TT.rec.slug === slug && TT.a) { if (TT.a.paused) { TT.want = false; TT.a.play().catch(function () {}); } else TT.a.pause(); return; }
+    ttPlay(slug, 0, 0);
   });
+  // Resume what was on: shown paused, started on the first touch (the browser wants a gesture).
+  try { var kept = JSON.parse(sessionStorage.getItem('wm_tt') || 'null'); if (kept && kept.slug) { ttList().then(function (list) { var r = null; for (var k = 0; k < list.length; k++) if (list[k].slug === kept.slug) r = list[k]; if (!r) return; TT.rec = r; TT.i = kept.i || 0; TT.want = true; ttPaint(); var go = function () { removeEventListener('touchstart', go); removeEventListener('click', go); removeEventListener('keydown', go); if (TT.want && TT.rec) { TT.want = false; ttSide(TT.i, kept.t || 0); } }; addEventListener('touchstart', go, { passive: true }); addEventListener('click', go); addEventListener('keydown', go); }); } } catch (e) {}
+  var rStop = function () {}; // kept for older callers: the needle no longer lifts on its own
   function arrive(slug) {
-    if (rBtn && (!rBtn.closest('.st-i') || rBtn.closest('.st-i').getAttribute('data-slug') !== slug)) rStop();
     // The first screen keeps its bar and acts a few seconds longer, so a newcomer sees Find and Settings exist.
     if (TOUCH && !firstArr) root.classList.add('st-arr');
     quiet(firstArr && TOUCH ? 5000 : undefined); firstArr = false; clearTimeout(lineT);
@@ -476,6 +504,7 @@
   // in the house voice, quiet music made here (four sines breathing; nothing streamed), the screen kept awake.
   var sitb = root.querySelector('[data-st-sit]'), sitbar = root.querySelector('[data-st-sitbar]'), ac = null, lock = null, wasGuide = false;
   function music(on) {
+    if (on && TT.rec && TT.a && !TT.a.paused) return; // the turntable is on: no sines over a record
     try {
       if (!on) { if (ac) { var a = ac; ac = null; a.master.gain.setTargetAtTime(0, a.ctx.currentTime, 1.2); setTimeout(function () { a.ctx.close(); }, 4000); } return; }
       var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
