@@ -147,19 +147,21 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
       FROM works w WHERE w.maker_id=? ORDER BY w.stars DESC, gross DESC, seen30 DESC, w.id`).all(m.id);
     const byUse = db.prepare(`SELECT u.key, u.name, u.kind, COUNT(l.id) AS n, COALESCE(SUM(l.price_cents),0) AS gross FROM uses u
       LEFT JOIN licenses l ON l.use_id=u.id AND ${paid} WHERE u.maker_id=? GROUP BY u.id ORDER BY u.sort`).all(m.id);
-    const recent = db.prepare(`SELECT l.ref, l.price_cents, l.starts_at, u.name AS use_name, u.key, w.title, w.slug FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
+    const recent = db.prepare(`SELECT l.ref, l.price_cents, l.house_cents, l.starts_at, u.name AS use_name, u.key, w.title, w.slug FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
       WHERE w.maker_id=? AND ${paid} ORDER BY l.starts_at DESC LIMIT 20`).all(m.id);
     const sum = (sql, ...a) => db.prepare(sql).get(...a).v || 0;
     const FEE = require('./fee'); const MK = FEE.sqlMaker(pct);
     const gross = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid}`, m.id);
     const gross30 = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-30 day')`, m.id);
     const ttm = sum(`SELECT SUM(${MK}) v FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND l.starts_at >= datetime('now','-365 day')`, m.id);
+    const today = db.prepare(`SELECT COALESCE(SUM(${MK}),0) v, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND date(l.starts_at) = date('now')`).get(m.id);
+    const month = db.prepare(`SELECT COALESCE(SUM(${MK}),0) v, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND strftime('%Y-%m', l.starts_at) = strftime('%Y-%m','now')`).get(m.id);
     const toMaker = c => Math.round(c * pct / 100); const own = c => c; // gross, gross30 and ttm are already the maker's side
     return {
       m, pct, works, byUse, recent, multiple: MULTIPLE,
       jewels: works.filter(w => w.curated),
       totals: { works: works.length, public: works.filter(w => w.status === 'held').length, jewels: works.filter(w => w.curated).length,
-        earned: own(gross), earned30: own(gross30), ttm: own(ttm), shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
+        earned: own(gross), earned30: own(gross30), ttm: own(ttm), today: today.v, todayN: today.n, month: month.v, monthN: month.n, bank: !!m.stripe_account, shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
         value: ttm ? own(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0, royalties: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).r : 0, resales: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).n : 0 },
       toMaker,
     };

@@ -69,6 +69,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option><option value="institution">Institution: a museum, a library, an archive</option><option value="gallery">Gallery: represents photographers, mounts shows</option></select></label><button>Create the account</button></form></section>${intros}` });
 }
 
+const I = require('./icons');
 function dashboard({ keys = [], way = '', m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, edit = null, rep = null, steps = null, batch = '', ok = null }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
@@ -95,6 +96,41 @@ function dashboard({ keys = [], way = '', m, pct, works, jewels, byUse, recent, 
     privateN ? `<li><a href="#holdings"><b>${privateN}</b> photograph${privateN === 1 ? '' : 's'} waiting to be published<span>&rarr;</span></a></li>` : '',
     !jewels.length && works.length ? `<li><a href="#holdings"><b>&#9734;</b> Star the works that matter most; collectors see them first<span>&rarr;</span></a></li>` : '',
   ].filter(Boolean);
+  // The desk (Will, 23 Oct: "the back of house as beautifully designed as the front; one screen; anybody could manage it"):
+  // the line (today, this month, what needs you), then three columns of rows with one verb each (Needs you · The work ·
+  // Money); the figures that were paragraphs are rows; everything else is in the rail. No paragraphs on the desk.
+  const bank = totals.bank;
+  const needRows = viewing ? [] : [
+    asks ? ['/account/requests', 'Answer', `${asks} request${asks === 1 ? '' : 's'} waiting`] : null,
+    claims ? ['/account/claims', 'Answer', `${claims} claim${claims === 1 ? '' : 's'} about your work`] : null,
+    rep ? ['/account/representation', 'Decide', `${rep} offers to represent you`] : null,
+    owed >= 100 && !bank ? ['/account/payouts', 'Add your bank', `${money(owed)} is owed to you`] : null,
+    privateN ? ['#holdings', 'Publish', `${privateN} work${privateN === 1 ? '' : 's'} waiting in the vault`] : null,
+    keeping && keeping.over ? ['/account/keeping', 'See Keeping', `${keeping.works} works held, above the ${keeping.tier.name} line`] : null,
+    !jewels.length && works.length ? ['#holdings', 'Grade', 'Star the works that matter most'] : null,
+  ].filter(Boolean);
+  const workRows = [
+    viewing ? null : ['/account/upload', 'Add work', 'Into the vault'],
+    ['#holdings', 'The holdings', `${totals.works} held · ${totals.public} public · ${totals.jewels} jewel${totals.jewels === 1 ? '' : 's'}`],
+    ['/account/prices', 'Your prices', byUse.filter(u => u.key !== 'delivery').map(u => u.name).slice(0, 3).join(', ')],
+    [`/m/${esc(m.handle)}`, 'Your page', m.bio ? 'As the public sees it' : 'Add a portrait and a line'],
+    edit && totals.works >= 5 ? ['/account#holdings', 'The edit', `Standing ${edit.now.standing}${edit.best && edit.best.from ? ` · culling from ${'★'.repeat(edit.best.from)} would give ${edit.best.standing}` : ''}`] : null,
+    viewing ? null : ['/account/deliveries', 'Deliver an album', 'To a client or a friend'],
+  ].filter(Boolean);
+  const moneyRows = [
+    ['/account/payouts', 'This month', `${money(totals.month)} · ${totals.monthN} sale${totals.monthN === 1 ? '' : 's'}`],
+    ['/account/payouts', 'All time', `${money(totals.earned + (totals.tips || 0) + (totals.royalties || 0))} · ${totals.shares} collected`],
+    ['/account/payouts', owed >= 100 ? 'Owed to you' : 'The statement', owed >= 100 ? money(owed) : 'Every sale, line by line'],
+    viewing ? null : ['/account/payouts', bank ? 'Your bank' : 'Add your bank', bank ? 'Connected' : 'Paid by hand until then'],
+    totals.royalties ? ['/account/payouts', 'Royalties', `${money(totals.royalties)} from ${totals.resales} resale${totals.resales === 1 ? '' : 's'}`] : null,
+    ['/share', 'The split', require('./fee').on ? 'The price is yours; the house’s share is on top' : `You keep ${pct}% of every sale`],
+  ].filter(Boolean);
+  const col = (title, rows, empty) => `<section class="dk2-col"><h2>${title}</h2>${rows.length ? `<ul>${rows.map(([href, verb, line]) => `<li><a href="${href}"><b>${esc(verb)}</b><span>${esc(line)}</span></a></li>`).join('')}</ul>` : `<p class="dk2-empty">${empty}</p>`}</section>`;
+  const desk = () => `<section class="dk2" aria-label="The desk">
+<header class="dk2-line"><span><b>${money(totals.today)}</b><i>today${totals.todayN ? ` · ${totals.todayN}` : ''}</i></span><span><b>${money(totals.month)}</b><i>this month</i></span><span><b>${needRows.length}</b><i>need${needRows.length === 1 ? 's' : ''} you</i></span>${keys.length ? `<a href="/keys" class="dk2-key">${I.key}<i>No. ${keys[0].no}</i></a>` : ''}</header>
+<div class="dk2-cols">${col('Needs you', needRows, 'All clear.')}${col('The work', workRows, '')}${col('Money', moneyRows, '')}</div>
+${recent.length ? `<p class="dk2-late">Lately: ${recent.slice(0, 3).map(l => `<a href="/w/${esc(l.slug)}">${esc(l.title)}</a>, ${esc(l.use_name.toLowerCase())}, ${money(require('./fee').makerOf(l, pct))}`).join(' · ')}</p>` : ''}
+</section>`;
   return layout({ title: `${m.name} · Watermark`, studio: true, body: `<section class="studio-wrap hd ac">
 ${viewing ? `<p class="ok">You are viewing ${esc(m.name)}'s studio as they see it. <a href="/studio/accounts">Back to accounts</a></p>` : ''}
 <header class="ac-bar"><div><p class="k">${m.kind === 'estate' ? 'The estate' : m.kind === 'gallery' ? 'The gallery' : 'Your studio'}${m.house ? ' &middot; ' + esc(m.house) : ''}</p><h1>${esc(m.name)}.</h1></div>
@@ -103,24 +139,13 @@ ${steps ? `<section class="fs" aria-label="First steps"><header class="fs-h"><p 
 <ol class="fs-l">${steps.steps.map((s, i) => `<li class="${s.done ? 'fs-done' : ''}${s === steps.next ? ' fs-next' : ''}"><span class="fs-n">${s.done ? '&#10003;' : i + 1}</span><span class="fs-t"><b>${esc(s.title)}</b><small>${esc(s.line)}</small></span>${s.done ? '<span class="fs-ok">Done</span>' : s.copy ? `<button type="button" class="fs-go" data-fs-copy="${esc(s.copy)}">${esc(s.go)}</button>` : `<a class="fs-go" href="${s.href}">${esc(s.go)}</a>`}</li>`).join('')}</ol>
 <script>(function(){var b=document.querySelector('[data-fs-copy]');if(!b)return;b.addEventListener('click',function(){var u=b.getAttribute('data-fs-copy');function done(){b.textContent='Copied';fetch('/account/steps/shared',{method:'POST',headers:{Accept:'application/json'},credentials:'same-origin'});}if(navigator.share&&matchMedia('(pointer:coarse)').matches){navigator.share({url:u}).then(done).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(done);}else{prompt('Your page',u);done();}});})();</script></section>` : ''}
 ${!viewing && !keyed ? `<div class="pk" id="passkey" data-passkey-box><div><b>Save your sign-in.</b><p>A passkey (Face ID, Touch ID or your phone) brings you back to your studio from any device, with no link and no password.</p><button class="pk-go" data-passkey="maker-save">Save with a passkey</button><p class="pk-msg" data-passkey-msg></p></div></div><script src="/static/webauthn.js" defer></script><script src="/static/auth.js" defer></script>` : ''}
-${keys.length ? `<p class="hd-keys">${keys.map(k => `<a href="/keys" class="key-tag">The Keys · ${k.kind === 'curator' ? 'the curator’s key' : 'the maker’s key'}, No. ${k.no}</a>`).join('')}</p>` : ''}
-${!(totals.earned || totals.tips || totals.royalties || collected || licensed) ? `<p class="hd-fresh">Nothing sold yet. ${require('./fee').said(m.share_pct, null).replace(/^The price is the maker’s/, 'The price is yours')}</p>` : `<div class="hd-top"><div class="hd-big"><b>${money(totals.earned + (totals.tips || 0) + (totals.royalties || 0))}</b><span>to you, all time${totals.earned30 ? ` &middot; ${money(totals.earned30)} in the last 30 days` : ''}</span></div>
-<div class="hd-mix"><div><span class="k">Collected</span><b>${money(toMaker(collected))}</b><i style="--p:${share(collected)}%"></i></div><div><span class="k">Licensed</span><b>${money(toMaker(licensed))}</b><i style="--p:${share(licensed)}%"></i></div>
-<div><span class="k">Royalties</span><b>${money(totals.royalties || 0)}</b><small>${totals.resales ? `From ${totals.resales} resale${totals.resales === 1 ? '' : 's'} between collectors` : '10% of every resale of your work'}</small></div>
-<div><span class="k">Tips</span><b>${money(totals.tips || 0)}</b><small>${totals.tipsN ? `${totals.tipsN} from readers` : 'From readers of the stories you made'}</small></div>
-<div><span class="k">Archive value</span><b>${totals.value != null ? money(totals.value) : '&mdash;'}</b><small>${totals.value != null ? `${multiple}&times; the last twelve months; an illustration, not an appraisal` : 'Appears once you have sales'}</small></div></div>
-<div class="hd-held"><span><b>${totals.works}</b> works held</span><span><b>${totals.public}</b> public</span><span><b>${totals.jewels}</b> jewels</span><span><b>${totals.shares}</b> collected</span><span>You keep <b>${pct}%</b> of every sale</span></div></div>
-`}
-${needs.length ? `<section class="hd-need"><h2>Needs you</h2><ul>${needs.join('')}</ul></section>` : ''}
-${edit && totals.works >= 5 ? `<section class="hd-list ed"><div class="hd-h"><h2>The edit</h2><span class="hd-n">standing ${edit.now.standing}</span></div>
-<p class="ed-l">The great collectors culled without mercy and their collections got better every year. Your standing in the house is the regard of what you show, divided by the square root of how much: a tight edit of strong work outranks a long wall. You show <b>${edit.now.n}</b> of <b>${edit.now.held}</b> held.${edit.best ? ` Keep public from ${'&#9733;'.repeat(edit.best.from)} and it rises to <b>${edit.best.standing}</b> (${edit.best.n} shown).` : ' Your edit is as tight as your grades allow; grade more, then cull again.'}</p>
-<div class="ed-row">${edit.at.map(x => `<span class="ed-c${edit.best && x.from === edit.best.from ? ' on' : ''}">${'&#9733;'.repeat(x.from)}<b>${x.standing}</b><small>${x.n} shown</small></span>`).join('')}</div></section>` : ''}
+${desk()}
 ${jewels.length ? `<section class="hd-list"><div class="hd-h"><h2>Your jewels</h2></div><div class="ac-js">${jewels.map(jewel).join('')}</div></section>` : ''}
 <section class="hd-list" id="holdings"><div class="hd-h"><h2>The holdings</h2>${all.length ? `<span class="hd-n">${works.length === all.length ? `${all.length} work${all.length === 1 ? '' : 's'}` : `${works.length} of ${all.length}`}</span>` : ''}</div>
 ${all.length ? `<div class="st-bar"><nav class="st-f" aria-label="By stars"><a href="/account#holdings"${stars ? '' : ' aria-current="page"'}>All</a>${counts.map(([n, c]) => `<a href="/account?stars=${n}#holdings"${stars === n ? ' aria-current="page"' : ''}${c ? '' : ' class="is-0"'}>${n ? '&#9733;'.repeat(n) : 'Ungraded'}<small>${c}</small></a>`).join('')}</nav>
 ${viewing ? '' : `<form method="post" action="/account/cull" class="st-cull"><span>Keep public from</span><select name="from" aria-label="Stars"><option value="3">&#9733;&#9733;&#9733;</option><option value="4">&#9733;&#9733;&#9733;&#9733;</option><option value="5">&#9733;&#9733;&#9733;&#9733;&#9733;</option><option value="2">&#9733;&#9733;</option></select><button class="link">Cull</button></form>`}</div>
 ${culled ? `<p class="ok">Culled from ${'&#9733;'.repeat(culled.from)}: ${culled.down} made private, ${culled.up} brought back. Nothing is deleted; every photograph stays fingerprinted and registered, and culled work weighs a quarter toward Keeping.</p>` : ''}
-<p class="st-help">Grade your work as you would in Lightroom: press 1 to 5 on a row, or click the stars. Five is a jewel and leads your page. Culling keeps the archive honest: the rubies in front, the rest kept but out of the way.${keeping ? ` Held: ${keeping.works} photograph${keeping.works === 1 ? '' : 's'}, weighing ${keeping.weighed} toward the free line of ${keeping.terms.freeWorks}. <a href="/account/keeping">Keeping</a>.` : ''}</p>` : ''}
+<p class="st-help">1 to 5 on a row grades it; five is a jewel. Culled work stays held, out of the way. ${keeping ? ` Held: ${keeping.works} photograph${keeping.works === 1 ? '' : 's'}, weighing ${keeping.weighed} toward the free line of ${keeping.terms.freeWorks}. <a href="/account/keeping">Keeping</a>.` : ''}</p>` : ''}
 ${welcome ? `<p class="ok">Your studio is open. <a href="/account/upload">Add your first works</a>, then <a href="/account/profile">tell people who you are</a>.</p>` : ''}${m.standing === 'held' ? '<p class="err">Your studio is held by Watermark while we look at something. Your work is private until it is released; write to us if you have questions.</p>' : ''}${need === 'attest' ? '<p class="err">To publish, confirm you hold the rights and any releases.</p>' : need === 'held' ? '<p class="err">Your studio is held; nothing can be published until it is released.</p>' : need === 'invited' ? '<p class="err">Your work is held and deeded; hanging it in the collection is by the house’s invitation. Ask the house to look, below.</p>' : ''}${way || ''}
 ${ok && !/^(cull|attest|held|invited)/.test(ok) && !culled ? `<p class="ok">${esc(ok)}</p>` : ''}
 ${works.length ? `${viewing ? '' : `<form method="post" action="/account/works/batch" id="batchForm" data-batch>${batch}</form>`}<div class="hd-head ac-row${viewing ? '' : ' ac-row-bt'}">${viewing ? '' : '<span></span>'}<span></span><span>Work</span><span>On Watermark</span><span class="hd-c">Sold</span><span class="hd-c">Seen, 30d</span><span class="hd-v">To you</span><span></span></div>${works.map(row).join('')}${viewing ? '' : `<script src="/static/batch.js?v=${VER}" defer></script>`}` : `<p class="hd-calm">Nothing here yet. ${viewing ? '' : '<a href="/account/upload">Add your first works</a>; they stay private until you publish them.'}</p>`}</section>
