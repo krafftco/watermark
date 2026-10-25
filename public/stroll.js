@@ -13,7 +13,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
-  ['play', 'pause'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t) ic[k] = t.innerHTML; });
+  ['wave', 'play', 'pause'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t) ic[k] = t.innerHTML; });
 
   function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
@@ -32,7 +32,7 @@
     }
     el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
-      + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span><a class="st-tog" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="The record: the guide, the papers, the prices, the provenance; everything under the hood"><b>Picture</b><span>' + (ic.page || '') + 'Record</span></a></div>'
+      + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span><a class="st-tog" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the record under the picture; the guide, the papers, the prices, the provenance"><b>' + (ic.wave || '') + 'Wander</b><span>' + (ic.page || '') + 'Watermark</span></a></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="See the watermark">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
@@ -41,7 +41,7 @@
       + '<button type="button" class="st-b" data-st-share title="Send it to someone.">' + ic.share + '<span>Share</span></button>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
       + '<div class="st-more" data-st-morebox hidden>'
-      + '<a class="st-b" data-st-record href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="The record: the guide, the papers, the prices, the provenance.">' + (ic.page || '') + '<span>Record</span></a>'
+      + '<a class="st-b" data-st-record href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the record under the picture; the guide, the papers, the prices, the provenance.">' + (ic.page || '') + '<span>Watermark</span></a>'
       + (w.guide ? '<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">' + ic.guide + '<span>Look closer</span></button>' : '')
       + '<a class="st-b" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Draw it: the picture alone, with the easel\'s tools.">' + (ic.easel || '') + '<span>Draw</span></a>'
       + '<button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">' + ic.card + '<span>Thank</span></button><button type="button" class="st-b" data-st-settings title="Sit a while: each work held a minute and a half, the guide read, quiet music.">' + (ic.settings || '') + '<span>Sit</span></button></div>'
