@@ -85,7 +85,25 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     res.redirect('/yours?tab=settings&pocket=filled#pocket');
   });
   app.locals.pocketEvent = event => { if (event.type === 'checkout.session.completed') { const s = event.data.object; if (s.metadata && s.metadata.pocket) settle(s.metadata.pocket, s); } };
-  app.locals.pocket = { balance, tap, tapOn, spend, credit, earned, cashable, history, TOPUPS, settle };
+  // Friday pay for everyone who works for the house (25 Oct: curators, guides, hosts): what was earned into the
+  // pocket and has cleared (older than the hold) goes to the bank of anyone who connected one, every Friday, from a
+  // dollar up; the rest of the balance (top-ups, cards still inside the hold) stays in the pocket to spend.
+  const HOLD_DAYS = Math.max(0, Number(process.env.PAYOUT_HOLD_DAYS || 7));
+  const clearedEarned = b => (b ? db.prepare(`SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted' AND kind IN (${EARNED.map(() => '?').join(',')}) AND at <= datetime('now', ?)`).get(b.id, ...EARNED, `-${HOLD_DAYS} days`).s : 0);
+  const cleared = b => Math.max(0, Math.min(cashable(b), clearedEarned(b) + db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status IN ('posted','pending') AND kind='cashout'").get(b.id).s));
+  async function sweep(b, { by = 'friday' } = {}) {
+    const cents = cleared(b); if (!PAY_ON() || !b.stripe_account || cents < 100) return { ok: false, why: !PAY_ON() ? 'off' : !b.stripe_account ? 'nobank' : 'small', cents };
+    const id = db.prepare("INSERT INTO pocket (buyer_id, cents, kind, status, note) VALUES (?,?,'cashout','pending',?)").run(b.id, -cents, by === 'friday' ? 'Friday pay' : 'Cashed out').lastInsertRowid;
+    try {
+      const a = await stripe.accounts.retrieve(b.stripe_account); if (!a.payouts_enabled) { db.prepare('DELETE FROM pocket WHERE id=?').run(id); return { ok: false, why: 'notready', cents }; }
+      const t = await stripe.transfers.create({ amount: cents, currency: 'usd', destination: b.stripe_account, description: by === 'friday' ? 'Watermark: Friday pay' : 'Watermark: cashed out', metadata: { pocket: String(id), by } });
+      db.prepare("UPDATE pocket SET status='posted', ref=? WHERE id=?").run(t.id, id); ledger.append(db, 'pocket.cashed', `buyer-${b.id}`, { amount: cents, how: 'stripe', by });
+      if (b.email) { try { require('./mail').send({ to: b.email, subject: `Friday pay: ${money(cents)} is on its way`, text: `${(b.name || 'Friend').split(' ')[0]},\n\n${money(cents)} you earned in the house has been sent to your bank through Stripe: every Friday, every dollar that has cleared. Your pocket is at ${C.base}/yours?tab=settings#pocket.\n\nThank you for the work.\n\nWatermark` }); } catch (e) { /* mail off */ } }
+      return { ok: true, cents, id };
+    } catch (e) { console.error('[pocket friday]', b.id, e.message); db.prepare('DELETE FROM pocket WHERE id=?').run(id); return { ok: false, why: 'failed', cents }; }
+  }
+  async function friday() { let n = 0, cents = 0; for (const b of db.prepare('SELECT * FROM buyers WHERE stripe_account IS NOT NULL').all()) { const r = await sweep(b, { by: 'friday' }); if (r.ok) { n++; cents += r.cents; } } return { n, cents }; }
+  app.locals.pocket = { balance, tap, tapOn, spend, credit, earned, cashable, cleared, sweep, friday, history, TOPUPS, settle };
   return app.locals.pocket;
 }
 

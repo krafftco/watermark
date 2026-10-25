@@ -130,8 +130,10 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
     let n = 0, cents = 0;
     for (const m of db.prepare('SELECT * FROM makers WHERE stripe_account IS NOT NULL').all()) { const r = await pay(m, { by: 'friday' }); if (r.ok) { n++; cents += r.amount; } }
-    if (n) ledger.append(db, 'friday.paid', 'house', { makers: n, amount: cents });
-    return { ok: true, makers: n, amount: cents };
+    // And everyone else who works for the house: curators, guides, hosts, from their pockets.
+    let people = 0, pcents = 0; try { if (app.locals.pocket && app.locals.pocket.friday) { const r = await app.locals.pocket.friday(); people = r.n; pcents = r.cents; } } catch (e) { console.error('[friday pocket]', e.message); }
+    if (n || people) ledger.append(db, 'friday.paid', 'house', { makers: n, amount: cents, people, people_amount: pcents });
+    return { ok: true, makers: n, amount: cents, people, people_amount: pcents };
   }
   if (process.env.NODE_ENV !== 'test') setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref();
   app.locals.payouts = { statement, pay, record, ON, friday, HOLD_DAYS, nextFriday };

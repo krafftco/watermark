@@ -713,6 +713,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw);
     assert.ok(st.cleared + st.clearing === st.owed && st.clearing > 0 && st.holdDays === 7 && /day, /.test(st.friday), 'today’s money is clearing: ' + JSON.stringify({ cleared: st.cleared, clearing: st.clearing, owed: st.owed }));
     const f = await app.locals.payouts.friday({ force: true }); assert.ok(f.ok === false && f.why === 'off', 'Friday pay waits for PAYOUTS=stripe');
+    { const bb = db.prepare('SELECT * FROM buyers ORDER BY id LIMIT 1').get(); const P = app.locals.pocket; assert.ok(typeof P.cleared(bb) === 'number' && P.cleared(bb) <= P.cashable(bb), 'a pocket’s cleared earnings never exceed what is cashable'); const sw = await P.sweep(bb); assert.ok(sw.ok === false && sw.why === 'off', 'and the pocket sweep waits too'); }
     const pr = await app.locals.payouts.pay(mw); assert.ok(pr.ok === false && pr.why === 'off', 'and so does a maker’s ask');
   }
   { const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw); assert.ok(st.thanks.s >= 99 && st.share === db.prepare("SELECT l.price_cents p FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").all(mw.id).reduce((a, r) => a + Math.round(r.p * 85 / 100), 0) && st.owed === st.earned - st.paid, 'the sums');
