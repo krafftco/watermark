@@ -8,8 +8,8 @@ const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,
 const hash = s => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 function book(t, href) {
   const h = hash(t.title || t.slug); const cloth = CLOTH[(h >>> 7) % CLOTH.length]; const tall = 150 + (h % 5) * 8; const wide = 100 + ((h >>> 3) % 4) * 6;
-  const inner = t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : `<span class="shf-cloth" style="background:${cloth}"><span class="shf-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="shf-rule"></span></span>`;
-  return `<a class="shf-bk" href="${esc(href)}" style="--h:${tall}px;--w:${wide}px" title="${esc(t.title)}${t.author ? `, ${esc(byName(t.author))}` : ''}">${inner}</a>`;
+  const inner = t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : require('./binding').svg(t, { w: 300 });
+  return `<a class="shf-bk${t.cover ? '' : ' shf-bound'}" href="${esc(href)}" style="--h:${tall}px;--w:${wide}px" title="${esc(t.title)}${t.author ? `, ${esc(byName(t.author))}` : ''}">${inner}<span class="bk3-e"></span></a>`;
 }
 // band({ books, href(t), line, act: { href, text }, k }): up to nine books on three shelves, the line on the middle one.
 function band({ books, href, line, act, k }) {

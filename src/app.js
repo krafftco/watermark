@@ -1951,6 +1951,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./clock').mountClock(app, { db, V, C, buyerOf }); // the programme by the visitor's hour; the kids' corner
   require('./hosts').mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the host's chair as a job: the rota, paid from the house's side
   require('./screening').mountScreening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) });
+  require('./binding').mountBinding(app, { db }); // the house's bindings: /binding/<slug>.svg
   require('./rows').mountRows(app, { db, V, C }); // the front door's rows (Apple TV as a museum)
   require('./listening').mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), fetchImpl: cfg.fetchImpl });
   { const multer = require('multer'); const mUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.MUSIC_MAX_MB || 400) * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^audio\//.test(f.mimetype) || /\.(wav|flac|aiff?|mp3|m4a|ogg)$/i.test(f.originalname || '')) }); require('./music').mountMusic(app, { db, V, C, store, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req), dataDir: C.dataDir, bagcheck: BAG, upload: mUp }); } // the makers' own music: masters in the vault, sides streamed to keyholders // the Keys' room for sound: records from the Archive, cleared at the door, played whole // the Screening Room: films chosen, shown whole at an hour
@@ -1970,6 +1971,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });
   require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
+  require('./shelves').mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl: cfg.fetchImpl }); // the Library as a room: the shelves, by author, begin here (before library.js, whose /library it replaces)
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });

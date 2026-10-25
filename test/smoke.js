@@ -1614,6 +1614,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/account/desk/${msId}.pdf`); assert.ok(r.status !== 200, 'a stranger refused');
   }
   console.log('ok: the Writer’s Desk');
+  { // The bindings and the shelves (25 Oct): every book without a cover is bound by the house; the Library is a room of shelves by kind, by author, with a search.
+    r = await req(port, 'GET', '/library'); assert.ok(r.status === 200 && /class="lbr"/.test(r.body) && /By author/.test(r.body) && /<svg[^>]*aria-label=/.test(r.body) && /bk3-e/.test(r.body), 'the room, the books bound');
+    const SH = require('../src/shelves'); assert.equal(SH.classify({ kind: 'book', subjects: ['Fiction', 'England -- Social life and customs -- 19th century'] }), 'fiction'); assert.equal(SH.classify({ kind: 'book', subjects: ['Poetry'] }), 'poetry'); assert.equal(SH.classify({ kind: 'book', source: 'https://www.gutenberg.org/ebooks/2680' }), 'ideas'); assert.equal(SH.classify({ kind: 'essay', maker_id: 3 }), 'makers'); assert.equal(SH.classify({ kind: 'book', subjects: ['Biography'] }), 'lives');
+    const sv = db.prepare("SELECT slug, shelf FROM texts WHERE status='held' AND public=1 LIMIT 1").get(); assert.ok(sv && sv.shelf, 'every text shelved: ' + JSON.stringify(sv));
+    r = await req(port, 'GET', `/binding/${sv.slug}.svg`); assert.ok(r.status === 200 && /image\/svg/.test(r.headers['content-type']) && /<svg/.test(r.body), 'the binding served');
+    r = await req(port, 'GET', '/library?shelf=' + sv.shelf); assert.ok(r.status === 200 && new RegExp(sv.slug).test(r.body), 'a shelf');
+    r = await req(port, 'GET', '/library?q=looking'); assert.ok(r.status === 200 && /On Looking Longer/.test(r.body), 'found by a word');
+  }
+  console.log('ok: the bindings and the shelves');
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

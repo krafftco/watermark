@@ -27,7 +27,7 @@
     }
     if (w.kind === 'text') {
       el.className = 'st-i st-txt'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'text');
-      el.innerHTML = '<a class="st-bk" href="/read/' + esc(w.book) + '" style="--cloth:' + esc(w.cloth || '#2f4a3a') + '">' + (w.cover ? '<img src="' + esc(w.cover) + '" alt="">' : '<span class="st-bkc"><i></i><b>' + esc(w.title) + '</b>' + (w.author ? '<small>' + esc(w.author) + '</small>' : '') + '<i></i></span>') + '</a><article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a></article>';
+      el.innerHTML = '<a class="st-bk' + (w.cover ? '' : ' st-bound') + '" href="/read/' + esc(w.book) + '"><img src="' + esc(w.cover || ('/binding/' + encodeURIComponent(w.book) + '.svg')) + '" alt=""><span class="bk3-e"></span></a><article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a></article>';
       return el;
     }
     el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
