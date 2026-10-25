@@ -456,6 +456,9 @@
   // Resume what was on: shown paused, started on the first touch (the browser wants a gesture).
   try { var kept = JSON.parse(sessionStorage.getItem('wm_tt') || 'null'); if (kept && kept.slug) { ttList().then(function (list) { var r = null; for (var k = 0; k < list.length; k++) if (list[k].slug === kept.slug) r = list[k]; if (!r) return; TT.rec = r; TT.i = kept.i || 0; TT.want = true; ttPaint(); var go = function () { removeEventListener('touchstart', go); removeEventListener('click', go); removeEventListener('keydown', go); if (TT.want && TT.rec) { TT.want = false; ttSide(TT.i, kept.t || 0); } }; addEventListener('touchstart', go, { passive: true }); addEventListener('click', go); addEventListener('keydown', go); }); } } catch (e) {}
   var rStop = function () {}; // kept for older callers: the needle no longer lifts on its own
+  // Stay (25 Oct): while a record is on, the rest of the house opens in a layer over Wander, so the music never stops.
+  if (window.WMStay) WMStay.arm(function () { return !!TT.rec; }, { get bar() { return TT.bar; }, onClose: function () { if (TT.bar) { root.appendChild(TT.bar); } },
+    onWander: function (at) { if (TT.bar) root.appendChild(TT.bar); var el = at && root.querySelector('.st-i[data-slug="' + at.replace(/"/g, '') + '"]'); if (el) el.scrollIntoView(); } });
   function arrive(slug) {
     // The first screen keeps its bar and acts a few seconds longer, so a newcomer sees Find and Settings exist.
     if (TOUCH && !firstArr) root.classList.add('st-arr');

@@ -20,7 +20,7 @@ function securityHeaders(base) {
     "font-src 'self' https://fonts.gstatic.com data:",
     // the vault, for arrivals put straight into the bucket from the Masters desk (S3, or an S3-compatible endpoint)
     `connect-src 'self' https://api.stripe.com https://studios.krafftco.com https://*.krafftco.com${process.env.S3_BUCKET ? ' https://*.amazonaws.com' : ''}${process.env.S3_ENDPOINT ? ' ' + String(process.env.S3_ENDPOINT).replace(/\/$/, '') + ' https://*.' + String(process.env.S3_ENDPOINT).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : ''}`,
-    "frame-src https://js.stripe.com https://checkout.stripe.com",
+    "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
     "frame-ancestors 'self'",
     "form-action 'self' https://checkout.stripe.com https://connect.stripe.com",
     "base-uri 'self'",

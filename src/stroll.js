@@ -201,7 +201,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <p class="st-swipe" data-st-swipe hidden><span>Swipe up for the next</span><i></i></p>
 </main>
 <script>window.__WM_STROLL=${JSON.stringify({ items, q, maker: maker ? maker.slug : '', set }).replace(/</g, '\\u003c')};</script>
-<script src="/static/stroll.js?v=${V.VER || ''}" defer></script><script src="/static/eye.js?v=${V.VER || ''}" defer></script>` });
+<script src="/static/stay.js?v=${V.VER || ''}" defer></script><script src="/static/stroll.js?v=${V.VER || ''}" defer></script><script src="/static/eye.js?v=${V.VER || ''}" defer></script>` });
 }
 
 module.exports = { mountStroll, strollPage };
