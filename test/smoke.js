@@ -1538,7 +1538,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/account/writing', { cookie: mck, body: { title: 'On Looking Longer', kind: 'essay', summary: 'A short essay from the studio.', body, price: '4', public: '1' } }); assert.equal(r.status, 302, 'published: ' + (r.headers.location || r.status));
     const tx = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get(); assert.ok(tx && tx.maker_id && tx.price_cents === 400 && tx.public === 1 && /All rights reserved/.test(tx.terms), 'a priced essay under the maker');
     const mkr = db.prepare('SELECT * FROM makers WHERE id=?').get(tx.maker_id);
-    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(/pw-sec/.test(r.body) && /On Looking Longer/.test(r.body) && /Writing/.test(r.body), 'on the maker’s page');
+    r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(/Books and writing/.test(r.body) && /On Looking Longer/.test(r.body), 'on the maker’s page');
     r = await req(port, 'GET', `/read/${tx.slug}`); assert.ok(r.status === 200 && /On Looking Longer/.test(r.body) && /Published by the house|house’s edition/.test(r.body), 'in the reading room');
     r = await req(port, 'GET', '/account/writing', { cookie: mck }); assert.ok(/On your shelf/.test(r.body) && /On Looking Longer/.test(r.body) && /Edit/.test(r.body), 'the desk lists it');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(tx.slug), 'on the register');
@@ -1595,6 +1595,24 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/studio/letters?as=looking&buyer=${encodeURIComponent(lb.email)}`, { cookie: ck }); assert.ok(r.status === 200 && /One for you/.test(r.body), 'the preview on the desk');
     const n0 = db.prepare('SELECT COUNT(*) n FROM letters').get().n; await app.locals.looking.letters({ force: true }); assert.ok(db.prepare('SELECT COUNT(*) n FROM letters').get().n >= n0 + 1, 'sent once'); const n1 = db.prepare('SELECT COUNT(*) n FROM letters').get().n; await app.locals.looking.letters({ force: true }); assert.equal(db.prepare('SELECT COUNT(*) n FROM letters').get().n, n1, 'never twice in a month');
     console.log('ok: the looking letter'); }
+
+  // The maker's front page as shelves, and the reading list (25 Oct).
+  { const mkr = db.prepare("SELECT m.* FROM makers m JOIN works w ON w.maker_id=m.id WHERE w.status='held' GROUP BY m.id ORDER BY COUNT(*) DESC LIMIT 1").get();
+    const mslug = app.locals.makerSlug(mkr);
+    r = await req(port, 'GET', `/m/${mslug}`); assert.ok(r.status === 200 && /rws-mk/.test(r.body) && /rw-sort/.test(r.body) && /The work/.test(r.body), 'the shelves with a sort');
+    r = await req(port, 'GET', `/m/${mslug}?sort=year`); assert.ok(r.status === 200 && /aria-current="true">By year/.test(r.body), 'by year');
+    r = await req(port, 'GET', `/m/${mslug}?sort=place`); assert.ok(r.status === 200 && /aria-current="true">By place/.test(r.body), 'by place');
+    const bk = db.prepare("SELECT * FROM texts WHERE status='held' AND public=1 AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a readable book');
+    r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Want to read/.test(r.body), 'the shelf buttons on the book');
+    r = await req(port, 'POST', `/read/${bk.slug}/shelf`, { body: { status: 'want' } }); assert.ok((r.status === 302 || r.status === 303) && /signin/.test(r.headers.location), 'a stranger is sent to sign in');
+    r = await req(port, 'POST', `/read/${bk.slug}/shelf`, { cookie: sck, body: { status: 'want', back: `/library/${bk.slug}` } }); assert.ok(r.status === 302 || r.status === 303, 'put on the shelf');
+    r = await req(port, 'POST', `/read/${bk.slug}/place`, { cookie: sck, body: { c: 1, n: 4, pct: 40 } }); assert.equal(r.status, 204, 'the place told');
+    const rl = db.prepare('SELECT * FROM reading_list WHERE text_id=?').get(bk.id); assert.ok(rl && rl.status === 'reading' && rl.chapter === 1 && rl.pct === 40, 'reading now, with the place');
+    r = await req(port, 'GET', '/yours/reading', { cookie: sck }); assert.ok(r.status === 200 && /Reading now/.test(r.body) && r.body.includes(bk.title) && /chapter 2 of 4/.test(r.body), 'the shelf page');
+    r = await req(port, 'GET', '/', { cookie: sck }); assert.ok(/Continue reading/.test(r.body), 'continue reading on the front door');
+    r = await req(port, 'POST', `/read/${bk.slug}/place`, { cookie: sck, body: { c: 3, n: 4, pct: 95 } }); assert.equal(db.prepare('SELECT status FROM reading_list WHERE id=?').get(rl.id).status, 'read', 'finished when the last chapter is read');
+    r = await req(port, 'POST', `/read/${bk.slug}/shelf`, { cookie: sck, body: { status: 'off', json: 1 } }); assert.ok(!db.prepare('SELECT 1 FROM reading_list WHERE id=?').get(rl.id), 'taken off');
+    console.log('ok: the maker’s shelves and the reading list'); }
   console.log('ok: owners');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
   { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);

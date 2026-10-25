@@ -13,6 +13,8 @@ function mountRows(app, { db, V, C }) {
   const cloth = t => `<span class="rw-cloth" style="background:${CLOTH[(hash(t.title || t.slug) >>> 7) % CLOTH.length]}"><span class="rw-rule"></span><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<span class="rw-rule"></span></span>`;
   function rowsFor(req, { works = [], hangs = [], shows = [], rooms = [], today = null, cover = null } = {}) {
     const rows = [];
+    // Continue reading (25 Oct): the book you are in, first, with how far you are; only for the person reading it.
+    try { const RL = app.locals.readingList, b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; if (RL && b) { const sh = RL.shelf(b); if (sh.reading.length) rows.push({ k: 'Continue reading', title: 'Continue reading', href: '/yours/reading', tiles: sh.reading.slice(0, 8).map(r => ({ href: r.href, img: r.cover ? img(r.cover) : null, html: r.cover ? null : cloth({ title: r.title, author: r.author, slug: r.slug }), title: tidy(r.title), line: r.progress ? `${r.progress}% · ${r.chapters > 1 ? `chapter ${r.chapter + 1} of ${r.chapters}` : 'reading'}` : r.by, book: true })) }); } } catch (e) { /* the shelf is a nicety */ }
     // Where to: three doors, by who you are.
     const best = works.filter(w => w.zone !== 'mature').slice(0, 12);
     const pic = w => (w ? img(w.slug) : null);
@@ -51,8 +53,34 @@ function mountRows(app, { db, V, C }) {
   }
   const tile = t => `<a class="rw-t${t.wide ? ' rw-wide' : ''}${t.square ? ' rw-sq' : ''}${t.disc ? ' rw-disc' : ''}${t.book ? ' rw-book' : ''}${t.dark ? ' rw-dark' : ''}" href="${esc(t.href)}"${t.wander ? ' data-nv-wander' : ''} tabindex="0">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" decoding="async" draggable="false">` : t.html || `<span class="rw-blank">${I.wave}</span>`}<span class="rw-tt"><b>${esc(t.title)}</b>${t.line ? `<i>${esc(t.line)}</i>` : ''}</span></a>`;
   const row = r => `<section class="rw" data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header><div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`;
+  // The maker's own front page (Will, 25 Oct: "each page can become their own media company's newspaper"; the
+  // Apple Books author page as the model: seamless, the work as objects, a sort that is one tap): shelves of the
+  // maker's work, series, books, records, stories and what they collect, each a row of large tiles.
+  const SORTS = [['regarded', 'Most regarded'], ['newest', 'Newest'], ['year', 'By year'], ['place', 'By place']];
+  function maker(req, { m, works = [], sort = 'regarded', years = [], texts = [], records = [], series = [], stories = [], collects = null, hangs = [] }) {
+    const rows = []; const first = String(m.name || '').split(' ')[0]; const slug = `/m/${encodeURIComponent(m.handle)}`;
+    const wt = w => ({ href: `/m/${encodeURIComponent(m.handle)}/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: [w.place, (w.taken_at || '').slice(0, 4)].filter(Boolean).join(' · ') || undefined, wide: (w.width || 0) > (w.height || 0) * 1.3 });
+    const sortBar = `<nav class="rw-sort" aria-label="Sort">${SORTS.map(([k, l]) => `<a href="${slug}?sort=${k}#work"${sort === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</nav>`;
+    const byDate = [...works].sort((a, b) => String(b.taken_at || b.created_at || '').localeCompare(String(a.taken_at || a.created_at || '')));
+    if (sort === 'year') {
+      years.forEach((y, i) => rows.push({ k: 'work', id: i === 0 ? 'work' : null, title: y.year, line: `${y.n} work${y.n === 1 ? '' : 's'}`, sort: i === 0 ? sortBar : null, href: `/wander?maker=${encodeURIComponent(m.handle)}&q=${encodeURIComponent(y.year)}`, tiles: y.works.slice(0, 24).map(wt) }));
+    } else if (sort === 'place') {
+      const places = new Map(); for (const w of works) { const pl = w.place || 'Unplaced'; if (!places.has(pl)) places.set(pl, []); places.get(pl).push(w); }
+      [...places.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([pl, ws], i) => rows.push({ k: 'work', id: i === 0 ? 'work' : null, title: pl, line: `${ws.length} work${ws.length === 1 ? '' : 's'}`, sort: i === 0 ? sortBar : null, href: `/wander?q=${encodeURIComponent(pl)}`, tiles: ws.slice(0, 24).map(wt) }));
+    } else {
+      const list = sort === 'newest' ? byDate : works;
+      rows.push({ k: 'work', id: 'work', title: 'The work', line: `${works.length} held`, sort: sortBar, href: `/wander?maker=${encodeURIComponent(m.handle)}`, tiles: list.slice(0, 30).map(wt) });
+    }
+    if (series.length) rows.push({ k: 'series', title: 'Series', href: '/collection', tiles: series.map(x => { const w = works.find(k => (x.works || []).includes(k.slug)) || null; return { href: `/series/${x.slug}`, img: w ? img(w.slug) : null, title: tidy(x.title), line: x.note || `${(x.works || []).length} works`, wide: true }; }) });
+    if (texts.length) rows.push({ k: 'books', title: `Books and writing`, line: `${first}’s press`, href: `/library?maker=${encodeURIComponent(m.handle)}`, tiles: texts.map(t => ({ href: t.body && !t.file ? `/read/${t.slug}` : `/library/${t.slug}`, img: t.cover ? img(t.cover) : null, html: t.cover ? null : cloth({ title: tidy(t.title), author: m.name, slug: t.slug }), title: tidy(t.title), line: t.kind === 'photobook' ? 'A photo book' : (t.kind ? t.kind[0].toUpperCase() + t.kind.slice(1) : 'Writing'), book: true })) });
+    if (records.length) rows.push({ k: 'records', title: 'Records', line: `${first}’s music`, href: '/listening', tiles: records.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: r.performer || r.composer || 'A record', disc: true })) });
+    if (hangs.length) rows.push({ k: 'shows', title: 'Shows and walls', href: '/collectors', tiles: hangs.map(h => ({ href: h.href, img: h.cover ? img(h.cover) : null, title: tidy(h.title), line: h.line, wide: true })) });
+    if (stories.length) rows.push({ k: 'stories', title: 'From Studios', line: 'The magazine', href: `https://studios.krafftco.com/author/${encodeURIComponent(V.makerSlug(m))}/`, tiles: stories.slice(0, 12).map(p => ({ href: p.url, img: p.feature_image || null, title: tidy(p.title), line: p.excerpt ? String(p.excerpt).slice(0, 90) : 'A story', wide: true })) });
+    if (collects && collects.n) rows.push({ k: 'collects', title: `What ${first} collects`, line: `${collects.n} by other makers`, href: `/g/${collects.code}`, tiles: collects.works.map(w => ({ href: `/w/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: w.maker })) });
+    return `<div class="rws rws-mk" data-rws>${rows.map(r => `<section class="rw"${r.id ? ` id="${r.id}"` : ''} data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.line ? `<span class="rw-l">${esc(r.line)}</span>` : ''}${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header>${r.sort || ''}<div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`;
+  }
   const html = (req, data) => { const rows = rowsFor(req, data); return `<div class="rws" data-rws>${rows.map(row).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`; };
-  app.locals.rows = { rowsFor, html };
+  app.locals.rows = { rowsFor, html, maker, SORTS };
   return app.locals.rows;
 }
 module.exports = { mountRows };

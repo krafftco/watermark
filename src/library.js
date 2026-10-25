@@ -44,7 +44,7 @@ function mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf
   app.get('/library/:slug', (req, res) => {
     const t = one(req.params.slug); if (!t || (t.status !== 'held' && !isStudio(req))) return res.status(404).send(V.notFound({}));
     const mine = mineOf(req, t);
-    res.send(V.text({ t, html: t.body ? set(t.body) : '', words: words(t.body), mine, taken: taken(t), stripe: !!stripe, ok: req.query.ok || null, studio: isStudio(req), shop: app.locals.bookshop ? app.locals.bookshop.block(t, req) : '' }));
+    res.send(V.text({ t, html: t.body ? set(t.body) : '', words: words(t.body), mine, taken: taken(t), stripe: !!stripe, ok: req.query.ok || null, studio: isStudio(req), shop: app.locals.bookshop ? app.locals.bookshop.block(t, req) : '', shelf: app.locals.readingList && t.public ? app.locals.readingList.buttons(req, t, { back: `/library/${t.slug}` }) : '' }));
   });
   // Reading a held PDF in the house: inline, never as an attachment. (A determined reader can save it; the
   // taking that matters, with its license, is the one paid for and recorded.)
@@ -157,7 +157,7 @@ function library({ shelves, n }) {
 ${shelves.length ? shelves.map(s => `<section class="gal lb-shelf"><header class="gh"><h2>${esc(s.name)}</h2><span>${s.texts.length}</span></header><div class="lb-grid">${s.texts.map(card).join('')}</div></section>`).join('') : '<section class="gal"><p class="note">The shelves are being filled. The first volumes are on their way.</p></section>'}
 <section class="gal"><p class="note lb-note">A writer, a scholar, an estate with papers that should be kept? <a href="/join">Apply with the work</a>.</p></section>` });
 }
-function text({ t, html, words, mine, taken, stripe, ok, studio, shop = '' }) {
+function text({ t, html, words, mine, taken, stripe, ok, studio, shop = '', shelf = '' }) {
   const notice = { taken: 'Your copy is ready; it has been sent to your mail, and is below.', nopay: 'Payments are not switched on for this house yet.', unavailable: 'The payment could not be started. Try again in a moment.' }[ok];
   const take = t.price_cents == null ? '' : mine ? `<p class="lb-take"><a class="buy-btn" href="/library/d/${esc(mine.token)}">Take your copy (PDF)</a><small>${esc(mine.ref)}</small></p>`
     : `<form method="post" action="/library/${esc(t.slug)}/take" class="lb-take"><button class="buy-btn">${t.price_cents ? `Take a copy, ${money(t.price_cents)}` : 'Take a copy, free'}</button><small>Yours to keep and read. Not for republication; for a use elsewhere, <a href="mailto:house@watermark.krafftco.com?subject=${encodeURIComponent('Use of ' + tidy(t.title))}">write to the house</a>.</small></form>`;
@@ -165,7 +165,7 @@ function text({ t, html, words, mine, taken, stripe, ok, studio, shop = '' }) {
 <header class="lb-head">${t.cover ? `<a class="lb-hero" href="/w/${esc(t.cover)}"><img src="/img/${esc(t.cover)}/large" alt="${esc(tidy(t.cover_title || ''))}"></a>` : ''}
 <p class="k"><a href="/library">The Library</a> · ${esc(kindName(t.kind))}</p><h1>${esc(tidy(t.title))}</h1>
 <p class="lb-by">${esc(t.author || 'The house')}${t.year ? ` · ${esc(t.year)}` : ''}${t.pages ? ` · ${t.pages} pages` : words ? ` · ${words.toLocaleString()} words` : ''}${taken ? ` · taken ${taken} time${taken === 1 ? '' : 's'}` : ''}</p>
-${t.summary ? `<p class="lede">${esc(t.summary)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}${t.public && (t.body || t.plates) && !t.file ? `<p class="lb-take"><a class="buy-btn" href="/read/${esc(t.slug)}">${t.kind === 'photobook' ? 'Open the book' : 'Read it in the reading room'}</a><small>Set for reading: your size, your light, your place kept.${!t.price_cents ? ` <a href="/read/${esc(t.slug)}.pdf">Or the book set for paper (PDF).</a>` : ''}</small></p>` : ''}${take}${shop}${studio ? `<p class="note"><a href="/studio/library/${esc(t.slug)}">Edit in the Studio</a></p>` : ''}</header>
+${t.summary ? `<p class="lede">${esc(t.summary)}</p>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}${shelf}${t.public && (t.body || t.plates) && !t.file ? `<p class="lb-take"><a class="buy-btn" href="/read/${esc(t.slug)}">${t.kind === 'photobook' ? 'Open the book' : 'Read it in the reading room'}</a><small>Set for reading: your size, your light, your place kept.${!t.price_cents ? ` <a href="/read/${esc(t.slug)}.pdf">Or the book set for paper (PDF).</a>` : ''}</small></p>` : ''}${take}${shop}${studio ? `<p class="note"><a href="/studio/library/${esc(t.slug)}">Edit in the Studio</a></p>` : ''}</header>
 ${t.public ? (t.file ? `<div class="lb-pdf"><iframe src="/library/${esc(t.slug)}/read" title="${esc(tidy(t.title))}"></iframe></div>` : html ? (t.kind === 'book' ? `<details class="lb-body lb-fold"><summary>The text, here on the page</summary>${html}</details>` : `<div class="lb-body">${html}</div>`) : '') : '<p class="note">This volume is held, not shown. Take a copy to read it.</p>'}
 ${t.source ? `<p class="note lb-src">Source: ${esc(t.source)}</p>` : ''}${t.terms ? `<p class="note">${esc(t.terms)}</p>` : ''}
 <p class="note lb-reg">${t.sha256 ? `Fingerprint <code>sha256:${esc(t.sha256.slice(0, 16))}…</code> · ` : ''}On the <a href="/ledger">register</a> as ${esc(t.slug)}.</p></article>` });

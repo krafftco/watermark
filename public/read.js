@@ -20,7 +20,10 @@
   function savePref() { try { localStorage.setItem('wm_read_pref', JSON.stringify(pref)); } catch (e) { /* */ } }
   function sec() { return main.querySelector('.rdr-ch[data-ch="' + at + '"]'); }
   function depth() { var s = sec(); if (!s) return 0; if (paged()) return s.scrollLeft / Math.max(1, s.scrollWidth - s.clientWidth); return window.scrollY / Math.max(1, document.body.scrollHeight - innerHeight); }
-  function keep() { if (!cover.hidden) return; S.c = at; S.y = depth(); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } prog(); }
+  var told = 0;
+  function tell() { try { var now = Date.now(); if (now - told < 15000) return; told = now; var pct = Math.round(100 * Math.min(1, depth())); var body = 'c=' + at + '&n=' + R.n + '&pct=' + pct; if (navigator.sendBeacon) navigator.sendBeacon('/read/' + encodeURIComponent(R.slug) + '/place', new Blob([body], { type: 'application/x-www-form-urlencoded' })); else fetch('/read/' + encodeURIComponent(R.slug) + '/place', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: body, keepalive: true }); } catch (e) { /* */ } }
+  function keep() { if (!cover.hidden) return; S.c = at; S.y = depth(); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } prog(); tell(); }
+  window.addEventListener('pagehide', function () { told = 0; if (!cover.hidden) return; tell(); });
   function prog() {
     var p = main.querySelector('[data-rd-prog]'); if (p) p.style.width = Math.round(100 * (at + depth()) / R.n) + '%';
     // The running head and foot in Pages: the chapter's name top right, the page count below, as a printed book has.
