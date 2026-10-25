@@ -400,7 +400,7 @@ function createApp(cfg = {}) {
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  app.set('trust proxy', Number(process.env.TRUST_PROXY || 1)); // 1 on Render alone; 2 with CloudFront in front (25 Oct), else every visitor reads as the edge
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
   app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
@@ -443,6 +443,8 @@ function createApp(cfg = {}) {
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
   app.use(require('compression')({ threshold: 1024 }));
   const served = require('./served').mountServed(app, { publicDir: path.join(__dirname, '..', 'public'), cacheDir: cache, express }); // scripts and styles leave stripped (19 Oct)
+  // The cold page as a static file, so an edge in front (CloudFront, 25 Oct) can hold it and show it while Render restarts.
+  app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=86400').send(V.offline()));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
 
