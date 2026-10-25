@@ -619,7 +619,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     works.forEach(w => { w.voiced = heard.has(w.id); });
     const front = req.path === '/'; const hangsNow = app.locals.hangs ? app.locals.hangs.publicHangs() : []; const showsList = showsNow(); const td = todays();
     const rowsHtml = front && app.locals.rows ? app.locals.rows.html(req, { works, hangs: hangsNow, shows: showsList, rooms, today: td, cover: works[0] || null }) : null;
-    res.send(V.collection({ front, rowsHtml, maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections() }));
+    let collectors = 0, collectCents = null;
+    if (front) {
+      try { collectors = db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n; } catch (e) { collectors = 0; }
+      try { const c = works[0]; const u = c ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
+    }
+    res.send(V.collection({ front, rowsHtml, maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
   });
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).

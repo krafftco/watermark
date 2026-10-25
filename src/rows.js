@@ -16,7 +16,8 @@ function mountRows(app, { db, V, C }) {
     // Where to: three doors, by who you are.
     const best = works.filter(w => w.zone !== 'mature').slice(0, 12);
     const pic = w => (w ? img(w.slug) : null);
-    rows.push({ k: 'Where to?', title: 'Where to?', tiles: [
+    // The three doors now stand in 'What this is' above the rows (25 Oct); Today keeps a tile at the head of the makers' row.
+    if (false) rows.push({ k: 'Where to?', title: 'Where to?', tiles: [
       { href: `/wander${cover ? `?at=${encodeURIComponent(cover.slug)}` : ''}`, img: pic(today || best[0]), title: 'Wander', line: 'One work at a time, edge to edge. Start here.', wide: true, wander: true },
       { href: '/yours', img: pic(best[1] || best[0]), title: 'Your gallery', line: 'What you hold, your walls, your pocket.', wide: true },
       { href: '/makers#ready', img: pic(best[2] || best[0]), title: 'For those who make', line: 'The record is free and yours; the walls by invitation.', wide: true },
@@ -31,7 +32,10 @@ function mountRows(app, { db, V, C }) {
     // The makers, by the house's regard (the order works arrive in is the regard order).
     const seen = new Set(); const makers = [];
     for (const w of works) { const m = w.maker; if (m && !seen.has(m.id)) { seen.add(m.id); makers.push({ m, w }); } if (makers.length >= 12) break; }
-    if (makers.length) rows.push({ k: 'The makers', title: 'The makers', href: '/artists', tiles: makers.map(({ m, w }) => ({ href: `/m/${m.handle}`, img: m.portrait ? `/portrait/${m.handle}` : img(w.slug), title: m.name, line: m.place || m.house || (m.kind === 'institution' ? 'Institution' : 'Maker'), square: !!m.portrait })) });
+    const makerTiles = makers.map(({ m, w }) => ({ href: `/m/${m.handle}`, img: m.portrait ? `/portrait/${m.handle}` : img(w.slug), title: m.name, line: m.place || m.house || (m.kind === 'institution' ? 'Institution' : 'Maker'), square: !!m.portrait }));
+    const makersRow = makers.length ? { k: 'The makers', title: 'The makers', href: '/artists', tiles: makerTiles } : null;
+    // The makers come first (Will, 25 Oct: other people are what make a house, not a portfolio), today's work beside them.
+    if (makersRow) { if (today) makersRow.tiles.unshift({ href: `/w/${encodeURIComponent(today.slug)}?today=1`, img: img(today.slug), title: `Today: ${tidy(today.title)}`, line: `${today.maker ? today.maker + '. ' : ''}One work a day, at nine.`, wide: true }); rows.unshift(makersRow); }
     // Tonight in the Keys: the clock's programme for this hour.
     try { const prog = app.locals.clock ? app.locals.clock.programme(req) : null; if (prog && prog.items && prog.items.length) rows.push({ k: 'The Keys', title: `${prog.slot && prog.slot.name ? prog.slot.name : 'Tonight'} in the Keys`, href: '/keys', tiles: prog.items.slice(0, 8).map(it => ({ href: it.href, img: it.img || null, title: it.title, line: it.why || it.line || '', dark: !it.img })) }); } catch (e) { /* the clock is optional */ }
     // On the turntable.

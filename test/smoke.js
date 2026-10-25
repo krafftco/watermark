@@ -1514,7 +1514,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   }
   console.log('ok: the Bookshop');
   { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
-    r = await req(port, 'GET', '/'); assert.ok(/class="rws"/.test(r.body) && /Where to\?/.test(r.body) && /Today: /.test(r.body) && /Stand before it/.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door, in the rows');
+    r = await req(port, 'GET', '/'); assert.ok(/class="rws"/.test(r.body) && /The makers/.test(r.body) && /Today: /.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door, in the rows');
+    assert.ok(/Makers keep their work here\. Anyone can own a piece of it\./.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
     const N = app.locals.notify; assert.ok(N.KINDS.daily && N.KINDS.daily.on, 'a kind, on by default');
     const b0 = db.prepare('SELECT id FROM buyers ORDER BY id LIMIT 1').get();
     db.prepare("INSERT OR IGNORE INTO push_subs (buyer_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/x', 'k', 'a')").run(b0.id);

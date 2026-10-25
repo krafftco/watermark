@@ -3783,3 +3783,28 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 /* The seller's own shelf (25 Oct). */
 .bs-mine .bs-of{grid-template-columns:repeat(2,1fr)}.bs-attest{grid-column:1/-1;display:flex!important;gap:8px;align-items:flex-start;font-size:13px;color:var(--mu);text-transform:none;letter-spacing:0}
 @media (max-width:760px){.bs-mine .bs-of{grid-template-columns:1fr}}
+/* The door tells you what this is (25 Oct): the sentence on the hero, the facts as people, Wander and Collect, then
+   'What this is': three lines with a verb each on the dark, one line on the business, three lines from the register. */
+.gh-hero h1.gh-h1s{font-size:clamp(34px,5.2vw,86px);max-width:16ch;line-height:1.04}
+.gh-acts{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.gh-collect{display:inline-flex;align-items:center;gap:12px;margin-top:22px;padding:13px 22px;border-radius:999px;border:1px solid rgba(217,188,124,.7);color:#f6f1e7;text-decoration:none;font:500 13px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;background:rgba(11,10,9,.35);backdrop-filter:blur(6px);animation:gh-rise 1.1s .5s cubic-bezier(.16,1,.3,1) both;transition:transform .3s var(--e),background .3s}
+.gh-collect b{font:500 14px/1 var(--sans);letter-spacing:.04em;color:#d9bc7c}
+.gh-collect:hover{transform:translateY(-2px);background:rgba(217,188,124,.16)}
+.wh{background:#0f0d0b;color:#efe8db;padding:96px 0 84px;border-bottom:1px solid rgba(217,188,124,.14)}
+.wh-in{max-width:1180px;margin:0 auto;padding:0 clamp(16px,4vw,56px)}
+.wh .k{color:rgba(217,188,124,.8)}
+.wh h2{margin:0 0 44px;font:400 clamp(30px,3.6vw,52px)/1.08 var(--serif,Georgia,serif);letter-spacing:-.01em;max-width:18ch;text-transform:none;color:#efe8db}
+.wh-3{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.wh-d{display:grid;grid-template-rows:auto 1fr auto;gap:12px;color:inherit;text-decoration:none;padding:26px 0 0;border-top:1px solid rgba(217,188,124,.28)}
+.wh-d b{font:400 clamp(26px,2.6vw,36px)/1 var(--serif,Georgia,serif)}
+.wh-d i{font:400 16px/1.55 var(--sans);font-style:normal;color:rgba(239,232,219,.78);max-width:34ch}
+.wh-d span{font:500 11.5px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:#d9bc7c;margin-top:8px}
+.wh-d:hover b{color:#d9bc7c}
+.wh-line{margin:48px 0 0;max-width:62ch;font:italic 400 17px/1.55 var(--serif,Georgia,serif);color:rgba(239,232,219,.72)}
+.wh-line a{color:#d9bc7c;text-decoration:none;border-bottom:1px solid rgba(217,188,124,.4)}
+.wh-lately{list-style:none;margin:40px 0 0;padding:28px 0 0;border-top:1px solid rgba(217,188,124,.18);display:grid;gap:14px}
+.wh-lately li{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;font:400 15px/1.45 var(--sans);color:rgba(239,232,219,.84)}
+.wh-lately li a{color:inherit}
+.wh-im{display:block;width:56px;height:42px;overflow:hidden;background:#000;flex:none}.wh-im img{width:100%;height:100%;object-fit:cover;display:block}
+.wh-reg{grid-template-columns:1fr}.wh-reg a{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#d9bc7c;text-decoration:none}
+@media (max-width:760px){.wh{padding:64px 0 56px}.wh-3{grid-template-columns:1fr;gap:8px}.wh-d{padding-top:20px}.gh-hero h1.gh-h1s{font-size:clamp(30px,8.6vw,46px);max-width:14ch}.gh-collect{margin-top:10px}.gh-acts{flex-direction:column;gap:0}}
