@@ -2328,8 +2328,8 @@ main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;
 .st-b .ic{width:28px;height:28px;filter:drop-shadow(0 1px 8px rgba(0,0,0,.8))}.st-b[aria-pressed=true] .ic{color:#fff;fill:rgba(255,255,255,.18)}
 .st-b span:empty{display:none}.st-held{opacity:.7}
 /* Collect is the act (24 Oct): the one filled button, gold, nearest the thumb, saying what you get. */
-.st-buy{margin-top:6px;padding:6px 4px 5px;border-radius:14px;background:rgba(14,13,12,.35);color:#e2c788;text-shadow:none;border:1px solid rgba(226,199,136,.55);box-shadow:none;min-width:52px} /* quiet (Will, 25 Oct: "that gold button is so big"; here to wander, not to be sold to): the only act with a price, at the rail's weight, in gold line */
-.st-buy .ic{color:#e2c788;filter:none;width:22px;height:22px}.st-buy span{display:flex;flex-direction:column;align-items:center;gap:1px;font-weight:500;letter-spacing:.1em}.st-buy span b{font-weight:600;font-size:11px;letter-spacing:.02em;text-transform:none}
+.st-buy{margin-top:6px;padding:6px 3px 5px;border-radius:14px;background:rgba(14,13,12,.35);color:#e2c788;text-shadow:none;border:1px solid rgba(226,199,136,.55);box-shadow:none;min-width:44px} /* quiet (Will, 25 Oct: "that gold button is so big"; here to wander, not to be sold to): the only act with a price, at the rail's weight, in gold line */
+.st-buy .ic{color:#e2c788;filter:none;width:22px;height:22px}.st-buy span{display:flex;flex-direction:column;align-items:center;gap:1px;font-weight:500;letter-spacing:.04em}.st-buy span b{font-weight:600;font-size:11px;letter-spacing:.02em;text-transform:none}
 .st-buy em{display:none}
 .st-buy:active{transform:scale(.96)}.st-buy[disabled]{opacity:.6}
 .st-hat-fly{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none;z-index:3;color:#fff}.st-hat-fly .ic{width:120px;height:120px;filter:drop-shadow(0 6px 30px rgba(0,0,0,.7))}
@@ -3034,7 +3034,7 @@ html.fd-on{overflow:hidden}
   /* The Duo's own cluster owns the top-right corner sideways (Will, 23 Oct): the bar keeps 150px clear of it, the eye and the edge tabs step out of it. */
   .st .st-top{padding:8px 150px 8px 14px}.st .st-eye{top:10px;right:160px}.st .bk-pill{top:10px;right:160px}
   .st .st-tab{display:none}
-  .st .st-rail .st-buy span{display:flex;font-size:8.5px}.st .st-rail .st-buy{padding:8px 6px 6px;min-width:58px}.st .st-rail .st-buy em{font-size:7px}
+  .st .st-rail .st-buy span{display:flex;font-size:8.5px}.st .st-rail .st-buy{padding:7px 4px 5px;min-width:48px}.st .st-rail .st-buy em{font-size:7px}
   .st .st-line{display:none}
 }
 .fd-f input::-webkit-search-cancel-button,.fd-form input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
