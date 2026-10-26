@@ -217,18 +217,23 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // maker's work, held privately, with its title (from the file name unless given), place and kind.
   async function takeWork(file, { originalname, title, place, kind, artist, makerId }) {
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(makerId); if (!m) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, error: 'No such maker.' }; }
+    let rawIn = null;
     try {
+      // The raw door (26 Oct): a DNG's full-size preview is taken as the master; the DNG is kept as the negative.
+      if (app.locals.raw) { rawIn = app.locals.raw.unwrap(file, originalname); if (rawIn) { file = rawIn.file; originalname = rawIn.originalname; } }
       const name = String(originalname || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
       // A better file for a work the maker already holds becomes its master (app.js upgradeIfHeld); a smaller one is declined with the record named.
       if (app.locals.upgradeIfHeld) { await app.locals.bagcheck.throwIfBad(file, { name: originalname || require('path').basename(file), where: 'takeWork', who: `m:${m.handle}` }); const up = await app.locals.upgradeIfHeld(file, originalname, m.id); if (up) { if (!up.ok) return up; const wf = db.prepare('SELECT * FROM works WHERE id=(SELECT id FROM works WHERE slug=?)').get(up.slug); const full = wf || {}; const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.master' AND subject=? ORDER BY seq DESC LIMIT 1").get(up.slug); return { ok: true, outcome: 'master', slug: up.slug, title: up.title, note: `Now the master of ${up.title}: held at ${up.mp} megapixels. The record, the deed and every licence stay as they were.`, yours: app.locals.yours && wf ? app.locals.yours(wf, m) : null, deed: `/w/${up.slug}/deed`, accession: full.accession || null, fingerprint: up.fingerprint, width: up.width, height: up.height, mp: up.mp, entry: seq ? seq.seq : null }; } }
       const w = await registerWork({ file, originalName: originalname, title: String(title || '').trim() || name || 'Untitled', place: String(place || '').trim() || null, makerId: m.id, kind: String(kind || 'photograph'), artist: String(artist || '').trim() || null });
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(m.name, w.id);
+      if (rawIn) await app.locals.raw.keep(w.slug, rawIn.dng, rawIn.originalname.replace(/\.jpg$/, '.dng'));
       const full = db.prepare('SELECT accession, sha256, width, height, bytes FROM works WHERE id=?').get(w.id) || {};
       const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq DESC LIMIT 1").get(w.slug);
       const wf = db.prepare('SELECT * FROM works WHERE id=?').get(w.id);
       return { ok: true, outcome: 'work', slug: w.slug, title: w.title, yours: app.locals.yours ? app.locals.yours(wf, m) : null, deed: `/w/${w.slug}/deed`, accession: full.accession || null, fingerprint: full.sha256 ? full.sha256.slice(0, 12) : null, width: full.width, height: full.height, mp: full.width && full.height ? Math.round(full.width * full.height / 1e6) : null, entry: seq ? seq.seq : null };
     } catch (e) {
       try { fs.unlinkSync(file); } catch (x) { /* gone */ }
+      if (rawIn) { try { fs.unlinkSync(rawIn.dng); } catch (x) { /* gone */ } }
       return { ok: false, status: e.user ? 409 : 400, error: e.user ? e.message : 'Could not be read as a photograph.' };
     }
   }

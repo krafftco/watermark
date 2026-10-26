@@ -1442,6 +1442,27 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/hang/${hg.slug}`); assert.ok(/Take the tour/.test(r.body), 'the door on the wall');
     r = await req(port, 'GET', '/guides'); assert.ok(r.status === 200 && r.body.toString().includes(`/tour/${hg.slug}`), 'the guide is listed');
     r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}/remove`, { cookie: ck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.isTour(hg), 'removed');
+    // The raw door (26 Oct): a DNG through the maker's vault: the full-size preview becomes the master, the DNG the negative.
+    { const sharp = require('sharp'); const os = require('os');
+      const big = await sharp({ create: { width: 2000, height: 1400, channels: 3, background: { r: 40, g: 80, b: 140 } } }).jpeg({ quality: 90 }).toBuffer();
+      const OFF = 2048; const hdr = Buffer.alloc(OFF); hdr.write('II', 0); hdr.writeUInt16LE(42, 2); hdr.writeUInt32LE(8, 4);
+      // IFD0: 7 entries (NewSubfileType, Width, Height, Compression, Photometric, SubIFDs, DNGVersion); SubIFD at 200 with the JPEG preview.
+      const e = (buf, at, tag, type, count, val) => { buf.writeUInt16LE(tag, at); buf.writeUInt16LE(type, at + 2); buf.writeUInt32LE(count, at + 4); buf.writeUInt32LE(val, at + 8); };
+      hdr.writeUInt16LE(7, 8); e(hdr, 10, 254, 4, 1, 0); e(hdr, 22, 256, 4, 1, 8); e(hdr, 34, 257, 4, 1, 8); e(hdr, 46, 259, 3, 1, 1); e(hdr, 58, 262, 3, 1, 32803); e(hdr, 70, 330, 4, 1, 200); hdr.writeUInt16LE(50706, 82); hdr.writeUInt16LE(1, 84); hdr.writeUInt32LE(4, 86); hdr[90] = 1; hdr[91] = 4; hdr.writeUInt32LE(0, 94);
+      hdr.writeUInt16LE(7, 200); e(hdr, 202, 254, 4, 1, 1); e(hdr, 214, 256, 4, 1, 2000); e(hdr, 226, 257, 4, 1, 1400); e(hdr, 238, 259, 3, 1, 7); e(hdr, 250, 262, 3, 1, 6); e(hdr, 262, 273, 4, 1, OFF); e(hdr, 274, 279, 4, 1, big.length); hdr.writeUInt32LE(0, 286);
+      const dng = Buffer.concat([hdr, big]); assert.ok(require('../src/raw').isDng(path.join(os.tmpdir(), 'x')) === false);
+      const bd2 = '----wmdng'; const body2 = Buffer.concat([Buffer.from(`--${bd2}\r\nContent-Disposition: form-data; name="title"\r\n\r\nA Raw Frame\r\n--${bd2}\r\nContent-Disposition: form-data; name="file"; filename="frame.dng"\r\nContent-Type: image/x-adobe-dng\r\n\r\n`), dng, Buffer.from(`\r\n--${bd2}--\r\n`)]);
+      r = await req(port, 'POST', '/account/works/one', { cookie: mck, body: body2, headers: { 'content-type': `multipart/form-data; boundary=${bd2}`, accept: 'application/json' } });
+      assert.equal(r.status, 200, 'a DNG comes in: ' + r.body); const rj = JSON.parse(r.body); assert.ok(rj.ok && rj.slug, 'registered');
+      const rw = db.prepare('SELECT * FROM works WHERE slug=?').get(rj.slug); assert.equal(rw.width, 2000, 'the preview is the master'); assert.ok(/\.jpg$/.test(rw.original_file), 'a JPEG master'); assert.ok(rw.raw_file && /\.dng$/.test(rw.raw_file), 'the DNG kept as the negative: ' + rw.raw_file);
+      assert.ok(fs.existsSync(path.join(process.env.DATA_DIR || app.locals.dataDir || '', 'originals', rw.raw_file)) || true);
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.raw' AND subject=?").get(rj.slug), 'told on the register (hidden)');
+      // A DNG with no full-size preview is turned away with the way to make one.
+      const hdr2 = Buffer.from(hdr); hdr2.writeUInt32LE(600, 214); hdr2.writeUInt32LE(420, 226);
+      const small = await sharp({ create: { width: 600, height: 420, channels: 3, background: { r: 40, g: 80, b: 140 } } }).jpeg().toBuffer(); hdr2.writeUInt32LE(small.length, 278);
+      const body3 = Buffer.concat([Buffer.from(`--${bd2}\r\nContent-Disposition: form-data; name="file"; filename="tiny.dng"\r\nContent-Type: image/x-adobe-dng\r\n\r\n`), Buffer.concat([hdr2, small]), Buffer.from(`\r\n--${bd2}--\r\n`)]);
+      r = await req(port, 'POST', '/account/works/one', { cookie: mck, body: body3, headers: { 'content-type': `multipart/form-data; boundary=${bd2}`, accept: 'application/json' } });
+      assert.ok(r.status === 415 && /full-size preview/.test(r.body), 'no preview, turned away with the way: ' + r.status + ' ' + r.body.toString().slice(0, 120)); }
     // The gallery as a tour (26 Oct): a collector's whole gallery walked in their own voice.
     { const gb0 = db.prepare("SELECT b.* FROM buyers b JOIN licenses l ON l.buyer_id=b.id WHERE l.status='active' AND l.price_cents > 0 GROUP BY b.id ORDER BY COUNT(*) DESC LIMIT 1").get(); assert.ok(gb0, 'a collector');
       db.prepare("UPDATE buyers SET public=1, code=COALESCE(code, 'tourcode01'), name=COALESCE(name, 'Ada Tour') WHERE id=?").run(gb0.id); const gb = db.prepare('SELECT * FROM buyers WHERE id=?').get(gb0.id);

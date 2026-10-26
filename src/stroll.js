@@ -144,6 +144,16 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
       }
       yours = `<header class="sd-h"><p class="k">Yours</p><h3>${esc((m && m.name) || (b && b.name) || 'Your wallet')}</h3>${m ? `<div class="sd-sw" role="tablist"><button type="button" data-sd-switch="collector" aria-selected="true">Collector</button><button type="button" data-sd-switch="maker" aria-selected="false">Maker</button></div>` : ''}</header>${collector}${maker}`;
     }
+    // The house, from inside Wander (Will, 26 Oct: "you have to be able to access Read and Listen"): the five verbs at the top of the Yours door.
+    let reading = 0; try { reading = b ? db.prepare("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'").get(b.id).n : 0; } catch (e) { reading = 0; }
+    const verbs = `<nav class="sd-verbs" aria-label="The house">${[
+      ['/wander', 'Look', 'Wander everything', I.wave || ''],
+      [reading ? '/yours/reading' : '/library', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'The Library', I.facing || I.page || ''],
+      ['/listening', 'Listen', 'The Listening Room', I.play || ''],
+      ['/collection', 'Collect', 'The collection', I.collect || ''],
+      [m ? '/account' : '/makers', 'Make', m ? 'Your studio' : 'For those who make', I.pencil || I.plus || '']
+    ].map(([h, v, l, ic]) => `<a href="${h}"><span class="sd-vi">${ic}</span><b>${v}</b><i>${esc(l)}</i></a>`).join('')}</nav>`;
+    yours = yours.replace(/<\/header>/, '</header>' + verbs);
     res.json({ keys, yours });
   });
 

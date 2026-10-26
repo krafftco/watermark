@@ -2094,14 +2094,34 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // One file into the house: a master for a work already held (matched by look, larger), a known file, a smaller
   // one, or a new frame into a private archive room. Shared by the Masters desk (one request a file) and the
   // arrivals queue (files that came straight into the vault). The file is consumed either way.
+  // The raw door (26 Oct): a DNG comes in as the negative; its full-size preview is the master the house shows.
+  try { db.exec('ALTER TABLE works ADD COLUMN raw_file TEXT'); } catch (e) { /* has it */ }
+  const RAW = require('./raw');
+  const unwrapRaw = (file, originalname) => {
+    if (!RAW.isDng(file)) return null; const u = RAW.unwrap(file, { min: 1600, to: `${file}.preview.jpg` });
+    if (!u.jpeg) { const e = new Error(RAW.NO_PREVIEW); e.user = true; throw e; }
+    return { file: u.jpeg, originalname: String(originalname || 'frame.dng').replace(/\.dng$/i, '') + '.jpg', dng: file, width: u.width, height: u.height };
+  };
+  const keepRaw = async (slug, dng, originalname) => {
+    const w = q.work.get(slug); if (!w || !fs.existsSync(dng)) return null;
+    const name = `${w.slug}-raw-${String(w.sha256 || '').slice(0, 10)}.dng`, dest = path.join(originals, name);
+    fs.copyFileSync(dng, dest); try { await store.put('negatives/' + name, dest, 'image/x-adobe-dng'); } catch (e) { console.error('[raw vault]', e.message); }
+    db.prepare('UPDATE works SET raw_file=? WHERE id=?').run(name, w.id);
+    try { ledger.append(db, 'work.raw', w.slug, { file: String(originalname || '').slice(0, 120), bytes: fs.statSync(dng).size }); } catch (e) { /* */ }
+    try { fs.unlinkSync(dng); } catch (e) { /* */ }
+    return name;
+  };
+  app.locals.raw = { unwrap: unwrapRaw, keep: keepRaw, isDng: RAW.isDng };
   async function takeMaster(file, originalname, folder) {
     await BAG.throwIfBad(file, { name: originalname || path.basename(file), where: 'takeMaster', who: 'studio' });
+    const rawIn = unwrapRaw(file, originalname); if (rawIn) { file = rawIn.file; originalname = rawIn.originalname; }
+    const withRaw = async r => { if (rawIn && r && r.slug && (r.outcome === 'master' || r.outcome === 'archive')) await keepRaw(r.slug, rawIn.dng, rawIn.originalname.replace(/\.jpg$/, '.dng')); else if (rawIn) { try { fs.unlinkSync(rawIn.dng); } catch (e) { /* */ } } return r; };
     const gone = () => { if (fs.existsSync(file)) fs.unlinkSync(file); };
     try {
       await ensureHashes();
       const info = await images.inspect(file);
       const held = db.prepare('SELECT slug FROM works WHERE sha256=?').get(info.sha256);
-      if (held) { gone(); return { ok: true, outcome: 'known', slug: held.slug }; }
+      if (held) { gone(); return withRaw({ ok: true, outcome: 'known', slug: held.slug }); }
       const h = await images.dhash(file);
       let best = null, bestD = 99;
       for (const w of db.prepare('SELECT id, slug, dhash, width, height FROM works WHERE dhash IS NOT NULL').all()) {
@@ -2109,9 +2129,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
       }
       if (best && bestD <= 6) {
-        if ((best.width || 0) >= info.width) { gone(); return { ok: true, outcome: 'smaller', slug: best.slug }; }
+        if ((best.width || 0) >= info.width) { gone(); return withRaw({ ok: true, outcome: 'smaller', slug: best.slug }); }
         const w = await replaceMaster(q.work.get(best.slug), { path: file, originalname }, info, h);
-        return { ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6) };
+        return withRaw({ ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6) });
       }
       // Not yet published anywhere: into the archive, private.
       const place = placeFromFolder(folder);
@@ -2122,7 +2142,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       let c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug);
       if (!c) { db.prepare('INSERT INTO collections (slug,title,note,public,sort) VALUES (?,?,?,0,900)').run(roomSlug, `Archive · ${place ? place.split(',')[0] : 'Unsorted'}`, 'Full-resolution frames from the archive, held privately.'); c = db.prepare('SELECT id FROM collections WHERE slug=?').get(roomSlug); }
       db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(c.id, nw.id);
-      return { ok: true, outcome: 'archive', slug: nw.slug, title: nw.title };
+      return withRaw({ ok: true, outcome: 'archive', slug: nw.slug, title: nw.title });
     } catch (e) {
       gone(); console.error('[masters]', e.message);
       return { ok: false, status: e.user ? 409 : 400, error: e.user ? e.message : 'Could not be read as a photograph.' };

@@ -21,6 +21,7 @@ const MAX_PIXELS = Number(process.env.BAGCHECK_MAX_MP || 400) * 1e6;
 const MAX_SIDE = Number(process.env.BAGCHECK_MAX_SIDE || 30000);
 const TRAIL = 64 * 1024; // bytes allowed after a JPEG's EOI (some cameras and editors leave a little)
 const IMAGE = { jpeg: ['.jpg', 'image/jpeg'], png: ['.png', 'image/png'], tiff: ['.tif', 'image/tiff'], webp: ['.webp', 'image/webp'] };
+const DNG = ['.dng', 'image/x-adobe-dng'];
 const AUDIO = { webm: ['.webm', 'audio/webm'], ogg: ['.ogg', 'audio/ogg'], mp4: ['.m4a', 'audio/mp4'], mp3: ['.mp3', 'audio/mpeg'], wav: ['.wav', 'audio/wav'], flac: ['.flac', 'audio/flac'], aiff: ['.aiff', 'audio/aiff'] };
 const EXPECT = { image: Object.keys(IMAGE), audio: Object.keys(AUDIO), archive: ['zip'], papers: ['pdf', ...Object.keys(IMAGE)], proof: ['zip', ...Object.keys(IMAGE)] };
 
@@ -89,6 +90,9 @@ async function check(file, { expect = 'image', name = '', where = '', who = '', 
     const why = type === 'heic' ? 'This is a HEIC. Export it as a JPEG or a TIFF and bring that.' : `This is ${say(type)}, not ${want}.`;
     return verdict(false, type, why);
   }
+  // A DNG (26 Oct, the raw door): a TIFF whose main image is the sensor's data. The house reads the preview inside
+  // (src/raw.js), never the raw data; one without a full-size preview is turned away with the way to make one.
+  if (type === 'tiff' && expect === 'image') { const raw = require('./raw'); if (raw.isDng(file)) { const u = raw.unwrap(file, { min: 1600, to: `${file}.preview.jpg` }); if (!u.jpeg) return verdict(false, 'dng', raw.NO_PREVIEW); try { await sharp(u.jpeg, { failOn: 'error', limitInputPixels: MAX_PIXELS }).resize(96, 96, { fit: 'inside' }).raw().toBuffer(); } catch (e) { return verdict(false, 'dng', 'The preview inside the DNG does not decode whole.'); } return verdict(true, 'dng', null); } }
   const c = await cargo(file, type);
   if (c.found) return verdict(false, type, `The file carries ${c.found}. The house takes the picture alone.`);
   if (IMAGE[type]) {
@@ -103,8 +107,8 @@ async function check(file, { expect = 'image', name = '', where = '', who = '', 
   }
   return verdict(true, type, null);
   function verdict(ok, t, reason) {
-    const ext = (IMAGE[t] || AUDIO[t] || { zip: ['.zip', 'application/zip'], pdf: ['.pdf', 'application/pdf'] }[t] || ['', 'application/octet-stream'])[0];
-    const mime = (IMAGE[t] || AUDIO[t] || { zip: ['.zip', 'application/zip'], pdf: ['.pdf', 'application/pdf'] }[t] || ['', 'application/octet-stream'])[1];
+    const ext = (IMAGE[t] || AUDIO[t] || (t === 'dng' ? DNG : null) || { zip: ['.zip', 'application/zip'], pdf: ['.pdf', 'application/pdf'] }[t] || ['', 'application/octet-stream'])[0];
+    const mime = (IMAGE[t] || AUDIO[t] || (t === 'dng' ? DNG : null) || { zip: ['.zip', 'application/zip'], pdf: ['.pdf', 'application/pdf'] }[t] || ['', 'application/octet-stream'])[1];
     if (db) { try { db.prepare('INSERT INTO bagcheck (where_, who, ip, name, bytes, type, ok, reason) VALUES (?,?,?,?,?,?,?,?)').run(String(where).slice(0, 80), String(who).slice(0, 120), String(ip).slice(0, 64), String(name).slice(0, 200), bytes, t, ok ? 1 : 0, reason); } catch (e) { /* */ } }
     if (!ok && ledger && db) { try { ledger.append(db, 'upload.refused', String(where).slice(0, 80) || 'door', { type: t, reason, who: String(who).slice(0, 120) || undefined }); } catch (e) { /* */ } }
     return { ok, type: t, ext, mime, reason, bytes };
