@@ -146,5 +146,63 @@
   // Still: the bar fades after a while and comes back on a move.
   var still = null; function wake() { main.classList.remove('rdr-still'); clearTimeout(still); still = setTimeout(function () { main.classList.add('rdr-still'); }, 4000); }
   ['mousemove', 'touchstart', 'keydown', 'scroll'].forEach(function (ev) { addEventListener(ev, wake, { passive: true }); }); wake();
+  // Sharing (26 Oct): the sheet (the book on its card, a passage when one is chosen, Send it by the device's own
+  // sheet, Copy the link, or the house's letter), the pill that rises when a passage is selected, and the passage
+  // a link arrived with, lit on the page. The link always says which chapter; a passage link carries the words.
+  var SH = { sheet: main.querySelector('[data-rd-share-sheet]'), qp: main.querySelector('[data-rd-qp]'), q: '' };
+  function pageUrl(q) { return location.origin + '/read/' + encodeURIComponent(R.slug) + (cover.hidden || q ? '?c=' + at : '') + (q ? '&q=' + encodeURIComponent(q) : ''); }
+  function shareText(q) { return q ? '“' + q + '” — ' + (R.author ? R.author + ', ' : '') + R.title : R.title + (R.author ? ', by ' + R.author : '') + '. Read it in the house, free, and keep it on your shelf.'; }
+  function openSheet(q) {
+    if (!SH.sheet) return; SH.q = q || ''; var b = SH.sheet.querySelector('[data-rd-sh-q]'), u = SH.sheet.querySelector('[data-rd-sh-unquote]'), qf = SH.sheet.querySelector('[data-rd-sh-qf]'), cf = SH.sheet.querySelector('[data-rd-sh-cf]');
+    if (b) { b.textContent = SH.q; b.hidden = !SH.q; } if (u) u.hidden = !SH.q; if (qf) qf.value = SH.q; if (cf) cf.value = at;
+    SH.sheet.querySelector('.k').textContent = SH.q ? 'Share this passage' : 'Share the book';
+    SH.sheet.hidden = false; if (SH.qp) SH.qp.hidden = true;
+  }
+  function closeSheet() { if (SH.sheet) SH.sheet.hidden = true; }
+  function sendIt() {
+    var url = pageUrl(SH.q), text = shareText(SH.q);
+    if (navigator.share) navigator.share({ title: R.title, text: text, url: url }).then(function () { say('Sent.'); closeSheet(); }).catch(function () {});
+    else copyIt();
+  }
+  function copyIt() { var url = pageUrl(SH.q); if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('Link copied. It opens on the book' + (SH.q ? ', at this passage' : '') + '.'); }); else say(url); }
+  main.addEventListener('click', function (e) {
+    if (e.target.closest('[data-rd-share]')) openSheet('');
+    else if (e.target.closest('[data-rd-share-close]')) closeSheet();
+    else if (e.target.closest('[data-rd-sh-send]')) sendIt();
+    else if (e.target.closest('[data-rd-sh-copy]')) copyIt();
+    else if (e.target.closest('[data-rd-sh-unquote]')) openSheet('');
+    else if (e.target.closest('[data-rd-qp]')) { var sel = String(window.getSelection ? window.getSelection() : '').replace(/\s+/g, ' ').trim(); if (sel) openSheet(sel.slice(0, 420)); }
+  });
+  var mf = main.querySelector('[data-rd-sh-mail]');
+  if (mf) mf.addEventListener('submit', function (e) {
+    e.preventDefault(); var fd = new FormData(mf); fd.set('json', '1'); if (window.WMWave) WMWave.show();
+    fetch(mf.action, { method: 'POST', body: new URLSearchParams(fd), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (window.WMWave) WMWave.hide();
+      if (j && j.ok) { say('Sent to ' + j.to + '. The house wrote the letter.'); closeSheet(); mf.reset(); }
+      else if (j && j.signin) location.href = j.signin; else say((j && j.error) || 'The letter did not go; try again.');
+    }).catch(function () { if (window.WMWave) WMWave.hide(); say('The letter did not go; try again.'); });
+  });
+  // A passage chosen on the page brings the pill up beside it.
+  var selT = null;
+  document.addEventListener('selectionchange', function () {
+    clearTimeout(selT); selT = setTimeout(function () {
+      if (!SH.qp) return; var sel = window.getSelection ? window.getSelection() : null; var txt = sel ? String(sel).replace(/\s+/g, ' ').trim() : '';
+      if (!txt || txt.length < 12 || sel.rangeCount === 0 || !page.contains(sel.anchorNode)) { SH.qp.hidden = true; return; }
+      var r = sel.getRangeAt(0).getBoundingClientRect(); if (!r || !r.width) { SH.qp.hidden = true; return; }
+      SH.qp.hidden = false; SH.qp.style.left = Math.max(8, Math.min(innerWidth - 8 - SH.qp.offsetWidth, r.left + r.width / 2 - SH.qp.offsetWidth / 2)) + 'px';
+      SH.qp.style.top = (r.top > 70 ? r.top - 46 : r.bottom + 10) + 'px';
+    }, 180);
+  });
+  document.addEventListener('keydown', function (e) { if (e.target.closest('input,textarea')) return; if (e.key === 'Escape' && SH.sheet && !SH.sheet.hidden) closeSheet(); else if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) openSheet(''); });
+  // The passage a link arrived with: found in the chapter and lit, the page brought to it.
+  function light() {
+    if (!R.q) return; var s = sec(); if (!s) return; var want = R.q.slice(0, 60).toLowerCase(); var ps = s.querySelectorAll('p');
+    for (var i = 0; i < ps.length; i++) { var txt = ps[i].textContent.replace(/\s+/g, ' '); var k = txt.toLowerCase().indexOf(want); if (k < 0) continue;
+      var full = txt.toLowerCase().indexOf(R.q.toLowerCase()); var len = full >= 0 ? R.q.length : 60; var start = full >= 0 ? full : k;
+      ps[i].innerHTML = esc(txt.slice(0, start)) + '<mark class="rdr-lit">' + esc(txt.slice(start, start + len)) + '</mark>' + esc(txt.slice(start + len));
+      setTimeout(function () { ps[i].scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 300); break; }
+  }
+  if (R.from && cover.hidden) setTimeout(function () { say(R.from + ' sent you this' + (R.q ? ' passage.' : ' book.') + (R.kept ? ' It is on your shelf.' : '')); }, 600);
+  if (R.q) { if (!cover.hidden) { /* the cover shows who sent it; Begin opens at the passage */ var bb = main.querySelector('[data-rd-begin]'); if (bb) bb.addEventListener('click', function () { setTimeout(light, 400); }, { once: true }); } else setTimeout(light, 200); }
   apply(); prog(); paintRib(); if (cover.hidden) face(at);
 })();

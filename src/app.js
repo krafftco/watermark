@@ -1966,6 +1966,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });
   require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
+  require('./sharebook').mountShareBook(app, { db, V, C, mail, buyerOf, makerOf: req => (app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null), ledger }); // sharing a book: the card, the letter, the keeping (26 Oct)
   require('./writersdesk').mountWritersDesk(app, { db, V, C, ledger, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Writer's Desk: the binder, the page, the drafts, the press
   require('./almanack').mountAlmanack(app, { db, V, C, ledger, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the almanack: a maker's year as one book
   require('./press').mountPress(app, { db, V, C, ledger, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the printing house: every maker publishes words

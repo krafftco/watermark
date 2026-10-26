@@ -32,6 +32,7 @@ const I = {
   // A trade: one for another.
   trade: wrap('<path d="M4 8.8h13.4l-3.2-3.2M20 15.2H6.6l3.2 3.2"/>'),
   // Sent on: a letter.
+  share: wrap('<path d="M12 15.5V4.2"/><path d="m7.8 8.4 4.2-4.2 4.2 4.2"/><path d="M5 12.6v5.2a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6v-5.2"/>'),
   send: wrap('<rect x="3.6" y="6" width="16.8" height="12" rx="1"/><path d="m3.6 7.2 8.4 6 8.4-6"/>'),
   // A thank-you card: a card with the wave.
   card: wrap('<rect x="4" y="6.4" width="16" height="11.2" rx="1"/><path d="M7.6 12.2c1-1.2 1.9-1.2 2.9 0s1.9 1.2 2.9 0 1.9-1.2 2.9 0"/><path d="M7.6 15h5.2"/>'),

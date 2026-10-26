@@ -39,7 +39,7 @@ function svg(t, opts = {}) {
   const cy = H * 0.42; const lh = size * 1.18; const y0 = cy - ((lines.length - 1) * lh) / 2;
   const tt = lines.map((ln, i) => `<tspan x="${bx + bw / 2}" y="${(y0 + i * lh).toFixed(1)}">${esc(ln)}</tspan>`).join('');
   const bands = [0.12, 0.3, 0.48, 0.66, 0.84].map(p => `<rect x="0" y="${(H * p).toFixed(1)}" width="${spine}" height="${Math.max(3, W * 0.012).toFixed(1)}" fill="${L.light}"/><rect x="0" y="${(H * p + Math.max(3, W * 0.012)).toFixed(1)}" width="${spine}" height="1.2" fill="${L.dark}"/>`).join('');
-  const uid = 'b' + (h % 100000).toString(36);
+  const uid = 'b' + (h % 100000).toString(36) + W; // the width too: two sizes of one book on a page must not share defs
   const labelY = H * 0.14, labelH = H * 0.13;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(title)}${author ? ', ' + esc(author) : ''}">
 <defs>

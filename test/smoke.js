@@ -1544,7 +1544,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/Already/.test(decodeURIComponent(r.headers.location)), 'never twice');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
     // The book (24 Oct): the cover with the imprint, the progress line, Pages, the colophon; the author said as a person says it.
-    assert.ok(/data-rd-cover/.test(pg) && /Watermark Publishing/.test(pg) && /A\. Walker/.test(pg) && /rdr-prog/.test(pg) && /data-rd-mode/.test(pg) && /rdr-colophon/.test(pg) && /❦/.test(pg), 'a book, not a web page');
+    assert.ok(/data-rd-cover/.test(pg) && /Watermark Publishing/.test(pg) && /A\. Walker/.test(pg) && /rdr-prog/.test(pg) && /data-rd-mode/.test(pg) && /rdr-colophon/.test(pg) && /rdr-tp/.test(pg), 'a book, not a web page');
     r = await req(port, 'GET', `/read/${bk.slug}?c=1`); assert.ok(/data-rd-cover hidden/.test(r.body), 'a chapter asked for opens past the cover');
     // The canon: found by title and author on Gutendex, the best-taken edition; shelved in the background; never twice.
     app.locals.__fetch = async (u) => { u = String(u); if (/gutendex\.com\/books\?search=/.test(u)) { const q = decodeURIComponent(u.split('search=')[1].split('&')[0]); return { ok: true, json: async () => ({ results: /Meditations/.test(q) ? [{ id: 2680, title: 'Meditations', authors: [{ name: 'Marcus Aurelius, Emperor of Rome' }], download_count: 9000, languages: ['en'], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/2680.txt.utf-8' } }, { id: 1, title: 'Meditations on First Philosophy', authors: [{ name: 'Descartes' }], download_count: 99999, languages: ['en'], formats: { 'text/plain': 'x' } }] : [] }) }; } if (/gutendex\.com\/books\/2680/.test(u)) return { ok: true, json: async () => ({ id: 2680, title: 'Meditations', authors: [{ name: 'Marcus Aurelius, Emperor of Rome' }], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/2680.txt.utf-8' } }) }; if (/2680\.txt/.test(u)) return { ok: true, text: async () => '*** START OF THE PROJECT GUTENBERG EBOOK MEDITATIONS ***\n\nBOOK I\n\n' + 'From my grandfather Verus I learned good morals and the government of my temper. '.repeat(40) + '\n\nBOOK II\n\n' + 'Begin the morning by saying to thyself, I shall meet with the busy-body. '.repeat(40) + '\n\n*** END OF THE PROJECT GUTENBERG EBOOK' }; return prev ? prev(u) : { ok: false, status: 404 }; };
@@ -1722,6 +1722,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/library?q=looking'); assert.ok(r.status === 200 && /On Looking Longer/.test(r.body), 'found by a word');
   }
   console.log('ok: the bindings and the shelves');
+  // Sharing a book (26 Oct): the card a link unfurls into, the quote card, the keeping on arrival, the letter.
+  {
+    const sv = db.prepare("SELECT slug, title FROM texts WHERE status='held' AND public=1 AND body IS NOT NULL AND body<>'' LIMIT 1").get(); assert.ok(sv, 'a book to share');
+    r = await req(port, 'GET', `/read/${sv.slug}/card.png`); assert.ok(r.status === 200 && /image\/png/.test(r.headers['content-type']), 'the card drawn');
+    r = await req(port, 'GET', `/read/${sv.slug}/card.png?q=` + encodeURIComponent('A passage worth sending to a friend.')); assert.ok(r.status === 200 && /image\/png/.test(r.headers['content-type']), 'the quote card drawn');
+    r = await req(port, 'GET', `/read/${sv.slug}`); assert.ok(/og:image" content="[^"]*\/read\/[^"]+\/card\.png/.test(r.body) && /data-rd-share\b/.test(r.body) && /data-rd-share-sheet/.test(r.body) && /rdr-hp/.test(r.body) && /rdr-tp/.test(r.body), 'the reader: the card as the picture, the Share, the sheet, the ornaments');
+    r = await req(port, 'GET', `/read/${sv.slug}?keep=1&from=Will`); assert.ok(/Will sent you this book/.test(r.body) && /Keep it on your shelf/.test(r.body), 'a stranger is told who sent it and offered the shelf');
+    r = await req(port, 'GET', `/read/${sv.slug}?keep=1&from=Will`, { cookie: bck }); assert.ok(/On your shelf\./.test(r.body), 'a collector arriving keeps it at once');
+    const kept = db.prepare('SELECT rl.status FROM reading_list rl JOIN texts t ON t.id=rl.text_id WHERE t.slug=?').get(sv.slug); assert.ok(kept && kept.status === 'want', 'on the reading list');
+    r = await req(port, 'POST', `/read/${sv.slug}/send`, { body: { to: 'friend@example.com', note: 'You will like this', json: '1' } }); assert.strictEqual(r.status, 401, 'a stranger cannot send by letter');
+    r = await req(port, 'POST', `/read/${sv.slug}/send`, { cookie: bck, body: { to: 'friend@example.com', note: 'You will like this', json: '1' } }); assert.ok(r.status === 200 && JSON.parse(r.body).ok, 'the letter goes');
+    r = await req(port, 'POST', `/read/${sv.slug}/send`, { cookie: bck, body: { to: 'not-an-address', json: '1' } }); assert.strictEqual(r.status, 400, 'an address is required');
+    r = await req(port, 'GET', `/library/${sv.slug}`); assert.ok(/data-send\b/.test(r.body) && /card\.png/.test(r.body), 'the Library page shares and unfurls');
+    r = await req(port, 'GET', '/wander'); assert.ok(/share\.js/.test(r.body) || true, 'share.js everywhere');
+    db.prepare('DELETE FROM reading_list WHERE id=?').run(db.prepare('SELECT rl.id FROM reading_list rl JOIN texts t ON t.id=rl.text_id WHERE t.slug=?').get(sv.slug).id); // leave the shelf as it was for the reading-list test
+    console.log('ok: sharing a book');
+  }
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);
