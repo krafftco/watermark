@@ -292,7 +292,7 @@ ${wings(wingsList)}`;
   // then three lines with a verb each, one line on the business, and three real lines from the register. The house's
   // own name stays off the entrance: the founding collection is a room, not the house. Every word a draft for Will.
   const facts = [`${total} work${total === 1 ? '' : 's'}`, makerList.length > 1 ? `${makerList.length} makers` : null, collectors ? `${collectors} collector${collectors === 1 ? '' : 's'}` : null].filter(Boolean).join(' &middot; ');
-  const collectAct = cover && collectCents != null && !/"social":false/.test(cover.rules || '') ? `<a class="gh-collect" href="/w/${esc(cover.slug)}#collect"><span>Collect this one</span><b>${money(collectCents)}</b></a>` : '';
+  const collectAct = cover && collectCents != null && !/"social":false/.test(cover.rules || '') ? `<a class="gh-collect" href="/w/${esc(cover.slug)}#collect" title="Collect it: yours to keep, numbered, with the papers">${I.collect}<span>Collect</span><b>${money(collectCents)}</b></a>` : '';
   // The register lines on the door are the ones that say the house is a market: collected, licensed, a print sold, a
   // wall opened, a maker invited; the rest stay on /ledger.
   const DOOR_KINDS = /^(license\.|print\.|hang\.opened|show\.opening|work\.published|maker\.(invited|introduced)|collection\.imported|tour\.opened)/;
