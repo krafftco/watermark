@@ -4150,3 +4150,22 @@ html.in-stay .top .nv-back{display:none}
 @media (max-width:860px){.dkr{grid-template-columns:1fr;grid-template-rows:auto auto auto}.dkr-panel{border-left:0;border-top:1px solid #26231f}.dkr-fig img{max-height:60svh}.dkr-fig{max-height:60svh}.dkr-keys{display:none}}
 .dkr [hidden]{display:none!important}
 .dkr-acts .buy-btn{background:#e8e3da;color:#0b0a09;border-color:#e8e3da}
+/* The collector's house (26 Oct): the head of /yours and of a public gallery: the best piece on the wall, the name, the standing, the eye, and the doors. */
+.ch{margin:0 calc(-1 * clamp(16px,4vw,56px)) 28px;background:#0b0a09;color:#efe9dd}
+.ch-hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(20px,4vw,56px);align-items:end;padding:clamp(20px,3vw,40px) clamp(16px,4vw,56px) clamp(24px,3vw,40px)}
+.ch-pic{display:block;background:#000}.ch-pic img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;object-position:left bottom}
+.ch-t .k{color:#d9bc7c;margin:0 0 10px}
+.ch-name{margin:0 0 14px;font:300 clamp(36px,5vw,72px)/.98 var(--read);letter-spacing:-.02em;color:#f2efe9;text-transform:none;text-wrap:balance}
+.ch-plate{margin:0 0 14px;font:400 13px/1.7 var(--sans);letter-spacing:.04em;color:rgba(239,232,219,.72)}.ch-plate span{color:#d9bc7c;margin:0 4px}.ch-plate a{color:inherit;text-decoration:none;border-bottom:1px solid rgba(217,188,124,.4)}
+.ch-eye{margin:0 0 14px;font:italic 400 clamp(17px,1.5vw,21px)/1.5 var(--read);color:#efe9dd;max-width:46ch}
+.ch-eyef{display:flex;gap:10px;margin:0 0 14px;max-width:46ch}.ch-eyef input{flex:1;background:none;border:0;border-bottom:1px solid rgba(217,188,124,.5);color:#efe9dd;font:italic 400 17px/1.4 var(--read);padding:6px 0}.ch-eyef input::placeholder{color:rgba(239,232,219,.45)}.ch-eyef .link{color:#d9bc7c}
+.ch-cap{margin:0;font:400 11.5px/1.5 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(239,232,219,.5)}
+.ch-rows{padding:0 clamp(16px,4vw,56px) 8px}
+.ch-row{padding:22px 0 8px;border-top:1px solid rgba(217,188,124,.22)}
+.ch .ch-row h2{margin:0 0 14px;font:400 clamp(22px,2.2vw,30px)/1 var(--read);color:#f2efe9;text-transform:none;letter-spacing:0}
+.ch-ds{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px 22px;margin-bottom:12px}
+.ch-d{display:grid;gap:5px;color:inherit;text-decoration:none;padding:12px 0 10px;border-top:1px solid rgba(239,232,219,.1)}
+.ch-d b{font:500 13px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#f2efe9}
+.ch-d i{font:400 14px/1.5 var(--sans);font-style:normal;color:rgba(239,232,219,.66)}.ch-d i em{font-style:italic;color:#efe9dd}
+.ch-d:hover b{color:#d9bc7c}.ch-gold b{color:#d9bc7c}
+@media (max-width:760px){.ch-hero{grid-template-columns:1fr;gap:16px;align-items:start}.ch-pic img{max-height:56vh;object-position:center}.ch-ds{grid-template-columns:1fr;gap:0}.ch-row h2{font-size:22px}}
