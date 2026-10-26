@@ -2298,6 +2298,52 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       console.log('ok: the lab');
     }
   }
+  // The first week (26 Oct): a new maker's letter lands in the vault; seven mornings, one act each, only while undone;
+  // the Studio sees who is stuck where; an outside maker's first sale is told to the house.
+  {
+    const FW = app.locals.firstWeek; assert.ok(FW, 'the first week mounted');
+    r = await req(port, 'POST', '/studio/accounts', { cookie: ck, body: { name: 'Greg Newmaker', email: 'greg@newmaker.example', kind: 'maker' } });
+    const gm = db.prepare("SELECT * FROM makers WHERE email='greg@newmaker.example'").get(); assert.ok(gm && gm.invite_token, 'invited');
+    r = await req(port, 'GET', `/account/join/${gm.invite_token}`); assert.strictEqual(r.headers.location, '/account/upload?welcome=1', 'the letter lands in the vault');
+    const gck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    r = await req(port, 'GET', '/account/upload?welcome=1', { cookie: gck }); assert.ok(r.status === 200 && /Your studio is open/.test(r.body), 'the vault with its welcome');
+    const w0 = FW.where(db.prepare('SELECT * FROM makers WHERE id=?').get(gm.id)); assert.ok(w0.done === 0 && w0.next.key === 'work' && w0.days === 0, 'nothing done yet: ' + JSON.stringify({ done: w0.done, next: w0.next.key }));
+    r = await req(port, 'GET', '/studio/accounts', { cookie: ck }); assert.ok(/0 of 7 · at your work · today/.test(r.body), 'the Studio sees where Greg is');
+    // The mornings: day one is the morning after; forced here. Each day the first undone act; a done act is skipped.
+    const m0 = (app.locals.mailLog || []).length;
+    assert.ok(FW.mornings({ force: true }) >= 1, 'letters sent, day one');
+    let fw = db.prepare('SELECT * FROM first_week WHERE maker_id=?').all(gm.id); assert.ok(fw.length === 1 && fw[0].day === 1 && fw[0].act === 'work', 'day one: your work');
+    const l1 = (app.locals.mailLog || []).slice(m0).find(m => m.to === 'greg@newmaker.example'); assert.ok(l1 && /Your work/.test(l1.subject) && /Welcome to the house, Greg/.test(l1.text) && /\/account\/upload/.test(l1.text), 'the letter: ' + (l1 && l1.subject));
+    assert.strictEqual(FW.mornings({ force: true }), 0, 'never twice in a day');
+    // Day two, with the work in and the page written: the next undone is the edit.
+    db.prepare("UPDATE makers SET joined_at=datetime('now', '-1 day'), bio='A photographer of the long light along the coast.' WHERE id=?").run(gm.id);
+    db.prepare("INSERT INTO works (slug, title, maker_id, status, original_file, sha256, width, height, taken_at) VALUES ('greg-one', 'Greg One', ?, 'hidden', 'x.jpg', 'deadbeef', 100, 100, '2026')").run(gm.id);
+    FW.mornings({ force: true });
+    fw = db.prepare('SELECT * FROM first_week WHERE maker_id=? ORDER BY day').all(gm.id); assert.ok(fw.length === 2 && fw[1].day === 2 && fw[1].act === 'edit', 'day two: the edit, the page skipped: ' + JSON.stringify(fw));
+    r = await req(port, 'GET', '/studio/accounts', { cookie: ck }); assert.ok(/2 of 7 · at your best in front · a day/.test(r.body), 'the Studio line moved');
+    // Everything done: no letter, the day marked done.
+    db.prepare("UPDATE makers SET joined_at=datetime('now', '-2 days'), stripe_account='acct_x' WHERE id=?").run(gm.id);
+    db.prepare("UPDATE works SET status='held', stars=4 WHERE slug='greg-one'").run();
+    db.prepare("INSERT OR IGNORE INTO maker_steps (maker_id, step) VALUES (?, 'prices'), (?, 'shared')").run(gm.id, gm.id);
+    db.prepare("INSERT INTO deliveries (token, maker_id, title, client_name) VALUES ('fwtok', ?, 'A present', 'Rae')").run(gm.id);
+    FW.mornings({ force: true }); fw = db.prepare('SELECT * FROM first_week WHERE maker_id=? AND day=3').get(gm.id); assert.ok(fw && fw.act === 'done', 'day three marked done');
+    r = await req(port, 'GET', '/studio/accounts', { cookie: ck }); assert.ok(/All 7 done/.test(r.body), 'all done on the Studio');
+    // The first sale of an outside maker: the house mailed, once.
+    const h0 = (app.locals.mailLog || []).length;
+    const su = db.prepare("SELECT id FROM uses WHERE maker_id=? AND key='social'").get(gm.id); const gw = db.prepare("SELECT * FROM works WHERE slug='greg-one'").get();
+    const refA = 'WM-2026-990001';
+    db.prepare("INSERT INTO licenses (ref, work_id, use_id, buyer_id, licensee_name, licensee_email, price_cents, status, download_token) VALUES (?,?,?,?,?,?,?,'active','fwdl1')").run(refA, gw.id, su.id, setLs[0].buyer_id, 'A collector', 'c@example.com', 700);
+    ledger.append(db, 'license.granted', refA, { work: 'greg-one', paid: true });
+    await new Promise(r2 => setTimeout(r2, 60));
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='maker.firstsale' AND subject=?").get(gm.handle), 'the first sale on the register (hidden)');
+    const hm = (app.locals.mailLog || []).slice(h0).find(m => /first sale/.test(m.subject)); assert.ok(hm && /Greg Newmaker/.test(hm.subject) && /Greg One/.test(hm.text), 'the house written to: ' + (hm && hm.subject));
+    const refB = 'WM-2026-990002';
+    db.prepare("INSERT INTO licenses (ref, work_id, use_id, buyer_id, licensee_name, licensee_email, price_cents, status, download_token) VALUES (?,?,?,?,?,?,?,'active','fwdl2')").run(refB, gw.id, su.id, setLs[0].buyer_id, 'A collector', 'c@example.com', 700);
+    const h1 = (app.locals.mailLog || []).length; ledger.append(db, 'license.granted', refB, { work: 'greg-one', paid: true }); await new Promise(r2 => setTimeout(r2, 60));
+    assert.ok(!(app.locals.mailLog || []).slice(h1).find(m => /first sale/.test(m.subject)), 'a second sale is not a first');
+    r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/first sale/.test(r.body), 'nothing of it in public');
+    console.log('ok: the first week');
+  }
   // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
   r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'SAMEORIGIN' && /frame-ancestors 'self'/.test(r.headers['content-security-policy']) && r.headers['referrer-policy'], 'security headers');
   r = await req(port, 'POST', '/guestbook/1/remove', { headers: { origin: 'https://evil.example' } }); assert.equal(r.status, 403, 'cross-site write refused');

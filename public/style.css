@@ -4103,3 +4103,4 @@ html.in-stay .top .nv-back{display:none}
 .lab-pan .warn{color:#a3412f}
 .lab-pan code{font-size:12px}
 .lab-acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.ac-week{color:var(--mute)}

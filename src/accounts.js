@@ -37,7 +37,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the Studio side: invite a maker or an estate ----------
   app.get('/studio/accounts', studioOnly, (req, res) => {
     const list = db.prepare(`SELECT m.*, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id) AS works FROM makers m ORDER BY m.id`).all();
-    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
+    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, week: app.locals.firstWeek ? m => app.locals.firstWeek.line(m) : null, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
   });
   app.post('/studio/accounts', studioOnly, (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
@@ -66,7 +66,8 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const exp = String(Date.now() + cookieOpts.maxAge);
     db.prepare("UPDATE makers SET invite_token=NULL, joined_at=COALESCE(joined_at, datetime('now')) WHERE id=?").run(m.id);
     res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}`)}`, cookieOpts);
-    res.redirect('/account');
+    const none = m.kind === 'maker' && !db.prepare('SELECT 1 FROM works WHERE maker_id=? LIMIT 1').get(m.id);
+    res.redirect(none ? '/account/upload?welcome=1' : '/account'); // the first week (26 Oct): a new maker lands in the vault, not on a desk
   });
   app.get('/account/logout', (req, res) => res.redirect('/signin')); // signing out is a POST (/signout), never a link a crawler can follow
 
@@ -211,7 +212,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
 
   // ---------- the maker's own uploads: private until they publish ----------
-  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, signLine: app.locals.signRelease ? app.locals.signRelease.line() : '', welcome: req.query.welcome === 'own' })); });
+  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, signLine: app.locals.signRelease ? app.locals.signRelease.line() : '', welcome: req.query.welcome === 'own' || req.query.welcome === '1' })); });
   // One file into a maker's vault (shared by the one-request route and the arrivals queue): registered as the
   // maker's work, held privately, with its title (from the file name unless given), place and kind.
   async function takeWork(file, { originalname, title, place, kind, artist, makerId }) {

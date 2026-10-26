@@ -540,6 +540,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Every maker and estate has their own account and dashboard.
   app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger, mail });
   app.locals.steps = require('./steps').mountSteps(app, { db, V, base: C.base, makerOf: req => app.locals.accounts.makerOf(req) });
+  require('./firstweek').mountFirstWeek(app, { db, C, mail, ledger, steps: app.locals.steps }); // the first week (26 Oct): the vault first, seven mornings, who is stuck where, the first sale
 
   // --- public pages ---
   // Never a break (Will, 18 Oct): a link to a photograph no longer shown goes on to the next one, on a phone in the stroll.
