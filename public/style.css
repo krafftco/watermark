@@ -4123,3 +4123,27 @@ html.in-stay .top .nv-back{display:none}
 .jk-desk{display:inline-flex;gap:6px}
 .rdr-cover-jk{margin-left:8px;font-size:13px;white-space:nowrap}
 @media (max-width:760px){.jk-back{grid-template-columns:1fr}}
+/* The darkroom (26 Oct): the picture on the dark wall, the sliders beside it. */
+.dkr{min-height:100svh;background:#0b0a09;color:#e8e3da;display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr 320px;font-family:var(--sans)}
+.dkr-bar{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid #26231f;font-size:13px}
+.dkr-bar b{font-family:var(--disp);font-weight:400;font-size:17px}.dkr-back{color:#bdb6aa;text-decoration:none}.dkr-say{color:#bdb6aa;flex:1}.dkr-keys{color:#6f685e;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.dkr-wall{display:grid;place-items:center;padding:24px;min-height:0}
+.dkr-fig{position:relative;margin:0;max-width:100%;max-height:calc(100svh - 100px);display:inline-block}
+.dkr-fig img{display:block;max-width:100%;max-height:calc(100svh - 100px);width:auto;height:auto;transition:filter .08s linear;user-select:none}
+.dkr-fig [data-dkr-before]{position:absolute;inset:0;margin:auto}
+.dkr-busy .dkr-fig:after{content:"";position:absolute;right:10px;top:10px;width:9px;height:9px;border-radius:50%;background:#c9a24a;animation:dkr-pulse 1s infinite}
+@keyframes dkr-pulse{50%{opacity:.25}}
+.dkr-cropping .dkr-fig img{cursor:crosshair}.dkr-crop{position:absolute;border:1px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none}
+.dkr-panel{border-left:1px solid #26231f;padding:14px 16px 24px;overflow:auto;background:#0f0e0c}
+.dkr-panel h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8275;margin:16px 0 6px;font-weight:600}
+.dkr-s{display:grid;grid-template-columns:86px 1fr 36px;align-items:center;gap:8px;font-size:12px;margin:5px 0}
+.dkr-s span{color:#bdb6aa}.dkr-s output{text-align:right;color:#8a8275;font-variant-numeric:tabular-nums}
+.dkr-s input[type=range]{width:100%;accent-color:#c9a24a;height:18px;margin:0}
+.dkr-ck{font-size:12px;color:#bdb6aa;display:flex;gap:8px;align-items:center;margin:6px 0}
+.dkr-cropline{display:flex;gap:8px;margin:6px 0}.dkr-cropline button,.dkr-acts button{font:inherit;font-size:12px;padding:6px 10px;border:1px solid #3a362f;background:#171512;color:#e8e3da;border-radius:6px;cursor:pointer}
+.dkr-acts{display:grid;gap:8px;margin-top:18px}.dkr-acts .buy-btn{width:100%}.dkr-acts .dkr-apply{border-color:#c9a24a;color:#e6c875}.dkr-acts .dkr-neg{color:#bdb6aa}
+.dkr-fine{font-size:11px;color:#6f685e;line-height:1.5;margin-top:14px}
+.dkr-door{margin:14px 0}.dkr-door small{display:block;margin-top:6px;color:var(--mu);font-size:12px}
+@media (max-width:860px){.dkr{grid-template-columns:1fr;grid-template-rows:auto auto auto}.dkr-panel{border-left:0;border-top:1px solid #26231f}.dkr-fig img{max-height:60svh}.dkr-fig{max-height:60svh}.dkr-keys{display:none}}
+.dkr [hidden]{display:none!important}
+.dkr-acts .buy-btn{background:#e8e3da;color:#0b0a09;border-color:#e8e3da}

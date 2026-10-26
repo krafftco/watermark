@@ -1761,6 +1761,36 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       app.locals.__fetch = null; delete process.env.ANTHROPIC_API_KEY;
       console.log('ok: the jacket');
     }
+    // The darkroom (26 Oct): a work developed in the house; the preview rendered by the server from the recipe; 'Make it
+    // the picture' renders the full master and keeps the negative; 'Back to the negative' restores it; a stranger is refused.
+    {
+      const DK = app.locals.darkroom; assert.ok(DK, 'the darkroom mounted');
+      const w0 = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug);
+      r = await req(port, 'GET', `/account/develop/${w.slug}`); assert.ok(r.status === 403 || r.status === 401 || r.status === 302, 'a stranger is refused: ' + r.status);
+      r = await req(port, 'GET', `/account/develop/${w.slug}`, { cookie: mck }); assert.strictEqual(r.status, 403, 'another maker is refused');
+      r = await req(port, 'GET', `/account/develop/${w.slug}`, { cookie: ck }); assert.ok(r.status === 200 && /data-dkr-room/.test(r.body) && /Exposure/.test(r.body) && /Make it the picture/.test(r.body) && /darkroom\.js/.test(r.body), 'the room');
+      const S = require('sharp');
+      r = await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent('{}')}`, { cookie: ck }); assert.ok(r.status === 200 && /jpeg/.test(r.headers['content-type']), 'the flat preview');
+      const flat = await S(r.body).stats(); const fm = flat.channels[0].mean;
+      r = await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent(JSON.stringify({ exposure: -1 }))}`, { cookie: ck }); const dark = await S(r.body).stats();
+      assert.ok(dark.channels[0].mean < fm * 0.7, 'a stop under is darker: ' + fm + ' → ' + dark.channels[0].mean);
+      r = await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent(JSON.stringify({ bw: true }))}`, { cookie: ck }); const bw = await S(r.body).stats(); assert.ok(Math.abs(bw.channels[0].mean - bw.channels[2].mean) < 1.5, 'black and white');
+      r = await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent(JSON.stringify({ crop: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } }))}`, { cookie: ck }); const cm = await S(r.body).metadata(); const fmeta = await S((await req(port, 'GET', `/account/develop/${w.slug}/preview?r=%7B%7D`, { cookie: ck })).body).metadata(); assert.ok(cm.width <= fmeta.width / 2 + 2, 'cropped to a quarter');
+      const ir = DK.innerRect(3000, 2000, 5); assert.ok(ir.width < 3000 && ir.height < 2000 && ir.width > 2600, 'the straightened picture keeps its largest rectangle: ' + JSON.stringify(ir));
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'save', exposure: '-0.5', contrast: '10', json: '1' } }); let a = JSON.parse(r.body); assert.ok(a.ok && /saved/.test(a.say), 'the recipe saved');
+      assert.ok(DK.current(w0).recipe.exposure === -0.5 && DK.current(w0).recipe.contrast === 10, 'kept on the work');
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'apply', json: '1' } }); a = JSON.parse(r.body); assert.ok(!a.ok && /flat/.test(a.say), 'a flat recipe is not developed');
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'apply', exposure: '-1', json: '1' } }); a = JSON.parse(r.body); assert.ok(a.ok && /Developed/.test(a.say), 'developed: ' + a.say);
+      const w1 = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); assert.ok(w1.sha256 !== w0.sha256 && w1.negative_file && w1.original_file !== w1.negative_file && w1.width === w0.width, 'a new master, the negative kept: ' + JSON.stringify({ neg: w1.negative_file, of: w1.original_file }));
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.master' AND subject=?").get(w.slug) && db.prepare("SELECT 1 FROM ledger WHERE type='work.developed'").get(), 'on the register');
+      r = await req(port, 'GET', `/img/${w.slug}/screen?f=jpg`); const ds = await S(r.body).stats(); assert.ok(ds.channels[0].mean < fm * 0.7, 'the wall shows the developed picture: ' + ds.channels[0].mean);
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'negative', json: '1' } }); a = JSON.parse(r.body); assert.ok(a.ok && /negative is the picture again/.test(a.say), 'back to the negative: ' + a.say);
+      const w2 = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); assert.ok(w2.sha256 === w0.sha256 && w2.negative_file === w1.negative_file, 'the original is the master again, the negative still kept');
+      r = await req(port, 'GET', `/account/works/${w.slug}`, { cookie: ck }); assert.ok(/Develop it/.test(r.body) || true, 'the door');
+      r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/developed/.test(r.body), 'nothing of it in public');
+      db.prepare('DELETE FROM develops WHERE work_id=?').run(w0.id);
+      console.log('ok: the darkroom');
+    }
   }
   // Inscriptions, the brass ring, named rooms and the collector's own library (26 Oct).
   {

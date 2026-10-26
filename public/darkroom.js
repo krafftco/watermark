@@ -1,0 +1,66 @@
+// The darkroom (src/darkroom.js). While a slider moves the picture is approximated with CSS filters at once; when it
+// rests, the house renders the same recipe from the original and the true picture replaces it. B holds the negative
+// up for comparison; R resets; crop is drawn on the picture; Esc leaves.
+(function () {
+  'use strict';
+  var room = document.querySelector('[data-dkr-room]'); if (!room) return;
+  var base = room.getAttribute('data-base'), form = room.querySelector('[data-dkr-form]'), img = room.querySelector('[data-dkr-img]'), before = room.querySelector('[data-dkr-before]'), say = room.querySelector('[data-dkr-say]'), cropEl = room.querySelector('[data-dkr-crop]'), fig = img.parentNode;
+  var inputs = Array.prototype.slice.call(form.querySelectorAll('[data-dkr]')), cropIn = form.querySelector('input[name=crop]');
+  function recipe() {
+    var r = {}; inputs.forEach(function (i) { if (i.type === 'checkbox') r[i.name] = i.checked; else r[i.name] = +i.value; });
+    if (cropIn.value) { try { r.crop = JSON.parse(cropIn.value); } catch (e) { /* none */ } }
+    return r;
+  }
+  // The approximation: what CSS can do while the finger is on the slider.
+  function approx(r) {
+    var f = [];
+    if (r.exposure) f.push('brightness(' + Math.pow(2, r.exposure).toFixed(3) + ')');
+    if (r.contrast) f.push('contrast(' + (1 + r.contrast / 100 * (r.contrast > 0 ? 1 : 0.6)).toFixed(3) + ')');
+    if (r.whites) f.push('brightness(' + (1 + r.whites / 300).toFixed(3) + ')');
+    if (r.bw) f.push('grayscale(1)'); else if (r.saturation) f.push('saturate(' + Math.max(0, 1 + r.saturation / 100).toFixed(3) + ')');
+    if (r.temp) f.push('sepia(' + Math.abs(r.temp / 400).toFixed(3) + ')' + (r.temp < 0 ? ' hue-rotate(180deg) sepia(' + Math.abs(r.temp / 400).toFixed(3) + ') hue-rotate(180deg)' : ''));
+    img.style.filter = f.join(' ');
+    img.style.transform = r.rotate ? 'rotate(' + r.rotate + 'deg) scale(' + (1 + Math.abs(r.rotate) / 60).toFixed(3) + ')' : '';
+  }
+  var pending = null, busy = false, want = null;
+  function render() {
+    var r = recipe(); var url = base + '/preview?r=' + encodeURIComponent(JSON.stringify(r));
+    if (busy) { want = url; return; } busy = true; room.classList.add('dkr-busy');
+    var n = new Image(); n.onload = function () { img.src = url; img.style.filter = ''; img.style.transform = ''; busy = false; room.classList.remove('dkr-busy'); if (want && want !== url) { var w = want; want = null; busy = false; setTimeout(render, 0); } else want = null; };
+    n.onerror = function () { busy = false; room.classList.remove('dkr-busy'); };
+    n.src = url;
+  }
+  function changed(live) {
+    var r = recipe(); inputs.forEach(function (i) { var o = i.parentNode.querySelector('output'); if (o) o.textContent = i.value; });
+    approx(r); clearTimeout(pending); pending = setTimeout(render, live ? 450 : 60);
+  }
+  inputs.forEach(function (i) { i.addEventListener('input', function () { changed(true); }); i.addEventListener('change', function () { changed(false); }); });
+  // Before and after: hold B.
+  function hold(on) { before.hidden = !on; img.style.visibility = on ? 'hidden' : ''; }
+  addEventListener('keydown', function (e) { if (/input|textarea/i.test(e.target.tagName) && e.target.type !== 'range') return; if (e.key === 'b' || e.key === 'B') { hold(true); } if (e.key === 'r' || e.key === 'R') { reset(); } if (e.key === 'Escape') { var back = room.querySelector('.dkr-back'); if (cropping) endCrop(false); else if (back) location.href = back.href; } });
+  addEventListener('keyup', function (e) { if (e.key === 'b' || e.key === 'B') hold(false); });
+  img.addEventListener('pointerdown', function (e) { if (cropping) return; hold(true); e.preventDefault(); }); addEventListener('pointerup', function () { if (!cropping) hold(false); });
+  function reset() { inputs.forEach(function (i) { if (i.type === 'checkbox') i.checked = false; else i.value = i.name === 'rotate' ? 0 : 0; }); cropIn.value = ''; room.querySelector('[data-dkr-cropclear]').hidden = true; changed(false); }
+  var rb = room.querySelector('[data-dkr-reset]'); if (rb) rb.addEventListener('click', reset);
+  // Crop: draw a rectangle on the picture; kept as fractions of the picture as it is.
+  var cropping = false, c0 = null;
+  function rect() { return img.getBoundingClientRect(); }
+  function endCrop(keep) {
+    cropping = false; room.classList.remove('dkr-cropping');
+    if (keep && c0 && c0.w > 0.05 && c0.h > 0.05) { cropIn.value = JSON.stringify({ x: +c0.x.toFixed(4), y: +c0.y.toFixed(4), w: +c0.w.toFixed(4), h: +c0.h.toFixed(4) }); room.querySelector('[data-dkr-cropclear]').hidden = false; changed(false); }
+    cropEl.hidden = true; c0 = null;
+  }
+  var cs = room.querySelector('[data-dkr-cropstart]'); if (cs) cs.addEventListener('click', function () { cropping = true; room.classList.add('dkr-cropping'); say.textContent = 'Draw the crop on the picture; let go to keep it.'; });
+  var cc = room.querySelector('[data-dkr-cropclear]'); if (cc) cc.addEventListener('click', function () { cropIn.value = ''; cc.hidden = true; changed(false); });
+  var start = null;
+  fig.addEventListener('pointerdown', function (e) { if (!cropping) return; e.preventDefault(); var r = rect(); start = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; cropEl.hidden = false; });
+  fig.addEventListener('pointermove', function (e) { if (!cropping || !start) return; var r = rect(); var x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)); c0 = { x: Math.min(start.x, x), y: Math.min(start.y, y), w: Math.abs(x - start.x), h: Math.abs(y - start.y) }; cropEl.style.left = (r.left - fig.getBoundingClientRect().left + c0.x * r.width) + 'px'; cropEl.style.top = (r.top - fig.getBoundingClientRect().top + c0.y * r.height) + 'px'; cropEl.style.width = (c0.w * r.width) + 'px'; cropEl.style.height = (c0.h * r.height) + 'px'; });
+  addEventListener('pointerup', function () { if (cropping && start) { start = null; endCrop(true); } });
+  // Saving and developing without leaving the room.
+  form.addEventListener('submit', function (e) {
+    var btn = e.submitter; var d = btn && btn.value ? btn.value : 'save'; if (d === 'negative') return;
+    e.preventDefault(); var fd = new FormData(form); fd.set('do', d); fd.set('json', '1'); if (!form.querySelector('input[name=bw]').checked) fd.delete('bw'); else fd.set('bw', '1');
+    say.textContent = d === 'apply' ? 'Developing at full size: a minute for a large master.' : 'Saving.'; room.classList.add('dkr-busy');
+    fetch(form.action, { method: 'POST', body: new URLSearchParams(fd), credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) { say.textContent = j.say || (j.ok ? 'Done.' : 'Something went wrong.'); room.classList.remove('dkr-busy'); if (d === 'apply' && j.ok) { setTimeout(function () { location.reload(); }, 800); } }).catch(function () { say.textContent = 'The house could not be reached.'; room.classList.remove('dkr-busy'); });
+  });
+})();
