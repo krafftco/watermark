@@ -168,8 +168,8 @@ function mountDarkroom(app, { db, V, C, store, images, ledger, originalPath, rep
   const current = w => { const d = db.prepare('SELECT * FROM develops WHERE work_id=?').get(w.id); return d ? { ...d, recipe: recipeOf(d.recipe) } : null; };
   // The working copy: the original at 1600 px, made once, the base every preview is rendered from.
   async function base(w) {
-    const f = path.join(cache, `${w.slug}-dkr-${String(w.sha256).slice(0, 8)}.jpg`);
-    if (!fs.existsSync(f)) { const src = await originalPath(w); const tmp = `${f}.${process.pid}.tmp`; await sharp(src, { failOn: 'none', limitInputPixels: false }).rotate().resize({ width: 1600, withoutEnlargement: true, kernel: 'lanczos3' }).jpeg({ quality: 94, chromaSubsampling: '4:4:4' }).toFile(tmp); fs.renameSync(tmp, f); }
+    const f = path.join(cache, `${w.slug}-dkr-${w.negative_file ? 'neg-' + String(w.negative_file).slice(-12).replace(/[^\w]/g, '') : String(w.sha256).slice(0, 8)}.jpg`);
+    if (!fs.existsSync(f)) { const src = (await negativePath(w)) || (await originalPath(w)); /* the negative when one is kept: the recipe is always read from it */ const tmp = `${f}.${process.pid}.tmp`; await sharp(src, { failOn: 'none', limitInputPixels: false }).rotate().resize({ width: 1600, withoutEnlargement: true, kernel: 'lanczos3' }).jpeg({ quality: 94, chromaSubsampling: '4:4:4' }).toFile(tmp); fs.renameSync(tmp, f); }
     return f;
   }
 
@@ -211,18 +211,7 @@ ${masks}
     const w = workOf(req.params.slug); const o = own(req, w); if (!w) return res.sendStatus(404); if (!o) return res.sendStatus(403);
     const b = req.body || {}; const d = String(b.do || 'save'); const json = req.query.json === '1' || b.json === '1';
     const answer = (ok, say, extra = {}) => json ? res.json({ ok, say, ...extra }) : res.redirect(`/account/develop/${w.slug}?ok=${encodeURIComponent(say)}`);
-    if (d === 'negative') {
-      if (!w.negative_file) return answer(false, 'There is no negative kept for this work.');
-      try {
-        let src = path.join(originals, w.negative_file); if (!fs.existsSync(src)) { const buf = await store.get('negatives/' + w.negative_file); if (!buf) return answer(false, 'The negative could not be fetched from the vault.'); fs.writeFileSync(src, buf); }
-        const tmp = path.join(cache, `${w.slug}-neg-${Date.now()}${path.extname(w.negative_file)}`); fs.copyFileSync(src, tmp);
-        const info = await images.inspect(tmp), h = await images.dhash(tmp);
-        await replaceMaster(w, { path: tmp, originalname: w.negative_file }, info, h);
-        db.prepare('UPDATE develops SET applied_at=NULL WHERE work_id=?').run(w.id);
-        try { ledger.append(db, 'work.undeveloped', w.slug, { by: o.who, hidden: true }); } catch (e) { /* */ }
-        return answer(true, 'The negative is the picture again.');
-      } catch (e) { console.error('[darkroom]', e.message); return answer(false, 'The negative could not be put back: ' + e.message); }
-    }
+    if (d === 'negative') { const a = await putBack(w, o.who); return answer(a.ok, a.say); }
     let r; try { r = recipeOf({ ...b, crop: b.crop ? JSON.parse(b.crop) : null, masks: b.masks || [], bw: b.bw === '1' || b.bw === true || b.bw === 'on' }); } catch (e) { r = recipeOf(b); }
     if (d === 'unlook') { db.prepare('DELETE FROM develop_looks WHERE id=? AND owner=?').run(Number(b.look_id), o.who); return answer(true, 'The look is forgotten.'); }
     if (d === 'look') {
@@ -232,24 +221,62 @@ ${masks}
       if (had) db.prepare('UPDATE develop_looks SET recipe=? WHERE id=?').run(JSON.stringify(keep), had.id); else db.prepare('INSERT INTO develop_looks (owner, name, recipe) VALUES (?,?,?)').run(o.who, name, JSON.stringify(keep));
       return answer(true, `Kept as the look ‘${name}’.`, { looks: looksOf(o.who) });
     }
-    db.prepare("INSERT INTO develops (work_id, recipe, by, updated_at) VALUES (?,?,?, datetime('now')) ON CONFLICT(work_id) DO UPDATE SET recipe=excluded.recipe, by=excluded.by, updated_at=excluded.updated_at").run(w.id, JSON.stringify(r), o.who);
+    saveRecipe(w, r, o.who);
     if (d !== 'apply') return answer(true, 'The recipe is saved.');
     if (isFlat(r)) return answer(false, 'Nothing to develop: the recipe is flat.');
+    const a = await develop(w, r, o.who); return answer(a.ok, a.say);
+  });
+  // The acts, shared by the room and the Library's batch bar.
+  function saveRecipe(w, r, who) { db.prepare("INSERT INTO develops (work_id, recipe, by, updated_at) VALUES (?,?,?, datetime('now')) ON CONFLICT(work_id) DO UPDATE SET recipe=excluded.recipe, by=excluded.by, updated_at=excluded.updated_at").run(w.id, JSON.stringify(r), who); }
+  // The negative on disk (fetched from the vault when the cache dropped it), or null when the work has none.
+  async function negativePath(w) {
+    if (!w.negative_file) return null; const src = path.join(originals, w.negative_file);
+    if (!fs.existsSync(src)) { const buf = await store.get('negatives/' + w.negative_file); if (!buf) return null; fs.writeFileSync(src, buf); }
+    return src;
+  }
+  async function putBack(w, who) {
+    w = db.prepare('SELECT * FROM works WHERE id=?').get(w.id);
+    if (!w.negative_file) return { ok: false, say: 'There is no negative kept for this work.' };
     try {
-      const src = await originalPath(w); const ext = path.extname(w.original_file).toLowerCase() || '.jpg';
-      // The negative, kept once: the original as it was before any development.
-      if (!w.negative_file) { const neg = `${w.slug}-negative-${String(w.sha256).slice(0, 10)}${ext}`; const np = path.join(originals, neg); fs.copyFileSync(src, np); await store.put('negatives/' + neg, np, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg'); db.prepare('UPDATE works SET negative_file=? WHERE id=?').run(neg, w.id); }
+      const src = await negativePath(w); if (!src) return { ok: false, say: 'The negative could not be fetched from the vault.' };
+      const tmp = path.join(cache, `${w.slug}-neg-${Date.now()}${path.extname(w.negative_file)}`); fs.copyFileSync(src, tmp);
+      const info = await images.inspect(tmp), h = await images.dhash(tmp);
+      await replaceMaster(w, { path: tmp, originalname: w.negative_file }, info, h);
+      db.prepare('UPDATE develops SET applied_at=NULL WHERE work_id=?').run(w.id);
+      try { ledger.append(db, 'work.undeveloped', w.slug, { by: who, hidden: true }); } catch (e) { /* */ }
+      return { ok: true, say: 'The negative is the picture again.' };
+    } catch (e) { console.error('[darkroom]', e.message); return { ok: false, say: 'The negative could not be put back: ' + e.message }; }
+  }
+  // Develop: the recipe rendered at full size from the negative (kept once, the first time) and made the master.
+  async function develop(w, r, who) {
+    w = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); let p = null;
+    try {
+      const ext = path.extname(w.original_file).toLowerCase() || '.jpg';
+      if (!w.negative_file) { const cur = await originalPath(w); const neg = `${w.slug}-negative-${String(w.sha256).slice(0, 10)}${ext}`; const np = path.join(originals, neg); fs.copyFileSync(cur, np); await store.put('negatives/' + neg, np, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg'); db.prepare('UPDATE works SET negative_file=? WHERE id=?').run(neg, w.id); w.negative_file = neg; }
+      const src = (await negativePath(w)) || (await originalPath(w)); // always from the negative, so looks never compound
       const out = path.join(cache, `${w.slug}-developed-${Date.now()}.jpg`);
-      const p = await apply(src, r); await p.withMetadata().jpeg({ quality: 100, chromaSubsampling: '4:4:4', mozjpeg: false }).toFile(out); sweepTmp(p);
+      p = await apply(src, r); await p.withMetadata().jpeg({ quality: 100, chromaSubsampling: '4:4:4', mozjpeg: false }).toFile(out); sweepTmp(p);
       const info = await images.inspect(out), h = await images.dhash(out);
       await replaceMaster(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), { path: out, originalname: `${w.slug}-developed.jpg` }, info, h);
       db.prepare("UPDATE develops SET applied_at=datetime('now') WHERE work_id=?").run(w.id);
-      try { ledger.append(db, 'work.developed', w.slug, { by: o.who, recipe: r, hidden: true }); } catch (e) { /* */ }
-      return answer(true, 'Developed. It is the picture now; the negative is kept.');
-    } catch (e) { console.error('[darkroom]', e.message); return answer(false, 'It could not be developed: ' + e.message); }
-  });
+      try { ledger.append(db, 'work.developed', w.slug, { by: who, recipe: r, hidden: true }); } catch (e) { /* */ }
+      return { ok: true, say: 'Developed. It is the picture now; the negative is kept.' };
+    } catch (e) { sweepTmp(p); console.error('[darkroom]', e.message); return { ok: false, say: 'It could not be developed: ' + e.message }; }
+  }
+  // The queue (the Library's batch bar, 26 Oct): one look over many works, developed one at a time in the background.
+  const queue = []; const state = new Map(); let pumping = false;
+  function enqueue(works, r, who) {
+    for (const w of works) { if (state.get(w.slug) === 'waiting' || state.get(w.slug) === 'developing') continue; saveRecipe(w, r, who); queue.push({ id: w.id, slug: w.slug, r, who }); state.set(w.slug, 'waiting'); }
+    if (!pumping) pump();
+  }
+  async function pump() {
+    pumping = true;
+    while (queue.length) { const j = queue.shift(); state.set(j.slug, 'developing'); const w = db.prepare('SELECT * FROM works WHERE id=?').get(j.id); const a = w ? await develop(w, j.r, j.who) : { ok: false }; state.set(j.slug, a.ok ? 'done' : 'failed'); }
+    pumping = false;
+  }
+  const lookOf = (key, who) => { const h = LOOKS.find(([k]) => k === key); if (h) return recipeOf(h[2]); const m = /^mine:(\d+)$/.exec(String(key || '')); if (m) { const row = db.prepare('SELECT recipe FROM develop_looks WHERE id=? AND owner=?').get(Number(m[1]), who); if (row) return recipeOf(row.recipe); } return null; };
   const door = (w, base) => `<p class="dkr-door"><a class="buy-btn" href="/account/develop/${esc(w.slug)}">Develop it</a><small>The darkroom: exposure, contrast, colour, crop and straighten, rendered by the house from the original; the negative kept.${w.negative_file ? ' Developed.' : ''}</small></p>`;
-  app.locals.darkroom = { recipeOf, apply, isFlat, innerRect, door, current, SLIDERS, MASK_ADJ, LOOKS, lut, maskAt, looksOf };
+  app.locals.darkroom = { recipeOf, apply, isFlat, innerRect, door, current, SLIDERS, MASK_ADJ, LOOKS, lut, maskAt, looksOf, develop, putBack, enqueue, lookOf, state: slug => state.get(slug) || null, queued: () => queue.length + (pumping ? 1 : 0) };
   return app.locals.darkroom;
 }
 module.exports = { mountDarkroom, recipeOf, apply, isFlat, innerRect, SLIDERS, MASK_ADJ, lut, curved, rawPass, masked, maskAt, sweepTmp, LOOKS };

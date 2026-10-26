@@ -20,6 +20,7 @@ function mountTable(app, { db, V, C, makerOf, KINDS }) {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/table');
     V.setDeskPath && V.setDeskPath('/account/table');
     const works = list(m); const places = [...new Set(works.map(w => w.place).filter(Boolean))].sort();
+    const DK = app.locals.darkroom; const looks = DK ? DK.LOOKS.map(([key, name]) => ({ key, name })).concat(DK.looksOf(m.handle).map(l => ({ key: 'mine:' + l.id, name: l.name + ' (yours)' }))) : [];
     const I = require('./icons');
     res.set('Cache-Control', 'private, no-store');
     res.send(V.layout({ title: 'The Library · Your studio', studio: true, bare: false, body: `<main class="lib" data-lib data-f="${esc(String(req.query.f || ''))}">
@@ -38,6 +39,7 @@ function mountTable(app, { db, V, C, makerOf, KINDS }) {
 <span class="lib-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-act="stars" data-stars="${n}" title="${n} stars (${n})">${'★'.repeat(n)}</button>`).join('')}<button type="button" data-act="stars" data-stars="0" title="Clear the grade (0)">0</button></span>
 <span class="lib-place"><input placeholder="A place for all of them" data-lib-place list="lib-places"><datalist id="lib-places">${places.map(p => `<option value="${esc(p)}">`).join('')}</datalist><button type="button" data-act="place">Set</button></span>
 <select data-lib-kind title="Kind"><option value="">Kind…</option>${(KINDS || []).map(k => `<option value="${esc(k)}">${esc(k[0].toUpperCase() + k.slice(1))}</option>`).join('')}</select>
+<span class="lib-look"><select data-lib-look title="A look from the darkroom, over all of them"><option value="">Look…</option>${(looks || []).map(l => `<option value="${esc(l.key)}">${esc(l.name)}</option>`).join('')}</select><button type="button" data-act="look" title="Develop every selected work with this look; each keeps its own crop and masks; the negative is kept">Develop</button></span>
 <button type="button" class="link" data-act="hide">Make private</button>
 <button type="button" class="buy-btn lib-pub" data-act="publish">Publish</button>
 </span>

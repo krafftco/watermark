@@ -118,7 +118,7 @@
   function undoOf(body, before) {
     // The inverse: publish ↔ hide; stars, flags, place and kind back to what each had (grouped by value).
     var groups = {}; before.forEach(function (b) {
-      var key, val; if (body.do === 'publish') { key = 'hide'; val = ''; } else if (body.do === 'hide') { key = 'publish'; val = ''; } else if (body.do === 'stars') { key = 'stars'; val = String(b.stars); } else if (body.do === 'flag') { key = 'flag'; val = b.flag || 'none'; } else if (body.do === 'place') { key = 'place'; val = b.place; } else if (body.do === 'kind') { key = 'kind'; val = b.kind; } else return;
+      var key, val; if (body.do === 'look') { key = 'negative'; val = ''; } else if (body.do === 'publish') { key = 'hide'; val = ''; } else if (body.do === 'hide') { key = 'publish'; val = ''; } else if (body.do === 'stars') { key = 'stars'; val = String(b.stars); } else if (body.do === 'flag') { key = 'flag'; val = b.flag || 'none'; } else if (body.do === 'place') { key = 'place'; val = b.place; } else if (body.do === 'kind') { key = 'kind'; val = b.kind; } else return;
       var k = key + '|' + val; (groups[k] = groups[k] || { key: key, val: val, slugs: [] }).slugs.push(b.slug);
     });
     var runs = Object.keys(groups).map(function (k) { return groups[k]; });
@@ -136,6 +136,7 @@
     var b = e.target.closest('[data-act]'); if (!b) return; var a = b.getAttribute('data-act');
     if (a === 'publish') publish();
     else if (a === 'hide') act({ do: 'hide' });
+    else if (a === 'look') { var lk = root.querySelector('[data-lib-look]'); if (!lk || !lk.value) { toast('Choose a look first.'); return; } act({ do: 'look', look: lk.value }); }
     else if (a === 'stars') act({ do: 'stars', stars: b.getAttribute('data-stars') });
     else if (a === 'flag') act({ do: 'flag', flag: b.getAttribute('data-flag') });
     else if (a === 'place') { var p = root.querySelector('[data-lib-place]').value.trim(); if (!p) { root.querySelector('[data-lib-place]').focus(); return; } act({ do: 'place', place: p }); }

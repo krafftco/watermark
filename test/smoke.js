@@ -1909,6 +1909,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: mck, body: { do: 'unlook', look_id: String(lk.id), json: '1' } }); assert.strictEqual(r.status, 403, 'another maker cannot forget it');
       r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'unlook', look_id: String(lk.id), json: '1' } }); assert.ok(JSON.parse(r.body).ok && !db.prepare("SELECT 1 FROM develop_looks WHERE id=?").get(lk.id), 'forgotten');
       assert.ok(!DK.isFlat(DK.recipeOf(grad)) && DK.isFlat(DK.recipeOf({ masks: [{ kind: 'radial', g: { cx: .5, cy: .5 }, adj: {} }] })), 'a mask with nothing set is flat');
+      // The Library's batch bar (26 Oct): one look over many works, developed one at a time behind; undone by going back to the negative.
+      {
+        const ew = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND negative_file IS NULL LIMIT 1").get(est.id); assert.ok(ew, 'a work of est to develop');
+        const sha0 = ew.sha256;
+        r = await req(port, 'GET', '/account/table', { cookie: mck }); assert.ok(/data-lib-look/.test(r.body) && /data-act="look"/.test(r.body) && /value="silver"/.test(r.body), 'the look on the bar');
+        r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: ew.slug, do: 'look', look: 'nope', json: '1' } }); assert.ok(/not: a look/.test(JSON.parse(r.body).msg), 'an unknown look refused');
+        r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: ew.slug, do: 'look', look: 'silver', json: '1' } }); assert.ok(/1 developing/.test(JSON.parse(r.body).msg), 'queued: ' + r.body);
+        for (let i = 0; i < 200 && !['done', 'failed'].includes(DK.state(ew.slug)); i++) await new Promise(res2 => setTimeout(res2, 100));
+        assert.strictEqual(DK.state(ew.slug), 'done', 'developed by the queue');
+        const ew1 = db.prepare('SELECT * FROM works WHERE id=?').get(ew.id); assert.ok(ew1.negative_file && ew1.sha256 !== sha0 && DK.current(ew1).recipe.bw === true, 'the look on the work, the negative kept');
+        r = await req(port, 'POST', '/account/works/batch', { cookie: mck, body: { slugs: ew.slug, do: 'negative', json: '1' } }); assert.ok(/1 going back/.test(JSON.parse(r.body).msg), 'back to the negative asked');
+        for (let i = 0; i < 200 && db.prepare('SELECT sha256 FROM works WHERE id=?').get(ew.id).sha256 !== sha0; i++) await new Promise(res2 => setTimeout(res2, 100));
+        assert.strictEqual(db.prepare('SELECT sha256 FROM works WHERE id=?').get(ew.id).sha256, sha0, 'the negative is the picture again');
+      }
       db.prepare('DELETE FROM develops WHERE work_id=?').run(w0.id);
       console.log('ok: the darkroom');
     }

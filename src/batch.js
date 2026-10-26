@@ -10,7 +10,7 @@
 function mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf, mayHang, KINDS }) {
   const parse = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean).slice(0, 500);
   function run(works, body, who, m) {
-    const act = String(body.do || ''); let done = 0, refused = 0, why = '';
+    const act = String(body.do || ''); let done = 0, refused = 0, why = ''; const pending = [];
     for (const w of works) {
       if (act === 'publish') {
         if (w.status === 'held') continue;
@@ -34,13 +34,21 @@ function mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf, mayHang, K
         db.prepare('UPDATE works SET kind=? WHERE id=?').run(kind, w.id); done++;
       } else if (act === 'curate' || act === 'uncurate') {
         db.prepare('UPDATE works SET curated=? WHERE id=?').run(act === 'curate' ? 1 : 0, w.id); done++;
+      } else if (act === 'look') { // the darkroom's looks over many works (26 Oct): the recipe saved on each, developed one at a time behind
+        const DK = app.locals.darkroom; const r = DK && DK.lookOf(body.look, who); if (!r) { refused++; why = 'a look'; continue; }
+        const cur = DK.current(w); const keep = cur ? { ...r, crop: cur.recipe.crop, rotate: cur.recipe.rotate, masks: cur.recipe.masks } : r; // a look is light and colour; the work keeps its frame and masks
+        DK.enqueue([w], keep, who); done++;
+      } else if (act === 'negative') { // back to the negative, for each that has one
+        const DK = app.locals.darkroom; if (!DK || !w.negative_file) { refused++; why = 'no negative kept'; continue; }
+        pending.push(w); done++;
       } else if (act === 'flag') { // Lightroom's flags (25 Oct): pick, reject, or none; nothing else changes.
         const f = ['pick', 'reject'].includes(String(body.flag)) ? String(body.flag) : null;
         try { db.prepare('UPDATE works SET flag=? WHERE id=?').run(f, w.id); done++; } catch (e) { refused++; why = 'flags'; }
       }
     }
+    if (pending.length) { const DK = app.locals.darkroom; (async () => { for (const w of pending) { try { await DK.putBack(w, who); } catch (e) { console.error('[batch] negative', e.message); } } })(); }
     if (done && app.locals.findIndexDirty) app.locals.findIndexDirty();
-    const word = { publish: 'published', hide: 'made private', stars: 'graded', place: 'given a place', kind: 'given a kind', curate: 'marked curated', uncurate: 'unmarked', flag: body.flag === 'pick' ? 'picked' : body.flag === 'reject' ? 'rejected' : 'unflagged' }[act] || 'touched';
+    const word = { publish: 'published', hide: 'made private', stars: 'graded', place: 'given a place', kind: 'given a kind', curate: 'marked curated', uncurate: 'unmarked', flag: body.flag === 'pick' ? 'picked' : body.flag === 'reject' ? 'rejected' : 'unflagged', look: 'developing in the darkroom; the walls follow as each is done', negative: 'going back to the negative' }[act] || 'touched';
     return `${done} ${word}${refused ? `; ${refused} not: ${why}` : ''}.`;
   }
   app.post('/account/works/batch', (req, res) => {

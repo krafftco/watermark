@@ -4284,3 +4284,4 @@ html.in-stay .top .nv-back{display:none}
 .dkr-mhead{display:flex;align-items:center;gap:10px;margin:0 0 2px;font-size:12px}.dkr-mhead b{font-weight:500;flex:1}.dkr-mhead label{display:flex;gap:4px;align-items:center;color:#bdb6aa;font-size:11.5px}.dkr-mhead button{font:inherit;font-size:11px;background:none;border:0;color:#8a8275;cursor:pointer;padding:0}
 .dkr-mask:not(.on) .dkr-mbody{display:none}.dkr-mnone{font-size:11.5px;color:#6f685e;margin:0 0 6px}
 .dkr-mk{position:absolute;pointer-events:none}
+.lib-look{display:inline-flex;gap:4px;align-items:center}.lib-look select{max-width:150px}
