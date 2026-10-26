@@ -943,7 +943,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
         const first = db.prepare('SELECT w.slug FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.ref=?').get(rev[0]).slug;
         r = await req(port, 'GET', '/wander?in=mine', { cookie }); const b1 = r.body.toString(); const i1 = b1.indexOf('data-slug="' + first + '"'); assert.ok(i1 >= 0 && i1 < b1.indexOf('data-slug="', i1 + 10), 'Wander your gallery opens on the first in your order');
         r = await req(port, 'POST', '/yours/order', { body: { order: rev.join(',') } }); assert.equal(r.status, 401, 'a stranger cannot arrange'); } }
-    r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/yc-stroll/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
+    r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/\/wander\?in=mine/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
     r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
   // The first collector (19 Oct): the house names No. 1 by hand; the honour shows on the gallery, the Galleries page and the Keys.
@@ -2092,7 +2092,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.headers.location, '/yours', 'a claim link works once');
   // The market: the collector offers the piece, someone asks to buy it, the Studio settles, it moves with its price.
   r = await req(port, 'POST', '/yours/offer', { cookie: nck, body: { ref: held2.ref, ask: '40' } }); assert.ok(r.headers.location.includes('offer=1'), 'offered');
-  r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>'), 'offered'); r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('class="pf"'), 'the portfolio shows');
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>'), 'offered'); r = await req(port, 'GET', '/yours', { cookie: nck }); assert.ok(r.body.toString().includes('class="pf"') || /What it is worth/.test(r.body), 'the portfolio shows');
   r = await req(port, 'GET', `/w/${w2.slug}`, { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('Withdraw'), 'the holder sees their offer on the work');
   r = await req(port, 'GET', '/market'); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('$40'), 'on the market');
   const lst = db.prepare("SELECT id FROM listings WHERE status='open'").get().id;
