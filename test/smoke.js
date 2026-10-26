@@ -1440,6 +1440,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/hang/${hg.slug}`); assert.ok(/Take the tour/.test(r.body), 'the door on the wall');
     r = await req(port, 'GET', '/guides'); assert.ok(r.status === 200 && r.body.toString().includes(`/tour/${hg.slug}`), 'the guide is listed');
     r = await req(port, 'POST', `/tour/${hg.id}/voice/${ow.slug}/remove`, { cookie: ck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.isTour(hg), 'removed');
+    // The gallery as a tour (26 Oct): a collector's whole gallery walked in their own voice.
+    { const gb0 = db.prepare("SELECT b.* FROM buyers b JOIN licenses l ON l.buyer_id=b.id WHERE l.status='active' AND l.price_cents > 0 GROUP BY b.id ORDER BY COUNT(*) DESC LIMIT 1").get(); assert.ok(gb0, 'a collector');
+      db.prepare("UPDATE buyers SET public=1, code=COALESCE(code, 'tourcode01'), name=COALESCE(name, 'Ada Tour') WHERE id=?").run(gb0.id); const gb = db.prepare('SELECT * FROM buyers WHERE id=?').get(gb0.id);
+      const gck = 'wm_b=' + gb.id + '.' + require('crypto').createHmac('sha256', 's').update('b' + gb.id).digest('hex');
+      const gh = app.locals.tours.galleryHang(gb); assert.ok(gh.id === -gb.id && gh.slug === 'g-' + gb.code && gh.public, 'the gallery stands in for a wall');
+      r = await req(port, 'GET', '/yours/tour'); assert.equal(r.status, 302, 'a stranger is sent to sign in');
+      r = await req(port, 'GET', '/yours/tour', { cookie: gck }); assert.ok(r.status === 200 && /A tour, in your voice/.test(r.body) && r.body.toString().includes(`data-tour-rec="/tour/${gh.id}/voice/welcome"`), 'the desk: the welcome and the pieces');
+      r = await req(port, 'POST', `/tour/${gh.id}/voice/welcome`, { body, headers: { 'content-type': `multipart/form-data; boundary=${bd}` } }); assert.ok(r.status === 401 || r.status === 403, 'a stranger cannot record the gallery');
+      r = await req(port, 'POST', `/tour/${gh.id}/voice/welcome`, { cookie: gck, body, headers: { 'content-type': `multipart/form-data; boundary=${bd}` } }); assert.equal(r.status, 200, 'the collector records the welcome: ' + r.body);
+      const gw = app.locals.tours.galleryHang(gb); assert.ok(app.locals.tours.isTour(gw) && app.locals.tours.galleryDoor(gb) === `/tour/${gw.slug}`, 'the gallery is a tour');
+      r = await req(port, 'GET', `/tour/${gw.slug}`); assert.ok(r.status === 200 && /data-tour=/.test(r.body) && r.body.toString().includes(`/tour/${gw.id}/voice/`), 'a stranger walks the gallery in the collector’s voice');
+      r = await req(port, 'GET', '/g/' + gb.code); assert.ok(r.body.toString().includes(`/tour/${gw.slug}`) && /Take the tour, in/.test(r.body), 'the gallery’s head offers the tour');
+      r = await req(port, 'GET', '/yours', { cookie: gck }); assert.ok(/Take your tour/.test(r.body) && /A tour, in your voice/.test(r.body), 'the house offers it to the owner');
+      r = await req(port, 'POST', `/tour/${gw.id}/voice/welcome/remove`, { cookie: gck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.galleryDoor(gb), 'removed'); }
   }
   console.log('ok: tours');
   { // The rooms, scoped and on the clock; the kids' corner; a museum's own house on its own domain.

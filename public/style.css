@@ -4173,3 +4173,8 @@ html.in-stay .top .nv-back{display:none}
 .tc-grip{position:absolute;top:4px;right:4px;z-index:2;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(37,34,30,.08);color:#25221e;cursor:grab;opacity:0;transition:opacity .3s}.tc-grip .ic{width:16px;height:16px}
 .tc:hover .tc-grip,.tc-grip:focus{opacity:.8}@media (pointer:coarse){.tc-grip{opacity:.55}}
 .tc.arr-lift{opacity:.55;transform:rotate(0) scale(1.03)}.tc-grid.arr-saved .tc-grip{color:#2e7d4f}
+/* The gallery's tour (26 Oct). */
+.ch-tour{margin:0 0 12px}.ch-tour a{color:#d9bc7c;text-decoration:none;font:500 12px/1.4 var(--sans);letter-spacing:.2em;text-transform:uppercase;border-bottom:1px solid rgba(217,188,124,.4)}
+.twg-welcome{margin:22px 0 10px;padding:16px 0;border-top:1px solid var(--line,#e6e1d6)}.twg-welcome h2{margin:0 0 8px;font:400 22px/1 var(--read);text-transform:none;letter-spacing:0}
+.twg-list{list-style:none;margin:0;padding:0}.twg-list li{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line,#e6e1d6)}.twg-pic img{width:96px;height:72px;object-fit:cover;display:block;background:#111}
+.twg-list b{display:block;font:400 18px/1.2 var(--read)}.twg-list i{display:block;font:400 12px/1.5 var(--sans);font-style:normal;color:var(--mu);margin:2px 0 6px}

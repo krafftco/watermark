@@ -18,7 +18,29 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   db.exec(`CREATE TABLE IF NOT EXISTS tour_voices (id INTEGER PRIMARY KEY, hang_id INTEGER NOT NULL, work_id INTEGER NOT NULL DEFAULT 0, file TEXT NOT NULL, mime TEXT NOT NULL, seconds REAL, bytes INTEGER, at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (hang_id, work_id))`);
   const multer = require('multer'); const dir = path.join(C.dataDir, 'incoming'); fs.mkdirSync(dir, { recursive: true });
   const upload = multer({ dest: dir, limits: { fileSize: MAX_MB * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^(audio|video)\//.test(f.mimetype)) });
-  const H = () => app.locals.hangs;
+  // The gallery as a tour (26 Oct, the collector's house): a collector's whole gallery is walked as a wall is, in
+  // their own voice. The gallery stands in for a hang: id = -buyer id, slug 'g-<code>', the pieces in the gallery's
+  // own order (the owner's hand first), public when the gallery is. tour_voices keys on the negative id.
+  const galleryHang = b => (b ? { id: -b.id, gallery: true, slug: `g-${b.code || b.id}`, title: `${b.name ? b.name + '’s' : 'A'} gallery`, buyer_id: b.id, public: !!(b.public && b.code), line: b.statement || '', curator: b.name, curator_code: b.code, curator_public: b.public, updated_at: null } : null);
+  const H = () => {
+    const h = app.locals.hangs;
+    return {
+      ...h,
+      byId: id => (Number(id) < 0 ? galleryHang(db.prepare('SELECT * FROM buyers WHERE id=?').get(-Number(id))) : h.byId(id)),
+      bySlug: slug => (/^g-/.test(String(slug)) ? galleryHang(db.prepare('SELECT * FROM buyers WHERE code=?').get(String(slug).slice(2))) : h.bySlug(slug)),
+      worksOf: x => (x && x.gallery ? galleryWorks(x) : h.worksOf(x)),
+      href: x => (x && x.gallery ? (x.curator_code ? `/g/${x.curator_code}` : '/yours') : h.href(x))
+    };
+  };
+  const galleryWorks = x => {
+    const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(x.buyer_id); if (!b) return [];
+    let hand = []; try { hand = app.locals.ownHand ? app.locals.ownHand(b) : []; } catch (e) { hand = []; }
+    const list = app.locals.walk && b.code ? (app.locals.walk.list('gallery:' + b.code) || { works: [] }).works : [];
+    const seen = new Set(); const slugs = [...hand, ...list].map(w => w.slug).filter(s => !seen.has(s) && seen.add(s));
+    if (!slugs.length) return [];
+    const rows = db.prepare(`SELECT w.*, m.name AS maker, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.slug IN (${slugs.map(() => '?').join(',')})`).all(...slugs);
+    const by = Object.fromEntries(rows.map(r => [r.slug, r])); return slugs.map(s => by[s]).filter(Boolean).map((w, i) => ({ ...w, pos: i + 1, note: '' }));
+  };
   const own = (req, h) => { const b = buyerOf(req); return isStudio(req) || !!(b && h && h.buyer_id === b.id); };
   const voices = h => db.prepare('SELECT * FROM tour_voices WHERE hang_id=?').all(h.id);
   const voiceMap = h => { const m = {}; for (const v of voices(h)) m[v.work_id] = v; return m; };
@@ -28,7 +50,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   // The curator records a word on a work (or the welcome: work 'welcome').
   app.post('/tour/:id/voice/:work', upload.single('voice'), (req, res, next) => app.locals.bagcheck.gate('audio', { json: true })(req, res, next), async (req, res) => {
     const h = H().byId(req.params.id); if (!h || !own(req, h)) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(h ? 403 : 404); }
-    const wid = req.params.work === 'welcome' ? 0 : (db.prepare('SELECT w.id FROM works w JOIN hang_works hw ON hw.work_id=w.id WHERE hw.hang_id=? AND w.slug=?').get(h.id, String(req.params.work)) || {}).id;
+    const wid = req.params.work === 'welcome' ? 0 : h.gallery ? (H().worksOf(h).find(w => w.slug === String(req.params.work)) || {}).id : (db.prepare('SELECT w.id FROM works w JOIN hang_works hw ON hw.work_id=w.id WHERE hw.hang_id=? AND w.slug=?').get(h.id, String(req.params.work)) || {}).id;
     if (wid == null || !req.file) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(400); }
     const seconds = Math.min(MAX_SECONDS, +req.body.seconds || 0) || null;
     const file = `tours/${h.id}-${wid}-${crypto.randomBytes(5).toString('hex')}.${ext(req.file.mimetype)}`;
@@ -38,7 +60,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
     const old = db.prepare('SELECT * FROM tour_voices WHERE hang_id=? AND work_id=?').get(h.id, wid);
     if (old) { try { if (store.del) await store.del(old.file); } catch (e) { /* */ } }
     db.prepare('INSERT INTO tour_voices (hang_id, work_id, file, mime, seconds, bytes) VALUES (?,?,?,?,?,?) ON CONFLICT(hang_id, work_id) DO UPDATE SET file=excluded.file, mime=excluded.mime, seconds=excluded.seconds, bytes=excluded.bytes, at=datetime(\'now\')').run(h.id, wid, file, req.file.mimetype, seconds, req.file.size);
-    if (first && h.public) { try { ledger.append(db, 'tour.opened', h.slug, { title: h.title, by: guideOf(h).name || 'a guide' }); } catch (e) { /* */ } }
+    if (first && h.public) { try { ledger.append(db, 'tour.opened', h.slug, { title: h.title, by: guideOf(h).name || 'a guide', gallery: !!h.gallery }); } catch (e) { /* */ } }
     const v = db.prepare('SELECT * FROM tour_voices WHERE hang_id=? AND work_id=?').get(h.id, wid);
     res.set('Cache-Control', 'private, no-store'); res.json({ ok: true, src: `/tour/${h.id}/voice/${v.id}`, seconds: v.seconds });
   });
@@ -62,7 +84,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   app.get('/tour/:slug', (req, res) => {
     const h = H().bySlug(req.params.slug); if (!h) return res.sendStatus(404);
     if (!h.public && !own(req, h)) return res.sendStatus(403);
-    if (h.public) res.cookie('wm_via', `hang:${h.id}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 30 * 86400e3 });
+    if (h.public) res.cookie('wm_via', h.gallery ? `gallery:${h.curator_code}` : `hang:${h.id}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 30 * 86400e3 });
     const works = H().worksOf(h), vm = voiceMap(h), g = guideOf(h);
     const stops = [{ welcome: true, voice: vm[0] ? `/tour/${h.id}/voice/${vm[0].id}` : null }].concat(works.map(w => ({ slug: w.slug, title: w.title, maker: w.maker, handle: w.handle, place: w.place, year: w.taken_at ? String(w.taken_at).slice(0, 4) : '', note: w.note || '', voice: vm[w.id] ? `/tour/${h.id}/voice/${vm[w.id].id}` : null })));
     const at = Math.max(0, stops.findIndex(s => s.slug === req.query.at));
@@ -88,9 +110,20 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
     const key = w ? w.slug : 'welcome';
     return `<div class="tw-rec" data-tour-rec="/tour/${h.id}/voice/${esc(key)}" ${v ? `data-has="/tour/${h.id}/voice/${v.id}"` : ''}><button type="button" class="link tw-rec-b">${v ? 'Say it again' : w ? 'Say a word on this one' : 'Record a welcome'}</button>${v ? `<audio controls preload="none" src="/tour/${h.id}/voice/${v.id}"></audio><button type="button" class="link tw-rec-x">Remove</button>` : ''}<span class="tw-rec-s"></span></div>`;
   }
+  // The collector's own desk for the gallery's tour: the welcome and a word on each piece.
+  app.get('/yours/tour', (req, res) => {
+    const b = buyerOf(req); if (!b) return res.redirect('/signin?back=/yours/tour');
+    const h = galleryHang(b), works = galleryWorks(h);
+    res.send(layout({ title: 'A tour of your gallery · Watermark', path: '/yours/tour', body: `<section class="cx-intro twg"><p class="k">Your house</p><h1>A tour, in your voice.</h1>
+<p class="lede">Say a word on each piece and a welcome at the door, and your gallery can be walked the way a guide walks a wall: the picture alone, your voice beside it, on to the next when you finish. Three minutes a stop at most; nothing is transcribed and no model hears it.${h.public ? ` <a href="/tour/${esc(h.slug)}">Take it</a>.` : ' The tour opens with your gallery: give it your name and an address under <a href="/yours?tab=more#settings">Settings</a>.'}</p>
+<div class="twg-welcome"><h2>The welcome</h2>${recorder(h, null)}</div>
+<ol class="twg-list">${works.map(w => `<li><a class="twg-pic" href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a><div><b>${esc(V.tidy ? V.tidy(w.title) : w.title)}</b><i>${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}</i>${recorder(h, w)}</div></li>`).join('')}</ol>
+${works.length ? '' : '<p class="yc-shelf">Nothing to walk yet: collect a piece first.</p>'}</section><script src="/static/tour.js?v=${esc(V.VER)}" defer></script>` }));
+  });
+  const galleryDoor = b => { const h = galleryHang(b); return h && h.public && isTour(h) ? `/tour/${h.slug}` : null; };
   const door = h => (isTour(h) ? `<p class="hg-share tw-door"><a href="/tour/${esc(h.slug)}">${I.guide}<span>Take the tour, in ${esc((guideOf(h).name || 'the guide').split(' ')[0])}’s voice</span></a></p>` : '');
   const toursBy = b => (b ? db.prepare('SELECT DISTINCT h.* FROM hangs h JOIN tour_voices v ON v.hang_id=h.id WHERE h.buyer_id=? ORDER BY h.updated_at DESC').all(b.id) : []);
-  app.locals.tours = { isTour, recorder, door, toursBy, voices, MAX_SECONDS };
+  app.locals.tours = { isTour, recorder, door, toursBy, voices, MAX_SECONDS, galleryHang, galleryDoor };
   return app.locals.tours;
 }
 module.exports = { mountTours };
