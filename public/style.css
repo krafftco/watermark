@@ -3032,10 +3032,13 @@ html.fd-on{overflow:hidden}
   /* Sideways (Will, 23 Oct, on the Duo: the row along the bottom 'doesn't look great'): the rail stays a column, at the right edge, centred, where a portrait picture leaves the dark. */
   .st .st-rail{right:14px;bottom:calc(14px + env(safe-area-inset-bottom));top:auto;transform:none;flex-direction:column;gap:12px}.st .st-rail .st-b span{display:none}.st .st-rail .st-b{padding:4px}.st .st-rail .st-b svg,.st .st-rail .st-b .ic{width:30px;height:30px}
   /* The Duo's own cluster owns the top-right corner sideways (Will, 23 Oct): the bar keeps 150px clear of it, the eye and the edge tabs step out of it. */
-  .st .st-top{padding:8px 150px 8px 14px}.st .st-eye{top:10px;right:160px}.st .bk-pill{top:10px;right:160px}
+  .st .st-top{padding:8px 150px 8px 14px}.st .st-eye{top:calc(env(safe-area-inset-top) + 54px);left:14px;right:auto}.st .bk-pill{top:10px;right:160px}
   .st .st-tab{display:none}
   .st .st-rail .st-buy span{display:flex;font-size:8.5px}.st .st-rail .st-buy{padding:7px 4px 5px;min-width:48px}.st .st-rail .st-buy em{font-size:7px}
   .st .st-line{display:none}
+
+  /* Sideways on a bright picture (Will, 26 Oct, a pool in Mallorca: 'I can't see buttons in this view'): each act on a frosted disc, and the shield out of the bar's row, under the wordmark. */
+  .st .st-rail .st-b{width:44px;height:44px;padding:0;justify-content:center;border-radius:50%;background:rgba(11,10,9,.45);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}.st .st-rail .st-buy{width:52px;height:52px;border-radius:50%;margin-top:4px;background:rgba(11,10,9,.55);gap:0}.st .st-rail .st-buy span{display:flex;font-size:0;letter-spacing:0}.st .st-rail .st-buy span b{font-size:9.5px;line-height:1}.st .st-rail .st-buy .ic{width:20px;height:20px}.st .st-i .st-eye{background:rgba(11,10,9,.45);border-radius:50%;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:.85}
 }
 .fd-f input::-webkit-search-cancel-button,.fd-form input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
 /* Wilhelm (18 Oct): the house's own, in a few lines; beside the guide, Find and the signs. */
