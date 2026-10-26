@@ -2184,6 +2184,46 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // The Hall of Patrons: the Studio hangs a portrait by the work's slug; the hall shows it with its plate.
   r = await req(port, 'POST', '/studio/hall', { cookie: ck, body: { name: 'Henry Clay Frick', founded: 'The Great Rooms', year: '2026', work: w.slug, note: 'He kept the doors open.', public: '1' } }); assert.equal(r.status, 302, 'hung');
   r = await req(port, 'GET', '/patrons'); assert.ok(r.body.toString().includes('Henry Clay Frick') && r.body.toString().includes('The Great Rooms') && r.body.toString().includes(`/img/${w.slug}/large`), 'the hall shows the portrait and the plate');
+  // The press (26 Oct): a shop asks, the house invites, the shop opens its desk; a print sold near it is offered, accepted, made and delivered; the shop is paid.
+  {
+    r = await req(port, 'GET', '/printers'); assert.ok(r.status === 200 && /A press in every town/.test(r.body) && /Print for the house/.test(r.body), 'the press room');
+    r = await req(port, 'POST', '/printers/apply', { body: { name: 'Ada Lovelace', shop: 'Alder Press', email: 'ada@alderpress.example', city: 'Dallas', state: 'tx', papers: 'Hahnemühle Photo Rag', max_in: '44', note: 'Two Canons and a bench.' } });
+    assert.ok(/ok=asked/.test(r.headers.location), 'a shop asked');
+    const ap = db.prepare("SELECT * FROM printer_applications WHERE shop='Alder Press'").get(); assert.ok(ap && ap.state === 'TX' && ap.max_in === 44, 'the application kept');
+    r = await req(port, 'POST', `/studio/printers/apps/${ap.id}`, { cookie: ck, body: { do: 'invite' } }); assert.ok(r.status === 302 || r.status === 303, 'invited');
+    const pm = db.prepare("SELECT * FROM makers WHERE kind='printer' AND name='Alder Press'").get(); assert.ok(pm && pm.invite_token, 'a maker of kind printer');
+    r = await req(port, 'GET', `/account/join/${pm.invite_token}`); const pck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; '); assert.ok(pck, 'the shop signed in');
+    r = await req(port, 'GET', '/account/printing', { cookie: pck }); assert.ok(r.status === 200 && /Alder Press\./.test(r.body) && /The press/.test(r.body) && /Nothing waiting/.test(r.body), 'the shop’s desk');
+    r = await req(port, 'POST', '/account/printing/shop', { cookie: pck, body: { city: 'Dallas', state: 'tx', zip: '75201', papers: 'Hahnemühle Photo Rag', max_in: '44', framing: '1', pickup: '1', ships: '1', turnaround: '4', story: 'A bench on Knox Street.', open: '1' } });
+    const sh = db.prepare('SELECT * FROM print_shops WHERE maker_id=?').get(pm.id); assert.ok(sh.state === 'TX' && sh.zip === '75201' && sh.framing === 1 && sh.status === 'open', 'the shop set');
+    r = await req(port, 'GET', '/printers'); assert.ok(/Alder Press/.test(r.body) && />TX</.test(r.body), 'on the room by state');
+    r = await req(port, 'GET', `/printers/${pm.handle}`); assert.ok(r.status === 200 && /Knox Street/.test(r.body) && /44 inches/.test(r.body), 'the shop’s page');
+    // A print sold to a collector in Texas.
+    const lic = db.prepare("SELECT l.* FROM licenses l WHERE l.status='active' AND l.collector_no IS NOT NULL ORDER BY l.id DESC LIMIT 1").get(); assert.ok(lic, 'a licence to print');
+    const oid = db.prepare("INSERT INTO print_orders (license_id, buyer_id, size, paper, email, status, kind, cents, paid, ship_name, address) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(lic.id, lic.buyer_id, '16 × 24', 'Hahnemühle Photo Rag', 'tex@example.com', 'asked', 'ask', 65000, 1, 'Tex Collector', '2 Elm St\nDallas, TX 75202').lastInsertRowid;
+    const placed = app.locals.printShops.sweep(); assert.ok(placed >= 1, 'placed');
+    const job = db.prepare('SELECT * FROM print_jobs WHERE order_id=?').get(oid); assert.ok(job && job.shop_id === sh.id && job.status === 'offered' && job.cents === 39000, 'offered to the Texas shop at 60%: ' + JSON.stringify(job));
+    r = await req(port, 'GET', `/account/printing/${job.id}/file`, { cookie: pck }); assert.strictEqual(r.status, 403, 'no file before accepting');
+    r = await req(port, 'GET', `/account/printing/${job.id}`, { cookie: pck }); assert.ok(r.status === 200 && /16 × 24/.test(r.body) && /Tex Collector/.test(r.body) && /Accept: I will make it/.test(r.body), 'the job with its ticket');
+    const mails0 = (app.locals.mailLog || []).length;
+    r = await req(port, 'POST', `/account/printing/${job.id}/move`, { cookie: pck, body: { status: 'accepted' } }); assert.ok(r.status === 302 || r.status === 303, 'accepted');
+    r = await req(port, 'GET', `/account/printing/${job.id}/file`, { cookie: pck }); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition']) && r.body.length > 1000, 'the master taken');
+    r = await req(port, 'GET', `/account/printing/${job.id}/ticket.pdf`, { cookie: pck }); assert.ok(r.status === 200 && /pdf/.test(r.headers['content-type']), 'the ticket');
+    r = await req(port, 'POST', `/account/printing/${job.id}/move`, { cookie: pck, body: { status: 'printing' } });
+    r = await req(port, 'POST', `/account/printing/${job.id}/move`, { cookie: pck, body: { status: 'shipped', tracking: '1Z999' } });
+    r = await req(port, 'POST', `/account/printing/${job.id}/move`, { cookie: pck, body: { status: 'delivered' } });
+    const j2 = db.prepare('SELECT * FROM print_jobs WHERE id=?').get(job.id); const o2 = db.prepare('SELECT * FROM print_orders WHERE id=?').get(oid);
+    assert.ok(j2.status === 'delivered' && j2.tracking === '1Z999' && j2.done_at && o2.status === 'done', 'delivered, the order done');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='print.delivered'").get() && db.prepare("SELECT 1 FROM ledger WHERE type='printer.invited'").get(), 'on the register');
+    r = await req(port, 'GET', '/ledger?span=all'); assert.ok(/made by Alder Press, Dallas/.test(r.body) && /Alder Press, Dallas now prints for the house/.test(r.body) && !/print\.offered/.test(r.body), 'said in public; the bench kept private');
+    const st = app.locals.payouts.statement(pm); assert.ok(st.printing && st.printing.s === 39000 && st.owed === 39000 && st.clearing === 39000, 'the shop’s statement: ' + JSON.stringify({ p: st.printing, owed: st.owed, clearing: st.clearing }));
+    r = await req(port, 'GET', '/account/payouts', { cookie: pck }); assert.ok(/Prints made for the house/.test(r.body), 'on the statement page');
+    r = await req(port, 'GET', '/studio/printers', { cookie: ck }); assert.ok(r.status === 200 && /Alder Press/.test(r.body), 'the Studio’s press desk');
+    r = await req(port, 'GET', '/studio/prints', { cookie: ck }); assert.ok(/Alder Press · Delivered/.test(r.body), 'the Prints desk says where it is');
+    r = await req(port, 'GET', '/account/printing'); assert.ok(r.status === 303 || r.status === 302, 'a stranger is sent to sign in');
+    r = await req(port, 'GET', '/account/printing', { cookie: mck }); assert.strictEqual(r.status, 403, 'a maker who is not a shop is refused');
+    console.log('ok: the press');
+  }
   // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
   r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'SAMEORIGIN' && /frame-ancestors 'self'/.test(r.headers['content-security-policy']) && r.headers['referrer-policy'], 'security headers');
   r = await req(port, 'POST', '/guestbook/1/remove', { headers: { origin: 'https://evil.example' } }); assert.equal(r.status, 403, 'cross-site write refused');

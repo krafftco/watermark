@@ -41,6 +41,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
       try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
       try { add(db.prepare(`SELECT COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)`).get(pct, id, since)); } catch (e) { /* */ }
       try { add(db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
+      try { if (app.locals.printShops) add(app.locals.printShops.clearing(id, since)); } catch (e) { /* */ }
       return { s, n };
     },
   };
@@ -52,10 +53,11 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const G = app.locals.galleries ? { out: app.locals.galleries.cutsOut(m), in: app.locals.galleries.cutsIn(m) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
     const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
     const W = q.words(m.id, pct), Cp = q.copies(m.id);
-    const earned = share + T.s + R.s + W.m + Cp.s - G.out.s + G.in.s - S.s;
+    const Pr = app.locals.printShops ? app.locals.printShops.earned(m.id) : { s: 0, n: 0 }; // the press (26 Oct): prints made for the house
+    const earned = share + T.s + R.s + W.m + Cp.s + Pr.s - G.out.s + G.in.s - S.s;
     const owed = Math.max(0, earned - P);
     const Cl = q.clearing(m.id, pct); const clearing = Math.min(owed, Math.max(0, Cl.s)); const cleared = owed - clearing;
-    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, gallery: G, splits: S, earned, paid: P, owed, clearing, clearingN: Cl.n, cleared, holdDays: HOLD_DAYS, friday: nextFriday(), rows: q.rows.all(m.id) };
+    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, printing: Pr, gallery: G, splits: S, earned, paid: P, owed, clearing, clearingN: Cl.n, cleared, holdDays: HOLD_DAYS, friday: nextFriday(), rows: q.rows.all(m.id) };
   }
   // Pay what has cleared, when the maker can be paid and the house is set to pay. From a dollar up.
   async function pay(m, { by = 'house' } = {}) {
@@ -184,6 +186,7 @@ ${row('Thank-you cards and tips', money(st.thanks.s), `${st.thanks.n}, yours who
 ${row('Royalties', money(st.royalties.s), `${st.royalties.n} resale${st.royalties.n === 1 ? '' : 's'}`)}
 ${st.words && st.words.n ? row('Writing sold', money(st.words.m), `${st.words.n} cop${st.words.n === 1 ? 'y' : 'ies'} from the Library${FEE.on() ? ', your price whole' : ''}`) : ''}
 ${st.copies && st.copies.n ? row('Copies from your shelf', money(st.copies.s), `${st.copies.n} shipped, yours whole`) : ''}
+${st.printing && st.printing.n ? row('Prints made for the house', money(st.printing.s), `${st.printing.n} delivered`) : ''}
 ${st.splits && st.splits.n ? row('To your collaborators', '&minus;' + money(st.splits.s), Object.keys(st.splits.by).map(k => `${k} ${money(st.splits.by[k])}`).join(' · ')) : ''}
 ${st.gallery && st.gallery.out.n ? row('To your gallery', '&minus;' + money(st.gallery.out.s), `${st.gallery.out.n} sale${st.gallery.out.n === 1 ? '' : 's'}, their agreed share of your side`) : ''}
 ${st.gallery && st.gallery.in.n ? row('Representation', money(st.gallery.in.s), `${st.gallery.in.n} sale${st.gallery.in.n === 1 ? '' : 's'} of your artists' work`) : ''}

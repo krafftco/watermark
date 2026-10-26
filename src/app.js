@@ -484,7 +484,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
   const BAG = require('./bagcheck').mountBagcheck(app, { db, V, ledger, studioOnly: (req, res, next) => studioOnly(req, res, next), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req) });
-  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); } catch (e) { /* before the Studio exists */ } next(); });
+  app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); V.setDeskPrinter(!!(mm && mm.kind === 'printer')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
 
@@ -1103,6 +1103,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   require('./find').mountFind(app, { db, V, I: require('./icons') });
   app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, setBuyer, pocket: () => app.locals.pocket, originalPath });
+  require('./printshops').mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), originalPath, nanoid, inviteLink: m => app.locals.accounts.inviteLink(m) }); // the press: print shops make the house's prints (26 Oct)
   require('./table').mountTable(app, { db, V, C, makerOf: req => app.locals.accounts.makerOf(req), KINDS: Object.keys(require('./object').KINDS) }); // the Library: Lightroom's grid and loupe for the maker's own work
   require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
