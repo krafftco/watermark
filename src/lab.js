@@ -59,7 +59,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
   const isLab = shop => !!(shop && shop.lab);
 
   const jobOf = id => db.prepare('SELECT j.*, s.lab, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.id=?').get(id);
-  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.id AS work_id2, w.original_file, mk.name AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE o.id=?').get(id);
+  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.place, w.taken_at, w.id AS work_id2, w.original_file, mk.name AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE o.id=?').get(id);
 
   // The address, read into the lab's fields. US only for now (the proof's rule).
   function recipient(o) {
@@ -160,9 +160,28 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     db.prepare('UPDATE lab_assets SET takes=takes+1 WHERE token=?').run(a.token); db.prepare('UPDATE print_jobs SET downloads=downloads+1 WHERE id=?').run(j.id);
     try { ledger.append(db, 'print.file', o.ref, { job: j.id, by: 'lab', hidden: true }); } catch (e) { /* */ }
     const ext = path.extname(w.original_file || file).toLowerCase() || '.jpg'; const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.tif': 'image/tiff', '.tiff': 'image/tiff' }[ext] || 'application/octet-stream';
+    // The pencil line a lab cannot write: a hairline caption in a white band under the picture (LAB_CAPTION=0 turns
+    // it off), the way a museum print carries its label; the picture's own pixels untouched above it.
+    if (process.env.LAB_CAPTION !== '0') {
+      try { const buf = await captioned(file, o); res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': `inline; filename="${o.ref}.jpg"`, 'Cache-Control': 'private, no-store' }); return res.send(buf); } catch (e) { console.error('[lab] caption', e.message); }
+    }
     res.set({ 'Content-Type': mime, 'Content-Disposition': `inline; filename="${o.ref}${ext}"`, 'Cache-Control': 'private, no-store' });
     fs.createReadStream(file).pipe(res);
   });
+  // The caption: 'No. 3 · The Staircase · Will Fullerton · Paris, 2025' set small in the serif, left, under a white band
+  // a twelfth of the picture's height; the wave at the right. Rendered by sharp from an SVG; the master is extended, never resampled.
+  async function captioned(file, o) {
+    const sharp = require('sharp'); const img = sharp(file, { failOn: 'none', limitInputPixels: false }).rotate(); const m = await img.metadata();
+    const W = m.orientation >= 5 ? m.height : m.width, H = m.orientation >= 5 ? m.width : m.height; // upright, after the EXIF turn
+    const band = Math.max(60, Math.round(H / 16)); const fs0 = Math.max(14, Math.round(band * 0.38)); const pad = Math.round(band * 0.33);
+    const no = o.kind === 'edition' ? `No. ${o.edition_no || ''}${o.edition_n ? ` of ${o.edition_n}` : ''}` : o.collector_no ? `No. ${o.collector_no}` : '';
+    const year = (o.taken_at || '').slice(0, 4); const place = [o.place, year].filter(Boolean).join(', ');
+    const text = [no, o.title, o.maker_name, place].filter(Boolean).join('  ·  ');
+    const escx = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const wave = 'M2 19.5c3.6 0 3.6-5 7.2-5s3.6 5 7.2 5 3.6-5 7.2-5 3.6 5 7.2 5 3.6-5 7.2-5';
+    const wv = band * 0.5; const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${band}"><rect width="${W}" height="${band}" fill="#fff"/><text x="${pad}" y="${Math.round(band * 0.62)}" font-family="Georgia, 'Times New Roman', serif" font-size="${fs0}" fill="#2a2724" letter-spacing="${(fs0 * 0.02).toFixed(1)}">${escx(text)}</text><g transform="translate(${W - pad - wv * 1.1}, ${Math.round(band * 0.5 - wv * 0.28)}) scale(${(wv / 40).toFixed(3)})"><path d="${wave}" fill="none" stroke="#2a2724" stroke-width="1.8" stroke-linecap="round"/></g></svg>`);
+    return img.extend({ bottom: band, background: '#fff' }).composite([{ input: svg, top: H, left: 0 }]).jpeg({ quality: 100, chromaSubsampling: '4:4:4', mozjpeg: false }).toBuffer();
+  }
 
   // The lab's callback: the order as it stands.
   app.post('/lab/callback', (req, res) => {

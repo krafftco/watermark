@@ -4143,6 +4143,8 @@ html.in-stay .top .nv-back{display:none}
 .dkr-cropline{display:flex;gap:8px;margin:6px 0}.dkr-cropline button,.dkr-acts button{font:inherit;font-size:12px;padding:6px 10px;border:1px solid #3a362f;background:#171512;color:#e8e3da;border-radius:6px;cursor:pointer}
 .dkr-acts{display:grid;gap:8px;margin-top:18px}.dkr-acts .buy-btn{width:100%}.dkr-acts .dkr-apply{border-color:#c9a24a;color:#e6c875}.dkr-acts .dkr-neg{color:#bdb6aa}
 .dkr-fine{font-size:11px;color:#6f685e;line-height:1.5;margin-top:14px}
+.dkr-hist{display:block;width:100%;height:72px;background:#171512;border:1px solid #26231f;border-radius:4px}
+.dkr-clip{font-size:11px;color:#6f685e;margin:4px 0 0}.dkr-clip-on{color:#c9a24a}
 .dkr-door{margin:14px 0}.dkr-door small{display:block;margin-top:6px;color:var(--mu);font-size:12px}
 @media (max-width:860px){.dkr{grid-template-columns:1fr;grid-template-rows:auto auto auto}.dkr-panel{border-left:0;border-top:1px solid #26231f}.dkr-fig img{max-height:60svh}.dkr-fig{max-height:60svh}.dkr-keys{display:none}}
 .dkr [hidden]{display:none!important}

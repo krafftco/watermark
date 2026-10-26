@@ -17,11 +17,29 @@
     if (r.exposure) f.push('brightness(' + Math.pow(2, r.exposure).toFixed(3) + ')');
     if (r.contrast) f.push('contrast(' + (1 + r.contrast / 100 * (r.contrast > 0 ? 1 : 0.6)).toFixed(3) + ')');
     if (r.whites) f.push('brightness(' + (1 + r.whites / 300).toFixed(3) + ')');
+    if (r.shadows) f.push('brightness(' + (1 + r.shadows / 400).toFixed(3) + ')');
+    if (r.highlights) f.push('contrast(' + (1 + r.highlights / 500).toFixed(3) + ')');
     if (r.bw) f.push('grayscale(1)'); else if (r.saturation) f.push('saturate(' + Math.max(0, 1 + r.saturation / 100).toFixed(3) + ')');
     if (r.temp) f.push('sepia(' + Math.abs(r.temp / 400).toFixed(3) + ')' + (r.temp < 0 ? ' hue-rotate(180deg) sepia(' + Math.abs(r.temp / 400).toFixed(3) + ') hue-rotate(180deg)' : ''));
     img.style.filter = f.join(' ');
     img.style.transform = r.rotate ? 'rotate(' + r.rotate + 'deg) scale(' + (1 + Math.abs(r.rotate) / 60).toFixed(3) + ')' : '';
   }
+  // The histogram: read from the house's own preview each time it lands; luminance on a log scale, clipping counted.
+  var hist = room.querySelector('[data-dkr-hist]'), clip = room.querySelector('[data-dkr-clip]');
+  function histogram() {
+    if (!hist || !img.naturalWidth) return;
+    try {
+      var c = document.createElement('canvas'); var W = 256, H = Math.max(1, Math.round(256 * img.naturalHeight / img.naturalWidth)); c.width = W; c.height = H; var x = c.getContext('2d'); x.drawImage(img, 0, 0, W, H);
+      var d = x.getImageData(0, 0, W, H).data, L = new Uint32Array(256), R = new Uint32Array(256), G = new Uint32Array(256), B = new Uint32Array(256), n = W * H, lo = 0, hi = 0;
+      for (var i = 0; i < d.length; i += 4) { var r = d[i], g = d[i + 1], b = d[i + 2]; var l = (r * 54 + g * 183 + b * 19) >> 8; L[l]++; R[r]++; G[g]++; B[b]++; if (l <= 2) lo++; if (l >= 253) hi++; }
+      var ctx = hist.getContext('2d'), w = hist.width, h = hist.height; ctx.clearRect(0, 0, w, h);
+      var max = 1; for (var k = 0; k < 256; k++) max = Math.max(max, L[k], R[k], G[k], B[k]);
+      var draw = function (arr, col) { ctx.beginPath(); ctx.moveTo(0, h); for (var k2 = 0; k2 < 256; k2++) { var v = Math.log(1 + arr[k2]) / Math.log(1 + max); ctx.lineTo(k2 * w / 255, h - v * (h - 2)); } ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+      ctx.globalCompositeOperation = 'lighter'; draw(R, 'rgba(220,70,60,.45)'); draw(G, 'rgba(90,200,90,.45)'); draw(B, 'rgba(80,120,240,.45)'); ctx.globalCompositeOperation = 'source-over'; draw(L, 'rgba(232,227,218,.55)');
+      if (clip) { var pl = lo / n * 100, ph = hi / n * 100; clip.textContent = (pl >= 0.05 ? pl.toFixed(1) + '% blacks clipped' : 'Blacks held') + ' · ' + (ph >= 0.05 ? ph.toFixed(1) + '% whites clipped' : 'Whites held'); clip.classList.toggle('dkr-clip-on', pl >= 0.5 || ph >= 0.5); }
+    } catch (e) { /* a tainted canvas or an old browser: no histogram */ }
+  }
+  img.addEventListener('load', histogram); if (img.complete) histogram();
   var pending = null, busy = false, want = null;
   function render() {
     var r = recipe(); var url = base + '/preview?r=' + encodeURIComponent(JSON.stringify(r));
