@@ -142,3 +142,13 @@ The difference from TikTok is the whole point, and it is already decided. TikTok
 What follows for the build: Spotify-grade reliability before scale (the pack, the subway); For you as a curator's eye, never engagement (taste as the algorithm; the letter on the first of the month); every screen from the house's walls or shelf, chosen, so the feed grows without a tranche of junk; Collect small, one tap, quiet, a consequence of looking and never the point of the screen; the record floor open to every maker and the house curated, so the supply is as wide as TikTok's and the walls are not.
 
 The mark: Craig runs a knockout search on Wander (software class; the word is crowded) this month, before the manifest or any store listing carries it.
+
+## The artists behind the work (Will, 26 Oct)
+
+Two people stand behind a photograph of a painting: the one who made the painting and the one who made the photograph. The house keeps both. A photograph of a work of art hangs under the artist's name, with the photographer credited as the photographer of record, and the artist's page gathers every photograph of their art in the house: the way to look at paintings, at contemporary art, at Jackson Pollock on Watermark, and the way a museum's visitors photograph the collection and bring it in.
+
+Some work is shown for what it is and cannot be sold for some purposes. The artist's dates decide: in the public domain (dead seventy years and more, or made before 1929) the photographs are collected and licensed as any work; under copyright they are shown and credited, may be collected for oneself, and are never licensed for a story, a company, an audience, a wall or a print, until the artist or the estate claims the page and sets terms. The house knows what each picture shows by looking: Al reads every arrival and names the artist when it can; a confident reading closes the licences by itself, the maker can say it is their own work, and the house can overrule either way. Conservative by default; counsel reads the rule and decides whether the personal Collect stays open on work under copyright (ART_STRICT closes it).
+
+## What Leonardo would make (Will, 26 Oct)
+
+"What would Leonardo da Vinci's favourite app be, or Franklin's? What would they make now?" The house's answer: a place that unlocks the creativity of the human race and pays for it. Everything a maker makes, kept, deeded, shown and sold under their own name, with the money going back to them every Friday; and one day royalties on what their work goes on to earn. A company built so that anyone who wanted to bet on creativity and on the makers of the world could bet on it. That is the long sentence under every room in this document.

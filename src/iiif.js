@@ -62,7 +62,8 @@ async function parseMet(url, doFetch, max) {
       const o = await (await doFetch(`${MET}objects/${id}`, { headers: { accept: 'application/json' } })).json();
       if (!o || !o.isPublicDomain || !o.primaryImage) continue;
       const meta = [['Artist', o.artistDisplayName], ['Date', o.objectDate], ['Medium', o.medium], ['Dimensions', o.dimensions], ['Credit line', o.creditLine], ['Department', o.department], ['Accession number', o.accessionNumber], ['Culture', o.culture], ['Place', [o.city, o.country].filter(Boolean).join(', ')]].filter(([, v]) => v).map(([label, value]) => ({ label, value: String(value) }));
-      out.items.push({ id: o.objectURL || `${MET}objects/${id}`, label: o.title || 'Untitled', summary: [o.artistDisplayName, o.objectDate].filter(Boolean).join(', '), image: o.primaryImage, meta });
+      const yr = v => { const m = String(v || '').match(/^-?\d{3,4}$/); return m && +m[0] > 0 && +m[0] < 9999 ? +m[0] : null; };
+      out.items.push({ id: o.objectURL || `${MET}objects/${id}`, label: o.title || 'Untitled', summary: [o.artistDisplayName, o.objectDate].filter(Boolean).join(', '), image: o.primaryImage, meta, artist: o.artistDisplayName ? { name: o.artistDisplayName, born: yr(o.artistBeginDate), died: yr(o.artistEndDate), nationality: o.artistNationality || null } : null, kind: /paint/i.test(o.classification || o.medium || '') ? 'painting' : /sculpt/i.test(o.classification || '') ? 'sculpture' : /draw/i.test(o.classification || '') ? 'drawing' : /print/i.test(o.classification || '') ? 'print' : /textile/i.test(o.classification || '') ? 'textile' : null });
     } catch (e) { /* one object missed */ }
   }
   return out;
@@ -96,7 +97,8 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
         fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
         const title = (it.label || man.label || 'Untitled').slice(0, 160);
         const caption = [it.summary, ...it.meta.filter(x => !/^(place|location|date|year)$/i.test(x.label)).slice(0, 6).map(x => `${x.label}: ${x.value}`)].filter(Boolean).join(' · ').slice(0, 1200) || null;
-        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: 'iiif.jpg', makerId: job.maker_id });
+        const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = it.artist || (artistMeta ? { name: artistMeta.value } : null);
+        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
         const year = yearOf(it);
         db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(taken_at, ?), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', job.open || null, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
         if (job.open) { try { ledger.append(db, 'work.opened', w.slug, { licence: job.open, by: 'iiif' }); } catch (e) { /* */ } }

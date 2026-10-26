@@ -4003,3 +4003,36 @@ html.in-stay .top .nv-back{display:none}
   .rdr-fm-langs{grid-template-columns:1fr 1fr 1fr}
 }
 .rdr-cover-face{font-family:'Archivo',system-ui,sans-serif;font-size:13px;color:var(--rd-mute);margin:14px 0 0;line-height:1.7}.rdr-cover-face span{display:block}.rdr-cover-face button{background:none;border:0;padding:0;color:var(--rd-ink);text-decoration:underline;cursor:pointer;font:inherit}
+
+/* The artists behind the work (26 Oct): /art, /art/<slug>, the line under the plate, the record's block. */
+.ax-line{font-family:'Archivo',system-ui,sans-serif;font-size:13px;color:var(--mute,#777);margin:6px 0 0}.ax-line a{color:inherit}
+.ax-res{color:#8a1e2a}.ax-pd{color:#4b7a4b}
+.ax-room,.ax-one{max-width:1180px;margin:0 auto;padding:40px 24px 80px}
+.ax-head h1{font-family:'Instrument Serif','Newsreader',Georgia,serif;font-weight:400;font-size:clamp(34px,5vw,56px);margin:6px 0 10px;text-transform:none;letter-spacing:0}
+.ax-head .lede{max-width:760px}
+.ax-kinds,.ax-mvs{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;align-items:center}
+.ax-kinds a,.ax-mvs a{border:1px solid var(--rule,#ddd);border-radius:999px;padding:6px 12px;text-decoration:none;color:inherit}.ax-kinds a[aria-current],.ax-mvs a[aria-current]{background:#111;color:#fff;border-color:#111}
+.ax-kinds small,.ax-mvs small{opacity:.6;margin-left:4px}.ax-mvs span{opacity:.6;margin-right:4px}
+.ax-az{font-family:'Archivo',system-ui,sans-serif;font-size:12px;letter-spacing:.12em;margin:26px 0 10px;display:flex;flex-wrap:wrap;gap:10px}.ax-az a{text-decoration:none;color:inherit;opacity:.7}
+.ax-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:28px 22px}
+.ax-card{display:grid;gap:6px;text-decoration:none;color:inherit;scroll-margin-top:80px}.ax-card .ax-im{display:block;aspect-ratio:4/3;background:#0b0a09;overflow:hidden}.ax-card .ax-im img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 1.2s var(--e,ease)}.ax-card:hover .ax-im img{transform:scale(1.03)}
+.ax-card b{font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:20px;margin-top:4px}.ax-meta,.ax-n{font-family:'Archivo',system-ui,sans-serif;font-size:12px;color:var(--mute,#777)}
+.ax-empty{color:var(--mute,#777);margin:30px 0}
+.ax-how{margin-top:60px;max-width:760px;border-top:1px solid var(--rule,#ddd);padding-top:24px}.ax-how h2{text-transform:none;letter-spacing:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:24px}
+.ax-dates{font-family:'Archivo',system-ui,sans-serif;font-size:14px;color:var(--mute,#777);margin:0 0 18px}.ax-claimed{color:#4b7a4b}
+.ax-bio{max-width:720px;font-family:'Newsreader',Georgia,serif;font-size:19px;line-height:1.55}
+.ax-rights{max-width:760px;font-family:'Archivo',system-ui,sans-serif;font-size:14px;line-height:1.6;background:#f3efe6;padding:14px 16px;border-left:3px solid #c9a24a}
+.ax-sum{font-family:'Archivo',system-ui,sans-serif;font-size:14px;color:var(--mute,#777);margin:30px 0 16px}
+.ax-works{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:30px 22px}
+.ax-w{display:grid;gap:8px;text-decoration:none;color:inherit}.ax-w img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#0b0a09;display:block}.ax-w span{font-family:'Archivo',system-ui,sans-serif;font-size:13px;line-height:1.5}.ax-w small{color:var(--mute,#777)}
+.ax-works-s .ax-w img{aspect-ratio:3/2;object-fit:cover}
+.ax-wander{margin:30px 0}.ax-wander .buy-btn{display:inline-block;width:auto;padding:12px 26px}
+.ax-src{margin-top:40px}.ax-src h2,.ax-claim h2{text-transform:none;letter-spacing:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:24px}
+.ax-claim{margin-top:50px;border-top:1px solid var(--rule,#ddd);padding-top:24px;max-width:760px}
+.ax-cform{display:grid;gap:14px;margin-top:18px}.ax-cform label{display:grid;gap:6px;font-family:'Archivo',system-ui,sans-serif;font-size:13px}.ax-cform input,.ax-cform select,.ax-cform textarea{font:inherit;padding:10px;border:1px solid var(--rule,#ccc)}
+.ax-blk{margin-top:30px}.ax-blk .ax-f{display:inline-block;margin:6px 8px 6px 0}.ax-blk .ax-set{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:10px}.ax-blk .ax-set label{display:grid;gap:4px;font-size:12px}
+.ax-verdict{padding:10px 14px;border-left:3px solid #4b7a4b;background:#f0f5ef;font-size:14px;max-width:760px}.ax-verdict.ax-v-closed{border-color:#8a1e2a;background:#f7eeee}.ax-verdict small{color:var(--mute,#777)}
+.ax-cur{font-size:15px}.ax-why{color:var(--mute,#777);font-size:13px}.ax-sug{background:#f3efe6;padding:10px 14px;max-width:760px}
+.ax-desk .ax-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.ax-edit label,.ax-new label{display:grid;gap:4px;font-size:12px;margin:8px 0}.ax-edit input,.ax-edit textarea,.ax-edit select,.ax-new input{font:inherit;padding:8px;border:1px solid var(--rule,#ccc)}.ax-ck{display:flex!important;gap:8px;align-items:center}
+.ax-new{margin-top:30px;max-width:720px}
+@media (max-width:760px){.ax-room,.ax-one{padding:24px 16px 60px}.ax-grid{grid-template-columns:repeat(2,1fr);gap:18px 12px}.ax-works{grid-template-columns:1fr}}

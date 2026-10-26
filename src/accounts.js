@@ -214,13 +214,13 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, welcome: req.query.welcome === 'own' })); });
   // One file into a maker's vault (shared by the one-request route and the arrivals queue): registered as the
   // maker's work, held privately, with its title (from the file name unless given), place and kind.
-  async function takeWork(file, { originalname, title, place, kind, makerId }) {
+  async function takeWork(file, { originalname, title, place, kind, artist, makerId }) {
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(makerId); if (!m) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, error: 'No such maker.' }; }
     try {
       const name = String(originalname || '').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
       // A better file for a work the maker already holds becomes its master (app.js upgradeIfHeld); a smaller one is declined with the record named.
       if (app.locals.upgradeIfHeld) { await app.locals.bagcheck.throwIfBad(file, { name: originalname || require('path').basename(file), where: 'takeWork', who: `m:${m.handle}` }); const up = await app.locals.upgradeIfHeld(file, originalname, m.id); if (up) { if (!up.ok) return up; const wf = db.prepare('SELECT * FROM works WHERE id=(SELECT id FROM works WHERE slug=?)').get(up.slug); const full = wf || {}; const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.master' AND subject=? ORDER BY seq DESC LIMIT 1").get(up.slug); return { ok: true, outcome: 'master', slug: up.slug, title: up.title, note: `Now the master of ${up.title}: held at ${up.mp} megapixels. The record, the deed and every licence stay as they were.`, yours: app.locals.yours && wf ? app.locals.yours(wf, m) : null, deed: `/w/${up.slug}/deed`, accession: full.accession || null, fingerprint: up.fingerprint, width: up.width, height: up.height, mp: up.mp, entry: seq ? seq.seq : null }; } }
-      const w = await registerWork({ file, originalName: originalname, title: String(title || '').trim() || name || 'Untitled', place: String(place || '').trim() || null, makerId: m.id, kind: String(kind || 'photograph') });
+      const w = await registerWork({ file, originalName: originalname, title: String(title || '').trim() || name || 'Untitled', place: String(place || '').trim() || null, makerId: m.id, kind: String(kind || 'photograph'), artist: String(artist || '').trim() || null });
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(m.name, w.id);
       const full = db.prepare('SELECT accession, sha256, width, height, bytes FROM works WHERE id=?').get(w.id) || {};
       const seq = db.prepare("SELECT seq FROM ledger WHERE type='work.registered' AND subject=? ORDER BY seq DESC LIMIT 1").get(w.slug);
@@ -231,11 +231,11 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
       return { ok: false, status: e.user ? 409 : 400, error: e.user ? e.message : 'Could not be read as a photograph.' };
     }
   }
-  app.locals.takeWork = (file, a) => takeWork(file, { originalname: a.name, title: a.title, place: a.place, kind: a.kind, makerId: a.maker_id });
+  app.locals.takeWork = (file, a) => takeWork(file, { originalname: a.name, title: a.title, place: a.place, kind: a.kind, artist: a.artist, makerId: a.maker_id });
   app.post('/account/works/one', (req, res, next) => upload().single('file')(req, res, next), (req, res, next) => app.locals.bagcheck.gate('image', { json: true })(req, res, next), async (req, res) => {
     const m = makerOf(req); if (!m) { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); return res.status(401).json({ ok: false }); }
     if (!req.file) return res.status(400).json({ ok: false, error: 'Not an image file.' });
-    const r = await takeWork(req.file.path, { originalname: req.file.originalname, title: req.body.title, place: req.body.place, kind: req.body.kind, makerId: m.id });
+    const r = await takeWork(req.file.path, { originalname: req.file.originalname, title: req.body.title, place: req.body.place, kind: req.body.kind, artist: req.body.artist, makerId: m.id });
     return res.status(r.ok ? 200 : r.status || 400).json(r);
     try {
       const name = req.file.originalname.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();

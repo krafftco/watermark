@@ -28,7 +28,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   db.exec(`CREATE TABLE IF NOT EXISTS arrivals (id INTEGER PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT, folder TEXT, upload_id TEXT, parts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'uploading', outcome TEXT, slug TEXT, title TEXT, error TEXT, by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), arrived_at TEXT, done_at TEXT,
     purpose TEXT NOT NULL DEFAULT 'master', place TEXT, kind TEXT, maker_id INTEGER, result TEXT)`);
-  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS arrivals_status ON arrivals (status, id)');
   fs.mkdirSync(incoming, { recursive: true });
   const direct = !!(store.kind === 's3' && store.multipart);
@@ -51,8 +51,8 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     let uploadId = null;
     if (direct) { try { uploadId = await store.multipart.start(key, type); } catch (e) { console.error('[arrivals] start', e.message); return res.status(502).json({ ok: false, error: 'The vault did not answer: ' + e.message.slice(0, 80) }); } }
     const m = purpose === 'work' ? maker(req) : null;
-    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, maker_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
-      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, m ? m.id : null);
+    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, artist, maker_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
+      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, String(req.body.artist || '').trim().slice(0, 120) || null, m ? m.id : null);
     res.json({ ok: true, id: r.lastInsertRowid, key, partSize, parts, direct });
   });
   app.post(`${base}/arrivals/:id/urls`, guard, async (req, res) => {

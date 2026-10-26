@@ -1137,6 +1137,53 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours/cabinet/book'); assert.equal(r.status, 302, 'nobody else');
   }
   console.log('ok: the physical work');
+  // The artists behind the work (26 Oct): the artist's record, the rights by dates, the verdict per purpose, Al's
+  // reading, the maker's dismissal, the house's override, the claim, the room.
+  {
+    const uses0 = (await req(port, 'GET', `/api/v1/works/${w.slug}`)).body; assert.ok(/"instant"/.test(uses0.toString()), 'uses before');
+    // a public-domain artist: everything sells
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'set', name: 'Johannes Vermeer', movement: 'Dutch Golden Age' } }); assert.equal(r.status, 302);
+    let a = db.prepare("SELECT * FROM artists WHERE name='Johannes Vermeer'").get(); assert.ok(a && a.slug === 'johannes-vermeer' && a.sort_name === 'Vermeer, Johannes', 'the artist is recorded');
+    db.prepare('UPDATE artists SET born=1632, died=1675 WHERE id=?').run(a.id);
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/by Johannes Vermeer \(1632–1675\)/.test(r.body) && /Public domain/.test(r.body) && /\/art\/johannes-vermeer/.test(r.body), 'the line under the plate');
+    assert.ok(app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'story') === false, 'public domain: open');
+    r = await req(port, 'GET', '/art/johannes-vermeer'); assert.ok(r.status === 200 && /Johannes Vermeer/.test(r.body) && /Public domain/.test(r.body) && new RegExp(w.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(r.body) && /Photograph by/.test(r.body), 'the artist’s page');
+    r = await req(port, 'GET', '/art'); assert.ok(r.status === 200 && /Vermeer/.test(r.body) && /Dutch Golden Age/.test(r.body), 'the room');
+    // an artist under copyright: collect for yourself, license nothing
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'set', name: 'Pollock, Jackson', movement: 'Abstract Expressionism' } });
+    a = db.prepare("SELECT * FROM artists WHERE sort_name='Pollock, Jackson'").get(); assert.ok(a, 'a second artist, by surname first'); db.prepare('UPDATE artists SET born=1912, died=1956 WHERE id=?').run(a.id);
+    const w2 = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); assert.equal(w2.artist_id, a.id);
+    assert.ok(app.locals.art.blocks(w2, 'story') && app.locals.art.blocks(w2, 'wall') && app.locals.art.blocks(w2, 'print') && !app.locals.art.blocks(w2, 'social'), 'under copyright: the licences close, the personal Collect stays');
+    r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/Under copyright: yours to collect, not to license/.test(r.body), 'said on the page');
+    r = await req(port, 'GET', `/api/v1/works/${w.slug}`); const uj = JSON.parse(r.body); assert.ok(uj.uses.every(u => u.key === 'social'), 'the API lists only the Collect: ' + uj.uses.map(u => u.key).join(','));
+    process.env.ART_STRICT = '1'; assert.ok(app.locals.art.blocks(w2, 'social'), 'strict closes the Collect too'); delete process.env.ART_STRICT;
+    r = await req(port, 'GET', '/art/pollock-jackson'); assert.ok(/Under copyright/.test(r.body) && /Are you Pollock, Jackson, or the estate/.test(r.body), 'the claim door on a reserved page');
+    // the house overrides
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'override', value: 'open' } }); assert.ok(!app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'story'), 'the house opens it');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'override', value: 'closed' } }); assert.ok(app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'social'), 'the house closes everything');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'override', value: '' } });
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'clear' } }); assert.equal(db.prepare('SELECT artist_id FROM works WHERE id=?').get(w.id).artist_id, null, 'unlinked');
+    // Al's reading closes the sale by itself; the maker's word reopens it
+    const hadKey = process.env.ANTHROPIC_API_KEY; process.env.ANTHROPIC_API_KEY = 'test-key'; const prevF = app.locals.__fetch;
+    app.locals.__fetch = async (u, o) => { u = String(u); if (/api\.anthropic\.com/.test(u)) return { ok: true, json: async () => ({ model: 'mock', content: [{ type: 'text', text: JSON.stringify({ art: true, artist: 'Mark Rothko', title: 'No. 14', date: '1960', medium: 'oil on canvas', movement: 'Abstract Expressionism', museum: 'SFMOMA', confidence: 0.86, note: 'Two soft-edged fields of colour.' }) }] }) }; return prevF ? prevF(u, o) : fetch(u, o); };
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'ask' } }); assert.ok(/ok=asked/.test(r.headers.location));
+    const w3 = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); const s3 = JSON.parse(w3.attribution); assert.ok(s3.art && s3.artist === 'Mark Rothko' && s3.confidence > 0.8, 'Al’s reading kept');
+    assert.ok(app.locals.art.blocks(w3, 'story') && !app.locals.art.blocks(w3, 'social'), 'Al’s confident word closes the licences, unknown dates taken as under copyright');
+    r = await req(port, 'GET', `/studio/works/${w.slug}`, { cookie: ck }); assert.ok(/Al says:/.test(r.body) && /Mark Rothko/.test(r.body) && /Yours to collect, not to license/.test(r.body) && /The house’s say/.test(r.body), 'the record shows the reading, the verdict and the override');
+    r = await req(port, 'POST', `/account/works/${w.slug}/art`, { cookie: mck, body: { do: 'dismiss' } }); assert.equal(r.status, 403, 'another maker may not'); r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'dismiss' } }); assert.equal(r.status, 302);
+    assert.ok(!app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'story'), 'the maker’s word reopens it');
+    db.prepare('UPDATE works SET attribution=NULL WHERE id=?').run(w.id); app.locals.__fetch = prevF; if (hadKey) process.env.ANTHROPIC_API_KEY = hadKey; else delete process.env.ANTHROPIC_API_KEY;
+    // a claim on the page
+    r = await req(port, 'POST', '/art/pollock-jackson/claim', { body: { name: 'The Foundation', email: 'estate@example.org', relation: 'foundation', note: 'We hold the rights.' } }); assert.ok(/ok=sent/.test(r.headers.location));
+    const cl = db.prepare('SELECT * FROM artist_claims WHERE artist_id=?').get(a.id); assert.ok(cl && cl.status === 'asked'); assert.equal(db.prepare('SELECT claim_status FROM artists WHERE id=?').get(a.id).claim_status, 'asked');
+    r = await req(port, 'GET', '/studio/art', { cookie: ck }); assert.ok(/1 waiting/.test(r.body), 'the desk shows the claim');
+    r = await req(port, 'POST', `/studio/art/pollock-jackson/claims/${cl.id}`, { cookie: ck, body: { do: 'accept' } }); a = db.prepare('SELECT * FROM artists WHERE id=?').get(a.id); assert.ok(a.claim_status === 'claimed' && a.claimed_email === 'estate@example.org', 'claimed');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='artist.claimed' AND subject='pollock-jackson'").get(), 'on the register'); assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('artist.recorded'), 'the recording never on the public register');
+    r = await req(port, 'POST', '/studio/art/pollock-jackson', { cookie: ck, body: { name: 'Jackson Pollock', born: '1912', died: '1956', nationality: 'American', movement: 'Abstract Expressionism', bio: 'Drip.', claim_status: 'claimed', sale_ok: '1', terms: 'Collect and prints allowed.' } });
+    a = db.prepare('SELECT * FROM artists WHERE id=?').get(a.id); assert.ok(a.name === 'Jackson Pollock' && a.sale_ok === 1 && a.sort_name === 'Pollock, Jackson');
+    assert.equal(require('../src/art').rights(a).state, 'claimed', 'terms set: open');
+  }
+  console.log('ok: the artists behind the work');
   // The easel (20 Oct): the master study.
   { r = await req(port, 'GET', `/easel/${w.slug}`); assert.ok(r.status === 200 && /data-easel/.test(r.body) && /ez-notan5/.test(r.body) && /The master study/.test(r.body) && /data-ez="hold"/.test(r.body) && /easel\.js/.test(r.body), 'the easel');
     r = await req(port, 'GET', '/easel/no-such-work'); assert.equal(r.status, 302);
