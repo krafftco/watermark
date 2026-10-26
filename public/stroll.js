@@ -568,7 +568,8 @@
   var fsheet = null, ssheet = root.querySelector('[data-st-ssheet]');
   function closeSheets() { if (ssheet) ssheet.hidden = true; root.classList.remove('st-sheet-on'); quiet(); }
   function openSheet(el) { closeSheets(); el.hidden = false; root.classList.add('st-sheet-on'); clearTimeout(stillT); root.classList.remove('st-still', 'st-arr'); }
-  root.addEventListener('click', function (e) { var sb = e.target.closest && e.target.closest('[data-st-settings]'); if (sb) openSheet(ssheet); });
+  // No settings (Will, 26 Oct, the Jobs cut): the Sit act sits you down at once; no sheet. 'Stand up' brings you back.
+  root.addEventListener('click', function (e) { var sb = e.target.closest && e.target.closest('[data-st-settings]'); if (sb) { var on = !(pace === 90 && musicOn && guideOn); sit(on); if (sitb) sitb.setAttribute('aria-pressed', on ? 'true' : 'false'); } });
   [].forEach.call(root.querySelectorAll('[data-st-sx2]'), function (b) { b.addEventListener('click', closeSheets); });
   if (ssheet) ssheet.addEventListener('click', function (e) { if (e.target === ssheet) closeSheets(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ssheet && !ssheet.hidden) { e.stopImmediatePropagation(); closeSheets(); } }, true);
