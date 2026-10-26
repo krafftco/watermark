@@ -4189,3 +4189,9 @@ html.in-stay .top .nv-back{display:none}
 .st-hello-off,.st-still .st-hello{opacity:0;transform:translateX(-50%) translateY(-6px);pointer-events:none}.st-hello-off a{pointer-events:none}
 @media (max-width:760px){.st-hello{top:calc(70px + env(safe-area-inset-top));left:16px;right:16px;transform:none;text-align:left;max-width:none}.st-hello-off,.st-still .st-hello{transform:translateY(-6px)}}
 .yx-theirs{margin:10px 0 0;font:400 13px/1.5 var(--sans);color:var(--mu);max-width:48ch}
+/* Wander, on your phone (26 Oct): the install card. */
+.st-install{position:fixed;left:14px;right:14px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:7;padding:14px 16px 12px;border-radius:14px;background:rgba(17,16,14,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:#efe9dd;border:1px solid rgba(255,255,255,.1);opacity:0;transform:translateY(12px);transition:opacity .5s var(--e),transform .5s var(--e)}
+.st-install.on{opacity:1;transform:none}.st-install p{margin:0 0 10px;font:400 14px/1.45 var(--sans)}.st-install p b{font-weight:500;color:#fff}.st-install p i{font-style:italic}
+.st-install-acts{display:flex;gap:14px;align-items:center}.st-install-go{display:inline-block;padding:8px 16px;border-radius:999px;border:1px solid #d9bc7c;background:none;color:#d9bc7c;font:500 11.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.st-install-no{background:none;border:0;color:rgba(239,232,219,.6);font:400 12px/1 var(--sans);letter-spacing:.08em;cursor:pointer;padding:8px 4px}
+@media (min-width:761px){.st-install{left:auto;right:24px;max-width:380px}}

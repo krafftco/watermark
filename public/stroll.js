@@ -470,6 +470,27 @@
   // The front door's one line (26 Oct): gone the moment you move on, or after a while.
   var hello = root.querySelector('[data-st-hello]');
   if (hello) { var byeT = setTimeout(function () { hello.classList.add('st-hello-off'); }, 9000); scroller.addEventListener('scroll', function () { clearTimeout(byeT); hello.classList.add('st-hello-off'); }, { once: true, passive: true }); }
+  // Wander, on your phone (26 Oct, the Jobs cut: the first run ends with the app on the home screen): on a phone in a
+  // browser, from the third visit, after the sixth screen, one card: Install (where the browser offers it) or the two
+  // taps on an iPhone; Not now puts it away for good. Never inside the installed app.
+  var installTick = null;
+  (function () {
+    if (!TOUCH) return; var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone; if (standalone) return;
+    var n = 0; try { if (localStorage.getItem('wm_install_told')) return; n = +(localStorage.getItem('wm_visits') || 0) + 1; localStorage.setItem('wm_visits', String(n)); } catch (e) { return; }
+    if (n < 3) return;
+    var seen = 0, shown = false;
+    installTick = function () { if (shown) return; seen++; if (seen < 6) return; shown = true; show(); };
+    function show() {
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent), can = !!window.__wmInstall;
+      var card = document.createElement('div'); card.className = 'st-install';
+      card.innerHTML = '<p><b>Wander, on your phone.</b> ' + (can ? 'Install it: full screen, your gallery a tap away, the pack for the subway.' : ios ? 'Tap Share, then <i>Add to Home Screen</i>: full screen, your gallery a tap away, the pack for the subway.' : 'Add it to your home screen from the browser\u2019s menu.') + '</p><div class="st-install-acts">' + (can ? '<button type="button" class="st-install-go">Install</button>' : '<a class="st-install-go" href="/app">How</a>') + '<button type="button" class="st-install-no">Not now</button></div>';
+      root.appendChild(card); requestAnimationFrame(function () { card.classList.add('on'); });
+      var done = function (forever) { card.classList.remove('on'); setTimeout(function () { card.remove(); }, 500); if (forever) { try { localStorage.setItem('wm_install_told', '1'); } catch (e) {} } };
+      var go = card.querySelector('button.st-install-go'); if (go) go.addEventListener('click', function () { var ev = window.__wmInstall; if (!ev) return done(true); ev.prompt(); ev.userChoice.then(function () { done(true); }); });
+      card.querySelector('.st-install-no').addEventListener('click', function () { done(true); });
+      setTimeout(function () { if (card.parentNode) done(false); }, 14000);
+    }
+  })();
   var rStop = function () {}; // kept for older callers: the needle no longer lifts on its own
   // Stay (25 Oct): while a record is on, the rest of the house opens in a layer over Wander, so the music never stops.
   if (window.WMStay) WMStay.arm(function () { return !!TT.rec; }, { get bar() { return TT.bar; }, onClose: function () { if (TT.bar) { root.appendChild(TT.bar); } },
@@ -477,7 +498,7 @@
   function arrive(slug) {
     // The first screen keeps its bar and acts a few seconds longer, so a newcomer sees Find and Settings exist.
     if (TOUCH && !firstArr) root.classList.add('st-arr');
-    quiet(firstArr && TOUCH ? 5000 : undefined); firstArr = false; clearTimeout(lineT);
+    quiet(firstArr && TOUCH ? 5000 : undefined); firstArr = false; clearTimeout(lineT); if (installTick) installTick();
     var w = items[slug]; if (!w || !w.el) return;
     var gp = document.documentElement.getAttribute('data-guide') || 'hints';
     if (gp !== 'off' && w.guide && !w.el.querySelector('.st-line')) lineT = setTimeout(function () { if (cur !== slug) return; var p = document.createElement('p'); p.className = 'st-line'; p.textContent = firstLine(w.guide); w.el.appendChild(p); requestAnimationFrame(function () { p.classList.add('on'); }); }, sitting ? 9000 : gp === 'full' ? 7000 : LINE);
