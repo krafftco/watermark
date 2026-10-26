@@ -4276,3 +4276,11 @@ html.in-stay .top .nv-back{display:none}
 .dwm-new{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:14px 0 22px}
 .dwm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
 .dwm-card{display:grid;gap:4px;text-decoration:none;color:inherit}.dwm-card img{width:100%;aspect-ratio:3/2;object-fit:contain;background:#f4efe6;border:1px solid var(--line,#e6e1d6);border-radius:4px}.dwm-card b{font:400 15px/1.3 var(--serif)}.dwm-card i{font:400 12px/1.3 var(--sans);color:var(--mu);font-style:normal}
+/* The darkroom, third pass: looks and masks */
+.dkr-looks{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 6px}.dkr-look{font:inherit;font-size:11.5px;padding:4px 9px;border:1px solid #2d2924;border-radius:999px;background:none;color:#d8d2c6;cursor:pointer}.dkr-look.on{background:#e8e3da;color:#0b0a09;border-color:#e8e3da}.dkr-look-m{border-style:dashed}
+.dkr-lookf{display:flex;gap:6px;margin:0 0 4px}.dkr-lookf input{flex:1;min-width:0;background:#171512;border:1px solid #2d2924;color:#e8e3da;font:inherit;font-size:12px;padding:4px 7px;border-radius:4px}.dkr-lookf button{font:inherit;font-size:11.5px;padding:4px 8px;border:1px solid #2d2924;border-radius:4px;background:none;color:#d8d2c6;cursor:pointer}
+.dkr-mline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}.dkr-mline button{font:inherit;font-size:11.5px;padding:4px 9px;border:1px solid #2d2924;border-radius:4px;background:none;color:#d8d2c6;cursor:pointer}.dkr-mline small{flex-basis:100%;font-size:11px;color:#6f685e;line-height:1.4}
+.dkr-mask{border:1px solid #26231f;border-radius:6px;padding:6px 8px;margin:0 0 6px;cursor:pointer}.dkr-mask.on{border-color:#c9a24a}
+.dkr-mhead{display:flex;align-items:center;gap:10px;margin:0 0 2px;font-size:12px}.dkr-mhead b{font-weight:500;flex:1}.dkr-mhead label{display:flex;gap:4px;align-items:center;color:#bdb6aa;font-size:11.5px}.dkr-mhead button{font:inherit;font-size:11px;background:none;border:0;color:#8a8275;cursor:pointer;padding:0}
+.dkr-mask:not(.on) .dkr-mbody{display:none}.dkr-mnone{font-size:11.5px;color:#6f685e;margin:0 0 6px}
+.dkr-mk{position:absolute;pointer-events:none}

@@ -1894,6 +1894,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       const w2 = db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); assert.ok(w2.sha256 === w0.sha256 && w2.negative_file === w1.negative_file, 'the original is the master again, the negative still kept');
       r = await req(port, 'GET', `/account/works/${w.slug}`, { cookie: ck }); assert.ok(/Develop it/.test(r.body) || true, 'the door');
       r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/developed/.test(r.body), 'nothing of it in public');
+      // Third pass: masks (a gradient darkens the left half, the right half untouched; a circle; inverted) and looks (the house's, and the maker's own kept and forgotten).
+      assert.ok(DK.maskAt({ kind: 'linear', g: { x0: 0, y0: 0.5, x1: 1, y1: 0.5 }, inv: false }, 0.02, 0.5) > 0.98 && DK.maskAt({ kind: 'linear', g: { x0: 0, y0: 0.5, x1: 1, y1: 0.5 }, inv: false }, 0.98, 0.5) < 0.02 && Math.abs(DK.maskAt({ kind: 'linear', g: { x0: 0, y0: 0.5, x1: 1, y1: 0.5 } }, 0.5, 0.5) - 0.5) < 0.01, 'a gradient weighs from whole to gone');
+      assert.ok(DK.maskAt({ kind: 'radial', g: { cx: 0.5, cy: 0.5, rx: 0.2, ry: 0.2, f: 0.5 } }, 0.5, 0.5) === 1 && DK.maskAt({ kind: 'radial', g: { cx: 0.5, cy: 0.5, rx: 0.2, ry: 0.2, f: 0.5 } }, 0.9, 0.5) === 0 && DK.maskAt({ kind: 'radial', g: { cx: 0.5, cy: 0.5, rx: 0.2, ry: 0.2, f: 0.5 }, inv: true }, 0.9, 0.5) === 1, 'a circle, and its inverse');
+      const grad = { masks: [{ kind: 'linear', g: { x0: 0.05, y0: 0.5, x1: 0.45, y1: 0.5 }, adj: { exposure: -2 } }] };
+      r = await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent(JSON.stringify(grad))}`, { cookie: ck }); assert.strictEqual(r.status, 200, 'the masked preview');
+      const mm = await S(r.body).metadata(); const meanOf = async (buf, x0, x1) => { const b = await S(buf).extract({ left: Math.floor(mm.width * x0), top: 0, width: Math.max(1, Math.floor(mm.width * (x1 - x0))), height: mm.height }).toBuffer(); return (await S(b).stats()).channels[0].mean; }; // stats() reads the input, so extract first
+      const left = await meanOf(r.body, 0, 0.04), right = await meanOf(r.body, 0.6, 1); const flatBuf = (await req(port, 'GET', `/account/develop/${w.slug}/preview?r=${encodeURIComponent('{}')}`, { cookie: ck })).body; const flL = await meanOf(flatBuf, 0, 0.04), fl = await meanOf(flatBuf, 0.6, 1);
+      assert.ok(left < flL * 0.5 && Math.abs(right - fl) < 1.5, 'the gradient darkens the left and leaves the right: ' + JSON.stringify({ l: [flL, left], r: [fl, right] }));
+      r = await req(port, 'GET', `/account/develop/${w.slug}`, { cookie: ck }); assert.ok(/data-dkr-look=/.test(r.body) && /Silver/.test(r.body) && /data-dkr-mask="linear"/.test(r.body) && /data-dkr-masktpl/.test(r.body), 'looks and masks on the panel');
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'look', look_name: 'My dusk', contrast: '20', temp: '-10', masks: JSON.stringify(grad.masks), json: '1' } }); a = JSON.parse(r.body); assert.ok(a.ok && /My dusk/.test(a.say) && a.looks.length === 1 && a.looks[0].recipe.contrast === 20 && a.looks[0].recipe.masks.length === 0, 'a look kept, without the masks: ' + r.body);
+      r = await req(port, 'GET', `/account/develop/${w.slug}`, { cookie: ck }); assert.ok(/My dusk/.test(r.body) && /data-dkr-lookid=/.test(r.body), 'the look on the panel');
+      const lk = db.prepare("SELECT id FROM develop_looks WHERE name='My dusk'").get();
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: mck, body: { do: 'unlook', look_id: String(lk.id), json: '1' } }); assert.strictEqual(r.status, 403, 'another maker cannot forget it');
+      r = await req(port, 'POST', `/account/develop/${w.slug}`, { cookie: ck, body: { do: 'unlook', look_id: String(lk.id), json: '1' } }); assert.ok(JSON.parse(r.body).ok && !db.prepare("SELECT 1 FROM develop_looks WHERE id=?").get(lk.id), 'forgotten');
+      assert.ok(!DK.isFlat(DK.recipeOf(grad)) && DK.isFlat(DK.recipeOf({ masks: [{ kind: 'radial', g: { cx: .5, cy: .5 }, adj: {} }] })), 'a mask with nothing set is flat');
       db.prepare('DELETE FROM develops WHERE work_id=?').run(w0.id);
       console.log('ok: the darkroom');
     }
