@@ -91,10 +91,28 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const r = recipient(o); if (r.bad) return fail(j, 'the address could not be read');
     const item = { sku, copies: 1, sizing: 'fitPrintArea', merchantReference: `${o.ref}-${j.id}`, assets: [{ printArea: 'default', url: assetUrl(j) }] }; const a = attrs(); if (a) item.attributes = a;
     const body = { merchantReference: `WM ${o.ref} job ${j.id}`, shippingMethod: process.env.LAB_SHIPPING || 'Standard', callbackUrl: `${C.base}/lab/callback?k=${cbKey()}`, recipient: r, items: [item], metadata: { work: o.slug, title: o.title, maker: o.maker_name, pencil: `${o.kind === 'edition' ? `No. ${o.edition_no || ''}` : o.collector_no ? `No. ${o.collector_no}` : ''} · ${o.title}` } };
+    // The price first: the lab is asked what this print will cost, and a print whose cost would eat the collector's
+    // payment is never placed (LAB_MAX_COST_PCT of the price, default 80); the house is mailed to decide by hand.
+    let quoted = null;
+    try {
+      const q = await call('POST', '/quotes', { shippingMethod: body.shippingMethod, destinationCountryCode: r.address.countryCode, currencyCode: 'USD', items: [{ sku, copies: 1, assets: [{ printArea: 'default' }] }] });
+      const first = q.json && Array.isArray(q.json.quotes) ? q.json.quotes[0] : null; const cs = first && first.costSummary;
+      if (cs) quoted = Math.round(((+((cs.items || {}).amount) || 0) + (+((cs.shipping || {}).amount) || 0)) * 100);
+      else if (q.status === 200 || q.status === 400) return fail(j, `the lab gave no price: ${q.status} ${(q.json && (q.json.outcome || q.json.message)) || ''}`.trim());
+    } catch (e) { return fail(j, `the lab could not be reached for a price: ${e.message}`); }
+    const ceiling = Math.round((o.cents || 0) * Math.max(10, Math.min(100, +(process.env.LAB_MAX_COST_PCT || 80))) / 100);
+    if (quoted != null && o.cents > 0 && quoted > ceiling) {
+      db.prepare("UPDATE print_jobs SET lab_state='too dear', lab_tries=3, lab_cost=?, note=? WHERE id=?").run(quoted, `the lab asks $${(quoted / 100).toFixed(2)} against a price of $${(o.cents / 100).toFixed(2)}`, j.id);
+      mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `A print the lab would make at a loss: ${o.title}`, text: `${o.title}, ${o.size || 'the proof'}: the lab asks $${(quoted / 100).toFixed(2)} (print and shipping) against the collector's $${(o.cents / 100).toFixed(2)}. Not placed. Raise the price, lower the size, or place it by hand from the press desk.\n\n${C.base}/studio/printers#lab` });
+      try { ledger.append(db, 'print.lab.failed', String(j.id), { why: 'too dear', quoted, cents: o.cents, hidden: true }); } catch (e) { /* */ }
+      press.move(press.jobOf(j.id), 'declined', { by: 'lab' });
+      return false;
+    }
     let res; try { res = await call('POST', '/Orders', body); } catch (e) { return fail(j, `the lab could not be reached: ${e.message}`); }
     const out = res.json && res.json.outcome; const order = res.json && res.json.order;
     if (!order || !/^Created/i.test(String(out || ''))) return fail(j, `the lab answered ${res.status}: ${out || (res.json && (res.json.message || res.json.title)) || 'no answer'}`);
     let cost = null; try { cost = Math.round((order.charges || []).reduce((s, c) => s + (+((c.totalCost || {}).amount) || 0), 0) * 100) || null; } catch (e) { /* */ }
+    if (!cost && quoted) cost = quoted;
     db.prepare("UPDATE print_jobs SET lab_order=?, lab_state=?, lab_cost=?, note=NULL WHERE id=?").run(String(order.id), (order.status && order.status.stage) || 'InProgress', cost, j.id);
     try { ledger.append(db, 'print.lab', o.ref, { job: j.id, order: String(order.id), sku, cost, hidden: true }); } catch (e) { /* */ }
     press.move(press.jobOf(j.id), 'accepted', { by: 'lab' });
@@ -158,12 +176,12 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
   // Studio: the lab's state, the sizes and their SKUs against the catalogue, its jobs.
   function panel() {
     const s = ensureLab(); const S = skus(); let cat = {}; try { cat = JSON.parse(setting('lab_catalogue') || '{}'); } catch (e) { /* */ }
-    const jobs = db.prepare("SELECT j.*, o.kind, o.size, l.ref, w.title FROM print_jobs j JOIN print_orders o ON o.id=j.order_id JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id WHERE j.shop_id=? ORDER BY j.id DESC LIMIT 30").all(s.id);
+    const jobs = db.prepare("SELECT j.*, o.kind, o.size, o.cents AS cents_paid, l.ref, w.title FROM print_jobs j JOIN print_orders o ON o.id=j.order_id JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id WHERE j.shop_id=? ORDER BY j.id DESC LIMIT 30").all(s.id);
     return `<section class="lab-pan" id="lab"><h2>The lab</h2><p class="note">${on() ? `On${process.env.PRODIGI_SANDBOX === '1' ? ', in the lab’s sandbox' : ''}: a print no shop near the collector can make goes to the lab by itself and comes back shipped. Up to ${s.max_in} inches; unframed; shipped, never picked up.` : 'Off. Set PRODIGI_API_KEY in Render (PRODIGI_SANDBOX=1 to try the sandbox first) and the lab opens as a shop: no desk, no bench, the order placed by the house and tracking back by itself.'} The collector reads “the house’s lab”; the lab’s name is never said in public.</p>
 <table class="tbl"><tr><th>Size</th><th>SKU</th><th>The catalogue says</th></tr>${Object.entries(S).map(([k, v]) => { const c = cat[v]; return `<tr><td>${esc(k.replace('x', ' × '))} in</td><td><code>${esc(v)}</code></td><td>${c ? (c.ok ? `<b>Found</b> · ${esc(c.name || '')}${c.attrs ? `<br><small>${esc(c.attrs)}</small>` : ''}` : `<span class="warn">Not found</span> · ${esc(c.why || '')}`) : '<small>Not yet checked</small>'}</td></tr>`; }).join('')}</table>
 <div class="lab-acts"><form method="post" action="/studio/lab/check"><button${on() ? '' : ' disabled'}>Check the catalogue</button></form><form method="post" action="/studio/lab/poll"><button${on() ? '' : ' disabled'}>Ask the lab about open orders</button></form></div>
-<p class="pj-fine">Override a SKU with LAB_SKUS (JSON, size → sku, e.g. {"16x24":"GLOBAL-FAP-16X24"}); paper or finish attributes with LAB_ATTRS; the widest side with LAB_MAX_IN; shipping with LAB_SHIPPING (Standard). The lab charges the house’s own account there; the job carries no fee.</p>
-${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Step</th><th>The lab’s order</th><th>Cost</th><th>Note</th></tr>${jobs.map(j => `<tr><td><b>${esc(j.title)}</b><br><small>${esc(j.ref)} · ${j.kind === 'proof' ? 'the proof' : esc(j.size || '')}</small></td><td>${esc(press.STEPS[j.status] || j.status)}</td><td><small>${esc(j.lab_order || '—')} · ${esc(j.lab_state || '')}</small></td><td>${j.lab_cost ? `$${(j.lab_cost / 100).toFixed(2)}` : '—'}</td><td><small>${esc(j.note || '')}</small></td></tr>`).join('')}</table>` : ''}</section>`;
+<p class="pj-fine">Override a SKU with LAB_SKUS (JSON, size → sku, e.g. {"16x24":"GLOBAL-FAP-16X24"}); paper or finish attributes with LAB_ATTRS; the widest side with LAB_MAX_IN; shipping with LAB_SHIPPING (Standard); LAB_MAX_COST_PCT (80): a print the lab would make for more than that share of the collector’s price is never placed, and the house is mailed. The lab charges the house’s own account there; the job carries no fee.</p>
+${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Step</th><th>The lab’s order</th><th>Paid</th><th>The lab’s cost</th><th>Kept</th><th>Note</th></tr>${jobs.map(j => `<tr><td><b>${esc(j.title)}</b><br><small>${esc(j.ref)} · ${j.kind === 'proof' ? 'the proof' : esc(j.size || '')}</small></td><td>${esc(press.STEPS[j.status] || j.status)}</td><td><small>${esc(j.lab_order || '—')} · ${esc(j.lab_state || '')}</small></td><td>${j.cents_paid ? `$${(j.cents_paid / 100).toFixed(2)}` : '—'}</td><td>${j.lab_cost ? `$${(j.lab_cost / 100).toFixed(2)}` : '—'}</td><td>${j.lab_cost && j.cents_paid ? `<b>$${((j.cents_paid - j.lab_cost) / 100).toFixed(2)}</b>` : '—'}</td><td><small>${esc(j.note || '')}</small></td></tr>`).join('')}</table>` : ''}</section>`;
   }
   app.post('/studio/lab/check', studioOnly, async (req, res) => {
     const out = {}; for (const [k, sku] of Object.entries(skus())) {
