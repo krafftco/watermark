@@ -1731,7 +1731,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/read/${sv.slug}?keep=1&from=Will`); assert.ok(/Will sent you this book/.test(r.body) && /Keep it on your shelf/.test(r.body), 'a stranger is told who sent it and offered the shelf');
     r = await req(port, 'GET', `/read/${sv.slug}?keep=1&from=Will`, { cookie: bck }); assert.ok(/On your shelf\./.test(r.body), 'a collector arriving keeps it at once');
     const kept = db.prepare('SELECT rl.status FROM reading_list rl JOIN texts t ON t.id=rl.text_id WHERE t.slug=?').get(sv.slug); assert.ok(kept && kept.status === 'want', 'on the reading list');
-    r = await req(port, 'POST', `/read/${sv.slug}/send`, { body: { to: 'friend@example.com', note: 'You will like this', json: '1' } }); assert.strictEqual(r.status, 401, 'a stranger cannot send by letter');
+    r = await req(port, 'POST', `/read/${sv.slug}/send`, { body: { to: 'friend@example.com', note: 'You will like this', json: '1' } }); assert.strictEqual(r.status, 401, 'a stranger cannot send by letter: ' + r.status + ' ' + r.body.toString().slice(0, 200));
     r = await req(port, 'POST', `/read/${sv.slug}/send`, { cookie: bck, body: { to: 'friend@example.com', note: 'You will like this', json: '1' } }); assert.ok(r.status === 200 && JSON.parse(r.body).ok, 'the letter goes');
     r = await req(port, 'POST', `/read/${sv.slug}/send`, { cookie: bck, body: { to: 'not-an-address', json: '1' } }); assert.strictEqual(r.status, 400, 'an address is required');
     r = await req(port, 'GET', `/library/${sv.slug}`); assert.ok(/data-send\b/.test(r.body) && /card\.png/.test(r.body), 'the Library page shares and unfurls');
