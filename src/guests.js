@@ -29,7 +29,7 @@ function mountGuests(app, { db, C, V, mail, buyerOf, ledger }) {
   });
   // The owner's list.
   app.get('/yours/guests', (req, res) => {
-    const b = buyerOf(req); if (!b) return res.redirect('/signin?back=/yours/guests');
+    const b = buyerOf(req); if (!b) return res.redirect('/signin?next=/yours/guests');
     const gs = guestsOf(b), ok = req.query.ok || '';
     res.send(V.layout({ title: 'Guests of your house · Watermark', path: '/yours/guests', body: `<section class="cx-intro gst"><p class="k">Your house</p><h1>Guests.</h1>
 <p class="lede">${b.public && b.code ? 'Your gallery is open to anyone with its address. A guest list is for the day you close the doors: the people named here come in regardless.' : 'Your gallery is private. The people named here are written to with a link that lets them in, and only them; take a name off and the link stops working. Nothing of your gallery is shown in the public rooms.'}${b.code ? '' : ' Give your gallery an address first, under <a href="/yours?tab=more#settings">Settings</a>.'}</p>

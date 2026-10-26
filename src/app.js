@@ -1444,13 +1444,17 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
     }
     if (l.status === 'active' && !l.buyer_id) { // hang it in this device's collection
-      let b = buyerOf(req);
-      if (!b) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', ?)").run(l.licensee_email || null).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
-      db.prepare('UPDATE licenses SET buyer_id=? WHERE ref=?').run(b.id, l.ref); l = q.lic.get(l.ref);
+      let b = buyerOf(req), theirs = null;
+      // The inevitable sign-in (26 Oct): a payment's email that already has a gallery puts the piece in that gallery,
+      // wherever they next sign in; the device is not signed in as them on the strength of an address alone.
+      if (!b && l.licensee_email) theirs = db.prepare("SELECT * FROM buyers WHERE lower(email)=lower(?) AND (code IS NOT NULL OR name IS NOT NULL OR EXISTS (SELECT 1 FROM licenses x WHERE x.buyer_id=buyers.id)) ORDER BY id LIMIT 1").get(l.licensee_email);
+      if (!b && !theirs) { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', ?)").run(l.licensee_email || null).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); }
+      db.prepare('UPDATE licenses SET buyer_id=? WHERE ref=?').run((b || theirs).id, l.ref); l = q.lic.get(l.ref);
+      if (theirs) res.locals.theirs = theirs;
     }
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id) }));
+    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id), theirs: res.locals.theirs || null }));
   });
 
   app.post('/license/:slug', async (req, res) => {

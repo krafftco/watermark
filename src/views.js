@@ -1122,7 +1122,7 @@ function setThanks({ items, name }) {
 <p class="sr-also"><a class="buy-btn" href="/yours">See your gallery</a></p></section>` });
 }
 
-function thanks({ lic, w, maker, use }) {
+function thanks({ lic, w, maker, use, theirs = null }) {
   const done = lic.status === 'active';
   // A personal piece (Will, 23 Oct: "instant gratification, like you've just received that Instax postcard"): the
   // photograph develops on an instant-film tile, the wave in its corner and the number in pencil; whose money went
@@ -1139,7 +1139,7 @@ function thanks({ lic, w, maker, use }) {
 <h1><em>${esc(tidy(w.title))}</em> is yours.</h1>
 <p class="yx-no">${lic.collector_no ? `You are collector No.&nbsp;${lic.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}. ` : ''}It hangs in <a href="/yours">your gallery</a> now${lic.licensee_email ? `, and the letter is on its way to ${esc(lic.licensee_email)}` : ''}.</p>
 ${kept ? `<ul class="yx-money"><li><b>A gift</b> from ${esc(first)}: ${esc(lic.intended_use.replace(/^Kept from /, 'from “'))}”. Nothing to pay.</li></ul>` : `<ul class="yx-money"><li><b>${money(mk)}</b> to ${esc(first)}, on its way.</li>${house > 0 ? `<li><b>${money(house)}</b> <a href="/share">the house&rsquo;s share</a>.</li>` : ''}</ul>`}
-<div class="yx-acts">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Save the photograph</a><a class="buy-btn yx-instax" href="/yours/p/${esc(lic.ref)}/instax?film=mini&k=${esc(lic.download_token)}" download title="The exact pixels for Instax mini: it lands in Photos; print it from the Instax or Leica FOTOS app">Print on Instax</a>` : ''}<a class="yx-l" href="/yours">Your gallery</a><a class="yx-l" href="/wander?at=${esc(w.slug)}" data-nv-wander>Wander on</a></div>
+<div class="yx-acts">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Save the photograph</a><a class="buy-btn yx-instax" href="/yours/p/${esc(lic.ref)}/instax?film=mini&k=${esc(lic.download_token)}" download title="The exact pixels for Instax mini: it lands in Photos; print it from the Instax or Leica FOTOS app">Print on Instax</a>` : ''}${theirs ? `<a class="yx-l" href="/signin?next=/yours">Your gallery: sign in as ${esc(theirs.email)}</a>` : `<a class="yx-l" href="/yours">Your gallery</a>`}<a class="yx-l" href="/wander?at=${esc(w.slug)}" data-nv-wander>Wander on</a></div>${theirs ? `<p class="yx-theirs">It hangs in the gallery of ${esc(theirs.email)}${theirs.name ? ` (${esc(theirs.name)})` : ''}, with what you collected before. Sign in once on this device and it is all here.</p>` : ''}
 <p class="yx-more">${lic.collector_no ? `<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">The proof, a 5&nbsp;&times;&nbsp;7 print in your hand</a> &middot; ` : ''}<a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">Print it, hang it, live with it</a> &middot; <a href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">The papers</a></p>
 <p class="yx-stand"><a href="/yours/standing">A piece a month</a>: let the house choose one for you, each month, at this price.</p>
 <p class="yx-thanks">Thank you for collecting.</p></div></section>` });

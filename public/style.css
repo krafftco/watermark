@@ -4185,3 +4185,4 @@ html.in-stay .top .nv-back{display:none}
 .st-hello a{pointer-events:auto;color:#d9bc7c;text-decoration:none;font:500 11px/1.4 var(--sans);letter-spacing:.24em;text-transform:uppercase;border-bottom:1px solid rgba(217,188,124,.45)}
 .st-hello-off,.st-still .st-hello{opacity:0;transform:translateX(-50%) translateY(-6px);pointer-events:none}.st-hello-off a{pointer-events:none}
 @media (max-width:760px){.st-hello{top:calc(70px + env(safe-area-inset-top));left:16px;right:16px;transform:none;text-align:left;max-width:none}.st-hello-off,.st-still .st-hello{transform:translateY(-6px)}}
+.yx-theirs{margin:10px 0 0;font:400 13px/1.5 var(--sans);color:var(--mu);max-width:48ch}

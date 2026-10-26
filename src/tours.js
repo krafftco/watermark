@@ -112,7 +112,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
   }
   // The collector's own desk for the gallery's tour: the welcome and a word on each piece.
   app.get('/yours/tour', (req, res) => {
-    const b = buyerOf(req); if (!b) return res.redirect('/signin?back=/yours/tour');
+    const b = buyerOf(req); if (!b) return res.redirect('/signin?next=/yours/tour');
     const h = galleryHang(b), works = galleryWorks(h);
     res.send(layout({ title: 'A tour of your gallery · Watermark', path: '/yours/tour', body: `<section class="cx-intro twg"><p class="k">Your house</p><h1>A tour, in your voice.</h1>
 <p class="lede">Say a word on each piece and a welcome at the door, and your gallery can be walked the way a guide walks a wall: the picture alone, your voice beside it, on to the next when you finish. Three minutes a stop at most; nothing is transcribed and no model hears it.${h.public ? ` <a href="/tour/${esc(h.slug)}">Take it</a>.` : ' The tour opens with your gallery: give it your name and an address under <a href="/yours?tab=more#settings">Settings</a>.'}</p>
