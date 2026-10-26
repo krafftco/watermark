@@ -59,6 +59,21 @@ function mountReadingList(app, { db, V, C, buyerOf }) {
     const s = shelf(b); const I = require('./icons');
     const book = r => `<a class="rl-bk" href="${esc(r.href)}">${r.cover ? `<img src="/img/${esc(r.cover)}/screen" alt="" loading="lazy">` : `<span class="rl-cloth rl-bound">${require('./binding').svg({ title: tidy(r.title), author: r.author, slug: r.slug }, { w: 240 })}</span>`}<span class="rl-t"><b>${esc(tidy(r.title))}</b>${r.by ? `<i>${esc(r.by)}</i>` : ''}${r.status === 'reading' && r.chapters ? `<span class="rl-pg"><i style="width:${r.progress}%"></i></span><small>${r.progress}% · ${r.chapters > 1 ? `chapter ${r.chapter + 1} of ${r.chapters}` : 'reading'}</small>` : r.status === 'read' && r.finished_at ? `<small>Finished ${V.date(r.finished_at)}</small>` : ''}</span></a>`;
     const sec = (h, line, items) => `<section class="rl-sec"><header class="gh"><h2>${h}</h2><span>${line}</span></header>${items.length ? `<div class="rl-row">${items.map(book).join('')}</div>` : `<p class="note">Nothing here yet.</p>`}</section>`;
+    // The collector's own library (Will, 26 Oct: "make people feel rich, because they are, when they have access to art,
+    // culture, books, history"): the Library's walnut room under their own name, a brass plate with their number, the
+    // bindings standing on the planks. Everything on it is theirs to read, free, for good.
+    const SH = app.locals.shelves; const first = String(b.name || b.given_name || '').trim();
+    if (SH && SH.room) {
+      const no = app.locals.founders ? app.locals.founders.no(b) : null; const n = s.reading.length + s.want.length + s.read.length;
+      const asBook = r => ({ slug: r.slug, title: r.title, author: r.author, cover: r.cover, hasBody: r.hasBody, hasPlates: r.hasPlates, file: r.file, body: r.hasBody, plates: r.hasPlates, note: r.status === 'reading' && r.chapters ? `chapter ${(r.chapter || 0) + 1} of ${r.chapters}${r.pct ? ` · ${r.pct}%` : ''}` : (r.status === 'read' && r.finished_at ? `read ${String(r.finished_at).slice(0, 10)}` : '') });
+      const est = (db.prepare('SELECT MIN(at) AS a FROM reading_list WHERE buyer_id=?').get(b.id) || {}).a || new Date().toISOString();
+      const plate = `<p class="rmp">${no ? `Founding Collector, No. ${no}` : 'A library of the house'} · est. ${String(est).slice(0, 4)}</p>`;
+      const INS = require('./inscriptions');
+      return res.set('Cache-Control', 'private, no-store').send(SH.room({ title: first ? `${first}’s library.` : 'Your library.', path: '/yours/reading', kicker: '<a href="/yours">Yours</a>', plate, insc: INS.insc('library'),
+        lede: n ? `${n} book${n === 1 ? '' : 's'} on your shelves, yours to read for good: the ones you are in, the ones kept for later, the ones read. Every book opens where you left it.` : 'Your shelves are empty for now. Keep a book from the Library, or from a friend who sends you one, and it stands here.',
+        rows: SH.plank('Reading now', s.reading.map(asBook), { line: 'open where you left them', id: 'reading' }) + SH.plank('Kept for later', s.want.map(asBook), { line: 'yours when you are ready', id: 'want' }) + SH.plank('Read', s.read.map(asBook), { line: 'finished, and kept', id: 'read' }),
+        foot: 'A private room: nothing of your reading is told to anyone. <a href="/library">The Library</a> · <a href="/publishing">Watermark Publishing</a> · <a href="/yours">Your gallery</a>.' }));
+    }
     res.set('Cache-Control', 'private, no-store').send(V.layout({ title: 'Your reading · Watermark', path: '/yours/reading', body: `<section class="cx-intro rl-page"><p class="k">Yours</p><h1>Your reading.</h1><p class="lede">The books you are in, the ones you mean to read, and the ones you have finished. The place you reached is kept, so a book opens where you left it. Nothing of your reading is told to anyone.</p>
 ${sec('Reading now', `${s.reading.length} book${s.reading.length === 1 ? '' : 's'}`, s.reading)}
 ${sec('Want to read', `${s.want.length}`, s.want)}

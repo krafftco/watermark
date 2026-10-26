@@ -1665,7 +1665,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const FR = app.locals.franchise; assert.ok(FR && FR.CENTS() >= 100, 'the fee');
     const mkr = db.prepare("SELECT m.* FROM makers m JOIN texts t ON t.maker_id=m.id WHERE t.title='On Looking Longer'").get();
     r = await req(port, 'GET', '/account/house', { cookie: mck }); assert.ok(r.status >= 300 && r.status < 400 && /\/account\/house\/franchise/.test(r.headers.location || ''), 'a maker without a house is shown the offer: ' + r.status);
-    r = await req(port, 'GET', '/account/house/franchise', { cookie: mck }); assert.ok(r.status === 200 && /Your own house\./.test(r.body) && /Open my house/.test(r.body) && /Franklin/.test(r.body), 'the offer');
+    r = await req(port, 'GET', '/account/house/franchise', { cookie: mck }); assert.ok(r.status === 200 && /Your own house\./.test(r.body) && /Open my house/.test(r.body) && /the printer’s own/.test(r.body), 'the offer');
     r = await req(port, 'POST', '/account/house/franchise/begin', { cookie: mck }); assert.ok(r.status === 303 && /checkout\.stripe\.test/.test(r.headers.location || ''), 'to Checkout by the month: ' + (r.headers.location || r.status));
     const f = db.prepare("SELECT * FROM franchises WHERE maker_id=? ORDER BY id DESC LIMIT 1").get(mkr.id); assert.ok(f && f.status === 'pending' && f.stripe_session, 'pending');
     FR.activate(f.id, { id: f.stripe_session, status: 'complete', payment_status: 'paid', subscription: 'sub_test' }); assert.ok(FR.active(mkr), 'open');
@@ -1738,6 +1738,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/wander'); assert.ok(/share\.js/.test(r.body) || true, 'share.js everywhere');
     db.prepare('DELETE FROM reading_list WHERE id=?').run(db.prepare('SELECT rl.id FROM reading_list rl JOIN texts t ON t.id=rl.text_id WHERE t.slug=?').get(sv.slug).id); // leave the shelf as it was for the reading-list test
     console.log('ok: sharing a book');
+  }
+  // Inscriptions, the brass ring, named rooms and the collector's own library (26 Oct).
+  {
+    r = await req(port, 'GET', '/printers'); assert.ok(/class="insc/.test(r.body) && /Festina lente/.test(r.body) && !/Franklin set/.test(r.body), 'the printers’ room: a carved line, no name in the lede');
+    r = await req(port, 'GET', '/press'); assert.ok(/class="brass/.test(r.body) && /Gutenberg/.test(r.body) && /B\. Franklin, Printer/.test(r.body) && !/Franklin’s printing house/.test(r.body), 'the printing house: the ring in brass, the epitaph, no name in the lede');
+    r = await req(port, 'POST', '/studio/hall/plate', { cookie: ck, body: { room: 'library', line: 'Given by the Fullerton family, 2026' } }); assert.strictEqual(r.status, 302, 'a room named');
+    r = await req(port, 'GET', '/library'); assert.ok(/class="rmp"[^>]*>Given by the Fullerton family, 2026/.test(r.body), 'the plate under the Library’s name');
+    r = await req(port, 'POST', '/studio/hall/plate', { cookie: ck, body: { room: 'library', line: '' } }); r = await req(port, 'GET', '/library'); assert.ok(!/Given by the Fullerton family/.test(r.body), 'the plate taken down');
+    r = await req(port, 'GET', '/yours/reading', { cookie: bck }); assert.ok(/class="lbr"/.test(r.body) && /class="rmp"/.test(r.body) && /lbr-plank/.test(r.body) && /I cannot live without books/.test(r.body), 'the collector’s own library: the walnut room, the plate, the planks, the line');
+    console.log('ok: inscriptions and named rooms');
   }
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');

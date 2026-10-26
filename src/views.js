@@ -1040,13 +1040,15 @@ function hall({ patrons }) {
 ${patrons.length ? `<div class="hh-room">${patrons.map(plate).join('')}</div>` : '<div class="hh-room hh-none"><p>The first portrait in this hall is still to be made.</p></div>'}
 <div class="hh-in hh-foot"><p>To found something here: <a href="/friends#letter">write to the house</a>. Each portrait is a photograph in the collection, held in the vault and on the register like any other.</p></div></section>` });
 }
-function hallDesk({ patrons, ok }) {
+function hallDesk({ patrons, ok, plates = [], rooms = {} }) {
   setDeskPath('/studio/hall');
   const form = (p = {}) => `<form method="post" action="/studio/hall" class="form hd-f">${p.id ? `<input type="hidden" name="id" value="${p.id}">` : ''}
 <div class="hl-row"><label>Name<input name="name" value="${esc(p.name || '')}" required></label><label>Founded (what they gave)<input name="founded" value="${esc(p.founded || '')}" placeholder="The Great Rooms; a seat at acquisitions"></label><label>Year<input name="year" value="${p.year || ''}" inputmode="numeric" size="6"></label></div>
 <div class="hl-row"><label>Portrait: the work&rsquo;s slug<input name="work" value="${esc(p.slug || '')}" placeholder="portrait-of-…"></label><label>House<select name="house"><option value="watermark"${p.house !== 'krafft' ? ' selected' : ''}>Watermark</option><option value="krafft"${p.house === 'krafft' ? ' selected' : ''}>Krafft</option></select></label><label>Order<input name="sort" value="${p.sort || 0}" size="4"></label><label class="chk"><input type="checkbox" name="public" value="1"${p.id ? (p.public ? ' checked' : '') : ' checked'}> Shown</label></div>
 <label>A line beneath the plate<input name="note" value="${esc(p.note || '')}" maxlength="400"></label><div class="hd-acts"><button class="btn">${p.id ? 'Save' : 'Hang the portrait'}</button>${p.id ? `</form><form method="post" action="/studio/hall/${p.id}/remove"><button class="link">Take down</button>` : ''}</form></div>`;
+  const plateRows = Object.entries(rooms).map(([k, n]) => { const p = plates.find(x => x.room === k); return `<form method="post" action="/studio/hall/plate" class="hl-row rmp-f"><input type="hidden" name="room" value="${k}"><label>${esc(n)}<input name="line" value="${esc(p ? p.line : '')}" maxlength="160" placeholder="Given by the Hill family, 2026 · in memory of …"></label><button class="btn">${p ? 'Save' : 'Name it'}</button></form>`; }).join('');
   return layout({ studio: true, title: 'The Hall of Patrons · Studio', body: `<section class="studio-wrap"><p class="k">Back office</p><h1>The Hall of Patrons.</h1>
+<h2>Named rooms</h2><p class="note">A room given by a patron carries a brass plate under its name: one line, theirs. Empty the line to take it down.${ok === 'plate' ? ' <b>Saved.</b>' : ''}</p>${plateRows}
 <p class="lede">A portrait for each person who founded something here. Make the portrait, put it in the vault as a work (its own title, private or public), then hang it here by its slug. The sitter&rsquo;s consent to be shown is yours to hold. <a href="/patrons">See the hall</a>.</p>
 ${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
 <h2>Hang a portrait</h2>${form()}

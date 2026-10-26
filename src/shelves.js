@@ -80,15 +80,16 @@ function mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl }) {
     const have = new Set(list.map(t => t.shelf));
     res.send(room({ have, title: 'The Library.', lede: `${list.length} books, bound and shelved: the public domain free to all, the makers’ own at their price. Read in the house, in the reading room; every book opens where you left it.`, rows: continueRow + (begin.length ? `<section class="lbr-shelf lbr-begin"><header class="lbr-h"><h2>Begin here</h2><span class="lbr-line">Six for today, one from each shelf.</span></header><div class="lbr-row"><div class="lbr-plank">${begin.map(t => book(t)).join('')}</div></div></section>` : '') + rows + az, nav: true }));
   });
-  function room({ title, lede, rows, q = '', back = false, nav = false, have = null }) {
-    return V.layout({ title: `${title.replace(/\.$/, '')} · The Library · Watermark`, path: '/library', desc: 'The house’s library: the public domain bound and shelved, the makers’ books, read in the reading room.', body: `<main class="lbr">
-<header class="lbr-top"><div class="lbr-tt"><p class="k">${back ? '<a href="/library">The Library</a>' : 'The house'}</p><h1>${esc(title)}</h1><p class="lede">${esc(lede)}</p></div>
+  function room({ title, lede, rows, q = '', back = false, nav = false, have = null, plate = '', path = '/library', kicker = null, foot = null, insc = '' }) {
+    return V.layout({ title: `${title.replace(/\.$/, '')} · The Library · Watermark`, path, desc: 'The house’s library: the public domain bound and shelved, the makers’ books, read in the reading room.', body: `<main class="lbr">
+<header class="lbr-top"><div class="lbr-tt"><p class="k">${kicker != null ? kicker : (back ? '<a href="/library">The Library</a>' : 'The house')}</p><h1>${esc(title)}</h1>${plate || (!back && app.locals.roomPlate ? app.locals.roomPlate('library') : '')}${insc}<p class="lede">${esc(lede)}</p></div>
 <form class="lbr-find" action="/library" method="get"><input type="search" name="q" value="${esc(q)}" placeholder="A title, an author, a word" aria-label="Find a book"><button>Find</button></form>
 ${nav ? `<nav class="lbr-nav" aria-label="The shelves">${SHELVES.filter(([k]) => !have || have.has(k)).map(([k, n]) => `<a href="#shelf-${k}">${esc(n)}</a>`).join('')}<a href="#authors">By author</a><a href="/bookshop">The Bookshop</a><a href="/publishing">Publishing</a></nav>` : ''}</header>
 ${rows}
-<footer class="lbr-foot"><p>Every book here is kept as the photographs are kept: fingerprinted, on the register, read in the house. The public domain is free to all and always will be; a maker’s book is theirs, at their price, paid on Friday. <a href="/press">The printing house</a> · <a href="/account/desk">The Writer’s Desk</a> · <a href="/join">Apply with the work</a>.</p></footer></main>` });
+<footer class="lbr-foot"><p>${foot || `Every book here is kept as the photographs are kept: fingerprinted, on the register, read in the house. The public domain is free to all and always will be; a maker’s book is theirs, at their price, paid on Friday. <a href="/press">The printing house</a> · <a href="/account/desk">The Writer’s Desk</a> · <a href="/join">Apply with the work</a>.`}</p></footer></main>` });
   }
-  app.locals.shelves = { SHELVES, classify, shelveAll, backfill, href };
+  const plank = (h, items, { line = '', more = null, id = '' } = {}) => `<section class="lbr-shelf"${id ? ` id="${esc(id)}"` : ''}><header class="lbr-h"><h2>${esc(h)}</h2>${line ? `<span class="lbr-line">${esc(line)}</span>` : ''}<span class="lbr-n">${items.length}</span>${more ? `<a href="${esc(more)}">All</a>` : ''}</header><div class="lbr-row"><div class="lbr-plank">${items.length ? items.map(t => t.note ? `<span class="lbr-in">${book(t)}<span class="lbr-go">${esc(t.note)}</span></span>` : book(t)).join('') : '<span class="lbr-empty">Nothing on this shelf yet.</span>'}</div></div></section>`;
+  app.locals.shelves = { SHELVES, classify, shelveAll, backfill, href, room, book, plank };
   return app.locals.shelves;
 }
 module.exports = { mountShelves, SHELVES, classify, BY_ID };
