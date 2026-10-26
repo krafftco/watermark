@@ -25,7 +25,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
   db.exec('CREATE TABLE IF NOT EXISTS lab_assets (token TEXT PRIMARY KEY, job_id INTEGER NOT NULL, expires TEXT NOT NULL, takes INTEGER NOT NULL DEFAULT 0)');
 
   const lab = { transport: null }; // the wire; tests set `transport` to a fake, the house uses fetch
-  const KEY = () => process.env.PRODIGI_API_KEY || '';
+  const KEY = () => String(process.env.PRODIGI_API_KEY || '').trim();
   const on = () => !!KEY() || !!lab.transport;
   const host = () => (process.env.PRODIGI_SANDBOX === '1' ? HOSTS.sandbox : HOSTS.live);
   const skus = () => { try { return { ...DEFAULT_SKUS, ...(process.env.LAB_SKUS ? JSON.parse(process.env.LAB_SKUS) : {}) }; } catch (e) { return DEFAULT_SKUS; } };
