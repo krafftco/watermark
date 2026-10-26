@@ -1456,6 +1456,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', '/g/' + gb.code); assert.ok(r.body.toString().includes(`/tour/${gw.slug}`) && /Take the tour, in/.test(r.body), 'the gallery’s head offers the tour');
       r = await req(port, 'GET', '/yours', { cookie: gck }); assert.ok(/Take your tour/.test(r.body) && /A tour, in your voice/.test(r.body), 'the house offers it to the owner');
       r = await req(port, 'POST', `/tour/${gw.id}/voice/welcome/remove`, { cookie: gck }); assert.equal(r.status, 200); assert.ok(!app.locals.tours.galleryDoor(gb), 'removed'); }
+    // The guests of the house (26 Oct): a private gallery opened to the people its owner names.
+    { const hb = db.prepare("SELECT b.* FROM buyers b JOIN licenses l ON l.buyer_id=b.id WHERE l.status='active' AND l.price_cents > 0 GROUP BY b.id ORDER BY COUNT(*) DESC LIMIT 1").get();
+      db.prepare("UPDATE buyers SET public=0, code=COALESCE(code, 'guestcode1') WHERE id=?").run(hb.id); const hb2 = db.prepare('SELECT * FROM buyers WHERE id=?').get(hb.id);
+      const hck = 'wm_b=' + hb2.id + '.' + require('crypto').createHmac('sha256', 's').update('b' + hb2.id).digest('hex');
+      r = await req(port, 'GET', '/g/' + hb2.code); assert.equal(r.status, 404, 'a private gallery is not seen');
+      r = await req(port, 'GET', '/yours/guests', { cookie: hck }); assert.ok(r.status === 200 && /Guests\./.test(r.body), 'the list');
+      r = await req(port, 'POST', '/yours/guests', { cookie: hck, body: { list: 'Annie Taylor, annie@example.com\nharlan@example.com', note: 'Come and see.' } }); assert.equal(r.status, 302);
+      const gl = db.prepare('SELECT * FROM gallery_guests WHERE buyer_id=? ORDER BY id').all(hb2.id); assert.ok(gl.length === 2 && gl[0].name === 'Annie Taylor' && gl[0].email === 'annie@example.com' && gl[1].email === 'harlan@example.com', 'two guests named: ' + JSON.stringify(gl.map(g => [g.name, g.email])));
+      r = await req(port, 'GET', `/g/${hb2.code}/guest/${gl[0].token}`); assert.equal(r.status, 302); const gcook = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; '); assert.ok(/wm_gg=/.test(gcook), 'the link admits');
+      r = await req(port, 'GET', '/g/' + hb2.code, { cookie: gcook }); assert.ok(r.status === 200 && /A collector’s house|collects|The gallery/.test(r.body), 'the guest sees the gallery: ' + r.status);
+      r = await req(port, 'GET', '/g/' + hb2.code); assert.equal(r.status, 404, 'a stranger still does not');
+      r = await req(port, 'GET', '/yours', { cookie: hck }); assert.ok(/Guests of the house/.test(r.body) && /2 named/.test(r.body), 'the house counts them');
+      r = await req(port, 'POST', `/yours/guests/${gl[0].id}/remove`, { cookie: hck }); assert.equal(r.status, 302);
+      r = await req(port, 'GET', '/g/' + hb2.code, { cookie: gcook }); assert.equal(r.status, 404, 'taken off the list, the link is dead');
+      db.prepare('UPDATE buyers SET public=1 WHERE id=?').run(hb.id); }
   }
   console.log('ok: tours');
   { // The rooms, scoped and on the clock; the kids' corner; a museum's own house on its own domain.

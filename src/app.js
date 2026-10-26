@@ -1036,7 +1036,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const ownHand = (b, req) => { const m = (b && db.prepare('SELECT * FROM makers WHERE buyer_id=? OR (email IS NOT NULL AND email=?) ORDER BY buyer_id=? DESC LIMIT 1').get(b.id, b.email || '', b.id)) || (req && app.locals.accounts.makerOf(req)); if (!m || m.standing === 'held') return []; return db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND stars=5 ORDER BY id DESC").all(m.id).map(w => ({ ...w, maker: m.name, maker_slug: V.makerSlug(m) })); };
   // The collector's house (26 Oct): the counts its doors carry.
   const houseOf = b => { if (!b) return null; const n = (sql, ...p) => { try { return db.prepare(sql).get(...p).n; } catch (e) { return 0; } };
-    return { eye: app.locals.galleries && app.locals.galleries.eye ? app.locals.galleries.eye(b) : null, hangsN: n('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?', b.id), cabinetN: n('SELECT COUNT(*) n FROM cabinet WHERE buyer_id=?', b.id), showingsN: n('SELECT COUNT(*) n FROM showings WHERE buyer_id=?', b.id), hasOrder: !!n("SELECT COUNT(*) n FROM standing WHERE buyer_id=? AND status IN ('active','ending')", b.id), tourHref: app.locals.tours && app.locals.tours.galleryDoor ? app.locals.tours.galleryDoor(b) : null }; };
+    return { eye: app.locals.galleries && app.locals.galleries.eye ? app.locals.galleries.eye(b) : null, hangsN: n('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?', b.id), cabinetN: n('SELECT COUNT(*) n FROM cabinet WHERE buyer_id=?', b.id), showingsN: n('SELECT COUNT(*) n FROM showings WHERE buyer_id=?', b.id), hasOrder: !!n("SELECT COUNT(*) n FROM standing WHERE buyer_id=? AND status IN ('active','ending')", b.id), tourHref: app.locals.tours && app.locals.tours.galleryDoor ? app.locals.tours.galleryDoor(b) : null, guestsN: app.locals.guests ? app.locals.guests.guestsOf(b).length : 0 }; };
   app.get('/yours', (req, res) => {
     let b = buyerOf(req);
     // A maker signed in without a gallery yet is given one: every maker is a collector.
@@ -1404,7 +1404,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   app.get('/g/:code', (req, res, next) => { req.url = `/collector/${req.params.code}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   app.get('/collector/:code', (req, res) => {
-    const b = db.prepare('SELECT * FROM buyers WHERE code=? AND public=1').get(String(req.params.code));
+    const b0 = db.prepare('SELECT * FROM buyers WHERE code=?').get(String(req.params.code));
+    const b = b0 && (b0.public || (app.locals.guests && app.locals.guests.admitted(req, b0))) ? b0 : null;
+    if (b && !b.public) res.set('Cache-Control', 'private, no-store');
     if (b && app.locals.walk) app.locals.walk.set(res, `gallery:${b.code}`);
     if (!b) return res.status(404).send(V.collector({ b: null, items: [], rooms: [], works: 0, makers: 0, own: false, base: C.base }));
     res.send(V.collector({ hs: houseOf(b), hand: ownHand(b), b, ...collected(b), book: app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, note: req.query.note || null, me: (buyerOf(req) || {}).id || null, lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, own: false, base: C.base, pay: payCfg(), share: q.use.get(maker.id, 'social'), founding: foundingNo(b), first: app.locals.founders ? { is: app.locals.founders.isFirst(b), note: app.locals.founders.note() } : null, patronOf: pat.of(b) }));
@@ -1962,6 +1964,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./atelier').mountAtelier(app, { db, isStudio, makerOf: req => app.locals.accounts.makerOf(req), V });
   require('./introductions').mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, setMaker: app.locals.accounts.setMaker, setBuyer, slugify, DEFAULT_USES });
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });
+  require('./guests').mountGuests(app, { db, C, V, mail, buyerOf, ledger }); // the guests of the house (26 Oct): a private gallery opened to the people its owner names
   require('./looking').mountLooking(app, { db, C, buyerOf, mail, fetchImpl: cfg.fetchImpl });
   require('./walk').mountWalk(app, { db, V, SERIES: require('./series') });
   require('./frame').mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket: app.locals.pocket, nextRef, grant, SERIES: require('./series'), collectUse: w => { if (!w) return null; const m = mk(w); const u = q.uses.all(m.id).find(x => x.key === 'social'); return u && u.price_cents > 0 && offered(R.parse(w.rules), 'social', w) ? u : null; } });

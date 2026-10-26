@@ -36,6 +36,7 @@ ${door('/frame', 'On your television', 'The whole collection on the wall at home
 ${door(code ? `/vr?in=gallery:${esc(code)}` : '/vr', 'In a headset', 'Walk the long gallery with your pieces on its walls: Quest, Vision Pro, any headset.')}
 ${door('/yours/tour', 'A tour, in your voice', o.tourHref ? 'Your gallery walked in your own voice, the way a guide walks a wall. Say it again any time.' : 'Say a word on each piece and a welcome at the door, and your gallery can be walked in your own voice.')}
 ${door('/yours?tab=hangs', 'Hang a wall', `A titled wall of your own, in your order with a line on each${o.hangs ? ` · ${o.hangs} hung` : ''}. A wall can be a tour in your voice.`)}
+${door('/yours/guests', 'Guests of the house', pub ? `Your gallery is open to anyone; a guest list is for the day you close the doors${o.guestsN ? ` · ${o.guestsN} named` : ''}.` : `Keep the doors closed and name who comes in: each guest is written to with a link that admits them${o.guestsN ? ` · ${o.guestsN} named` : ''}.`)}
 ${door('/yours?tab=cabinet', 'A show, by invitation', `The works you own in the world, shown to the guests you name, for the run you set${o.showingsN ? ` · ${o.showingsN} showing${o.showingsN === 1 ? '' : 's'}` : ''}.`)}
 </div></section>
 <section class="ch-row"><h2>Live with it</h2><div class="ch-ds">
