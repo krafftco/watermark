@@ -1794,6 +1794,31 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/account/desk/${msId}.pdf`); assert.ok(r.status !== 200, 'a stranger refused');
   }
   console.log('ok: the Writer’s Desk');
+  { // Draw (26 Oct): the sheet; drawing from a work; a drawing kept under a name as the house's file and a PNG; the file back; a stranger's door; a maker's drawing into the vault as a work of kind 'drawing'.
+    r = await req(port, 'GET', '/draw'); assert.ok(r.status === 200 && /class="dw"/.test(r.body) && /data-dw-tool="pencil"/.test(r.body) && /data-dw-tool="wash"/.test(r.body) && /Sign in to keep/.test(r.body) && /draw\.js/.test(r.body), 'the blank sheet for a stranger');
+    const dwW = db.prepare("SELECT slug FROM works WHERE status='held' LIMIT 1").get();
+    r = await req(port, 'GET', `/draw/from/${dwW.slug}`); assert.ok(r.status === 200 && /data-dw-refim/.test(r.body) && /data-dw-rf="notan"/.test(r.body) && /data-dw="trace"/.test(r.body) && new RegExp(`data-ref="${dwW.slug}"`).test(r.body), 'drawing from a work: the reference and its tools');
+    r = await req(port, 'GET', `/w/${dwW.slug}`); assert.ok(new RegExp(`/draw/from/${dwW.slug}`).test(r.body), 'the door on the work page');
+    r = await req(port, 'GET', `/easel/${dwW.slug}`); assert.ok(/ez-draw/.test(r.body), 'the door on the easel');
+    const sharp = require('sharp'); const png = await sharp({ create: { width: 64, height: 48, channels: 4, background: { r: 20, g: 20, b: 20, alpha: 1 } } }).png().toBuffer();
+    const wmd = JSON.stringify({ v: 1, title: 'A study', w: 64, h: 48, ref: dwW.slug, layers: [{ name: 'Paper', opacity: 1, visible: true, png: 'data:image/png;base64,' + png.toString('base64') }] });
+    const dwBody = o => ({ body: JSON.stringify(o), headers: { 'content-type': 'application/x-watermark-drawing+json' } });
+    r = await req(port, 'POST', '/draw/save', dwBody({ title: 'A study', wmd, png: 'data:image/png;base64,' + png.toString('base64') })); assert.strictEqual(r.status, 401, 'a stranger cannot keep');
+    r = await req(port, 'POST', '/draw/save', { cookie: mck, ...dwBody({ title: 'A study', wmd, png: 'data:image/png;base64,' + png.toString('base64') }) }); assert.ok(r.status === 200 && JSON.parse(r.body).ok, 'kept: ' + r.body); const dwId = JSON.parse(r.body).id;
+    r = await req(port, 'POST', '/draw/save', { cookie: mck, ...dwBody({ title: 'A study', wmd: '{"layers":[]}', png: 'x' }) }); assert.strictEqual(r.status, 400, 'not a drawing');
+    r = await req(port, 'GET', `/draw/d/${dwId}/file`, { cookie: mck }); assert.ok(r.status === 200 && JSON.parse(r.body).layers.length === 1, 'the file comes back');
+    r = await req(port, 'GET', `/draw/d/${dwId}/png`, { cookie: mck }); assert.ok(r.status === 200 && /image\/png/.test(r.headers['content-type']), 'the flattened PNG');
+    r = await req(port, 'GET', `/draw/d/${dwId}/file`, { cookie: bck }); assert.strictEqual(r.status, 404, 'another person is refused');
+    r = await req(port, 'GET', `/draw/d/${dwId}`, { cookie: mck }); assert.ok(r.status === 200 && new RegExp(`data-file="/draw/d/${dwId}/file"`).test(r.body) && /data-dw-vault/.test(r.body) && /data-dw-refim/.test(r.body), 'opened again, with the reference and the vault door');
+    r = await req(port, 'GET', '/draw/mine', { cookie: mck }); assert.ok(r.status === 200 && /A study/.test(r.body), 'your drawings');
+    r = await req(port, 'POST', `/draw/save`, { cookie: mck, ...dwBody({ id: dwId, title: 'A study, again', wmd, png: 'data:image/png;base64,' + png.toString('base64') }) }); assert.ok(r.status === 200 && JSON.parse(r.body).id === dwId, 'kept again under the same id');
+    r = await req(port, 'POST', `/draw/d/${dwId}/vault`, { cookie: bck }); assert.strictEqual(r.status, 404, 'a collector has no door to the vault');
+    r = await req(port, 'POST', `/draw/d/${dwId}/vault`, { cookie: mck }); assert.ok(r.status === 302 && /\/account\/works\/.+\?ok=drawn/.test(r.headers.location), 'into the vault: ' + r.status + ' ' + r.headers.location);
+    const dwWork = db.prepare("SELECT w.* FROM works w JOIN drawings d ON d.work_id=w.id WHERE d.id=?").get(dwId); assert.ok(dwWork && dwWork.kind === 'drawing' && dwWork.status === 'hidden' && /a study, again/i.test(dwWork.title), 'a work of kind drawing, kept back: ' + JSON.stringify(dwWork && { kind: dwWork.kind, status: dwWork.status }));
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/drawing\.vaulted/.test(r.body), 'nothing of it on the public register');
+    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/\/draw\/mine/.test(r.body), 'the rail');
+    console.log('ok: Draw');
+  }
   { // The bindings and the shelves (25 Oct): every book without a cover is bound by the house; the Library is a room of shelves by kind, by author, with a search.
     r = await req(port, 'GET', '/library'); assert.ok(r.status === 200 && /class="lbr"/.test(r.body) && /By author/.test(r.body) && /<svg[^>]*aria-label=/.test(r.body) && /bk3-e/.test(r.body), 'the room, the books bound');
     const SH = require('../src/shelves'); assert.equal(SH.classify({ kind: 'book', subjects: ['Fiction', 'England -- Social life and customs -- 19th century'] }), 'fiction'); assert.equal(SH.classify({ kind: 'book', subjects: ['Poetry'] }), 'poetry'); assert.equal(SH.classify({ kind: 'book', source: 'https://www.gutenberg.org/ebooks/2680' }), 'ideas'); assert.equal(SH.classify({ kind: 'essay', maker_id: 3 }), 'makers'); assert.equal(SH.classify({ kind: 'book', subjects: ['Biography'] }), 'lives');
