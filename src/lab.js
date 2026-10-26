@@ -15,9 +15,14 @@ const path = require('path');
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const HOSTS = { live: 'https://api.prodigi.com', sandbox: 'https://api.sandbox.prodigi.com' };
-// Sizes the house sells → the lab's SKU. Drafts: Prodigi's fine-art paper line reads GLOBAL-FAP-<W>X<H>; each is
-// confirmed by the catalogue check before a real order rides on it, and LAB_SKUS overrides any of them.
-const DEFAULT_SKUS = { '5x7': 'GLOBAL-FAP-5X7', '8x10': 'GLOBAL-FAP-8X10', '11x14': 'GLOBAL-FAP-11X14', '12x16': 'GLOBAL-FAP-12X16', '16x20': 'GLOBAL-FAP-16X20', '16x24': 'GLOBAL-FAP-16X24', '20x30': 'GLOBAL-FAP-20X30', '24x36': 'GLOBAL-FAP-24X36' };
+// Sizes the house sells → the lab's SKU. Read from Prodigi's own catalogue on 26 Oct: Hahnemühle Photo Rag is the
+// line GLOBAL-HPR-<W>X<H> (308 gsm, fulfilled from the US in 48–72 h) and German Etching GLOBAL-HGE-<W>X<H>; the house's
+// paper is Photo Rag unless the order names German Etching. The catalogue check confirms each size before an order
+// rides on it; LAB_SKUS overrides any size.
+const SIZES = ['5x7', '8x10', '11x14', '12x16', '16x20', '16x24', '20x30', '24x36'];
+const familyFor = paper => /german\s*etching|\bHGE\b/i.test(String(paper || '')) ? 'HGE' : 'HPR';
+const skuOf = (key, fam = 'HPR') => `GLOBAL-${fam}-${key.toUpperCase()}`;
+const DEFAULT_SKUS = Object.fromEntries(SIZES.map(k => [k, skuOf(k)]));
 const sizeKey = (size, kind) => { if (kind === 'proof') return '5x7'; const n = (String(size || '').match(/\d+(\.\d+)?/g) || []).map(Number).sort((a, b) => a - b); return n.length >= 2 ? `${n[0]}x${n[1]}` : null; };
 
 function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press }) {
@@ -80,7 +85,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const j = jobOf(jobId); if (!j || !j.lab || j.status !== 'offered') return false;
     if (!on()) return fail(j, 'no key');
     const o = orderOf(j.order_id); if (!o) return false;
-    const key = sizeKey(o.size, o.kind), sku = key ? skus()[key] : null;
+    const key = sizeKey(o.size, o.kind); const fam = familyFor(o.paper); const S = skus(); const sku = key ? (fam === 'HGE' && S[key] === skuOf(key) ? skuOf(key, 'HGE') : S[key]) : null;
     if (!sku) return fail(j, `no SKU for ${o.kind === 'proof' ? 'the proof' : o.size || 'this size'}`);
     if (o.pickup) return fail(j, 'a pickup');
     const r = recipient(o); if (r.bad) return fail(j, 'the address could not be read');
@@ -175,4 +180,4 @@ ${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Step</th><th>The lab�
   app.locals.lab = lab;
   return lab;
 }
-module.exports = { mountLab, DEFAULT_SKUS, sizeKey };
+module.exports = { mountLab, DEFAULT_SKUS, sizeKey, familyFor, skuOf };
