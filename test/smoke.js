@@ -1749,6 +1749,24 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours/reading', { cookie: bck }); assert.ok(/class="lbr"/.test(r.body) && /class="rmp"/.test(r.body) && /lbr-plank/.test(r.body) && /I cannot live without books/.test(r.body), 'the collector’s own library: the walnut room, the plate, the planks, the line');
     console.log('ok: inscriptions and named rooms');
   }
+  // Signed on the spot (26 Oct): the release page, a finger's signature, the record kept, the subject's copy, the uses opened.
+  {
+    const sharp = require('sharp'); const png = await sharp({ create: { width: 300, height: 100, channels: 3, background: '#fff' } }).png().toBuffer();
+    const sig = 'data:image/png;base64,' + png.toString('base64');
+    r = await req(port, 'GET', `/account/release/sign?work=${w.slug}`, { cookie: mck }); assert.ok(r.status === 403 || r.status === 200, 'the page answers'); // another maker's work: no thumbnail, still a page
+    r = await req(port, 'GET', `/account/release/sign?work=${w.slug}`, { cookie: ck }); assert.ok(r.status === 200 && /data-sg-canvas/.test(r.body) && /sign this release electronically/.test(r.body), 'the release page with the pad: ' + r.status + ' ' + r.body.toString().slice(0, 160));
+    r = await req(port, 'POST', '/account/release/sign', { cookie: ck, body: { kind: 'person', work: w.slug, subject: 'Jane Doe', email: 'jane@example.com', agree: '1', sig } }); assert.strictEqual(r.status, 302, 'signed');
+    const rel = db.prepare("SELECT * FROM work_releases WHERE subject='Jane Doe' ORDER BY id DESC").get(); assert.ok(rel && rel.work_id === w.id && rel.by === 'signed on the house' && rel.file && rel.sha256 && rel.token, 'the record kept with its fingerprint');
+    r = await req(port, 'GET', `/release/r/${rel.token}`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 4).toString() === '%PDF', 'the signer’s copy by the link');
+    r = await req(port, 'POST', '/account/release/sign', { cookie: ck, body: { kind: 'person', subject: 'Jane Doe', agree: '1', sig: 'data:image/png;base64,AAAA' } }); assert.strictEqual(r.status, 400, 'a signature that is not one is refused');
+    r = await req(port, 'POST', '/account/release/sign', { cookie: ck, body: { kind: 'person', subject: 'No Work', agree: '1', sig } }); assert.strictEqual(r.status, 302, 'signed before the photograph is in');
+    const pend = db.prepare("SELECT * FROM work_releases WHERE subject='No Work' AND work_id=0").get(); assert.ok(pend, 'waits unattached');
+    r = await req(port, 'POST', `/account/works/${w.slug}/clearance/attach`, { cookie: ck, body: { id: pend.id } }); assert.strictEqual(r.status, 302);
+    assert.strictEqual(db.prepare('SELECT work_id FROM work_releases WHERE id=?').get(pend.id).work_id, w.id, 'attached to the work');
+    r = await req(port, 'POST', '/account/release/sign', { body: { kind: 'person', subject: 'Stranger', agree: '1', sig } }); assert.strictEqual(r.status, 401, 'a stranger cannot sign anyone up');
+    r = await req(port, 'GET', `/account/works/${w.slug}`, { cookie: ck }); assert.ok(/Sign a release now, on this phone/.test(r.body), 'the door on the record');
+    console.log('ok: signed on the spot');
+  }
   { // The house's edition: a free book set for paper as a PDF; a priced text only to its maker, the Studio or a paid holder.
     const fb = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 AND price_cents IS NULL AND body IS NOT NULL ORDER BY id LIMIT 1").get(); assert.ok(fb, 'a free book');
     r = await req(port, 'GET', `/read/${fb.slug}.pdf`); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 5).toString() === '%PDF-' && r.body.length > 2000, 'the book block: ' + r.status);

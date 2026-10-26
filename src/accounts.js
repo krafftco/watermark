@@ -211,7 +211,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
 
   // ---------- the maker's own uploads: private until they publish ----------
-  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, welcome: req.query.welcome === 'own' })); });
+  app.get('/account/upload', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.upload({ m, signLine: app.locals.signRelease ? app.locals.signRelease.line() : '', welcome: req.query.welcome === 'own' })); });
   // One file into a maker's vault (shared by the one-request route and the arrivals queue): registered as the
   // maker's work, held privately, with its title (from the file name unless given), place and kind.
   async function takeWork(file, { originalname, title, place, kind, artist, makerId }) {
