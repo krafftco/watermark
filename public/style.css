@@ -4036,3 +4036,12 @@ html.in-stay .top .nv-back{display:none}
 .ax-desk .ax-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.ax-edit label,.ax-new label{display:grid;gap:4px;font-size:12px;margin:8px 0}.ax-edit input,.ax-edit textarea,.ax-edit select,.ax-new input{font:inherit;padding:8px;border:1px solid var(--rule,#ccc)}.ax-ck{display:flex!important;gap:8px;align-items:center}
 .ax-new{margin-top:30px;max-width:720px}
 @media (max-width:760px){.ax-room,.ax-one{padding:24px 16px 60px}.ax-grid{grid-template-columns:repeat(2,1fr);gap:18px 12px}.ax-works{grid-template-columns:1fr}}
+
+/* The clearance desk (26 Oct): the record's card, the guide. */
+.clr{margin-top:30px}.clr h3{font-size:13px;letter-spacing:.12em;text-transform:uppercase;margin:22px 0 8px}
+.clr-seen{background:#f3efe6;padding:10px 14px;max-width:820px;font-size:14px}.clr-seen small{color:var(--mute,#777)}
+.clr-tbl td:nth-child(2){white-space:nowrap}.clr-ok td:nth-child(2){color:#4b7a4b}.clr-no td:nth-child(2){color:#8a1e2a}
+.clr-rel{list-style:none;padding:0;margin:0}.clr-rel li{padding:6px 0;border-top:1px solid var(--rule,#e4e0d6);font-size:14px}.clr-inl{display:inline;margin-left:8px}
+.clr-f{max-width:820px}.clr-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;margin:8px 0}.clr-f label{display:grid;gap:4px;font-size:12px}.clr-f input,.clr-f select{font:inherit;padding:8px;border:1px solid var(--rule,#ccc)}.clr-ck{display:flex!important;gap:8px;align-items:center;font-size:13px!important}
+.clr-attest small{display:block;color:var(--mute,#777);margin-top:6px}.clr-ov{margin-top:16px}
+.clr-guide h2{text-transform:none;letter-spacing:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:24px;margin-top:28px}.clr-guide ol{padding-left:20px}.clr-guide .buy-btn{display:inline-block;width:auto;padding:10px 18px;margin:6px 8px 6px 0}

@@ -178,7 +178,7 @@ const FOOT = [
   ['Look', [['/wander', 'Wander'], ['/collection', 'The collection'], ['/art', 'The art'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/start', 'How it works']]],
   ['Collect', [['/yours', 'Yours'], ['/verify', 'Check a work'], ['/print', 'Print your work'], ['/friends', 'Friends of the house']]],
   ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
-  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/makers', 'For those who make'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
+  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/makers', 'For those who make'], ['/clearance', 'What you can do with a photograph'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
 ];
 function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;

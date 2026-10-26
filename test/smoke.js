@@ -1184,6 +1184,40 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(require('../src/art').rights(a).state, 'claimed', 'terms set: open');
   }
   console.log('ok: the artists behind the work');
+  // The clearance desk (26 Oct): what may be licensed, use by use; Al's reading of people and property; the papers.
+  {
+    const w0 = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); const n0 = app.locals.clearance.needs(w0); assert.ok(n0.uses.commercial.ok && n0.uses.editorial.ok, 'unread: open');
+    const hadKey = process.env.ANTHROPIC_API_KEY; process.env.ANTHROPIC_API_KEY = 'test-key'; const prevF = app.locals.__fetch;
+    app.locals.__fetch = async (u, o) => { u = String(u); if (/api\.anthropic\.com/.test(u)) return { ok: true, json: async () => ({ model: 'mock', content: [{ type: 'text', text: JSON.stringify({ art: false, artist: null, confidence: 0.9, people: { recognisable: 2, minors: true, crowd: false }, property: { private: false, trademark: true, what: 'a shop sign' }, note: 'Two people at a shop door.' }) }] }) }; return prevF ? prevF(u, o) : fetch(u, o); };
+    r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'ask' } });
+    let n = app.locals.clearance.needs(db.prepare('SELECT * FROM works WHERE id=?').get(w.id));
+    assert.ok(n.people === 2 && n.minors && n.property && !n.uses.commercial.ok && !n.uses.campaign.ok && n.uses.editorial.ok && n.uses.print.ok && n.uses.social.ok, 'two people and a trademark: a company and a campaign close, a story, a print and a copy stay');
+    assert.ok(/model release/.test(n.uses.commercial.why) && /guardian/.test(n.uses.commercial.why) && /property release/.test(n.uses.commercial.why), n.uses.commercial.why);
+    r = await req(port, 'GET', `/api/v1/works/${w.slug}`); const cj = JSON.parse(r.body); assert.ok(cj.clearance && cj.clearance.people === 2 && cj.clearance.uses.commercial === false && cj.clearance.uses.editorial === true && !cj.uses.some(u => u.key === 'commercial' || u.key === 'campaign'), 'the API says so and the wall no longer offers the two');
+    r = await req(port, 'GET', `/studio/works/${w.slug}`, { cookie: ck }); assert.ok(/What may be done with it/.test(r.body) && /2 recognisable people/.test(r.body) && /a shop sign/.test(r.body) && /✗ Not yet/.test(r.body) && /Add a release/.test(r.body), 'the record’s card');
+    // the papers: two model releases (one a guardian's) and a property release, one with the signed form
+    const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n')]);
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: mp('release.pdf', pdf, { do: 'release', kind: 'person', subject: 'Jane Doe', signed_on: '2026-10-20' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); assert.ok(/ok=release/.test(r.headers.location), 'a release with its form: ' + r.headers.location);
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'release', kind: 'person', subject: 'Tom Doe', minor: '1', kept_at: 'the studio file' } });
+    n = app.locals.clearance.needs(db.prepare('SELECT * FROM works WHERE id=?').get(w.id)); assert.ok(n.have.person === 2 && n.have.guardian === 1 && !n.uses.commercial.ok && /property release/.test(n.uses.commercial.why) && !/model release/.test(n.uses.commercial.why), 'the people released; the property still wanted');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'release', kind: 'property', subject: 'The shop' } });
+    n = app.locals.clearance.needs(db.prepare('SELECT * FROM works WHERE id=?').get(w.id)); assert.ok(n.uses.commercial.ok && n.released.model && n.released.property, 'released: open');
+    const rel = db.prepare('SELECT * FROM work_releases WHERE work_id=? AND file IS NOT NULL').get(w.id); assert.ok(rel && /\.pdf$/.test(rel.file), 'the form kept');
+    r = await req(port, 'GET', `/studio/works/${w.slug}/clearance/releases/${rel.id}/file`, { cookie: ck }); assert.ok(r.status === 200 && /private, no-store/.test(r.headers['cache-control']), 'the form served to the house, never cached');
+    r = await req(port, 'GET', `/studio/works/${w.slug}/clearance/releases/${rel.id}/file`); assert.ok(r.status === 302 || r.status === 403, 'a stranger refused');
+    r = await req(port, 'GET', `/api/v1/works/${w.slug}`); assert.ok(JSON.parse(r.body).clearance.model_released === true && JSON.parse(r.body).uses.some(u => u.key === 'commercial'), 'the wall offers the company’s use again');
+    // the maker's word instead of paper; the house's say
+    db.prepare('DELETE FROM work_releases WHERE work_id=?').run(w.id);
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'attest', no_people: '1', no_property: '1' } }); n = app.locals.clearance.needs(db.prepare('SELECT * FROM works WHERE id=?').get(w.id)); assert.ok(n.uses.commercial.ok && n.people === 0, 'attested: open');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'override', value: 'closed' } }); assert.ok(app.locals.clearance.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'commercial') && !app.locals.clearance.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'editorial'), 'the house closes the two, never a story');
+    r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'override', value: '' } }); r = await req(port, 'POST', `/studio/works/${w.slug}/clearance`, { cookie: ck, body: { do: 'attest' } });
+    db.prepare('UPDATE works SET attribution=NULL, clear_attest=NULL WHERE id=?').run(w.id); app.locals.__fetch = prevF; if (hadKey) process.env.ANTHROPIC_API_KEY = hadKey; else delete process.env.ANTHROPIC_API_KEY;
+    r = await req(port, 'GET', '/clearance'); assert.ok(r.status === 200 && /model release/i.test(r.body) && /street photography/.test(r.body), 'the guide');
+    r = await req(port, 'GET', '/release/model.pdf'); assert.ok(r.status === 200 && /application\/pdf/.test(r.headers['content-type']) && r.body.slice(0, 4).toString() === '%PDF', 'the model release form'); r = await req(port, 'GET', '/release/property.pdf'); assert.equal(r.status, 200);
+    r = await req(port, 'POST', `/account/works/${w.slug}/clearance`, { cookie: mck, body: { do: 'attest', no_people: '1' } }); assert.equal(r.status, 403, 'another maker may not attest for this work');
+    assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('release.kept'), 'never on the public register');
+  }
+  console.log('ok: the clearance desk');
   // The easel (20 Oct): the master study.
   { r = await req(port, 'GET', `/easel/${w.slug}`); assert.ok(r.status === 200 && /data-easel/.test(r.body) && /ez-notan5/.test(r.body) && /The master study/.test(r.body) && /data-ez="hold"/.test(r.body) && /easel\.js/.test(r.body), 'the easel');
     r = await req(port, 'GET', '/easel/no-such-work'); assert.equal(r.status, 302);

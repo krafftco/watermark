@@ -91,10 +91,11 @@ function createApp(cfg = {}) {
   // A partner's accepted exclusive on a work holds back the uses it covers while it runs (src/bridge.js).
   const held_ = (w, key) => !!(w && app && app.locals && app.locals.blockedBy && app.locals.blockedBy(w, key));
   const artClosed = (w, key) => !!(w && app && app.locals && app.locals.art && app.locals.art.blocks(w, key));
-  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const clearClosed = (w, key) => !!(w && app && app.locals && app.locals.clearance && app.locals.clearance.blocks(w, key));
+  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -496,6 +497,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
   app.locals.noTimers = !!cfg.noTimers;
+  require('./clearance').mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), bagcheck: BAG }); // the clearance desk: releases, what may be licensed (26 Oct)
   const ART = require('./art').mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk, fetchImpl: cfg.fetchImpl, imageOf: w => app.locals.imageOf(w) }); // the artists behind the work (26 Oct)
   require('./easel').mountEasel(app, { db, V, mk, I: require('./icons') }); // the easel: the master study
   require('./conservation').mountConservation(app, { db, V, C, ledger, mail, images, store, cache, originalPath, originals, studioOnly, mk, notify: null }); // the restoration room: if it is not sound, it is not shown (the sign must come before /w)
@@ -2240,7 +2242,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
     const studio = !req.path.startsWith('/account');
-    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
+    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : '') + (app.locals.clearance ? app.locals.clearance.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/clearance`) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
   }
   app.get('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); workDesk(req, res, w); });
   app.get('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); workDesk(req, res, w); });
