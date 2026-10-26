@@ -1738,6 +1738,29 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/wander'); assert.ok(/share\.js/.test(r.body) || true, 'share.js everywhere');
     db.prepare('DELETE FROM reading_list WHERE id=?').run(db.prepare('SELECT rl.id FROM reading_list rl JOIN texts t ON t.id=rl.text_id WHERE t.slug=?').get(sv.slug).id); // leave the shelf as it was for the reading-list test
     console.log('ok: sharing a book');
+    // The jacket (26 Oct): the house's own front and back of a book, researched and written by Al through a tool;
+    // shown on the Library page, its line on the reader's cover; a companion the house holds is linked; the Studio hides it.
+    {
+      const JK = app.locals.jacket; assert.ok(JK && !JK.on(), 'the jacket mounted, off without a key');
+      const other = db.prepare("SELECT slug, title, author FROM texts WHERE status='held' AND public=1 AND slug<>? AND body IS NOT NULL LIMIT 1").get(sv.slug); assert.ok(other, 'another book in the house');
+      process.env.ANTHROPIC_API_KEY = 'test-key'; let calls = 0;
+      app.locals.__fetch = async (url, o) => { calls++; const b = JSON.parse(o.body); if (b.system && /researching a book/.test(b.system)) return new Response(JSON.stringify({ model: 'fake', content: [{ type: 'web_search_tool_result', content: [{ url: 'https://en.wikipedia.org/wiki/A_book', title: 'A book' }] }, { type: 'text', text: 'Notes: first published 1851 in London. A film in 1956 by John Huston.' }] }), { status: 200 });
+        return new Response(JSON.stringify({ model: 'fake', content: [{ type: 'tool_use', name: 'write_jacket', input: { line: 'A whale, a captain, and the sea that will not give him up.', blurb: ['A sailor signs on to a whaling ship and finds its captain hunting one animal.', 'It is a sea story, a sermon and a joke at once.'], why: 'It changed what a novel could hold.', firsts: 'First published in London in October 1851, in three volumes.', read_if: ['if you like books that contain everything', 'have ever wanted to run away to sea'], author: { name: 'Herman Melville', dates: '1819–1891', life: 'He went to sea at twenty and wrote the rest of his life about it; the book sank without trace and was found again a century later.', also: ['Typee', 'Billy Budd'] }, afterlife: [{ kind: 'film', title: 'Moby Dick', year: '1956', note: 'John Huston; Gregory Peck as Ahab.' }], companions: [{ title: other.title, author: other.author || 'The house', why: 'Because both are about looking.' }, { title: 'The Odyssey', author: 'Homer', why: 'The sea, and the long way home.' }], sources: [{ title: 'A book', url: 'https://en.wikipedia.org/wiki/A_book' }, { title: 'bad', url: 'http://insecure.example' }] } }] }), { status: 200 }); };
+      const t0 = db.prepare('SELECT * FROM texts WHERE slug=?').get(sv.slug);
+      const jk = await JK.write(t0); assert.ok(jk && jk.line && jk.searched && jk.sources.length === 1 && jk.companions.length === 2 && jk.afterlife[0].year === '1956' && calls === 2, 'the jacket written through the tool: ' + JSON.stringify({ calls, s: jk && jk.sources }));
+      r = await req(port, 'GET', `/library/${sv.slug}`); const B = r.body.toString();
+      assert.ok(/jk-front/.test(B) && /A whale, a captain/.test(B) && /Why it matters/.test(B) && /Read it if you/.test(B) && /run away to sea/.test(B), 'the front flap on the page');
+      assert.ok(/jk-back/.test(B) && /Herman Melville/.test(B) && /1819–1891/.test(B) && /Its afterlife/.test(B) && /Gregory Peck/.test(B) && new RegExp(`/library/${other.slug}`).test(B) && /in the house/.test(B) && /The Odyssey/.test(B) && /Written by Al/.test(B) && !/insecure\.example/.test(B), 'the back: the author, the afterlife, the company kept (a book of the house linked), the sources');
+      r = await req(port, 'GET', `/read/${sv.slug}`); assert.ok(/A whale, a captain/.test(r.body) && /About this book/.test(r.body), 'the line on the reader’s cover');
+      r = await req(port, 'POST', `/studio/library/${sv.slug}/jacket`, { cookie: ck, body: { do: 'hide' } }); assert.ok(/jacket-hidden/.test(r.headers.location), 'hidden');
+      r = await req(port, 'GET', `/library/${sv.slug}`); assert.ok(!/jk-front/.test(r.body), 'the jacket hidden');
+      r = await req(port, 'POST', `/studio/library/${sv.slug}/jacket`, { cookie: ck, body: { do: 'show' } }); r = await req(port, 'GET', `/library/${sv.slug}`); assert.ok(/jk-front/.test(r.body), 'shown again');
+      r = await req(port, 'POST', `/studio/library/${sv.slug}/jacket`, { body: { do: 'hide' } }); assert.ok(r.status === 401 || r.status === 403 || r.status === 302, 'a stranger cannot');
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.jacketed'").get(), 'on the register, hidden');
+      r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/jacketed/.test(r.body), 'not in public');
+      app.locals.__fetch = null; delete process.env.ANTHROPIC_API_KEY;
+      console.log('ok: the jacket');
+    }
   }
   // Inscriptions, the brass ring, named rooms and the collector's own library (26 Oct).
   {
