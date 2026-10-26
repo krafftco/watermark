@@ -1622,7 +1622,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the Bookshop');
   { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
     r = await req(port, 'GET', '/'); assert.ok(/class="rws"/.test(r.body) && /The makers/.test(r.body) && /Today: /.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door, in the rows');
-    assert.ok(/Makers keep their work here\. Anyone can own a piece of it\./.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
+    assert.ok(/Makers keep their work here\. Anyone can own a piece of it\./.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /<b>Read\.<\/b>/.test(r.body) && /<b>Listen\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Make\.<\/b>/.test(r.body) && /nv-verbs/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
     const N = app.locals.notify; assert.ok(N.KINDS.daily && N.KINDS.daily.on, 'a kind, on by default');
     const b0 = db.prepare('SELECT id FROM buyers ORDER BY id LIMIT 1').get();
     db.prepare("INSERT OR IGNORE INTO push_subs (buyer_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/x', 'k', 'a')").run(b0.id);
@@ -2191,7 +2191,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/auth/passkey/login/verify', { body: JSON.stringify({ id: 'nope' }), headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 400, 'no challenge, no sign-in');
   r = await req(port, 'GET', '/yours', { cookie: bck }); assert.ok(r.body.toString().includes('Save with a passkey'), 'offered on the collection');
   r = await req(port, 'GET', '/static/webauthn.js'); assert.equal(r.status, 200);
-  r = await req(port, 'GET', '/collection'); assert.ok(/<nav><a href="\/collection">Collection<\/a><a href="\/makers">Makers<\/a><a href="\/signin"[^>]*>Sign in<\/a><\/nav>/.test(r.body.toString()), 'the menu, in order'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
+  r = await req(port, 'GET', '/collection'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/library">Read<\/a><a href="\/listening">Listen<\/a><a href="\/collection" aria-current="page">Collect<\/a><a href="\/makers">Make<\/a><a href="\/signin"[^>]*>Sign in<\/a><\/nav>/.test(r.body.toString()), 'the menu, in order: the five verbs'); assert.ok(r.body.toString().includes('class="cx-lib" href="/series/the-great-rooms"'), 'series inside the collection');
   // Other makers hang beside the house: their name on each plate, a gallery of their own, the Watermark mark, a filter.
   r = await req(port, 'GET', '/collection'); { const b = r.body.toString(); assert.ok(b.includes('data-wander'), 'wander');
     assert.ok(b.includes('id="maker-the-ada-estate"') && b.includes('data-href="/m/the-ada-estate"'), 'a room of their own on the map (23 Oct)'); assert.ok(b.includes('data-mk="the-ada-estate"'), 'a filter by maker');

@@ -460,7 +460,7 @@ h1{font-size:clamp(44px,6vw,96px);line-height:.95}
 .gh h2{font-size:clamp(28px,2.6vw,40px)}
 .top{background:rgba(255,255,255,.94)}
 .top nav{font-family:var(--sans);font-weight:500;letter-spacing:.04em;text-transform:none;font-size:14px}
-.top nav a{color:var(--ink)}.top nav a:hover{color:var(--mu)}
+.top nav a{color:var(--ink)}.top nav a:hover{color:var(--mu)}.top nav a[aria-current]{border-bottom:1px solid currentColor;padding-bottom:1px}
 .k,.cx-count,.gh span{letter-spacing:.06em;text-transform:none;font-size:13px;font-weight:500}
 .buy-btn{border-radius:0;background:var(--ac);font-weight:600;font-size:15px}
 
@@ -3792,10 +3792,10 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .wh-in{max-width:1180px;margin:0 auto;padding:0 clamp(16px,4vw,56px)}
 .wh .k{color:rgba(217,188,124,.8)}
 .wh h2{margin:0 0 44px;font:400 clamp(30px,3.6vw,52px)/1.08 var(--serif,Georgia,serif);letter-spacing:-.01em;max-width:18ch;text-transform:none;color:#efe8db}
-.wh-3{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.wh-5{display:grid;grid-template-columns:repeat(5,1fr);gap:22px}
 .wh-d{display:grid;grid-template-rows:auto 1fr auto;gap:12px;color:inherit;text-decoration:none;padding:26px 0 0;border-top:1px solid rgba(217,188,124,.28)}
 .wh-d b{font:400 clamp(26px,2.6vw,36px)/1 var(--serif,Georgia,serif)}
-.wh-d i{font:400 16px/1.55 var(--sans);font-style:normal;color:rgba(239,232,219,.78);max-width:34ch}
+.wh-d i{font:400 15px/1.55 var(--sans);font-style:normal;color:rgba(239,232,219,.78);max-width:34ch}
 .wh-d span{font:500 11.5px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:#d9bc7c;margin-top:8px}
 .wh-d:hover b{color:#d9bc7c}
 .wh-line{margin:48px 0 0;max-width:62ch;font:italic 400 17px/1.55 var(--serif,Georgia,serif);color:rgba(239,232,219,.72)}
@@ -3805,7 +3805,8 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .wh-lately li a{color:inherit}
 .wh-im{display:block;width:56px;height:42px;overflow:hidden;background:#000;flex:none}.wh-im img{width:100%;height:100%;object-fit:cover;display:block}
 .wh-reg{grid-template-columns:1fr}.wh-reg a{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#d9bc7c;text-decoration:none}
-@media (max-width:760px){.wh{padding:64px 0 56px}.wh-3{grid-template-columns:1fr;gap:8px}.wh-d{padding-top:20px}.gh-hero h1.gh-h1s{font-size:clamp(30px,8.6vw,46px);max-width:14ch}.gh-collect{margin-top:10px}.gh-acts{flex-direction:column;gap:0}}
+@media (max-width:1100px){.wh-5{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.wh{padding:64px 0 56px}.wh-5{grid-template-columns:1fr;gap:8px}.wh-d{padding-top:20px}.gh-hero h1.gh-h1s{font-size:clamp(30px,8.6vw,46px);max-width:14ch}.gh-collect{margin-top:10px}.gh-acts{flex-direction:column;gap:0}}
 /* Friday pay (25 Oct): the cleared line under the big number and the promise beneath it. */
 .gp-clear{display:block;font-style:normal;font-size:13px;color:var(--mu);margin-top:6px;line-height:1.5}
 .gp-friday{margin:0 0 22px;padding:14px 16px;border-left:2px solid #d9bc7c;font-size:14px;line-height:1.55;color:var(--ink,#1a1917);background:rgba(217,188,124,.08)}
