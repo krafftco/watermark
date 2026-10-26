@@ -617,7 +617,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   };
   app.locals.minute = minute;
   app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent }))));
-  app.get(['/', '/collection'], (req, res) => {
+  app.get(['/', '/house', '/collection'], (req, res) => {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
@@ -632,7 +632,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
     works.forEach(w => { w.voiced = heard.has(w.id); });
-    const front = req.path === '/'; const hangsNow = app.locals.hangs ? app.locals.hangs.publicHangs() : []; const showsList = showsNow(); const td = todays();
+    const front = req.path === '/' || req.path === '/house'; const hangsNow = app.locals.hangs ? app.locals.hangs.publicHangs() : []; const showsList = showsNow(); const td = todays();
     const rowsHtml = front && app.locals.rows ? app.locals.rows.html(req, { works, hangs: hangsNow, shows: showsList, rooms, today: td, cover: works[0] || null }) : null;
     let collectors = 0, collectCents = null;
     if (front) {

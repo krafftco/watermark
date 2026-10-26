@@ -149,7 +149,11 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
 
   // The old address: one word, Wander (Will, 21 Oct). Links in the wild and the app's cache still say /stroll.
   app.get('/stroll', (req, res) => res.redirect(301, '/wander' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
-  app.get('/wander', (req, res) => {
+  // The front door is Wander (Will, 26 Oct, the Jobs cut: one name on the door; `/` opens on the picture; the page
+  // about the house is /house). A tenant's `/` was rewritten to its maker's page before this.
+  app.get('/', (req, res, next) => wander(req, res, { front: true }));
+  app.get('/wander', (req, res) => wander(req, res, {}));
+  function wander(req, res, { front = false }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(req.query.in || '').slice(0, 80);
     const at = req.query.at ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
@@ -159,12 +163,12 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     if (at) items = [wanderJSON(at, req), ...items];
     const mk = set ? null : makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null } : null, I }));
-  });
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null } : null, I , front }));
+  }
 }
 
 // The page: the first photographs are in the HTML, so the stroll begins the instant it opens; the script carries on.
-function strollPage({ items, q = '', maker = null, set = null, I }) {
+function strollPage({ items, q = '', maker = null, set = null, I, front = false }) {
   const V = require('./views');
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
   const bookObj = w => `<a class="st-bk${w.cover ? '' : ' st-bound'}" href="/read/${esc(w.book)}"><img src="${esc(w.cover || `/binding/${encodeURIComponent(w.book)}.svg`)}" alt=""><span class="bk3-e"></span></a>`;
@@ -184,15 +188,15 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
-  return V.layout({ title: `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st" data-stroll data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="/" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><a class="st-x" href="${set ? esc(set.href) : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
+  return V.layout({ title: front ? 'Watermark · Where great work is kept' : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: front ? 'Makers keep their work here. Anyone can own a piece of it. Wander: the finest work, one at a time, edge to edge.' : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: front ? '/' : '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}" data-stroll${front ? ' data-front="1"' : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
+<header class="st-top"><a class="st-home" href="${front ? '/house' : '/'}" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><a class="st-x" href="${set ? esc(set.href) : front ? '/house' : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
 <button type="button" class="st-hld" data-st-held hidden title="Release (L or Esc)">${I.full}<b>Held</b><span data-st-heldfs>full screen</span><i>${I.close}</i></button>
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.wilhelm}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
-<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
+${front ? `<div class="st-hello" data-st-hello><p>Makers keep their work here. Anyone can own a piece of it.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Yours: your gallery and your wallet">${I.collect}<span>Yours</span></button><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="The Keys">${BUNCH}<span>The Keys</span></button>
 <aside class="st-side st-side-l" data-st-side="yours" aria-label="Yours"><div class="sdr" data-sd-body></div></aside><aside class="st-side st-side-r" data-st-side="keys" aria-label="The Keys"><div class="sdr" data-sd-body></div></aside><div class="st-shade" data-st-shade hidden></div>
 <template data-st-ic="wave">${I.wave}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>

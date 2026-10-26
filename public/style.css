@@ -4179,3 +4179,9 @@ html.in-stay .top .nv-back{display:none}
 .twg-list{list-style:none;margin:0;padding:0}.twg-list li{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line,#e6e1d6)}.twg-pic img{width:96px;height:72px;object-fit:cover;display:block;background:#111}
 .twg-list b{display:block;font:400 18px/1.2 var(--read)}.twg-list i{display:block;font:400 12px/1.5 var(--sans);font-style:normal;color:var(--mu);margin:2px 0 6px}
 .yc-head-h{padding-top:0}.yc-head-h .ch{margin-top:0}
+/* The front door is Wander (26 Oct): one line, then the picture. */
+.st-hello{position:fixed;left:50%;top:calc(76px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;max-width:min(88vw,520px);text-align:center;color:#efe9dd;padding:12px 18px 11px;border-radius:12px;background:rgba(11,10,9,.58);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:opacity .9s var(--e),transform .9s var(--e);pointer-events:none}
+.st-hello p{margin:0 0 6px;font:300 clamp(17px,2vw,22px)/1.35 var(--read);text-wrap:balance}
+.st-hello a{pointer-events:auto;color:#d9bc7c;text-decoration:none;font:500 11px/1.4 var(--sans);letter-spacing:.24em;text-transform:uppercase;border-bottom:1px solid rgba(217,188,124,.45)}
+.st-hello-off,.st-still .st-hello{opacity:0;transform:translateX(-50%) translateY(-6px);pointer-events:none}.st-hello-off a{pointer-events:none}
+@media (max-width:760px){.st-hello{top:calc(70px + env(safe-area-inset-top));left:16px;right:16px;transform:none;text-align:left;max-width:none}.st-hello-off,.st-still .st-hello{transform:translateY(-6px)}}
