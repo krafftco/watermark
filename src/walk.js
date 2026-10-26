@@ -14,7 +14,7 @@ function mountWalk(app, { db, V, SERIES }) {
     try {
       if (kind === 'collection') v = { label: 'The collection', href: '/collection', works: RG.byRegard(db, db.prepare(`${SEL} WHERE w.status='held' ORDER BY w.id`).all()) };
       else if (kind === 'maker') { const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(k) || [...db.prepare('SELECT * FROM makers').all()].find(x => V.makerSlug(x) === k); if (m) v = { label: `${m.name}'s archive`, href: `/m/${V.makerSlug(m)}`, works: RG.byRegard(db, db.prepare(`${SEL} WHERE w.maker_id=? AND w.status='held' ORDER BY w.curated DESC, w.id`).all(m.id)) }; }
-      else if (kind === 'gallery') { const b = db.prepare('SELECT * FROM buyers WHERE code=?').get(k); if (b) v = { label: `${b.name ? b.name + "'s" : 'a'} gallery`, href: `/g/${b.code}`, works: db.prepare(`${SEL} JOIN licenses l ON l.work_id=w.id AND l.buyer_id=? AND l.status='active' WHERE w.status='held' GROUP BY w.id ORDER BY MIN(l.collector_no) IS NULL, MIN(l.collector_no), MIN(l.starts_at)`).all(b.id) }; }
+      else if (kind === 'gallery') { const b = db.prepare('SELECT * FROM buyers WHERE code=?').get(k); if (b) v = { label: `${b.name ? b.name + "'s" : 'a'} gallery`, href: `/g/${b.code}`, works: db.prepare(`${SEL} JOIN licenses l ON l.work_id=w.id AND l.buyer_id=? AND l.status='active' WHERE w.status='held' GROUP BY w.id ORDER BY MIN(l.gallery_pos) IS NULL, MIN(l.gallery_pos), MIN(l.collector_no) IS NULL, MIN(l.collector_no), MIN(l.starts_at)`).all(b.id) }; }
       else if (kind === 'hang') { const h = db.prepare('SELECT h.*, b.code FROM hangs h JOIN buyers b ON b.id=h.buyer_id WHERE h.slug=?').get(k); if (h) v = { label: h.title, href: `/g/${h.code}/hang/${h.slug}`, works: db.prepare(`${SEL} JOIN hang_works hw ON hw.work_id=w.id WHERE hw.hang_id=? AND w.status='held' ORDER BY hw.pos, w.id`).all(h.id) }; }
       else if (kind === 'series') { const s = (SERIES || []).find(x => x.slug === k); if (s) { const slugs = s.chapters.flatMap(c => c.works); const rows = db.prepare(`${SEL} WHERE w.slug IN (${slugs.map(() => '?').join(',')}) AND w.status='held'`).all(...slugs); const by = new Map(rows.map(r => [r.slug, r])); v = { label: s.title, href: `/series/${s.slug}`, works: slugs.map(x => by.get(x)).filter(Boolean) }; } }
     } catch (e) { v = null; }
@@ -30,7 +30,7 @@ function mountWalk(app, { db, V, SERIES }) {
     const n = v.works.length;
     return { key, label: v.label, href: v.href, i: i + 1, n, prev: brief(v.works[(i - 1 + n) % n]), next: brief(v.works[(i + 1) % n]), wrap: n > 1 };
   }
-  app.locals.walk = { walk, set, ctxOf, list };
+  app.locals.walk = { walk, set, ctxOf, list, forget: key => cache.delete(key) };
   return app.locals.walk;
 }
 

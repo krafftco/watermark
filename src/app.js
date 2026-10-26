@@ -71,7 +71,7 @@ function createApp(cfg = {}) {
   db.exec(`CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY, license_id INTEGER NOT NULL, token TEXT UNIQUE NOT NULL, from_buyer INTEGER, to_buyer INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), claimed_at TEXT)`);
   db.exec(`CREATE TABLE IF NOT EXISTS buyers (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, pm TEXT, email TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   // Collectors: every purchase is numbered and hangs in the buyer's own collection.
-  for (const [t, c, d] of [['licenses', 'buyer_id', 'INTEGER'], ['licenses', 'collector_no', 'INTEGER'], ['buyers', 'code', 'TEXT'], ['buyers', 'name', 'TEXT'], ['buyers', 'public', 'INTEGER NOT NULL DEFAULT 0']])
+  for (const [t, c, d] of [['licenses', 'buyer_id', 'INTEGER'], ['licenses', 'collector_no', 'INTEGER'], ['licenses', 'gallery_pos', 'INTEGER'], ['buyers', 'code', 'TEXT'], ['buyers', 'name', 'TEXT'], ['buyers', 'public', 'INTEGER NOT NULL DEFAULT 0']])
     if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name=?`).get(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`);
   // Catalogue fields, kept the way a museum keeps a record: an accession number, medium, keywords, credit line.
   for (const [c, t] of [['accession', 'TEXT'], ['medium', 'TEXT'], ['keywords', 'TEXT'], ['credit', 'TEXT'], ['dhash', 'TEXT'], ['master_at', 'TEXT'], ['share_cents', 'INTEGER'], ['edition_size', 'INTEGER'], ['credentials', 'TEXT'], ['copyright_reg', 'TEXT']])
@@ -1022,9 +1022,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Every purchase hangs in the buyer's collection, numbered, room by room. Private by default;
   // the collector can open it to the world under a name of their choosing.
   function collected(b) {
-    const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
+    const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.gallery_pos, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
-      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.starts_at DESC`).all(b.id);
+      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
     const rooms = ids.length ? db.prepare(`SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
       FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
@@ -1055,6 +1055,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let isMaker = !!app.locals.accounts.makerOf(req);
     if (!isMaker && b) { const mm = db.prepare("SELECT * FROM makers WHERE (buyer_id=? OR (email IS NOT NULL AND email<>'' AND email=?)) AND COALESCE(standing,'open')='open' ORDER BY buyer_id=? DESC LIMIT 1").get(b.id, b.email || '', b.id); if (mm) { app.locals.accounts.setMaker(res, mm); isMaker = true; } }
     res.send(V.collector({ hand: ownHand(b, req), rights, isMaker, isHouse: isStudio(req), pocket: app.locals.pocket ? require('./pocket').pocketBlock({ tap: app.locals.pocket.tapOn(b), balance: app.locals.pocket.balance(b), history: app.locals.pocket.history(b), state: req.query.pocket || null, on: !!stripe, cashable: app.locals.pocket.cashable(b), bank: !!(b && b.stripe_account) }) : '', cabinet: app.locals.cabinet ? require('./cabinet').cabinetBlock({ holdings: app.locals.cabinet.holdings(b), showings: app.locals.cabinet.showings(b), state: req.query.cab || null, CAP: app.locals.cabinet.CAP, ACCESS: app.locals.cabinet.ACCESS, registrar: app.locals.cabinetRecord }) : '', hangs: app.locals.hangs ? require('./hangs').hangsBlock({ hangs: app.locals.hangs.mine(b), b: b || {}, pct: app.locals.hangs.CURATOR_PCT, base: C.base, earned: b ? db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND kind='curation' AND status='posted'").get(b.id).s : 0 }) : '', sent: req.query.sent || null, canSend: i => canTransfer({ id: i.id }), looking: app.locals.lookingOf ? app.locals.lookingOf(b, req) : null, tab: req.query.tab || null, b, ...col, book: b && b.public && b.code && app.locals.galleryBook ? app.locals.galleryBook(b, req) : null, me: b ? b.id : null, swaps: app.locals.swaps ? { forMe: app.locals.swaps.forMe(b).map(t => ({ ...t, from_name: (db.prepare('SELECT name FROM buyers WHERE id=?').get(t.from_buyer) || {}).name })), byMe: app.locals.swaps.byMe(b) } : undefined, shared: app.locals.seatsFor ? app.locals.seatsFor(b) : [], lines: app.locals.linesBy ? app.locals.linesBy(b) : [], applauded: app.locals.applaudedBy ? app.locals.applaudedBy(b) : [], regard: app.locals.regardOf ? app.locals.regardOf(b) : null, pf, offer: req.query.offer || null, offers: app.locals.offersFor ? app.locals.offersFor(b) : [], accepted: req.query.accepted || null, own: true, base: C.base, give, got: req.query.got || null, founding: foundingNo(b), first: app.locals.founders ? { is: app.locals.founders.isFirst(b), note: app.locals.founders.note() } : null, left: foundingLeft(), patronOf: pat.of(b), patronSlug: pat.slugOf(maker), keyed: auth.keysOf(b).length > 0, keys: app.locals.keys ? [...app.locals.keys.ofBuyer(b), ...app.locals.keys.ofMaker(app.locals.accounts.makerOf(req))] : [], hs: houseOf(b) }));
+  });
+  // The collection arranged by its owner (26 Oct): the gallery's order is the collector's, kept on the licence
+  // (`gallery_pos`); the cards, the public gallery, the walk and Wander your gallery all follow it.
+  app.post('/yours/order', (req, res) => {
+    const b = buyerOf(req); if (!b) return res.status(401).json({ ok: false });
+    const refs = String((req.body || {}).order || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 2000);
+    const set = db.prepare('UPDATE licenses SET gallery_pos=? WHERE ref=? AND buyer_id=?');
+    db.transaction(() => refs.forEach((r, i) => set.run(i + 1, r, b.id)))();
+    if (app.locals.walk && app.locals.walk.forget) app.locals.walk.forget('gallery:' + b.code);
+    res.json({ ok: true, n: refs.length });
   });
   app.post('/yours', (req, res) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');

@@ -4169,3 +4169,7 @@ html.in-stay .top .nv-back{display:none}
 .ch-d i{font:400 14px/1.5 var(--sans);font-style:normal;color:rgba(239,232,219,.66)}.ch-d i em{font-style:italic;color:#efe9dd}
 .ch-d:hover b{color:#d9bc7c}.ch-gold b{color:#d9bc7c}
 @media (max-width:760px){.ch-hero{grid-template-columns:1fr;gap:16px;align-items:start}.ch-pic img{max-height:56vh;object-position:center}.ch-ds{grid-template-columns:1fr;gap:0}.ch-row h2{font-size:22px}}
+/* Arrange (26 Oct): the collection in its owner's order. */
+.tc-grip{position:absolute;top:4px;right:4px;z-index:2;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(37,34,30,.08);color:#25221e;cursor:grab;opacity:0;transition:opacity .3s}.tc-grip .ic{width:16px;height:16px}
+.tc:hover .tc-grip,.tc-grip:focus{opacity:.8}@media (pointer:coarse){.tc-grip{opacity:.55}}
+.tc.arr-lift{opacity:.55;transform:rotate(0) scale(1.03)}.tc-grid.arr-saved .tc-grip{color:#2e7d4f}

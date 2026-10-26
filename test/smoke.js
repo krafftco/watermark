@@ -934,6 +934,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: mck }); sd = JSON.parse(r.body); assert.ok(/data-sd-switch="maker"/.test(sd.yours) && /Owed to you/.test(sd.yours) && /Your pocket/.test(sd.yours), 'a maker sees both sides and the switch');
     r = await req(port, 'GET', '/wander?in=mine', { cookie: sck }); assert.ok(r.status === 200 && /Your gallery/.test(r.body) && /class="st-i"/.test(r.body), 'a collector strolls their own gallery');
     r = await req(port, 'GET', '/stroll/side/' + sd1, { cookie: sck }); assert.ok(/\/wander\?in=mine/.test(JSON.parse(r.body).yours), 'the door offers it');
+    // The collection arranged by its owner (26 Oct): the order posted is the order of the cards, the walk and Wander your gallery.
+    { const sb = db.prepare("SELECT b.id, b.code FROM buyers b JOIN licenses l ON l.buyer_id=b.id WHERE l.status='active' AND l.price_cents > 0 GROUP BY b.id HAVING COUNT(*) >= 2 ORDER BY COUNT(*) DESC LIMIT 1").get();
+      if (sb) { const cookie = 'wm_b=' + sb.id + '.' + require('crypto').createHmac('sha256', 's').update('b' + sb.id).digest('hex');
+        r = await req(port, 'GET', '/yours', { cookie }); const refs0 = [...r.body.toString().matchAll(/data-arrange-item="([^"]+)"/g)].map(m => m[1]); assert.ok(refs0.length >= 2 && /data-arrange-grip/.test(r.body) && /arrange\.js/.test(r.body), 'the cards carry grips');
+        const rev = refs0.slice().reverse(); r = await req(port, 'POST', '/yours/order', { cookie, body: { order: rev.join(',') } }); assert.ok(r.status === 200 && JSON.parse(r.body).ok, 'the order kept');
+        r = await req(port, 'GET', '/yours', { cookie }); const refs1 = [...r.body.toString().matchAll(/data-arrange-item="([^"]+)"/g)].map(m => m[1]); assert.deepEqual(refs1, rev, 'the cards follow the order'); assert.ok(/in your order/.test(r.body), 'said so');
+        const first = db.prepare('SELECT w.slug FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.ref=?').get(rev[0]).slug;
+        r = await req(port, 'GET', '/wander?in=mine', { cookie }); const b1 = r.body.toString(); const i1 = b1.indexOf('data-slug="' + first + '"'); assert.ok(i1 >= 0 && i1 < b1.indexOf('data-slug="', i1 + 10), 'Wander your gallery opens on the first in your order');
+        r = await req(port, 'POST', '/yours/order', { body: { order: rev.join(',') } }); assert.equal(r.status, 401, 'a stranger cannot arrange'); } }
     r = await req(port, 'GET', '/yours', { cookie: sck }); assert.ok(/yc-stroll/.test(r.body) && /data-slug=/.test(r.body), 'and the gallery opens with it');
     r = await req(port, 'GET', '/stroll/side/no-such-work'); sd = JSON.parse(r.body); assert.equal(sd.keys, '');
   console.log('ok: the stroll');
