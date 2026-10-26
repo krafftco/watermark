@@ -154,7 +154,7 @@ ${recordHtml}
 <aside class="lr-queue" data-lr-queuev hidden><header><p class="k">The queue</p><button type="button" class="lr-fib" data-lr-queuex>${I.close}<span>Close</span></button></header><ol data-lr-queuelist></ol></aside>
 <audio data-lr-audio preload="metadata"></audio><template data-lr-ic="play">${I.play}</template><template data-lr-ic="wave">${I.wave}</template>
 <script>window.__LRA=${JSON.stringify(data).replace(/</g, '\\u003c')}</script>
-</main><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
+</main><script src="/static/stay.js?v=${esc(V.VER)}" defer></script><script src="/static/listening.js?v=${esc(V.VER)}" defer></script>` }));
   }
   function recordView(r) {
     const list = tidyTracks(J(r.files));

@@ -27,6 +27,10 @@
   function fromShelf(slug) { var i = order.indexOf(slug); if (i < 0) return [slug].concat(order); return order.slice(i).concat(order.slice(0, i)); }
 
   var bar = $('[data-lr-bar]'), barimg = $('[data-lr-barimg]'), barsl = $('[data-lr-barsl]'), bart = $('[data-lr-bart]'), barby = $('[data-lr-barby]'), time = $('[data-lr-time]'), fill = $('[data-lr-fill]'), prog = $('[data-lr-bar2prog]');
+  // Stay (26 Oct): while a record plays, the rest of the house opens in a layer over the room with the player in the
+  // layer's bar, so the music never stops; closing the layer puts the bar back at the room's foot.
+  var barHome = bar && bar.parentNode;
+  if (window.WMStay && bar) WMStay.arm(function () { return !!(cur() && !a.paused); }, { get bar() { return bar; }, onClose: function () { if (barHome && bar.parentNode !== barHome) barHome.appendChild(bar); } });
   var minib = $('[data-lr-minib]'), minitr = $('[data-lr-minitr]');
   function playBtns() { return room.querySelectorAll('[data-lr-play],[data-lr-play2]'); }
 

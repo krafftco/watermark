@@ -3903,7 +3903,7 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 /* Stay (25 Oct): the house in a layer over the page that owns the sound. */
 .sty{position:fixed;inset:0;z-index:80;display:grid;grid-template-rows:auto 1fr;background:#0b0a09}.sty[hidden]{display:none}
 .sty-bar{display:flex;align-items:center;gap:8px;padding:6px 8px calc(6px + 0px);padding-top:calc(6px + env(safe-area-inset-top));background:#121110;border-bottom:1px solid rgba(255,255,255,.1);color:#e9e2d6;min-height:44px}
-.sty-slot{flex:1;min-width:0;display:flex;justify-content:center}.sty-slot .st-tt{position:static;max-width:min(80vw,520px);background:none;border-color:transparent}
+.sty-slot{flex:1;min-width:0;display:flex;justify-content:center}.sty-slot .st-tt{position:static;max-width:min(80vw,520px);background:none;border-color:transparent}.sty-slot .lr-bar2{position:static;width:100%;max-width:720px;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;gap:10px}.sty-slot .lr-bar2 .lr-bar-prog{display:none}
 .sty-back,.sty-x{flex:none;width:36px;min-width:0;padding:0;margin:0;height:36px;line-height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:#e9e2d6;font-size:18px;cursor:pointer}
 .sty-f{width:100%;height:100%;border:0;display:block;background:#fff}
 html.sty-on{overflow:hidden}
