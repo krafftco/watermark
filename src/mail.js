@@ -35,10 +35,11 @@ async function probe() { // the sending domain's standing at Resend, read once a
     state.domain = r.ok ? (j.data || []).map(d => `${d.name}: ${d.status}`).join(', ') || 'none' : `unreadable (${r.status}${j.name ? ' ' + j.name : ''})`;
   } catch (e) { state.domain = 'unreachable: ' + e.message; }
 }
+const log = []; // letters the house would have sent with mail off (tests read app.locals.mailLog)
 async function send({ to, subject, text, from, html, feature, cta }) {
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
-  if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); return { skipped: true }; }
+  if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); log.push({ to, subject, text: text || '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
   // The test house mails only its testers, and says so in the subject.
   if (process.env.STAGING === '1') {
     const allow = String(process.env.MAIL_ALLOW || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
@@ -102,4 +103,4 @@ const templates = {
 };
 
 if (process.env.NODE_ENV !== 'test') setTimeout(() => probe(), 5e3).unref();
-module.exports = { on, send, templates, paper, state, probe };
+module.exports = { on, send, templates, paper, state, probe, log };

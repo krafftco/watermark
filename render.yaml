@@ -57,6 +57,10 @@ services:
         value: 2
       - key: CLOUDFRONT_DISTRIBUTION # the edge in front; set so a new master drops the edge's copies at once
         sync: false
+      - key: PRODIGI_API_KEY # the lab (26 Oct): a fine-art print-on-demand house as a shop with no desk; set it and the lab opens
+        sync: false
+      - key: PRODIGI_SANDBOX # 1 to try the lab's sandbox first (orders are placed but never printed)
+        sync: false
       - key: STUDIO_EMAILS # who may enter the Studio: email code + passkey; set it and ADMIN_PASSWORD is retired
         sync: false
       - key: BACKUP_KEEP_DAYS

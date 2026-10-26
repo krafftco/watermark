@@ -2251,6 +2251,52 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/account/printing'); assert.ok(r.status === 303 || r.status === 302, 'a stranger is sent to sign in');
     r = await req(port, 'GET', '/account/printing', { cookie: mck }); assert.strictEqual(r.status, 403, 'a maker who is not a shop is refused');
     console.log('ok: the press');
+    // The lab (26 Oct): a print no shop near the collector can make goes to the lab by itself; the order is placed by
+    // API with a one-time address for the master; the callback and the poll move it; the collector reads "the house's lab".
+    {
+      const L = app.locals.lab; assert.ok(L, 'the lab mounted');
+      const calls = []; let orderNo = 9000; const orders = {};
+      L.transport = async (method, p, body) => { calls.push({ method, p, body }); if (method === 'POST' && p === '/Orders') { const id = `ord_${++orderNo}`; orders[id] = { id, status: { stage: 'InProgress', details: { downloadAssets: 'InProgress', inProduction: 'NotStarted', shipping: 'NotStarted' } }, charges: [{ totalCost: { amount: '41.20', currency: 'USD' } }], shipments: [] }; return { status: 200, json: { outcome: 'Created', order: orders[id] } }; } if (method === 'GET' && p.startsWith('/Orders/')) { const o = orders[decodeURIComponent(p.slice(8))]; return { status: o ? 200 : 404, json: o ? { outcome: 'Ok', order: o } : { outcome: 'NotFound' } }; } if (method === 'GET' && p.startsWith('/products/')) { const sku = decodeURIComponent(p.slice(10)); return sku === 'GLOBAL-FAP-24X36' ? { status: 404, json: { outcome: 'NotFound' } } : { status: 200, json: { outcome: 'Ok', product: { sku, description: `Fine art print ${sku}`, attributes: { paper: ['hge', 'hpr'] } } } }; } return { status: 404, json: null }; };
+      const ls = L.ensureLab(); db.prepare("UPDATE print_shops SET status='open' WHERE id=?").run(ls.id);
+      r = await req(port, 'GET', '/printers'); assert.ok(!/house’s lab/.test(r.body), 'the lab is not on the room');
+      // 20 × 30: wider than the Texas shop's 44? no: make the shop too narrow for this one.
+      db.prepare('UPDATE print_shops SET max_in=12 WHERE id=?').run(sh.id);
+      const oid2 = db.prepare("INSERT INTO print_orders (license_id, buyer_id, size, paper, email, status, kind, cents, paid, ship_name, address) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(lic.id, lic.buyer_id, '16 × 24', 'Hahnemühle Photo Rag', 'tex@example.com', 'asked', 'ask', 65000, 1, 'Tex Collector', '2 Elm St\nApt 4\nDallas, TX 75202').lastInsertRowid;
+      const mails1 = (app.locals.mailLog || []).length;
+      assert.ok(app.locals.printShops.sweep() >= 1, 'placed'); await L.inflight;
+      const lj = db.prepare('SELECT * FROM print_jobs WHERE order_id=?').get(oid2);
+      assert.ok(lj && lj.shop_id === ls.id && lj.cents === 0 && lj.lab_order === 'ord_9001' && lj.status === 'accepted' && lj.lab_cost === 4120, 'the lab took it, accepted, no fee, the cost kept: ' + JSON.stringify(lj));
+      const post = calls.find(c => c.method === 'POST'); assert.ok(post && post.body.items[0].sku === 'GLOBAL-FAP-16X24' && post.body.recipient.address.townOrCity === 'Dallas' && post.body.recipient.address.stateOrCounty === 'TX' && post.body.recipient.address.postalOrZipCode === '75202' && post.body.recipient.address.line2 === 'Apt 4' && /\/lab\/asset\//.test(post.body.items[0].assets[0].url) && /\/lab\/callback\?k=/.test(post.body.callbackUrl), 'the order as the lab wants it: ' + JSON.stringify(post && post.body));
+      const assetPath = new URL(post.body.items[0].assets[0].url).pathname;
+      r = await req(port, 'GET', assetPath); assert.ok(r.status === 200 && /^image\//.test(r.headers['content-type']) && r.body.length > 1000, 'the lab takes the master by the one-time address');
+      r = await req(port, 'GET', '/lab/asset/nothere'); assert.strictEqual(r.status, 404, 'a stranger’s guess is nothing');
+      // The callback: in production, then shipped with tracking, then complete.
+      const cb = `/lab/callback?k=${L.cbKey()}`;
+      r = await req(port, 'POST', '/lab/callback?k=wrong', { body: JSON.stringify({ order: orders.ord_9001 }), headers: { 'Content-Type': 'application/json' } }); assert.strictEqual(r.status, 403, 'a callback without the key is refused');
+      orders.ord_9001.status.details.inProduction = 'InProgress';
+      r = await req(port, 'POST', cb, { body: JSON.stringify({ order: orders.ord_9001 }), headers: { 'Content-Type': 'application/json' } }); assert.strictEqual(r.status, 200, 'the callback answered');
+      assert.strictEqual(db.prepare('SELECT status FROM print_jobs WHERE id=?').get(lj.id).status, 'printing', 'printing');
+      orders.ord_9001.shipments = [{ carrier: { name: 'UPS' }, tracking: { number: '1Z77', url: 'https://ups.example/1Z77' } }]; orders.ord_9001.status.details.shipping = 'Complete';
+      assert.ok(await L.poll() >= 1, 'the poll asked'); const j3 = db.prepare('SELECT * FROM print_jobs WHERE id=?').get(lj.id);
+      assert.ok(j3.status === 'shipped' && /1Z77/.test(j3.tracking), 'shipped with tracking: ' + JSON.stringify(j3));
+      orders.ord_9001.status.stage = 'Complete'; await L.poll();
+      const j4 = db.prepare('SELECT * FROM print_jobs WHERE id=?').get(lj.id); assert.ok(j4.status === 'delivered' && db.prepare('SELECT status FROM print_orders WHERE id=?').get(oid2).status === 'done', 'delivered, the order done');
+      const sent = (app.locals.mailLog || []).slice(mails1).filter(m => /tex@example.com/.test(m.to || '')); assert.ok(sent.length >= 3 && sent.every(m => /house’s lab/.test(m.text) || !/lab/i.test(m.text)) && sent.some(m => /on its way to you from the house’s lab/.test(m.text)) && !sent.some(m => /prodigi/i.test(m.text)), 'the collector written to, the lab unnamed: ' + sent.map(m => m.subject).join(' | '));
+      r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/prodigi/i.test(r.body) && !/print\.lab/.test(r.body), 'nothing of the lab on the public register');
+      r = await req(port, 'GET', '/studio/printers', { cookie: ck }); assert.ok(/The lab \(prodigi\)/.test(r.body) && /ord_9001/.test(r.body) && /\$41\.20/.test(r.body), 'the Studio sees the lab and its order');
+      r = await req(port, 'POST', '/studio/lab/check', { cookie: ck }); r = await req(port, 'GET', '/studio/printers', { cookie: ck }); assert.ok(/Fine art print GLOBAL-FAP-16X24/.test(r.body) && /Not found/.test(r.body), 'the catalogue checked, a missing SKU named');
+      // A pickup never goes to the lab; a failed order is tried, and after three goes on to the house's room.
+      const oid3 = db.prepare("INSERT INTO print_orders (license_id, buyer_id, size, email, status, kind, cents, paid, ship_name, address, pickup) VALUES (?,?,?,?,?,?,?,?,?,?,1)").run(lic.id, lic.buyer_id, '11 × 14', 'tex@example.com', 'asked', 'ask', 25000, 1, 'Tex Collector', '2 Elm St\nDallas, TX 75202').lastInsertRowid;
+      app.locals.printShops.sweep(); const pj = db.prepare('SELECT j.*, s.house FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.order_id=?').get(oid3); assert.ok(pj && pj.shop_id !== ls.id, 'a pickup goes elsewhere');
+      L.transport = async () => ({ status: 500, json: { outcome: 'ServerError' } });
+      const oid4 = db.prepare("INSERT INTO print_orders (license_id, buyer_id, size, email, status, kind, cents, paid, ship_name, address) VALUES (?,?,?,?,?,?,?,?,?,?)").run(lic.id, lic.buyer_id, '11 × 14', 'tex@example.com', 'asked', 'ask', 25000, 1, 'Tex Collector', '2 Elm St\nDallas, TX 75202').lastInsertRowid;
+      app.locals.printShops.sweep(); await L.inflight; let fj = db.prepare('SELECT * FROM print_jobs WHERE order_id=? ORDER BY id DESC LIMIT 1').get(oid4);
+      assert.ok(fj.shop_id === ls.id && fj.status === 'offered' && fj.lab_state === 'failed' && fj.lab_tries === 1 && /500/.test(fj.note), 'a failed order noted, kept for another try: ' + JSON.stringify(fj));
+      await L.poll(); await L.poll(); fj = db.prepare('SELECT j.*, s.house FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.order_id=? ORDER BY j.id DESC LIMIT 1').get(oid4);
+      assert.ok(fj.house === 1 && fj.status === 'offered' && db.prepare("SELECT status FROM print_jobs WHERE order_id=? AND shop_id=?").get(oid4, ls.id).status === 'declined', 'after three tries, offered on to the house’s room: ' + JSON.stringify(fj));
+      L.transport = null; db.prepare('UPDATE print_shops SET max_in=44 WHERE id=?').run(sh.id);
+      console.log('ok: the lab');
+    }
   }
   // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
   r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'SAMEORIGIN' && /frame-ancestors 'self'/.test(r.headers['content-security-policy']) && r.headers['referrer-policy'], 'security headers');

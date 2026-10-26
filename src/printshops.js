@@ -50,29 +50,32 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   }
 
   // The fee the shop earns for an order: a share of the price; the house keeps the rest and pays the maker from its own side.
-  const feeFor = o => Math.round((o.cents || 0) * PCT() / 100);
+  const feeFor = (o, shop) => (shop && shop.lab ? 0 : Math.round((o.cents || 0) * PCT() / 100));
 
   // Who makes it: an open shop whose sheet is wide enough, in the collector's state first, then by zip, else the house.
   function choose(o) {
     const need = longIn(o.size) || (o.kind === 'proof' ? 7 : 0);
     const shops = db.prepare("SELECT s.*, m.name FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.status='open' AND COALESCE(m.standing,'open')='open'").all().filter(s => s.max_in >= need && (!o.framed || s.framing) && (o.pickup ? true : s.ships));
     const st = stateOf(o.address), zip = zipOf(o.address);
-    const outside = shops.filter(s => !s.house);
+    const able = shops.filter(s => s.id !== o.declinedShop && !(o.declinedShops || []).includes(s.id));
+    const outside = able.filter(s => !s.house && !s.lab);
     const near = st ? outside.filter(s => s.state === st) : [];
     const pick = (near.length ? near : outside).sort((a, b) => {
       if (zip && a.zip && b.zip) { const da = Math.abs(+a.zip.slice(0, 3) - +zip.slice(0, 3)), dbb = Math.abs(+b.zip.slice(0, 3) - +zip.slice(0, 3)); if (da !== dbb) return da - dbb; }
       return a.jobs - b.jobs;
     })[0];
-    return pick || shops.find(s => s.house) || null;
+    const labShop = !o.pickup && !o.framed && !o.frame ? able.find(s => s.lab) : null; // the lab: shipped, unframed, after any shop near the collector
+    return pick || labShop || able.find(s => s.house) || null;
   }
 
   function offer(o, shop, { by = 'house' } = {}) {
     const token = crypto.randomBytes(18).toString('base64url');
-    const id = db.prepare('INSERT INTO print_jobs (order_id, shop_id, cents, token) VALUES (?,?,?,?)').run(o.id, shop.id, feeFor(o), token).lastInsertRowid;
+    const id = db.prepare('INSERT INTO print_jobs (order_id, shop_id, cents, token) VALUES (?,?,?,?)').run(o.id, shop.id, feeFor(o, shop), token).lastInsertRowid;
     db.prepare('UPDATE print_shops SET jobs=jobs+1 WHERE id=?').run(shop.id);
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(shop.maker_id);
     try { ledger.append(db, 'print.offered', o.ref, { job: id, shop: m.handle, by, hidden: true }); } catch (e) { /* */ }
-    if (!shop.house) {
+    if (shop.lab) { if (app.locals.lab) { const pr = app.locals.lab.place(id); app.locals.lab.inflight = pr; pr.catch(e => console.error('[lab]', e.message)); } }
+    else if (!shop.house) {
       if (app.locals.notify) try { app.locals.notify.tell({ maker_id: m.id, kind: 'print', slug: o.slug, href: `/account/printing/${id}`, title: `A print to make: ${o.title}`, body: `${o.size || 'the proof'}${o.paper ? ` on ${o.paper}` : ''} · ${money(feeFor(o))} to you` }); } catch (e) { /* */ }
       if (m.email) mail.send({ to: m.email, subject: `A print to make: ${o.title}`, text: `${m.name.split(' ')[0]},\n\nThe house has a print for you to make: ${o.title}, by ${o.maker_name}; ${o.size || 'the proof, 5 × 7'}${o.paper ? ` on ${o.paper}` : ''}${o.framed ? ', framed' : ''}. ${money(feeFor(o))} to you, paid on Friday once it is delivered.\n\nAccept it, take the file and the ticket, and move it along as it goes:\n${C.base}/account/printing/${id}\n\nWatermark, a Krafft company.` });
     }
@@ -81,7 +84,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
 
   // Every print the house has sold and not yet placed is placed; run after each sale and once a minute.
   function sweep() {
-    ensureHouse();
+    ensureHouse(); if (app.locals.lab) try { app.locals.lab.ensureLab(); } catch (e) { /* */ }
     const rows = db.prepare("SELECT o.id FROM print_orders o WHERE o.status='asked' AND COALESCE(o.cents,0)>0 AND NOT EXISTS (SELECT 1 FROM print_jobs j WHERE j.order_id=o.id AND j.status<>'declined')").all();
     let n = 0; for (const r of rows) { const o = orderOf(r.id); if (!o) continue; const s = choose(o); if (s) { offer(o, s); n++; } }
     return n;
@@ -89,8 +92,8 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
 
   // The collector written to as the print moves, naming the shop.
   function tellCollector(o, j, st) {
-    const shop = shopById(j.shop_id); const who = shop.house ? 'the house’s print room' : `${shop.name}${shop.city ? `, ${shop.city}` : ''}`;
-    const words = { accepted: `is in hand at ${who}, who will make it.`, printing: `is being printed now, at ${who}. Every print is checked by eye before it leaves.`, shipped: `is on its way to you from ${who}.${j.tracking ? ` Tracking: ${j.tracking}.` : ''}`, delivered: `has arrived, we hope safely. It was made by ${who}${shop.house ? '' : `: they would be glad to make the next (${C.base}/printers/${shop.handle})`}. Record it on your piece so it stays with the number.` }[st];
+    const shop = shopById(j.shop_id); const who = shop.house ? 'the house’s print room' : shop.lab ? 'the house’s lab' : `${shop.name}${shop.city ? `, ${shop.city}` : ''}`;
+    const words = { accepted: `is in hand at ${who}, who will make it.`, printing: `is being printed now, at ${who}. Every print is checked by eye before it leaves.`, shipped: `is on its way to you from ${who}.${j.tracking ? ` Tracking: ${j.tracking}.` : ''}`, delivered: `has arrived, we hope safely. It was made by ${who}${shop.house || shop.lab ? '' : `: they would be glad to make the next (${C.base}/printers/${shop.handle})`}. Record it on your piece so it stays with the number.` }[st];
     if (words && o.email) mail.send({ to: o.email, subject: `Your print of ${o.title}`, text: `Your print of ${o.title} (${o.size || 'the proof'}${o.paper ? `, ${o.paper}` : ''}) ${words}\n\nYour piece: ${C.base}/yours/p/${o.ref}\n\nWatermark` });
   }
 
@@ -100,17 +103,17 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     const now = new Date().toISOString();
     db.prepare('UPDATE print_jobs SET status=?, tracking=COALESCE(?, tracking), note=COALESCE(?, note), accepted_at=CASE WHEN ?=\'accepted\' THEN ? ELSE accepted_at END, done_at=CASE WHEN ?=\'delivered\' THEN ? ELSE done_at END WHERE id=?').run(st, tracking, note, st, now, st, now, j.id);
     if (ORDER[st]) db.prepare('UPDATE print_orders SET status=? WHERE id=?').run(ORDER[st], o.id);
-    if (st === 'declined') { db.prepare('UPDATE print_shops SET jobs=MAX(0, jobs-1) WHERE id=?').run(j.shop_id); const next = choose({ ...o, declinedShop: j.shop_id }); if (next && next.id !== j.shop_id) offer(o, next, { by: 'declined' }); }
-    try { const sh = shopById(j.shop_id); if (st === 'delivered') ledger.append(db, 'print.delivered', o.slug, { job: j.id, ref: o.ref, shop: sh.house ? null : sh.name, city: sh.house ? null : sh.city }); else ledger.append(db, `print.${st}`, o.ref, { job: j.id, by }); } catch (e) { /* */ }
+    if (st === 'declined') { db.prepare('UPDATE print_shops SET jobs=MAX(0, jobs-1) WHERE id=?').run(j.shop_id); const declinedShops = db.prepare("SELECT shop_id FROM print_jobs WHERE order_id=? AND status='declined'").all(o.id).map(r => r.shop_id); const next = choose({ ...o, declinedShop: j.shop_id, declinedShops }); if (next && next.id !== j.shop_id) offer(o, next, { by: 'declined' }); }
+    try { const sh = shopById(j.shop_id); if (st === 'delivered') ledger.append(db, 'print.delivered', o.slug, { job: j.id, ref: o.ref, shop: sh.house || sh.lab ? null : sh.name, city: sh.house || sh.lab ? null : sh.city, lab: sh.lab ? 1 : undefined }); else ledger.append(db, `print.${st}`, o.ref, { job: j.id, by }); } catch (e) { /* */ }
     if (st !== 'declined') tellCollector(o, j, st);
-    if (st === 'delivered') { const shop = shopById(j.shop_id); if (!shop.house) { const wm = db.prepare('SELECT * FROM makers WHERE id=?').get(o.work_maker); if (wm && app.locals.notify) try { app.locals.notify.tell({ maker_id: wm.id, kind: 'print', slug: o.slug, href: `/account/works/${o.slug}`, title: `A print of ${o.title} was delivered`, body: `Made by ${shop.name}${shop.city ? `, ${shop.city}` : ''}.` }); } catch (e) { /* */ } } }
+    if (st === 'delivered') { const shop = shopById(j.shop_id); if (!shop.house && !shop.lab) { const wm = db.prepare('SELECT * FROM makers WHERE id=?').get(o.work_maker); if (wm && app.locals.notify) try { app.locals.notify.tell({ maker_id: wm.id, kind: 'print', slug: o.slug, href: `/account/works/${o.slug}`, title: `A print of ${o.title} was delivered`, body: `Made by ${shop.name}${shop.city ? `, ${shop.city}` : ''}.` }); } catch (e) { /* */ } } }
     return true;
   }
 
   // What a shop has earned (delivered jobs), and what is still inside the hold: for the maker's statement and Friday pay.
-  const earned = makerId => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0").get(makerId); } catch (e) { return { s: 0, n: 0 }; } };
-  const clearing = (makerId, since) => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0 AND j.done_at > datetime('now', ?)").get(makerId, since); } catch (e) { return { s: 0, n: 0 }; } };
-  const where = orderId => { const j = liveJob(orderId); if (!j) return ''; const s = shopById(j.shop_id); return `${s.house ? 'The house’s room' : esc(s.name)} · ${STEPS[j.status]}`; };
+  const earned = makerId => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0 AND s.lab IS NULL").get(makerId); } catch (e) { return { s: 0, n: 0 }; } };
+  const clearing = (makerId, since) => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0 AND s.lab IS NULL AND j.done_at > datetime('now', ?)").get(makerId, since); } catch (e) { return { s: 0, n: 0 }; } };
+  const where = orderId => { const j = liveJob(orderId); if (!j) return ''; const s = shopById(j.shop_id); return `${s.house ? 'The house’s room' : s.lab ? 'The lab' : esc(s.name)} · ${STEPS[j.status]}`; };
 
   const ticket = (o, j, shop) => {
     const rows = [['Work', `${o.title}, by ${o.maker_name}`], ['Number', o.kind === 'edition' ? `The print, No. ${o.edition_no || '?'}${o.edition_n ? ` of ${o.edition_n}` : ''}` : o.collector_no ? `Collected on Watermark, No. ${o.collector_no}` : o.ref], ['Size', o.kind === 'proof' ? '5 × 7 in, the picture fitted with a white border' : (o.size || 'as asked')], ['Paper', o.paper || (o.kind === 'proof' ? 'Hahnemühle Photo Rag' : 'the shop’s choice among the house’s papers')], ['Framed', o.framed || o.frame ? 'Yes' : 'No'], ['The pencil line', `${o.kind === 'edition' ? `No. ${o.edition_no || '?'}` : o.collector_no ? `No. ${o.collector_no}` : ''} · ${o.title}${o.kind === 'proof' ? '' : ' · ' + o.maker_name}`.replace(/^ · /, '')], ['Master', `${o.width} × ${o.height} px`], ['To', o.pickup ? 'Taken home from the show (no shipping)' : `${o.ship_name || o.licensee_name || ''}\n${o.address || ''}`.trim()], ['Collector', (o.ship_name || o.licensee_name || '').split(/\s+/)[0] || 'A collector'], ['To you', money(j.cents)], ['Note', o.note || '']].filter(r => r[1]);
@@ -187,7 +190,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   // ---- The public room and the door ------------------------------------------------------------------------
   app.get('/printers', (req, res) => {
     ensureHouse();
-    const shops = db.prepare("SELECT s.*, m.name, m.handle, m.portrait FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.status='open' AND s.house=0 ORDER BY s.state, s.city, m.name").all();
+    const shops = db.prepare("SELECT s.*, m.name, m.handle, m.portrait FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.status='open' AND s.house=0 AND s.lab IS NULL ORDER BY s.state, s.city, m.name").all();
     const byState = {}; for (const s of shops) (byState[s.state || '—'] = byState[s.state || '—'] || []).push(s);
     const made = db.prepare("SELECT COUNT(*) n FROM print_jobs WHERE status='delivered'").get().n;
     res.send(V.layout({ title: 'The press · Watermark', path: '/printers', desc: 'The print shops that make the house’s prints, town by town; and the door for a shop that would.', body: `<section class="cx-intro prs-head"><p class="k">The press</p><h1>A press in every town.</h1>${app.locals.roomPlate ? app.locals.roomPlate('printers') : ''}${require('./inscriptions').insc('printers')}<p class="lede">A press in each town, a printer at it, under one standard, and the printer’s name on the work. Every print the house sells is made near the collector by a shop that prints for the house, on the papers the house names, checked by eye, with the number in pencil. The shop is paid on Friday, and its name is on the letter, so the next print is theirs too.${made ? ` ${made} print${made === 1 ? '' : 's'} made so far.` : ''}</p></section>
@@ -206,7 +209,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     res.redirect('/printers?ok=asked');
   });
   app.get('/printers/:handle', (req, res) => {
-    const s = db.prepare("SELECT s.*, m.name, m.handle, m.portrait, m.bio, m.site FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE m.handle=? AND s.house=0").get(String(req.params.handle)); if (!s) return res.sendStatus(404);
+    const s = db.prepare("SELECT s.*, m.name, m.handle, m.portrait, m.bio, m.site FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE m.handle=? AND s.house=0 AND s.lab IS NULL").get(String(req.params.handle)); if (!s) return res.sendStatus(404);
     const made = db.prepare("SELECT COUNT(*) n FROM print_jobs WHERE shop_id=? AND status='delivered'").get(s.id).n;
     res.send(V.layout({ title: `${s.name} · the press · Watermark`, path: `/printers/${s.handle}`, desc: `${s.name}${s.city ? `, ${s.city}` : ''}: a shop that prints for the house.`, body: `<section class="cx-intro prs-head"><p class="k"><a href="/printers">The press</a> · ${esc([s.city, s.state].filter(Boolean).join(', '))}</p><h1>${esc(s.name)}.</h1><p class="lede">${esc(s.story || 'A shop that prints for the house.')}</p>
 <dl class="prs-facts"><div><dt>Papers</dt><dd>${esc(s.papers || 'The house’s papers')}</dd></div><div><dt>Widest sheet</dt><dd>${s.max_in} inches</dd></div><div><dt>Framing</dt><dd>${s.framing ? 'Yes' : 'Not yet'}</dd></div><div><dt>Pickup</dt><dd>${s.pickup ? `Yes${s.address ? `, at ${esc(s.address)}` : ''}` : 'Shipped'}</dd></div><div><dt>Turnaround</dt><dd>${s.turnaround} day${s.turnaround === 1 ? '' : 's'}</dd></div><div><dt>Made for the house</dt><dd>${made} print${made === 1 ? '' : 's'}</dd></div></dl>
@@ -221,9 +224,9 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     const jobs = db.prepare("SELECT j.*, s.house, m.name AS shop_name, o.kind, o.size, l.ref, w.title FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id JOIN makers m ON m.id=s.maker_id JOIN print_orders o ON o.id=j.order_id JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id WHERE j.status<>'delivered' ORDER BY j.id DESC LIMIT 80").all();
     res.send(V.layout({ title: 'The press · Studio · Watermark', studio: true, path: '/studio/printers', body: `<section class="studio-wrap pj"><p class="k">Back office</p><h1>The press.</h1><p class="lede">The shops that print for the house, the shops asking to, and every print on a bench. ${req.query.ok ? `<b>${esc(req.query.ok)}</b>` : ''}</p>
 <h2>Asking to print for the house (${apps.length})</h2>${apps.length ? `<table class="tbl"><tr><th>Shop</th><th>Where</th><th>Papers</th><th>Note</th><th></th></tr>${apps.map(a => `<tr><td><b>${esc(a.shop)}</b><br><small>${esc(a.name)} · ${esc(a.email)}</small></td><td>${esc([a.city, a.state].filter(Boolean).join(', '))}<br><small>to ${a.max_in} in</small></td><td><small>${esc(a.papers || '')}</small></td><td><small>${esc(a.note || '')}</small></td><td><form method="post" action="/studio/printers/apps/${a.id}" class="inline"><button name="do" value="invite" class="buy-btn">Invite</button> <button name="do" value="decline">Not now</button></form></td></tr>`).join('')}</table>` : '<p class="note">None waiting.</p>'}
-<h2>The shops</h2><table class="tbl"><tr><th>Shop</th><th>Where</th><th>Can make</th><th>Jobs</th><th>Bank</th><th></th></tr>${shops.map(s => `<tr><td><b>${esc(s.house ? 'The house’s room' : s.name)}</b><br><small>${esc(s.email || '')}${s.house ? '' : ` · <a href="/printers/${esc(s.handle)}">page</a>`}</small></td><td>${esc([s.city, s.state, s.zip].filter(Boolean).join(', '))}</td><td><small>to ${s.max_in} in${s.framing ? ' · frames' : ''}${s.pickup ? ' · pickup' : ''}${s.ships ? ' · ships' : ''} · ${s.turnaround} d</small></td><td>${s.jobs}</td><td>${s.stripe_account ? 'Yes' : '—'}</td><td>${s.house ? '' : `<form method="post" action="/studio/printers/shops/${s.id}" class="inline"><button name="do" value="${s.status === 'open' ? 'hold' : 'open'}">${s.status === 'open' ? 'Hold' : 'Open'}</button></form>`}</td></tr>`).join('')}</table>
-<h2>On the benches</h2>${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Shop</th><th>Where it is</th><th>To the shop</th><th>Move it</th></tr>${jobs.map(j => `<tr><td><b>${esc(j.title)}</b><br><small>${esc(j.ref)} · ${j.kind === 'proof' ? 'the proof' : esc(j.size || '')}</small></td><td>${esc(j.house ? 'The house’s room' : j.shop_name)}</td><td>${STEPS[j.status]}</td><td>${money(j.cents)}</td><td><form method="post" action="/studio/printers/jobs/${j.id}" class="inline"><select name="shop">${shops.filter(s => s.status === 'open').map(s => `<option value="${s.id}"${s.id === j.shop_id ? ' selected' : ''}>${esc(s.house ? 'The house’s room' : s.name)}</option>`).join('')}</select><button name="do" value="reassign">To this shop</button> <button name="do" value="declined">Take it back</button></form></td></tr>`).join('')}</table>` : '<p class="note">Nothing on a bench. <form method="post" action="/studio/printers/sweep" class="inline"><button>Place what is waiting</button></form></p>'}
-<form method="post" action="/studio/printers/sweep" class="inline"><button>Place what is waiting</button></form></section>` }));
+<h2>The shops</h2><table class="tbl"><tr><th>Shop</th><th>Where</th><th>Can make</th><th>Jobs</th><th>Bank</th><th></th></tr>${shops.map(s => `<tr><td><b>${esc(s.house ? 'The house’s room' : s.lab ? `The lab (${s.lab})` : s.name)}</b><br><small>${esc(s.email || '')}${s.house || s.lab ? '' : ` · <a href="/printers/${esc(s.handle)}">page</a>`}</small></td><td>${esc([s.city, s.state, s.zip].filter(Boolean).join(', '))}</td><td><small>to ${s.max_in} in${s.framing ? ' · frames' : ''}${s.pickup ? ' · pickup' : ''}${s.ships ? ' · ships' : ''} · ${s.turnaround} d</small></td><td>${s.jobs}</td><td>${s.stripe_account ? 'Yes' : '—'}</td><td>${s.house ? '' : `<form method="post" action="/studio/printers/shops/${s.id}" class="inline"><button name="do" value="${s.status === 'open' ? 'hold' : 'open'}">${s.status === 'open' ? 'Hold' : 'Open'}</button></form>`}</td></tr>`).join('')}</table>
+<h2>On the benches</h2>${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Shop</th><th>Where it is</th><th>To the shop</th><th>Move it</th></tr>${jobs.map(j => `<tr><td><b>${esc(j.title)}</b><br><small>${esc(j.ref)} · ${j.kind === 'proof' ? 'the proof' : esc(j.size || '')}</small></td><td>${esc(j.house ? 'The house’s room' : j.shop_name)}</td><td>${STEPS[j.status]}</td><td>${money(j.cents)}</td><td><form method="post" action="/studio/printers/jobs/${j.id}" class="inline"><select name="shop">${shops.filter(s => s.status === 'open').map(s => `<option value="${s.id}"${s.id === j.shop_id ? ' selected' : ''}>${esc(s.house ? 'The house’s room' : s.lab ? 'The lab' : s.name)}</option>`).join('')}</select><button name="do" value="reassign">To this shop</button> <button name="do" value="declined">Take it back</button></form></td></tr>`).join('')}</table>` : '<p class="note">Nothing on a bench. <form method="post" action="/studio/printers/sweep" class="inline"><button>Place what is waiting</button></form></p>'}
+<form method="post" action="/studio/printers/sweep" class="inline"><button>Place what is waiting</button></form>${app.locals.lab ? app.locals.lab.panel() : ''}</section>` }));
   });
   app.post('/studio/printers/sweep', studioOnly, (req, res) => { const n = sweep(); res.redirect(`/studio/printers?ok=${encodeURIComponent(`${n} print${n === 1 ? '' : 's'} placed.`)}`); });
   app.post('/studio/printers/apps/:id', studioOnly, (req, res) => {
@@ -252,7 +255,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   });
 
   if (!app.locals.noTimers) { const t = setInterval(() => { try { sweep(); } catch (e) { console.error('[press]', e.message); } }, 60000); if (t.unref) t.unref(); setTimeout(() => { try { ensureHouse(); sweep(); } catch (e) { /* */ } }, 25000).unref(); }
-  app.locals.printShops = { sweep, choose, offer, move, earned, clearing, where, shopOf, STEPS, PCT, ensureHouse };
+  app.locals.printShops = { sweep, choose, offer, move, earned, clearing, where, shopOf, shopById, jobOf, STEPS, PCT, ensureHouse };
   return app.locals.printShops;
 }
 module.exports = { mountPrintShops, STEPS, longIn };

@@ -4098,3 +4098,8 @@ html.in-stay .top .nv-back{display:none}
 .sg-go{width:100%;font-size:17px;padding:16px}.sg-go[disabled]{opacity:.4;cursor:default}.sg-fine{font-size:12px;color:var(--mute);line-height:1.55;margin:14px 0 0}
 .sg-door{display:grid;gap:8px;margin:0 0 18px;padding:14px 16px;border:1px solid #c9a24a;background:rgba(201,162,74,.07);border-radius:4px}.sg-door span{font-size:13px;color:var(--mute)}.sg-attach{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:6px}.sg-attach label{display:grid;gap:4px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}.sg-attach select{font:inherit;font-size:14px;padding:8px}
 .sg [hidden]{display:none!important}.sg-vt{font-size:14px;margin:0 0 14px;padding:10px 14px;border-left:2px solid #c9a24a}
+/* The lab (26 Oct): the Studio's panel on the press. */
+.lab-pan{margin-top:28px;padding-top:18px;border-top:1px solid var(--line)}
+.lab-pan .warn{color:#a3412f}
+.lab-pan code{font-size:12px}
+.lab-acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}

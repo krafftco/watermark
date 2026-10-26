@@ -496,7 +496,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
-  app.locals.noTimers = !!cfg.noTimers;
+  app.locals.noTimers = !!cfg.noTimers; app.locals.mailLog = mail.log;
   require('./clearance').mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), bagcheck: BAG });
   require('./sign').mountSign(app, { db, V, C, store, ledger, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a release signed on the spot, with a finger (26 Oct) // the clearance desk: releases, what may be licensed (26 Oct)
   const ART = require('./art').mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk, fetchImpl: cfg.fetchImpl, imageOf: w => app.locals.imageOf(w) }); // the artists behind the work (26 Oct)
@@ -1105,6 +1105,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./find').mountFind(app, { db, V, I: require('./icons') });
   app.locals.keep = require('./keep').mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, stripe, setBuyer, pocket: () => app.locals.pocket, originalPath });
   require('./printshops').mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), originalPath, nanoid, inviteLink: m => app.locals.accounts.inviteLink(m) }); // the press: print shops make the house's prints (26 Oct)
+  require('./lab').mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press: app.locals.printShops }); // the lab: a print-on-demand house as a shop with no desk (26 Oct)
   require('./table').mountTable(app, { db, V, C, makerOf: req => app.locals.accounts.makerOf(req), KINDS: Object.keys(require('./object').KINDS) }); // the Library: Lightroom's grid and loupe for the maker's own work
   require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
