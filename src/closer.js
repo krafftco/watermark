@@ -166,7 +166,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     return n;
   }
   app.locals.closerFill = fill;
-  if (on() && process.env.NODE_ENV !== 'test') { setTimeout(() => fill().catch(() => {}), 20000).unref(); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (on() && process.env.NODE_ENV !== 'test') { app.locals.governor.boot('closer fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
 
   // What the public page shows: the text, and whether the maker has read it.
   app.locals.closerOf = w => { const c = read(w); return c && c.state !== 'hidden' ? c : null; };

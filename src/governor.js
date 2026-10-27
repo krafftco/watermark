@@ -5,7 +5,13 @@
 // twice is paused, not resumed, until a person says. Visitors are never governed; only the house's own chores are.
 const os = require('os');
 
-function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || 380, busyN = +process.env.GOV_BUSY || 6, pauseMs = +process.env.GOV_PAUSE_MS || 600 } = {}) {
+// The box's own limit (a container's cgroup), so the memory line follows the plan: 40% of what the box has, else 380 MB.
+function boxMb() {
+  try { for (const f of ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes']) { const s = require('fs').readFileSync(f, 'utf8').trim(); if (/^\d+$/.test(s) && +s < 2 ** 50) return Math.round(+s / 1048576); } } catch (e) { /* no cgroup */ }
+  return 0;
+}
+
+function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math.round(boxMb() * 0.4) : 380), busyN = +process.env.GOV_BUSY || 6, pauseMs = +process.env.GOV_PAUSE_MS || 600, bootQuietS = +process.env.BOOT_QUIET_S || 180, bootGapS = +process.env.BOOT_GAP_S || 15 } = {}) {
   const hits = []; // visitor requests (pages and API) in the last ten seconds
   const STATIC = /^\/(static|img|sw\.js|favicon|apple-touch|app\/|vendor|portrait|healthz)/;
   app.use((req, res, next) => { if (!STATIC.test(req.path)) { const now = Date.now(); hits.push(now); while (hits.length && hits[0] < now - 10000) hits.shift(); } next(); });
@@ -34,13 +40,23 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || 380, busyN = +p
     chain = p.then(() => settle(label), () => settle(label));
     return p;
   }
-  const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, waited, held, load: os.loadavg()[0] });
+  // The quiet boot (27 Oct: a restart fired a dozen chores inside its first minute, on top of the deploy's own cold minute):
+  // every chore the house runs for itself at start is scheduled through here instead of its own setTimeout: nothing before
+  // BOOT_QUIET_S (three minutes), then one at a time, BOOT_GAP_S apart in the order registered, each through the lane and
+  // skipped outright when the chores are held. Under test (noTimers) nothing is scheduled.
+  const started = Date.now(); const boots = [];
+  function boot(label, fn, ms = 0) {
+    if (quiet()) return;
+    const at = Math.max(ms, bootQuietS * 1000 + boots.length * bootGapS * 1000); boots.push(label);
+    setTimeout(() => { if (!chores()) { console.log(`[governor] ${label} skipped: chores held`); return; } turn(label, () => Promise.resolve().then(fn)).catch(e => console.error(`[${label}]`, e && e.message || e)); }, at).unref();
+  }
+  const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
   // The showing (27 Oct): while the house is being shown (Studio → Launch → 'Showing'), every chore holds too, so a demo never meets a feed.
   let shown = false;
   const chores = () => process.env.CHORES !== '0' && !shown;
   const hold = on => { shown = !!on; };
-  app.locals.governor = { settle, turn, pressure, busy, state, sleep, chores, hold, showing: () => shown };
+  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores, hold, showing: () => shown };
   return app.locals.governor;
 }
 

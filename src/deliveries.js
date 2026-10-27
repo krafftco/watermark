@@ -41,7 +41,7 @@ function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q
   setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref();
   // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
   const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
-  if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') setTimeout(() => warmAlbums().catch(() => {}), 90e3).unref();
+  if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') app.locals.governor.boot('warm albums', () => warmAlbums());
   const first = s => String(s || '').trim().split(/\s+/)[0] || '';
 
   // The maker's desk.

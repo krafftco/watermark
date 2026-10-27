@@ -111,7 +111,7 @@ ${j.sources && j.sources.length ? `<div class="jk-src"><h3>Read further</h3><ul>
   });
   const studioLine = t => { const j = read(t); return `<form method="post" action="/studio/library/${esc(t.slug)}/jacket" class="inline jk-desk"><button name="do" value="write">${j && j.line ? 'Write the jacket again' : 'Write the jacket'}</button>${j && j.line ? ` <button name="do" value="${j.state === 'hidden' ? 'show' : 'hide'}">${j.state === 'hidden' ? 'Show the jacket' : 'Hide the jacket'}</button>` : ''}</form>`; };
 
-  if (!app.locals.noTimers && on() && process.env.NODE_ENV !== 'test') { setTimeout(() => fill().catch(() => {}), 35000).unref(); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (!app.locals.noTimers && on() && process.env.NODE_ENV !== 'test') { app.locals.governor.boot('jacket fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
   app.locals.jacket = { on, read, write, fill, front, back, line, studioLine, parse, TOOL };
   return app.locals.jacket;
 }

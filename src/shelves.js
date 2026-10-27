@@ -55,7 +55,7 @@ function mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl }) {
     job = (async () => { for (const t of todo) { const id = +((t.source.match(/ebooks\/(\d+)/) || [])[1] || 0); if (!id) continue; try { const r = await (fetchImpl || fetch)(`${process.env.GUTENDEX || 'https://gutendex.com/books'}/${id}`, { signal: AbortSignal.timeout(8000) }); if (r.ok) { const m = await r.json(); const sub = { subjects: m.subjects || [], bookshelves: m.bookshelves || [] }; const row = db.prepare('SELECT * FROM texts WHERE id=?').get(t.id); db.prepare('UPDATE texts SET subjects=?, shelf=? WHERE id=?').run(JSON.stringify(sub), classify({ ...row, ...sub }), t.id); } } catch (e) { /* next time */ } await new Promise(r => setTimeout(r, 1500)); } job = null; })();
     return job;
   }
-  if (process.env.NODE_ENV !== 'test') setTimeout(() => backfill().catch(() => {}), 25000).unref();
+  if (process.env.NODE_ENV !== 'test') app.locals.governor.boot('shelves backfill', () => backfill());
   const all = () => db.prepare("SELECT t.id, t.slug, t.kind, t.title, t.author, t.year, t.summary, t.shelf, t.maker_id, t.price_cents, t.body IS NOT NULL AS hasBody, t.plates IS NOT NULL AS hasPlates, t.file, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.title").all();
   const href = t => (((t.hasBody || t.hasPlates) && !t.file) ? `/read/${t.slug}` : `/library/${t.slug}`);
   const surname = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),/); return (m ? m[1] : x.split(' ').pop()).replace(/\s*\(.*\)$/, '').trim(); };

@@ -254,7 +254,7 @@ ${found ? found.error ? `<p class="note">${esc(found.error)}</p>` : `<table clas
     }
     tidySeed(); seeding = false;
   }
-  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => seed().catch(() => {}), 40000); t.unref && t.unref(); }
+  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) app.locals.governor.boot('listening seed', () => seed());
   app.locals.listening = { tidyTracks, unmoji, seed, FIRST, bring, shelveMeta, clear, tracks, search, tonight, open: () => db.prepare("SELECT COUNT(*) n FROM recordings WHERE status='playing'").get().n > 0, LICENSES, PD_RECORDING_YEAR };
   return app.locals.listening;
 }

@@ -1802,6 +1802,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/studio/reading/${bk.slug}/illustrator`, { cookie: ck, body: { illustrator: 'A. Draughtsman' } }); r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(/Illustrated by A\. Draughtsman/.test(r.body), 'the illustrator credited');
       r = await req(port, 'POST', `/studio/reading/${bk.slug}/pictures`); assert.equal(r.status, 403, 'a stranger cannot');
       assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.illustrated' AND subject=?").get(bk.slug), 'told on the register');
+      // The run survives a restart (27 Oct): pressing the shelf sets the flag; it clears when every book is read; a book with no HTML edition is marked read with none.
+      { const lost = db.prepare("INSERT INTO texts (slug, title, author, kind, body, status, public, source) VALUES ('no-html-book', 'No Pictures', 'Nobody', 'book', 'A line.', 'held', 1, 'https://www.gutenberg.org/ebooks/999999') RETURNING id").get();
+        r = await req(port, 'POST', '/studio/reading/pictures', { cookie: ck }); assert.equal(r.status, 302);
+        assert.ok(db.prepare("SELECT 1 FROM settings WHERE k='pictures_run'").get(), 'the run flagged');
+        for (let i = 0; i < 400 && (app.locals.bookplates.job.on || db.prepare("SELECT 1 FROM settings WHERE k='pictures_run'").get()); i++) await new Promise(x => setTimeout(x, 25));
+        assert.ok(!db.prepare("SELECT 1 FROM settings WHERE k='pictures_run'").get(), 'the flag cleared when the shelf is read');
+        assert.equal(db.prepare('SELECT pictures FROM texts WHERE id=?').get(lost.id).pictures, '[]', 'a book with no edition marked read with none'); }
       app.locals.__fetch = prevP; }
     // Editions of the house (27 Oct): the mark, the shelf at the head of the Library, plates by hand, read aloud into the Listening Room.
     { const JW = app.locals.jewels; assert.ok(JW && JW.TWELVE.length === 12, 'the twelve');

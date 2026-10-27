@@ -114,7 +114,7 @@ ${now && !can ? `<p class="bc-door">The screening is on now, for keyholders. <a 
       if (!coming) { const d = new Date(Date.now() + (f.day || 1) * 864e5); const ny = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); const at = nyToUtc(`${ny}T21:00`); if (at) db.prepare('INSERT INTO film_showings (film_id, at) VALUES (?,?)').run(row.id, at); }
     }
   }
-  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) { const t = setTimeout(() => { try { seed(); } catch (e) { console.warn('[screening] seed', e.message); } }, 50000); if (t.unref) t.unref(); }
+  if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) app.locals.governor.boot('screening seed', () => seed());
   app.locals.screeningSeed = seed;
   function tell() { for (const s of db.prepare("SELECT s.*, f.title, f.filmmaker, f.slug FROM film_showings s JOIN films f ON f.id=s.film_id WHERE s.told=0 AND datetime(s.at, '+' || COALESCE(f.minutes,120) || ' minutes') <= datetime('now')").all()) { db.prepare('UPDATE film_showings SET told=1 WHERE id=?').run(s.id); try { ledger.append(db, 'screening.shown', s.slug, { title: s.title, by: s.filmmaker, came: s.came }); } catch (e) { /* */ } } }
   if (!app.locals.noTimers) setInterval(tell, 10 * 60e3).unref();

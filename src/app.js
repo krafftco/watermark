@@ -1362,7 +1362,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     console.log('[letters again]', out.length);
     if (out.length && maker.email) mail.send({ to: maker.email, subject: `${out.length} letter${out.length === 1 ? '' : 's'} sent again`, text: `The house's mail was refused from the evening of 17 October until this afternoon, so these collectors never had their letters. Each has now been sent again:\n\n${out.join('\n')}\n\nWatermark` });
   }
-  if (process.env.NODE_ENV !== 'test') setTimeout(() => lettersAgain().catch(e => console.error('[letters again]', e.message)), 60e3).unref();
+  if (process.env.NODE_ENV !== 'test') GOV.boot('letters again', () => lettersAgain());
   if (process.env.NODE_ENV !== 'test') { setTimeout(() => settleAll().catch(() => {}), 20e3).unref(); setInterval(() => settleAll().catch(() => {}), 5 * 60e3).unref(); }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
@@ -2198,7 +2198,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return merged;
   }
   app.locals.mergeTwins = mergeTwins;
-  if (!cfg.noTimers) setTimeout(() => mergeTwins().catch(e => console.error('[twins]', e.message)), 60e3).unref();
+  if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   app.locals.upgradeIfHeld = (file, originalname, makerId) => inLane(async () => {
     const info = await images.inspect(file);
     if (db.prepare('SELECT 1 FROM works WHERE sha256=?').get(info.sha256)) return null; // the same bytes: registerWork answers (held, or come home)
@@ -2389,7 +2389,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return n;
   }
   app.locals.warmAll = warmAll;
-  if (!cfg.noTimers) { setTimeout(() => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); }).catch(e => console.error('[warm]', e.message)), 15e3).unref(); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
+  if (!cfg.noTimers) { GOV.boot('warm', () => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); })); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
   if (!cfg.noTimers) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
   if (!cfg.noTimers) { const su = () => app.locals.standingOrders && app.locals.standingOrders.catchUp().then(n => { if (n) console.log('[standing]', n, 'caught up'); }).catch(e => console.error('[standing]', e.message)); setTimeout(su, 150e3).unref(); setInterval(su, 24 * 3600e3).unref(); }
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }

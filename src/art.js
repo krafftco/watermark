@@ -268,7 +268,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
     } finally { filling = false; }
     return did;
   }
-  if (!app.locals.noTimers) { setTimeout(() => fill().catch(() => {}), 60000).unref(); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
+  if (!app.locals.noTimers) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
 
   app.locals.art = { verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
 }

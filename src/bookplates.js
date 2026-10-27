@@ -50,8 +50,9 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
   }
   // Read the HTML edition for its pictures and keep them.
   async function bring(t, rec) {
-    const url = htmlUrl(rec); if (!url) return { n: 0, why: 'no HTML edition' };
-    const r = await doFetch(url); if (!r.ok) return { n: 0, why: `html ${r.status}` };
+    const none = why => { db.prepare("UPDATE texts SET pictures='[]' WHERE id=? AND (pictures IS NULL OR pictures='')").run(t.id); return { n: 0, why }; };
+    const url = htmlUrl(rec); if (!url) return none('no HTML edition');
+    let r; try { r = await doFetch(url); } catch (e) { return { n: 0, why: e.message }; } if (!r.ok) return r.status === 404 ? none('html 404') : { n: 0, why: `html ${r.status}` };
     const html = await r.text(); const base = (r.url && /^https?:/.test(r.url)) ? r.url : url;
     const chs = chaptersOf(t.body);
     const tags = [...html.matchAll(/<img\b[^>]*>/gi)]; const out = []; const seen = new Set(); let n = 0;
@@ -100,10 +101,18 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
       await new Promise(r => setTimeout(r, app.locals.noTimers ? 0 : 1200));
       if (app.locals.governor) await app.locals.governor.settle('pictures');
     }
-    on = false; job.on = false;
+    on = false; job.on = false; if (!unread().length) flag(false);
   }
   function queue(slug) { if (!q.includes(slug)) { q.push(slug); job.of++; } setTimeout(pump, app.locals.noTimers ? 0 : 500); }
-  function queueAll() { const rows = db.prepare("SELECT slug FROM texts WHERE status='held' AND source LIKE '%gutenberg.org/ebooks/%' AND body IS NOT NULL AND (pictures IS NULL OR pictures='')").all(); job.done = []; job.missed = []; job.at = 0; job.of = 0; for (const r of rows) queue(r.slug); return rows.length; }
+  // The run survives a restart (27 Oct: twice in a day a restart emptied the queue in memory and the desk had to be pressed
+  // again): `settings.pictures_run` is set when the whole shelf is pressed and cleared when the last book is read; a house
+  // that boots with it set takes the run up again, through the quiet boot, over whatever is still unread.
+  const RUN = 'pictures_run';
+  const flag = v => { try { if (v) db.prepare("INSERT INTO settings (k, v) VALUES (?, '1') ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(RUN); else db.prepare('DELETE FROM settings WHERE k=?').run(RUN); } catch (e) { /* no settings table */ } };
+  const running = () => { try { return !!db.prepare('SELECT v FROM settings WHERE k=?').get(RUN); } catch (e) { return false; } };
+  function unread() { return db.prepare("SELECT slug FROM texts WHERE status='held' AND source LIKE '%gutenberg.org/ebooks/%' AND body IS NOT NULL AND (pictures IS NULL OR pictures='')").all(); }
+  function queueAll() { const rows = unread(); job.done = []; job.missed = []; job.at = 0; job.of = 0; if (rows.length) flag(true); for (const r of rows) queue(r.slug); return rows.length; }
+  if (app.locals.governor && !app.locals.noTimers && process.env.NODE_ENV !== 'test') app.locals.governor.boot('pictures resume', () => { if (!running()) return; const n = queueAll(); console.log('[pictures] taking the run up again:', n, 'books unread'); });
 
   // The picture itself.
   app.get('/read/:slug/pic/:n', async (req, res) => {

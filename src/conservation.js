@@ -225,7 +225,7 @@ ${rows.length ? `<ul class="cv-l">${rows.map(w => { const c = lastOf(w); const f
     // Recovery (20 Oct): every work off view for conservation is checked again, one at a time, and goes back on the
     // walls the moment it passes; a work whose original is truly damaged stays in the room.
     setTimeout(async () => { try { const rows = db.prepare("SELECT * FROM works WHERE status='restoring' ORDER BY id").all(); let back = 0; for (const w of rows) { const r = await check(w); if (r.ok) back++; } if (rows.length) console.log(`[conservation] recovery: ${back} of ${rows.length} back on view`); } catch (e) { console.error('[conservation] recovery', e.message); } }, 90000).unref();
-    setTimeout(() => condition(CHECK_N).catch(e => console.error('[condition]', e.message)), 150000).unref();
+    app.locals.governor.boot('condition', () => condition(CHECK_N));
     setInterval(() => condition(CHECK_N).catch(e => console.error('[condition]', e.message)), CHECK_EVERY_MS).unref();
     if (mirror) setInterval(() => mirrorSome(10).catch(e => console.error('[mirror]', e.message)), 10 * 60000).unref();
   }
