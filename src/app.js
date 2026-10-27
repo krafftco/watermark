@@ -1807,7 +1807,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         { ok: false, manual: true, name: 'Shares', detail: FEE.on() ? `The price is the maker’s; the house’s share (Collect $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}, else ${FEE.schedule()}) is paid by the collector; 10% resale royalty and 5% market fee are drafts` : '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
         { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
-    res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, ok: req.query.ok }));
+    res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, showing: app.locals.beta && app.locals.beta.showing ? app.locals.beta.showing() : false, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8), ok: req.query.ok }));
   });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
@@ -1858,7 +1858,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING d >= 0 ORDER BY d`).all().map(r => r.d);
         if (days.length < 2) return null; const med = days[Math.floor(days.length / 2)]; return `${Math.round(med)} day${Math.round(med) === 1 ? '' : 's'} from joining, the median of ${days.length}`; })();
       desk = {
-        line: [[V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors']],
+        line: [[V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
         needs: [
           N.requests ? ['/studio/licenses', 'Answer', `${N.requests} license request${N.requests === 1 ? '' : 's'}`] : null,
           N.applications ? ['/studio/makers', 'Decide', `${N.applications} maker${N.applications === 1 ? '' : 's'} asking to join`] : null,

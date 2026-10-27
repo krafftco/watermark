@@ -314,12 +314,13 @@ ${extras.map(e => `<div class="ln-row"><span class="ln-dot ln-man"></span><b>${e
 <p class="note">Read the live text for any photograph at /contract/&lt;photograph&gt;. Not legal advice; confirm with counsel before taking live payments on it.</p></section>` });
 }
 
-function launch({ checks, live, launched = false, ok = '' }) {
+function launch({ checks, live, launched = false, showing = false, ver = '', ok = '' }) {
   const all = checks.flatMap(g => g.items), ready = all.filter(i => i.ok).length;
   return layout({ studio: true, title: 'Launch · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/launch')}
 <p class="k">Launch</p><h1>${live ? 'Live.' : 'Before Watermark takes real money.'}</h1>
 <p class="lede">Every rail Watermark runs on, checked as this page loads. ${ready} of ${all.length} are in place. Green is done; the rest says exactly what is missing and where it goes.</p>${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
 <form method="post" action="/studio/launch/state" class="form inline ln-state"><p>${launched ? '<b>Launched.</b> The house no longer says beta.' : '<b>In beta.</b> The house says so by the wordmark and in the footer, with a way to tell us what people find.'}</p><input type="hidden" name="launched" value="${launched ? '0' : '1'}"><button${launched ? ' class="link"' : ''}>${launched ? 'Back to beta' : 'Launch: take the beta word down'}</button></form>
+<form method="post" action="/studio/showing" class="form inline ln-state"><p>${showing ? '<b>Being shown.</b> Every chore of the house holds (feeds, the pictures in the books, documents); nothing is deployed until the showing is over.' : '<b>Not being shown.</b> Before a demonstration (a museum, an investor, a room of photographers), turn the showing on: the chores hold and the rule is no deploy. Check the doors first at <a href="/healthz">/healthz</a>' + (ver ? ' (build ' + esc(ver) + ')' : '') + '.'}</p><input type="hidden" name="on" value="${showing ? '0' : '1'}"><button${showing ? ' class="link"' : ''}>${showing ? 'The showing is over' : 'The house is being shown'}</button></form>
 ${checks.map(g => `<section class="hd-list"><div class="hd-h"><h2>${esc(g.group)}</h2></div>${g.items.map(i => `<div class="ln-row"><span class="ln-dot ${i.ok ? 'ln-ok' : i.manual ? 'ln-man' : 'ln-no'}" aria-label="${i.ok ? 'Done' : 'To do'}"></span><b>${esc(i.name)}</b><span>${esc(i.detail || '')}</span></div>`).join('')}</section>`).join('')}
 <p class="note">Keys and passwords go in Render's environment settings only, never in chat, Notion or email.</p></section>` });
 }

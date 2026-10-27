@@ -1453,6 +1453,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       for (let i = 0; i < 200 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fid2).status); i++) await new Promise(x => setTimeout(x, 25));
       job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid2); assert.ok(job.status === 'done' && job.restarts === 0, 'resumed and done: ' + job.status);
       r = await req(port, 'GET', '/healthz', { cookie: ck }); assert.ok(/"governor":\{"rss":\d+/.test(r.body), 'the governor on /healthz'); }
+    // The showing (27 Oct): the switch holds every chore and says so on the desk; off, they resume.
+    { r = await req(port, 'POST', '/studio/showing', { cookie: ck, body: { on: '1' } }); assert.ok(r.status === 302, 'showing on');
+      assert.ok(app.locals.governor.chores() === false && app.locals.beta.showing(), 'chores hold while shown');
+      r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(/Being shown/.test(r.body), 'the desk says so');
+      r = await req(port, 'GET', '/studio/launch', { cookie: ck }); assert.ok(/The showing is over/.test(r.body), 'the Launch page offers the way off');
+      r = await req(port, 'POST', '/studio/showing', { cookie: ck, body: { on: '0' } }); assert.ok(app.locals.governor.chores() === true, 'chores resume'); }
     app.locals.__fetch = prev;
   }
   console.log('ok: feeds in');

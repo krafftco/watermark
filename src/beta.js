@@ -35,6 +35,18 @@ function mountBeta(app, { db, V, mail, studioOnly, C }) {
     V.setLaunched(on);
     res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'Launched. The beta word and the footer line are gone.' : 'Back in beta.'));
   });
-  return { launched, open: () => db.prepare('SELECT COUNT(*) n FROM feedback WHERE done=0').get().n };
+  // The showing (Will, 27 Oct: "when Ross Perot and his team, the Met, the heavy hitters are ready, our thing must be ready"):
+  // one switch, settings 'showing'. On: every chore of the house holds (the governor), the Studio's desk says so, and the
+  // rule for the people is no deploy until it is off. Off: the chores resume by themselves.
+  const showing = () => { const r = db.prepare("SELECT v FROM settings WHERE k='showing'").get(); return !!(r && r.v === '1'); };
+  if (app.locals.governor) app.locals.governor.hold(showing());
+  app.post('/studio/showing', studioOnly, (req, res) => {
+    const on = (req.body || {}).on === '1';
+    db.prepare("INSERT INTO settings (k, v) VALUES ('showing', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(on ? '1' : '0');
+    if (app.locals.governor) app.locals.governor.hold(on);
+    res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'The house is being shown: every chore holds; no deploy until it is off.' : 'The showing is over; the chores resume.'));
+  });
+  app.locals.showing = showing;
+  return { launched, showing, open: () => db.prepare('SELECT COUNT(*) n FROM feedback WHERE done=0').get().n };
 }
 module.exports = { mountBeta };
