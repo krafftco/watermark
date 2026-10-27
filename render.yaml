@@ -57,6 +57,10 @@ services:
         value: 2
       - key: CLOUDFRONT_DISTRIBUTION # the edge in front; set so a new master drops the edge's copies at once
         sync: false
+      - key: CLOUDFRONT_ACCESS_KEY_ID # the edge's own scoped key (a user allowed only CreateInvalidation); the vault's AWS key is used when unset
+        sync: false
+      - key: CLOUDFRONT_SECRET_ACCESS_KEY
+        sync: false
       - key: PRODIGI_API_KEY # the lab (26 Oct): a fine-art print-on-demand house as a shop with no desk; set it and the lab opens
         sync: false
       - key: SI_API_KEY # Smithsonian Open Access (27 Oct): a free key from api.data.gov; Feeds in kind 'si'

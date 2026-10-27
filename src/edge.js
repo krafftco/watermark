@@ -8,7 +8,11 @@ async function invalidate(paths) {
   if (!on() || !paths.length) return null;
   try {
     const { CloudFrontClient, CreateInvalidationCommand } = require('@aws-sdk/client-cloudfront');
-    client = client || new CloudFrontClient({ region: 'us-east-1' });
+    // The edge's own key (27 Oct): the vault's bucket lives in one AWS account and the distribution in another, so the
+    // edge may carry its own scoped credentials (CLOUDFRONT_ACCESS_KEY_ID/SECRET, a user allowed only CreateInvalidation on
+    // this distribution); without them the default chain (the vault's AWS_ACCESS_KEY_ID) is tried as before.
+    const ak = process.env.CLOUDFRONT_ACCESS_KEY_ID, sk = process.env.CLOUDFRONT_SECRET_ACCESS_KEY;
+    client = client || new CloudFrontClient({ region: 'us-east-1', ...(ak && sk ? { credentials: { accessKeyId: ak, secretAccessKey: sk } } : {}) });
     const r = await client.send(new CreateInvalidationCommand({ DistributionId: process.env.CLOUDFRONT_DISTRIBUTION, InvalidationBatch: { CallerReference: `wm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, Paths: { Quantity: paths.length, Items: paths } } }));
     return r.Invalidation && r.Invalidation.Id;
   } catch (e) { console.error('[edge]', e.name || '', e.message); return null; }
