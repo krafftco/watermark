@@ -15,4 +15,7 @@ async function invalidate(paths) {
 }
 const work = slug => invalidate([`/img/${slug}/*`]);
 const all = () => invalidate(['/img/*', '/static/*']);
-module.exports = { on, invalidate, work, all };
+// Every page (27 Oct): the edge had held the cold page for twenty-five minutes after the house was back (Age 1500 s on a 503),
+// so a recovered house still looked down. Once the house is up and sound it tells the edge to drop everything it holds.
+const everything = () => invalidate(['/*']);
+module.exports = { on, invalidate, work, all, everything };

@@ -1217,6 +1217,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (b && db.prepare("SELECT 1 FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) AND u.key IN ('social','reference')").get(x.w.id, b.id)) return null; return x; };
   app.locals.collectFor = collectFor;
   app.locals.edge = EDGE;
+  // After a boot the edge may still be handing out the cold page it cached during the restart: clear it once the house is up (27 Oct).
+  if (!cfg.noTimers && EDGE.on()) setTimeout(() => EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
+  app.post('/studio/edge/clear', studioOnly, async (req, res) => { const id = await EDGE.everything(); res.redirect('/studio?ok=' + encodeURIComponent(id ? 'The edge was told to drop every copy it holds.' : 'The edge could not be told (no distribution set, or the key may not create invalidations).')); });
   const basketItems = (req, slugs) => {
     const held = new Set();
     const rows = collectable(slugs).filter(x => offered(R.parse(x.w.rules), 'social', x.w) && !heldBy(req, x.w).some(h => h.key === 'social' || h.key === 'reference'));
