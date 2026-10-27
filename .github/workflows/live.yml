@@ -1,0 +1,36 @@
+# The walk after a deploy (27 Oct): once the tests pass on main, wait for Render to put that commit live (the brief
+# /healthz carries `ver`, the first eight of the commit), then open the doors of the house and read them. A fault
+# mails the repository's owner by GitHub's default. A build that never arrives within forty minutes is a fault too.
+name: live
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+jobs:
+  walk:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Wait for the commit to be live
+        run: |
+          want=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-8)
+          echo "waiting for $want"
+          for i in $(seq 1 80); do
+            got=$(curl -s https://watermark-3a4z.onrender.com/healthz | sed -n 's/.*"ver":"\([0-9a-f]*\)".*/\1/p')
+            echo "$(date -u +%H:%M:%S) live: ${got:-none}"
+            [ "$got" = "$want" ] && exit 0
+            sleep 30
+          done
+          echo "::error::The commit never arrived at the origin in forty minutes."; exit 1
+      - name: Let the edge clear
+        run: sleep 40
+      - name: Open the doors
+        run: |
+          fail=0
+          for p in / /house /wander /library /listening /collection /makers /keys /about /healthz /api/v1 /app; do
+            c=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' "https://watermark.krafftco.com$p"); echo "$p $c"
+            case "${c%% *}" in 200|301|302) ;; *) echo "::error::$p answered ${c%% *}"; fail=1;; esac
+          done
+          exit $fail

@@ -1,0 +1,51 @@
+# The development room (27 Oct): a second house on the branch `next`, the same code a step ahead of the public one.
+# Applied by hand in Render (New → Blueprint → this file), never synced with render.yaml, so the live blueprint
+# never creates it by accident. Starter plan, its own disk and database, test money only (STAGING=1 refuses a live
+# Stripe key). Environment values marked sync:false are set in Render by Will, never in chat or code.
+services:
+  - type: web
+    name: watermark-next
+    runtime: docker
+    branch: next
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /healthz
+    disk:
+      name: watermark-next-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: STAGING
+        value: "1"
+      - key: BASE_URL
+        value: https://next.watermark.krafftco.com
+      - key: MAIL_ALLOW
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: VAULT_KEY
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: Watermark <house@watermark.krafftco.com>
+      - key: FEE_SIDE
+        value: collector
+      - key: COLLECT_HOUSE_CENTS
+        value: "200"
+      - key: HOUSE_TIERS
+        value: "20:500000,15:5000000,10"
+      - key: TRUST_PROXY
+        value: 1
+      - key: NO_SEED
+        value: "1"
+      - key: GOV_MEM_MB
+        value: "380"

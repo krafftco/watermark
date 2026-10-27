@@ -35,7 +35,9 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || 380, busyN = +p
     return p;
   }
   const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, waited, held, load: os.loadavg()[0] });
-  app.locals.governor = { settle, turn, pressure, busy, state, sleep };
+  // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
+  const chores = () => process.env.CHORES !== '0';
+  app.locals.governor = { settle, turn, pressure, busy, state, sleep, chores };
   return app.locals.governor;
 }
 

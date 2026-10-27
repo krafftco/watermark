@@ -262,7 +262,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     return R.bring(b.id, { by: 'feed', meta: b.formats ? b : null });
   }
   let running = null;
-  function kick() { if (running) return; const job = db.prepare("SELECT * FROM feeds WHERE status IN ('queued','running') ORDER BY id LIMIT 1").get(); if (!job) return;
+  function kick() { if (running) return; if (app.locals.governor && !app.locals.governor.chores()) return; const job = db.prepare("SELECT * FROM feeds WHERE status IN ('queued','running') ORDER BY id LIMIT 1").get(); if (!job) return;
     if ((job.restarts || 0) >= 2) { db.prepare("UPDATE feeds SET status='paused', note='The house restarted twice while this ran. Look at the misses, then Resume.' WHERE id=?").run(job.id); console.log('[feeds] paused', job.id, 'after two restarts'); return setTimeout(kick, 50); }
     running = run(job).catch(e => console.error('[feeds]', e.message)).finally(() => { running = null; setTimeout(kick, 50); }); }
   function enqueue(body, file) {

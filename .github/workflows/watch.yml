@@ -1,0 +1,29 @@
+# The watch (27 Oct): every ten minutes GitHub asks the house, through the edge and at the origin, whether it is up.
+# A failed run mails the repository's owner by GitHub's own default, so the house has a monitor with nothing to
+# configure and nothing to pay. The two answers are compared: the origin sound while the edge answers an error is
+# the edge holding a stale cold page, which is its own fault and named as such.
+name: watch
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the house
+        run: |
+          set -u
+          edge=$(curl -s -o /tmp/edge.json -w '%{http_code} %{header_json}' https://watermark.krafftco.com/healthz | head -c 400)
+          origin=$(curl -s -o /tmp/origin.json -w '%{http_code}' https://watermark-3a4z.onrender.com/healthz)
+          echo "edge: ${edge%% *}  origin: $origin"
+          echo "origin says: $(head -c 300 /tmp/origin.json)"
+          ok_origin=$(grep -c '"ok":true' /tmp/origin.json || true)
+          ok_edge=$(grep -c '"ok":true' /tmp/edge.json || true)
+          if [ "$ok_origin" = "0" ]; then echo "::error::The house is down at the origin ($origin)."; exit 1; fi
+          if [ "$ok_edge" = "0" ]; then echo "::error::The origin is sound but the edge answers ${edge%% *}: CloudFront is holding a stale error page. Studio → the edge's Clear, or an invalidation of /* in the console."; exit 1; fi
+          for p in /wander /library /collection /listening; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' "https://watermark.krafftco.com$p"); echo "$p $c"
+            case "$c" in 200|301|302) ;; *) echo "::error::$p answered $c"; exit 1;; esac
+          done

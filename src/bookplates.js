@@ -93,7 +93,7 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
   // The queue: one book at a time in the background (after a bring on the shelf, and from the desk).
   const q = []; let on = false; const job = { on: false, done: [], missed: [], at: 0, of: 0 };
   async function pump() {
-    if (on) return; on = true; job.on = true;
+    if (on) return; if (app.locals.governor && !app.locals.governor.chores()) return; on = true; job.on = true;
     while (q.length) {
       const slug = q.shift(); job.at++;
       try { const t = db.prepare('SELECT * FROM texts WHERE slug=?').get(slug); if (!t || !t.body) continue; const rec = await recordOf(t); if (!rec) continue; const r = await (app.locals.governor ? app.locals.governor.turn('pictures', () => bring(t, rec)) : bring(t, rec)); if (r.n) job.done.push(`${t.title}: ${r.n}`); else job.missed.push(`${t.title}: ${r.why || 'none found'}`); } catch (e) { job.missed.push(`${slug}: ${e.message}`); }

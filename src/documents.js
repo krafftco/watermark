@@ -179,7 +179,7 @@ function mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, up
   // The queue: one document at a time in the background; the desk shows each as it lands.
   const q = []; let on = false; const job = { on: false, at: 0, of: 0, now: null, done: [], missed: [] };
   async function pump() {
-    if (on) return; on = true; job.on = true;
+    if (on) return; if (app.locals.governor && !app.locals.governor.chores()) return; on = true; job.on = true;
     while (q.length) {
       const it = q.shift(); job.at++; job.now = it.meta.title || it.meta.pdf || 'a document';
       const one = () => it.src.ia ? bringIA(it.src.ia, it.meta, { by: 'desk' }) : it.src.url ? bringUrl({ ...it.meta, pdf: it.src.url }, { by: 'desk' }) : take(it.src, it.meta, { by: 'desk' });
