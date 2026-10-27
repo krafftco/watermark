@@ -14,8 +14,11 @@ jobs:
     timeout-minutes: 50
     steps:
       - name: Wait for the commit to be live
+        env:
+          MSG: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           want=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-8)
+          case "$MSG" in *"[skip render]"*|*"[render skip]"*) echo "a push Render skips: walking the house as it stands"; exit 0;; esac
           echo "waiting for $want"
           for i in $(seq 1 80); do
             got=$(curl -s https://watermark-3a4z.onrender.com/healthz | sed -n 's/.*"ver":"\([0-9a-f]*\)".*/\1/p')
