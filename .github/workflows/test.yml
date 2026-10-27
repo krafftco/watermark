@@ -15,6 +15,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # The tools the Dockerfile gives the house (the document kind reads PDFs with poppler and OCRs with tesseract);
+      # without them the suite stops at 'poppler on the box' and the gate stays red for nothing.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils tesseract-ocr > /dev/null
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm test
