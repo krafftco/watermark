@@ -4316,3 +4316,9 @@ html.in-stay .top .nv-back{display:none}
 .st-pasrc{font-family:var(--read);font-size:15px;color:#5d5547;margin:22px 0 0;letter-spacing:.01em}.st-pasrc i{font-style:italic}.st-pasrc span{display:block;font-family:var(--sans);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8a8070;margin-top:6px}
 .st-pasfoot{display:flex;gap:18px;align-items:flex-end;margin-top:28px}.st-pasfoot .st-bk{position:static;width:56px;flex:none;margin:0;transform:none}.st-pasfoot .st-bk img{width:56px;height:auto;display:block;box-shadow:0 10px 24px -14px rgba(0,0,0,.6)}.st-pas .st-txgo{color:#1d1a16;border-color:rgba(0,0,0,.25)}.st-pas .st-txacts button{color:#1d1a16}.st-pas .st-txacts button svg{stroke:#1d1a16}.st-pas .st-txacts button[aria-pressed="true"]{color:#8a6a1e}
 .cpb{max-width:46em}.cpb-l{list-style:none;padding:0;margin:28px 0}.cpb-e{border-top:1px solid rgba(0,0,0,.1);padding:26px 0}.cpb-e blockquote{margin:0;font-family:var(--read);font-size:clamp(18px,2vw,22px);line-height:1.5}.cpb-e blockquote p{margin:0}.cpb-src{font-family:var(--read);font-size:15px;color:#5d5547;margin:12px 0 0}.cpb-src a{color:inherit}.cpb-note{font-style:italic;margin:12px 0 0;padding-left:14px;border-left:2px solid #c9a24a}.cpb-acts{margin-top:10px;font-size:13px}.cpb-acts summary{cursor:pointer;color:#8a8070}.cpb-acts form{display:flex;gap:8px;margin-top:8px;align-items:flex-start}.cpb-acts textarea{flex:1;font:inherit;padding:6px 8px;border:1px solid #c9c4ba;border-radius:6px}.cpb-foot{margin:30px 0 0}
+
+/* What's new (27 Oct): the releases of the house */
+.rls .rls-r{margin:2.2rem 0;padding-top:1.4rem;border-top:1px solid var(--rule,#e6e1d8)}
+.rls .rls-r h2{text-transform:none;letter-spacing:0;font-family:var(--serif);font-size:1.6rem;margin:0 0 .2rem}
+.rls .rls-r ul{padding-left:1.1rem}
+.rls .rls-r li{margin:.45rem 0;line-height:1.5}

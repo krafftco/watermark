@@ -1093,6 +1093,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C });
+  require('./releases').mountReleases(app, { V }); // what's new: the shipped product's record (27 Oct)
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
   require('./own').mountOwn(app, { db, V, C, ledger, stripe, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly, registerWork }); // you already own it: the deed, /own, the open door, the Office one tap, said simply

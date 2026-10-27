@@ -1789,7 +1789,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       const prevP = app.locals.__fetch;
       app.locals.__fetch = async (u) => { u = String(u); if (/gutendex\.com\/books\/777$/.test(u)) return { ok: true, json: async () => ({ id: 777, title: 'The Long Walk', authors: [{ name: 'Walker, A.' }], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/777.txt.utf-8', 'text/html': 'https://www.gutenberg.org/files/777/777-h/777-h.htm' } }) }; if (/777-h\.htm$/.test(u)) return { ok: true, url: u, text: async () => html }; if (/plate\d\.jpg$/.test(u)) return { ok: true, arrayBuffer: async () => plate }; if (/orn\.png$/.test(u)) return { ok: true, arrayBuffer: async () => orn }; return prevP ? prevP(u) : { ok: false, status: 404 }; };
       r = await req(port, 'POST', `/studio/reading/${bk.slug}/pictures`, { cookie: ck }); assert.equal(r.status, 302);
-      for (let i = 0; i < 200 && app.locals.bookplates.job.on; i++) await new Promise(x => setTimeout(x, 25));
+      for (let i = 0; i < 200 && (app.locals.bookplates.job.on || !db.prepare('SELECT pictures FROM texts WHERE id=?').get(bk.id).pictures); i++) await new Promise(x => setTimeout(x, 25));
       const pics = app.locals.bookplates.picturesOf(db.prepare('SELECT pictures FROM texts WHERE id=?').get(bk.id)); assert.equal(pics.length, 2, 'two plates, the ornament refused: ' + JSON.stringify(pics));
       assert.ok(pics[0].c === 1 && pics[0].p === 0 && pics[0].at === 'before' && pics[0].caption === 'The road, at noon.', 'the first set before the chapter’s first paragraph with its caption: ' + JSON.stringify(pics[0]));
       assert.ok(pics[1].c === -1, 'the second, unplaced, hangs at the end');

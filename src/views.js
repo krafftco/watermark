@@ -54,6 +54,7 @@ const termText = u => u.kind === 'print' ? 'Yours to keep' : u.term_months ? (u.
 
 // Changes with every deploy, so browsers fetch the new styles and scripts at once.
 const VER = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 8);
+const RELEASE = (() => { try { return require('./releases').current(); } catch (e) { return '1.0'; } })(); // the shipped version, from CHANGELOG.md
 const BASE = () => (process.env.BASE_URL || 'https://watermark.krafftco.com').replace(/\/$/, '');
 // Link previews (iMessage, LinkedIn, Slack), search engines and Google Images read these.
 function headMeta({ title, desc, path, image, type = 'website', jsonld }) {
@@ -185,7 +186,7 @@ function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;
   return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand" href="/" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark" width="150" height="40"></a><a class="ft-wander" href="/wander" data-nv-wander>${WAVE_MARK}<span>We recommend you wander.</span></a></div>
 <nav class="ft-cols" aria-label="The house">${FOOT.map(([h, ls]) => `<div class="ft-col"><p class="ft-k">${h}</p>${ls.map(([u, t]) => `<a href="${u}">${t}</a>`).join('')}</div>`).join('')}</nav>
-<p class="ft-line"><span>Watermark · <a href="https://krafftco.com">a Krafft company</a></span><span>The founding collection and the house’s media are made by <a href="https://studios.krafftco.com">Krafft Studios</a>.</span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/legal">The agreements</a>${LAUNCHED ? '' : ` · <a href="/feedback?from=${encodeURIComponent(path || '')}" class="foot-beta">Beta: tell us</a>`}</span></p></footer>`;
+<p class="ft-line"><span>Watermark <a href="/releases" title="What’s new">${RELEASE}</a> · <a href="https://krafftco.com">a Krafft company</a></span><span>The founding collection and the house’s media are made by <a href="https://studios.krafftco.com">Krafft Studios</a>.</span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/legal">The agreements</a>${LAUNCHED ? '' : ` · <a href="/feedback?from=${encodeURIComponent(path || '')}" class="foot-beta">Beta: tell us</a>`}</span></p></footer>`;
 }
 function layout({ title, body, desc = 'Held on Watermark.', bare = false, studio = false, path, image, type, jsonld, mark = null }) {
   const dark = bare && /class="(st|vr|fm|xr|ez|tw|dv|dkr|dw)[ "]/.test(body);
@@ -1424,7 +1425,7 @@ function about() {
 <h2>By invitation</h2>
 <p>Watermark is curated. Work hangs here because someone stood in front of it and said it was ready. That is the honour, and it is the point: the beautiful rises, the body of work is kept whole, and nothing is sold that is not worth keeping. <a href="/join">Apply with the work.</a></p>
 <h2>The papers of the house</h2>
-<p><a href="/director">The director</a> &middot; <a href="/owners">How Krafft, the company that owns Watermark, is owned and run</a> &middot; <a href="/share">What the house keeps on each sale</a> &middot; <a href="/hanging">Who hangs, and how it is decided</a> &middot; <a href="/own">You already own it</a> &middot; <a href="/copyright">The Copyright Office</a> &middot; <a href="/enterprise">A house of your own</a> &middot; <a href="/app">Wander, the app</a> &middot; <a href="/guestbook">The guest book</a> &middot; <a href="/journal">The journal</a></p>
+<p><a href="/director">The director</a> &middot; <a href="/owners">How Krafft, the company that owns Watermark, is owned and run</a> &middot; <a href="/share">What the house keeps on each sale</a> &middot; <a href="/hanging">Who hangs, and how it is decided</a> &middot; <a href="/own">You already own it</a> &middot; <a href="/copyright">The Copyright Office</a> &middot; <a href="/enterprise">A house of your own</a> &middot; <a href="/app">Wander, the app</a> &middot; <a href="/guestbook">The guest book</a> &middot; <a href="/journal">The journal</a> &middot; <a href="/releases">What’s new</a></p>
 <p><a href="/press">The printing house</a> &middot; <a href="/publishing">Publishing</a> &middot; <a href="/bookshop">The Bookshop</a> &middot; <a href="/market">The market</a> &middot; <a href="/club">The Club</a> &middot; <a href="/guides">Guides</a> &middot; <a href="/kids">The kids’ corner</a> &middot; <a href="/today">Today’s work</a> &middot; <a href="/patrons">The Hall of Patrons</a> &middot; <a href="/enjoy">Enjoying it</a></p>
 <p class="ab-sig"><a href="/director">Will Fullerton</a><br><small>Founding director &middot; Krafft Studios &middot; Watermark is a Krafft company</small></p></section>`
   });
