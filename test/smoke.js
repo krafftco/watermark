@@ -1888,6 +1888,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('translated'), 'per-chapter translations never on the public register');
     app.locals.__fetch = prev; if (hadKey) process.env.ANTHROPIC_API_KEY = hadKey; else delete process.env.ANTHROPIC_API_KEY;
   }
+  // The chapters, joined (27 Oct, Carnegie: 'CHAPTER I' on one line and the title on the next read as two chapters; the index at the back as a third).
+  { const R = app.locals.reading; const long = 'Words of the chapter go on. '.repeat(30);
+    const chs = R.chapters(`CHAPTER I\n\nPARENTS AND CHILDHOOD\n\n${long}\n\nCHAPTER II.\n\nDUNFERMLINE AND AMERICA\n\n${long}\n\nINDEX\n\nAbbott, 3\n\nAdams, 9`);
+    assert.deepEqual(chs.map(c => c.head), ['CHAPTER I: PARENTS AND CHILDHOOD', 'CHAPTER II: DUNFERMLINE AND AMERICA'], 'joined, the index dropped: ' + JSON.stringify(chs.map(c => c.head)));
+    const row = db.prepare("INSERT INTO texts (slug, title, author, kind, body, status, public) VALUES ('split-chapters', 'Split', 'Nobody', 'book', ?, 'held', 1) RETURNING id").get(`## Chapter I\n\n## Parents and Childhood\n\n${long}\n\n## Index\n\nAbbott, 3`);
+    r = await req(port, 'POST', '/studio/reading/split-chapters/rechapter', { cookie: ck, body: { json: '1' } }); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body).chapters, 1, 'set again as one chapter');
+    assert.ok(/^## Chapter I: Parents and Childhood/.test(db.prepare('SELECT body FROM texts WHERE id=?').get(row.id).body), 'the joined head in the body');
+    r = await req(port, 'POST', '/studio/reading/split-chapters/rechapter'); assert.equal(r.status, 403); }
   console.log('ok: the public domain and the reading room');
   { // The readers' feed and the commonplace book (27 Oct): one passage a screen on the paper, chosen so it reads whole; Keep copies it into your commonplace book (a true quotation, checked against the book); the book; a stranger sent to sign in.
     const CP = app.locals.commonplace; assert.ok(CP, 'mounted');

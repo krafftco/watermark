@@ -27,6 +27,7 @@ function wrap(text, chars, max) {
   if (cur) lines.push(cur); if (lines.length > max) { const keep = lines.slice(0, max); keep[max - 1] = keep[max - 1].replace(/\s+\S*$/, '') + '…'; return keep; } return lines;
 }
 // A small fleuron for the corners: a four-petalled ornament on a stem, after the tools of the French binders.
+const { WAVE_D } = require('./icons');
 const PETAL = 'M0 0C2.6 -2.2 2.6 -6.4 0 -9C-2.6 -6.4 -2.6 -2.2 0 0Z';
 const FLEURON = [0, 90, 180, 270].map(r => `<path d="${PETAL}" transform="rotate(${r})"/>`).join('') + '<circle r="1.4"/>';
 function svg(t, opts = {}) {
@@ -66,7 +67,7 @@ ${[[fx + W * 0.05, fy + W * 0.05, 0], [fx + fw - W * 0.05, fy + W * 0.05, 90], [
 ${author ? `<text x="${(bx + bw / 2).toFixed(1)}" y="${(H * 0.72).toFixed(1)}" text-anchor="middle" font-family="'Newsreader','Times New Roman',Georgia,serif" font-size="${(W * 0.042).toFixed(1)}" letter-spacing=".22em" fill="url(#${uid}e)">${esc(author.toUpperCase())}</text>` : ''}
 <line x1="${(bx + bw / 2 - fw * 0.18).toFixed(1)}" y1="${(H * 0.78).toFixed(1)}" x2="${(bx + bw / 2 + fw * 0.18).toFixed(1)}" y2="${(H * 0.78).toFixed(1)}" stroke="url(#${uid}e)" stroke-width="${(W * 0.003).toFixed(2)}"/>
 ${year ? `<text x="${(bx + bw / 2).toFixed(1)}" y="${(H * 0.845).toFixed(1)}" text-anchor="middle" font-family="'Newsreader','Times New Roman',Georgia,serif" font-size="${(W * 0.038).toFixed(1)}" letter-spacing=".12em" fill="url(#${uid}e)" opacity=".85">${esc(year)}</text>` : ''}
-<path transform="translate(${(bx + bw / 2 - W * 0.04).toFixed(1)} ${(H - inset - W * 0.045).toFixed(1)}) scale(${(W * 0.08 / 41).toFixed(4)})" d="M1.5 19.4c3.2 0 4.5-4.5 8.2-4.5s4.9 4.5 8.2 4.5 4.5-4.5 8.2-4.5 4.9 4.5 8.2 4.5 4.5-4.5 8.2-4.5" fill="none" stroke="url(#${uid}e)" stroke-width="2.4" stroke-linecap="round"/>
+<g transform="translate(${(bx + bw / 2).toFixed(1)} ${(fy + fh - W * 0.085).toFixed(1)}) scale(${(W * 0.11 / 41).toFixed(4)}) translate(-22 -19.73)" fill="url(#${uid}e)"><path d="${WAVE_D}"/></g>
 </svg>`;
 }
 // The book as it stands on a shelf: the binding (or the cover photograph on the board) with the page block's gilt

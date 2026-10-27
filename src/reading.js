@@ -140,8 +140,21 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     }
     if (cur.head || cur.paras.length) out.push(cur);
     // Too fine a cut (every capital line a chapter) → merge chapters under 60 words into the one before.
-    const merged = []; for (const c of out) { const w = c.paras.join(' ').split(/\s+/).length; if (merged.length && w < 60 && !/^(CHAPTER|BOOK|PART|LETTER)/i.test(c.head || '')) { const last = merged[merged.length - 1]; if (c.head) last.paras.push(c.head); last.paras.push(...c.paras); } else merged.push(c); }
+    // A number on one line and the title on the next (CHAPTER I / PARENTS AND CHILDHOOD, Carnegie's way) is one chapter, 'Chapter I: Parents and Childhood', not two (27 Oct).
+    const joined = []; for (let i = 0; i < out.length; i++) { const c = out[i], n = out[i + 1]; if (c.head && !c.paras.length && n && n.head && /^(CHAPTER|BOOK|PART|LETTER)\s+[\w.]+\.?$/i.test(c.head.trim()) && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(n.head)) { n.head = `${c.head.trim().replace(/\.$/, '')}: ${n.head.trim()}`; continue; } joined.push(c); }
+    const merged = []; for (const c of joined) { const w = c.paras.join(' ').split(/\s+/).length; if (merged.length && w < 60 && !/^(CHAPTER|BOOK|PART|LETTER)/i.test(c.head || '')) { const last = merged[merged.length - 1]; if (c.head) last.paras.push(c.head); last.paras.push(...c.paras); } else merged.push(c); }
+    // The apparatus at the back (an index, a bibliography, footnotes) is not a chapter of the book.
+    while (merged.length > 1 && /^(index|bibliography|footnotes|endnotes|glossary|transcriber|notes)\b/i.test(merged[merged.length - 1].head || '')) merged.pop();
     return merged;
+  }
+  // Set the chapters again on a book already shelved, from its own body (the heads are its '## ' lines).
+  function rechapter(body) {
+    const out = []; let cur = { head: null, paras: [] };
+    for (const p of String(body || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^## /.test(p)) { if (cur.head || cur.paras.length) out.push(cur); cur = { head: p.replace(/^## /, ''), paras: [] }; } else cur.paras.push(p); }
+    if (cur.head || cur.paras.length) out.push(cur);
+    const joined = []; for (let i = 0; i < out.length; i++) { const c = out[i], n = out[i + 1]; if (c.head && !c.paras.length && n && n.head && /^(CHAPTER|BOOK|PART|LETTER)\s+[\w.]+\.?$/i.test(c.head.trim()) && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(n.head)) { n.head = `${c.head.trim().replace(/\.$/, '')}: ${n.head.trim()}`; continue; } joined.push(c); }
+    while (joined.length > 1 && /^(index|bibliography|footnotes|endnotes|glossary|transcriber|notes)\b/i.test(joined[joined.length - 1].head || '')) joined.pop();
+    return joined.map(c => (c.head ? `## ${c.head}\n\n` : '') + c.paras.join('\n\n')).join('\n\n');
   }
   // Set beautifully (Will, 24 Oct: "format them beautifully"): Gutenberg's typewriter habits become type. Straight quotes
   // curl, two hyphens become an em dash, three dots an ellipsis, _underscored_ words keep their italic as *word*,
@@ -351,7 +364,17 @@ ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a
     catch (e) { res.redirect('/studio/reading?ok=' + encodeURIComponent('Could not bring it in: ' + e.message)); }
   });
   app.post('/studio/reading/standard', async (req, res) => { if (!isStudio(req)) return res.sendStatus(403); const SE = app.locals.standard; if (!SE) return res.sendStatus(503); try { const r = await SE.bring(String(req.body.ref || ''), { by: 'studio' }); res.redirect(`/library/${encodeURIComponent(r.slug)}?ok=` + encodeURIComponent(r.already ? 'Already on the shelf.' : r.replaced ? `The Standard Ebooks edition has taken the place of the Gutenberg text: ${r.chapters} chapters${r.pictures ? `, ${r.pictures} illustrations` : ''}.` : `Shelved: ${r.chapters} chapters${r.pictures ? `, ${r.pictures} illustrations` : ''}.`)); } catch (e) { res.redirect('/studio/reading?ok=' + encodeURIComponent(`Not shelved: ${e.message}`)); } });
-  app.locals.reading = { bring, search, strip, chapters, find, verify, meta, shelveCanon, job, polish, titleCase, FRANKLIN, CANON };
+  // Set the chapters again (27 Oct): a book shelved before a better cut is re-cut from its own body; its pictures are placed again.
+  app.post('/studio/reading/:slug/rechapter', (req, res) => {
+    if (!isStudio(req)) return res.sendStatus(403);
+    const t = db.prepare('SELECT id, slug, body FROM texts WHERE slug=?').get(String(req.params.slug)); if (!t || !t.body) return res.sendStatus(404);
+    const body = rechapter(t.body); const n = (body.match(/^## /gm) || []).length;
+    db.prepare('UPDATE texts SET body=? WHERE id=?').run(body, t.id);
+    if (app.locals.bookplates && (db.prepare('SELECT pictures FROM texts WHERE id=?').get(t.id).pictures || '').length > 2) { db.prepare("UPDATE texts SET pictures=NULL WHERE id=?").run(t.id); app.locals.bookplates.queue(t.slug); }
+    if (req.body.json) return res.json({ ok: true, chapters: n });
+    res.redirect(`/library/${encodeURIComponent(t.slug)}?ok=` + encodeURIComponent(`The chapters set again: ${n}.`));
+  });
+  app.locals.reading = { bring, search, strip, chapters, rechapter, find, verify, meta, shelveCanon, job, polish, titleCase, FRANKLIN, CANON };
   return app.locals.reading;
 }
 module.exports = { mountReading, FRANKLIN, CANON };
