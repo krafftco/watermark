@@ -30,7 +30,7 @@ function parseCSV(text) {
   row.push(cell); if (row.some(x => x.trim())) rows.push(row);
   return rows;
 }
-const COLS = { title: /^(title|name|label|work)$/i, image: /^(image|image_?url|picture|file|url|src|primary_?image)$/i, id: /^(id|source|source_?url|identifier|object_?url|accession|permalink)$/i, place: /^(place|location|spatial|coverage)$/i, date: /^(date|year|made|taken|created)$/i, medium: /^(medium|technique|materials?|format)$/i, caption: /^(caption|description|summary|notes?|text)$/i, artist: /^(artist|creator|maker|author|by)$/i, kind: /^(kind|type|classification)$/i, credit: /^(credit|credit_?line|rights|licen[cs]e)$/i };
+const COLS = { title: /^(title|name|label|work)$/i, image: /^(image|image_?url|picture|file|url|src|primary_?image)$/i, id: /^(id|source|source_?url|identifier|object_?url|accession|permalink)$/i, place: /^(place|location|spatial|coverage)$/i, date: /^(date|year|made|taken|created)$/i, medium: /^(medium|technique|materials?|format)$/i, caption: /^(caption|description|summary|notes?|text)$/i, artist: /^(artist|creator|maker|author|by)$/i, kind: /^(kind|type|classification)$/i, credit: /^(credit|credit_?line)$/i, rights: /^(rights|rights_?statement|licen[cs]e|licen[cs]e_?url|edm:rights|dc:rights|usage)$/i };
 function csvItems(text) {
   const rows = parseCSV(text); if (!rows.length) return [];
   const head = rows[0].map(h => h.trim()); const col = {}; for (const k of Object.keys(COLS)) col[k] = head.findIndex(h => COLS[k].test(h));
@@ -39,8 +39,8 @@ function csvItems(text) {
   for (const r of rows.slice(1)) {
     const g = k => col[k] >= 0 ? String(r[col[k]] || '').trim() : '';
     const image = g('image'); if (!/^https?:\/\//.test(image)) continue;
-    const meta = []; for (const [k, label] of [['date', 'Date'], ['place', 'Place'], ['medium', 'Medium'], ['credit', 'Credit'], ['artist', 'Artist']]) { const v = g(k); if (v) meta.push({ label, value: v }); }
-    out.push({ id: g('id') || image, label: g('title') || 'Untitled', summary: g('caption') || null, image, meta, artist: g('artist') ? { name: g('artist') } : null, kind: g('kind').toLowerCase() || null });
+    const meta = []; for (const [k, label] of [['date', 'Date'], ['place', 'Place'], ['medium', 'Medium'], ['credit', 'Credit'], ['artist', 'Artist'], ['rights', 'Rights']]) { const v = g(k); if (v) meta.push({ label, value: v }); }
+    out.push({ id: g('id') || image, label: g('title') || 'Untitled', summary: g('caption') || null, image, meta, artist: g('artist') ? { name: g('artist') } : null, kind: g('kind').toLowerCase() || null, rights: g('rights') || null });
   }
   return out;
 }
@@ -58,7 +58,7 @@ function oaiPage(xml) {
     const meta = []; const add = (label, vs) => { for (const v of vs.slice(0, 2)) meta.push({ label, value: v }); };
     add('Artist', tag(r, 'creator')); add('Date', tag(r, 'date')); add('Place', tag(r, 'coverage')); add('Medium', tag(r, 'format')); add('Type', tag(r, 'type')); add('Rights', tag(r, 'rights'));
     const web = ids.find(x => /^https?:/.test(x) && x !== image) || null;
-    items.push({ id: web || unx(oaiId) || image, label: tag(r, 'title')[0] || 'Untitled', summary: tag(r, 'description')[0] || null, image: img, meta, artist: tag(r, 'creator')[0] ? { name: tag(r, 'creator')[0] } : null, kind: null });
+    items.push({ id: web || unx(oaiId) || image, label: tag(r, 'title')[0] || 'Untitled', summary: tag(r, 'description')[0] || null, image: img, meta, artist: tag(r, 'creator')[0] ? { name: tag(r, 'creator')[0] } : null, kind: null, rights: tag(r, 'rights')[0] || null });
   }
   const token = (String(xml).match(/<resumptionToken[^>]*>([\s\S]*?)<\/resumptionToken>/) || [])[1];
   return { items, token: token ? unx(token) : null };

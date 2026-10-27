@@ -15,6 +15,20 @@ const str = v => { if (v == null) return ''; if (typeof v === 'string') return v
 const lang = v => { if (v && typeof v === 'object' && !Array.isArray(v)) { const k = v.en || v.none || v[Object.keys(v)[0]]; return str(k); } return str(v); };
 
 // Reads a Presentation 2 or 3 manifest into { label, summary, items: [{ id, label, summary, image, meta }] }.
+// Rights, read from the item itself (27 Oct: record the per-item rights, never a feed's headline licence): a Creative Commons
+// or rightsstatements.org address, or words, to the house's licence keys. 'closed' = NC, ND, in copyright, all rights
+// reserved, or a statement the house cannot read as open: the work comes in as the maker's, nothing offered until a person says.
+function rightsKey(s) {
+  const x = String(s || '').trim().toLowerCase(); if (!x) return null;
+  if (/creativecommons\.org\/publicdomain\/zero|\bcc0\b|cc zero/.test(x)) return 'cc0';
+  if (/creativecommons\.org\/publicdomain\/mark|rightsstatements\.org\/vocab\/noc-us|no known copyright|no known restrictions|not in copyright|not_in_copyright|public domain|publicdomain\b|\bpdm\b|\bpd\b|domaine public|gemeinfrei/.test(x)) return 'pd';
+  if (/licenses\/by-nc|\bby-nc\b|cc by-nc|non-?commercial/.test(x)) return 'cc-by-nc';
+  if (/licenses\/by-nd|\bby-nd\b|no derivatives/.test(x)) return 'closed';
+  if (/licenses\/by-sa|\bby-sa\b|cc by-sa|share-?alike/.test(x)) return 'cc-by-sa';
+  if (/licenses\/by\/|\bcc-by\b|\bcc by\b|attribution(?! ?-)/.test(x)) return 'cc-by';
+  if (/rightsstatements\.org\/vocab\/(inc|cne|und|nkc)|in copyright|all rights reserved|©|\(c\)|copyright|rights reserved|undetermined|unknown/.test(x)) return 'closed';
+  return 'closed';
+}
 function parseManifest(m) {
   if (!m || typeof m !== 'object') throw new Error('Not a manifest.');
   const out = { label: lang(m.label), summary: lang(m.summary || m.description), items: [] };
@@ -30,12 +44,12 @@ function parseManifest(m) {
       let body = null;
       for (const ap of (c.items || [])) for (const an of (ap.items || [])) { const b = Array.isArray(an.body) ? an.body[0] : an.body; if (b && (b.type === 'Image' || /image/i.test(str(b.format)))) { body = b; break; } }
       if (!body) continue;
-      out.items.push({ id: c.id, label: lang(c.label) || lang(m.label), summary: lang(c.summary), image: imageOf(body.service, body), meta: metaOf(c.metadata), width: c.width, height: c.height });
+      out.items.push({ id: c.id, label: lang(c.label) || lang(m.label), summary: lang(c.summary), image: imageOf(body.service, body), meta: metaOf(c.metadata), width: c.width, height: c.height, rights: str(c.rights || m.rights || m.license || (body.rights)) || null });
     }
   } else if (Array.isArray(m.sequences)) { // v2
     for (const c of (m.sequences[0].canvases || [])) {
       const im = (c.images || [])[0]; const r = im && im.resource; if (!r) continue;
-      out.items.push({ id: c['@id'], label: str(c.label) || str(m.label), summary: str(c.description), image: imageOf(r.service, r), meta: metaOf(c.metadata), width: c.width, height: c.height });
+      out.items.push({ id: c['@id'], label: str(c.label) || str(m.label), summary: str(c.description), image: imageOf(r.service, r), meta: metaOf(c.metadata), width: c.width, height: c.height, rights: str(c.license || m.license || m.rights) || null });
     }
   } else throw new Error('No canvases in this manifest.');
   out.items = out.items.filter(i => i.image);
@@ -71,6 +85,7 @@ async function parseMet(url, doFetch, max) {
 const isMet = url => /^https:\/\/collectionapi\.metmuseum\.org\//.test(url);
 
 function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images, ledger, DEFAULT_USES = [] }) {
+  try { db.exec('ALTER TABLE works ADD COLUMN rights_note TEXT'); } catch (e) { /* has it */ }
   const { esc } = V;
   const doFetch = (...a) => (fetchImpl || fetch)(...a);
   db.exec(`CREATE TABLE IF NOT EXISTS iiif_imports (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, url TEXT NOT NULL, label TEXT, status TEXT NOT NULL DEFAULT 'queued',
@@ -94,8 +109,12 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
         const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = it.artist || (artistMeta ? { name: artistMeta.value } : null);
         const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
         const year = yearOf(it);
-        db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(taken_at, ?), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', job.open || null, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
-        if (job.open) { try { ledger.append(db, 'work.opened', w.slug, { licence: job.open, by: 'iiif' }); } catch (e) { /* */ } }
+        // The item's own rights first (a feed mixes open and closed objects: Te Papa, Wellcome, Europeana); the feed's licence only when the item says nothing.
+        const rk = it.rights ? rightsKey(it.rights) : (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) ? rightsKey(it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)).value) : null);
+        const open = rk === 'closed' ? null : (rk || job.open || null);
+        if (rk === 'closed') db.prepare("UPDATE works SET rights_note=? WHERE id=?").run(String(it.rights || (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) || {}).value || '').slice(0, 300), w.id);
+        db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(taken_at, ?), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', open, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
+        if (open) { try { ledger.append(db, 'work.opened', w.slug, { licence: open, by: rk ? 'item' : 'iiif' }); } catch (e) { /* */ } }
         return { w };
     } catch (e) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } if (/already held/.test(e.message)) return { skipped: true }; throw e; }
   }
@@ -199,4 +218,4 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
   app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch };
   return app.locals.iiif;
 }
-module.exports = { mountIIIF, parseManifest, parseMet };
+module.exports = { mountIIIF, parseManifest, parseMet, rightsKey };
