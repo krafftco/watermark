@@ -88,16 +88,33 @@ function siItems(rows) {
   return out;
 }
 
+// Wikimedia Commons pages (api.php, generator=categorymembers + imageinfo) → items: the original file, the licence per file
+// (LicenseUrl, else LicenseShortName), the title from ObjectName else the file's name, the artist and date from extmetadata.
+function commonsItems(j) {
+  const out = []; const pages = Object.values(((j || {}).query || {}).pages || {});
+  const strip = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  for (const p of pages) {
+    const ii = (p.imageinfo || [])[0]; if (!ii || !ii.url || !/^image\/(jpeg|png|tiff|webp)/.test(ii.mime || '')) continue;
+    const em = ii.extmetadata || {}; const v = k => strip((em[k] || {}).value);
+    const title = (v('ObjectName') || String(p.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ')).slice(0, 160);
+    const meta = []; const add = (label, x) => { if (x) meta.push({ label, value: String(x).slice(0, 300) }); };
+    add('Artist', v('Artist')); add('Date', v('DateTimeOriginal')); add('Credit', v('Credit'));
+    const desc = v('ImageDescription'); const artist = v('Artist').replace(/\s*\(.*$/, '').replace(/,\s*\d{4}.*$/, '');
+    out.push({ id: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(p.title || '').replace(/ /g, '_'))}`, label: title, summary: desc && desc !== title ? desc.slice(0, 1000) : null, image: ii.url, meta, artist: artist ? { name: artist } : null, kind: null, rights: v('LicenseUrl') || v('LicenseShortName') || null, width: ii.width, height: ii.height });
+  }
+  return out;
+}
+
 function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   db.exec(`CREATE TABLE IF NOT EXISTS feeds (id INTEGER PRIMARY KEY, name TEXT, kind TEXT NOT NULL, url TEXT, file TEXT, maker_id INTEGER NOT NULL, open TEXT, show INTEGER NOT NULL DEFAULT 0, max INTEGER,
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { const h = fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || ''; if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(h)) return 'documents'; if (/(^|,)\s*"?audio"?\s*(,|$)/i.test(h)) return 'guides'; } catch (e) { /* csv */ } return 'csv'; }
-    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/api\.si\.edu\/openaccess/.test(u)) return 'si'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
+    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/api\.si\.edu\/openaccess/.test(u)) return 'si'; if (/commons\.wikimedia\.org/.test(u)) return 'commons'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
@@ -107,6 +124,19 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       if (kind === 'documents' || kind === 'guides') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return kind === 'guides' ? { guide: o, id: `guide:${o.audio || o.work}`, label: o.title || `${o.work}: ${o.speaker || 'a guide'}` } : { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
+    }
+    if (kind === 'commons') {
+      // Wikimedia Commons: a category's files with their extmetadata (the licence per file), paged by gcmcontinue.
+      const cat = decodeURIComponent((String(job.url).match(/(Category:[^?#&]+)/) || [])[1] || '').replace(/_/g, ' '); if (!cat) throw new Error('a category address (commons.wikimedia.org/wiki/Category:…)');
+      let cont = job.cursor || null, n = 0;
+      while (n < LIM) {
+        const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: cat, gcmtype: 'file', gcmlimit: '50', prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiextmetadatafilter: 'ObjectName|ImageDescription|Artist|DateTimeOriginal|LicenseShortName|LicenseUrl|Credit|Permission|Categories' })) u.searchParams.set(k, v); if (cont) u.searchParams.set('gcmcontinue', cont);
+        const r = await doFetch(u.href, { headers: { 'User-Agent': 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)' } }); if (!r.ok) throw new Error(`commons ${r.status}`); const j = await r.json();
+        const items = commonsItems(j); n += items.length; cont = (j.continue && j.continue.gcmcontinue) || null;
+        yield { items, cursor: cont }; if (!cont) return;
+        await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT));
+      }
+      return;
     }
     if (kind === 'si') {
       // Smithsonian Open Access: CC0 records with media, paged by start/rows; the key from the address or SI_API_KEY.
@@ -259,8 +289,8 @@ ${came.length ? `<h2>What came in</h2><div class="fe-came">${came.map(w => `<a h
   });
   app.post('/studio/feeds/:id/stop', studioOnly, (req, res) => { const id = +req.params.id; if (current === id) stopAsked = true; else db.prepare("UPDATE feeds SET status='stopped', finished_at=datetime('now') WHERE id=? AND status='queued'").run(id); res.redirect(`/studio/feeds/${id}`); });
   app.post('/studio/feeds/:id/retry', studioOnly, (req, res) => { const nid = retry(+req.params.id); res.redirect(nid ? `/studio/feeds/${nid}?ok=` + encodeURIComponent('The misses are going through the door again.') : `/studio/feeds/${req.params.id}`); });
-  app.locals.feeds = { enqueue, retry, kick, run, pages, parseCSV, csvItems, oaiPage, siItems, kindOf, missesOf };
+  app.locals.feeds = { enqueue, retry, kick, run, pages, parseCSV, csvItems, oaiPage, siItems, commonsItems, kindOf, missesOf };
   return app.locals.feeds;
 }
 
-module.exports = { mountFeeds, parseCSV, csvItems, oaiPage, siItems };
+module.exports = { mountFeeds, parseCSV, csvItems, oaiPage, siItems, commonsItems };
