@@ -37,14 +37,14 @@ const FRANKLIN = [
 // `shelveCanon()` brings them in one at a time in the background.
 const CANON = [
   ['Meditations', 'Marcus Aurelius', 2680], ['The Odyssey', 'Homer', 1727], ['The Iliad', 'Homer', 6130], ['The Republic', 'Plato', 1497], ['Nicomachean Ethics', 'Aristotle', 8438],
-  ['The Prince', 'Machiavelli', 1232], ['Essays of Michel de Montaigne', 'Montaigne', 3600], ['Hamlet', 'Shakespeare', 1524], ['King Lear', 'Shakespeare', 1532], ['The Sonnets', 'Shakespeare', 1041],
+  ['The Prince', 'Machiavelli', 1232], ['Essays of Michel de Montaigne', 'Montaigne', 3600], ['Hamlet', 'Shakespeare', 1524], ['King Lear', 'Shakespeare', 1532], ['The Sonnets', 'Shakespeare', 1041, ['Shakespeare\'s Sonnets']],
   ['Don Quixote', 'Cervantes', 996], ['Paradise Lost', 'Milton', 26], ['Pensées', 'Pascal', 18269], ['Robinson Crusoe', 'Defoe', 521], ['Gulliver\'s Travels', 'Swift', 829],
   ['The Wealth of Nations', 'Smith, Adam', 3300], ['The Federalist Papers', 'Hamilton', 1404], ['Pride and Prejudice', 'Austen', 1342], ['Emma', 'Austen', 158], ['Frankenstein', 'Shelley, Mary', 84],
   ['Jane Eyre', 'Brontë, Charlotte', 1260], ['Wuthering Heights', 'Brontë, Emily', 768], ['Moby Dick', 'Melville', 2701], ['Walden', 'Thoreau', 205], ['Leaves of Grass', 'Whitman', 1322],
   ['Essays, First Series', 'Emerson', 2944], ['Great Expectations', 'Dickens', 1400], ['A Tale of Two Cities', 'Dickens', 98], ['Middlemarch', 'Eliot, George', 145], ['Anna Karenina', 'Tolstoy', 1399],
   ['War and Peace', 'Tolstoy', 2600], ['Crime and Punishment', 'Dostoyevsky', 2554], ['The Brothers Karamazov', 'Dostoyevsky', 28054], ['Madame Bovary', 'Flaubert', 2413], ['Les Misérables', 'Hugo', 135],
   ['The Count of Monte Cristo', 'Dumas', 1184], ['Adventures of Huckleberry Finn', 'Twain', 76], ['The Picture of Dorian Gray', 'Wilde', 174], ['Heart of Darkness', 'Conrad', 219], ['Dubliners', 'Joyce', 2814],
-  ['The Souls of Black Folk', 'Du Bois', 408], ['Narrative of the Life of Frederick Douglass', 'Douglass', 23], ['The Origin of Species', 'Darwin', 1228], ['Thus Spake Zarathustra', 'Nietzsche', 1998], ['The Varieties of Religious Experience', 'James, William', 621],
+  ['The Souls of Black Folk', 'Du Bois', 408], ['Narrative of the Life of Frederick Douglass', 'Douglass', 23], ['The Origin of Species', 'Darwin', 1228, ['On the Origin of Species']], ['Thus Spake Zarathustra', 'Nietzsche', 1998], ['The Varieties of Religious Experience', 'James, William', 621],
   ['The Art of War', 'Sunzi', 132], ['Tao Teh King', 'Laozi', 216], ['The Analects of Confucius', 'Confucius', 3330], ['The Divine Comedy', 'Dante', 8800], ['Metamorphoses', 'Ovid', 21765],
   ['The Confessions of St. Augustine', 'Augustine', 3296], ['Utopia', 'More, Thomas', 2130], ['The Scarlet Letter', 'Hawthorne', 25344], ['The Call of the Wild', 'London', 215], ['The Age of Innocence', 'Wharton', 541],
   ['Notes from the Underground', 'Dostoyevsky', 600], ['Grimms\' Fairy Tales', 'Grimm', 2591], ['Alice\'s Adventures in Wonderland', 'Carroll', 11], ['Treasure Island', 'Stevenson', 120], ['The Time Machine', 'Wells', 35],
@@ -52,7 +52,7 @@ const CANON = [
   // Fiction
   ['David Copperfield', 'Dickens', 766], ['Oliver Twist', 'Dickens', 730], ['Bleak House', 'Dickens', 1023], ['Sense and Sensibility', 'Austen', 161], ['Persuasion', 'Austen', 105],
   ['Mansfield Park', 'Austen', 141], ['Northanger Abbey', 'Austen', 121], ['Vanity Fair', 'Thackeray', 599], ['Tess of the d\'Urbervilles', 'Hardy', 110], ['Far from the Madding Crowd', 'Hardy', 107],
-  ['Jude the Obscure', 'Hardy', 153], ['The Mayor of Casterbridge', 'Hardy', null], ['Tom Jones', 'Fielding', 6593], ['Tristram Shandy', 'Sterne', 1079], ['Moll Flanders', 'Defoe', 370],
+  ['Jude the Obscure', 'Hardy', 153], ['The Mayor of Casterbridge', 'Hardy', 143], ['Tom Jones', 'Fielding', 6593], ['Tristram Shandy', 'Sterne', 1079], ['Moll Flanders', 'Defoe', 370],
   ['Ivanhoe', 'Scott', 82], ['The Moonstone', 'Collins, Wilkie', 155], ['The Woman in White', 'Collins, Wilkie', 583], ['The Adventures of Sherlock Holmes', 'Doyle', 1661], ['The Hound of the Baskervilles', 'Doyle', 2852],
   ['A Study in Scarlet', 'Doyle', 244], ['Dracula', 'Stoker', 345], ['The Strange Case of Dr. Jekyll and Mr. Hyde', 'Stevenson', 43], ['Kidnapped', 'Stevenson', 421], ['The Portrait of a Lady', 'James, Henry', 2833],
   ['The Turn of the Screw', 'James, Henry', 209], ['The House of the Seven Gables', 'Hawthorne', 77], ['The Adventures of Tom Sawyer', 'Twain', 74], ['The Innocents Abroad', 'Twain', 3176], ['Uncle Tom\'s Cabin', 'Stowe', 203],
@@ -60,45 +60,45 @@ const CANON = [
   ['Main Street', 'Lewis, Sinclair', 543], ['Babbitt', 'Lewis, Sinclair', 1156], ['O Pioneers!', 'Cather', 24], ['My Ántonia', 'Cather', 242], ['Ethan Frome', 'Wharton', 4517],
   ['The House of Mirth', 'Wharton', 284], ['The Great Gatsby', 'Fitzgerald', 64317], ['This Side of Paradise', 'Fitzgerald', 805], ['A Portrait of the Artist as a Young Man', 'Joyce', 4217], ['Ulysses', 'Joyce', 4300],
   ['Sons and Lovers', 'Lawrence', 217], ['Women in Love', 'Lawrence', 4240], ['Howards End', 'Forster', 2891], ['A Room with a View', 'Forster', 2641], ['Lord Jim', 'Conrad', 5658],
-  ['Nostromo', 'Conrad', 2021], ['The Secret Agent', 'Conrad', null], ['The Good Soldier', 'Ford', 2775], ['Of Human Bondage', 'Maugham', 351], ['The Way of All Flesh', 'Butler', 2084],
+  ['Nostromo', 'Conrad', 2021], ['The Secret Agent', 'Conrad', 974, ['The Secret Agent: A Simple Tale']], ['The Good Soldier', 'Ford', 2775], ['Of Human Bondage', 'Maugham', 351], ['The Way of All Flesh', 'Butler', 2084],
   ['Three Men in a Boat', 'Jerome', 308], ['The Phantom of the Opera', 'Leroux', 175], ['The Metamorphosis', 'Kafka', 5200], ['The Trial', 'Kafka', 7849], ['Siddhartha', 'Hesse', 2500],
-  ['The Idiot', 'Dostoyevsky', 2638], ['The Gambler', 'Dostoyevsky', 2197], ['Poor Folk', 'Dostoyevsky', 2302], ['The Death of Ivan Ilych', 'Tolstoy', null], ['Fathers and Sons', 'Turgenev', 30723],
-  ['Dead Souls', 'Gogol', 1081], ['Swann\'s Way', 'Proust', 7178], ['Père Goriot', 'Balzac', 1237], ['The Red and the Black', 'Stendhal', 44747], ['Germinal', 'Zola', 5711],
-  ['Candide', 'Voltaire', 19942], ['The Hunchback of Notre Dame', 'Hugo', 2610], ['The Three Musketeers', 'Dumas', 1257], ['Cyrano de Bergerac', 'Rostand', 1254], ['The Decameron', 'Boccaccio', 23700],
+  ['The Idiot', 'Dostoyevsky', 2638], ['The Gambler', 'Dostoyevsky', 2197], ['Poor Folk', 'Dostoyevsky', 2302], ['The Death of Ivan Ilych', 'Tolstoy', 59345, ['The Death of Ivan Ilyich', 'Ivan Ilyitch']], ['Fathers and Sons', 'Turgenev', 30723, ['Fathers and Children']],
+  ['Dead Souls', 'Gogol', 1081], ['Swann\'s Way', 'Proust', 7178], ['Père Goriot', 'Balzac', 1237, ['Father Goriot', 'Pere Goriot']], ['The Red and the Black', 'Stendhal', 44747], ['Germinal', 'Zola', 5711],
+  ['Candide', 'Voltaire', 19942], ['The Hunchback of Notre Dame', 'Hugo', 2610, ['Notre-Dame de Paris', 'Notre Dame de Paris']], ['The Three Musketeers', 'Dumas', 1257], ['Cyrano de Bergerac', 'Rostand', 1254], ['The Decameron', 'Boccaccio', 23700],
   ['The Sorrows of Young Werther', 'Goethe', 2527], ['Faust', 'Goethe', 14591], ['The Last of the Mohicans', 'Cooper', 27681], ['Around the World in Eighty Days', 'Verne', 103], ['Twenty Thousand Leagues Under the Sea', 'Verne', 164],
   ['A Journey to the Centre of the Earth', 'Verne', 18857], ['The War of the Worlds', 'Wells', 36], ['The Island of Doctor Moreau', 'Wells', 159], ['The Invisible Man', 'Wells', 5230], ['Flatland', 'Abbott', 97],
-  ['The Works of Edgar Allan Poe', 'Poe', 2147], ['White Fang', 'London', 910], ['The Sea-Wolf', 'London', 1074], ['Kim', 'Kipling', 2226], ['The Man Who Would Be King', 'Kipling', null],
+  ['The Works of Edgar Allan Poe', 'Poe', 2147], ['White Fang', 'London', 910], ['The Sea-Wolf', 'London', 1074], ['Kim', 'Kipling', 2226], ['The Man Who Would Be King', 'Kipling', null, ['The Man Who Would Be King, and Other Stories', 'The Phantom Rickshaw']],
   // Poetry
   ['Songs of Innocence and of Experience', 'Blake', 1934], ['The Rime of the Ancient Mariner', 'Coleridge', 151], ['Poems by Emily Dickinson', 'Dickinson', 12242], ['The Raven', 'Poe', 1065], ['Idylls of the King', 'Tennyson', 610],
-  ['Rubáiyát of Omar Khayyám', 'Khayyam', 246], ['Beowulf', 'Anonymous', 16328], ['The Canterbury Tales', 'Chaucer', 2383], ['The Song of Roland', 'Anonymous', 391], ['The Kalevala', 'Lönnrot', 5186],
-  ['The Poems of John Keats', 'Keats', null], ['Lyrical Ballads', 'Wordsworth', null], ['The Poetical Works of Robert Burns', 'Burns', null], ['The Waste Land', 'Eliot, T. S.', null], ['Spoon River Anthology', 'Masters', null],
+  ['Rubáiyát of Omar Khayyám', 'Anonymous', 246, ['Rubaiyat of Omar Khayyam']], ['Beowulf', 'Anonymous', 16328, ['Beowulf: An Anglo-Saxon Epic Poem']], ['The Canterbury Tales', 'Chaucer', 2383], ['The Song of Roland', 'Anonymous', 391], ['The Kalevala', 'Lönnrot', 5186],
+  ['The Poems of John Keats', 'Keats', 23684, ['Poems', 'Keats: Poems Published in 1820', 'Endymion']], ['Lyrical Ballads', 'Wordsworth', 9622, ['Lyrical Ballads, 1798', 'Lyrical Ballads, with a Few Other Poems']], ['The Poetical Works of Robert Burns', 'Burns', 18500, ['Poems and Songs of Robert Burns', 'The Complete Works of Robert Burns']], ['The Waste Land', 'Eliot, T. S.', 1321], ['Spoon River Anthology', 'Masters', 1280],
   // Drama
-  ['Romeo and Juliet', 'Shakespeare', 1513], ['Macbeth', 'Shakespeare', 1533], ['Othello', 'Shakespeare', null], ['The Tempest', 'Shakespeare', null], ['A Midsummer Night\'s Dream', 'Shakespeare', null],
-  ['The Oedipus Trilogy', 'Sophocles', 31], ['Medea', 'Euripides', 35451], ['The Importance of Being Earnest', 'Wilde', 844], ['A Doll\'s House', 'Ibsen', 2542], ['Hedda Gabler', 'Ibsen', null],
+  ['Romeo and Juliet', 'Shakespeare', 1513], ['Macbeth', 'Shakespeare', 1533], ['Othello', 'Shakespeare', 1531], ['The Tempest', 'Shakespeare', 1540], ['A Midsummer Night\'s Dream', 'Shakespeare', 1514],
+  ['The Oedipus Trilogy', 'Sophocles', 31], ['Medea', 'Euripides', 35451], ['The Importance of Being Earnest', 'Wilde', 844], ['A Doll\'s House', 'Ibsen', 2542], ['Hedda Gabler', 'Ibsen', 4093],
   ['Doctor Faustus', 'Marlowe', 779], ['Pygmalion', 'Shaw', 3825], ['The Cherry Orchard', 'Chekhov', 7986], ['Tartuffe', 'Molière', 2027], ['Le Morte d\'Arthur', 'Malory', 1251],
   // History and lives
   ['The History of the Decline and Fall of the Roman Empire', 'Gibbon', 25717], ['The History of Herodotus', 'Herodotus', 2707], ['The History of the Peloponnesian War', 'Thucydides', 7142], ['Plutarch\'s Lives', 'Plutarch', 674], ['Commentaries on the Gallic War', 'Caesar', 10657],
   ['Democracy in America', 'Tocqueville', 815], ['Two Years Before the Mast', 'Dana', 2055], ['Up from Slavery', 'Washington, Booker T.', 2376], ['Twelve Years a Slave', 'Northup', 45631], ['Incidents in the Life of a Slave Girl', 'Jacobs', 11030],
   ['The Education of Henry Adams', 'Adams, Henry', 2044], ['Personal Memoirs of U. S. Grant', 'Grant', 4367], ['Autobiography of Andrew Carnegie', 'Carnegie', 17976], ['The Autobiography of Benjamin Franklin', 'Franklin', 20203], ['Life of Johnson', 'Boswell', 1564],
   ['Autobiography of Benvenuto Cellini', 'Cellini', 4028], ['Autobiography', 'Mill, John Stuart', 10378], ['The Autobiography of Charles Darwin', 'Darwin', 2010], ['The Story of My Life', 'Keller', 2397], ['Lives of the Most Eminent Painters', 'Vasari', null],
-  ['The Interesting Narrative of the Life of Olaudah Equiano', 'Equiano', null], ['Memoirs of General W. T. Sherman', 'Sherman', null], ['The Diary of Samuel Pepys', 'Pepys', null], ['Eminent Victorians', 'Strachey', null], ['The Life of Charlotte Brontë', 'Gaskell', null],
+  ['The Interesting Narrative of the Life of Olaudah Equiano', 'Equiano', 15399], ['Memoirs of General W. T. Sherman', 'Sherman', 4361], ['The Diary of Samuel Pepys', 'Pepys', 4200], ['Eminent Victorians', 'Strachey', 2447], ['The Life of Charlotte Brontë', 'Gaskell', 1827],
   // Ideas
   ['Apology', 'Plato', 1656], ['Symposium', 'Plato', 1600], ['The Enchiridion', 'Epictetus', 45109], ['The Consolation of Philosophy', 'Boethius', 14328], ['Discourse on the Method', 'Descartes', 59],
   ['Leviathan', 'Hobbes', 3207], ['Second Treatise of Government', 'Locke', 7370], ['A Treatise of Human Nature', 'Hume', 4705], ['The Social Contract', 'Rousseau', 46333], ['The Critique of Pure Reason', 'Kant', 4280],
   ['Common Sense', 'Paine', 147], ['Rights of Man', 'Paine', 3742], ['Reflections on the Revolution in France', 'Burke', 15679], ['A Vindication of the Rights of Woman', 'Wollstonecraft', 3420], ['On Liberty', 'Mill, John Stuart', 34901],
   ['Utilitarianism', 'Mill, John Stuart', 11224], ['Beyond Good and Evil', 'Nietzsche', 4363], ['The Problems of Philosophy', 'Russell', 5827], ['Civil Disobedience', 'Thoreau', 71], ['Sesame and Lilies', 'Ruskin', 1293],
-  ['The Essays of Francis Bacon', 'Bacon', 575], ['Essays of Elia', 'Lamb', null], ['The Communist Manifesto', 'Marx', null], ['Pragmatism', 'James, William', null], ['The Theory of the Leisure Class', 'Veblen', null],
+  ['The Essays of Francis Bacon', 'Bacon', 575], ['Essays of Elia', 'Lamb', 10343], ['The Communist Manifesto', 'Marx', 61], ['Pragmatism', 'James, William', 5116], ['The Theory of the Leisure Class', 'Veblen', 833],
   // Faith
   ['The King James Bible', 'Anonymous', 10], ['The Imitation of Christ', 'Kempis', 1653], ['The Pilgrim\'s Progress', 'Bunyan', 131], ['The Bhagavad-Gita', 'Anonymous', 2388], ['The Dhammapada', 'Anonymous', 2017],
-  ['The Upanishads', 'Anonymous', null], ['The Interior Castle', 'Teresa of Avila', null], ['The Cloud of Unknowing', 'Anonymous', null], ['Revelations of Divine Love', 'Julian of Norwich', null], ['The Book of Tea', 'Okakura', null],
+  ['The Upanishads', 'Anonymous', null], ['The Interior Castle', 'Teresa of Avila', null], ['The Cloud of Unknowing', 'Anonymous', null], ['Revelations of Divine Love', 'Julian of Norwich', null], ['The Book of Tea', 'Okakura', 769],
   // Science
   ['The Voyage of the Beagle', 'Darwin', 944], ['The Chemical History of a Candle', 'Faraday', 14474], ['Micrographia', 'Hooke', 15491], ['Opticks', 'Newton', 33504], ['Relativity: The Special and General Theory', 'Einstein', 30155],
-  ['The Notebooks of Leonardo da Vinci', 'Leonardo da Vinci', 5000], ['On the Nature of Things', 'Lucretius', null], ['Dialogues Concerning Two New Sciences', 'Galilei', null], ['The Descent of Man', 'Darwin', null], ['An Introduction to Mathematics', 'Whitehead', null],
+  ['The Notebooks of Leonardo da Vinci', 'Leonardo da Vinci', 5000], ['On the Nature of Things', 'Lucretius', 785], ['Dialogues Concerning Two New Sciences', 'Galilei', 37729], ['The Descent of Man', 'Darwin', 2300], ['An Introduction to Mathematics', 'Whitehead', 41568],
   // Children and the young
   ['Peter Pan', 'Barrie', 16], ['The Wonderful Wizard of Oz', 'Baum', 55], ['The Secret Garden', 'Burnett', 113], ['The Wind in the Willows', 'Grahame', 289], ['The Jungle Book', 'Kipling', 236],
   ['A Christmas Carol', 'Dickens', 46], ['Through the Looking-Glass', 'Carroll', 12], ['Anne of Green Gables', 'Montgomery', 45], ['Little Women', 'Alcott', 514], ['Black Beauty', 'Sewell', 271],
-  ['Just So Stories', 'Kipling', 2781], ['The Adventures of Pinocchio', 'Collodi', 500], ['Aesop\'s Fables', 'Aesop', 21], ['Five Children and It', 'Nesbit', 778], ['Heidi', 'Spyri', null],
-  ['Andersen\'s Fairy Tales', 'Andersen', null], ['The Swiss Family Robinson', 'Wyss', null], ['The Merry Adventures of Robin Hood', 'Pyle', null], ['A Little Princess', 'Burnett', null], ['The Railway Children', 'Nesbit', null],
+  ['Just So Stories', 'Kipling', 2781], ['The Adventures of Pinocchio', 'Collodi', 500], ['Aesop\'s Fables', 'Aesop', 21], ['Five Children and It', 'Nesbit', 778], ['Heidi', 'Spyri', 1448],
+  ['Andersen\'s Fairy Tales', 'Andersen', 1597], ['The Swiss Family Robinson', 'Wyss', null], ['The Merry Adventures of Robin Hood', 'Pyle', 964], ['A Little Princess', 'Burnett', 146], ['The Railway Children', 'Nesbit', 1874],
 ];
 const GUTENDEX = process.env.GUTENDEX || 'https://gutendex.com/books';
 function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
@@ -182,30 +182,41 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     return { id, title: unx((h.match(/<meta name="title" content="([^"]*)"/) || h.match(/<title>([^<|]*)/) || ['', `Gutenberg ${id}`])[1]).replace(/\s+by\s+[^|]+$/i, '').trim(), authors: [...h.matchAll(/<a href="\/ebooks\/author\/\d+"[^>]*>([^<]+)</g)].map(m => ({ name: unx(m[1]).replace(/,\s*\d{3,4}-\d{0,4}$/, '').trim() })), formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` } };
   }
   // The number the house believes, checked against the record before it is trusted.
-  async function verify(id, title, author) {
-    const m = await meta(id); const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
+  async function verify(id, title, author, aliases = []) {
+    const m = await meta(id); const sur = norm(author.split(',')[0]).split(' ').pop();
+    for (const t of [title, ...(aliases || [])]) { const r = verifyTitle(m, t, author, sur); if (r) return r; }
+    return null;
+  }
+  function verifyTitle(m, title, author, sur) {
+    const want = norm(title);
     const stop = new Set(['the', 'a', 'an', 'of']); const core = x => norm(x).split(' ').filter(w => !stop.has(w)).slice(0, 3).join(' ');
     const okT = norm(m.title).includes(want.split(' ').slice(0, 3).join(' ')) || want.includes(norm(m.title).split(' ').slice(0, 3).join(' ')) || (core(want) && norm(m.title).includes(core(want)));
-    const okA = (m.authors || []).some(a => norm(a.name).includes(sur));
+    const okA = anon(author) || (m.authors || []).some(a => norm(a.name).includes(sur));
     return okT && okA ? m : null;
   }
-  async function find(title, author) {
-    const q = `${title} ${author.split(',')[0]}`; let results = null;
+  // Aliases (27 Oct): Gutenberg names a book its own way (Father Goriot; Notre-Dame de Paris; Fathers and Children); each title is tried in turn, and 'Anonymous' asks nothing of the author line.
+  const anon = a => /^anonymous$/i.test(String(a || '').trim());
+  async function find(title, author, aliases = []) {
+    for (const t of [title, ...(aliases || [])]) { const b = await findOne(t, author); if (b) return b; }
+    return null;
+  }
+  async function findOne(title, author) {
+    const q = anon(author) ? title : `${title} ${author.split(',')[0]}`; let results = null;
     try { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&languages=en`); if (r.ok) results = (await r.json()).results || []; } catch (e) { /* the index is down; Gutenberg's own search below */ }
     if (!results) results = await opds(q);
     const j = { results }; const want = norm(title), sur = norm(author.split(',')[0]).split(' ').pop();
-    const ok = (j.results || []).filter(b => (b.authors || []).some(a => norm(a.name).includes(sur)) && norm(b.title).includes(want.split(' ').slice(0, 3).join(' ')) && Object.keys(b.formats || {}).some(k => /^text\/plain/.test(k)));
+    const ok = (j.results || []).filter(b => (anon(author) || (b.authors || []).some(a => norm(a.name).includes(sur))) && norm(b.title).includes(want.split(' ').slice(0, 3).join(' ')) && Object.keys(b.formats || {}).some(k => /^text\/plain/.test(k)));
     ok.sort((a, b) => (b.download_count || 0) - (a.download_count || 0));
     return ok[0] || null;
   }
-  const shelvedBy = (title, author) => { const want = norm(title).slice(0, 18), sur = norm(author.split(',')[0]).split(' ').pop(); return db.prepare("SELECT slug, title, author FROM texts WHERE status='held'").all().find(h => norm(h.title).startsWith(want) || (h.author && norm(h.author).includes(sur) && norm(h.title).includes(want.split(' ')[0]) && want.split(' ')[0].length > 3)) || null; };
+  const shelvedBy = (title, author, aliases = []) => { const held = db.prepare("SELECT slug, title, author FROM texts WHERE status='held'").all(); const sur = norm(author.split(',')[0]).split(' ').pop(); for (const t of [title, ...(aliases || [])]) { const want = norm(t).slice(0, 18); const h = held.find(h => norm(h.title).startsWith(want) || (h.author && norm(h.author).includes(sur) && norm(h.title).includes(want.split(' ')[0]) && want.split(' ')[0].length > 3)); if (h) return h; } return null; };
   const job = { on: false, at: 0, done: [], missed: [], startedAt: null };
   async function shelveCanon({ by = 'the house' } = {}) {
     if (job.on) return job; job.on = true; job.at = 0; job.done = []; job.missed = []; job.startedAt = new Date().toISOString();
     (async () => {
-      for (const [title, author, hint] of CANON) {
-        job.at++; if (shelvedBy(title, author)) continue;
-        try { let b = null; if (hint) { try { b = await verify(hint, title, author); } catch (e) { b = null; } } if (!b) b = await find(title, author); if (!b) { job.missed.push(`${title}: not found`); continue; } const r = await bring(b.id, { by, why: `${title}, ${author.split(',').reverse().join(' ').trim()}. One of the first shelf. From Project Gutenberg, No. ${b.id}.`, meta: b.formats ? b : null }); job.done.push(r.title || title); }
+      for (const [title, author, hint, aliases] of CANON) {
+        job.at++; if (shelvedBy(title, author, aliases)) continue;
+        try { let b = null; if (hint) { try { b = await verify(hint, title, author, aliases); } catch (e) { b = null; } } if (!b) b = await find(title, author, aliases); if (!b) { job.missed.push(`${title}: not found`); continue; } const r = await bring(b.id, { by, why: `${title}, ${author.split(',').reverse().join(' ').trim()}. One of the first shelf. From Project Gutenberg, No. ${b.id}.`, meta: b.formats ? b : null }); job.done.push(r.title || title); }
         catch (e) { job.missed.push(`${title}: ${e.message}`); }
         await new Promise(r => setTimeout(r, app.locals.noTimers ? 0 : 1500));
       }
@@ -304,7 +315,7 @@ ${found.length ? `<table class="tbl"><tr><th>Title</th><th>Author</th><th>Taken<
 <h2>A photo book from a wall</h2><form method="post" action="/studio/publishing/photobook" class="cl-f pd-s"><label><span>The wall’s address (its slug)</span><input name="hang" placeholder="the-great-rooms"></label><label><span>Title (else the wall’s)</span><input name="title"></label><label><span>By</span><input name="author" placeholder="Will Fullerton"></label><label><span>Price, $ (blank: free)</span><input name="price" inputmode="decimal" placeholder="25"></label><label><span>A line</span><input name="line"></label><button class="buy-btn">Make the book</button></form>
 <h2>The first shelf</h2><p class="note">${CANON.length} books a curious person is handed first. ${job.on ? `Coming in now: ${job.at} of ${CANON.length} looked at, ${job.done.length} shelved${job.missed.length ? `, ${job.missed.length} not found` : ''}.` : `<form method="post" action="/studio/reading/canon" style="display:inline"><button class="buy-btn">Shelve the canon</button></form> Each is found on Gutenberg by title and author; already-shelved books are skipped.`}</p>
 ${job.missed.length ? `<p class="note">Not found: ${job.missed.map(esc).join(' · ')}</p>` : ''}
-<table class="tbl"><tr><th>Book</th><th></th></tr>${CANON.map(([t, a]) => { const h = shelvedBy(t, a); return `<tr><td><b>${esc(t)}</b> <small>${esc(a)}</small></td><td>${h ? `<a href="/read/${esc(h.slug)}">On the shelf</a>` : '<small>Not yet</small>'}</td></tr>`; }).join('')}</table>
+<table class="tbl"><tr><th>Book</th><th></th></tr>${CANON.map(([t, a, , al]) => { const h = shelvedBy(t, a, al); return `<tr><td><b>${esc(t)}</b> <small>${esc(a)}</small></td><td>${h ? `<a href="/read/${esc(h.slug)}">On the shelf</a>` : '<small>Not yet</small>'}</td></tr>`; }).join('')}</table>
 <h2>Franklin’s shelf</h2><p class="note">The books Franklin names in the Autobiography as the ones that made him, and his own. Each press searches Gutenberg by title and author and shows what it finds; the house never guesses a number.</p>
 <table class="tbl"><tr><th>Book</th><th>Why</th><th></th></tr>${FRANKLIN.map(b => { const h = shelved(b); return `<tr><td><b>${esc(b.title)}</b><br><small>${esc(b.author)}</small></td><td><small>${esc(b.why)}</small></td><td>${h ? `<a href="/read/${esc(h.slug)}">On the shelf</a>` : `<a href="?q=${encodeURIComponent(b.title + ' ' + b.author.split(',')[0])}">Find it</a>`}</td></tr>`; }).join('')}</table>
 ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a href="/read/${esc(h.slug)}">${esc(h.title)}</a>${h.author ? ` <small>${esc(h.author)}</small>` : ''}</li>`).join('')}</ul>` : ''}</section>` }));
