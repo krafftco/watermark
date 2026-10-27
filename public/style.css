@@ -4285,3 +4285,9 @@ html.in-stay .top .nv-back{display:none}
 .dkr-mask:not(.on) .dkr-mbody{display:none}.dkr-mnone{font-size:11.5px;color:#6f685e;margin:0 0 6px}
 .dkr-mk{position:absolute;pointer-events:none}
 .lib-look{display:inline-flex;gap:4px;align-items:center}.lib-look select{max-width:150px}
+/* The pictures in the books (27 Oct): a figure between the paragraphs, the plates at the end, a strip on the cover and the Library page. */
+.rdr-fig{margin:2.2em auto;max-width:100%;text-align:center;break-inside:avoid}.rdr-fig img{max-width:100%;height:auto;max-height:78svh;width:auto;display:inline-block;box-shadow:0 18px 40px -22px rgba(0,0,0,.45)}.rdr-fig figcaption{font-style:italic;font-size:.92em;color:var(--rd-mute);margin-top:.8em;text-indent:0;max-width:30em;margin-left:auto;margin-right:auto}
+.rdr-paged .rdr-fig{margin:1.2em auto}.rdr-paged .rdr-fig img{max-height:70svh}
+.rdr-endpl{margin:3em 0 1em}.rdr-endpl .k{margin-bottom:1em}
+.rdr-cover-pl{display:flex;gap:8px;margin:18px 0 6px;overflow-x:auto;scrollbar-width:none}.rdr-cover-pl a{flex:0 0 auto;display:block}.rdr-cover-pl img{height:92px;width:auto;display:block;border:1px solid rgba(0,0,0,.08);box-shadow:0 8px 18px -10px rgba(0,0,0,.4)}.rdr-cover-plc{font-family:'Archivo',system-ui,sans-serif;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--rd-mute);margin:0 0 14px}
+.lb-plates{margin:18px 0 10px}.lb-pl-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}.lb-pl-row a{flex:0 0 auto}.lb-pl-row img{height:120px;width:auto;display:block;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 22px -12px rgba(0,0,0,.4)}.lb-pl-desk{display:flex;gap:8px;align-items:center;margin:8px 0 0;font-size:13px}.lb-pl-desk input{width:14em}

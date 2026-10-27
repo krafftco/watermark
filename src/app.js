@@ -1988,6 +1988,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.imageOf = async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });
+  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
   require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
   require('./sharebook').mountShareBook(app, { db, V, C, mail, buyerOf, makerOf: req => (app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null), ledger }); // sharing a book: the card, the letter, the keeping (26 Oct)

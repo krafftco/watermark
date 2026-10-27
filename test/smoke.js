@@ -1623,6 +1623,26 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/read/${bk.slug}`); assert.equal(r.status, 200); const pg = r.body.toString(); assert.ok(/class="rdr"/.test(pg) && /class="rdp"/.test(pg) && /rdr-toc/.test(pg) && /Chapter II\. The River/.test(pg) && /Water, at last/.test(pg) && /read\.js/.test(pg), 'the reading room');
     r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/Read it in the reading room/.test(r.body), 'the Library opens the room');
     r = await req(port, 'POST', '/studio/reading/bring', { cookie: ck, body: { id: '777' } }); assert.ok(/Already/.test(decodeURIComponent(r.headers.location)), 'never twice');
+    // The pictures in the books (27 Oct): the HTML edition's plates taken in, the ornament refused, each set where it fell in the text.
+    { const sharp = require('sharp'); const plate = await sharp({ create: { width: 640, height: 480, channels: 3, background: '#7a5a3a' } }).png().toBuffer(); const orn = await sharp({ create: { width: 40, height: 20, channels: 3, background: '#000' } }).png().toBuffer();
+      const html = '<html><body><h1>THE LONG WALK</h1><p><img src="images/orn.png" alt="ornament"></p><h2>CHAPTER I.</h2><div class="figcenter"><img src="images/plate1.jpg" alt="The road"><p class="caption">The road, at noon.</p></div><p>It was a long walk, and the road was dusty dusty dusty dusty.</p><h2>CHAPTER II. THE RIVER</h2><p>Water, at last. More water.</p><img src="images/plate2.jpg" alt=""><p>Nothing here matches the book at all, so this one hangs at the end.</p></body></html>';
+      const prevP = app.locals.__fetch;
+      app.locals.__fetch = async (u) => { u = String(u); if (/gutendex\.com\/books\/777$/.test(u)) return { ok: true, json: async () => ({ id: 777, title: 'The Long Walk', authors: [{ name: 'Walker, A.' }], formats: { 'text/plain; charset=utf-8': 'https://www.gutenberg.org/ebooks/777.txt.utf-8', 'text/html': 'https://www.gutenberg.org/files/777/777-h/777-h.htm' } }) }; if (/777-h\.htm$/.test(u)) return { ok: true, url: u, text: async () => html }; if (/plate\d\.jpg$/.test(u)) return { ok: true, arrayBuffer: async () => plate }; if (/orn\.png$/.test(u)) return { ok: true, arrayBuffer: async () => orn }; return prevP ? prevP(u) : { ok: false, status: 404 }; };
+      r = await req(port, 'POST', `/studio/reading/${bk.slug}/pictures`, { cookie: ck }); assert.equal(r.status, 302);
+      for (let i = 0; i < 200 && app.locals.bookplates.job.on; i++) await new Promise(x => setTimeout(x, 25));
+      const pics = app.locals.bookplates.picturesOf(db.prepare('SELECT pictures FROM texts WHERE id=?').get(bk.id)); assert.equal(pics.length, 2, 'two plates, the ornament refused: ' + JSON.stringify(pics));
+      assert.ok(pics[0].c === 1 && pics[0].p === 0 && pics[0].at === 'before' && pics[0].caption === 'The road, at noon.', 'the first set before the chapter’s first paragraph with its caption: ' + JSON.stringify(pics[0]));
+      assert.ok(pics[1].c === -1, 'the second, unplaced, hangs at the end');
+      r = await req(port, 'GET', `/read/${bk.slug}?c=1`); assert.ok(/class="rdr-fig"/.test(r.body) && /pic\/1/.test(r.body) && /The road, at noon\./.test(r.body) && r.body.indexOf('rdr-fig') < r.body.indexOf('It was a long walk'), 'the figure stands before the paragraph');
+      r = await req(port, 'GET', `/read/${bk.slug}?c=2`); assert.ok(/rdr-endpl/.test(r.body) && /pic\/2/.test(r.body), 'the plates at the end of the last chapter');
+      r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(/rdr-cover-pl/.test(r.body) && /2 pictures in the text/.test(r.body), 'the strip on the cover');
+      r = await req(port, 'GET', `/read/${bk.slug}/pic/1`); assert.ok(r.status === 200 && /image\/jpeg/.test(r.headers['content-type']), 'the picture served');
+      r = await req(port, 'GET', `/read/${bk.slug}/pic/9`); assert.equal(r.status, 404);
+      r = await req(port, 'GET', `/library/${bk.slug}`, { cookie: ck }); assert.ok(/lb-plates/.test(r.body) && /The pictures · 2/.test(r.body) && /Read the book for its pictures again/.test(r.body), 'the Library page’s strip and the desk');
+      r = await req(port, 'POST', `/studio/reading/${bk.slug}/illustrator`, { cookie: ck, body: { illustrator: 'A. Draughtsman' } }); r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(/Illustrated by A\. Draughtsman/.test(r.body), 'the illustrator credited');
+      r = await req(port, 'POST', `/studio/reading/${bk.slug}/pictures`); assert.equal(r.status, 403, 'a stranger cannot');
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.illustrated' AND subject=?").get(bk.slug), 'told on the register');
+      app.locals.__fetch = prevP; }
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
     // The book (24 Oct): the cover with the imprint, the progress line, Pages, the colophon; the author said as a person says it.
     assert.ok(/data-rd-cover/.test(pg) && /Watermark Publishing/.test(pg) && /A\. Walker/.test(pg) && /rdr-prog/.test(pg) && /data-rd-mode/.test(pg) && /rdr-colophon/.test(pg) && /rdr-tp/.test(pg), 'a book, not a web page');
