@@ -69,11 +69,11 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || '')) return 'documents'; } catch (e) { /* csv */ } return 'csv'; }
-    if (I.isMet(u)) return 'met'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
+    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
@@ -83,6 +83,19 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       if (kind === 'documents') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
+    }
+    if (kind === 'ia') {
+      if (job.file) { const lines = fs.readFileSync(job.file, 'utf8').split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ ia: l, id: `ia:${l}`, label: l })), cursor: null }; return; }
+      const u = new URL(job.url); let n = 0; let cursor = job.cursor || null;
+      if (/services\/search\/v1\/scrape/.test(u.pathname)) {
+        u.searchParams.set('fields', 'identifier,title'); u.searchParams.set('count', String(Math.min(1000, LIM)));
+        while (n < LIM) { if (cursor) u.searchParams.set('cursor', cursor); else u.searchParams.delete('cursor'); const r = await doFetch(u.href); if (!r.ok) throw new Error(`archive ${r.status}`); const j = await r.json(); const items = (j.items || []).map(x => ({ ia: x.identifier, id: `ia:${x.identifier}`, label: x.title || x.identifier })); n += items.length; cursor = j.cursor || null; yield { items, cursor }; if (!cursor || !items.length) return; await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT)); }
+        return;
+      }
+      u.searchParams.set('output', 'json'); u.searchParams.delete('fl[]'); u.searchParams.append('fl[]', 'identifier'); u.searchParams.append('fl[]', 'title'); u.searchParams.set('rows', String(Math.min(LIM, 500)));
+      let page = +cursor || 1;
+      while (n < LIM) { u.searchParams.set('page', String(page)); const r = await doFetch(u.href); if (!r.ok) throw new Error(`archive ${r.status}`); const j = await r.json(); const docs = ((j.response || {}).docs || []); const items = docs.map(x => ({ ia: x.identifier, id: `ia:${x.identifier}`, label: Array.isArray(x.title) ? x.title[0] : (x.title || x.identifier) })); n += items.length; page++; yield { items, cursor: String(page) }; if (!items.length || items.length < 500) return; await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT)); }
+      return;
     }
     if (kind === 'met') { const man = await I.parseMet(job.url, doFetch, LIM); yield { items: man.items.slice(+job.cursor || 0), cursor: null, man }; return; }
     if (kind === 'oai') {
@@ -127,6 +140,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
           try {
             if (it.miss) throw new Error(it.miss);
             if (it.book) { const r = await bringBook(it.book, job); if (r.already) skipped++; else taken++; }
+            else if (it.ia) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); const r = await D.bringIA(it.ia, { public: job.show ? 1 : 0, open: job.open ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
             else if (it.doc) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); if (!it.doc.pdf) throw new Error('a row needs a pdf address'); const r = await D.bringUrl({ ...it.doc, public: job.show ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
             else { const r = await I.take(it, job, pg.man); if (r.skipped) skipped++; else taken++; }
           } catch (e) { failed++; missed.push({ id: it.id, label: String(it.label || '').slice(0, 120), why: String(e.message).slice(0, 160), item: it }); }

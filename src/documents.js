@@ -96,7 +96,7 @@ function mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, up
     // The text: the layer where there is one, OCR where there is none (to the cap), and the pages' first lines remembered.
     let ocrN = 0; const pageText = [];
     for (let i = 0; i < files.length; i++) {
-      let tx = layer[i] || '';
+      let tx = (src.pageText && src.pageText[i]) || layer[i] || '';
       if (wordy(tx) < 12 && TOOLS.ocr && ocrN < OCR_PAGES) { tx = await ocr(files[i]); ocrN++; }
       pageText.push(paragraphs(tx));
     }
@@ -147,13 +147,43 @@ function mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, up
     try { return await take({ pdf: tmp }, { ...meta, title: meta.title || path.basename(url).replace(/\.pdf$/i, '').replace(/[-_]+/g, ' '), source }, { by }); } finally { try { fs.unlinkSync(tmp); } catch (e) { /* */ } }
   }
 
+  // An Internet Archive item: the record from the metadata API, the PDF and the aligned OCR (_djvu.txt, a page per form feed) taken
+  // as they are, so the house never re-reads what the Archive has read; the rights read from the item (possible-copyright-status,
+  // licenseurl) and a closed item refused. The files come from archive.org/download/<id>/<file>.
+  const IA_OPEN = /publicdomain|creativecommons\.org\/(publicdomain|licenses\/by(-sa)?\/)/i;
+  async function bringIA(id, meta = {}, { by = 'feed' } = {}) {
+    id = String(id || '').trim().replace(/^https?:\/\/archive\.org\/(details|download|metadata)\//, '').split(/[/?#]/)[0]; if (!id) throw new Error('an Archive identifier');
+    const source = `https://archive.org/details/${id}`;
+    const had = db.prepare('SELECT slug FROM texts WHERE source=?').get(source); if (had) return { slug: had.slug, already: true };
+    const r = await doFetch(`https://archive.org/metadata/${id}`); if (!r.ok) throw new Error(`archive ${r.status}`); const j = await r.json();
+    const md = j.metadata || {}; const files = j.files || [];
+    const first = x => Array.isArray(x) ? x[0] : x;
+    const status = String(first(md['possible-copyright-status']) || ''); const lic = String(first(md.licenseurl) || ''); const rights = String(first(md.rights) || '');
+    const open = /NOT_IN_COPYRIGHT|public domain/i.test(status) || IA_OPEN.test(lic) || /public domain/i.test(rights) || meta.open;
+    if (!open) throw new Error(`rights not open: ${status || lic || rights || 'none stated'}`);
+    const pdf = files.find(f => f.format === 'Text PDF') || files.find(f => /\.pdf$/i.test(f.name) && !/_text\.pdf$|_bw\.pdf$/i.test(f.name)) || files.find(f => /\.pdf$/i.test(f.name));
+    if (!pdf) throw new Error('no PDF in the item');
+    if (+pdf.size > MAX_MB * 1024 * 1024) throw new Error(`the PDF is over ${MAX_MB} MB`);
+    const dj = files.find(f => /_djvu\.txt$/i.test(f.name));
+    const dl = f => doFetch(`https://archive.org/download/${id}/${encodeURIComponent(f.name).replace(/%2F/g, '/')}`);
+    const pr = await dl(pdf); if (!pr.ok) throw new Error(`pdf ${pr.status}`); const buf = Buffer.from(await pr.arrayBuffer());
+    if (!/^%PDF/.test(buf.slice(0, 5).toString('latin1'))) throw new Error('not a PDF');
+    let pageText = null; if (dj) { try { const tr = await dl(dj); if (tr.ok) { const t = await tr.text(); const parts = t.split('\f'); if (parts.length > 1) pageText = parts.map(x => x.trim()); } } catch (e) { /* the layer or OCR will do */ } }
+    const tmp = path.join(incoming, `ia-${crypto.randomBytes(6).toString('hex')}.pdf`); fs.writeFileSync(tmp, buf);
+    const year = (String(first(md.date) || first(md.year) || '').match(/\d{4}/) || [])[0] || null;
+    const terms = meta.terms || (/NOT_IN_COPYRIGHT|public domain/i.test(status + rights) ? 'Public domain. Read freely; the house asks only that you credit the author and the Internet Archive’s scan.' : lic ? `${/by-sa/i.test(lic) ? 'CC BY-SA' : /\/by\//i.test(lic) ? 'CC BY' : /zero|cc0/i.test(lic) ? 'CC0' : 'Public domain'}. ${lic}` : 'Public domain.');
+    const lang = String(first(md.language) || 'eng'); 
+    try { return await take({ pdf: tmp, pageText }, { title: meta.title || String(first(md.title) || id).slice(0, 160), author: meta.author || (first(md.creator) ? String(first(md.creator)).replace(/,\s*\d{4}-\d{0,4}\.?$/, '') : null), year: meta.year || year, source, terms, summary: meta.summary || (first(md.description) ? String(first(md.description)).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400) : null), public: meta.public, lang: /^(eng|en)$/i.test(lang) ? 'en' : lang.slice(0, 2), shelf: meta.shelf }, { by }); } finally { try { fs.unlinkSync(tmp); } catch (e) { /* */ } }
+  }
+
   // The queue: one document at a time in the background; the desk shows each as it lands.
   const q = []; let on = false; const job = { on: false, at: 0, of: 0, now: null, done: [], missed: [] };
   async function pump() {
     if (on) return; on = true; job.on = true;
     while (q.length) {
       const it = q.shift(); job.at++; job.now = it.meta.title || it.meta.pdf || 'a document';
-      try { const r = it.src.url ? await bringUrl({ ...it.meta, pdf: it.src.url }, { by: 'desk' }) : await take(it.src, it.meta, { by: 'desk' }); job.done.push(`${it.meta.title || r.slug}: ${r.pages || ''} pages${r.words ? `, ${r.words} words${r.ocr ? ` (${r.ocr} by OCR)` : ''}` : ', pages only'}`); }
+      try { const r = it.src.ia ? await bringIA(it.src.ia, it.meta, { by: 'desk' }) : it.src.url ? await bringUrl({ ...it.meta, pdf: it.src.url }, { by: 'desk' }) : await take(it.src, it.meta, { by: 'desk' });
+        if (r.already) { job.done.push(`${it.meta.title || r.slug}: already on the shelf`); continue; } job.done.push(`${it.meta.title || r.slug}: ${r.pages || ''} pages${r.words ? `, ${r.words} words${r.ocr ? ` (${r.ocr} by OCR)` : ''}` : ', pages only'}`); }
       catch (e) { job.missed.push(`${it.meta.title || it.src.url || 'a document'}: ${e.message}`); }
       finally { for (const f of [it.src.pdf, ...(it.src.images || [])].filter(Boolean)) { try { fs.unlinkSync(f); } catch (e) { /* */ } } }
       job.now = null;
@@ -186,6 +216,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
 <label>A line about it<input name="summary" maxlength="400"></label>
 <label>The file: a PDF, or the pages as images (JPEG, PNG, TIFF), in order<input type="file" name="files" multiple accept="application/pdf,image/jpeg,image/png,image/tiff,image/webp"></label>
 <label>Or a PDF by address<input name="url" placeholder="https://…/catalogue.pdf"></label>
+<label>Or an Internet Archive item (its identifier or address; the Archive’s own OCR is taken with the pages, and a closed item is refused)<input name="ia" placeholder="guggenheim-… or https://archive.org/details/…"></label>
 <label class="dc-ck"><input type="checkbox" name="public" value="1" checked> Shown at once</label>
 <button class="buy-btn" type="submit">Bring it in</button></form>
 <p class="note">A run reads up to ${MAX_PAGES} pages; OCR to ${OCR_PAGES}. Many at once: Feeds in takes a CSV with a <code>pdf</code> column (title, author, pdf, year, source, terms).</p></section>
@@ -197,7 +228,8 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
     const meta = { title: b.title, author: b.author, year: b.year, source: b.source, terms: b.terms, summary: b.summary, public: b.public ? 1 : 0 };
     const pdf = files.find(f => /pdf/i.test(f.mimetype) || /\.pdf$/i.test(f.originalname));
     const images = files.filter(f => f !== pdf && /^image\//.test(f.mimetype)).sort((x, y) => x.originalname.localeCompare(y.originalname, undefined, { numeric: true })).map(f => f.path);
-    const url = String(b.url || '').trim();
+    const url = String(b.url || '').trim(); const ia = String(b.ia || '').trim();
+    if (ia) { for (const f of files) { try { fs.unlinkSync(f.path); } catch (e) { /* */ } } queue({ ia }, { ...meta, title: b.title || null }); return res.redirect('/studio/documents?ok=' + encodeURIComponent('Asking the Archive for it: the record, the pages and its own reading of the text; this page shows it when it lands.')); }
     if (!b.title && !url) { for (const f of files) { try { fs.unlinkSync(f.path); } catch (e) { /* */ } } return res.redirect('/studio/documents?ok=' + encodeURIComponent('A title, please.')); }
     if (pdf) { for (const f of files) if (f !== pdf) { try { fs.unlinkSync(f.path); } catch (e) { /* */ } } queue({ pdf: pdf.path }, meta); }
     else if (images.length) queue({ images }, meta);
@@ -209,7 +241,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
   // For the reader: the pages as chapters (one a screen) and the toggle between the text and the pages.
   function pageChapters(t) { return pagesOf(t).map(p => ({ head: null, paras: [], page: p })); }
   function pageFigure(t, p, total) { return `<figure class="rdr-pl rdr-pgf"><img src="/read/${esc(t.slug)}/pic/${p.n}" alt="Page ${p.page}" width="${p.w}" height="${p.h}" loading="lazy"><figcaption><b>Page ${p.page}</b><span>of ${total}</span></figcaption></figure>`; }
-  app.locals.documents = { take, bringUrl, queue, job, docOf, pagesOf, pageChapters, pageFigure, TOOLS, paragraphs, MAX_PAGES };
+  app.locals.documents = { take, bringUrl, bringIA, queue, job, docOf, pagesOf, pageChapters, pageFigure, TOOLS, paragraphs, MAX_PAGES };
   return app.locals.documents;
 }
 

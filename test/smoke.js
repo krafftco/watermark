@@ -1485,6 +1485,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid); assert.ok(job.status === 'done' && job.taken === 1 && job.failed === 1, 'one document in, the missing one named: ' + JSON.stringify({ s: job.status, t: job.taken, f: job.failed, n: job.note, m: job.missed }));
     const t3 = db.prepare("SELECT * FROM texts WHERE source='https://docs.example/harbour2'").get(); assert.ok(t3 && t3.kind === 'document' && t3.year === '1912' && D.pagesOf(t3).length === 2 && t3.public === 1, 'the fed document shelved with its record');
     app.locals.__fetch = prev;
+    // The Internet Archive road: the record from the metadata API, the PDF and the Archive's own OCR (a page per form feed); a closed item refused.
+    const prev2 = app.locals.__fetch;
+    const iaMeta = (id, open) => ({ metadata: { title: `Scan ${id}`, creator: 'Someone, 1850-1920.', date: '1905', language: 'eng', description: '<p>A scanned <b>book</b>.</p>', ...(open ? { 'possible-copyright-status': 'NOT_IN_COPYRIGHT' } : { 'possible-copyright-status': 'IN_COPYRIGHT' }) }, files: [{ name: `${id}.pdf`, format: 'Text PDF', size: String(pdf.length) }, { name: `${id}_djvu.txt`, format: 'DjVuTXT' }] });
+    app.locals.__fetch = async (u) => { u = String(u); let m;
+      if ((m = u.match(/archive\.org\/metadata\/([\w-]+)/))) return { ok: true, json: async () => iaMeta(m[1], m[1] !== 'closedbook') };
+      if (/archive\.org\/download\/[\w-]+\/[\w-]+\.pdf$/.test(u)) return { ok: true, arrayBuffer: async () => pdf };
+      if (/_djvu\.txt$/.test(u)) return { ok: true, text: async () => 'THE ARCHIVE READ THIS PAGE\n\nThe first page as the Archive read it, word for word, kept as the house found it.\f\nThe second page as the Archive read it, with enough words on it that the house trusts the reading and does not look again.\n' };
+      if (/archive\.org\/advancedsearch/.test(u)) return { ok: true, json: async () => ({ response: { docs: [{ identifier: 'openbook1', title: 'Scan one' }, { identifier: 'closedbook', title: 'A closed one' }] } }) };
+      return prev2 ? prev2(u) : { ok: false, status: 404 }; };
+    r = await req(port, 'POST', '/studio/feeds', { cookie: ck, body: { maker: String(inst.id), url: 'https://archive.org/advancedsearch.php?q=collection%3Atest&fl%5B%5D=identifier', show: '1' } }); const fia = +((r.headers.location || '').match(/feeds\/(\d+)/) || [])[1]; assert.ok(fia, 'the Archive feed enqueued');
+    for (let i = 0; i < 400 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fia).status); i++) await new Promise(x => setTimeout(x, 50));
+    const jia = db.prepare('SELECT * FROM feeds WHERE id=?').get(fia); assert.ok(jia.status === 'done' && jia.taken === 1 && jia.failed === 1 && /rights not open/.test(jia.missed), 'one open item in, the closed one refused by its rights: ' + JSON.stringify({ s: jia.status, t: jia.taken, f: jia.failed, n: jia.note, m: jia.missed }));
+    const t4 = db.prepare("SELECT * FROM texts WHERE source='https://archive.org/details/openbook1'").get(); const d4 = D.docOf(t4);
+    assert.ok(t4 && t4.title === 'Scan openbook1' && t4.author === 'Someone' && t4.year === '1905' && /scanned book/.test(t4.summary) && d4.pages === 2 && d4.text === 'layer' && /The first page as the Archive read it/.test(t4.body) && !/pencil lines/.test(t4.body) && /Internet Archive/.test(t4.terms), 'the Archive\u2019s own reading taken over the file\u2019s: ' + JSON.stringify({ t: t4 && t4.title, a: t4 && t4.author, d: d4, b: t4 && t4.body && t4.body.slice(0, 80) }));
+    app.locals.__fetch = prev2;
     r = await req(port, 'GET', '/studio/documents', { cookie: ck }); assert.ok(r.status === 200 && /The Harbour Book/.test(r.body) && /the file’s own · \d+ words/.test(r.body) && /pages only/.test(r.body), 'the desk');
     r = await req(port, 'GET', '/studio/documents'); assert.ok(r.status === 403 || r.status === 302, 'a stranger refused');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=? AND data LIKE '%\"from\":\"document\"%'").get(t.slug), 'told on the register');
@@ -1643,7 +1658,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.screeningSeed(); app.locals.screeningSeed();
     const f = db.prepare("SELECT * FROM films WHERE slug='sunrise-1927'").get(); assert.ok(f && f.status === 'showing' && /archive\.org\/download\/sunrise_1927/.test(f.source_url) && /^0:00 /.test(f.notes), 'Sunrise on the bill');
     assert.equal(db.prepare("SELECT COUNT(*) n FROM film_showings WHERE film_id=? AND at > datetime('now')").get(f.id).n, 1, 'one showing, once');
-    const k = db.prepare("SELECT * FROM films WHERE slug='sherlock-jr-1924'").get(); assert.ok(k && db.prepare('SELECT at FROM film_showings WHERE film_id=?').get(k.id).at > db.prepare('SELECT at FROM film_showings WHERE film_id=?').get(f.id).at, 'Keaton the night after');
+    const k = db.prepare("SELECT * FROM films WHERE slug='sherlock-jr-1924'").get(); assert.ok(k && k.status === 'shelved' && !db.prepare("SELECT 1 FROM film_showings WHERE film_id=? AND at > datetime('now')").get(k.id), 'Keaton held: the transfer\u2019s score is modern, so no showing until a free one is found');
     r = await req(port, 'GET', '/screening'); assert.ok(/Sunrise/.test(r.body) && /Murnau/.test(r.body), 'on the bill');
     r = await req(port, 'GET', '/screening/sunrise-1927'); assert.ok(r.status === 200 && /song of two humans/i.test(r.body), 'the lobby');
   }
