@@ -154,6 +154,8 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     if (cur.head || cur.paras.length) out.push(cur);
     const joined = []; for (let i = 0; i < out.length; i++) { const c = out[i], n = out[i + 1]; if (c.head && !c.paras.length && n && n.head && /^(CHAPTER|BOOK|PART|LETTER)\s+[\w.]+\.?$/i.test(c.head.trim()) && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(n.head)) { n.head = `${c.head.trim().replace(/\.$/, '')}: ${n.head.trim()}`; continue; } joined.push(c); }
     while (joined.length > 1 && /^(index|bibliography|footnotes|endnotes|glossary|transcriber|notes)\b/i.test(joined[joined.length - 1].head || '')) joined.pop();
+    // A numbered head with no title takes its first short line as the title ('CHAPTER XIX' / 'THE "GOSPEL OF WEALTH"'); a shouted word in a head that is no numeral is set in title case (CIVIL).
+    for (const c of joined) { if (!c.head) continue; if (/^(CHAPTER|BOOK|PART|LETTER)\s+[\w.]+\.?$/i.test(c.head.trim()) && c.paras.length && c.paras[0].length < 60 && !/[.!?]$/.test(c.paras[0].replace(/[”"’']+$/, ''))) { c.head = `${c.head.trim().replace(/\.$/, '')}: ${titleCase(c.paras.shift().replace(/^\*+|\*+$/g, ''))}`; } c.head = c.head.replace(/\b([A-Z]{4,})\b/g, w => /^(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})$/.test(w) ? w : w[0] + w.slice(1).toLowerCase()); }
     const numbered = joined.filter(c => /^(CHAPTER|BOOK|PART|LETTER)\b/i.test(c.head || '')).length;
     const kept = [];
     for (const c of joined) { const h = c.head || ''; const stray = numbered >= 3 && h && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(h) && !/^(preface|foreword|introduction|prologue|epilogue|afterword|conclusion|appendix|editor|author|dedication|contents|postscript)/i.test(h) && (/[:,;]$/.test(h) || h.split(/\s+/).length <= 3 || kept.length > 1); if (stray && kept.length) { const last = kept[kept.length - 1]; last.paras.push(`**${h}**`, ...c.paras); } else kept.push(c); }
@@ -163,7 +165,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   // curl, two hyphens become an em dash, three dots an ellipsis, _underscored_ words keep their italic as *word*,
   // a shouted heading (CHAPTER IV. THE RIVER) is set in title case, and a line of asterisks or dashes is a section break.
   const SMALL = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'of', 'in', 'on', 'at', 'to', 'by', 'for', 'with', 'from', 'as', 'is']);
-  const titleCase = h => h.split(/((?:[.:;—]|\s-)\s+)/).map((seg, k) => k % 2 ? seg : seg.toLowerCase().replace(/\b([ivxlc]+)\b/g, m => /^(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/.test(m) ? m.toUpperCase() : m).replace(/(^|[\s(—-])([a-z])([^\s]*)/g, (m, pre, c, rest, off) => { const w = c + rest; return pre + ((off > 0 && SMALL.has(w.replace(/[.,:;]$/, ''))) ? w : c.toUpperCase() + rest); })).join('');
+  const titleCase = h => h.split(/((?:[.:;—]|\s-)\s+)/).map((seg, k) => k % 2 ? seg : seg.toLowerCase().replace(/\b([ivxlc]+)\b/g, m => /^(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/.test(m) ? m.toUpperCase() : m).replace(/(^|[\s(—“‘"'-])([a-z])([^\s]*)/g, (m, pre, c, rest, off) => { const w = c + rest; return pre + ((off > 0 && SMALL.has(w.replace(/[.,:;]$/, ''))) ? w : c.toUpperCase() + rest); })).join('');
   function polish(t) {
     return String(t)
       .replace(/(^|[\s(\[—])"/g, '$1“').replace(/"/g, '”')
