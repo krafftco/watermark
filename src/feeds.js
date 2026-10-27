@@ -64,16 +64,40 @@ function oaiPage(xml) {
   return { items, token: token ? unx(token) : null };
 }
 
+// Smithsonian Open Access rows (api.si.edu) → items. Only CC0 records with a picture; the largest file from the IDS
+// (deliveryService with no max); the maker, date, medium and place from the freetext; the record's own page as the id.
+function siItems(rows) {
+  const out = [];
+  for (const r of rows) {
+    const c = r.content || {}; const d = c.descriptiveNonRepeating || {}; const ft = c.freetext || {}; const ix = c.indexedStructured || {};
+    if (String((d.online_media && d.online_media.mediaCount) || 0) === '0') continue;
+    const access = String(((c.usage || r.usage) || {}).access || (d.metadata_usage && d.metadata_usage.access) || '');
+    const media = ((d.online_media || {}).media || []).find(m => /Images?/i.test(m.type || '') && m.content) || ((d.online_media || {}).media || [])[0];
+    if (!media || !media.content) continue;
+    const imgUsage = String((media.usage || {}).access || access);
+    if (!/CC0/i.test(imgUsage)) continue;
+    const idsId = media.idsId || (String(media.content).match(/id=([^&]+)/) || [])[1];
+    const image = idsId ? `https://ids.si.edu/ids/deliveryService?id=${encodeURIComponent(idsId)}` : String(media.content).replace(/&max=\d+/, '');
+    const name = (ft.name || []).find(x => /artist|maker|painter|photographer|author|creator|designer|sculptor|architect/i.test(x.label || '')) || (ft.name || [])[0];
+    const first = (arr, re) => { const hit = (arr || []).find(x => !re || re.test(x.label || '')); return hit ? String(hit.content || '').trim() : ''; };
+    const meta = []; const add = (label, v) => { if (v) meta.push({ label, value: String(v).slice(0, 300) }); };
+    add('Date', first(ft.date) || (ix.date || [])[0]); add('Medium', first(ft.physicalDescription, /medium|material/i) || first(ft.physicalDescription)); add('Place', first(ft.place) || (ix.place || [])[0]); add('Credit', first(ft.creditLine)); add('Unit', d.data_source || d.unit_code); add('Accession', first(ft.identifier, /accession|catalog|object number/i));
+    const link = d.record_link || (d.record_ID ? `https://collections.si.edu/search/detail/${d.record_ID}` : null);
+    out.push({ id: link || `si:${r.id}`, label: String(r.title || d.title || 'Untitled').slice(0, 160), summary: first(ft.notes, /description|summary|label/i) || null, image, meta, artist: name && name.content ? { name: String(name.content).replace(/,\s*\d{4}.*$/, '') } : null, kind: /painting/i.test(first(ft.objectType) || (ix.object_type || [])[0] || '') ? 'painting' : null, rights: 'CC0', width: null, height: null });
+  }
+  return out;
+}
+
 function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   db.exec(`CREATE TABLE IF NOT EXISTS feeds (id INTEGER PRIMARY KEY, name TEXT, kind TEXT NOT NULL, url TEXT, file TEXT, maker_id INTEGER NOT NULL, open TEXT, show INTEGER NOT NULL DEFAULT 0, max INTEGER,
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { const h = fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || ''; if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(h)) return 'documents'; if (/(^|,)\s*"?audio"?\s*(,|$)/i.test(h)) return 'guides'; } catch (e) { /* csv */ } return 'csv'; }
-    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
+    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/api\.si\.edu\/openaccess/.test(u)) return 'si'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
@@ -83,6 +107,19 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       if (kind === 'documents' || kind === 'guides') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return kind === 'guides' ? { guide: o, id: `guide:${o.audio || o.work}`, label: o.title || `${o.work}: ${o.speaker || 'a guide'}` } : { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
+    }
+    if (kind === 'si') {
+      // Smithsonian Open Access: CC0 records with media, paged by start/rows; the key from the address or SI_API_KEY.
+      const u = new URL(job.url); if (!u.searchParams.get('api_key')) { if (!process.env.SI_API_KEY) throw new Error('SI_API_KEY is not set (a free key from api.data.gov)'); u.searchParams.set('api_key', process.env.SI_API_KEY); }
+      if (!u.searchParams.get('q')) u.searchParams.set('q', '*'); u.searchParams.set('rows', '100');
+      let start = +job.cursor || 0, n = 0;
+      while (n < LIM) {
+        u.searchParams.set('start', String(start)); const r = await doFetch(u.href); if (!r.ok) throw new Error(`smithsonian ${r.status}`); const j = await r.json();
+        const rows = ((j.response || {}).rows || []); const items = siItems(rows); n += rows.length; start += rows.length;
+        yield { items, cursor: String(start) }; if (!rows.length || start >= ((j.response || {}).rowCount || 0)) return;
+        await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT));
+      }
+      return;
     }
     if (kind === 'se') {
       const SE = app.locals.standard; if (!SE) throw new Error('Standard Ebooks is not mounted');
@@ -222,8 +259,8 @@ ${came.length ? `<h2>What came in</h2><div class="fe-came">${came.map(w => `<a h
   });
   app.post('/studio/feeds/:id/stop', studioOnly, (req, res) => { const id = +req.params.id; if (current === id) stopAsked = true; else db.prepare("UPDATE feeds SET status='stopped', finished_at=datetime('now') WHERE id=? AND status='queued'").run(id); res.redirect(`/studio/feeds/${id}`); });
   app.post('/studio/feeds/:id/retry', studioOnly, (req, res) => { const nid = retry(+req.params.id); res.redirect(nid ? `/studio/feeds/${nid}?ok=` + encodeURIComponent('The misses are going through the door again.') : `/studio/feeds/${req.params.id}`); });
-  app.locals.feeds = { enqueue, retry, kick, run, pages, parseCSV, csvItems, oaiPage, kindOf, missesOf };
+  app.locals.feeds = { enqueue, retry, kick, run, pages, parseCSV, csvItems, oaiPage, siItems, kindOf, missesOf };
   return app.locals.feeds;
 }
 
-module.exports = { mountFeeds, parseCSV, csvItems, oaiPage };
+module.exports = { mountFeeds, parseCSV, csvItems, oaiPage, siItems };
