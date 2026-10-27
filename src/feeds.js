@@ -69,11 +69,11 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { const h = fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || ''; if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(h)) return 'documents'; if (/(^|,)\s*"?audio"?\s*(,|$)/i.test(h)) return 'guides'; } catch (e) { /* csv */ } return 'csv'; }
-    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
+    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
@@ -83,6 +83,14 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       if (kind === 'documents' || kind === 'guides') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return kind === 'guides' ? { guide: o, id: `guide:${o.audio || o.work}`, label: o.title || `${o.work}: ${o.speaker || 'a guide'}` } : { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
+    }
+    if (kind === 'se') {
+      const SE = app.locals.standard; if (!SE) throw new Error('Standard Ebooks is not mounted');
+      if (job.file) { const lines = fs.readFileSync(job.file, 'utf8').split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ se: l, id: `se:${SE.repoOf(l) || l}`, label: l })), cursor: null }; return; }
+      const one = SE.repoOf(job.url);
+      if (one) { yield { items: [{ se: one, id: `se:${one}`, label: one }], cursor: null }; return; }
+      let n = 0; for await (const pg of SE.catalogue({ from: +job.cursor || 1, limit: LIM })) { n += pg.repos.length; yield { items: pg.repos.map(x => ({ se: x, id: `se:${x}`, label: x.replace('_', ' / ') })), cursor: String(pg.page) }; if (n >= LIM) return; await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT)); }
+      return;
     }
     if (kind === 'ia') {
       if (job.file) { const lines = fs.readFileSync(job.file, 'utf8').split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ ia: l, id: `ia:${l}`, label: l })), cursor: null }; return; }
@@ -140,6 +148,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
           try {
             if (it.miss) throw new Error(it.miss);
             if (it.book) { const r = await bringBook(it.book, job); if (r.already) skipped++; else taken++; }
+            else if (it.se) { const SE = app.locals.standard; const r = await SE.bring(it.se, { by: 'feed' }); if (r.already) skipped++; else taken++; }
             else if (it.ia) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); const r = await D.bringIA(it.ia, { public: job.show ? 1 : 0, open: job.open ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
             else if (it.guide) { const G = app.locals.audioGuides; if (!G) throw new Error('the guides room is not mounted'); const r = await G.bringRow(it.guide, job); if (r.already) skipped++; else taken++; }
             else if (it.doc) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); if (!it.doc.pdf) throw new Error('a row needs a pdf address'); const r = await D.bringUrl({ ...it.doc, public: job.show ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
