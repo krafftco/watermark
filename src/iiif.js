@@ -102,12 +102,12 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) return { skipped: true };
     const tmp = path.join(stage, `feed-${job.id || 0}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
     try {
-        const r = await doFetch(it.image); if (!r.ok) throw new Error(`image ${r.status}`);
-        fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
+        if (it.file) fs.copyFileSync(it.file, tmp); // a file already on the house's disk (an inbox)
+        else { const r = await doFetch(it.image); if (!r.ok) throw new Error(`image ${r.status}`); fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer())); }
         const title = (it.label || man.label || 'Untitled').slice(0, 160);
         const caption = [it.summary, ...it.meta.filter(x => !/^(place|location|date|year)$/i.test(x.label)).slice(0, 6).map(x => `${x.label}: ${x.value}`)].filter(Boolean).join(' · ').slice(0, 1200) || null;
         const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = it.artist || (artistMeta ? { name: artistMeta.value } : null);
-        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
+        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: it.name || 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
         const year = yearOf(it);
         // The item's own rights first (a feed mixes open and closed objects: Te Papa, Wellcome, Europeana); the feed's licence only when the item says nothing.
         const rk = it.rights ? rightsKey(it.rights) : (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) ? rightsKey(it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)).value) : null);

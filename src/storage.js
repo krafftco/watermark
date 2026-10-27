@@ -34,6 +34,7 @@ function localStore(root) {
     async list(prefix) { const d = path.dirname(p(prefix + 'x')); return fs.existsSync(d) ? fs.readdirSync(d).map(f => path.posix.join(path.posix.dirname(prefix + 'x'), f)).filter(k => k.startsWith(prefix)) : []; },
     async del(key) { try { fs.unlinkSync(p(key)); } catch (e) { /* gone */ } },
     async size(key) { try { return fs.statSync(p(key)).size; } catch (e) { return null; } },
+    async download(key, file) { fs.copyFileSync(p(key), file); },
   };
 }
 

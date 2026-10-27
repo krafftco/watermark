@@ -1730,6 +1730,31 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='guide.spoken' AND subject=?").get(estw.slug), 'on the register');
   }
   console.log('ok: audio guides as objects');
+  { // The inbox (27 Oct): a watched folder in the vault; a picture with its index.csv row becomes the institution's work with its rights, a PDF a document, a recording a spoken guide on the named work; a stray file refused and named; what is taken leaves the folder; a second look takes nothing twice.
+    const IB = app.locals.inbox; assert.ok(IB, 'mounted');
+    const wav = (n => { const d = Buffer.alloc(n * 2); for (let i = 0; i < n; i++) d.writeInt16LE(Math.round(8000 * Math.sin(i / 20)), i * 2); const h = Buffer.alloc(44); h.write('RIFF', 0); h.writeUInt32LE(36 + d.length, 4); h.write('WAVE', 8); h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(8000, 24); h.writeUInt32LE(16000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(d.length, 40); return Buffer.concat([h, d]); })(9000);
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get(); const iw = db.prepare("SELECT * FROM works WHERE maker_id=? ORDER BY id LIMIT 1").get(inst.id);
+    const folder = path.join(dir, 'vault', 'inbox', 'musee'); fs.mkdirSync(folder, { recursive: true });
+    const sharp = require('sharp'); fs.writeFileSync(path.join(folder, 'Quay_at_Dawn.jpg'), await sharp({ create: { width: 900, height: 600, channels: 3, background: '#4a3a6a' } }).jpeg().toBuffer());
+    fs.writeFileSync(path.join(folder, 'index.csv'), 'file,title,place,date,artist,rights\nQuay_at_Dawn.jpg,The Quay at Dawn,Marseille,1890,Jean Dupont,https://creativecommons.org/publicdomain/mark/1.0/\n');
+    const PDFDocument = require('pdfkit'); const pdfb = await new Promise(ok => { const d = new PDFDocument(); const bs = []; d.on('data', b => bs.push(b)); d.on('end', () => ok(Buffer.concat(bs))); d.fontSize(14).text('A small catalogue of the quay, printed for the house, with enough words on the page to be read as a text and set into the reading room by the house.'); d.end(); });
+    fs.writeFileSync(path.join(folder, 'catalogue.pdf'), pdfb); fs.writeFileSync(path.join(folder, 'catalogue.json'), JSON.stringify({ title: 'A Small Catalogue', author: 'The Museum', year: '1911', rights: 'Public domain' }));
+    fs.writeFileSync(path.join(folder, 'guide.wav'), wav); fs.writeFileSync(path.join(folder, 'guide.json'), JSON.stringify({ work: iw.slug, speaker: 'Cy Curator', role: 'Curator', transcript: 'A word on the quay.' }));
+    fs.writeFileSync(path.join(folder, 'notes.docx'), Buffer.from('PK\x03\x04 not really'));
+    r = await req(port, 'POST', '/studio/inbox', { cookie: ck, body: { maker: String(inst.id), kind: 'vault', path: 'inbox/musee/', open: 'cc0' } }); assert.ok(/Watched/.test(decodeURIComponent(r.headers.location || '')), 'watched');
+    const ib = db.prepare('SELECT * FROM inboxes ORDER BY id DESC LIMIT 1').get();
+    for (let i = 0; i < 400 && !db.prepare('SELECT last_at FROM inboxes WHERE id=?').get(ib.id).last_at; i++) await new Promise(x => setTimeout(x, 50));
+    const ib2 = db.prepare('SELECT * FROM inboxes WHERE id=?').get(ib.id); assert.ok(ib2.taken === 3 && ib2.failed === 1, 'three in, one refused: ' + JSON.stringify({ t: ib2.taken, s: ib2.skipped, f: ib2.failed, n: ib2.note, seen: db.prepare('SELECT key, outcome, why FROM inbox_seen WHERE inbox_id=?').all(ib.id) }));
+    const qw = db.prepare("SELECT * FROM works WHERE title='The Quay at Dawn'").get(); assert.ok(qw && qw.maker_id === inst.id && qw.place === 'Marseille' && qw.open === 'pd' && qw.status === 'hidden' && /1890/.test(qw.taken_at), 'the picture as the institution\u2019s work, held back for review, with its own rights (pd over the folder\u2019s cc0): ' + JSON.stringify(qw && { o: qw.open, p: qw.place, s: qw.status }));
+    const qt = db.prepare("SELECT * FROM texts WHERE title='A Small Catalogue'").get(); assert.ok(qt && qt.kind === 'document' && qt.author === 'The Museum' && qt.year === '1911', 'the PDF as a document with its sidecar');
+    const qg = db.prepare("SELECT * FROM audio_guides WHERE work_id=? AND speaker='Cy Curator'").get(iw.id); assert.ok(qg && qg.transcript === 'A word on the quay.', 'the recording as a guide on the named work');
+    assert.ok(!fs.existsSync(path.join(folder, 'Quay_at_Dawn.jpg')) && !fs.existsSync(path.join(folder, 'catalogue.pdf')) && fs.existsSync(path.join(folder, 'notes.docx')) && fs.existsSync(path.join(folder, 'index.csv')), 'taken files leave the folder, the refused one and the index stay');
+    r = await req(port, 'POST', `/studio/inbox/${ib.id}/look`, { cookie: ck }); assert.ok(/0 new, 0 in/.test(decodeURIComponent(r.headers.location || '')), 'a second look takes nothing twice: ' + decodeURIComponent(r.headers.location || ''));
+    r = await req(port, 'GET', '/studio/inbox', { cookie: ck }); assert.ok(r.status === 200 && /inbox\/musee/.test(r.body) && /notes\.docx/.test(r.body) && /not a picture, a PDF or a recording/.test(r.body), 'the desk names the refusal');
+    r = await req(port, 'POST', '/studio/inbox', { body: { maker: String(inst.id), kind: 'vault', path: 'x/' } }); assert.ok(r.status === 403 || r.status === 302 && !/Watched/.test(r.headers.location || ''), 'a stranger refused');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='collection.imported' AND subject=?").get(`inbox-${ib.id}`), 'told on the register');
+  }
+  console.log('ok: the inbox');
   console.log('ok: the Listening Room');
   { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
     const prev = app.locals.__fetch;
