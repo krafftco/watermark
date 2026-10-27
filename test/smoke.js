@@ -1915,6 +1915,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.__fetch = prevC;
   }
   console.log('ok: Wikimedia Commons');
+  { // The Library of Congress (27 Oct): a collection's JSON pages (sp=), each result with a PDF taken as a document with its record; a result without a PDF passed over.
+    const FE = app.locals.feeds; const PDFDocument = require('pdfkit');
+    const pdf = await new Promise(ok => { const d = new PDFDocument(); const bs = []; d.on('data', b => bs.push(b)); d.on('end', () => ok(Buffer.concat(bs))); d.fontSize(14).text('A small American book of the quay, printed in Boston, with enough words on its one page that the house reads it as a text and sets it in the reading room for everyone.'); d.end(); });
+    const prevL = app.locals.__fetch;
+    app.locals.__fetch = async (u) => { u = String(u); if (/loc\.gov\/collections\/selected-digitized-books/.test(u)) { const sp = +((u.match(/sp=(\d+)/) || [])[1] || 1); return { ok: true, json: async () => (sp === 1 ? { pagination: { next: 'x' }, results: [{ id: 'https://www.loc.gov/item/loc1/', title: 'The Quay at Boston', contributor: ['Harbourmaster, A., 1850-1920'], date: '1911', rights: ['Public domain'], resources: [{ pdf: 'https://tile.loc.gov/storage/loc1.pdf' }] }, { id: 'https://www.loc.gov/item/loc2/', title: 'No PDF Here', resources: [{ image: 'x.jpg' }] }] } : { pagination: {}, results: [{ id: 'https://www.loc.gov/item/loc3/', title: 'A Second Book', date: '1899', resources: [{ pdf: 'https://tile.loc.gov/storage/loc3.pdf' }] }] }) }; } if (/tile\.loc\.gov\/storage\/loc[13]\.pdf/.test(u)) return { ok: true, headers: { get: () => 'application/pdf' }, arrayBuffer: async () => pdf }; return prevL ? prevL(u) : { ok: false, status: 404 }; };
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'POST', '/studio/feeds', { cookie: ck, body: { maker: String(inst.id), url: 'https://www.loc.gov/collections/selected-digitized-books/?dates=1900/1920', kind: 'auto', show: '1' } }); const flo = +((r.headers.location || '').match(/feeds\/(\d+)/) || [])[1]; assert.ok(flo, 'enqueued');
+    for (let i = 0; i < 600 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(flo).status); i++) await new Promise(x => setTimeout(x, 50));
+    const jlo = db.prepare('SELECT * FROM feeds WHERE id=?').get(flo); assert.ok(jlo.status === 'done' && jlo.taken === 2 && jlo.failed === 0 && FE.kindOf(jlo) === 'loc', 'two pages, two books: ' + JSON.stringify({ s: jlo.status, t: jlo.taken, f: jlo.failed, n: jlo.note, m: jlo.missed }));
+    const lt = db.prepare("SELECT * FROM texts WHERE source='https://www.loc.gov/item/loc1/'").get(); assert.ok(lt && lt.kind === 'document' && lt.author === 'Harbourmaster, A.' && lt.year === '1911' && lt.terms === 'Public domain' && lt.public === 1, 'the book as a document with the Library\u2019s record: ' + JSON.stringify(lt && { a: lt.author, y: lt.year, t: lt.terms }));
+    app.locals.__fetch = prevL;
+  }
+  console.log('ok: the Library of Congress');
   { // The Bookshop: a want left; a signed copy offered by the house (the want told); bought with an address through Checkout; settled by the webhook; moved along on the desk; told on the register without a name.
     const bk = db.prepare("SELECT * FROM texts WHERE kind='book' AND public=1 ORDER BY id LIMIT 1").get(); assert.ok(bk, 'a book on the shelf');
     r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/id="bookshop"/.test(r.body) && /No copy is offered today/.test(r.body) && /Tell me when a copy turns up/.test(r.body), 'the shelves on the book’s page');

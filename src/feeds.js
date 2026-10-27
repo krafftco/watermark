@@ -110,11 +110,11 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)'], ['loc', 'Library of Congress books (a loc.gov collection or search address; the PDF and its text per item)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { const h = fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || ''; if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(h)) return 'documents'; if (/(^|,)\s*"?audio"?\s*(,|$)/i.test(h)) return 'guides'; } catch (e) { /* csv */ } return 'csv'; }
-    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/api\.si\.edu\/openaccess/.test(u)) return 'si'; if (/commons\.wikimedia\.org/.test(u)) return 'commons'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
+    if (I.isMet(u)) return 'met'; if (/archive\.org\/(advancedsearch|services\/search)/.test(u)) return 'ia'; if (/standardebooks\.org|github\.com\/standardebooks/.test(u)) return 'se'; if (/api\.si\.edu\/openaccess/.test(u)) return 'si'; if (/commons\.wikimedia\.org/.test(u)) return 'commons'; if (/loc\.gov\/(collections|search|books)/.test(u)) return 'loc'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
@@ -124,6 +124,25 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       if (kind === 'documents' || kind === 'guides') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return kind === 'guides' ? { guide: o, id: `guide:${o.audio || o.work}`, label: o.title || `${o.work}: ${o.speaker || 'a guide'}` } : { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
+    }
+    if (kind === 'loc') {
+      // The Library of Congress (loc.gov JSON API: ?fo=json, c= a page, sp= its number; 20 requests a minute): each result with a PDF
+      // becomes a document (the text layer read by the document kind); rights from the result's own line.
+      const u = new URL(job.url); u.searchParams.set('fo', 'json'); u.searchParams.set('c', '100'); if (!u.searchParams.get('fa')) u.searchParams.set('fa', 'access-restricted:false');
+      let sp = +job.cursor || 1, n = 0;
+      while (n < LIM) {
+        u.searchParams.set('sp', String(sp)); const r = await doFetch(u.href); if (!r.ok) throw new Error(`loc.gov ${r.status}`); const j = await r.json();
+        const rows = j.results || []; const items = [];
+        for (const x of rows) {
+          const res = (x.resources || [])[0] || {}; const pdf = res.pdf || null; if (!pdf) continue;
+          const by = Array.isArray(x.contributor) ? x.contributor[0] : (x.contributor || (Array.isArray(x.creator) ? x.creator[0] : x.creator) || '');
+          items.push({ doc: { title: String(x.title || '').replace(/\s+/g, ' ').trim().slice(0, 160), author: String(by || '').replace(/,\s*\d{4}-\d{0,4}\.?$/, '').trim(), pdf, year: String(x.date || '').match(/\d{4}/) ? String(x.date).match(/\d{4}/)[0] : '', source: x.id || x.url, terms: Array.isArray(x.rights) ? x.rights[0] : (x.rights || 'Public domain. Library of Congress: free to use and reuse.'), summary: Array.isArray(x.description) ? x.description[0] : (x.description || '') }, id: `doc:${x.id || pdf}`, label: String(x.title || '').slice(0, 120) });
+        }
+        n += rows.length; const pg = j.pagination || {}; const next = pg.next ? sp + 1 : null;
+        yield { items, cursor: next ? String(next) : null }; if (!next || !rows.length) return; sp = next;
+        await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : Math.max(PAGE_WAIT, 3500)));
+      }
+      return;
     }
     if (kind === 'commons') {
       // Wikimedia Commons: a category's files with their extmetadata (the licence per file), paged by gcmcontinue.
