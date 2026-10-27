@@ -84,7 +84,7 @@ function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
     } finally { running = false; }
     return n;
   }
-  app.locals.speech = { on, provider, voice, fileFor, has, fill, hashOf };
+  app.locals.speech = { on, provider, voice, fileFor, has, fill, hashOf, render };
   if (on()) { setTimeout(() => fill().then(n => { if (n) console.log('[speech]', n, 'guides read'); }).catch(() => {}), 45000).unref(); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
   return app.locals.speech;
 }

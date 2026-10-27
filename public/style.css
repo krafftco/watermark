@@ -4322,3 +4322,18 @@ html.in-stay .top .nv-back{display:none}
 .rls .rls-r h2{text-transform:none;letter-spacing:0;font-family:var(--serif);font-size:1.6rem;margin:0 0 .2rem}
 .rls .rls-r ul{padding-left:1.1rem}
 .rls .rls-r li{margin:.45rem 0;line-height:1.5}
+/* Editions of the house (27 Oct): the jewels. */
+.jl{margin:26px 0;padding:22px 24px;border:1px solid var(--ln);border-radius:4px;background:linear-gradient(180deg,#fbf8f1,#f6f1e6)}
+.jl .k{display:flex;align-items:center;gap:8px;color:#8a6d2b;margin:0 0 4px}.jl .k svg{width:26px;height:auto;fill:#b48a2f}
+.jl h2{font:400 30px/1.1 var(--disp);text-transform:none;letter-spacing:0;margin:0 0 14px}
+.jl-parts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 18px}
+.jl-parts li{padding:8px 0 8px 22px;position:relative;border-top:1px solid var(--ln);color:var(--mu);font-size:14px}
+.jl-parts li:before{content:'';position:absolute;left:2px;top:14px;width:10px;height:10px;border-radius:50%;border:1px solid #b48a2f}
+.jl-parts li.on:before{background:#b48a2f}.jl-parts li b{display:block;color:var(--ink);font-weight:500}
+.jl-intro{margin:18px 0 0;padding-top:14px;border-top:1px solid var(--ln)}.jl-intro p{font:18px/1.6 var(--read);margin:0 0 12px}
+.jl-hear{margin:12px 0 0;font-size:14px}.jl-not{background:none}
+.jl-desk{margin-top:16px;padding-top:12px;border-top:1px dashed var(--ln);display:grid;gap:12px}.jl-desk form{margin:0}
+.jl-f{display:grid;gap:6px}.jl-f label{display:grid;gap:4px;font-size:13px}.jl-f small{color:var(--mu);display:block}.jl-f textarea,.jl-f input{font:14px/1.4 var(--mono,monospace);padding:8px;border:1px solid var(--ln);border-radius:3px;width:100%}.jl-f button{justify-self:start}
+.jl-cv{font-size:13px;color:#8a6d2b;display:flex;align-items:center;gap:6px;margin:8px 0 0}.jl-cv svg{width:22px;height:auto;fill:#b48a2f}
+.jl-play{margin:0 0 18px}.jl-play audio{width:100%;max-width:420px;display:block}.jl-play small{color:var(--mu);font-size:12px}
+.jl-tw{margin:18px 0 26px}.jl-tw h2{margin-bottom:4px}.jl-tw td small{color:var(--mu)}.jl-tw form{margin:0}

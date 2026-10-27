@@ -1803,6 +1803,41 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/studio/reading/${bk.slug}/pictures`); assert.equal(r.status, 403, 'a stranger cannot');
       assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.illustrated' AND subject=?").get(bk.slug), 'told on the register');
       app.locals.__fetch = prevP; }
+    // Editions of the house (27 Oct): the mark, the shelf at the head of the Library, plates by hand, read aloud into the Listening Room.
+    { const JW = app.locals.jewels; assert.ok(JW && JW.TWELVE.length === 12, 'the twelve');
+      r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(!/class="jl/.test(r.body), 'a stranger sees no desk on a book that is not an edition');
+      r = await req(port, 'GET', `/library/${bk.slug}`, { cookie: ck }); assert.ok(/Make it an edition of the house/.test(r.body), 'the Studio may make it');
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/edition`, { body: { do: 'make' } }); assert.equal(r.status, 403, 'a stranger cannot');
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/edition`, { cookie: ck, body: { do: 'make' } }); assert.ok(/No\. 1/.test(decodeURIComponent(r.headers.location)), 'made: ' + r.headers.location);
+      r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/An edition of the house · No\. 1/.test(r.body) && /jl-parts/.test(r.body) && /2 plates, A\. Draughtsman/.test(r.body), 'the page says what it has');
+      r = await req(port, 'GET', '/library'); assert.ok(/Editions of the house/.test(r.body) && r.body.indexOf('Editions of the house') < r.body.indexOf('Begin here'), 'the shelf at the head of the Library');
+      r = await req(port, 'GET', `/read/${bk.slug}`); assert.ok(/jl-cv/.test(r.body) && /An edition of the house, No\. 1/.test(r.body), 'the cover says so');
+      r = await req(port, 'GET', '/studio/reading', { cookie: ck }); assert.ok(/The twelve/.test(r.body) && /Autobiography of Benjamin Franklin/.test(r.body) && /Not yet · find it/.test(r.body), 'the twelve on the desk');
+      // Plates by hand: an address, and a Commons file through its API; a chapter named; a bad line named back.
+      const sharp = require('sharp'); const pl = await sharp({ create: { width: 900, height: 700, channels: 3, background: '#335' } }).png().toBuffer();
+      const prevH = app.locals.__fetch; app.locals.__fetch = async (u) => { u = String(u); if (/commons\.wikimedia\.org\/w\/api\.php/.test(u)) return { ok: true, json: async () => ({ query: { pages: { 1: { title: 'File:Franklin.jpg', imageinfo: [{ url: 'https://upload.wikimedia.org/x/Franklin.jpg', thumburl: 'https://upload.wikimedia.org/x/2400px-Franklin.jpg', width: 3000, height: 2300, mime: 'image/jpeg', extmetadata: { Artist: { value: 'Joseph Siffred Duplessis (1725–1802)' }, LicenseShortName: { value: 'Public domain' }, ObjectName: { value: 'Benjamin Franklin' } } }] } } } }) }; if (/upload\.wikimedia\.org|example\.org\/press\.png/.test(u)) return { ok: true, arrayBuffer: async () => pl }; return prevH(u); };
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/plates`, { cookie: ck, body: { lines: 'File:Franklin.jpg | 1 | Franklin in 1778, by Duplessis\nhttps://example.org/press.png | | The press\nnot an address' } }); const okMsg = decodeURIComponent(r.headers.location); assert.ok(/2 plates in; not: not an address/.test(okMsg), 'two brought, one named back: ' + okMsg);
+      const pics = app.locals.bookplates.picturesOf(db.prepare('SELECT pictures FROM texts WHERE id=?').get(bk.id)); assert.equal(pics.length, 4); const fr = pics.find(p => /Duplessis/.test(p.caption)); assert.ok(fr && fr.c === 0 && fr.at === 'before' && /Duplessis · Public domain/.test(fr.credit) && fr.by === 'hand', 'the Commons plate at chapter 1 with its credit: ' + JSON.stringify(fr)); assert.ok(pics.find(p => p.caption === 'The press').c === -1, 'the unplaced plate at the end');
+      r = await req(port, 'GET', `/read/${bk.slug}/pic/${fr.n}`); assert.equal(r.status, 200, 'the plate served');
+      app.locals.__fetch = prevH;
+      // Read aloud: the house voice stubbed; a chapter a side; served to the reader and to the Listening Room as a record.
+      const SP = app.locals.speech; const prevSp = { ...SP }; let reads = 0; Object.assign(SP, { on: () => true, provider: () => 'test', voice: () => 'v', render: async () => { reads++; return Buffer.from('ID3' + 'x'.repeat(400)); } });
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/read-aloud`, { cookie: ck }); assert.ok(/3 chapters queued/.test(decodeURIComponent(r.headers.location)), 'queued: ' + r.headers.location);
+      for (let i = 0; i < 200 && JW.readings(bk).length < 3; i++) await new Promise(x => setTimeout(x, 25));
+      assert.equal(JW.readings(bk).length, 3, 'three chapters read'); assert.equal(reads, 3);
+      r = await req(port, 'GET', `/read/${bk.slug}/audio/1`); assert.ok(r.status === 200 && /audio\/mpeg/.test(r.headers['content-type']), 'a chapter served');
+      r = await req(port, 'GET', `/read/${bk.slug}?c=1`); assert.ok(/jl-play/.test(r.body) && /audio\/1/.test(r.body), 'the reader offers it');
+      const rec = db.prepare("SELECT * FROM recordings WHERE slug=?").get(`reading-${bk.slug}`); assert.ok(rec && rec.source === 'reading' && rec.status === 'playing' && JSON.parse(rec.files).length === 3 && /binding/.test(rec.cover_url), 'a record in the Listening Room: ' + JSON.stringify(rec && rec.files));
+      r = await req(port, 'GET', '/listening'); assert.ok(/Read aloud/.test(r.body) && /The Long Walk/.test(r.body), 'on the shelf of readings');
+      r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/3 of 3 chapters in the house voice/.test(r.body) && /Hear it read/.test(r.body), 'the page counts the voice');
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/read-aloud`, { cookie: ck }); assert.ok(/Every chapter is read/.test(decodeURIComponent(r.headers.location)), 'never twice');
+      Object.assign(SP, prevSp);
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/intro`, { cookie: ck, body: { intro: 'A word first.\n\nThen another.', by: 'W. Fullerton' } }); r = await req(port, 'GET', `/library/${bk.slug}`); assert.ok(/An introduction · W\. Fullerton/.test(r.body) && /Then another\./.test(r.body), 'the introduction');
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='edition.made' AND subject=?").get(bk.slug) && db.prepare("SELECT 1 FROM ledger WHERE type='edition.read' AND subject=?").get(bk.slug), 'told on the register');
+      r = await req(port, 'GET', '/ledger'); assert.ok(/is an edition of the house, No\. 1/.test(r.body) && !/edition\.plated/.test(r.body), 'the register’s sentence');
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/edition`, { cookie: ck, body: { do: 'unmake' } }); r = await req(port, 'GET', '/library'); assert.ok(!/Editions of the house/.test(r.body), 'taken off the shelf');
+      r = await req(port, 'POST', `/studio/library/${bk.slug}/edition`, { cookie: ck, body: { do: 'make' } }); assert.ok(/No\. 2/.test(decodeURIComponent(r.headers.location)), 'a number is never reused');
+      console.log('ok: editions of the house'); }
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=?").get(bk.slug), 'shelved on the register');
     // The book (24 Oct): the cover with the imprint, the progress line, Pages, the colophon; the author said as a person says it.
     assert.ok(/data-rd-cover/.test(pg) && /Watermark Publishing/.test(pg) && /A\. Walker/.test(pg) && /rdr-prog/.test(pg) && /data-rd-mode/.test(pg) && /rdr-colophon/.test(pg) && /rdr-tp/.test(pg), 'a book, not a web page');
