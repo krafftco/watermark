@@ -159,7 +159,9 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   // A Gutenberg book, by number: metadata from Gutendex, the text from gutenberg.org.
   async function bring(id, { why = null, by = 'the house', meta: given = null } = {}) {
     id = +id; if (!id) throw new Error('a number');
-    const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ?").get(`%gutenberg.org/ebooks/${id}%`); if (had) return { slug: had.slug, already: true };
+    // 27 Oct: the match was LIKE '%ebooks/<id>%', so No. 84 (Frankenstein) read as 'already on the shelf' whenever No. 8492 was, and
+    // forty of the canon's short numbers were skipped as held. The number is matched whole.
+    const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ? OR source = ?").get(`%gutenberg.org/ebooks/${id}`, `https://www.gutenberg.org/ebooks/${id}`); if (had) return { slug: had.slug, already: true };
     const rec = given || await meta(id);
     const f = rec.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
     const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); const raw = await tr.text();
