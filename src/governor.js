@@ -44,13 +44,16 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   // every chore the house runs for itself at start is scheduled through here instead of its own setTimeout: nothing before
   // BOOT_QUIET_S (three minutes), then one at a time, BOOT_GAP_S apart in the order registered, each through the lane and
   // skipped outright when the chores are held. Under test (noTimers) nothing is scheduled.
-  const started = Date.now(); const boots = [];
+  // The boot chores take turns in a lane of their own (27 Oct, evening: the speech fill, reading every guide once the
+  // voice was set, held the one lane for an hour and a book's pictures pressed by hand waited behind it): a hand-pressed
+  // job (the pictures of one book, a feed, a re-cut) never queues behind the house's own housekeeping.
+  const started = Date.now(); const boots = []; let bootChain = Promise.resolve(); let booting = null;
   function boot(label, fn, ms = 0) {
     if (quiet()) return;
     const at = Math.max(ms, bootQuietS * 1000 + boots.length * bootGapS * 1000); boots.push(label);
-    setTimeout(() => { if (!chores()) { console.log(`[governor] ${label} skipped: chores held`); return; } turn(label, () => Promise.resolve().then(fn)).catch(e => console.error(`[${label}]`, e && e.message || e)); }, at).unref();
+    setTimeout(() => { if (!chores()) { console.log(`[governor] ${label} skipped: chores held`); return; } bootChain = bootChain.then(async () => { booting = label; try { await fn(); } catch (e) { console.error(`[${label}]`, e && e.message || e); } finally { booting = null; } await settle(label); }); }, at).unref();
   }
-  const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
+  const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
   // The showing (27 Oct): while the house is being shown (Studio → Launch → 'Showing'), every chore holds too, so a demo never meets a feed.
   let shown = false;
