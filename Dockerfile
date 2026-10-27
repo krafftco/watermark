@@ -11,6 +11,8 @@ WORKDIR /app
 # Memory (launch fix 6.1): the starter instance has 512 MB and was restarted for exceeding it. glibc's many malloc
 # arenas fragment under libvips; two arenas and a capped V8 heap keep the process well inside the line.
 ENV NODE_ENV=production DATA_DIR=/data PORT=3000 MALLOC_ARENA_MAX=2 NODE_OPTIONS=--max-old-space-size=320
+# The document kind (27 Oct): poppler renders and reads a PDF's pages, tesseract reads a scan with no text of its own.
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/node_modules ./node_modules
 COPY . .
 VOLUME ["/data"]

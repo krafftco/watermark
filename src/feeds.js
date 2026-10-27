@@ -69,17 +69,18 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
-    const u = String(job.url || ''); if (job.file) return /\.(txt|list)$/i.test(job.file) ? 'books' : 'csv';
+    const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || '')) return 'documents'; } catch (e) { /* csv */ } return 'csv'; }
     if (I.isMet(u)) return 'met'; if (/\.csv(\?|$)/i.test(u)) return 'csv'; if (/verb=|oai/i.test(u)) return 'oai'; if (/\.(txt|list)(\?|$)/i.test(u)) return 'books'; return 'iiif';
   }
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
     const kind = kindOf(job); const LIM = Math.min(MAX, job.max || MAX);
-    if (kind === 'csv' || kind === 'books') {
+    if (kind === 'csv' || kind === 'books' || kind === 'documents') {
       const text = job.file ? fs.readFileSync(job.file, 'utf8') : await (async () => { const r = await doFetch(job.url); if (!r.ok) throw new Error(`feed ${r.status}`); return r.text(); })();
+      if (kind === 'documents') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
       if (kind === 'books') { const lines = text.split(/\r?\n/).map(x => x.trim()).filter(x => x && !/^#/.test(x)); yield { items: lines.slice(+job.cursor || 0, LIM).map(l => ({ book: l, id: `book:${l}`, label: l })), cursor: null }; return; }
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
     }
@@ -126,6 +127,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
           try {
             if (it.miss) throw new Error(it.miss);
             if (it.book) { const r = await bringBook(it.book, job); if (r.already) skipped++; else taken++; }
+            else if (it.doc) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); if (!it.doc.pdf) throw new Error('a row needs a pdf address'); const r = await D.bringUrl({ ...it.doc, public: job.show ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
             else { const r = await I.take(it, job, pg.man); if (r.skipped) skipped++; else taken++; }
           } catch (e) { failed++; missed.push({ id: it.id, label: String(it.label || '').slice(0, 120), why: String(e.message).slice(0, 160), item: it }); }
           if (looked % 5 === 0) save(pg.cursor);

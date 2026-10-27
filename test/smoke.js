@@ -1445,6 +1445,51 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.__fetch = prev;
   }
   console.log('ok: feeds in');
+  { // The document kind (27 Oct): a PDF with a text layer comes in as a book (pages kept, text set into chapters, each page placed), a set of page images as pages alone; the reader's two ways; the original served; a CSV of documents through Feeds in.
+    const D = app.locals.documents; assert.ok(D && D.TOOLS.pdf, 'poppler on the box');
+    const PDFDocument = require('pdfkit'); const sharp = require('sharp');
+    const mkpdf = () => new Promise(ok => { const doc = new PDFDocument({ size: 'LETTER', margin: 72 }); const bufs = []; doc.on('data', b => bufs.push(b)); doc.on('end', () => ok(Buffer.concat(bufs)));
+      doc.fontSize(20).text('CHAPTER I. THE HARBOUR', { align: 'center' }).moveDown().fontSize(12).text('The harbour lay quiet under the evening, and the two masts of the schooner stood against the last of the light like a pair of pencil lines on a grey sheet of paper.').moveDown().text('Nobody spoke on the quay. The fishermen had gone home and the gulls had the place to themselves, walking the stones with the air of men who own the ground.');
+      doc.addPage().fontSize(20).text('CHAPTER II. THE MORNING', { align: 'center' }).moveDown().fontSize(12).text('By morning the wind had turned, and the whole town smelled of salt and bread. The baker opened his shutters an hour early because he could not sleep for the noise of the halyards.').moveDown().text('It was the kind of day on which a man might sell his boat, and three men did.');
+      doc.end(); });
+    const pdf = await mkpdf();
+    const bd = '----wmdoc'; const part = (name, v) => `--${bd}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${v}\r\n`;
+    const fileOf = (fname, buf, type) => Buffer.concat([Buffer.from(`--${bd}\r\nContent-Disposition: form-data; name="files"; filename="${fname}"\r\nContent-Type: ${type}\r\n\r\n`), buf, Buffer.from('\r\n')]);
+    const body = Buffer.concat([Buffer.from(part('title', 'The Harbour Book') + part('author', 'A Harbourmaster') + part('year', '1911') + part('source', 'https://docs.example/harbour') + part('terms', 'Public domain') + part('public', '1')), fileOf('harbour.pdf', pdf, 'application/pdf'), Buffer.from(`--${bd}--\r\n`)]);
+    r = await req(port, 'POST', '/studio/documents', { cookie: ck, body, headers: { 'content-type': 'multipart/form-data; boundary=' + bd } }); assert.ok(/\/studio\/documents\?ok=/.test(r.headers.location || ''), 'queued: ' + (r.headers.location || r.status));
+    for (let i = 0; i < 400 && (D.job.on || !db.prepare("SELECT 1 FROM texts WHERE kind='document' AND title='The Harbour Book'").get()); i++) await new Promise(x => setTimeout(x, 50));
+    const t = db.prepare("SELECT * FROM texts WHERE kind='document' AND title='The Harbour Book'").get(); assert.ok(t, 'the document shelved: ' + JSON.stringify(D.job));
+    const dm = D.docOf(t); const pgs = D.pagesOf(t); assert.ok(dm.pages === 2 && pgs.length === 2 && dm.text === 'layer' && dm.words > 60 && dm.pdf, 'two pages, the file\u2019s own text, the original kept: ' + JSON.stringify(dm));
+    assert.ok(/^## Chapter I\. The Harbour\n\n/.test(t.body) && /## Chapter II\. The Morning/.test(t.body) && /pencil lines on a grey sheet/.test(t.body), 'the text set into chapters: ' + t.body.slice(0, 200));
+    assert.ok(pgs[0].c === 0 && pgs[0].page === 1 && pgs[1].c === 1 && pgs[1].at === 'before', 'each page placed at its chapter: ' + JSON.stringify(pgs.map(p => ({ c: p.c, p: p.p, at: p.at }))));
+    assert.ok(fs.existsSync(path.join(dir, 'texts', t.slug, 'pl-2.jpg')) && fs.existsSync(path.join(dir, 'documents', `${t.slug}.pdf`)), 'the page and the original on disk');
+    r = await req(port, 'GET', `/read/${t.slug}`); assert.ok(r.status === 200 && /Chapter I\. The Harbour/.test(r.body) && /Or turn the pages/.test(r.body) && /rdr-pgtog[^>]*href="\?pages=1&c=0"/.test(r.body) && /2 pages · 2 chapters/.test(r.body) && /The original, as it came/.test(r.body), 'the text with the way to the pages');
+    r = await req(port, 'GET', `/read/${t.slug}?pages=1&c=1`); assert.ok(r.status === 200 && (String(r.body).match(/rdr-pgf/g) || []).length === 2 && /Page 2<\/b><span>of 2/.test(r.body) && /Turn the pages/.test(r.body) && /href="\?c=0"[^>]*>[^<]*<svg/.test(r.body), 'the pages one a screen with the way to the text');
+    r = await req(port, 'GET', `/read/${t.slug}/pic/1`); assert.ok(r.status === 200 && /jpeg/.test(r.headers['content-type']), 'a page served');
+    r = await req(port, 'GET', `/read/${t.slug}/original.pdf`); assert.ok(r.status === 200 && /pdf/.test(r.headers['content-type']) && r.body.slice(0, 4).toString() === '%PDF', 'the original served');
+    r = await req(port, 'GET', `/library/${t.slug}`); assert.ok(r.status === 200 && /Read it in the reading room/.test(r.body) && /The pages · 2/.test(r.body) && /The original \(PDF\)/.test(r.body), 'the Library page');
+    // Page images alone: pages, no text (a blank page reads as nothing), the reader opens on the pages.
+    const pg1 = await sharp({ create: { width: 800, height: 1100, channels: 3, background: '#f4f1ea' } }).jpeg().toBuffer(); const pg2 = await sharp({ create: { width: 800, height: 1100, channels: 3, background: '#efe9dc' } }).jpeg().toBuffer();
+    const body2 = Buffer.concat([Buffer.from(part('title', 'A Scanned Ledger') + part('public', '1')), fileOf('p2.jpg', pg2, 'image/jpeg'), fileOf('p1.jpg', pg1, 'image/jpeg'), Buffer.from(`--${bd}--\r\n`)]);
+    r = await req(port, 'POST', '/studio/documents', { cookie: ck, body: body2, headers: { 'content-type': 'multipart/form-data; boundary=' + bd } });
+    for (let i = 0; i < 600 && (D.job.on || !db.prepare("SELECT 1 FROM texts WHERE kind='document' AND title='A Scanned Ledger'").get()); i++) await new Promise(x => setTimeout(x, 50));
+    const t2 = db.prepare("SELECT * FROM texts WHERE kind='document' AND title='A Scanned Ledger'").get(); assert.ok(t2 && !t2.body && D.pagesOf(t2).length === 2 && D.docOf(t2).text === 'none', 'the scans as pages alone: ' + JSON.stringify(t2 && D.docOf(t2)) + ' ' + JSON.stringify(D.job.missed));
+    r = await req(port, 'GET', `/read/${t2.slug}`); assert.ok(r.status === 200 && (String(r.body).match(/rdr-pgf/g) || []).length === 2 && !/rdr-pgtog/.test(r.body), 'opens on the pages, no toggle');
+    r = await req(port, 'GET', `/library/${t2.slug}`); assert.ok(/Turn the pages/.test(r.body), 'the Library page offers the pages');
+    // A CSV of documents through Feeds in.
+    const prev = app.locals.__fetch;
+    app.locals.__fetch = async (u) => { u = String(u); if (/docs\.example\/list\.csv/.test(u)) return { ok: true, text: async () => 'title,author,pdf,year,source,terms\nThe Harbour Book Again,A Harbourmaster,https://docs.example/harbour2.pdf,1912,https://docs.example/harbour2,Public domain\nNo File,Nobody,https://docs.example/missing.pdf,,,\n' }; if (/harbour2\.pdf/.test(u)) return { ok: true, headers: { get: () => 'application/pdf' }, arrayBuffer: async () => pdf }; if (/missing\.pdf/.test(u)) return { ok: false, status: 404 }; return prev ? prev(u) : { ok: false, status: 404 }; };
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'POST', '/studio/feeds', { cookie: ck, body: { maker: String(inst.id), url: 'https://docs.example/list.csv', kind: 'documents', show: '1' } }); const fid = +((r.headers.location || '').match(/feeds\/(\d+)/) || [])[1]; assert.ok(fid, 'enqueued');
+    for (let i = 0; i < 400 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fid).status); i++) await new Promise(x => setTimeout(x, 50));
+    const job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid); assert.ok(job.status === 'done' && job.taken === 1 && job.failed === 1, 'one document in, the missing one named: ' + JSON.stringify({ s: job.status, t: job.taken, f: job.failed, n: job.note, m: job.missed }));
+    const t3 = db.prepare("SELECT * FROM texts WHERE source='https://docs.example/harbour2'").get(); assert.ok(t3 && t3.kind === 'document' && t3.year === '1912' && D.pagesOf(t3).length === 2 && t3.public === 1, 'the fed document shelved with its record');
+    app.locals.__fetch = prev;
+    r = await req(port, 'GET', '/studio/documents', { cookie: ck }); assert.ok(r.status === 200 && /The Harbour Book/.test(r.body) && /the file’s own · \d+ words/.test(r.body) && /pages only/.test(r.body), 'the desk');
+    r = await req(port, 'GET', '/studio/documents'); assert.ok(r.status === 403 || r.status === 302, 'a stranger refused');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='text.shelved' AND subject=? AND data LIKE '%\"from\":\"document\"%'").get(t.slug), 'told on the register');
+  }
+  console.log('ok: the document kind');
   { // The team: a museum invites its rights desk by letter; the person signs in as themselves and acts for the institution.
     const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
     r = await req(port, 'GET', '/account/staff', { cookie: `${ck}; wm_as=musee` }); assert.equal(r.status, 200); assert.ok(/The team\./.test(r.body), 'the team desk');
