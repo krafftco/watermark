@@ -1895,7 +1895,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const row = db.prepare("INSERT INTO texts (slug, title, author, kind, body, status, public) VALUES ('split-chapters', 'Split', 'Nobody', 'book', ?, 'held', 1) RETURNING id").get(`## Chapter I\n\n## Parents and Childhood\n\n${long}\n\n## Index\n\nAbbott, 3`);
     r = await req(port, 'POST', '/studio/reading/split-chapters/rechapter', { cookie: ck, body: { json: '1' } }); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body).chapters, 1, 'set again as one chapter');
     assert.ok(/^## Chapter I: Parents and Childhood/.test(db.prepare('SELECT body FROM texts WHERE id=?').get(row.id).body), 'the joined head in the body');
-    r = await req(port, 'POST', '/studio/reading/split-chapters/rechapter'); assert.equal(r.status, 403); }
+    r = await req(port, 'POST', '/studio/reading/split-chapters/rechapter'); assert.equal(r.status, 403);
+    // A numbered book: a salutation that read as a head is a paragraph of its chapter; CIVIL is a word, not a numeral.
+    const n2 = db.prepare("INSERT INTO texts (slug, title, author, kind, body, status, public) VALUES ('numbered-book', 'Numbered', 'Nobody', 'book', ?, 'held', 1) RETURNING id").get(`## Preface\n\nA word first.\n\n## Chapter I\n\n## Civil War Period\n\n${long}\n\n## Dear Mr. Carnegie:\n\nA letter quoted.\n\n## Chapter II\n\n## The Iron Works\n\n${long}\n\n## Gentlemen:\n\nAnother letter.\n\n## Chapter III\n\n## Bridge-building\n\n${long}`);
+    r = await req(port, 'POST', '/studio/reading/numbered-book/rechapter', { cookie: ck, body: { json: '1' } }); assert.equal(JSON.parse(r.body).chapters, 4, 'preface and three chapters: ' + r.body);
+    const nb = db.prepare('SELECT body FROM texts WHERE id=?').get(n2.id).body; assert.ok(/## Chapter I: Civil War Period/.test(nb) && /\*\*Dear Mr\. Carnegie:\*\*/.test(nb) && !/## Gentlemen/.test(nb), 'the letters folded in: ' + nb.slice(0, 300));
+    assert.equal(R.titleCase('CIVIL WAR PERIOD'), 'Civil War Period'); assert.equal(R.titleCase('CHAPTER XIV. THE RIVER'), 'Chapter XIV. The River'); }
   console.log('ok: the public domain and the reading room');
   { // The readers' feed and the commonplace book (27 Oct): one passage a screen on the paper, chosen so it reads whole; Keep copies it into your commonplace book (a true quotation, checked against the book); the book; a stranger sent to sign in.
     const CP = app.locals.commonplace; assert.ok(CP, 'mounted');

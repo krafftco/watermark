@@ -154,13 +154,16 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     if (cur.head || cur.paras.length) out.push(cur);
     const joined = []; for (let i = 0; i < out.length; i++) { const c = out[i], n = out[i + 1]; if (c.head && !c.paras.length && n && n.head && /^(CHAPTER|BOOK|PART|LETTER)\s+[\w.]+\.?$/i.test(c.head.trim()) && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(n.head)) { n.head = `${c.head.trim().replace(/\.$/, '')}: ${n.head.trim()}`; continue; } joined.push(c); }
     while (joined.length > 1 && /^(index|bibliography|footnotes|endnotes|glossary|transcriber|notes)\b/i.test(joined[joined.length - 1].head || '')) joined.pop();
-    return joined.map(c => (c.head ? `## ${c.head}\n\n` : '') + c.paras.join('\n\n')).join('\n\n');
+    const numbered = joined.filter(c => /^(CHAPTER|BOOK|PART|LETTER)\b/i.test(c.head || '')).length;
+    const kept = [];
+    for (const c of joined) { const h = c.head || ''; const stray = numbered >= 3 && h && !/^(CHAPTER|BOOK|PART|LETTER)\b/i.test(h) && !/^(preface|foreword|introduction|prologue|epilogue|afterword|conclusion|appendix|editor|author|dedication|contents|postscript)/i.test(h) && (/[:,;]$/.test(h) || h.split(/\s+/).length <= 3 || kept.length > 1); if (stray && kept.length) { const last = kept[kept.length - 1]; last.paras.push(`**${h}**`, ...c.paras); } else kept.push(c); }
+    return kept.map(c => (c.head ? `## ${c.head}\n\n` : '') + c.paras.join('\n\n')).join('\n\n');
   }
   // Set beautifully (Will, 24 Oct: "format them beautifully"): Gutenberg's typewriter habits become type. Straight quotes
   // curl, two hyphens become an em dash, three dots an ellipsis, _underscored_ words keep their italic as *word*,
   // a shouted heading (CHAPTER IV. THE RIVER) is set in title case, and a line of asterisks or dashes is a section break.
   const SMALL = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'of', 'in', 'on', 'at', 'to', 'by', 'for', 'with', 'from', 'as', 'is']);
-  const titleCase = h => h.split(/((?:[.:;—]|\s-)\s+)/).map((seg, k) => k % 2 ? seg : seg.toLowerCase().replace(/\b([ivxlc]+)\b/g, m => m.toUpperCase()).replace(/(^|[\s(—-])([a-z])([^\s]*)/g, (m, pre, c, rest, off) => { const w = c + rest; return pre + ((off > 0 && SMALL.has(w.replace(/[.,:;]$/, ''))) ? w : c.toUpperCase() + rest); })).join('');
+  const titleCase = h => h.split(/((?:[.:;—]|\s-)\s+)/).map((seg, k) => k % 2 ? seg : seg.toLowerCase().replace(/\b([ivxlc]+)\b/g, m => /^(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/.test(m) ? m.toUpperCase() : m).replace(/(^|[\s(—-])([a-z])([^\s]*)/g, (m, pre, c, rest, off) => { const w = c + rest; return pre + ((off > 0 && SMALL.has(w.replace(/[.,:;]$/, ''))) ? w : c.toUpperCase() + rest); })).join('');
   function polish(t) {
     return String(t)
       .replace(/(^|[\s(\[—])"/g, '$1“').replace(/"/g, '”')
