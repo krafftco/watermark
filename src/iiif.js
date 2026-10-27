@@ -82,17 +82,11 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   const placeOf = meta => { const hit = meta.find(x => /^(place|location|geography|site|city)$/i.test(x.label)); return hit ? hit.value.slice(0, 120) : null; };
   const yearOf = (it) => { const hit = it.meta.find(x => /^(date|year|created|dated)$/i.test(x.label)); const m = hit && String(hit.value).match(/\b(1[5-9]\d\d|20\d\d)\b/); return m ? m[1] : null; };
 
-  async function run(job) {
-    db.prepare("UPDATE iiif_imports SET status='running' WHERE id=?").run(job.id);
-    let man;
-    try { if (isMet(job.url)) man = await parseMet(job.url, doFetch, Math.min(MAX, job.max || MAX)); else { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); } }
-    catch (e) { db.prepare("UPDATE iiif_imports SET status='failed', note=?, finished_at=datetime('now') WHERE id=?").run(String(e.message).slice(0, 300), job.id); return; }
-    const LIM = Math.min(MAX, job.max || MAX); db.prepare('UPDATE iiif_imports SET label=?, n=? WHERE id=?').run(man.label.slice(0, 200), Math.min(man.items.length, LIM), job.id);
-    let done = 0, skipped = 0, failed = 0;
-    for (const it of man.items.slice(0, LIM)) {
-      if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) { skipped++; continue; }
-      const tmp = path.join(stage, `iiif-${job.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
-      try {
+  // One item through the door (shared with the feeds, feeds.js): the picture fetched, the work registered as the maker's, the licence and year set.
+  async function take(it, job, man = { label: '', meta: [] }) {
+    if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) return { skipped: true };
+    const tmp = path.join(stage, `feed-${job.id || 0}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
+    try {
         const r = await doFetch(it.image); if (!r.ok) throw new Error(`image ${r.status}`);
         fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
         const title = (it.label || man.label || 'Untitled').slice(0, 160);
@@ -102,8 +96,18 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
         const year = yearOf(it);
         db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(taken_at, ?), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', job.open || null, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
         if (job.open) { try { ledger.append(db, 'work.opened', w.slug, { licence: job.open, by: 'iiif' }); } catch (e) { /* */ } }
-        done++;
-      } catch (e) { failed++; try { fs.unlinkSync(tmp); } catch (x) { /* */ } if (/already held/.test(e.message)) { failed--; skipped++; } }
+        return { w };
+    } catch (e) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } if (/already held/.test(e.message)) return { skipped: true }; throw e; }
+  }
+  async function run(job) {
+    db.prepare("UPDATE iiif_imports SET status='running' WHERE id=?").run(job.id);
+    let man;
+    try { if (isMet(job.url)) man = await parseMet(job.url, doFetch, Math.min(MAX, job.max || MAX)); else { const r = await doFetch(job.url, { headers: { accept: 'application/ld+json, application/json' } }); if (!r.ok) throw new Error(`manifest ${r.status}`); man = parseManifest(await r.json()); } }
+    catch (e) { db.prepare("UPDATE iiif_imports SET status='failed', note=?, finished_at=datetime('now') WHERE id=?").run(String(e.message).slice(0, 300), job.id); return; }
+    const LIM = Math.min(MAX, job.max || MAX); db.prepare('UPDATE iiif_imports SET label=?, n=? WHERE id=?').run(man.label.slice(0, 200), Math.min(man.items.length, LIM), job.id);
+    let done = 0, skipped = 0, failed = 0;
+    for (const it of man.items.slice(0, LIM)) {
+      try { const r = await take(it, job, man); if (r.skipped) skipped++; else done++; } catch (e) { failed++; }
       db.prepare('UPDATE iiif_imports SET done=?, skipped=?, failed=? WHERE id=?').run(done, skipped, failed, job.id);
     }
     db.prepare("UPDATE iiif_imports SET status='done', done=?, skipped=?, failed=?, finished_at=datetime('now') WHERE id=?").run(done, skipped, failed, job.id);
@@ -192,7 +196,7 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
 <section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
   });
 
-  app.locals.iiif = { parseManifest, kick, run };
+  app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch };
   return app.locals.iiif;
 }
 module.exports = { mountIIIF, parseManifest, parseMet };

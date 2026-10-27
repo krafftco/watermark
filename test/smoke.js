@@ -1416,6 +1416,35 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.__fetch = prev;
   }
   console.log('ok: the Met, in');
+  { // Feeds in (27 Oct): the bulk door. A CSV by address: two rows in, one picture refused by its server and named as a miss, a retry; an OAI-PMH page read; a list of books.
+    const sharp = require('sharp'); const pic = await sharp({ create: { width: 900, height: 700, channels: 3, background: '#3a5a4a' } }).jpeg().toBuffer(); const pic2 = await sharp({ create: { width: 700, height: 900, channels: 3, background: '#6a3a3a' } }).jpeg().toBuffer();
+    const csv = 'title,image,source,place,date,medium,description,artist\n"The Harbour, Evening",https://feed.example/harbour.jpg,https://feed.example/o/1,Marseille,1888,Oil on canvas,"A harbour at dusk, two masts",Jean Dupont\nThe Lost One,https://feed.example/lost.jpg,https://feed.example/o/2,,,,,\n';
+    const oai = '<?xml version="1.0"?><OAI-PMH><ListRecords><record><header><identifier>oai:x:1</identifier></header><metadata><oai_dc:dc><dc:title>A Bridge</dc:title><dc:creator>Someone</dc:creator><dc:date>1900</dc:date><dc:identifier>https://feed.example/o/3</dc:identifier><dc:identifier>https://feed.example/bridge.jpg</dc:identifier><dc:coverage>Venice</dc:coverage></oai_dc:dc></metadata></record><record><header status="deleted"><identifier>oai:x:2</identifier></header></record><resumptionToken>tok2</resumptionToken></ListRecords></OAI-PMH>';
+    const FE = app.locals.feeds; const pg = FE.oaiPage(oai); assert.ok(pg.items.length === 1 && pg.items[0].image === 'https://feed.example/bridge.jpg' && pg.items[0].label === 'A Bridge' && pg.token === 'tok2' && pg.items[0].meta.some(m => m.label === 'Place' && m.value === 'Venice'), 'an OAI page read: ' + JSON.stringify(pg));
+    const rows = FE.csvItems(csv); assert.ok(rows.length === 2 && rows[0].label === 'The Harbour, Evening' && rows[0].artist.name === 'Jean Dupont' && rows[0].meta.some(m => m.label === 'Date' && m.value === '1888'), 'the CSV read: ' + JSON.stringify(rows[0]));
+    const prev = app.locals.__fetch; let lostOk = false;
+    app.locals.__fetch = async (u) => { u = String(u); if (/feed\.example\/list\.csv/.test(u)) return { ok: true, text: async () => csv }; if (/feed\.example\/harbour\.jpg/.test(u)) return { ok: true, arrayBuffer: async () => pic }; if (/feed\.example\/lost\.jpg/.test(u)) return lostOk ? { ok: true, arrayBuffer: async () => pic2 } : { ok: false, status: 503 }; return prev ? prev(u) : { ok: false, status: 404 }; };
+    const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
+    r = await req(port, 'POST', '/studio/feeds', { cookie: ck, body: { maker: String(inst.id), url: 'https://feed.example/list.csv', name: 'A test feed', open: 'pd', kind: 'auto' } }); assert.ok(/^\/studio\/feeds\/\d+/.test(r.headers.location), 'enqueued: ' + r.headers.location);
+    const fid = +r.headers.location.match(/feeds\/(\d+)/)[1];
+    for (let i = 0; i < 200 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fid).status); i++) await new Promise(x => setTimeout(x, 25));
+    let job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid); assert.ok(job.status === 'done' && job.taken === 1 && job.failed === 1 && job.looked === 2, 'one in, one missed: ' + JSON.stringify({ s: job.status, t: job.taken, f: job.failed, l: job.looked, n: job.note }));
+    const ms = FE.missesOf(job); assert.ok(ms.length === 1 && /503/.test(ms[0].why) && ms[0].label === 'The Lost One', 'the miss named with why');
+    const hb = db.prepare("SELECT * FROM works WHERE source_url='https://feed.example/o/1'").get(); assert.ok(hb && hb.title === 'The Harbour, Evening' && hb.open === 'pd' && hb.place === 'Marseille' && /1888/.test(hb.taken_at) && hb.status === 'hidden' && hb.maker_id === inst.id, 'the work as the institution\u2019s, held back: ' + JSON.stringify(hb && { t: hb.title, o: hb.open, p: hb.place, y: hb.taken_at, st: hb.status }));
+    r = await req(port, 'GET', `/studio/feeds/${fid}`, { cookie: ck }); assert.ok(r.status === 200 && /The misses/.test(r.body) && /The Lost One/.test(r.body) && /Retry the misses \(1\)/.test(r.body) && /What came in/.test(r.body), 'the run\u2019s page');
+    lostOk = true; r = await req(port, 'POST', `/studio/feeds/${fid}/retry`, { cookie: ck }); const rid = +r.headers.location.match(/feeds\/(\d+)/)[1]; assert.ok(rid > fid, 'a retry run');
+    for (let i = 0; i < 200 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(rid).status); i++) await new Promise(x => setTimeout(x, 25));
+    job = db.prepare('SELECT * FROM feeds WHERE id=?').get(rid); assert.ok(job.status === 'done' && job.taken === 1 && job.failed === 0 && job.retry_of === fid, 'the miss came in on the retry: ' + JSON.stringify({ s: job.status, t: job.taken, f: job.failed, l: job.looked, note: job.note, orig: db.prepare('SELECT missed FROM feeds WHERE id=?').get(fid).missed }));
+    assert.ok(db.prepare("SELECT 1 FROM works WHERE source_url='https://feed.example/o/2'").get(), 'the lost one held now');
+    r = await req(port, 'POST', '/studio/feeds', { cookie: ck, body: { maker: String(inst.id), url: 'https://feed.example/list.csv' } }); const fid2 = +r.headers.location.match(/feeds\/(\d+)/)[1];
+    for (let i = 0; i < 200 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fid2).status); i++) await new Promise(x => setTimeout(x, 25));
+    job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid2); assert.ok(job.status === 'done' && job.skipped === 2 && job.taken === 0, 'a second run skips what is held: ' + JSON.stringify({ s: job.status, sk: job.skipped, t: job.taken }));
+    r = await req(port, 'GET', '/studio/feeds', { cookie: ck }); assert.ok(r.status === 200 && /A test feed/.test(r.body) && /2 looked at · 1 in · 0 already held · 1 missed/.test(r.body), 'the desk');
+    r = await req(port, 'POST', '/studio/feeds', { body: { maker: String(inst.id), url: 'https://feed.example/list.csv' } }); assert.ok(r.status === 403 || r.status === 302 && !/feeds\/\d/.test(r.headers.location || ''), 'a stranger refused');
+    assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='collection.imported' AND subject=?").get(`feed-${fid}`), 'told on the register');
+    app.locals.__fetch = prev;
+  }
+  console.log('ok: feeds in');
   { // The team: a museum invites its rights desk by letter; the person signs in as themselves and acts for the institution.
     const inst = db.prepare("SELECT * FROM makers WHERE handle='musee'").get();
     r = await req(port, 'GET', '/account/staff', { cookie: `${ck}; wm_as=musee` }); assert.equal(r.status, 200); assert.ok(/The team\./.test(r.body), 'the team desk');
