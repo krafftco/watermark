@@ -448,7 +448,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.use(require('compression')({ threshold: 1024 }));
   const served = require('./served').mountServed(app, { publicDir: path.join(__dirname, '..', 'public'), cacheDir: cache, express }); // scripts and styles leave stripped (19 Oct)
   // The cold page as a static file, so an edge in front (CloudFront, 25 Oct) can hold it and show it while Render restarts.
-  app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=86400').send(V.offline()));
+  app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
 
