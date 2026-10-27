@@ -77,10 +77,10 @@ const CANON = [
   ['The Oedipus Trilogy', 'Sophocles', 31], ['Medea', 'Euripides', 35451], ['The Importance of Being Earnest', 'Wilde', 844], ['A Doll\'s House', 'Ibsen', 2542], ['Hedda Gabler', 'Ibsen', 4093],
   ['Doctor Faustus', 'Marlowe', 779], ['Pygmalion', 'Shaw', 3825], ['The Cherry Orchard', 'Chekhov', 7986], ['Tartuffe', 'Molière', 2027], ['Le Morte d\'Arthur', 'Malory', 1251],
   // History and lives
-  ['The History of the Decline and Fall of the Roman Empire', 'Gibbon', 25717], ['The History of Herodotus', 'Herodotus', 2707], ['The History of the Peloponnesian War', 'Thucydides', 7142], ['Plutarch\'s Lives', 'Plutarch', 674], ['Commentaries on the Gallic War', 'Caesar', 10657],
+  ['The History of the Decline and Fall of the Roman Empire', 'Gibbon', 25717], ['The History of Herodotus', 'Herodotus', 2707], ['The History of the Peloponnesian War', 'Thucydides', 7142], ['Plutarch\'s Lives', 'Plutarch', 14033, ['Plutarch\'s Lives, Volume I', 'Plutarch\'s Lives Volume 1', 'Plutarch\'s Lives']], ['Commentaries on the Gallic War', 'Caesar', 10657, ['De Bello Gallico and Other Commentaries', 'De Bello Gallico', 'Gallic War']],
   ['Democracy in America', 'Tocqueville', 815], ['Two Years Before the Mast', 'Dana', 2055], ['Up from Slavery', 'Washington, Booker T.', 2376], ['Twelve Years a Slave', 'Northup', 45631], ['Incidents in the Life of a Slave Girl', 'Jacobs', 11030],
   ['The Education of Henry Adams', 'Adams, Henry', 2044], ['Personal Memoirs of U. S. Grant', 'Grant', 4367], ['Autobiography of Andrew Carnegie', 'Carnegie', 17976], ['The Autobiography of Benjamin Franklin', 'Franklin', 20203], ['Life of Johnson', 'Boswell', 1564],
-  ['Autobiography of Benvenuto Cellini', 'Cellini', 4028], ['Autobiography', 'Mill, John Stuart', 10378], ['The Autobiography of Charles Darwin', 'Darwin', 2010], ['The Story of My Life', 'Keller', 2397], ['Lives of the Most Eminent Painters', 'Vasari', null],
+  ['Autobiography of Benvenuto Cellini', 'Cellini', 4028], ['Autobiography', 'Mill, John Stuart', 10378], ['The Autobiography of Charles Darwin', 'Darwin', 2010], ['The Story of My Life', 'Keller', 2397], ['Lives of the Most Eminent Painters', 'Vasari', 25326, ['Lives of the Most Eminent Painters, Sculptors and Architects', 'Lives of the Most Eminent Painters Sculptors and Architects, Vol. 1']],
   ['The Interesting Narrative of the Life of Olaudah Equiano', 'Equiano', 15399], ['Memoirs of General W. T. Sherman', 'Sherman', 4361], ['The Diary of Samuel Pepys', 'Pepys', 4200], ['Eminent Victorians', 'Strachey', 2447], ['The Life of Charlotte Brontë', 'Gaskell', 1827],
   // Ideas
   ['Apology', 'Plato', 1656], ['Symposium', 'Plato', 1600], ['The Enchiridion', 'Epictetus', 45109], ['The Consolation of Philosophy', 'Boethius', 14328], ['Discourse on the Method', 'Descartes', 59],
@@ -90,7 +90,7 @@ const CANON = [
   ['The Essays of Francis Bacon', 'Bacon', 575], ['Essays of Elia', 'Lamb', 10343], ['The Communist Manifesto', 'Marx', 61], ['Pragmatism', 'James, William', 5116], ['The Theory of the Leisure Class', 'Veblen', 833],
   // Faith
   ['The King James Bible', 'Anonymous', 10], ['The Imitation of Christ', 'Kempis', 1653], ['The Pilgrim\'s Progress', 'Bunyan', 131], ['The Bhagavad-Gita', 'Anonymous', 2388], ['The Dhammapada', 'Anonymous', 2017],
-  ['The Upanishads', 'Anonymous', null], ['The Interior Castle', 'Teresa of Avila', null], ['The Cloud of Unknowing', 'Anonymous', null], ['Revelations of Divine Love', 'Julian of Norwich', null], ['The Book of Tea', 'Okakura', 769],
+  ['The Upanishads', 'Anonymous', null], ['The Interior Castle', 'Teresa of Avila', null, ['The Interior Castle or The Mansions']], ['The Cloud of Unknowing', 'Anonymous', null, ['The Cloud of Unknowing']], ['Revelations of Divine Love', 'Julian', null, ['Revelations of Divine Love']], ['The Book of Tea', 'Okakura', 769],
   // Science
   ['The Voyage of the Beagle', 'Darwin', 944], ['The Chemical History of a Candle', 'Faraday', 14474], ['Micrographia', 'Hooke', 15491], ['Opticks', 'Newton', 33504], ['Relativity: The Special and General Theory', 'Einstein', 30155],
   ['The Notebooks of Leonardo da Vinci', 'Leonardo da Vinci', 5000], ['On the Nature of Things', 'Lucretius', 785], ['Dialogues Concerning Two New Sciences', 'Galilei', 37729], ['The Descent of Man', 'Darwin', 2300], ['An Introduction to Mathematics', 'Whitehead', 41568],
@@ -164,7 +164,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ? OR source = ?").get(`%gutenberg.org/ebooks/${id}`, `https://www.gutenberg.org/ebooks/${id}`); if (had) return { slug: had.slug, already: true };
     const rec = given || await meta(id);
     const f = rec.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
-    const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); const raw = await tr.text();
+    let raw = rec.raw; if (!raw) { const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); raw = await tr.text(); }
     const text = strip(raw); if (text.length < 2000) throw new Error('too little text');
     const chs = chapters(text); const body = toBody(chs);
     const author = (rec.authors && rec.authors[0] && rec.authors[0].name) || null; const title = tidy(String(rec.title || `Gutenberg ${id}`).split(/\r?\n/)[0].slice(0, 160));
@@ -186,9 +186,22 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   }
   // The number the house believes, checked against the record before it is trusted.
   async function verify(id, title, author, aliases = []) {
-    const m = await meta(id); const sur = norm(author.split(',')[0]).split(' ').pop();
-    for (const t of [title, ...(aliases || [])]) { const r = verifyTitle(m, t, author, sur); if (r) return r; }
+    const sur = norm(author.split(',')[0]).split(' ').pop();
+    let m = null; try { m = await meta(id); } catch (e) { m = null; }
+    if (m) for (const t of [title, ...(aliases || [])]) { const r = verifyTitle(m, t, author, sur); if (r) return r; }
+    // The record could not be read, or read as another title (Gutendex refuses now and then, and the ebook page's tags shift):
+    // the text's own header (Title:, Author:) is the surest record there is, and the text is kept so it is not fetched twice.
+    const h = await headerRecord(id); if (!h) return null;
+    for (const t of [title, ...(aliases || [])]) { const r = verifyTitle(h, t, author, sur); if (r) return r; }
     return null;
+  }
+  async function headerRecord(id) {
+    try {
+      const r = await doFetch(`https://www.gutenberg.org/ebooks/${id}.txt.utf-8`); if (!r.ok) return null; const raw = await r.text(); const head = raw.slice(0, 4000);
+      const title = unx((head.match(/^Title:\s*(.+)$/m) || [])[1] || '').trim(); const author = unx((head.match(/^Author:\s*(.+)$/m) || [])[1] || '').trim();
+      if (!title) return null;
+      return { id, title, authors: author ? author.split(/\s*(?:,|;|\band\b)\s*/).filter(Boolean).slice(0, 3).map(n => ({ name: n })) : [], formats: { 'text/plain; charset=utf-8': `https://www.gutenberg.org/ebooks/${id}.txt.utf-8` }, raw, subjects: [], bookshelves: [] };
+    } catch (e) { return null; }
   }
   function verifyTitle(m, title, author, sur) {
     const want = norm(title);
