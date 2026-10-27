@@ -2,11 +2,14 @@
 // house and the last copy of each is kept so the rooms you have walked are there when the connection is
 // not; photographs are kept as you see them, up to a few hundred, oldest out first. Nothing private is
 // cached: the studio, your gallery, the Studio, sign-in and anything with a key go straight to the house.
-const V = 'wm-2026-10-27shelf';
+const V = 'wm-2026-10-27fits';
 const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline'];
 const PRIVATE = /^\/(notices|api\/notices|basket|api\/basket|stroll|wander|api\/stroll|frame\/|tv$|show\/|cab\/|cabinet|showings|hang\/.*\/g\/|account|yours|studio|signin|signout|auth|api\/me|c\/|d\/|seat\/|k\/|collector\/|swap|market\/.*\/bid|library\/d\/|w\/[^/]+\/archive)/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== V + '-img' && k !== V + '-pages').map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+// Does the answer fit the file asked for? A stylesheet is text/css, a script is JavaScript, a picture is an image, a font a font; an HTML page is never any of them.
+const KIND = { css: /^text\/css/, js: /javascript|ecmascript/, mjs: /javascript|ecmascript/, svg: /^image\/svg/, png: /^image\//, jpg: /^image\//, jpeg: /^image\//, webp: /^image\//, gif: /^image\//, ico: /^image\//, json: /json/, webmanifest: /json|manifest/, woff: /font|octet/, woff2: /font|octet/, mp3: /^audio\//, html: /^text\/html/ };
+const fits = (path, res) => { if (!res.ok || res.type !== 'basic') return false; const t = (res.headers.get('content-type') || '').toLowerCase(); const ext = (path.match(/\.([a-z0-9]+)$/) || [])[1]; const k = ext && KIND[ext]; return k ? k.test(t) : !/^text\/html/.test(t); };
 const trim = async (name, max) => { const c = await caches.open(name); const ks = await c.keys(); if (ks.length > max) await Promise.all(ks.slice(0, ks.length - max).map(k => c.delete(k))); };
 self.addEventListener('fetch', e => {
   const r = e.request; if (r.method !== 'GET') return;
@@ -19,10 +22,13 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (PRIVATE.test(u.pathname) || u.searchParams.has('k')) return;
-  // The shell: cache first, refreshed in the background.
-  if (u.pathname.startsWith('/static/')) { e.respondWith(caches.open(V).then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok) c.put(r, res.clone()); return res; }).catch(() => hit); return hit || net; })); return; }
-  // Photographs as shown: cache first, a few hundred kept.
-  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok) { c.put(r, res.clone()); trim(V + '-img', 400); } return res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
+  // The shell: cache first, refreshed in the background. Never kept unless it is what was asked for (27 Oct: during a
+  // deploy's cold minute the edge answered /static/style.css with the cold page, 200 and HTML, and the worker kept it as
+  // the stylesheet, so every page on the phone came up bare until the cache was dropped): the answer's type must fit
+  // the file's name, and a wrong answer is never served over a good copy already held.
+  if (u.pathname.startsWith('/static/')) { e.respondWith(caches.open(V).then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (fits(u.pathname, res)) { c.put(r, res.clone()); return res; } return hit || res; }).catch(() => hit); return hit || net; })); return; }
+  // Photographs as shown: cache first, a few hundred kept; only a picture is ever kept as one.
+  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
   // Pages: the house first; the last copy if the house cannot be reached; the offline room if there is none.
   if (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html')) {
     e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic') caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); }); if (res.status >= 502 && res.status <= 504) return (await caches.match(r)) || (await caches.match('/offline')) || res; return res; })

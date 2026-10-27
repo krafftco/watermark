@@ -33,7 +33,8 @@ jobs:
         run: |
           fail=0
           for p in / /house /wander /library /listening /collection /makers /keys /about /healthz /api/v1 /app; do
-            c=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' "https://watermark.krafftco.com$p"); echo "$p $c"
+            c=$(curl -s -o /tmp/door -w '%{http_code} %{time_total}s' "https://watermark.krafftco.com$p"); echo "$p $c"
             case "${c%% *}" in 200|301|302) ;; *) echo "::error::$p answered ${c%% *}"; fail=1;; esac
+            if grep -q 'caught a cold' /tmp/door; then echo "::error::$p is the cold page (the edge answers it as 200)"; fail=1; fi
           done
           exit $fail
