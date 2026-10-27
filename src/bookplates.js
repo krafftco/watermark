@@ -96,8 +96,9 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
     if (on) return; on = true; job.on = true;
     while (q.length) {
       const slug = q.shift(); job.at++;
-      try { const t = db.prepare('SELECT * FROM texts WHERE slug=?').get(slug); if (!t || !t.body) continue; const rec = await recordOf(t); if (!rec) continue; const r = await bring(t, rec); if (r.n) job.done.push(`${t.title}: ${r.n}`); else job.missed.push(`${t.title}: ${r.why || 'none found'}`); } catch (e) { job.missed.push(`${slug}: ${e.message}`); }
+      try { const t = db.prepare('SELECT * FROM texts WHERE slug=?').get(slug); if (!t || !t.body) continue; const rec = await recordOf(t); if (!rec) continue; const r = await (app.locals.governor ? app.locals.governor.turn('pictures', () => bring(t, rec)) : bring(t, rec)); if (r.n) job.done.push(`${t.title}: ${r.n}`); else job.missed.push(`${t.title}: ${r.why || 'none found'}`); } catch (e) { job.missed.push(`${slug}: ${e.message}`); }
       await new Promise(r => setTimeout(r, app.locals.noTimers ? 0 : 1200));
+      if (app.locals.governor) await app.locals.governor.settle('pictures');
     }
     on = false; job.on = false;
   }

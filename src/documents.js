@@ -182,7 +182,8 @@ function mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, up
     if (on) return; on = true; job.on = true;
     while (q.length) {
       const it = q.shift(); job.at++; job.now = it.meta.title || it.meta.pdf || 'a document';
-      try { const r = it.src.ia ? await bringIA(it.src.ia, it.meta, { by: 'desk' }) : it.src.url ? await bringUrl({ ...it.meta, pdf: it.src.url }, { by: 'desk' }) : await take(it.src, it.meta, { by: 'desk' });
+      const one = () => it.src.ia ? bringIA(it.src.ia, it.meta, { by: 'desk' }) : it.src.url ? bringUrl({ ...it.meta, pdf: it.src.url }, { by: 'desk' }) : take(it.src, it.meta, { by: 'desk' });
+      try { const r = await (app.locals.governor ? app.locals.governor.turn('documents', one) : one());
         if (r.already) { job.done.push(`${it.meta.title || r.slug}: already on the shelf`); continue; } job.done.push(`${it.meta.title || r.slug}: ${r.pages || ''} pages${r.words ? `, ${r.words} words${r.ocr ? ` (${r.ocr} by OCR)` : ''}` : ', pages only'}`); }
       catch (e) { job.missed.push(`${it.meta.title || it.src.url || 'a document'}: ${e.message}`); }
       finally { for (const f of [it.src.pdf, ...(it.src.images || [])].filter(Boolean)) { try { fs.unlinkSync(f); } catch (e) { /* */ } } }

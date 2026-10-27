@@ -1443,6 +1443,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/studio/feeds', { cookie: ck }); assert.ok(r.status === 200 && /A test feed/.test(r.body) && /4 looked at · 3 in · 0 already held · 1 missed/.test(r.body), 'the desk');
     r = await req(port, 'POST', '/studio/feeds', { body: { maker: String(inst.id), url: 'https://feed.example/list.csv' } }); assert.ok(r.status === 403 || r.status === 302 && !/feeds\/\d/.test(r.headers.location || ''), 'a stranger refused');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='collection.imported' AND subject=?").get(`feed-${fid}`), 'told on the register');
+    // The governor (27 Oct): the house's chores take one lane and yield; a feed that ran through two restarts is paused, and Resume puts it back.
+    { const G = app.locals.governor; assert.ok(G && typeof G.turn === 'function' && G.state().limit > 0, 'the governor is mounted');
+      let order = []; await Promise.all([G.turn('a', async () => { await new Promise(x => setTimeout(x, 15)); order.push('a'); }), G.turn('b', async () => { order.push('b'); })]); assert.deepStrictEqual(order, ['a', 'b'], 'one lane, in turn');
+      db.prepare("UPDATE feeds SET status='running', restarts=2 WHERE id=?").run(fid2); app.locals.feeds.kick(); await new Promise(x => setTimeout(x, 120));
+      job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid2); assert.ok(job.status === 'paused' && /restarted twice/.test(job.note), 'paused after two restarts: ' + job.status);
+      r = await req(port, 'GET', `/studio/feeds/${fid2}`, { cookie: ck }); assert.ok(/Paused/.test(r.body) && /Resume where it left off/.test(r.body), 'the desk says Paused and offers Resume');
+      r = await req(port, 'POST', `/studio/feeds/${fid2}/resume`, { cookie: ck }); assert.ok(r.status === 302, 'resume');
+      for (let i = 0; i < 200 && !/done|failed/.test(db.prepare('SELECT status FROM feeds WHERE id=?').get(fid2).status); i++) await new Promise(x => setTimeout(x, 25));
+      job = db.prepare('SELECT * FROM feeds WHERE id=?').get(fid2); assert.ok(job.status === 'done' && job.restarts === 0, 'resumed and done: ' + job.status);
+      r = await req(port, 'GET', '/healthz', { cookie: ck }); assert.ok(/"governor":\{"rss":\d+/.test(r.body), 'the governor on /healthz'); }
     app.locals.__fetch = prev;
   }
   console.log('ok: feeds in');

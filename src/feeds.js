@@ -226,20 +226,24 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     let { looked, taken, skipped, failed } = job; const missed = job.retry_of ? [] : missesOf(job);
     const save = (cursor) => db.prepare('UPDATE feeds SET looked=?, taken=?, skipped=?, failed=?, missed=?, cursor=? WHERE id=?').run(looked, taken, skipped, failed, JSON.stringify(missed.slice(-500)), cursor == null ? null : String(cursor), job.id);
     try {
+      // Each item, one turn of the lane.
+      async function one(it, pg) {
+            if (it.miss) throw new Error(it.miss);
+            if (it.book) { const r = await bringBook(it.book, job); if (r.already) skipped++; else taken++; }
+            else if (it.se) { const SE = app.locals.standard; const r = await SE.bring(it.se, { by: 'feed' }); if (r.already) skipped++; else taken++; }
+            else if (it.ia) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); const r = await D.bringIA(it.ia, { public: job.show ? 1 : 0, open: job.open ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
+            else if (it.guide) { const AG = app.locals.audioGuides; if (!AG) throw new Error('the guides room is not mounted'); const r = await AG.bringRow(it.guide, job); if (r.already) skipped++; else taken++; }
+            else if (it.doc) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); if (!it.doc.pdf) throw new Error('a row needs a pdf address'); const r = await D.bringUrl({ ...it.doc, public: job.show ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
+            else { const r = await I.take(it, job, pg.man); if (r.skipped) skipped++; else taken++; }
+      }
       const source = job.retry_of ? (async function* () { yield { items: missesOf(db.prepare('SELECT missed FROM feeds WHERE id=?').get(job.retry_of)).map(m => m.item).filter(Boolean), cursor: null }; })() : pages(job);
       for await (const pg of source) {
         for (const it of pg.items) {
           if (stopAsked) { db.prepare("UPDATE feeds SET status='stopped', finished_at=datetime('now') WHERE id=?").run(job.id); save(pg.cursor); current = null; return; }
           looked++;
-          try {
-            if (it.miss) throw new Error(it.miss);
-            if (it.book) { const r = await bringBook(it.book, job); if (r.already) skipped++; else taken++; }
-            else if (it.se) { const SE = app.locals.standard; const r = await SE.bring(it.se, { by: 'feed' }); if (r.already) skipped++; else taken++; }
-            else if (it.ia) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); const r = await D.bringIA(it.ia, { public: job.show ? 1 : 0, open: job.open ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
-            else if (it.guide) { const G = app.locals.audioGuides; if (!G) throw new Error('the guides room is not mounted'); const r = await G.bringRow(it.guide, job); if (r.already) skipped++; else taken++; }
-            else if (it.doc) { const D = app.locals.documents; if (!D) throw new Error('the document room is not mounted'); if (!it.doc.pdf) throw new Error('a row needs a pdf address'); const r = await D.bringUrl({ ...it.doc, public: job.show ? 1 : 0 }, { by: 'feed' }); if (r.already) skipped++; else taken++; }
-            else { const r = await I.take(it, job, pg.man); if (r.skipped) skipped++; else taken++; }
-          } catch (e) { failed++; missed.push({ id: it.id, label: String(it.label || '').slice(0, 120), why: String(e.message).slice(0, 160), item: it }); }
+          const G = app.locals.governor;
+          try { await (G ? G.turn('feed', () => one(it, pg)) : one(it, pg)); }
+          catch (e) { failed++; missed.push({ id: it.id, label: String(it.label || '').slice(0, 120), why: String(e.message).slice(0, 160), item: it }); }
           if (looked % 5 === 0) save(pg.cursor);
         }
         save(pg.cursor);
@@ -258,7 +262,9 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     return R.bring(b.id, { by: 'feed', meta: b.formats ? b : null });
   }
   let running = null;
-  function kick() { if (running) return; const job = db.prepare("SELECT * FROM feeds WHERE status IN ('queued','running') ORDER BY id LIMIT 1").get(); if (!job) return; running = run(job).catch(e => console.error('[feeds]', e.message)).finally(() => { running = null; setTimeout(kick, 50); }); }
+  function kick() { if (running) return; const job = db.prepare("SELECT * FROM feeds WHERE status IN ('queued','running') ORDER BY id LIMIT 1").get(); if (!job) return;
+    if ((job.restarts || 0) >= 2) { db.prepare("UPDATE feeds SET status='paused', note='The house restarted twice while this ran. Look at the misses, then Resume.' WHERE id=?").run(job.id); console.log('[feeds] paused', job.id, 'after two restarts'); return setTimeout(kick, 50); }
+    running = run(job).catch(e => console.error('[feeds]', e.message)).finally(() => { running = null; setTimeout(kick, 50); }); }
   function enqueue(body, file) {
     const m = db.prepare('SELECT * FROM makers WHERE id=? OR handle=?').get(+body.maker || 0, String(body.maker || '').trim()); if (!m) throw new Error('which maker');
     const url = String(body.url || '').trim(); if (!url && !file) throw new Error('an address or a file');
@@ -268,11 +274,14 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     setTimeout(kick, app.locals.noTimers ? 0 : 20); return id;
   }
   function retry(id) { const j = db.prepare('SELECT * FROM feeds WHERE id=?').get(id); if (!j || !missesOf(j).length) return null; const nid = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, retry_of) VALUES (?,?,?,?,?,?,?,?,?)').run(`${j.name || j.url || 'feed'} · the misses`, j.kind, j.url, j.file, j.maker_id, j.open, j.show, j.max, j.id).lastInsertRowid; setTimeout(kick, app.locals.noTimers ? 0 : 20); return nid; }
-  // A restart puts a running job back in the queue; the cursor resumes it.
-  db.prepare("UPDATE feeds SET status='queued' WHERE status='running'").run(); if (!app.locals.noTimers) setTimeout(kick, 15000).unref();
+  // A restart puts a running job back in the queue; the cursor resumes it, two minutes after the house is up (the house breathes first).
+  // A job that was running through two restarts is paused instead: it may be what brought the house down (27 Oct).
+  try { db.exec('ALTER TABLE feeds ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* held */ }
+  db.prepare("UPDATE feeds SET status='queued', restarts=restarts+1 WHERE status='running'").run(); if (!app.locals.noTimers) setTimeout(kick, 120000).unref();
+  app.post('/studio/feeds/:id/resume', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare("UPDATE feeds SET status='queued', restarts=0, note=NULL WHERE id=? AND status IN ('paused','stopped','failed')").run(+req.params.id); setTimeout(kick, app.locals.noTimers ? 0 : 20); res.redirect('/studio/feeds/' + req.params.id); });
 
   const mk = db.prepare("SELECT id, name, handle, kind FROM makers WHERE standing IS NULL OR standing<>'held' ORDER BY CASE kind WHEN 'institution' THEN 0 ELSE 1 END, name");
-  const word = j => ({ queued: 'Waiting', running: 'Coming in', done: 'Done', failed: 'Failed', stopped: 'Stopped' }[j.status] || j.status);
+  const word = j => ({ queued: 'Waiting', running: 'Coming in', done: 'Done', failed: 'Failed', stopped: 'Stopped', paused: 'Paused' }[j.status] || j.status);
   const line = j => `${j.looked} looked at · ${j.taken} in · ${j.skipped} already held · ${j.failed} missed`;
   app.get('/studio/feeds', studioOnly, (req, res) => {
     const rows = db.prepare('SELECT f.*, m.name AS maker FROM feeds f JOIN makers m ON m.id=f.maker_id ORDER BY f.id DESC LIMIT 60').all(); const live = rows.some(r => r.status === 'running' || r.status === 'queued');
@@ -289,7 +298,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}${req.query.err ?
 <label>At most <input name="max" type="number" min="1" max="${MAX}" placeholder="${MAX}"></label>
 <label class="chk"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label>
 <button class="buy-btn">Bring it in</button></form>
-<h2>The runs</h2>${rows.length ? `<table class="tbl"><tr><th>Feed</th><th>For</th><th>State</th><th>So far</th><th></th></tr>${rows.map(r => `<tr><td><a href="/studio/feeds/${r.id}">${esc(r.name || r.url || r.file || 'a file')}</a><br><small>${esc(kindOf(r))}${r.retry_of ? ` · the misses of No. ${r.retry_of}` : ''}</small></td><td>${esc(r.maker)}</td><td>${word(r)}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}</td><td>${line(r)}</td><td>${r.status === 'running' || r.status === 'queued' ? `<form method="post" action="/studio/feeds/${r.id}/stop"><button>Stop</button></form>` : missesOf(r).length && !r.retry_of ? `<form method="post" action="/studio/feeds/${r.id}/retry"><button>Retry the misses</button></form>` : ''}</td></tr>`).join('')}</table>` : '<p class="note">No feed has come in yet.</p>'}</main>` }));
+<h2>The runs</h2>${rows.length ? `<table class="tbl"><tr><th>Feed</th><th>For</th><th>State</th><th>So far</th><th></th></tr>${rows.map(r => `<tr><td><a href="/studio/feeds/${r.id}">${esc(r.name || r.url || r.file || 'a file')}</a><br><small>${esc(kindOf(r))}${r.retry_of ? ` · the misses of No. ${r.retry_of}` : ''}</small></td><td>${esc(r.maker)}</td><td>${word(r)}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}</td><td>${line(r)}</td><td>${r.status === 'running' || r.status === 'queued' ? `<form method="post" action="/studio/feeds/${r.id}/stop"><button>Stop</button></form>` : r.status === 'paused' ? `<form method="post" action="/studio/feeds/${r.id}/resume"><button>Resume</button></form>` : missesOf(r).length && !r.retry_of ? `<form method="post" action="/studio/feeds/${r.id}/retry"><button>Retry the misses</button></form>` : ''}</td></tr>`).join('')}</table>` : '<p class="note">No feed has come in yet.</p>'}</main>` }));
   });
   app.post('/studio/feeds', studioOnly, upload.single('file'), (req, res) => {
     try { const f = req.file ? req.file.path : null; if (f && /\.(txt|list)$/i.test(req.file.originalname || '') && (req.body.kind === 'auto' || !req.body.kind)) req.body.kind = 'books'; const id = enqueue(req.body || {}, f); res.redirect(`/studio/feeds/${id}?ok=` + encodeURIComponent('The feed is coming in, one work at a time; this page follows it.')); }
@@ -302,7 +311,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}${req.query.err ?
     res.send(V.layout({ title: `${r.name || 'A feed'} · Feeds in`, path: `/studio/feeds/${r.id}`, desc: '', studio: true, body: `${live ? '<script>setTimeout(function(){location.reload()},3000)</script>' : ''}<main class="wrap fe"><p class="k"><a href="/studio/feeds">Feeds in</a></p><h1>${esc(r.name || r.url || 'A feed')}</h1>
 ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}<p class="lede">${word(r)} · for ${esc(r.maker)} · ${esc(kindOf(r))}${r.open ? ` · ${esc(r.open)}` : ''}${r.show ? ' · shown at once' : ' · held back for review'}</p>
 <p><b>${line(r)}</b>${r.note ? ` · ${esc(r.note)}` : ''}${r.cursor && live ? ` · at ${esc(r.cursor.slice(0, 40))}` : ''}</p>
-${live ? `<form method="post" action="/studio/feeds/${r.id}/stop"><button>Stop</button></form>` : ''}${missed.length && !r.retry_of ? `<form method="post" action="/studio/feeds/${r.id}/retry"><button class="buy-btn">Retry the misses (${missed.length})</button></form>` : ''}
+${live ? `<form method="post" action="/studio/feeds/${r.id}/stop"><button>Stop</button></form>` : ['paused', 'stopped', 'failed'].includes(r.status) ? `<form method="post" action="/studio/feeds/${r.id}/resume"><button>Resume where it left off</button></form>` : ''}${missed.length && !r.retry_of ? `<form method="post" action="/studio/feeds/${r.id}/retry"><button class="buy-btn">Retry the misses (${missed.length})</button></form>` : ''}
 ${missed.length ? `<h2>The misses</h2><table class="tbl"><tr><th>Item</th><th>Why</th></tr>${missed.slice(-200).reverse().map(m => `<tr><td>${esc(m.label || m.id)}<br><small>${esc(String(m.id || '').slice(0, 100))}</small></td><td>${esc(m.why)}</td></tr>`).join('')}</table>` : ''}
 ${came.length ? `<h2>What came in</h2><div class="fe-came">${came.map(w => `<a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span>${esc(w.title)}${w.status === 'hidden' ? ' · held back' : ''}</span></a>`).join('')}</div>` : ''}</main>` }));
   });
