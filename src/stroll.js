@@ -87,6 +87,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const n = Math.max(1, Math.min(16, parseInt(req.query.n, 10) || PAGE));
+    if (req.query.in === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages(seen, n) : []; return res.set('Cache-Control', 'no-store').json({ items, end: items.length < n, label: 'The shelf', href: '/library' }); }
     if (req.query.in) { const r = inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
     res.set('Cache-Control', 'no-store').json({ items: next(req, { seen, q, maker, n }), q, maker });
   });
@@ -148,7 +149,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     let reading = 0; try { reading = b ? db.prepare("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'").get(b.id).n : 0; } catch (e) { reading = 0; }
     const verbs = `<nav class="sd-verbs" aria-label="The house">${[
       ['/wander', 'Look', 'Wander everything', I.wave || ''],
-      [reading ? '/yours/reading' : '/library', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'The Library', I.facing || I.page || ''],
+      [reading ? '/yours/reading' : '/wander?in=shelf', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'Wander the shelf', I.facing || I.page || ''],
       ['/listening', 'Listen', 'The Listening Room', I.play || ''],
       ['/collection', 'Collect', 'The collection', I.collect || ''],
       [m ? '/account' : '/makers', 'Make', m ? 'Your studio' : 'For those who make', I.pencil || I.plus || '']
@@ -167,6 +168,8 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(req.query.in || '').slice(0, 80);
     const at = req.query.at ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
+    // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
+    if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect('/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
     let items = set ? set.items : next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
@@ -178,12 +181,14 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
 }
 
 // The page: the first photographs are in the HTML, so the stroll begins the instant it opens; the script carries on.
-function strollPage({ items, q = '', maker = null, set = null, I, front = false }) {
+function strollPage({ items, q = '', maker = null, set = null, I, front = false, shelf = false }) {
   const V = require('./views');
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
   const bookObj = w => `<a class="st-bk${w.cover ? '' : ' st-bound'}" href="/read/${esc(w.book)}"><img src="${esc(w.cover || `/binding/${encodeURIComponent(w.book)}.svg`)}" alt=""><span class="bk3-e"></span></a>`;
   const recordCard = w => `<section class="st-i st-rec" data-slug="${esc(w.slug)}" data-kind="record"><article class="st-rc"><a class="st-rdisc" href="${esc(w.href)}"><img src="${esc(w.img)}" alt="" loading="lazy"></a><p class="k">From the Listening Room</p><h2>${esc(w.title)}</h2><p class="st-rby">${esc(w.by)}${w.composer ? ` · ${esc(w.composer)}` : ''}${w.year ? ` · ${esc(w.year)}` : ''}</p>${w.line ? `<p class="st-rline">${esc(w.line)}</p>` : ''}<div class="st-racts"><button type="button" class="st-rplay" data-st-rplay data-src="${esc(w.url)}">${I.play}${I.pause}<span>Play ${esc(w.side)}</span></button><a class="st-rgo" href="${esc(w.href)}">Into the room${w.n > 1 ? ` · ${w.n} sides` : ''}</a></div></article></section>`;
-  const textCard = w => `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text">${bookObj(w)}<article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a><p class="st-txacts"><button type="button" data-st-keep title="Keep it on your shelf: among your books, to read when you like">${I.plus}<span>Keep</span></button><button type="button" data-st-share title="Send the book to someone">${I.share}<span>Share</span></button></p></article></section>`;
+  const textCard = w => w.passage
+    ? `<section class="st-i st-txt st-pas" data-slug="${esc(w.slug)}" data-kind="text"><article class="st-tx"><p class="k">A passage</p><div class="st-txb st-pasb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><p class="st-pasrc">— ${w.author ? `${esc(w.author)}, ` : ''}<i>${esc(w.title)}</i>${w.head ? `<span>${esc(w.head)}</span>` : ''}</p><div class="st-pasfoot">${bookObj(w)}<div><a class="st-txgo" href="${esc(w.href)}">Open the book here</a><p class="st-txacts"><button type="button" data-st-cp title="Keep it in your commonplace book: passages copied out of what you read, in your own hand">${I.plus}<span>Keep</span></button><button type="button" data-st-share title="Send the passage to someone, on its card">${I.share}<span>Share</span></button></p></div></div></article></section>`
+    : `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text">${bookObj(w)}<article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a><p class="st-txacts"><button type="button" data-st-keep title="Keep it on your shelf: among your books, to read when you like">${I.plus}<span>Keep</span></button><button type="button" data-st-share title="Send the book to someone">${I.share}<span>Share</span></button></p></article></section>`;
   const card = (w, i) => w.kind === 'text' ? textCard(w) : w.kind === 'record' ? recordCard(w) : `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span><a class="st-tog" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>${I.wave}Wander</b><span>${I.shield}Watermark</span></a></div>

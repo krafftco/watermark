@@ -25,6 +25,11 @@
       el.innerHTML = '<article class="st-rc"><a class="st-rdisc" href="' + esc(w.href) + '"><img src="' + esc(w.img) + '" alt="" loading="lazy"></a><p class="k">From the Listening Room</p><h2>' + esc(w.title) + '</h2><p class="st-rby">' + esc(w.by) + (w.composer ? ' · ' + esc(w.composer) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</p>' + (w.line ? '<p class="st-rline">' + esc(w.line) + '</p>' : '') + '<div class="st-racts"><button type="button" class="st-rplay" data-st-rplay data-src="' + esc(w.url) + '">' + (ic.play || '') + (ic.pause || '') + '<span>Play ' + esc(w.side) + '</span></button><a class="st-rgo" href="' + esc(w.href) + '">Into the room' + (w.n > 1 ? ' · ' + w.n + ' sides' : '') + '</a></div></article>';
       return el;
     }
+    if (w.kind === 'text' && w.passage) {
+      el.className = 'st-i st-txt st-pas'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'text');
+      el.innerHTML = '<article class="st-tx"><p class="k">A passage</p><div class="st-txb st-pasb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><p class="st-pasrc">— ' + (w.author ? esc(w.author) + ', ' : '') + '<i>' + esc(w.title) + '</i>' + (w.head ? '<span>' + esc(w.head) + '</span>' : '') + '</p><div class="st-pasfoot"><a class="st-bk' + (w.cover ? '' : ' st-bound') + '" href="/read/' + esc(w.book) + '"><img src="' + esc(w.cover || ('/binding/' + encodeURIComponent(w.book) + '.svg')) + '" alt=""><span class="bk3-e"></span></a><div><a class="st-txgo" href="' + esc(w.href) + '">Open the book here</a><p class="st-txacts"><button type="button" data-st-cp title="Keep it in your commonplace book">' + (ic.plus || '') + '<span>Keep</span></button><button type="button" data-st-share title="Send the passage to someone, on its card">' + (ic.share || '') + '<span>Share</span></button></p></div></div></article>';
+      return el;
+    }
     if (w.kind === 'text') {
       el.className = 'st-i st-txt'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'text');
       el.innerHTML = '<a class="st-bk' + (w.cover ? '' : ' st-bound') + '" href="/read/' + esc(w.book) + '"><img src="' + esc(w.cover || ('/binding/' + encodeURIComponent(w.book) + '.svg')) + '" alt=""><span class="bk3-e"></span></a><article class="st-tx"><p class="k">From the shelf</p><h2>' + esc(w.title) + '</h2>' + (w.author ? '<p class="st-txa">' + esc(w.author) + '</p>' : '') + (w.head ? '<p class="st-txh">' + esc(w.head) + '</p>' : '') + '<div class="st-txb">' + (w.excerpt || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div><a class="st-txgo" href="' + esc(w.href) + '">Read on' + (w.n ? ' · ' + w.n + ' chapters' : '') + '</a><p class="st-txacts"><button type="button" data-st-keep title="Keep it on your shelf: among your books, to read when you like">' + (ic.plus || '') + '<span>Keep</span></button><button type="button" data-st-share title="Send the book to someone">' + (ic.share || '') + '<span>Share</span></button></p></article>';
@@ -200,7 +205,18 @@
       if (r.redirected || r.status === 401) { location.href = '/signin?next=' + encodeURIComponent('/read/' + w.book + '?keep=1') + '&why=shelf'; return null; } return r.json();
     }).then(function (j) { if (!j) return; if (j.ok) { b.setAttribute('aria-pressed', 'true'); b.querySelector('span').textContent = 'On your shelf'; say('On your shelf. Read it when you like.'); } }).catch(function () { location.href = '/read/' + w.book + '?keep=1'; });
   }
+  function keepPassage(w, b) {
+    fetch('/commonplace/keep', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: 'json=1&book=' + encodeURIComponent(w.book) + '&c=' + (w.c || 0) + '&p=' + (w.p || 0), credentials: 'same-origin' }).then(function (r) {
+      if (r.status === 401) { location.href = '/signin?next=' + encodeURIComponent('/wander?in=shelf') + '&why=commonplace'; return null; } return r.json();
+    }).then(function (j) { if (!j) return; if (j.ok) { b.setAttribute('aria-pressed', 'true'); b.querySelector('span').textContent = 'Kept'; say('Copied into your commonplace book' + (j.n ? ' · ' + j.n + ' passage' + (j.n === 1 ? '' : 's') : '') + '.'); } }).catch(function () {});
+  }
   function share(w) {
+    if (w.kind === 'text' && w.passage) {
+      var pu = location.origin + w.href, pt = '“' + (w.excerpt && w.excerpt[0] ? w.excerpt[0].slice(0, 200) : '') + '” — ' + (w.author ? w.author + ', ' : '') + w.title;
+      if (navigator.share) navigator.share({ title: w.title, text: pt, url: pu }).catch(function () {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(pu).then(function () { say('Link copied. It opens the book at the passage.'); });
+      return;
+    }
     if (w.kind === 'text') {
       var bu = location.origin + '/read/' + encodeURIComponent(w.book) + (w.c ? '?c=' + w.c : ''), bt = w.title + (w.author ? ', by ' + w.author : '') + '. Read it in the house, free, and keep it on your shelf.';
       if (navigator.share) navigator.share({ title: w.title, text: bt, url: bu }).catch(function () {});
@@ -224,6 +240,7 @@
     else if (b.hasAttribute('data-st-card')) card(w);
     else if (b.hasAttribute('data-st-share')) share(w);
     else if (b.hasAttribute('data-st-keep')) keepBook(w, b);
+    else if (b.hasAttribute('data-st-cp')) keepPassage(w, b);
   });
   // The first Save explains itself once (24 Oct: the buttons must get people to do things; each says what it gets you).
   root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-st-hang]'); if (!b) return; try { if (localStorage.getItem('wm_save_told')) return; localStorage.setItem('wm_save_told', '1'); } catch (x) { return; } setTimeout(function () { say('Saved to a wall of yours. Find it again in Yours, any time.', 3600); }, 900); });
