@@ -34,9 +34,12 @@ Two houses from one repository:
 The rhythm: build on `next` all day at the speed we build now; the public house takes one or two promotions a day
 (each is a minute of the cold page at the edge) and nothing it has not already run.
 
-Will's hands to open the room (fifteen minutes): Render → New → Blueprint → `render.staging.yaml`; set the
-environment values marked sync:false there (test Stripe keys, Resend, a MAIL_ALLOW of the testers); a CNAME
-`next.watermark` → the Render address. Then say so, and the branch flow begins.
+Opened 27 Oct 2026, 9:47 pm ET: the service `watermark-next` (srv-dbgl85uc6qcc73c06mp0, Oregon, Starter, a 5 GB
+disk at /data, health check /healthz) was made by hand from the dashboard (not a blueprint), with the non-secret
+values of `render.staging.yaml` and generated SESSION_SECRET and VAULT_KEY. Will's hands, still: ADMIN_PASSWORD,
+MAIL_ALLOW, RESEND_API_KEY, the test Stripe keys and STRIPE_WEBHOOK_SECRET in its Environment; a CNAME
+`next.watermark` → its Render address in Route 53. Without the secrets it runs with mail and Stripe off, which is
+enough to walk a change. The branch flow begins now: build on `next`, walk it there, promote to `main`.
 
 ## The next three, in order
 

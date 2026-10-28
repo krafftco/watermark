@@ -29,7 +29,9 @@ function mountDigest(app, { db, C, mail, ledger }) {
     const lines = [];
     lines.push(`Watermark, the morning digest · ${new Date().toUTCString().slice(0, 16)} · ${(process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || 'dev'} · up ${Math.round(process.uptime() / 3600)} h`);
     lines.push('');
+    const ST = app.locals.strangers ? app.locals.strangers() : null;
     lines.push('THE WEEK');
+    if (ST) lines.push(`  THE NUMBER: ${n(ST.week)} collected by strangers this week · ${n(ST.last)} last week`);
     lines.push(`  ${n(cur.visitors)} visitors · ${n(cur.views)} pages · ${n(cur.stood)} stood · ${n(cur.hats)} hats · ${n(cur.bravos)} bravos`);
     lines.push(`  ${n(cur.collects)} collected for ${money(cur.cents || 0)} · ${n(cur.firstTimers)} first-time collectors · ${n(cur.signins)} sign-ins · ${n(cur.newMakers)} new makers · ${n(cur.asked)} asked`);
     if (yesterday) lines.push(`  yesterday: ${n(yesterday.visitors)} visitors, ${n(yesterday.views)} pages`);
@@ -103,7 +105,7 @@ function mountDigest(app, { db, C, mail, ledger }) {
     set('digest_day', day);
     const text = compose();
     ledger.append(db, 'house.digest', 'house', {});
-    if (mail.on()) await mail.send({ to: TO, subject: `Watermark, this morning: ${text.split('\n')[3].trim()}`, text }).catch(e => console.error('[digest]', e.message));
+    if (mail.on()) await mail.send({ to: TO, subject: `Watermark, this morning: ${(text.split('\n').find(l => /THE NUMBER/.test(l)) || text.split('\n')[3]).trim().replace('THE NUMBER: ', '')}`, text }).catch(e => console.error('[digest]', e.message));
     else console.log('[digest]\n' + text);
     return text;
   }

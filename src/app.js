@@ -498,6 +498,16 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.locals.isStudio = req => isStudio(req);
   app.locals.studioBump = () => { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('studio_sess', ?)").run(String(Date.now())); };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
+  // The one number (Will, 27 Oct, after the Musk prescription): paid personal Collects by strangers this week against last.
+  // A stranger is a collector who is not a maker of the house and not the house's own gallery: the people who found
+  // the house and paid for a piece with no relationship to anyone in it. Everything else on the desk is context.
+  app.locals.strangers = () => {
+    const one = (from, to) => { try { return db.prepare(`SELECT COUNT(*) n FROM licenses l JOIN uses u ON u.id=l.use_id JOIN buyers b ON b.id=l.buyer_id
+      WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND u.key IN ('social','reference') AND l.starts_at >= ? AND l.starts_at < ?
+      AND NOT EXISTS (SELECT 1 FROM makers m WHERE m.buyer_id=b.id OR (m.email IS NOT NULL AND b.email IS NOT NULL AND lower(m.email)=lower(b.email)))`).get(from, to).n; } catch (e) { return 0; } };
+    const d = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    return { week: one(d(7), d(-1)), last: one(d(14), d(7)) };
+  };
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
@@ -1858,6 +1868,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let desk = null;
     try {
       const D = app.locals.deskSummary ? app.locals.deskSummary() : null; const q = (sql, dflt = 0) => { try { return db.prepare(sql).get().n; } catch (e) { return dflt; } };
+      const ST = app.locals.strangers();
       const asks = q("SELECT COUNT(*) n FROM house_asks WHERE status='open' OR status IS NULL"), restoring = q("SELECT COUNT(*) n FROM works WHERE status='restoring'"), lost = (vaultState.lost || []).length;
       const lastBackup = (() => { try { return db.prepare("SELECT at FROM backup_runs WHERE kind='backup' AND ok=1 ORDER BY id DESC LIMIT 1").get(); } catch (e) { return null; } })();
       const need = needs.filter(x => x.n > 0);
@@ -1870,7 +1881,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING d >= 0 ORDER BY d`).all().map(r => r.d);
         if (days.length < 2) return null; const med = days[Math.floor(days.length / 2)]; return `${Math.round(med)} day${Math.round(med) === 1 ? '' : 's'} from joining, the median of ${days.length}`; })();
       desk = {
-        line: [[V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
+        line: [[String(ST.week), `collected by strangers this week · ${ST.last} last week`], [V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
         needs: [
           N.requests ? ['/studio/licenses', 'Answer', `${N.requests} license request${N.requests === 1 ? '' : 's'}`] : null,
           N.applications ? ['/studio/makers', 'Decide', `${N.applications} maker${N.applications === 1 ? '' : 's'} asking to join`] : null,
