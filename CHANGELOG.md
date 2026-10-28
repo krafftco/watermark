@@ -4,6 +4,10 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.2.1 · The morning digest · 27 October 2026
+
+One letter a day to the house: the week in numbers, what went wrong, how fast, the state of the keeping (vault, backups, fixity, conservation, mail), what needs the house. And an alarm, at most once an hour, only when something is wrong.
+
 ## 1.2 · Your devices · 27 October 2026
 
 Every phone and computer signed in as you, on one page (Yours → Settings → Your devices). The house writes to you when a sign-in comes from a device it has not seen; you can sign one out, or everywhere at once, and only a fresh code to your email gets back in. A letter when a bank is connected, and when another address is given the keys to a studio.

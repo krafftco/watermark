@@ -1227,6 +1227,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.edge = EDGE;
   // After a boot the edge may still be handing out the cold page it cached during the restart: clear it once the house is up (27 Oct).
   if (!cfg.noTimers && EDGE.on()) setTimeout(() => EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
+  // The digest, read now (27 Oct): the morning letter as it would go, and the alarm sent by hand.
+  app.get('/studio/digest', studioOnly, (req, res) => { res.type('text/plain').send(app.locals.digest ? app.locals.digest.compose() : 'no digest'); });
+  app.post('/studio/digest/send', studioOnly, async (req, res) => { if (app.locals.digest) await app.locals.digest.digest({ force: true }); res.redirect('/studio?ok=' + encodeURIComponent('The digest went to the house.')); });
+  app.post('/studio/digest/alarm', studioOnly, async (req, res) => { const w = app.locals.digest ? await app.locals.digest.alarm({ force: true }) : []; res.redirect('/studio?ok=' + encodeURIComponent(w && w.length ? `The alarm went: ${w[0]}` : 'The alarm went: nothing is wrong.')); });
   app.post('/studio/edge/clear', studioOnly, async (req, res) => { const id = await EDGE.everything(); res.redirect('/studio?ok=' + encodeURIComponent(id ? 'The edge was told to drop every copy it holds.' : 'The edge could not be told (no distribution set, or the key may not create invalidations).')); });
   const basketItems = (req, slugs) => {
     const held = new Set();
@@ -2402,6 +2406,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   const BK = require('./backup').mountBackup(app, { db, C, store, ledger, mail, isStudio, V }); // nightly to the vault, a weekly restore drill, Studio → Backups
+  require('./digest').mountDigest(app, { db, C, mail, ledger }); // the morning digest and the alarm to the house (27 Oct)
   if (!cfg.noTimers) BK.schedule();
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).

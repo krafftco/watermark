@@ -2889,6 +2889,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/yours?tab=settings', { cookie: c3 }); assert.ok(!r.body.includes(em), 'everywhere: the other device is out though its row is gone and its cookie was good');
     r = await req(port, 'GET', '/yours/devices', { cookie: c2 }); assert.equal(r.status, 302, 'the old cookie of this device is void too; the fresh one was set on the redirect');
     const stranger = await req(port, 'POST', '/yours/devices/all'); assert.equal(stranger.status, 401, 'a stranger cannot'); }
+  // The digest (27 Oct): the morning letter composes with the week's numbers and the keeping; the alarm says only what is wrong, once an hour.
+  { const text = app.locals.digest.compose(); assert.ok(/THE WEEK/.test(text) && /THE KEEPING/.test(text) && /NEEDS THE HOUSE/.test(text) && /register sound/.test(text), 'the digest composes');
+    const d = await app.locals.digest.digest({ force: true }); assert.ok(d && d.length > 200, 'the digest goes'); assert.equal(await app.locals.digest.digest({ force: false }), null, 'not twice a day');
+    const w = app.locals.digest.wrongs(); assert.ok(Array.isArray(w), 'the wrongs are a list');
+    r = await req(port, 'GET', '/studio/digest'); assert.ok(r.status === 302 || r.status === 401 || r.status === 403, 'a stranger does not read the digest'); }
   // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
   r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'SAMEORIGIN' && /frame-ancestors 'self'/.test(r.headers['content-security-policy']) && r.headers['referrer-policy'], 'security headers');
   r = await req(port, 'POST', '/guestbook/1/remove', { headers: { origin: 'https://evil.example' } }); assert.equal(r.status, 403, 'cross-site write refused');

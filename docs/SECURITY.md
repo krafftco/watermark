@@ -28,6 +28,6 @@ What stands, what is next, and the hands that hold the keys. Plain, so it can be
 
 ## Next in code
 - Done 27 Oct (src/devices.js, 1.2): a letter on sign-in from a new device; /yours/devices with sign out one or everywhere (a session generation in the cookie's signature: buyers.sess, makers.sess, settings.studio_sess); letters when a bank is connected (account.updated) and when a studio's other addresses change.
-- Error and health digests to the house.
+- Done 27 Oct (src/digest.js, 1.2.1): the morning digest at DIGEST_HOUR (13 UTC) and the alarm (5xx over ALARM_5XX in an hour, a fault, the register failing, a stale backup, a lost original, mail failing; once an hour) to HOUSE_EMAIL; /studio/digest reads it, POST /studio/digest/send and /alarm send by hand.
 - SQLite in WAL on the disk; log retention; no PII in logs (none today by design).
 - A threat model and an incident runbook in this file.
