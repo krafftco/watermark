@@ -331,6 +331,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     // Collector No. n of this work: numbers are never reused, so an early number stays early.
     if (extra.paid) db.prepare('UPDATE licenses SET collector_no=(SELECT COALESCE(MAX(collector_no),0)+1 FROM licenses WHERE work_id=?) WHERE ref=? AND collector_no IS NULL').run(l.work_id, ref);
     if (extra.paid && app.locals.hangs) { try { app.locals.hangs.reward(q.lic.get(ref), w); } catch (e) { console.error('[curation]', e.message); } }
+    if (extra.paid && app.locals.platform) { try { app.locals.platform.reward(q.lic.get(ref), w); } catch (e) { console.error('[platform]', e.message); } }
     if (extra.paid && app.locals.galleries) { try { app.locals.galleries.cut(q.lic.get(ref), w, maker.share_pct || 85, FEE.makerOf(q.lic.get(ref), maker.share_pct || 85)); } catch (e) { console.error('[representation]', e.message); } }
     ledger.append(db, 'license.granted', ref, { work: w.slug, fingerprint: w.sha256, use: u.key, starts: start.toISOString(), ends: end ? end.toISOString() : null, paid: !!extra.paid, house: (q.lic.get(ref) || {}).house_cents ?? undefined });
     if (extra.paid && app.locals.legal) { try { app.locals.legal.accept('buyer', l.buyer_id, 'house', null, ref); } catch (e) { console.error('[legal]', e.message); } } // paying accepts the terms of the house
@@ -761,6 +762,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
   // Back from paying with ?paid=<ref>: settle it with Stripe before the page is drawn, so the work shows as yours.
+  app.use(['/w/:slug', '/m/:maker/:slug', '/license/:slug'], (req, res, next) => (app.locals.rememberPlatform ? app.locals.rememberPlatform(req, res, next) : next())); // ?via=p:<partner>: the sale is the platform's (src/platform.js)
   app.use(['/w/:slug', '/m/:maker/:slug'], (req, res, next) => (app.locals.rememberShow ? app.locals.rememberShow(req, res, next) : next())); // ?show=<hang slug> from a wall label: the show is remembered, so the sale is the show's (editions.js)
   app.get('/w/:slug', async (req, res, next) => { const r = String(req.query.paid || ''); if (r) { let l = q.lic.get(r); if (l && l.status !== 'active') await Promise.race([settle(l), new Promise(f => setTimeout(f, 6000))]); l = q.lic.get(r); if (l && l.status === 'active' && l.download_token) return res.redirect(`/thanks/${l.ref}?k=${l.download_token}`); } next(); });
   app.get('/w/:slug', (req, res) => {
@@ -2025,7 +2027,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./pocket').mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger });
   require('./api').mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, ledger, limiter: require('./guardrails').limiter, verifyBuffer: (...a) => app.locals.archive.verifyBuffer(...a), upload: () => upload, makerBySlug: s => [maker, ...db.prepare('SELECT * FROM makers').all()].find(m => V.makerSlug(m) === s || m.handle === s) || null, regard: RG });
   require('./splits').mountSplits(app, { db, V, ledger, isStudio, makerOf: app.locals.accounts.makerOf, mk });
-  require('./bridge').mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf: app.locals.accounts.makerOf, mk });
+  require('./bridge').mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf: app.locals.accounts.makerOf, mk, ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}) });
+  require('./platform').mountPlatform(app, { db, C, V, ledger, registerWork, mail, fetchImpl: cfg.fetchImpl }); // the platform door: a studio for a creator, a work by address, resolve, the badge, the platform's share
   require('./atelier').mountAtelier(app, { db, isStudio, makerOf: req => app.locals.accounts.makerOf(req), V });
   require('./introductions').mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, setMaker: app.locals.accounts.setMaker, setBuyer, slugify, DEFAULT_USES });
   require('./cabinet').mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuyer });

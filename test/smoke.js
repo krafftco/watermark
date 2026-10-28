@@ -2518,6 +2518,36 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger'); assert.ok(!/A\. Second|The figure on the steps|Rights House/.test(r.body.toString()), 'nothing of it on the public register');
   }
   console.log('ok: the bridge');
+  // The platform door (28 Oct): a platform opens a studio for its creator, puts a work in by address, reads it back by its
+  // own id, resolves a fingerprint, and sells from its surface with the badge; its share recorded from the house's side.
+  { r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'POST', '/studio/partners', { cookie: sck, body: { name: 'Blue Bird', site: 'https://bird.example', webhook: 'https://bird.example/hook' } });
+    const key = (r.body.toString().match(/wmp_[A-Za-z0-9_-]+/) || [])[0]; assert.ok(key); const auth = { authorization: 'Bearer ' + key, 'content-type': 'application/json' };
+    const posts = []; const prevF = app.locals.__fetch; const pic = await sharp(SRC).extract({ left: 40, top: 60, width: 900, height: 600 }).modulate({ hue: 40 }).resize(2400).jpeg({ quality: 92 }).toBuffer();
+    app.locals.__fetch = async (u, o) => { u = String(u); if (/bird\.example\/hook/.test(u)) { posts.push(JSON.parse(o.body)); return { ok: true, status: 200 }; } if (/bird\.example\/pic/.test(u)) return { ok: true, status: 200, headers: { get: () => null }, arrayBuffer: async () => pic }; return fetch(u, o); };
+    r = await req(port, 'POST', '/api/partner/v1/makers', { headers: auth, body: JSON.stringify({ name: 'Ines Bird', email: 'ines@bird.example', external_id: 'u-77' }) }); assert.equal(r.status, 201, r.body.toString()); let j = JSON.parse(r.body.toString()); assert.ok(j.opened && j.maker.slug && j.maker.did && j.maker.hangs === false, 'a studio opened, the record only: ' + r.body);
+    r = await req(port, 'POST', '/api/partner/v1/makers', { headers: auth, body: JSON.stringify({ name: 'Ines Bird', email: 'ines@bird.example', external_id: 'u-77' }) }); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).opened, false, 'the same creator twice is one');
+    const mslug = j.maker.slug; const pm = db.prepare("SELECT * FROM makers WHERE email='ines@bird.example'").get(); assert.ok(pm && pm.door === 'record' && db.prepare('SELECT 1 FROM maker_partners WHERE maker_id=?').get(pm.id), 'recorded and connected');
+    r = await req(port, 'POST', `/api/partner/v1/makers/${mslug}/works`, { headers: auth, body: JSON.stringify({ url: 'https://bird.example/pic/1.jpg', title: 'The pier at dusk', place: 'Lisbon', external_id: 'post-9001', made: '2026-10-01' }) }); assert.equal(r.status, 201, r.body.toString()); j = JSON.parse(r.body.toString());
+    assert.ok(j.work.status === 'hidden' && j.work.badge.svg.endsWith('/badge.svg') && /via=p:blue-bird/.test(j.work.collect) && j.work.deed && j.work.maker.did, 'the work is in, held back, with the badge and the platform\'s door: ' + JSON.stringify({ s: j.work.status, c: j.work.collect }));
+    const pw = db.prepare('SELECT * FROM works WHERE slug=?').get(j.work.slug); assert.ok(pw.maker_id === pm.id && pw.source_url === 'blue-bird:post-9001' && pw.sha256, 'the creator\'s own, by the platform\'s id');
+    r = await req(port, 'POST', `/api/partner/v1/makers/${mslug}/works`, { headers: auth, body: JSON.stringify({ url: 'https://bird.example/pic/1.jpg', title: 'Again', external_id: 'post-9001' }) }); assert.equal(r.status, 200); assert.ok(JSON.parse(r.body.toString()).known, 'the same post twice is one');
+    r = await req(port, 'GET', `/api/partner/v1/makers/${mslug}/works/post-9001`, { headers: auth }); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body.toString()).work.slug, pw.slug, 'read back by the platform\'s id');
+    r = await req(port, 'GET', `/api/partner/v1/resolve?sha256=${pw.sha256}`, { headers: auth }); assert.equal(JSON.parse(r.body.toString()).work, null, 'a hidden work resolves to nothing for the street');
+    db.prepare("UPDATE works SET status='held' WHERE id=?").run(pw.id);
+    r = await req(port, 'GET', `/api/partner/v1/resolve?sha256=${pw.sha256}`, { headers: auth }); j = JSON.parse(r.body.toString()); assert.ok(j.work && j.work.slug === pw.slug && j.how === 'original', 'resolved by fingerprint');
+    r = await req(port, 'GET', `/w/${pw.slug}/badge.svg?theme=light`); assert.ok(r.status === 200 && /svg\+xml/.test(r.headers['content-type']) && /Watermark/.test(r.body.toString()) && r.headers['access-control-allow-origin'] === '*', 'the badge for any surface');
+    r = await req(port, 'GET', `/w/${pw.slug}?via=p:blue-bird`); const pck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_via=')); assert.ok(pck && /partner(%3A|:)blue-bird/.test(pck), 'the platform\'s door is remembered: ' + pck);
+    r = await req(port, 'GET', `/w/${pw.slug}?via=p:nobody`); assert.ok(!(r.headers['set-cookie'] || []).find(c => c.startsWith('wm_via=')), 'an unknown platform is not');
+    const cut = app.locals.platform.reward({ ref: 'WM-2026-777001', via: 'partner:blue-bird', price_cents: 70000, work_id: pw.id }, pw); assert.ok(cut && cut.cents === 3500, 'the platform\'s share, 5% from the house\'s side');
+    assert.equal(app.locals.platform.reward({ ref: 'WM-2026-777001', via: 'partner:blue-bird', price_cents: 70000, work_id: pw.id }, pw), null, 'never twice');
+    assert.equal(app.locals.platform.earned(db.prepare("SELECT id FROM partners WHERE slug='blue-bird'").get().id).owed, 3500);
+    assert.ok(posts.find(p => p.event === 'maker.opened') && posts.find(p => p.event === 'work.registered' && p.work.external_id === 'post-9001' && p.work.badge), 'the platform was told at its webhook: ' + posts.map(p => p.event));
+    r = await req(port, 'GET', '/api/partner/v1/terms'); j = JSON.parse(r.body.toString()); assert.ok(j.share.platform_pct === 5 && j.exclusivity === 'none', 'the terms, published');
+    r = await req(port, 'POST', '/api/partner/v1/makers', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'X', email: 'x@y.z' }) }); assert.equal(r.status, 401, 'a stranger is refused');
+    assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('platform.earned'), 'never on the public register');
+    app.locals.__fetch = prevF; }
+  console.log('ok: the platform door');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

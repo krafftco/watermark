@@ -179,14 +179,18 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) return;
     const ps = db.prepare('SELECT p.* FROM partners p JOIN maker_partners mp ON mp.partner_id=p.id WHERE mp.maker_id=? AND p.active=1 AND p.webhook IS NOT NULL').all(w.maker_id); if (!ps.length) return;
     const vc = licenseVC(l);
-    for (const p of ps) {
-      const body = JSON.stringify({ event: 'license.granted', at: new Date().toISOString(), ref: l.ref, price_cents: l.price_cents, currency: l.currency, credential: vc });
-      const sig = crypto.createHmac('sha256', p.secret).update(body).digest('hex');
-      let status = 0; try { const r = await fetchImpl(p.webhook, { method: 'POST', signal: AbortSignal.timeout(8000), headers: { 'content-type': 'application/json', 'x-watermark-signature': `sha256=${sig}` }, body }); status = r.status; } catch (e) { status = 0; }
-      db.prepare('INSERT INTO partner_sends (partner_id, event, ref, status) VALUES (?,?,?,?)').run(p.id, 'license.granted', l.ref, status);
-    }
+    for (const p of ps) await post(p, 'license.granted', l.ref, { ref: l.ref, price_cents: l.price_cents, currency: l.currency, credential: vc });
   }
-  app.locals.bridge = { notice, licenseVC, authorshipVC, verifyVC, HOUSE, makerDid };
+  // One signed post to a partner's webhook (HMAC over the body, `x-watermark-signature`), recorded whatever the answer.
+  async function post(p, event, ref, payload) {
+    if (!p.webhook) return 0;
+    const body = JSON.stringify({ event, at: new Date().toISOString(), ...payload });
+    const sig = crypto.createHmac('sha256', p.secret).update(body).digest('hex');
+    let status = 0; try { const r = await fetchImpl(p.webhook, { method: 'POST', signal: AbortSignal.timeout(8000), headers: { 'content-type': 'application/json', 'x-watermark-signature': `sha256=${sig}` }, body }); status = r.status; } catch (e) { status = 0; }
+    db.prepare('INSERT INTO partner_sends (partner_id, event, ref, status) VALUES (?,?,?,?)').run(p.id, event, ref || null, status);
+    return status;
+  }
+  app.locals.bridge = { notice, post, licenseVC, authorshipVC, verifyVC, HOUSE, makerDid, partnerOf, P, consenting, keyHash };
 
   // --- The maker's side: connections (identity, partners, claims).
   app.get('/account/connections', (req, res) => {
