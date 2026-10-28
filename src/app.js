@@ -401,7 +401,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // ---------- app ----------
   const app = express();
   app.locals.vaultPending = vaultPending; app.locals.vaultState = vaultState;
-  if (!cfg.noTimers && store.kind === 's3') { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
+  if (!cfg.noTimers && store.kind === 's3' && ROLE.web) { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
@@ -441,7 +441,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // The bucket's door for the browser (21 Oct): set by the house itself; the answer on /healthz `vault`.
   app.locals.vaultCors = store.kind === 's3' ? 'unknown' : 'n/a';
   async function ensureVaultCors() { if (!store.ensureCors) return; try { app.locals.vaultCors = await store.ensureCors([C.base.replace(/\/$/, '')]); } catch (e) { app.locals.vaultCors = 'error: ' + e.message.slice(0, 80); } console.log('[vault] cors', app.locals.vaultCors); }
-  if (!cfg.noTimers && store.kind === 's3') { setTimeout(ensureVaultCors, 10e3).unref(); setInterval(ensureVaultCors, 6 * 3600e3).unref(); }
+  if (!cfg.noTimers && store.kind === 's3' && ROLE.chores) { setTimeout(ensureVaultCors, 10e3).unref(); setInterval(ensureVaultCors, 6 * 3600e3).unref(); }
   app.locals.ensureVaultCors = ensureVaultCors;
   if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => registerDomain().then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
@@ -486,6 +486,12 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
   const GOV = require('./governor').mountGovernor(app); // the house's chores take turns and yield to visitors (27 Oct)
+  const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
+  // The worker's heartbeat: a settings row the web's /healthz reads, so a missing worker is seen from the street.
+  let workerSeen = null;
+  if (ROLE.worker && !cfg.noTimers) { const beat = () => { try { db.prepare("INSERT INTO settings (k, v) VALUES ('worker_beat', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); } catch (e) { /* later */ } }; beat(); setInterval(beat, 30e3).unref(); }
+  const workerState = () => { if (!ROLE.split || ROLE.worker) return undefined; try { const r = db.prepare("SELECT v FROM settings WHERE k='worker_beat'").get(); const at = r ? +r.v : 0; return { seen: at ? new Date(at).toISOString() : null, stale: !at || Date.now() - at > 180e3 }; } catch (e) { return { seen: null, stale: true }; } };
+  app.locals.workerState = workerState;
   const BAG = require('./bagcheck').mountBagcheck(app, { db, V, ledger, studioOnly: (req, res, next) => studioOnly(req, res, next), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req) });
   app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); V.setDeskPrinter(!!(mm && mm.kind === 'printer')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
@@ -2035,7 +2041,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./franchise').mountFranchise(app, { db, V, C, ledger, stripe, mail, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the franchise: a maker's own house at a fee by the month
   require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe }); // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
-  if (!cfg.noTimers) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
+  if (!cfg.noTimers && ROLE.chores) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });
   require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
@@ -2401,7 +2407,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     return due.length;
   }
-  if (!cfg.noTimers) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.chores) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
   // The renditions are made ahead of the first visitor: every held work, every size, JPEG and WebP, one at a time.
   let warming = false;
   async function warmAll() {
@@ -2411,10 +2417,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return n;
   }
   app.locals.warmAll = warmAll;
-  if (!cfg.noTimers) { GOV.boot('warm', () => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); })); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
-  if (!cfg.noTimers) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
-  if (!cfg.noTimers) { const su = () => app.locals.standingOrders && app.locals.standingOrders.catchUp().then(n => { if (n) console.log('[standing]', n, 'caught up'); }).catch(e => console.error('[standing]', e.message)); setTimeout(su, 150e3).unref(); setInterval(su, 24 * 3600e3).unref(); }
-  if (!cfg.noTimers) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.web) { GOV.boot('warm', () => warmAll().then(n => { if (n) console.log('[warm]', n, 'works'); }), 0, { always: true }); setInterval(() => warmAll().catch(() => {}), 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.chores) { const wall = () => app.locals.wallLetters && app.locals.wallLetters().then(n => { if (n) console.log('[wall]', n, 'letters'); }).catch(e => console.error('[wall]', e.message)); setTimeout(wall, 90e3).unref(); setInterval(wall, 24 * 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.chores) { const su = () => app.locals.standingOrders && app.locals.standingOrders.catchUp().then(n => { if (n) console.log('[standing]', n, 'caught up'); }).catch(e => console.error('[standing]', e.message)); setTimeout(su, 150e3).unref(); setInterval(su, 24 * 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.chores) { const letters = () => app.locals.looking && app.locals.looking.letters().then(n => { if (n) console.log('[letters]', n); }).catch(e => console.error('[letters]', e.message)); setTimeout(letters, 60e3).unref(); setInterval(letters, 24 * 3600e3).unref(); }
   // Back the database up to the vault every six hours, and once shortly after start.
   const BK = require('./backup').mountBackup(app, { db, C, store, ledger, mail, isStudio, V }); // nightly to the vault, a weekly restore drill, Studio → Backups
   require('./digest').mountDigest(app, { db, C, mail, ledger }); // the morning digest and the alarm to the house (27 Oct)
@@ -2422,7 +2428,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).
   const sync = require('./studios-sync').createSync({ db, registerWork, slugify, fetchImpl: cfg.fetchImpl || fetch, stageDir: path.join(C.dataDir, 'incoming') });
-  if (!cfg.noTimers && process.env.STUDIOS_SYNC !== 'off') { setTimeout(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 20e3).unref(); setInterval(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 6 * 3600e3).unref(); }
+  if (!cfg.noTimers && ROLE.chores && process.env.STUDIOS_SYNC !== 'off') { setTimeout(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 20e3).unref(); setInterval(() => sync.run().catch(e => console.error('[studios-sync]', e.message)), 6 * 3600e3).unref(); }
   app.post('/studio/sync', studioOnly, (req, res) => { sync.run().catch(e => console.error('[studios-sync]', e.message)); res.redirect('/studio?ok=' + encodeURIComponent('Pulling new photographs from Krafft Studios. They appear as they arrive.')); });
   app.post('/studio/renewals', studioOnly, (req, res) => res.redirect(`/studio/activity?ok=${encodeURIComponent(sweep() + ' renewal notices sent.')}`));
 
@@ -2446,7 +2452,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const unvaulted = db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works = db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n;
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     res.json({ ...brief, vault: { kind: store.kind, cors: app.locals.vaultCors, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, faults: process.faults || null });

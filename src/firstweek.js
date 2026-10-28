@@ -7,6 +7,7 @@
 // (4) The first sale: when an outside maker's work is paid for the first time, the house is mailed and told, so a
 //     personal word can go out that day; `maker.firstsale` hidden on the register.
 'use strict';
+const ROLE = require('./role');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const DAY = 86400000;
 
@@ -74,7 +75,7 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
   }
   const append = ledger.append; ledger.append = function (db_, type, subject, data) { const r = append.apply(this, arguments); try { heard(type, subject, data || {}); } catch (e) { /* */ } return r; };
 
-  if (!app.locals.noTimers) { const t = setInterval(() => { try { mornings(); } catch (e) { console.error('[firstweek]', e.message); } }, 3600000); if (t.unref) t.unref(); setTimeout(() => { try { mornings(); } catch (e) { /* */ } }, 120000).unref(); }
+  if (!app.locals.noTimers && ROLE.chores) { const t = setInterval(() => { try { mornings(); } catch (e) { console.error('[firstweek]', e.message); } }, 3600000); if (t.unref) t.unref(); setTimeout(() => { try { mornings(); } catch (e) { /* */ } }, 120000).unref(); }
   app.locals.firstWeek = { acts, where, line, mornings, letter };
   return app.locals.firstWeek;
 }

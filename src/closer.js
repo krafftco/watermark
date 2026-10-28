@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Look closer: every photograph can speak. A guide written by AI from the photograph itself and its
 // record (title, place, year, camera), the way a museum's wall text or audio guide would: what is in the
 // frame, where and what it is, a little history, and how the picture was made. Read on the page or
@@ -166,7 +167,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     return n;
   }
   app.locals.closerFill = fill;
-  if (on() && process.env.NODE_ENV !== 'test') { app.locals.governor.boot('closer fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (on() && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('closer fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
 
   // What the public page shows: the text, and whether the maker has read it.
   app.locals.closerOf = w => { const c = read(w); return c && c.state !== 'hidden' ? c : null; };

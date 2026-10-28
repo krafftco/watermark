@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The host's chair (Will, 21 Oct: the rooms are open at every hour by smart programming, "but there will be somebody
 // there to do it"; people must be able to make a career on the platform). Hosting is a job: the rota (`host_shifts`:
 // room scope 'house' or 'm:<handle>', the night (New York's date), who (a maker or a collector with a key), status
@@ -83,7 +84,7 @@ ${!can ? '<section class="cx-intro"><p class="note">Taking a night needs a maker
       const [k, id] = s.owner.split(':'); if (notify) notify({ maker_id: k === 'm' ? +id : null, buyer_id: k === 'b' ? +id : null, kind: 'night', title: 'Tonight, the chair is yours', body: 'The balcony opens at nine.', href: '/balcony' }).catch(() => {});
     }
   }
-  if (!app.locals.noTimers) setInterval(remind, 30 * 60e3).unref();
+  if (!app.locals.noTimers && ROLE.chores) setInterval(remind, 30 * 60e3).unref();
   app.locals.hosts = { tonight, isTonightsHost, settle, remind, HOST_CENTS, nightOf };
   return app.locals.hosts;
 }

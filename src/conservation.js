@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The restoration room (Will, 20 Oct: "if it's not beautiful, don't show it"; a corrupted file goes to the
 // restoration room, as in a museum; the archive and the record are held, redundant, backed up and safe; at scale,
 // millions of assets). Three parts:
@@ -221,7 +222,7 @@ ${rows.length ? `<ul class="cv-l">${rows.map(w => { const c = lastOf(w); const f
   app.post('/studio/restoration/:id/back', studioOnly, (req, res) => { const w = wk(req.params.id); if (!w) return res.sendStatus(404); const c = lastOf(w); if (!c || !c.ok) return res.redirect('/studio/restoration?ok=' + encodeURIComponent('It must pass a check first.')); backOnView(w); res.redirect('/studio/restoration?ok=' + encodeURIComponent(`${tidy(w.title)} is back on the walls.`)); });
   app.post('/studio/restoration/:id/retire', studioOnly, (req, res) => { const w = wk(req.params.id); if (!w) return res.sendStatus(404); db.prepare("UPDATE works SET status='hidden', status_before=NULL WHERE id=?").run(w.id); if (app.locals.findIndexDirty) app.locals.findIndexDirty(); ledger.append(db, 'work.retired', w.slug, { by: 'house' }); res.redirect('/studio/restoration?ok=' + encodeURIComponent(`${tidy(w.title)} is retired to the record.`)); });
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (process.env.NODE_ENV !== 'test' && ROLE.chores) {
     // Recovery (20 Oct): every work off view for conservation is checked again, one at a time, and goes back on the
     // walls the moment it passes; a work whose original is truly damaged stays in the room.
     setTimeout(async () => { try { const rows = db.prepare("SELECT * FROM works WHERE status='restoring' ORDER BY id").all(); let back = 0; for (const w of rows) { const r = await check(w); if (r.ok) back++; } if (rows.length) console.log(`[conservation] recovery: ${back} of ${rows.length} back on view`); } catch (e) { console.error('[conservation] recovery', e.message); } }, 90000).unref();

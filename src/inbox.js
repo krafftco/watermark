@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The inbox (Will, 27 Oct: a watched folder as a feed; how a registrar actually works day to day, not by pressing a button).
 // An institution or a maker is given a folder the house watches: a prefix in the house's own bucket (inbox/<handle>/), or a
 // Dropbox folder (DROPBOX_TOKEN in the environment; the folder's path). Every INBOX_EVERY_MIN the house looks: each new file
@@ -97,7 +98,7 @@ function mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch }) {
   }
   let busy = false;
   async function sweep() { if (busy) return; busy = true; try { for (const ib of db.prepare("SELECT * FROM inboxes WHERE status='active'").all()) { try { await look(ib); } catch (e) { console.error('[inbox]', ib.id, e.message); } } } finally { busy = false; } }
-  if (!app.locals.noTimers && process.env.NODE_ENV !== 'test') { const t = setInterval(() => sweep().catch(() => {}), EVERY_MIN * 60 * 1000); if (t.unref) t.unref(); const t0 = setTimeout(() => sweep().catch(() => {}), 70 * 1000); if (t0.unref) t0.unref(); }
+  if (!app.locals.noTimers && process.env.NODE_ENV !== 'test' && ROLE.chores) { const t = setInterval(() => sweep().catch(() => {}), EVERY_MIN * 60 * 1000); if (t.unref) t.unref(); const t0 = setTimeout(() => sweep().catch(() => {}), 70 * 1000); if (t0.unref) t0.unref(); }
 
   // The desk.
   app.get('/studio/inbox', studioOnly, (req, res) => {

@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Arrivals (Will, 20 Oct: "we have to learn how to deal with large uploads"; "the most efficient best app that we
 // can, to replace Dropbox Transfer and ShootProof for creatives"). The way those two do it, and now the house: the
 // browser puts the file straight into the vault in parts (PART_MB each, four in flight, each part resumable) by
@@ -137,7 +138,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   const sweep = async () => { for (const a of db.prepare("SELECT * FROM arrivals WHERE status='uploading' AND created_at < datetime('now','-1 day')").all()) { if (direct && a.upload_id) await store.multipart.abort(a.key, a.upload_id); try { fs.unlinkSync(localFile(a)); } catch (e) { /* none */ } db.prepare('DELETE FROM arrivals WHERE id=?').run(a.id); }
     // a server that restarted mid-work: those go back to the queue
     db.prepare("UPDATE arrivals SET status='arrived' WHERE status='working'").run(); pump(); };
-  if (process.env.NODE_ENV !== 'test') { setTimeout(() => sweep().catch(e => console.error('[arrivals] sweep', e.message)), 30000).unref(); setInterval(() => sweep().catch(() => {}), 3600000).unref(); }
+  if (process.env.NODE_ENV !== 'test' && ROLE.web) { setTimeout(() => sweep().catch(e => console.error('[arrivals] sweep', e.message)), 30000).unref(); setInterval(() => sweep().catch(() => {}), 3600000).unref(); }
   app.locals.arrivals = { pump, direct, partSize, sweep };
   return { pump, direct };
 }

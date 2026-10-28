@@ -16,6 +16,7 @@
 // Counsel reads the rule before it is relied on. Public-domain arrivals from a museum (the Met's open access) bring
 // their artist with them (name, dates, nationality), so /art fills from the first import.
 'use strict';
+const ROLE = require('./role');
 
 const PD_YEARS = 70; // life plus seventy, the longest common term; the house takes the conservative side
 const MODEL = () => process.env.CLOSER_MODEL || 'claude-sonnet-5-5';
@@ -268,7 +269,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
     } finally { filling = false; }
     return did;
   }
-  if (!app.locals.noTimers) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
+  if (!app.locals.noTimers && ROLE.chores) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
 
   app.locals.art = { verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
 }

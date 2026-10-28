@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The house voice (Will, 17 Oct: the browser's voice is not human enough). Every Look closer guide is read once by a
 // neural voice and kept as an MP3 in the vault; the page, the viewer and the viewing room play that, and fall back to
 // the browser's own voice only when no recording exists yet. Provider by environment:
@@ -85,7 +86,7 @@ function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
     return n;
   }
   app.locals.speech = { on, provider, voice, fileFor, has, fill, hashOf, render };
-  if (on() && process.env.NODE_ENV !== 'test') { app.locals.governor.boot('speech fill', () => fill().then(n => { if (n) console.log('[speech]', n, 'guides read'); })); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (on() && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('speech fill', () => fill().then(n => { if (n) console.log('[speech]', n, 'guides read'); })); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
   return app.locals.speech;
 }
 

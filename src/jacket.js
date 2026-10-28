@@ -7,6 +7,7 @@
 // holds them; read further). Kept on `texts.jacket` (JSON); shown on the Library's page (`front`, `back`) and as the
 // line on the reading room's cover; the Studio can write it again or hide it. Always labelled as written with AI.
 'use strict';
+const ROLE = require('./role');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MODEL = () => process.env.JACKET_MODEL || process.env.CLOSER_MODEL || 'claude-sonnet-5-5';
 
@@ -111,7 +112,7 @@ ${j.sources && j.sources.length ? `<div class="jk-src"><h3>Read further</h3><ul>
   });
   const studioLine = t => { const j = read(t); return `<form method="post" action="/studio/library/${esc(t.slug)}/jacket" class="inline jk-desk"><button name="do" value="write">${j && j.line ? 'Write the jacket again' : 'Write the jacket'}</button>${j && j.line ? ` <button name="do" value="${j.state === 'hidden' ? 'show' : 'hide'}">${j.state === 'hidden' ? 'Show the jacket' : 'Hide the jacket'}</button>` : ''}</form>`; };
 
-  if (!app.locals.noTimers && on() && process.env.NODE_ENV !== 'test') { app.locals.governor.boot('jacket fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (!app.locals.noTimers && on() && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('jacket fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
   app.locals.jacket = { on, read, write, fill, front, back, line, studioLine, parse, TOOL };
   return app.locals.jacket;
 }

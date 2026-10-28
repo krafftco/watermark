@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Getting paid. What a maker is owed: their share of every license sold, every thank-you card and tip sent to
 // them, every royalty from a resale, their words and their copies; less what has been paid out. The statement
 // is always exact and always theirs to see. Paying it: the maker adds a bank through Stripe (Connect Express;
@@ -173,7 +174,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     return { ok: true, sent: n };
   }
   app.locals.fridayLetterFor = letterFor;
-  if (process.env.NODE_ENV !== 'test') { setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref(); setInterval(() => fridayLetters().catch(() => {}), 30 * 60 * 1000).unref(); }
+  if (process.env.NODE_ENV !== 'test' && ROLE.chores) { setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref(); setInterval(() => fridayLetters().catch(() => {}), 30 * 60 * 1000).unref(); }
   app.locals.payouts = { statement, pay, record, ON, friday, fridayLetters, letterFor, HOLD_DAYS, nextFriday };
   return app.locals.payouts;
 }

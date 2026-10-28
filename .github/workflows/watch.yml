@@ -22,6 +22,7 @@ jobs:
           ok_origin=$(grep -c '"ok":true' /tmp/origin.json || true)
           ok_edge=$(grep -c '"ok":true' /tmp/edge.json || true)
           if [ "$ok_origin" = "0" ]; then echo "::error::The house is down at the origin ($origin)."; exit 1; fi
+          if grep -q '"worker":{"seen":[^}]*"stale":true' /tmp/origin.json; then echo "::error::The house is up but its worker has not written a heartbeat in three minutes: the chores are not running. Render → watermark-worker."; exit 1; fi
           if [ "$ok_edge" = "0" ]; then echo "::error::The origin is sound but the edge answers ${edge%% *}: CloudFront is holding a stale error page. Studio → the edge's Clear, or an invalidation of /* in the console."; exit 1; fi
           for p in /wander /library /collection /listening; do
             c=$(curl -s -o /tmp/door -w '%{http_code}' "https://watermark.krafftco.com$p"); echo "$p $c"

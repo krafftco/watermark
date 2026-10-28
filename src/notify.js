@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Notifications (Will, 18 Oct: "I want to know when an image of mine is licensed"). Three ways to be told, one list:
 //   the bell: every notice kept in `notices`, shown at /notices and as a count beside your door in the header;
 //   your phone or computer: Web Push (lock-screen notifications from the installed app on iPhone 16.4+, Android, Mac,
@@ -149,7 +150,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     }
     return n;
   }
-  if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') { const tick = () => daily().catch(e => console.error('[daily]', e.message)); setTimeout(tick, 60e3).unref(); setInterval(tick, 10 * 60e3).unref(); }
+  if ((!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') && ROLE.chores) { const tick = () => daily().catch(e => console.error('[daily]', e.message)); setTimeout(tick, 60e3).unref(); setInterval(tick, 10 * 60e3).unref(); }
   app.locals.notify = { tell, unread, KINDS, vapid, daily };
 
   app.get('/api/notices', (req, res) => {

@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Backups and the restore drill (Will, 19 Oct: security 2/6). The database is the house's memory: every maker,
 // license, number, acceptance and register entry. Each night a consistent copy is taken (SQLite's online backup),
 // gzipped, and put in the vault, where VAULT_KEY seals it with AES-256-GCM before it leaves the server; copies
@@ -163,7 +164,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
       const d = last('drill');
       if (now.getUTCDay() === 0 || !d || Date.now() - new Date(d.at + 'Z').getTime() > 8 * 864e5) { try { const r = await drill(); console.log('[drill]', r.detail); } catch (e) { console.error('[drill]', e.message); } }
     };
-    setTimeout(tick, 300e3).unref(); setInterval(tick, 3600e3).unref();
+    if (ROLE.chores) { setTimeout(tick, 300e3).unref(); setInterval(tick, 3600e3).unref(); }
   }
   app.locals.backup = { backup, drill, prune, summary, last };
   return { backup, drill, prune, summary, schedule };

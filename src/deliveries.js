@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Deliveries (Will, 21 Oct: "something like ShootProof where I can deliver photos to a client safely through a watermark
 // and a download link; if I send them the link, they can download it without payment"). The maker picks the work (held
 // or kept back), names the client, and sends one link. Each photograph is granted to the client as a license of use
@@ -38,7 +39,7 @@ function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q
   }
   // Expired deliveries close themselves, hourly.
   function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
-  setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref();
+  if (ROLE.chores) { setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref(); }
   // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
   const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
   if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') app.locals.governor.boot('warm albums', () => warmAlbums());

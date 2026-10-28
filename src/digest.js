@@ -6,6 +6,7 @@
 // hour just past had faults or more than ALARM_5XX errors, the register fails to verify, the backup is stale, the
 // vault lost a file, or mail is failing; it says only what is wrong. Both to HOUSE_EMAIL. Nothing names a person.
 'use strict';
+const ROLE = require('./role');
 
 function mountDigest(app, { db, C, mail, ledger }) {
   const HOUR = +process.env.DIGEST_HOUR || 13, ALARM_5XX = +process.env.ALARM_5XX || 20;
@@ -109,7 +110,7 @@ function mountDigest(app, { db, C, mail, ledger }) {
     else console.log('[digest]\n' + text);
     return text;
   }
-  if (!app.locals.noTimers) {
+  if (!app.locals.noTimers && ROLE.chores) {
     setInterval(() => digest().catch(() => {}), 10 * 60e3).unref();
     setInterval(() => alarm().catch(() => {}), 5 * 60e3).unref();
     setTimeout(() => digest().catch(() => {}), 120e3).unref();

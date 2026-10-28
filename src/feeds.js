@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // Feeds in (Will, 27 Oct: "how is this getting us ready for the Met and all of the other people? when they give us more
 // resources, more material, more stuff, we can show it; we're training for ingest of all sorts of different media to
 // show it beautifully and pass it into our system"). The bulk door: any institution's whole feed taken in as one
@@ -277,7 +278,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   // A restart puts a running job back in the queue; the cursor resumes it, two minutes after the house is up (the house breathes first).
   // A job that was running through two restarts is paused instead: it may be what brought the house down (27 Oct).
   try { db.exec('ALTER TABLE feeds ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* held */ }
-  db.prepare("UPDATE feeds SET status='queued', restarts=restarts+1 WHERE status='running'").run(); if (!app.locals.noTimers) setTimeout(kick, 120000).unref();
+  if (ROLE.chores) { db.prepare("UPDATE feeds SET status='queued', restarts=restarts+1 WHERE status='running'").run(); if (!app.locals.noTimers) { setTimeout(kick, 120000).unref(); if (ROLE.split) setInterval(kick, 60000).unref(); } }
   app.post('/studio/feeds/:id/resume', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare("UPDATE feeds SET status='queued', restarts=0, note=NULL WHERE id=? AND status IN ('paused','stopped','failed')").run(+req.params.id); setTimeout(kick, app.locals.noTimers ? 0 : 20); res.redirect('/studio/feeds/' + req.params.id); });
 
   const mk = db.prepare("SELECT id, name, handle, kind FROM makers WHERE standing IS NULL OR standing<>'held' ORDER BY CASE kind WHEN 'institution' THEN 0 ELSE 1 END, name");

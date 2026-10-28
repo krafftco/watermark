@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The beta (Will, 18 Oct: it is live, but it is still a beta; test it, then launch it properly).
 // Anyone can tell the house what they found (/feedback); the Studio reads it at /studio/feedback and marks it done.
 // The house is in beta until the Studio says it has launched (settings 'launched'); then the word and the
@@ -39,7 +40,7 @@ function mountBeta(app, { db, V, mail, studioOnly, C }) {
   // one switch, settings 'showing'. On: every chore of the house holds (the governor), the Studio's desk says so, and the
   // rule for the people is no deploy until it is off. Off: the chores resume by themselves.
   const showing = () => { const r = db.prepare("SELECT v FROM settings WHERE k='showing'").get(); return !!(r && r.v === '1'); };
-  if (app.locals.governor) app.locals.governor.hold(showing());
+  if (app.locals.governor) { app.locals.governor.hold(showing()); if (ROLE.worker && !app.locals.noTimers) setInterval(() => { try { app.locals.governor.hold(showing()); } catch (e) { /* later */ } }, 30e3).unref(); }
   app.post('/studio/showing', studioOnly, (req, res) => {
     const on = (req.body || {}).on === '1';
     db.prepare("INSERT INTO settings (k, v) VALUES ('showing', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(on ? '1' : '0');

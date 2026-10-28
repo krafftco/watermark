@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The pictures in the books (Will, 27 Oct: "how can we also figure out pictures in these books"). Gutenberg's plain text
 // drops the plates; its HTML edition keeps each picture in its place in the text: Tenniel's Alice, Rackham's Grimm and
 // Peter Pan, Doré's Dante, Pyle's own Robin Hood, Beardsley's Morte d'Arthur, Shepard's Wind in the Willows. So for a
@@ -103,7 +104,7 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
     }
     on = false; job.on = false; if (!unread().length) flag(false);
   }
-  function queue(slug) { if (!q.includes(slug)) { q.push(slug); job.of++; } setTimeout(pump, app.locals.noTimers ? 0 : 500); }
+  function queue(slug) { if (!q.includes(slug)) { q.push(slug); job.of++; } if (ROLE.chores) setTimeout(pump, app.locals.noTimers ? 0 : 500); else flag(true); } // on a split house the web only raises the run; the worker reads every unread book
   // The run survives a restart (27 Oct: twice in a day a restart emptied the queue in memory and the desk had to be pressed
   // again): `settings.pictures_run` is set when the whole shelf is pressed and cleared when the last book is read; a house
   // that boots with it set takes the run up again, through the quiet boot, over whatever is still unread.
@@ -111,8 +112,9 @@ function mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch }) {
   const flag = v => { try { if (v) db.prepare("INSERT INTO settings (k, v) VALUES (?, '1') ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(RUN); else db.prepare('DELETE FROM settings WHERE k=?').run(RUN); } catch (e) { /* no settings table */ } };
   const running = () => { try { return !!db.prepare('SELECT v FROM settings WHERE k=?').get(RUN); } catch (e) { return false; } };
   function unread() { return db.prepare("SELECT slug FROM texts WHERE status='held' AND source LIKE '%gutenberg.org/ebooks/%' AND body IS NOT NULL AND (pictures IS NULL OR pictures='')").all(); }
+  if (ROLE.worker && !app.locals.noTimers) setInterval(() => { try { if (running() && !on) { const n = queueAll(); if (n) console.log('[pictures] the run was raised on the web:', n, 'books'); } } catch (e) { /* later */ } }, 5 * 60e3).unref();
   function queueAll() { const rows = unread(); job.done = []; job.missed = []; job.at = 0; job.of = 0; if (rows.length) flag(true); for (const r of rows) queue(r.slug); return rows.length; }
-  if (app.locals.governor && !app.locals.noTimers && process.env.NODE_ENV !== 'test') app.locals.governor.boot('pictures resume', () => { if (!running()) return; const n = queueAll(); console.log('[pictures] taking the run up again:', n, 'books unread'); });
+  if (app.locals.governor && !app.locals.noTimers && process.env.NODE_ENV !== 'test' && ROLE.chores) app.locals.governor.boot('pictures resume', () => { if (!running()) return; const n = queueAll(); console.log('[pictures] taking the run up again:', n, 'books unread'); });
 
   // The picture itself.
   app.get('/read/:slug/pic/:n', async (req, res) => {

@@ -9,6 +9,7 @@
 // in Render; PRODIGI_SANDBOX=1 for their sandbox); the paper SKUs (LAB_SKUS, JSON size → sku) are confirmed against
 // the lab's own catalogue from Studio → The press, never assumed. Nothing of the lab is said in public copy.
 'use strict';
+const ROLE = require('./role');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -212,7 +213,7 @@ ${jobs.length ? `<table class="tbl"><tr><th>Print</th><th>Step</th><th>The lab�
   });
   app.post('/studio/lab/poll', studioOnly, async (req, res) => { const n = await poll(); res.redirect('/studio/printers?ok=' + encodeURIComponent(`${n} order${n === 1 ? '' : 's'} asked about.`) + '#lab'); });
 
-  if (!app.locals.noTimers) { const t = setInterval(() => { poll().catch(e => console.error('[lab]', e.message)); }, 10 * 60 * 1000); if (t.unref) t.unref(); setTimeout(() => { try { ensureLab(); } catch (e) { /* */ } }, 26000).unref(); }
+  if (!app.locals.noTimers && ROLE.chores) { const t = setInterval(() => { poll().catch(e => console.error('[lab]', e.message)); }, 10 * 60 * 1000); if (t.unref) t.unref(); setTimeout(() => { try { ensureLab(); } catch (e) { /* */ } }, 26000).unref(); }
   Object.assign(lab, { on, ensureLab, isLab, place, sync, poll, panel, skus, sizeKey, DEFAULT_SKUS, cbKey });
   app.locals.lab = lab;
   return lab;

@@ -1,3 +1,4 @@
+const ROLE = require('./role');
 // The archival master: Watermark's own file, .wmark. The digital Met holds the object, not a picture of it.
 //
 // A .wmark is one container (zip, stored, never recompressed) holding the original exactly as it is held in
@@ -193,7 +194,7 @@ Or drop the file on ${m.verify}.
     failing: db.prepare('SELECT COUNT(*) n FROM (SELECT work_id, ok FROM fixity f WHERE id=(SELECT MAX(id) FROM fixity WHERE work_id=f.work_id)) WHERE ok=0').get().n,
     last: (db.prepare('SELECT MAX(checked_at) t FROM fixity').get() || {}).t || null,
   });
-  if (process.env.NODE_ENV !== 'test') setInterval(() => fixity(25).catch(e => console.error('[fixity]', e.message)), 6 * 60 * 60 * 1000).unref();
+  if (process.env.NODE_ENV !== 'test' && ROLE.chores) setInterval(() => fixity(25).catch(e => console.error('[fixity]', e.message)), 6 * 60 * 60 * 1000).unref();
 
   app.locals.archive = { manifest, write, verifyBuffer, fixity, fixityOf, summary, FORMAT };
   return app.locals.archive;

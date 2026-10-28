@@ -12,6 +12,7 @@
 // 60) clears on delivery and goes out on Friday with everyone else's. /printers: the shops by city, and the door to
 // print for the house (an application the Studio reads at Studio → Back office → The press).
 'use strict';
+const ROLE = require('./role');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -254,7 +255,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     res.redirect('/studio/printers');
   });
 
-  if (!app.locals.noTimers) { const t = setInterval(() => { try { sweep(); } catch (e) { console.error('[press]', e.message); } }, 60000); if (t.unref) t.unref(); setTimeout(() => { try { ensureHouse(); sweep(); } catch (e) { /* */ } }, 25000).unref(); }
+  if (!app.locals.noTimers && ROLE.chores) { const t = setInterval(() => { try { sweep(); } catch (e) { console.error('[press]', e.message); } }, 60000); if (t.unref) t.unref(); setTimeout(() => { try { ensureHouse(); sweep(); } catch (e) { /* */ } }, 25000).unref(); }
   app.locals.printShops = { sweep, choose, offer, move, earned, clearing, where, shopOf, shopById, jobOf, STEPS, PCT, ensureHouse };
   return app.locals.printShops;
 }
