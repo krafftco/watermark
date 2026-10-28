@@ -596,18 +596,31 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.set('Cache-Control', 'no-store').json(wanderJSON(w, req));
   });
   // What the room needs of a photograph: the picture, the plate, the guide, and the sale: one tap, from the pocket when it covers.
+  // For an audience (28 Oct): the part of the answer that is the work's own (the plate, the guide, the price, the counts)
+  // is built once a minute and kept by slug; only what is the visitor's (held, the pocket, their own hat and bravo) is
+  // asked per request, and only when there is a visitor to ask about. A stranger's feed costs no statement per work.
+  const wanderBase = new Map();
   function wanderJSON(w, req) {
-    const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
-    const b = buyerOf(req); const held = heldBy(req, w).length > 0; const pr = u ? priced(u, w) : null;
-    const can = u && u.price_cents != null && offered(R.parse(w.rules), 'social', w);
-    const pocket = b && app.locals.pocket ? app.locals.pocket.tap(b) : 0;
-    const ap = app.locals.applauseOf ? app.locals.applauseOf(w, req) : null;
-    const ag = app.locals.audioGuides ? app.locals.audioGuides.first(w) : null;
-    return { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
-      img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'), held,
-      collect: can && !held ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: pocket >= pr.price_cents, edition: (() => { const e = edition(w); return e ? { size: e.size, sold: e.sold } : null; })() } : null,
-      hat: ap ? { n: ap.n, mine: !!ap.mine } : null, bravo: ap && ap.bravo ? { mine: !!ap.bravo.mine } : null };
+    const key = w.slug + '#' + (w.updated_at || '') + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0); let base = wanderBase.get(key); // any entry on the register (a hat, a guide, a sale) makes it new
+    if (!base || Date.now() - base.at > 60e3) {
+      const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
+      const pr = u ? priced(u, w) : null; const can = u && u.price_cents != null && offered(R.parse(w.rules), 'social', w);
+      const ap = app.locals.applauseBrief ? app.locals.applauseBrief(w, null) : null;
+      const ag = app.locals.audioGuides ? app.locals.audioGuides.first(w) : null;
+      const e = can ? edition(w) : null;
+      base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
+        img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'),
+        price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null,
+        hat: ap ? { n: ap.n, mine: false } : null, bravo: ap && ap.bravo ? { mine: false } : null } };
+      wanderBase.set(key, base); if (wanderBase.size > 2000) wanderBase.delete(wanderBase.keys().next().value);
+    }
+    const v = base.v; const b = buyerOf(req); const known = b || (req.cookies && (req.cookies.wm_m || req.cookies.wm_s));
+    if (!known) return v;
+    const held = heldBy(req, w).length > 0; const pocket = b && app.locals.pocket ? app.locals.pocket.tap(b) : 0;
+    const ap = app.locals.applauseBrief ? app.locals.applauseBrief(w, req) : null;
+    return { ...v, held, collect: v.collect && !held ? { ...v.collect, pocket: pocket >= v.price } : null, hat: ap ? { n: ap.n, mine: !!ap.mine } : v.hat, bravo: ap && ap.bravo ? { mine: !!ap.bravo.mine } : v.bravo };
   }
+  app.locals.wanderBaseDirty = () => wanderBase.clear();
   app.locals.wanderJSON = wanderJSON;
   require('./eye').mountEye(app, { db, V });
   require('./stroll').mountStroll(app, { db, V, wanderJSON, I: require('./icons') });

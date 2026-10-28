@@ -62,7 +62,11 @@ function sameOrigin(base) {
 function limiter({ windowMs, max, name }) {
   const hits = new Map();
   setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (now > v.reset) hits.delete(k); }, Math.max(windowMs, 60000)).unref();
+  // The load (28 Oct): on the test house alone, a crowd that says `x-load: <LOAD_KEY>` is one address a thousand times and
+  // is let through, so the load workflow measures the house and not the limiter. Never on the live house (STAGING unset).
+  const loadKey = process.env.STAGING === '1' && process.env.LOAD_KEY;
   return (req, res, next) => {
+    if (loadKey && req.get('x-load') === loadKey) return next();
     const ip = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, ''); const k = name + ':' + ip; const now = Date.now();
     let v = hits.get(k); if (!v || now > v.reset) { v = { n: 0, reset: now + windowMs }; hits.set(k, v); }
     v.n++;

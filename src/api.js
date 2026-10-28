@@ -32,9 +32,12 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
   app.locals.workJSON = workJSON;
 
   app.get('/api/v1', (req, res) => res.json({ name: 'Watermark', version: 1, docs: `${base}/developers`, endpoints: ['/api/v1/works/:slug', '/api/v1/works?q=&maker=&limit=', '/api/v1/makers/:slug', '/api/v1/licenses/:ref', '/api/v1/verify (POST a file, or ?sha256=)', '/api/v1/match?src=', '/api/v1/credit/:slug', '/api/v1/register/:slug', '/oembed?url='], house: { key: ledger.publicKey ? ledger.publicKey() : null, register: `${base}/ledger.json` } }));
+  // The list is read once a minute (28 Oct, for an audience), not for every call.
+  let heldAt = 0, heldRows = [];
+  const heldList = () => { if (Date.now() - heldAt > 60e3) { heldRows = db.prepare("SELECT w.* FROM works w WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id DESC").all(); heldAt = Date.now(); } return heldRows; };
   app.get('/api/v1/works', (req, res) => {
     const qs = String(req.query.q || '').trim().slice(0, 80), mkr = String(req.query.maker || '').trim().slice(0, 80), limit = Math.min(100, Math.max(1, Number(req.query.limit) || 24)), offset = Math.max(0, Number(req.query.offset) || 0);
-    let rows = db.prepare("SELECT w.* FROM works w WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id DESC").all();
+    let rows = heldList();
     if (mkr) rows = rows.filter(w => V.makerSlug(mk(w)) === mkr);
     if (qs) { const t = qs.toLowerCase(); rows = rows.filter(w => `${w.title} ${w.place || ''} ${w.keywords || ''} ${mk(w).name}`.toLowerCase().includes(t)); }
     res.json({ total: rows.length, offset, limit, works: rows.slice(offset, offset + limit).map(w => { const j = workJSON(w); return { id: j.id, slug: j.slug, title: j.title, maker: j.maker, year: j.year, place: j.place, credit: j.credit, images: j.images, pages: j.pages, open: j.open ? j.open.licence : null, collect: (j.uses.find(u => u.key === 'social') || {}).price_cents || null }; }) });

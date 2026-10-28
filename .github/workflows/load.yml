@@ -30,12 +30,13 @@ jobs:
           C: ${{ github.event.inputs.connections }}
           D: ${{ github.event.inputs.seconds }}
           P: ${{ github.event.inputs.p975_ms }}
+          LOAD_KEY: ${{ secrets.LOAD_KEY }}
         run: |
           set -u
           fail=0
           for door in / /wander /house /collection /library /listening /keys /api/v1/works?limit=12 "/api/stroll?n=6" /healthz; do
             echo "::group::$door"
-            autocannon -c "$C" -d "$D" -j "$BASE$door" > out.json || true
+            autocannon -c "$C" -d "$D" -H "x-load: $LOAD_KEY" -j "$BASE$door" > out.json || true
             node -e '
               const r = JSON.parse(require("fs").readFileSync("out.json"));
               const rps = Math.round(r.requests.average), p50 = r.latency.p50, p975 = r.latency.p97_5, p99 = r.latency.p99;

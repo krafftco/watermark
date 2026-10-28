@@ -11,12 +11,22 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
   // little chance in it, and when there is a word, only what matches it (place, title, maker, keywords).
   const makerBy = key => { if (!key) return null; const all = db.prepare('SELECT * FROM makers').all(); return all.find(m => m.handle === key) || all.find(m => V.makerSlug(m) === key) || null; };
+  const POOL = new Map(); app.locals.wanderPoolDirty = () => POOL.clear();
   function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : ''); if (not.length) { where += ` AND w.slug NOT IN (${not.map(() => '?').join(',')})`; params.push(...not); }
     if (q) { const like = `%${q.replace(/[%_]/g, '')}%`; where += ' AND (w.title LIKE ? OR w.place LIKE ? OR w.keywords LIKE ? OR m.name LIKE ?)'; params.push(like, like, like, like); }
     const mk = makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
-    const rows = db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY (CASE WHEN w.curated=1 THEN 4 WHEN w.stars>=4 THEN 3 WHEN w.stars>=3 THEN 1.5 ELSE 1 END) * (0.5 + RANDOM() / 18446744073709551616.0 + 0.5) DESC LIMIT ?`).all(...params, n);
+    // The open wander draws from a pool kept a minute (28 Oct, for an audience): the held works with their weights, picked
+    // at random here rather than sorted by the database for every page; a word, a maker or the adult rooms open still ask.
+    let rows;
+    if (!q && !mk) {
+      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); const pk = sql + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0); let pool = POOL.get(pk); // any entry on the register (a work published, held back) makes the pool new
+      if (!pool || Date.now() - pool.at > 60e3) { pool = { at: Date.now(), rows: db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${sql}`).all() }; POOL.set(pk, pool); if (POOL.size > 20) POOL.delete(POOL.keys().next().value); }
+      const notSet = new Set(not); const cands = pool.rows.filter(r => !notSet.has(r.slug)).map(r => ({ r, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) }));
+      cands.sort((x, y) => y.k - x.k); rows = cands.slice(0, n).map(x => x.r);
+    }
+    else rows = db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY (CASE WHEN w.curated=1 THEN 4 WHEN w.stars>=4 THEN 3 WHEN w.stars>=3 THEN 1.5 ELSE 1 END) * (0.5 + RANDOM() / 18446744073709551616.0 + 0.5) DESC LIMIT ?`).all(...params, n);
     // For you: when the house knows what held this visitor, a few of the eye's picks are set among the rest.
     let picks = [];
     if (!q && !mk && app.locals.looking && app.locals.buyerOf) {
@@ -42,16 +52,28 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const img = r.cover_slug ? `/img/${r.cover_slug}/screen` : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`;
     return { kind: 'record', slug, record: r.slug, title: r.title, by: r.performer || r.composer || '', composer: r.composer && r.composer !== r.performer ? r.composer : '', year: r.year || '', line: r.line || '', img, url: files[0].url, side: files[0].title || 'Side A', href: `/listening/${r.slug}?play=1`, n: files.length };
   }
-  function textScreen(seen) {
-    let t; try { t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY RANDOM() LIMIT 1").get(); } catch (e) { return null; }
-    if (!t) return null;
+  // The shelf is read once in five minutes (28 Oct, for an audience: each feed page had sorted every book at random and
+  // read a whole body); one book's chapters are cut once and kept, the first two hundred books at a time.
+  const SHELF = { at: 0, ids: [] }; const CHAPTERS = new Map();
+  function shelfBook() {
+    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
+    if (!SHELF.ids.length) return null;
+    const id = SHELF.ids[Math.floor(Math.random() * SHELF.ids.length)]; const kept = CHAPTERS.get(id); if (kept && Date.now() - kept.at < 3600e3) return kept;
+    const t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.id=?").get(id); if (!t) return null;
     const chs = []; let cur = { head: null, paras: [] };
     for (const p of String(t.body).split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^##?\s/.test(p)) { if (cur.head || cur.paras.length) chs.push(cur); cur = { head: p.replace(/^#+\s*/, ''), paras: [] }; } else if (p !== '* * *') cur.paras.push(p); }
     if (cur.head || cur.paras.length) chs.push(cur);
-    const good = chs.map((c, i) => ({ ...c, i })).filter(c => c.paras.join(' ').length > 400); if (!good.length) return null;
+    const good = chs.map((c, i) => ({ head: c.head, paras: c.paras.slice(0, 6), i })).filter(c => c.paras.join(' ').length > 400);
+    const out = { at: Date.now(), t: { slug: t.slug, title: t.title, author: t.author, cover: t.cover }, chs: good, n: chs.length };
+    CHAPTERS.set(id, out); if (CHAPTERS.size > 200) CHAPTERS.delete(CHAPTERS.keys().next().value); return out;
+  }
+  app.locals.shelfDirty = () => { SHELF.at = 0; CHAPTERS.clear(); };
+  function textScreen(seen) {
+    const book = shelfBook(); if (!book) return null; const { t, chs, n } = book;
+    const good = chs; if (!good.length) return null;
     const c = good[Math.floor(Math.random() * good.length)]; const slug = `t:${t.slug}:${c.i}`; if (seen.includes(slug)) return null;
     const ex = []; let len = 0; for (const p of c.paras) { if (len > 520) break; ex.push(p); len += p.length; }
-    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), cloth: CLOTH[(hashOf(t.title || t.slug) >>> 7) % CLOTH.length], head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n: chs.length };
+    return { kind: 'text', slug, book: t.slug, title: t.title, author: byName(t.author), cloth: CLOTH[(hashOf(t.title || t.slug) >>> 7) % CLOTH.length], head: c.head || null, c: c.i, excerpt: ex.map(p => p.replace(/\*([^*\n]{1,200}?)\*/g, '$1')), href: `/read/${t.slug}?c=${c.i}`, cover: t.cover ? `/img/${t.cover}/screen` : null, n };
   }
   // A set (Will, 18 Oct: the stroll everywhere): tapping a photograph in the collection, an artist, a gallery, a wall or a
   // series on a phone strolls through that set alone, in its own order, from the photograph tapped; the end says so.

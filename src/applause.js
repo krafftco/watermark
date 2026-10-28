@@ -86,6 +86,8 @@ function mountApplause(app, { db, buyerOf, setBuyer, isStudio, makerOf, ledger, 
   });
   app.locals.capturesOf = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM captures GROUP BY work_id').all().map(r => [r.work_id, r.n]));
   app.locals.applauseOf = (w, req) => ({ n: count(w.id), mine: mine(w.id, buyerOf(req)), notes: notesOf(w.id), bravo: app.locals.bravoOf ? app.locals.bravoOf(w, req) : null });
+  // For a wall of many works (Wander's feed): the counts alone, and the visitor's own marks only when there is a visitor to ask about (28 Oct, for an audience).
+  app.locals.applauseBrief = (w, req) => { const b = req ? buyerOf(req) : null; return { n: count(w.id), mine: mine(w.id, b), bravo: { n: bravoN(w.id), mine: b ? bravoMine(w.id, b) : false } }; };
   // Standing: the share of people who saw a work and applauded it, for the Studio's sort and the duds.
   app.locals.standing = () => Object.fromEntries(db.prepare('SELECT work_id, COUNT(*) n FROM applause GROUP BY work_id').all().map(r => [r.work_id, r.n]));
 
