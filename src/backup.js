@@ -11,7 +11,17 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+// Off the event loop (28 Oct, the morning of the move: a synchronous pg_dump of the live house froze it for half a
+// minute and the edge showed the cold page): every pg tool runs as a child the house waits on, never blocks on.
+const run = (cmd, args, { timeout = 600e3, encoding } = {}) => new Promise((resolve, reject) => {
+  execFile(cmd, args, { encoding: encoding || 'utf8', timeout, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+    if (err) { err.message = (stderr && String(stderr).trim()) || err.message; return reject(err); }
+    resolve(stdout);
+  });
+});
+const gzip = (buf, opts) => new Promise((resolve, reject) => zlib.gzip(buf, opts, (e, out) => e ? reject(e) : resolve(out)));
+const gunzip = buf => new Promise((resolve, reject) => zlib.gunzip(buf, (e, out) => e ? reject(e) : resolve(out)));
 
 // Postgres (27 Oct): the copy is pg_dump's archive (custom format, gzipped, sealed by the vault as before), and the
 // drill restores it into a scratch database on the same server (wm_drill_<n>), checks it, and drops it; where the
@@ -41,10 +51,10 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
     const pg = db.kind === 'postgres';
     const tmp = path.join(C.dataDir, `backup-${process.pid}.tmp.${pg ? 'pgdump' : 'db'}`);
     try {
-      if (pg) execFileSync(pgTool('pg_dump'), ['--format=custom', '--no-owner', '--no-acl', '-f', tmp, db.url], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 600e3 });
+      if (pg) await run(pgTool('pg_dump'), ['--format=custom', '--no-owner', '--no-acl', '-f', tmp, db.url]);
       else await db.backup(tmp);
       const raw = fs.readFileSync(tmp); fs.unlinkSync(tmp);
-      const gz = zlib.gzipSync(raw, { level: 6 });
+      const gz = await gzip(raw, { level: 6 });
       const key = `${PREFIX}watermark-${stamp()}.${pg ? 'pgdump' : 'db'}.gz`, sha256 = crypto.createHash('sha256').update(raw).digest('hex');
       await store.put(key, gz, 'application/gzip');
       const head = db.prepare('SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1').get() || {};
@@ -69,7 +79,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
     try {
       if (!key) { const j = await store.get('backups/latest.json'); if (!j) throw new Error('no backup yet'); key = JSON.parse(j.toString()).key; }
       const gz = await store.get(key); if (!gz) throw new Error(`backup ${key} not found`);
-      const raw = zlib.gunzipSync(gz);
+      const raw = await gunzip(gz);
       if (/\.pgdump\.gz$/.test(key)) { tmp = 'pg'; return await drillPg(key, raw); } // records its own outcome
       tmp = path.join(C.dataDir, `drill-${process.pid}.tmp.db`); fs.writeFileSync(tmp, raw);
       const b = new Database(tmp, { readonly: true });
@@ -92,7 +102,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
     const tmp = path.join(C.dataDir, `drill-${process.pid}.tmp.pgdump`); fs.writeFileSync(tmp, raw);
     const name = `wm_drill_${process.pid}_${Date.now() % 100000}`; let made = false, b = null;
     try {
-      const listing = execFileSync(pgTool('pg_restore'), ['--list', tmp], { encoding: 'utf8', timeout: 120e3 });
+      const listing = await run(pgTool('pg_restore'), ['--list', tmp], { timeout: 120e3 });
       const tables = (listing.match(/ TABLE /g) || []).length;
       if (!tables) throw new Error('the archive lists no tables');
       try { db.exec(`CREATE DATABASE "${name}"`); made = true; }
@@ -101,7 +111,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
         record('drill', { key, bytes: raw.length, ok: true, detail }); return { ok: true, key, detail };
       }
       const url = dbUrlFor(db.url, name);
-      execFileSync(pgTool('pg_restore'), ['--no-owner', '--no-acl', '-d', url, tmp], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 600e3 });
+      await run(pgTool('pg_restore'), ['--no-owner', '--no-acl', '-d', url, tmp]);
       b = require('./pgsync').open(url);
       const bh = b.prepare('SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1').get() || {};
       const lh = bh.seq ? db.prepare('SELECT hash FROM ledger WHERE seq=?').get(bh.seq) : null;
