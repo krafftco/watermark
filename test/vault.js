@@ -56,5 +56,8 @@ const client = { async send(cmd) {
   assert.equal((await fetch(`${base}/img/${w.slug}/screen`)).status, 200);
   srv.close();
   console.log('ok: the only copy');
+  // The house boots with an S3 vault and its timers on, as it does on Render (28 Oct: a reference before a declaration
+  // on that path alone killed a live deploy; every test had run with a local vault or noTimers).
+  { const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-vault-boot-')); const app2 = createApp({ dataDir: dir2, base: 'http://localhost', adminPassword: 'pw', secret: 's', noTimers: false, store }); assert.ok(app2 && app2.locals.vaultState, 'boots with timers on an S3 vault'); console.log('ok: boots on S3 with timers'); }
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

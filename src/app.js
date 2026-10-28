@@ -400,6 +400,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   }
 
   // ---------- app ----------
+  const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
   const app = express();
   app.locals.vaultPending = vaultPending; app.locals.vaultState = vaultState;
   if (!cfg.noTimers && store.kind === 's3' && ROLE.web) { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
@@ -496,7 +497,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     res.status(503).send(V.sign({ code: 503, detail: 'The house is being moved for a few minutes; nothing can be collected, signed or written until it is open again. Everything you can read is here.' }));
   });
   const GOV = require('./governor').mountGovernor(app); // the house's chores take turns and yield to visitors (27 Oct)
-  const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
+  // ROLE is required at the top of createApp (28 Oct: a reference here before its declaration killed the live deploy of 62e4361 on an S3 vault; the tests run on a local vault and never reached it).
   // The worker's heartbeat: a settings row the web's /healthz reads, so a missing worker is seen from the street.
   let workerSeen = null;
   if (ROLE.worker && !cfg.noTimers) { let said = 0; const beat = () => { try { db.prepare("INSERT INTO settings (k, v) VALUES ('worker_beat', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); } catch (e) { if (Date.now() - said > 60e3) { said = Date.now(); console.error('[worker] the heartbeat could not be written:', e.message.split('\n')[0]); } } }; beat(); setInterval(beat, 30e3).unref(); }
