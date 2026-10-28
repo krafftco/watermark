@@ -25,6 +25,10 @@ async function connect() {
   if (!connecting) connecting = (async () => {
     const c = new Client({ connectionString: workerData.url, ssl: /sslmode=require|render\.com|neon\.tech|supabase/.test(workerData.url) && !/localhost|127\.0\.0\.1|\/tmp/.test(workerData.url) ? { rejectUnauthorized: false } : undefined });
     await c.connect();
+    // No statement may hold this connection hostage (28 Oct, the test worker fell silent on Render with nothing in the
+    // log): a lock waits fifteen seconds at most, a statement two minutes, and a transaction left open with nothing
+    // running is cut after a minute, each an error the house sees rather than a silence.
+    await c.query(`SET lock_timeout = '${+(process.env.PG_LOCK_TIMEOUT_MS || 15000)}ms'; SET statement_timeout = '${+(process.env.PG_STATEMENT_TIMEOUT_MS || 120000)}ms'; SET idle_in_transaction_session_timeout = '${+(process.env.PG_IDLE_TX_TIMEOUT_MS || 60000)}ms'`);
     c.on('error', e => { console.error('[pg] connection', e.message); client = null; connecting = null; });
     client = c; return c;
   })().catch(e => { connecting = null; throw e; }); // a failed connection is tried again on the next statement

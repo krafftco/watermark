@@ -13,13 +13,21 @@ const D = require('./dialect');
 const STATUS = 0, LENGTH = 1, WAIT_MS = 120000;
 
 function open(url) {
-  const worker = new Worker(path.join(__dirname, 'pgworker.js'), { workerData: { url } });
-  worker.unref();
-  let sab = new SharedArrayBuffer(8 + 256 * 1024), ctl = new Int32Array(sab, 0, 2), data = new Uint8Array(sab, 8);
-  worker.postMessage({ kind: 'attach', sab });
+  let worker, sab, ctl, data;
+  // The thread is spawned fresh after a statement that never answered (28 Oct): a late answer to the old statement
+  // would otherwise be read as the answer to the next, and every call after it would be off by one.
+  function spawn() {
+    if (worker) { try { worker.terminate(); } catch (e) { /* gone */ } }
+    worker = new Worker(path.join(__dirname, 'pgworker.js'), { workerData: { url } });
+    worker.unref();
+    sab = new SharedArrayBuffer(8 + 256 * 1024); ctl = new Int32Array(sab, 0, 2); data = new Uint8Array(sab, 8);
+    worker.postMessage({ kind: 'attach', sab });
+    depth = 0;
+  }
   const cache = new Map(); // translated SQL by source text
   const idCols = new Map(); // table → the column an INSERT should return (id or seq)
   let depth = 0, closed = false;
+  spawn();
 
   function call(msg) {
     if (closed) throw new Error('database closed');
@@ -27,7 +35,7 @@ function open(url) {
     worker.postMessage(msg);
     for (;;) {
       const r = Atomics.wait(ctl, STATUS, 0, WAIT_MS);
-      if (r === 'timed-out') throw new Error('database: no answer in ' + WAIT_MS / 1000 + ' s');
+      if (r === 'timed-out') { console.error('[pg] no answer in ' + WAIT_MS / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); throw new Error('database: no answer in ' + WAIT_MS / 1000 + ' s'); }
       const st = Atomics.load(ctl, STATUS);
       if (st === 2) { // the answer is bigger than the buffer: grow it and let the worker write again
         const need = Atomics.load(ctl, LENGTH);

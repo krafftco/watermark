@@ -498,7 +498,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
   // The worker's heartbeat: a settings row the web's /healthz reads, so a missing worker is seen from the street.
   let workerSeen = null;
-  if (ROLE.worker && !cfg.noTimers) { const beat = () => { try { db.prepare("INSERT INTO settings (k, v) VALUES ('worker_beat', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); } catch (e) { /* later */ } }; beat(); setInterval(beat, 30e3).unref(); }
+  if (ROLE.worker && !cfg.noTimers) { let said = 0; const beat = () => { try { db.prepare("INSERT INTO settings (k, v) VALUES ('worker_beat', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); } catch (e) { if (Date.now() - said > 60e3) { said = Date.now(); console.error('[worker] the heartbeat could not be written:', e.message.split('\n')[0]); } } }; beat(); setInterval(beat, 30e3).unref(); }
   const workerState = () => { if (!ROLE.split || ROLE.worker) return undefined; try { const r = db.prepare("SELECT v FROM settings WHERE k='worker_beat'").get(); const at = r ? +r.v : 0; return { seen: at ? new Date(at).toISOString() : null, stale: !at || Date.now() - at > 180e3 }; } catch (e) { return { seen: null, stale: true }; } };
   app.locals.workerState = workerState;
   const BAG = require('./bagcheck').mountBagcheck(app, { db, V, ledger, studioOnly: (req, res, next) => studioOnly(req, res, next), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req) });
