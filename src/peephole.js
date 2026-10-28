@@ -144,20 +144,21 @@ ${N.clientHost ? `<li><a href="https://${esc(N.clientHost)}"><b>${esc(N.clientNa
 ${playhouse(r)}
 
 <section class="ph-num" id="numbers"><h2 class="ph-h">The numbers</h2>
-<div class="ph-tiles">
-${tile((O.theNumber && O.theNumber.strangersThisWeek) || 0, 'collected by strangers this week', `${(O.theNumber && O.theNumber.strangersLastWeek) || 0} last week`)}
-${tile(money(m.week ? m.week.total : 0), 'sold this week', `${money(m.week ? m.week.makers : 0)} to makers`)}
-${tile(money(m.all ? m.all.total : 0), 'since the first day', `${money(m.all ? m.all.makers : 0)} to makers · ${money(m.all ? m.all.house : 0)} the house`)}
-${tile((O.people && O.people.visitors7d) || 0, 'visitors this week', `${(O.people && O.people.visitorsPrior) || 0} the week before`)}
-${tile(live.now == null ? '–' : live.now, 'on the site now', live.speed && live.speed.page ? `pages p50 ${live.speed.page.p50} ms · p95 ${live.speed.page.p95} ms` : '')}
-${tile((g.works && g.works.n) || 0, 'works held', `${(g.works && g.works.week) || 0} this week`)}
-${tile((g.makers && g.makers.n) || 0, 'makers', `${(g.makers && g.makers.week) || 0} joined this week`)}
-${tile((g.collectors && g.collectors.n) || 0, 'collectors', g.comeBack && g.comeBack.n >= 3 ? `${g.comeBack.pct}% come back within 60 days` : 'come-back rate when there are enough')}
-${tile(g.firstSale && g.firstSale.n >= 2 ? `${g.firstSale.median} d` : '–', 'a maker’s first sale', g.firstSale ? `median of ${g.firstSale.n}` : 'from joining')}
-${tile(O.register ? O.register.entries.toLocaleString('en-US') : 0, 'register entries', O.register && O.register.ok ? 'every one intact' : 'a break')}
-${tile(O.vault ? (O.vault.bytes / 1e9).toFixed(1) + ' GB' : '0', 'in the vault', O.vault ? `${O.vault.books} books · ${O.vault.records} records · ${O.vault.films} film${O.vault.films === 1 ? '' : 's'}` : '')}
-${tile(costs ? money(costs.monthly * 100) : '–', 'the machine, a month', costs && costs.per1kVisitors != null ? `$${costs.per1kVisitors} per thousand visitors` : 'set COSTS_MONTHLY to show the cost line')}
-</div>
+${(() => { const T = []; const Q = [];
+      const add = (val, big, small, sub) => { if (val > 0) T.push(tile(big, small, sub)); else Q.push(small); };
+      add((O.theNumber && O.theNumber.strangersThisWeek) || 0, (O.theNumber && O.theNumber.strangersThisWeek) || 0, 'collected by strangers this week', `${(O.theNumber && O.theNumber.strangersLastWeek) || 0} last week`);
+      add(m.week ? m.week.total : 0, money(m.week ? m.week.total : 0), 'sold this week', `${money(m.week ? m.week.makers : 0)} to makers`);
+      add(m.all ? m.all.total : 0, money(m.all ? m.all.total : 0), 'since the first day', `${money(m.all ? m.all.makers : 0)} to makers · ${money(m.all ? m.all.house : 0)} the house`);
+      add((O.people && O.people.visitors7d) || 0, (O.people && O.people.visitors7d) || 0, 'visitors this week', `${(O.people && O.people.visitorsPrior) || 0} the week before`);
+      add(live.now || 0, live.now || 0, 'on the site now', live.speed && live.speed.page ? `pages p50 ${live.speed.page.p50} ms · p95 ${live.speed.page.p95} ms` : '');
+      add((g.works && g.works.n) || 0, (g.works && g.works.n) || 0, 'works held', `${(g.works && g.works.week) || 0} this week`);
+      add((g.makers && g.makers.n) || 0, (g.makers && g.makers.n) || 0, 'makers', `${(g.makers && g.makers.week) || 0} joined this week`);
+      add((g.collectors && g.collectors.n) || 0, (g.collectors && g.collectors.n) || 0, 'collectors', g.comeBack && g.comeBack.n >= 3 ? `${g.comeBack.pct}% come back within 60 days` : '');
+      if (g.firstSale && g.firstSale.n >= 2) T.push(tile(`${g.firstSale.median} d`, 'a maker’s first sale', `median of ${g.firstSale.n}`));
+      add(O.register ? O.register.entries : 0, O.register ? O.register.entries.toLocaleString('en-US') : 0, 'register entries', O.register && O.register.ok ? 'every one intact' : 'a break');
+      add(O.vault ? O.vault.bytes : 0, O.vault ? (O.vault.bytes / 1e9).toFixed(1) + ' GB' : '0', 'in the vault', O.vault ? `${O.vault.books} books · ${O.vault.records} records` : '');
+      if (costs) T.push(tile(money(costs.monthly * 100), 'the machine, a month', costs.per1kVisitors != null ? `$${costs.per1kVisitors} per thousand visitors` : ''));
+      return `<div class="ph-tiles">${T.join('')}</div>${Q.length ? `<p class="ph-quiet">Nothing yet to report: ${Q.join(', ')}.</p>` : ''}`; })()}
 <div class="ph-charts"><div><p class="k">Visitors by day, thirty days</p>${spark(g.visitorsByDay, 'visitors')}</div><div><p class="k">Pieces collected by day, thirty days</p>${spark(g.collectsByDay, 'n')}</div></div>
 <p class="ph-note">Computed by the house when the page opens. Nothing typed in.</p></section>
 
@@ -220,6 +221,7 @@ ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Dat
     if (PLAY) return `<section class="ph-play" id="play"><h2 class="ph-h">The playhouse</h2><p>This is the house's second, complete copy: everything works, the money is play money, and nothing here reaches the real house. Open your own studio and gallery under your address, put work in, grade it, publish it, collect a piece with the ${money(PLAY_CENTS)} in your pocket, leave a line in a guest book, hang a wall. Break nothing; try everything.</p>
 <div class="ph-playacts"><form method="post" action="/peephole/play/account"><input type="hidden" name="to" value="studio"><button>Open my studio <span>a maker's account, under your name</span></button></form><form method="post" action="/peephole/play/account"><input type="hidden" name="to" value="gallery"><button>Open my gallery <span>a collector's account, ${money(PLAY_CENTS)} to play with</span></button></form><form method="post" action="/peephole/play/studio"><button>Open the back office <span>the Studio: every desk the house runs on</span></button></form></div>
 <p class="ph-note">The signed-in address is yours (${esc(r.email)}); the house's letters to it are real, its money is not.</p></section>`;
+    if (!process.env.PLAYHOUSE_BASE) return ''; // the live house shows the playhouse only once it is set up for the reader (PLAYHOUSE_BASE)
     return `<section class="ph-play" id="play"><h2 class="ph-h">The playhouse</h2><p>There is a second, complete copy of the house with play money in it, where you may open your own studio and gallery, put work in, collect, and walk the back office without touching anything real. The same letter opens it: <a href="${esc(NEXT)}/peephole">${esc(NEXT.replace(/^https?:\/\//, ''))}/peephole</a>.</p></section>`;
   }
 
