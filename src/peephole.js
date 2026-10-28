@@ -48,7 +48,7 @@ function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
   }
   // The plates: the house's best work set between the parts, each carrying the mark; the shield opens the watermark, the record and Wander are a tap away. The show of the future is the thing itself.
   function plates(n) { try { return db.prepare("SELECT w.slug, w.title, w.place, w.taken_at, m.name maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND (w.zone IS NULL OR w.zone='all') ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT ?").all(n); } catch (e) { return db.prepare("SELECT w.slug, w.title, w.place, w.taken_at, m.name maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT ?").all(n); } }
-  function plate(w, line) { if (!w) return ''; const yr = w.taken_at ? String(w.taken_at).slice(0, 4) : ''; return `<figure class="ph-pl"><a href="/w/${esc(w.slug)}?from=peephole"><img src="/img/${esc(w.slug)}/screen" alt="" loading="lazy"></a><figcaption><span class="ph-pl-t"><i>${esc(V.tidy ? V.tidy(w.title) : w.title)}</i> · ${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${yr ? `, ${esc(yr)}` : ''}</span><span class="ph-pl-acts"><button type="button" class="ph-eye" data-eye="${esc(w.slug)}" title="What the watermark carries">${I.shield} The watermark</button> <a href="/w/${esc(w.slug)}">The record</a> <a href="/wander?at=${esc(w.slug)}">Wander from it</a> <img class="ph-badge" src="/w/${esc(w.slug)}/badge.svg?theme=light" alt="Watermark" height="22"></span>${line ? `<span class="ph-pl-why">${line}</span>` : ''}</figcaption></figure>`; }
+  function plate(w, line) { if (!w) return ''; const yr = w.taken_at ? String(w.taken_at).slice(0, 4) : ''; return `<figure class="ph-pl"><div class="ph-pl-i"><a href="/w/${esc(w.slug)}?from=peephole"><img src="/img/${esc(w.slug)}/screen" alt="" loading="lazy"></a><button type="button" class="ph-eye" data-eye="${esc(w.slug)}" title="The watermark" aria-label="The watermark">${I.shield}</button></div><figcaption><span class="ph-pl-t"><i>${esc(V.tidy ? V.tidy(w.title) : w.title)}</i> · ${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${yr ? `, ${esc(yr)}` : ''}</span><span class="ph-pl-acts"><a href="/w/${esc(w.slug)}">The record</a><a href="/wander?at=${esc(w.slug)}">Wander</a></span>${line ? `<span class="ph-pl-why">${line}</span>` : ''}</figcaption></figure>`; }
   function brief(r, N, P) {
     const O = N.O, g = O.growth || {}, m = O.money || {}, v = O.vault || {}, reg = O.register || {}, live = O.live || {};
     const gb = v.bytes ? v.bytes / 1e9 : 0; const perWork = v.works && gb ? (gb * 1000 / v.works) : 0;
@@ -57,7 +57,7 @@ function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
     const S = (k, h, body) => `<section class="ph-s" id="${k}"><h2 class="ph-h">${h}</h2>${body}</section>`;
     const n = x => Number(x || 0).toLocaleString('en-US');
     return `
-<p class="ph-sal">${esc(first(r.name))},</p>
+<p class="ph-sal">Dear ${esc(first(r.name))},</p>
 <p class="ph-lede">In Vail we talked about Ethereum. This is what I have built since. The numbers are the house's own, drawn fresh each time the page opens.</p>
 ${S('what', 'What it is', `
 <p>Watermark is a museum for the web, with an engine under it.</p>
@@ -65,7 +65,7 @@ ${S('what', 'What it is', `
 <p>The engine: a registry. A maker puts the master in the vault. The house fingerprints it, writes it into a public register the day it arrives, and issues a deed. Every licence, sale and transfer after that is a line in the same book. The book is signed, published whole, and stamped every hour into a public clock the house does not control.</p>
 <p>The price is the maker's, all of it. The collector pays the house's share on top; the schedule is published. Makers are paid every Friday.</p>
 <p>Founded ${esc(founded)}. A Krafft company. Dallas and New York.</p>`)}
-${plate(P[0], 'Every photograph in this brief is a registered work. The shield opens its watermark. The picture opens its record.')}
+${plate(P[0], 'Every photograph here is a registered work. The shield opens its watermark.')}
 ${S('why', 'The problem', `
 <p>In 1990 a photograph was evidence. In 2026 it is a claim. Machines make pictures by the hundred million a day. No platform can tell a photograph from a fabrication. The people who made the real ones are not paid.</p>
 <p>Getty Images, the largest keeper of commercial pictures in the world, filed for Chapter 11 a week ago with its archive pledged against its debt.</p>
@@ -124,7 +124,7 @@ ${S('ask', 'The ask', `
     const spark = (rows, k) => { if (!rows || !rows.length) return ''; const max = Math.max(1, ...rows.map(x => x[k] || 0)); return `<span class="ph-spark">${rows.slice(-30).map(x => `<i style="height:${Math.max(2, Math.round(100 * (x[k] || 0) / max))}%" title="${esc(x.d)}: ${x[k] || 0}"></i>`).join('')}</span>`; };
     const tile = (big, small, sub = '') => `<div class="ph-t"><b>${big}</b><span>${small}</span>${sub ? `<em>${sub}</em>` : ''}</div>`;
     const dateLine = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
-    res.send(V.layout({ title: `The peephole · for ${first(r.name)}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"><main class="ph">
+    res.send(V.layout({ title: `The brief · ${r.name}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"><main class="ph">
 <script src="/static/eye.js" defer></script>
 <header class="ph-mast"><p class="ph-k">${esc(C.maker && C.maker.name || 'Will Fullerton')} · The brief</p><h1>For ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for ${esc(r.name)} · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
 <article class="ph-brief">${brief(r, N, P)}</article>
