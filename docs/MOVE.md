@@ -60,6 +60,23 @@ top to bottom. Nothing here is clever; the point is that nothing is forgotten.
   chores; the web process serves people only. Postgres is the only shared state, so the governor's lane becomes the
   worker's queue.
 
+## The live move, as it went (28 Oct 2026, 7:31–7:47 am ET)
+
+Done in the morning at Will's word, not at two in the morning; the gap was empty anyway (the register's head read
+4384 before the copy and after the deploy). What the runbook had not foreseen:
+
+- `founders.js` read `settings` at mount, before the room that makes it, and only when `FIRST_COLLECTOR` is set (live
+  only, so the test house never tripped): the script fell at the schema. Fixed in the code; the copy was run with
+  `FIRST_COLLECTOR=` blanked for the script alone.
+- The Shell is a production door the guard keeps the assistant from: the copy is Will's hand. The variable is first
+  set as `MOVE_DATABASE_URL`, so the house never boots onto the empty server; the script reads it by name
+  (`DATABASE_URL="$MOVE_DATABASE_URL"`) and the value is never in the chat.
+- The first `pg_dump` on the live house (151 MB, `hits` is most of it) ran synchronously and froze the house for half
+  a minute; the edge showed the cold page. backup.js now runs the pg tools and gzip off the event loop. The drill on
+  a dump that size is for the night.
+- The bag check's desk had sat on `/studio/door` since 21 Oct and looped every signed-out visitor; found because the
+  pane's Studio cookie did not survive the move. Moved to `/studio/bagcheck`.
+
 ## The test house's move (28 Oct 2026)
 
 Rehearsed first on `watermark-next`: `DATABASE_URL` set to `watermark-next-db`'s internal URL, one rebuild, the house
