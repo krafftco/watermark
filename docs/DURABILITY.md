@@ -64,7 +64,9 @@ a time, as a performance pass, and the bridge stays for the rest.
 Backups on Postgres: `pg_dump` (custom format) gzipped and sealed into the vault as before; the drill restores the
 copy into a scratch database on the same server (`wm_drill_…`), checks the register against the live one and
 verifies the chain, then drops it; `scripts/restore.js` fetches a copy and names the `pg_restore` to run. The
-Dockerfile carries `postgresql-client-17` from PGDG.
+Dockerfile carries `postgresql-client-16` from PGDG (the client's version is the server's: `ARG PG_VERSION`).
+
+The move itself, step by step, is `docs/MOVE.md`.
 
 Moving a house: `DATABASE_URL=… node scripts/to-postgres.js /data/watermark.db` with the old house stopped: the
 schema is made by the house itself, tables copied in dependency order, identity sequences set, every count
