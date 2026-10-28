@@ -1,0 +1,49 @@
+# The load (28 Oct 2026, Will: "anticipate higher traffic than we're anticipating"): a measured crowd at the test house's
+# doors, run by hand from GitHub (the cloud shell cannot reach Render). autocannon opens each door with N connections for
+# D seconds and reports requests a second, latency p50/p97.5/p99 and the first errors; the job fails when any door
+# answers errors or the 97.5th percentile passes the limit. Never run against the live house: the limiter would call it
+# an attack and the numbers would be a lie.
+name: load
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: The house to load (never the live one)
+        default: https://watermark-next.onrender.com
+      connections:
+        description: Concurrent connections per door
+        default: "100"
+      seconds:
+        description: Seconds per door
+        default: "20"
+      p975_ms:
+        description: The 97.5th percentile a door may not pass, in ms
+        default: "2500"
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm i -g autocannon@8
+      - name: Each door, in turn
+        env:
+          BASE: ${{ github.event.inputs.base }}
+          C: ${{ github.event.inputs.connections }}
+          D: ${{ github.event.inputs.seconds }}
+          P: ${{ github.event.inputs.p975_ms }}
+        run: |
+          set -u
+          fail=0
+          for door in / /wander /house /collection /library /listening /keys /api/v1/works?limit=12 "/api/stroll?n=6" /healthz; do
+            echo "::group::$door"
+            autocannon -c "$C" -d "$D" -j "$BASE$door" > out.json || true
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("out.json"));
+              const rps = Math.round(r.requests.average), p50 = r.latency.p50, p975 = r.latency.p97_5, p99 = r.latency.p99;
+              const errs = r.errors + r.timeouts, non2 = r.non2xx;
+              console.log(`${process.argv[1]}: ${rps} req/s · p50 ${p50} ms · p97.5 ${p975} ms · p99 ${p99} ms · errors ${errs} · non-2xx ${non2}`);
+              const bad = errs > 0 || non2 > r.requests.total * 0.01 || p975 > +process.argv[2];
+              if (bad) { console.log(`::error::${process.argv[1]} did not hold at ${process.argv[3]} connections: p97.5 ${p975} ms, errors ${errs}, non-2xx ${non2}`); process.exit(1); }
+            ' "$door" "$P" "$C" || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
