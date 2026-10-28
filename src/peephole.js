@@ -58,7 +58,7 @@ function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
     const n = x => Number(x || 0).toLocaleString('en-US');
     return `
 <p class="ph-sal">${esc(first(r.name))},</p>
-<p class="ph-lede">Before Vail I wrote you a page on Ethereum. This is the same kind of page, about what I have built since. The numbers are the house's own, drawn fresh each time the page opens.</p>
+<p class="ph-lede">In Vail we talked about Ethereum. This is what I have built since. The numbers are the house's own, drawn fresh each time the page opens.</p>
 ${S('what', 'What it is', `
 <p>Watermark is a museum for the web, with an engine under it.</p>
 <p>The museum: one work at a time, true to size, with its record beneath it. Nothing else on the screen. No feed, no advertisement, no counter. A piece of what you look at can be yours for seven dollars.</p>
@@ -78,9 +78,9 @@ ${S('record', 'The record', `
 <li>${n(g.collectors && g.collectors.n)} people have paid for a piece. ${n(O.theNumber && O.theNumber.strangersThisWeek)} pieces collected by strangers this week; ${n(O.theNumber && O.theNumber.strangersLastWeek)} last week.${g.comeBack && g.comeBack.n >= 3 ? ` ${g.comeBack.pct} in a hundred come back within sixty days.` : ''}</li>
 <li>${money(m.all ? m.all.total : 0)} taken since the first day; ${money(m.all ? m.all.makers : 0)} of it the makers'. ${money(m.week ? m.week.total : 0)} this week.${m.fridayLast ? ` Last Friday ${money(m.fridayLast.amount || 0)} went out.` : ''}</li>
 <li>${n(O.people && O.people.visitors7d)} visitors this week; ${n(O.people && O.people.visitorsPrior)} the week before.</li>
-<li>${days ? `${days} days` : ''} from the first line of code to this page. ${n(O.velocity && O.velocity.releases)} releases. One person and the machine.</li>
+<li>${days ? `${days} days` : ''} from the first line of code to this page. ${n(O.velocity && O.velocity.releases)} releases.</li>
 </ul>
-<p class="ph-note">A new house's numbers. The structure is finished; the walls are not yet hung. The pictures on them today are a first pass of my own archive, put in to build against. The edit comes next, then the first ten makers who are not me.</p>`)}
+<p class="ph-note">A new house's numbers. The structure is finished. The edit of the founding collection and the first ten makers come next.</p>`)}
 ${plate(P[1])}
 ${S('studios', 'Krafft Studios', `
 <p>Studios is the magazine. Watermark is what it stands on. ${n(N.studios)} photographs in its stories are matched to their records in the house. Stop on one and the mark is there; the record and the price are a tap away; the piece is yours without leaving the page.</p>
@@ -91,14 +91,14 @@ ${S('natora', 'The first company', `
 ${S('platform', 'A platform', `
 <p>There is a conversation to be had with X. The door is built; the terms are published and the same for everyone. A platform opens a studio for each creator with one call, puts pictures in by address, sells from its own feed. The maker is paid Friday. The platform takes five percent, from the house's side. The picture carries the mark, which leads to the record. No exclusivity.</p>
 <p>A platform shows billions of pictures a day and cannot say which were made by a person. A registry is worth more to a platform when the platform does not own it.</p>
-<p class="ph-note">Nothing is signed. No name is on any public page.</p>`)}
+<p class="ph-note">Nothing is signed.</p>`)}
 ${plate(P[2])}
 ${S('getty', 'Getty, and the museums', `
 <p>Getty's archive is some hundreds of millions of items and the collateral for its debt. Restructurings sell the pieces that are not core. The house has a door that reads an archive whole, records each item with its rights, and keeps it on two floors: the record, where the trade desk sells what sells; the house, where a committee hangs what belongs in a museum.</p>
 <p>The house already speaks the museums' protocol, reads the Met's open collection, and replaces a rights office's four addresses with one desk. The Met's head of licensing is a conversation begun.</p>`)}
 ${S('data', 'What fills a data center', `
 <p>The campus at Alliance will hold four hundred megawatts. What goes in the racks is mostly weights, caches, and other people's pictures scraped without a record.</p>
-<p>The vault is ${perWork ? `${perWork.toFixed(0)} MB a work` : 'a few tens of megabytes a work'}, kept byte for byte. A million works is a few dozen terabytes with a deed on every one. Against the campus it is a rounding error. Against the problem it is the only clean material in the building. And it is something a city can wander in the evening while the racks hum.</p>`)}
+<p>The vault is ${perWork ? `${perWork.toFixed(0)} MB a work` : 'a few tens of megabytes a work'}, kept byte for byte. A million works is a few dozen terabytes with a deed on every one: the only clean material in the building, and something a city can wander in the evening while the racks hum.</p>`)}
 ${S('ask', 'The ask', `
 <p>Your judgment first: a foundation to hold the register and the standard; the operating company to take capital as Class B with the founder's trust in control.</p>
 <p>Your introductions second: the first institutions, the Dallas collectors, the bankers who will handle Getty's pieces.</p>
