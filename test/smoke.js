@@ -216,6 +216,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // The Studio door: with STUDIO_EMAILS set the password is retired; a named person's email code opens the door (no passkey yet), a stranger's does not.
   { process.env.STUDIO_EMAILS = 'door@example.com';
     r = await req(port, 'GET', '/studio/login'); assert.ok(r.status === 302 && /studio\/door/.test(r.headers.location), 'the password page gives way to the door');
+    r = await req(port, 'GET', '/studio/door'); assert.ok(r.status === 200 && /Your email code/.test(r.body.toString()), 'the door answers a stranger with the page, never a bounce (28 Oct: the bag check desk had shadowed it and looped)');
     r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); assert.equal(r.status, 403, 'the password is retired');
     r = await req(port, 'POST', '/signin/code', { body: { email: 'stranger@example.com' } }); r = await req(port, 'POST', '/signin/verify', { body: { email: 'stranger@example.com', code: app.locals.lastCode.code } });
     assert.ok(!/wm_s=/.test(String(r.headers['set-cookie'] || '')), 'a stranger\'s code opens no studio');
@@ -1337,7 +1338,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/studio/works/one', { cookie: ck, body: mp('evil.jpg', Buffer.from('<html><script>1</script></html>'), { title: 'x' }), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary, accept: 'application/json' } });
     assert.ok(r.status === 415 && /web page/.test(r.body.toString()), 'the vault turns a page away: ' + r.status);
     assert.ok(db.prepare("SELECT COUNT(*) n FROM bagcheck WHERE ok=0").get().n >= 1, 'the refusal is kept');
-    r = await req(port, 'GET', '/studio/door', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('evil.jpg'), 'Studio → The door lists it');
+    r = await req(port, 'GET', '/studio/bagcheck', { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('evil.jpg'), 'Studio → The door lists it');
     r = await req(port, 'GET', '/ledger'); assert.ok(!r.body.toString().includes('upload.refused') && !r.body.toString().includes('evil.jpg'), 'never on the public register');
     console.log('ok: the bag check'); }
 

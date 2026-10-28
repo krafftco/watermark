@@ -137,11 +137,11 @@ function mountBagcheck(app, { db, V, ledger, studioOnly, makerOf, buyerOf }) {
   // For the chokepoints inside (takeMaster, takeWork, replaceMaster): throws a user-facing error.
   const throwIfBad = async (file, opts = {}) => { const v = await check(file, { expect: 'image', ...opts }, db, ledger); if (!v.ok) { const e = new Error(v.reason); e.user = true; e.refused = true; throw e; } return v; };
   // Studio → Back office → The door: what was turned away, and who keeps bringing the wrong thing.
-  app.get('/studio/door', studioOnly, (req, res) => {
+  app.get('/studio/bagcheck', studioOnly, (req, res) => {
     const rows = db.prepare('SELECT * FROM bagcheck WHERE ok=0 ORDER BY id DESC LIMIT 200').all();
     const n = db.prepare("SELECT COUNT(*) n, SUM(ok) ok FROM bagcheck WHERE at > datetime('now','-7 days')").get();
     const repeat = db.prepare("SELECT who, COUNT(*) n FROM bagcheck WHERE ok=0 AND who!='' AND at > datetime('now','-1 day') GROUP BY who HAVING COUNT(*)>=5 ORDER BY COUNT(*) DESC").all();
-    res.send(V.layout({ title: 'The door · Watermark', path: '/studio/door', studio: true, body: `<section class="studio-wrap bgc"><p class="k">Back office</p><h1>The door.</h1>
+    res.send(V.layout({ title: 'The door · Watermark', path: '/studio/bagcheck', studio: true, body: `<section class="studio-wrap bgc"><p class="k">Back office</p><h1>The door.</h1>
 <p class="lede">Every file is looked at before it enters: what it is by its own bytes, that nothing is hidden in it, that it opens whole and is a size a photograph can be. This week: ${(n.n || 0).toLocaleString('en-US')} looked at, ${(n.ok || 0).toLocaleString('en-US')} let in, ${((n.n || 0) - (n.ok || 0)).toLocaleString('en-US')} turned away.</p>
 ${repeat.length ? `<h2>Kept bringing the wrong thing today</h2><ul>${repeat.map(r => `<li><b>${V.esc(r.who)}</b> · ${r.n} refusals</li>`).join('')}</ul>` : ''}
 <h2>Turned away</h2>${rows.length ? `<table class="tbl"><tr><th>When</th><th>Door</th><th>Who</th><th>File</th><th>Size</th><th>It was</th><th>Why</th></tr>${rows.map(r => `<tr><td>${V.esc(r.at)}</td><td>${V.esc(r.where_ || '')}</td><td>${V.esc(r.who || r.ip || '')}</td><td>${V.esc(r.name || '')}</td><td>${Math.round((r.bytes || 0) / 1024).toLocaleString('en-US')} KB</td><td>${V.esc(r.type)}</td><td>${V.esc(r.reason || '')}</td></tr>`).join('')}</table>` : '<p>Nothing has been turned away.</p>'}</section>` }));
