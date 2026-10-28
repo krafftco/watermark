@@ -65,6 +65,7 @@ const S = {
     return { posts: (r.posts || []).map(p => ({ title: p.title, url: p.url, at: p.published_at, by: p.primary_author && p.primary_author.name })) };
   }),
   health: () => cached('health', 60000, async () => getJSON(`${BASE}/healthz`)),
+  owner: () => cached('owner', 60000, async () => { if (!E.DESK_KEY) return { off: 'DESK_KEY not set' }; return getJSON(`${BASE}/api/desk/owner`, { headers: { 'x-desk-key': E.DESK_KEY } }); }),
 };
 
 // The figure: an original character for Krafft, in the spirit of a magazine's cover gentleman. A working draft.
@@ -151,10 +152,61 @@ ${nt && !nt.off ? nt.sources.map(s => `<h3>${esc(s.label)} <span>${s.n} open</sp
 ${gh && !gh.off ? `<h3>Studios</h3><ul class="ln sm">${gh.posts.map(p => `<li><a href="${esc(p.url)}">${esc(p.title)}</a> <span>${esc(p.by || '')} · ${ago(p.at)}</span></li>`).join('')}</ul>` : off(gh, 'Studios')}</section>
 
 <section class="col wide"><h2>The Wire</h2>${W ? `<ul class="wire">${W.lately.map(l => `<li><span>${esc(when(l.at))}</span> ${esc(l.text)}</li>`).join('')}</ul>` : ''}
-<p class="fine">Read at ${esc(new Date().toLocaleTimeString('en-US', { timeZone: TZ }))} New York. Sources refresh each minute. <a href="${BASE}/studio">The Studio</a> · <a href="${BASE}/ledger">The register</a> · <a href="https://studios.krafftco.com">Studios</a> · <a href="https://www.notion.so">Notion</a> · <a href="https://dashboard.stripe.com">Stripe</a> · <a href="https://dashboard.render.com">Render</a></p></section>
+<p class="fine">Read at ${esc(new Date().toLocaleTimeString('en-US', { timeZone: TZ }))} New York. Sources refresh each minute. <a href="/owner">The owner’s view</a> · <a href="${BASE}/studio">The Studio</a> · <a href="${BASE}/ledger">The register</a> · <a href="https://studios.krafftco.com">Studios</a> · <a href="https://www.notion.so">Notion</a> · <a href="https://dashboard.stripe.com">Stripe</a> · <a href="https://dashboard.render.com">Render</a></p></section>
+</main>` }));
+});
+// The owner's view (Will, 28 Oct: "what would Elon want eyes into"): one screen, the house's own figures, nothing typed in.
+app.get('/owner', async (req, res) => {
+  const O = await S.owner(); if (O.off) return res.send(page({ title: 'The owner’s view', body: `<main class="sheet"><p class="off">Watermark: not connected<span>${esc(O.off)}</span></p></main>` }));
+  const g = O.growth || {}, m = O.money || {}, v = O.vault || {}, reg = O.register || {}, live = O.live || {}, c = O.costs, p = O.people || {};
+  const n = x => Number(x || 0).toLocaleString('en-US');
+  const tile = (big, small, sub = '') => `<div class="ot"><b>${big}</b><span>${esc(small)}</span>${sub ? `<em>${sub}</em>` : ''}</div>`;
+  const spark = (rows, k) => { if (!rows || !rows.length) return '<p class="off">nothing yet</p>'; const max = Math.max(1, ...rows.map(x => x[k] || 0)); return `<div class="osp">${rows.slice(-30).map(x => `<i style="height:${Math.max(2, Math.round(100 * (x[k] || 0) / max))}%" title="${esc(x.d)}: ${x[k] || 0}"></i>`).join('')}</div>`; };
+  const issue = Math.floor((Date.now() - new Date('2026-10-16T00:00:00Z')) / 86400000) + 1;
+  res.send(page({ title: 'The owner’s view', body: `<header class="mast"><div class="mast-in"><div class="fig">${FIGURE}</div><div class="mast-t"><h1>The Owner’s View</h1><p class="mast-d">${dateLine()} · No. ${issue} · <em>the house, by its own instruments</em></p></div><form method="post" action="/out" class="out"><button>Out</button></form></div><div class="rule"></div></header>
+<main class="osheet">
+<section class="orow"><h2>The number</h2><div class="otiles">
+${tile(n(O.theNumber && O.theNumber.strangersThisWeek), 'collected by strangers this week', `${n(O.theNumber && O.theNumber.strangersLastWeek)} last week`)}
+${tile(money(m.week ? m.week.total : 0), 'sold this week', `${money(m.week ? m.week.makers : 0)} to makers · ${money(m.week ? m.week.house : 0)} the house`)}
+${tile(money(m.month ? m.month.total : 0), 'this month', `${m.month ? m.month.n : 0} sale${m.month && m.month.n === 1 ? '' : 's'}`)}
+${tile(money(m.all ? m.all.total : 0), 'since the first day', `${money(m.all ? m.all.makers : 0)} to makers`)}
+${tile(m.fridayLast ? money(m.fridayLast.amount) : '–', 'last Friday pay', m.fridayLast ? `${m.fridayLast.makers} maker${m.fridayLast.makers === 1 ? '' : 's'} · ${ago(m.fridayLast.at)}` : 'none yet')}
+${tile(money(m.owed || 0), 'owed to makers', m.feeSide === 'collector' ? 'the house’s share paid by the collector' : '')}
+</div></section>
+<section class="orow"><h2>Live</h2><div class="otiles">
+${tile(live.now == null ? '–' : n(live.now), 'on the site now', live.lastHour ? `${n(live.lastHour.page)} pages in the last hour` : '')}
+${tile(live.speed && live.speed.page ? `${live.speed.page.p50} ms` : '–', 'page, median', live.speed && live.speed.page ? `p95 ${live.speed.page.p95} ms · API p50 ${live.speed.api.p50} ms` : '')}
+${tile(n(live.errors7d), 'server errors, 7 days', live.faults ? `${live.faults.exceptions || 0} exceptions · ${live.faults.rejections || 0} rejections since start` : '')}
+${tile(live.up ? `${Math.floor(live.up / 3600)} h` : '–', 'up since the last deploy', `version ${esc(live.ver || '')} · ${esc(live.role || 'all')}${live.worker ? ` · worker ${live.worker.stale ? '<b class="bad">stale</b>' : 'beating'}` : ''}`)}
+${tile(live.backup && live.backup.last ? (live.backup.stale ? '<b class="bad">stale</b>' : 'fresh') : '–', 'backups', live.backup && live.backup.drill ? `drill ${live.backup.drill.ok ? 'passed' : '<b class="bad">failed</b>'} ${ago(live.backup.drill.at)}` : '')}
+${tile(reg.ok ? 'intact' : '<b class="bad">broken</b>', 'the register', `${n(reg.entries)} entries${reg.anchors && reg.anchors.bitcoin ? ` · in Bitcoin to ${n(reg.anchors.bitcoin.seq)}` : reg.anchors && reg.anchors.latest ? ' · anchored, pending' : ''}`)}
+</div></section>
+<section class="orow"><h2>Growth</h2><div class="otiles">
+${tile(n(p.visitors7d), 'visitors, 7 days', `${n(p.visitorsPrior)} the week before · ${n(p.visitors30d)} in 30`)}
+${tile(n(p.stood7d), 'stood before a work', `${n(p.hats7d)} hats · ${n(p.bravos7d)} bravos · ${n(p.signins7d)} sign-ins`)}
+${tile(n(g.works && g.works.n), 'works', `+${n(g.works && g.works.week)} this week`)}
+${tile(n(g.makers && g.makers.n), 'makers', `+${n(g.makers && g.makers.week)} this week`)}
+${tile(n(g.collectors && g.collectors.n), 'collectors', `+${n(g.collectors && g.collectors.week)} first-time this week`)}
+${tile(g.comeBack && g.comeBack.n >= 3 ? `${g.comeBack.pct}%` : '–', 'come back within 60 days', g.comeBack ? `of ${g.comeBack.n}` : 'from three collectors')}
+${tile(g.firstSale && g.firstSale.n >= 2 ? `${g.firstSale.median} d` : '–', 'a maker’s first sale', g.firstSale ? `median of ${g.firstSale.n}` : 'from two makers')}
+${tile(g.standing ? n(g.standing.n) : '–', 'standing orders', g.standing ? `${money(g.standing.cents || 0)} a month` : '')}
+</div><div class="ocharts"><div><h3>Visitors by day</h3>${spark(g.visitorsByDay, 'visitors')}</div><div><h3>Pieces collected by day</h3>${spark(g.collectsByDay, 'n')}</div></div></section>
+<section class="orow"><h2>The vault</h2><div class="otiles">
+${tile(`${(v.bytes / 1e9).toFixed(1)} GB`, 'masters, byte for byte', v.works ? `${(v.bytes / 1e6 / v.works).toFixed(0)} MB a work` : '')}
+${tile(n(v.institutions), 'institutions', '')}${tile(n(v.books), 'books', '')}${tile(n(v.records), 'records', '')}${tile(n(v.films), 'films', '')}
+${tile(v.lost ? `<b class="bad">${v.lost}</b>` : '0', 'originals lost', `${n(v.unvaulted)} not yet in the vault`)}
+</div></section>
+<section class="orow"><h2>The machine</h2><div class="otiles">
+${c ? tile(money(c.monthly * 100), 'a month, all vendors', Object.entries(c.byVendor).map(([k, val]) => `${esc(k)} $${val}`).join(' · ')) : tile('–', 'a month', 'set COSTS_MONTHLY in Render')}
+${c && c.per1kVisitors != null ? tile(`$${c.per1kVisitors}`, 'per thousand visitors', `${n(c.visitors30d)} visitors in 30 days`) : ''}
+${c && c.grossMargin != null ? tile(`${c.grossMargin}%`, 'gross margin, this month', 'the house’s share less the vendors') : ''}
+${tile(esc(O.velocity && O.velocity.version || ''), 'version', `${O.velocity ? O.velocity.releasesThisWeek : 0} release${O.velocity && O.velocity.releasesThisWeek === 1 ? '' : 's'} this week · ${O.velocity ? O.velocity.releases : 0} in all`)}
+</div></section>
+<p class="fine">Every figure is computed by the house from its own tables when this page is opened; nothing is typed in. Read at ${esc(new Date().toLocaleTimeString('en-US', { timeZone: TZ }))} New York. <a href="/">The desk</a> · <a href="${BASE}/studio/analytics">The numbers</a> · <a href="${BASE}/ledger">The register</a></p>
 </main>` }));
 });
 app.get('/api/all', async (req, res) => { const [watermark, stripe, notion, render, ghost, health] = await Promise.all([S.watermark(), S.stripe(), S.notion(), S.render(), S.ghost(), S.health()]); res.json({ watermark, stripe, notion, render, ghost, health }); });
+app.get('/api/owner', async (req, res) => res.json(await S.owner()));
 
 if (require.main === module) { const port = Number(E.PORT) || 4100; app.listen(port, () => console.log(`[desk] on ${port}; ${WHO.length ? WHO.join(', ') : 'DESK_EMAIL not set: no one can enter'}`)); }
 module.exports = { app, S };

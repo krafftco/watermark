@@ -1,0 +1,106 @@
+# The house, anywhere (28 Oct 2026, Will: "ready to plug into a data center"). One file: the web, the worker, Postgres and
+# an S3-compatible vault (MinIO), so a partner can run Watermark whole on its own machines with `docker compose up`.
+# Secrets come from .env (copy .env.example); nothing in this file is secret. The register is signed with REGISTER_SEED;
+# the vault is sealed with VAULT_KEY; both are the house's and travel with it.
+services:
+  web:
+    build: .
+    image: watermark:local
+    environment:
+      ROLE: web
+      PORT: "3000"
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      DATABASE_URL: postgres://watermark:${PG_PASSWORD:-watermark}@db:5432/watermark
+      S3_BUCKET: ${S3_BUCKET:-watermark-vault}
+      S3_ENDPOINT: http://vault:9000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-watermark}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watermark-vault-pass}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      VAULT_KEY: ${VAULT_KEY:?set VAULT_KEY in .env}
+      REGISTER_SEED: ${REGISTER_SEED:?set REGISTER_SEED in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      STUDIO_EMAILS: ${STUDIO_EMAILS:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      NO_SEED: ${NO_SEED:-}
+    ports: ["3000:3000"]
+    depends_on:
+      db: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
+    volumes: ["web-data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+  worker:
+    image: watermark:local
+    build: .
+    environment:
+      ROLE: worker
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      DATABASE_URL: postgres://watermark:${PG_PASSWORD:-watermark}@db:5432/watermark
+      S3_BUCKET: ${S3_BUCKET:-watermark-vault}
+      S3_ENDPOINT: http://vault:9000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-watermark}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watermark-vault-pass}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      VAULT_KEY: ${VAULT_KEY:?set VAULT_KEY in .env}
+      REGISTER_SEED: ${REGISTER_SEED:?set REGISTER_SEED in .env}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NO_SEED: ${NO_SEED:-}
+    depends_on:
+      db: { condition: service_healthy }
+      vault-init: { condition: service_completed_successfully }
+    volumes: ["worker-data:/data"]
+    restart: unless-stopped
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: watermark
+      POSTGRES_USER: watermark
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-watermark}
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watermark -d watermark"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  vault:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-watermark}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-watermark-vault-pass}
+    volumes: ["vault-data:/data"]
+    ports: ["9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  vault-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      vault: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - mc alias set local http://vault:9000 ${MINIO_ROOT_USER:-watermark} ${MINIO_ROOT_PASSWORD:-watermark-vault-pass} && mc mb --ignore-existing local/${S3_BUCKET:-watermark-vault}
+volumes:
+  web-data: {}
+  worker-data: {}
+  db-data: {}
+  vault-data: {}
