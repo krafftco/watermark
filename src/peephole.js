@@ -51,64 +51,68 @@ function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
   function plate(w, line) { if (!w) return ''; const yr = w.taken_at ? String(w.taken_at).slice(0, 4) : ''; return `<figure class="ph-pl"><a href="/w/${esc(w.slug)}?from=peephole"><img src="/img/${esc(w.slug)}/screen" alt="" loading="lazy"></a><figcaption><span class="ph-pl-t"><i>${esc(V.tidy ? V.tidy(w.title) : w.title)}</i> · ${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${yr ? `, ${esc(yr)}` : ''}</span><span class="ph-pl-acts"><button type="button" class="ph-eye" data-eye="${esc(w.slug)}" title="What the watermark carries">${I.shield} The watermark</button> <a href="/w/${esc(w.slug)}">The record</a> <a href="/wander?at=${esc(w.slug)}">Wander from it</a> <img class="ph-badge" src="/w/${esc(w.slug)}/badge.svg?theme=light" alt="Watermark" height="22"></span>${line ? `<span class="ph-pl-why">${line}</span>` : ''}</figcaption></figure>`; }
   function brief(r, N, P) {
     const O = N.O, g = O.growth || {}, m = O.money || {}, v = O.vault || {}, reg = O.register || {}, live = O.live || {};
-    const gb = v.bytes ? v.bytes / 1e9 : 0; const perWork = v.works && gb ? (gb * 1000 / v.works) : 0; // MB a work
+    const gb = v.bytes ? v.bytes / 1e9 : 0; const perWork = v.works && gb ? (gb * 1000 / v.works) : 0;
     const founded = N.firstEntry ? new Date(N.firstEntry.at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'October 2026';
+    const days = N.firstEntry ? Math.max(1, Math.round((Date.now() - new Date(N.firstEntry.at)) / 864e5)) : null;
     const S = (k, h, body) => `<section class="ph-s" id="${k}"><h2 class="ph-h">${h}</h2>${body}</section>`;
     const n = x => Number(x || 0).toLocaleString('en-US');
     return `
 <p class="ph-sal">${esc(first(r.name))},</p>
-<p class="ph-lede">Before Vail I wrote you a page on Ethereum and on what a contract that runs itself is, so you would know the subject better than the room. This is the same kind of page, about what I have built since. It is written to be read in one sitting. The numbers are the house's own and are drawn fresh each time the page is opened; where a thing is not yet a fact, I say so.</p>
-${S('what', 'I. What it is', `
+<p class="ph-lede">Before Vail I wrote you a page on Ethereum. This is the same kind of page, about what I have built since. The numbers are the house's own, drawn fresh each time the page opens.</p>
+${S('what', 'What it is', `
 <p>Watermark is a museum for the web, with an engine under it.</p>
-<p>The museum: one work at a time, true to size, with its record beneath it, and nothing else on the screen. No feed, no advertisement, no counter. People come to look. A piece of what they look at can be theirs for seven dollars, numbered, with the maker's name inside the file.</p>
-<p>The engine: a registry. A maker puts the master in the vault. The house fingerprints it, writes it into a public register the day it arrives, and issues a deed. Every licence, sale and transfer after that is a line in the same book. The register is signed, published whole, and stamped every hour into a public clock the house does not control, so the house cannot rewrite its own past. Any file that leaves carries its papers inside it; any copy anywhere can be traced to its line.</p>
-<p>The money: the price is the maker's, all of it. The collector pays the house's share on top, and the schedule is published, as an auction house publishes its premium. Makers are paid every Friday. Founded ${esc(founded)}; a Krafft company; Dallas and New York.</p>`)}
-${plate(P[0], 'Every photograph in this brief is a registered work. The shield opens what its watermark carries; the picture opens the record.')}
-${S('why', 'II. The problem it stands in', `
-<p>In 1990 a photograph was evidence. In 2026 it is a claim. The machines make pictures by the hundred million a day; no platform can tell a photograph from a fabrication; the people who made the real ones are not paid for them. Getty Images, the largest keeper of commercial pictures in the world, filed for Chapter 11 in Delaware a week ago with its archive pledged against its debt.</p>
-<p>The institutions that hold the world's art each keep their own records in their own formats. The Met has put 490,000 objects online without restriction; the Smithsonian five million; the Library of Congress 90,000 books free to anyone. Each is reached through a different door, and a request to reproduce one object at a great museum still goes to four addresses and a form to print, sign and post.</p>
-<p>What does not exist is a registry for made work that is neutral, open, and trusted the way a title company is trusted for land: one book, any surface. Title companies do not build houses. Visa does not sell shoes.</p>`)}
-${S('record', 'III. The record, as it stands', `
+<p>The museum: one work at a time, true to size, with its record beneath it. Nothing else on the screen. No feed, no advertisement, no counter. A piece of what you look at can be yours for seven dollars.</p>
+<p>The engine: a registry. A maker puts the master in the vault. The house fingerprints it, writes it into a public register the day it arrives, and issues a deed. Every licence, sale and transfer after that is a line in the same book. The book is signed, published whole, and stamped every hour into a public clock the house does not control.</p>
+<p>The price is the maker's, all of it. The collector pays the house's share on top; the schedule is published. Makers are paid every Friday.</p>
+<p>Founded ${esc(founded)}. A Krafft company. Dallas and New York.</p>`)}
+${plate(P[0], 'Every photograph in this brief is a registered work. The shield opens its watermark. The picture opens its record.')}
+${S('why', 'The problem', `
+<p>In 1990 a photograph was evidence. In 2026 it is a claim. Machines make pictures by the hundred million a day. No platform can tell a photograph from a fabrication. The people who made the real ones are not paid.</p>
+<p>Getty Images, the largest keeper of commercial pictures in the world, filed for Chapter 11 a week ago with its archive pledged against its debt.</p>
+<p>The Met has put 490,000 objects online without restriction; the Smithsonian five million; the Library of Congress 90,000 books. Each through its own door, in its own format. A request to reproduce one object at a great museum still goes to four addresses and a form to print, sign and post.</p>
+<p>There is no registry for made work that is neutral, open, and trusted the way a title company is trusted for land. Title companies do not build houses.</p>`)}
+${S('record', 'The record', `
 <ul class="ph-facts">
-<li>${n(v.works)} works in the vault, ${gb.toFixed(1)} GB of masters, ${perWork ? `${perWork.toFixed(0)} MB a work` : ''}; ${n(g.makers && g.makers.n)} makers; ${N.institutions} institution${N.institutions === 1 ? '' : 's'}; ${n(v.books)} books on the shelf, ${n(v.records)} records on the turntable.</li>
-<li>${n(reg.entries)} entries on the register, ${reg.ok ? 'every one intact' : 'a break'}${reg.anchors && reg.anchors.bitcoin ? `; stamped into Bitcoin to entry ${n(reg.anchors.bitcoin.seq)}` : ''}.</li>
-<li>${n(g.collectors && g.collectors.n)} people have paid for a piece. ${n(O.theNumber && O.theNumber.strangersThisWeek)} pieces collected by strangers this week; ${n(O.theNumber && O.theNumber.strangersLastWeek)} last week. ${g.comeBack && g.comeBack.n >= 3 ? `${g.comeBack.pct} in a hundred come back for a second within sixty days.` : ''}</li>
-<li>${money(m.all ? m.all.total : 0)} taken since the first day; ${money(m.all ? m.all.makers : 0)} of it the makers'. ${money(m.week ? m.week.total : 0)} this week.${m.fridayLast ? ` Last Friday: ${money(m.fridayLast.amount || 0)} paid out to ${m.fridayLast.makers || 0} maker${m.fridayLast.makers === 1 ? '' : 's'}.` : ''}</li>
-<li>${n(O.people && O.people.visitors7d)} visitors this week against ${n(O.people && O.people.visitorsPrior)} the week before; ${n(O.people && O.people.stood7d)} stood before a work long enough to count.</li>
-<li>Built in ${(() => { const d0 = N.firstEntry ? new Date(N.firstEntry.at) : null; return d0 ? Math.max(1, Math.round((Date.now() - d0) / 864e5)) : '?'; })()} days by one person and the machine; ${n(O.velocity && O.velocity.releases)} releases; the tests run on every change and the house is walked door to door after every deploy. Postgres, a worker beside the web, the vault in S3, an edge in front, sealed backups nightly with a restore drill weekly.</li>
+<li>${n(v.works)} works. ${gb.toFixed(1)} GB of masters${perWork ? `, ${perWork.toFixed(0)} MB each` : ''}. ${n(g.makers && g.makers.n)} makers. ${N.institutions} institution${N.institutions === 1 ? '' : 's'}. ${n(v.books)} books. ${n(v.records)} records.</li>
+<li>${n(reg.entries)} entries on the register, ${reg.ok ? 'every one intact' : 'a break'}${reg.anchors && reg.anchors.bitcoin ? `; in Bitcoin to entry ${n(reg.anchors.bitcoin.seq)}` : ''}.</li>
+<li>${n(g.collectors && g.collectors.n)} people have paid for a piece. ${n(O.theNumber && O.theNumber.strangersThisWeek)} pieces collected by strangers this week; ${n(O.theNumber && O.theNumber.strangersLastWeek)} last week.${g.comeBack && g.comeBack.n >= 3 ? ` ${g.comeBack.pct} in a hundred come back within sixty days.` : ''}</li>
+<li>${money(m.all ? m.all.total : 0)} taken since the first day; ${money(m.all ? m.all.makers : 0)} of it the makers'. ${money(m.week ? m.week.total : 0)} this week.${m.fridayLast ? ` Last Friday ${money(m.fridayLast.amount || 0)} went out.` : ''}</li>
+<li>${n(O.people && O.people.visitors7d)} visitors this week; ${n(O.people && O.people.visitorsPrior)} the week before.</li>
+<li>${days ? `${days} days` : ''} from the first line of code to this page. ${n(O.velocity && O.velocity.releases)} releases. One person and the machine.</li>
 </ul>
-<p class="ph-note">These are a new house's numbers and I will not dress them. Read them as you would read a building the week it opens: the structure is finished, the walls are not yet hung. The pictures on the walls today are a first pass of my own archive, put in to build against; the edit comes next, from ten thousand frames of New York alone, and then the first ten makers who are not me.</p>`)}
+<p class="ph-note">A new house's numbers. The structure is finished; the walls are not yet hung. The pictures on them today are a first pass of my own archive, put in to build against. The edit comes next, then the first ten makers who are not me.</p>`)}
 ${plate(P[1])}
-${S('studios', 'IV. Krafft Studios', `
-<p>Studios is the magazine; Watermark is what it stands on. ${n(N.studios)} photographs in Studios stories are matched to their records in the house. A reader who stops on one sees the mark; a tap shows the record and the price; the piece is theirs without leaving the page. Each story carries its credits and a way to thank the people who made it.</p>
-<p>Taylor Sheridan has just made Alliance the largest film campus in Texas. Every frame a studio shoots is a master with a maker, a date and a price, and a magazine that runs on a registry is a shop window that never says so.</p>`)}
-${S('natora', 'V. The first company', `
-<p>Natora, a Dallas real estate brand, licenses the house's photographs with the pictures linked into its own site. One line of code asks the house for each image; the house serves it under its licence with the credit and the Watermark number on it, and counts the page it hangs on. When the licence ends the picture says so, quietly. Today: ${N.clients} compan${N.clients === 1 ? 'y' : 'ies'}, ${N.clientLic} live corporate licence${N.clientLic === 1 ? '' : 's'}, ${n(N.placements.n)} placements across ${N.placements.hosts} site${N.placements.hosts === 1 ? '' : 's'}.</p>
-<p>A company that links to the registry never loses track of a picture, and the registry knows where every picture in the world that passed through it hangs, for how long, under what terms. Getty's enterprise did this with people and lawsuits.</p>`)}
-${S('platform', 'VI. A platform', `
-<p>There is a conversation to be had with X. The door is already built, and the terms are published, the same for every platform: a platform opens a studio for each of its creators with one call, puts their pictures in by address, and sells from its own feed. The maker is paid Friday; the platform takes five percent, from the house's side; the picture carries the mark, which leads back to the record. No exclusivity. The house's own surface stands on the same terms.</p>
-<p>A platform shows several billion pictures a day and cannot say which were made by a person. A registry is worth more to a platform when the platform does not own it: its creators, and every museum, will trust a neutral book they would never trust a platform's vault. What a platform brings is distribution and a payment rail. What it must not have is the register.</p>
-<p class="ph-note">In prospect means in prospect. Nothing is signed and no name is on any public page of the house.</p>`)}
+${S('studios', 'Krafft Studios', `
+<p>Studios is the magazine. Watermark is what it stands on. ${n(N.studios)} photographs in its stories are matched to their records in the house. Stop on one and the mark is there; the record and the price are a tap away; the piece is yours without leaving the page.</p>
+<p>Every frame a studio shoots is a master with a maker, a date and a price.</p>`)}
+${S('natora', 'The first company', `
+<p>Natora, a Dallas real estate brand, licenses the house's photographs with the pictures linked into its own site. One line of code. The house serves each picture under its licence, with the credit and the number on it, and counts the page it hangs on. When the licence ends, the picture says so. ${N.clients} compan${N.clients === 1 ? 'y' : 'ies'}; ${N.clientLic} live licence${N.clientLic === 1 ? '' : 's'}; ${n(N.placements.n)} placements.</p>
+<p>A company that links to the registry never loses a picture. The registry knows where every picture that passed through it hangs, for how long, under what terms.</p>`)}
+${S('platform', 'A platform', `
+<p>There is a conversation to be had with X. The door is built; the terms are published and the same for everyone. A platform opens a studio for each creator with one call, puts pictures in by address, sells from its own feed. The maker is paid Friday. The platform takes five percent, from the house's side. The picture carries the mark, which leads to the record. No exclusivity.</p>
+<p>A platform shows billions of pictures a day and cannot say which were made by a person. A registry is worth more to a platform when the platform does not own it.</p>
+<p class="ph-note">Nothing is signed. No name is on any public page.</p>`)}
 ${plate(P[2])}
-${S('getty', 'VII. Getty, and the museums', `
-<p>Getty's archive is some hundreds of millions of items and the collateral for its debt. Restructurings keep the company whole and sell the pieces that are not core; the historical collections are the pieces most likely to be offered, and a buyer with a registry, a story and capital is who a debtor's bankers call. The house has a bulk door that reads an archive whole (a spreadsheet, a museum protocol, a bucket), records each item with its rights, and keeps it on two floors: the record, where everything is kept and the trade desk sells what sells; and the house, where a committee hangs what belongs in a museum. Junk is recorded, not hung.</p>
-<p>The museums are the other half. The house already speaks their protocol, reads the Met's open collection, replaces a rights office's four addresses with one desk, and can give a museum its own house on its own domain. The Met's head of licensing is a conversation begun.</p>
-<p>Those are the two moves that make a house an institution in a season rather than a decade: a great archive, and a great museum's trust.</p>`)}
-${S('data', 'VIII. What fills a data center', `
-<p>You have said you have been in data centers since you were seven. The campus at Alliance will hold four hundred megawatts of them. What they are filled with is the question nobody in the trade asks aloud, and the answer today is mostly weights, caches and other people's pictures scraped without a record.</p>
-<p>The house's vault is ${perWork ? `${perWork.toFixed(0)} MB a work` : 'a few tens of megabytes a work'} at full resolution, kept byte for byte, never re-encoded. A million works is a few dozen terabytes with a deed on every one. The register is a line of text per event. Against the scale of the campus it is a rounding error; against the scale of the problem it is the only clean material in the building. A museum for the web is also a lullaby: something a city can wander in the evening while the racks hum, and the thing the public gets back from the build-out.</p>`)}
-${S('ask', 'IX. The ask', `
-<p>Your judgment first: a foundation to hold the register and the standard; the operating company to take capital as Class B with the founder's trust in control. Your introductions second: the first institutions, the Dallas collectors, and the bankers who will handle Getty's pieces. Capital third, if the first two hold, on terms set down with counsel before either of us is in a hurry.</p>
-<p>And one small, concrete thing. The house should own its name. watermark.com is for sale. A museum is called by its name, not its address.</p>
-<p>What you may expect in return is the one thing the house is built to give: a record. Every dollar in and out is on the register or the statement; this room shows you the numbers as they are, not as described; and when the house breaks a promise it says so in public and puts it right. You will not have to take my word for anything in this brief, which is the point of the thing.</p>
+${S('getty', 'Getty, and the museums', `
+<p>Getty's archive is some hundreds of millions of items and the collateral for its debt. Restructurings sell the pieces that are not core. The house has a door that reads an archive whole, records each item with its rights, and keeps it on two floors: the record, where the trade desk sells what sells; the house, where a committee hangs what belongs in a museum.</p>
+<p>The house already speaks the museums' protocol, reads the Met's open collection, and replaces a rights office's four addresses with one desk. The Met's head of licensing is a conversation begun.</p>`)}
+${S('data', 'What fills a data center', `
+<p>The campus at Alliance will hold four hundred megawatts. What goes in the racks is mostly weights, caches, and other people's pictures scraped without a record.</p>
+<p>The vault is ${perWork ? `${perWork.toFixed(0)} MB a work` : 'a few tens of megabytes a work'}, kept byte for byte. A million works is a few dozen terabytes with a deed on every one. Against the campus it is a rounding error. Against the problem it is the only clean material in the building. And it is something a city can wander in the evening while the racks hum.</p>`)}
+${S('ask', 'The ask', `
+<p>Your judgment first: a foundation to hold the register and the standard; the operating company to take capital as Class B with the founder's trust in control.</p>
+<p>Your introductions second: the first institutions, the Dallas collectors, the bankers who will handle Getty's pieces.</p>
+<p>Capital third, if the first two hold, on terms set down with counsel.</p>
+<p>And the name. watermark.com is for sale. A museum is called by its name, not its address.</p>
+<p>Everything in this brief can be checked without taking my word for it. That is the point.</p>
 <p class="ph-close">This is a Texas company. This is a Dallas company. Some day, on the TXSE.</p>
-<p class="ph-sign">With great respect,<br><span class="ph-hand">${esc(C.maker && C.maker.name || 'Will Fullerton')}</span><br>${esc(C.maker && C.maker.name || 'Will Fullerton')}<br><span>Founding director, Watermark · founder, Krafft</span></p>`)}`;
+<p class="ph-sign"><span class="ph-hand">${esc(C.maker && C.maker.name || 'Will Fullerton')}</span><br>${esc(C.maker && C.maker.name || 'Will Fullerton')}<br><span>Founding director, Watermark · founder, Krafft</span></p>`)}`;
   }
 
   // --- The room.
   app.get('/peephole', (req, res) => {
     noStore(res); const r = readerOf(req);
-    if (!r) return res.status(403).send(V.layout({ title: 'The peephole · Watermark', path: '/peephole', bare: true, body: `<main class="ph ph-door"><p class="k">The peephole</p><h1>A room for one reader.</h1><p>This room is opened by letter. If you have one, open the link in it on this device; if you are signed in, use the address the letter was sent to.</p><p><a href="/signin?next=/peephole">Sign in</a> · <a href="/">The house</a></p></main>` }));
+    if (!r) return res.redirect('/signin?next=/peephole'); // nothing is described to a stranger; the room is reached by letter or by the reader's own sign-in
     if (r.id) db.prepare("UPDATE readers SET last_seen=datetime('now'), visits=visits+1 WHERE id=?").run(r.id);
     const N = numbers(); const O = N.O; const P = plates(6); const lately = (app.locals.lately ? app.locals.lately(14) : []).map(({ e, line }) => ({ at: e.at, text: String(line.text || '') }));
     const lines = db.prepare('SELECT * FROM reader_lines WHERE reader_id=? ORDER BY id DESC LIMIT 6').all(r.id);
@@ -118,10 +122,10 @@ ${S('ask', 'IX. The ask', `
     const dateLine = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
     res.send(V.layout({ title: `The peephole · for ${first(r.name)}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"><main class="ph">
 <script src="/static/eye.js" defer></script>
-<header class="ph-mast"><p class="ph-k">${esc(C.maker && C.maker.name || 'Will Fullerton')} · The brief</p><h1>For ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for ${esc(r.name)} · the numbers are live · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
+<header class="ph-mast"><p class="ph-k">${esc(C.maker && C.maker.name || 'Will Fullerton')} · The brief</p><h1>For ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for ${esc(r.name)} · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
 <article class="ph-brief">${brief(r, N, P)}</article>
 
-<section class="ph-show" id="show"><h2 class="ph-h">The show</h2><p>The best way to understand the house is to use it. Each door below opens in this window; come back with the arrow.</p>
+<section class="ph-show" id="show"><h2 class="ph-h">Use it</h2>
 <ul class="ph-doors">
 <li><a href="/wander?at=${esc(P[3] ? P[3].slug : '')}"><b>Wander</b><span>The museum itself: one work a screen, true to size, the record under every picture, the Collect quiet. Swipe left for the Keys, right for your own gallery.</span></a></li>
 <li><a href="/w/${esc(P[4] ? P[4].slug : (P[0] ? P[0].slug : ''))}"><b>A record</b><span>What sits under every picture: the deed, the number, the uses and prices, the Shield, the guide written with AI, the guest book, the provenance.</span></a></li>
@@ -135,7 +139,7 @@ ${N.clientHost ? `<li><a href="https://${esc(N.clientHost)}"><b>${esc(N.clientNa
 
 ${playhouse(r)}
 
-<section class="ph-num" id="numbers"><h2 class="ph-h">The numbers, as they stand</h2>
+<section class="ph-num" id="numbers"><h2 class="ph-h">The numbers</h2>
 <div class="ph-tiles">
 ${tile((O.theNumber && O.theNumber.strangersThisWeek) || 0, 'collected by strangers this week', `${(O.theNumber && O.theNumber.strangersLastWeek) || 0} last week`)}
 ${tile(money(m.week ? m.week.total : 0), 'sold this week', `${money(m.week ? m.week.makers : 0)} to makers`)}
@@ -151,11 +155,11 @@ ${tile(O.vault ? (O.vault.bytes / 1e9).toFixed(1) + ' GB' : '0', 'in the vault',
 ${tile(costs ? money(costs.monthly * 100) : '–', 'the machine, a month', costs && costs.per1kVisitors != null ? `$${costs.per1kVisitors} per thousand visitors` : 'set COSTS_MONTHLY to show the cost line')}
 </div>
 <div class="ph-charts"><div><p class="k">Visitors by day, thirty days</p>${spark(g.visitorsByDay, 'visitors')}</div><div><p class="k">Pieces collected by day, thirty days</p>${spark(g.collectsByDay, 'n')}</div></div>
-<p class="ph-note">Every figure is computed by the house from its own tables when this page is opened. Nothing is typed in. Costs are the house's vendors by the month, set in its environment; the cost per thousand visitors follows.</p></section>
+<p class="ph-note">Computed by the house when the page opens. Nothing typed in.</p></section>
 
-<section class="ph-reg" id="register"><h2 class="ph-h">Lately, on the register</h2><ul class="ph-wire">${lately.map(l => `<li><span>${esc(new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }))}</span> ${l.text}</li>`).join('')}</ul><p class="ph-note"><a href="/ledger">The whole register</a> · <a href="/ledger/anchors.json">its anchors</a> · <a href="/standard">how anyone checks it</a></p></section>
+<section class="ph-reg" id="register"><h2 class="ph-h">The register, lately</h2><ul class="ph-wire">${lately.map(l => `<li><span>${esc(new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }))}</span> ${l.text}</li>`).join('')}</ul><p class="ph-note"><a href="/ledger">The whole register</a> · <a href="/ledger/anchors.json">its anchors</a> · <a href="/standard">how anyone checks it</a></p></section>
 
-<section class="ph-site" id="site"><h2 class="ph-h">The construction site</h2><p>The house ships most days. Each release is named and dated; the walk through every door runs on each one; the tests are green before anything reaches the live house. What was built lately:</p>
+<section class="ph-site" id="site"><h2 class="ph-h">Built lately</h2>
 <ul class="ph-rel">${((app.locals.releases && app.locals.releases.releases()) || []).slice(0, 6).map(x => `<li><b>${esc(x.version)}</b> · ${esc(x.name || '')} <span>${esc(x.date || '')}</span>${x.items && x.items.length ? `<ul>${x.items.slice(0, 4).map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>
 <p class="ph-note"><a href="/releases">Every release</a> · <a href="/healthz">the house's pulse</a> (up, the register sound, the vault, mail, payments; the full report is the Studio's)</p></section>
 
@@ -171,10 +175,10 @@ ${tile(costs ? money(costs.monthly * 100) : '–', 'the machine, a month', costs
 <li><a href="/wander">Wander</a> <span>the museum itself; the best way to understand the house is to stand in it</span></li>
 </ul></section>
 
-<section class="ph-line"><h2 class="ph-h">A line for the director</h2>
-<form method="post" action="/peephole/line" class="ph-f"><textarea name="body" rows="3" maxlength="2000" placeholder="A question, a doubt, an introduction. It reaches the director alone." required></textarea><button>Send it</button></form>
+<section class="ph-line"><h2 class="ph-h">A line</h2>
+<form method="post" action="/peephole/line" class="ph-f"><textarea name="body" rows="3" maxlength="2000" placeholder="A question. A doubt. An introduction." required></textarea><button>Send it</button></form>
 ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Date(l.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</span> ${esc(l.body)}</li>`).join('')}</ul>` : ''}
-<p class="ph-note">This room is yours alone; nothing in it is on the public register, and nothing you write here is seen by anyone but the director.</p></section>
+<p class="ph-note">This room is yours alone. What you write here reaches the director and no one else.</p></section>
 </main>` }));
   });
   app.post('/peephole/line', (req, res) => {

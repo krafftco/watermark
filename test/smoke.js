@@ -2570,7 +2570,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const av = OV.anchor(ots, headHex); assert.ok(av.ok && av.matches && av.bitcoin === 870000, 'the anchor reads: ' + JSON.stringify(av)); assert.equal(OV.anchor(ots, 'ff'.repeat(32)).matches, false, 'another head does not match'); }
   console.log('ok: the open verifier');
   // The peephole (28 Oct): a room for one reader, opened by letter, closed by a word; the brief with the live numbers; a line for the director; nothing public.
-  { r = await req(port, 'GET', '/peephole'); assert.equal(r.status, 403, 'a stranger sees the door');
+  { r = await req(port, 'GET', '/peephole'); assert.ok(r.status === 302 && /signin/.test(r.headers.location), 'a stranger is sent to sign in');
     r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck3 = r.headers['set-cookie'][0].split(';')[0];
     r = await req(port, 'GET', '/peephole', { cookie: sck3 }); assert.ok(r.status === 200 && /For The house\./.test(r.body.toString()), 'the Studio reads the room as the house');
     r = await req(port, 'POST', '/studio/peephole', { cookie: sck3, body: { name: 'R. P.', email: 'reader@example.com', note: 'our guide' } }); assert.equal(r.status, 302);
@@ -2578,11 +2578,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const sent = (app.locals.mailLog || []).find(x => /room set aside/.test(x.subject || '')); if (sent) assert.ok(sent.text.includes('/peephole/open/' + rd.token), 'the letter carries the door');
     r = await req(port, 'GET', `/peephole/open/${rd.token}`); const phck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_ph=')); assert.ok(r.status === 302 && phck, 'the door admits the device');
     const rck = phck.split(';')[0];
-    r = await req(port, 'GET', '/peephole', { cookie: rck }); const room = r.body.toString(); assert.ok(r.status === 200 && /For R\. P\./.test(room) && /prepared for R\. P\./.test(room) && /I\. What it is/.test(room) && /collected by strangers this week/.test(room) && /The construction site/.test(room) && /Lately, on the register/.test(room) && r.headers['cache-control'].includes('no-store'), 'the room: the brief, the numbers, the site, the register, private');
+    r = await req(port, 'GET', '/peephole', { cookie: rck }); const room = r.body.toString(); assert.ok(r.status === 200 && /For R\. P\./.test(room) && /prepared for R\. P\./.test(room) && /What it is/.test(room) && /collected by strangers this week/.test(room) && /Built lately/.test(room) && /The register, lately/.test(room) && r.headers['cache-control'].includes('no-store'), 'the room: the brief, the numbers, the site, the register, private');
     assert.equal(db.prepare('SELECT visits FROM readers WHERE id=?').get(rd.id).visits, 1);
     r = await req(port, 'POST', '/peephole/line', { cookie: rck, body: { body: 'Who holds the signing key tonight?' } }); assert.equal(r.status, 302); assert.equal(db.prepare('SELECT COUNT(*) n FROM reader_lines WHERE reader_id=?').get(rd.id).n, 1, 'a line left for the director');
     r = await req(port, 'GET', '/studio/peephole', { cookie: sck3 }); assert.ok(/R\. P\./.test(r.body.toString()) && /Who holds the signing key/.test(r.body.toString()), 'the desk shows the reader and the line: ' + r.status + ' ' + r.body.toString().slice(0, 300));
-    r = await req(port, 'POST', `/studio/peephole/${rd.id}/close`, { cookie: sck3 }); r = await req(port, 'GET', '/peephole', { cookie: rck }); assert.equal(r.status, 403, 'the keys taken back');
+    r = await req(port, 'POST', `/studio/peephole/${rd.id}/close`, { cookie: sck3 }); r = await req(port, 'GET', '/peephole', { cookie: rck }); assert.equal(r.status, 302, 'the keys taken back');
     assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('reader.invited'), 'nothing of a reader on the public register'); }
   console.log('ok: the peephole');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
