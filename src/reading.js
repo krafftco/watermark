@@ -333,7 +333,7 @@ ${shelf('Editions', 'The house’s own.', 'Essays, journals and books from the h
     if (!isStudio(req)) return res.sendStatus(403);
     const b = req.body || {}; const h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(String(b.hang || '').trim());
     if (!h) return res.redirect('/studio/reading?ok=' + encodeURIComponent('No wall by that address.'));
-    const rows = db.prepare('SELECT w.slug, hw.note FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status=\'held\' ORDER BY hw.pos, hw.rowid').all(h.id);
+    const rows = db.prepare('SELECT w.slug, hw.note FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status=\'held\' ORDER BY hw.pos, hw.work_id').all(h.id);
     if (!rows.length) return res.redirect('/studio/reading?ok=' + encodeURIComponent('That wall holds nothing shown.'));
     const title = String(b.title || h.title).trim().slice(0, 160); let slug = slugify(title); if (db.prepare('SELECT 1 FROM texts WHERE slug=?').get(slug)) slug = `${slug}-${Date.now().toString(36)}`;
     const cover = db.prepare('SELECT id FROM works WHERE slug=?').get(rows[0].slug);

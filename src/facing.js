@@ -74,7 +74,7 @@ function mountFacing(app, { db, ledger, fetchImpl }) {
       }
       let head = ch.head || null;
       if (head) { try { head = (await ask([head], lang, from)).out[0] || head; } catch (e) { /* the original head stands */ } }
-      db.prepare('INSERT OR REPLACE INTO translations (text_id, lang, chapter, head, paras, model) VALUES (?,?,?,?,?,?)').run(t.id, lang, c, head, JSON.stringify(out), model);
+      db.prepare('INSERT INTO translations (text_id, lang, chapter, head, paras, model) VALUES (?,?,?,?,?,?) ON CONFLICT(text_id, lang, chapter) DO UPDATE SET head=excluded.head, paras=excluded.paras, model=excluded.model').run(t.id, lang, c, head, JSON.stringify(out), model);
       try { ledger.append(db, 'text.translated', t.slug, { lang, chapter: c, model }); } catch (e) { /* the register is not the point */ }
       return { head, paras: out, lang, model, at: new Date().toISOString() };
     })().finally(() => inflight.delete(key));

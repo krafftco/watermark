@@ -143,7 +143,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
     const days = span === 'today' ? 1 : span === '7d' ? 7 : 30;
     const hours = q("SELECT (at/3600)*3600 h, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND at>=? GROUP BY h ORDER BY h", S.from);
     const byDay = days > 1 ? q("SELECT (at/86400)*86400 d, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND at>=? GROUP BY d ORDER BY d", S.from) : [];
-    const works = q("SELECT h.path, COUNT(*) views, COUNT(DISTINCT h.visitor) visitors, w.title, w.slug FROM hits h LEFT JOIN works w ON w.slug=substr(h.path,4) WHERE h.kind='page' AND h.bot=0 AND h.status<400 AND h.path LIKE '/w/%' AND h.at>=? GROUP BY h.path ORDER BY views DESC LIMIT 12", S.from);
+    const works = q("SELECT h.path, COUNT(*) views, COUNT(DISTINCT h.visitor) visitors, w.title, w.slug FROM hits h LEFT JOIN works w ON w.slug=substr(h.path,4) WHERE h.kind='page' AND h.bot=0 AND h.status<400 AND h.path LIKE '/w/%' AND h.at>=? GROUP BY h.path, w.title, w.slug ORDER BY views DESC LIMIT 12", S.from);
     const pages = q("SELECT path, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND path NOT LIKE '/w/%' AND at>=? GROUP BY path ORDER BY views DESC LIMIT 14", S.from);
     const refs = q("SELECT ref, COUNT(DISTINCT visitor) visitors, COUNT(*) views FROM hits WHERE kind='page' AND bot=0 AND ref IS NOT NULL AND at>=? GROUP BY ref ORDER BY visitors DESC LIMIT 12", S.from);
     const direct = one("SELECT COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND ref IS NULL AND at>=?", S.from).n;
@@ -153,7 +153,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
     const stoodTop = q("SELECT w.slug, w.title, COUNT(*) n, SUM(s.seconds) secs FROM stood s JOIN works w ON w.id=s.work_id WHERE s.at>=? GROUP BY w.id ORDER BY secs DESC LIMIT 8", iso(S.from));
     const speedRows = q("SELECT kind, ms FROM hits WHERE at>=? AND bot=0", Math.max(S.from, now - 86400));
     const speed = {}; for (const k of ['page', 'api']) { const a = speedRows.filter(r => r.kind === k).map(r => r.ms); speed[k] = { n: a.length, p50: pct(a, .5), p95: pct(a, .95), max: a.length ? Math.max(...a) : 0 }; }
-    const slow = q("SELECT path, COUNT(*) n, AVG(ms) avg, MAX(ms) max FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY path HAVING n>=3 ORDER BY avg DESC LIMIT 8", Math.max(S.from, now - 86400));
+    const slow = q("SELECT path, COUNT(*) n, AVG(ms) avg, MAX(ms) max FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY path HAVING COUNT(*)>=3 ORDER BY AVG(ms) DESC LIMIT 8", Math.max(S.from, now - 86400));
     const errs = q("SELECT status, COUNT(*) n FROM hits WHERE status>=400 AND at>=? GROUP BY status ORDER BY n DESC", S.from);
     const bots = q("SELECT path, COUNT(*) n FROM hits WHERE bot=1 AND at>=? GROUP BY path ORDER BY n DESC LIMIT 6", S.from);
     const sinceMin = minutes.slice(-60);
@@ -164,7 +164,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
   }
   function health() {
     const mem = process.memoryUsage(); const dataDir = C.dataDir || process.env.DATA_DIR || '';
-    let dbBytes = null, disk = null; try { dbBytes = fs.statSync(path.join(dataDir, 'watermark.db')).size; } catch (e) { try { dbBytes = fs.statSync(db.name).size; } catch (e2) { dbBytes = null; } }
+    let dbBytes = null, disk = null; if (db.kind === 'postgres') { try { dbBytes = db.prepare('SELECT pg_database_size(current_database()) n').get().n; } catch (e) { dbBytes = null; } } else try { dbBytes = fs.statSync(path.join(dataDir, 'watermark.db')).size; } catch (e) { try { dbBytes = fs.statSync(db.name).size; } catch (e2) { dbBytes = null; } }
     try { const s = fs.statfsSync(dataDir || '.'); disk = { free: s.bavail * s.bsize, total: s.blocks * s.bsize }; } catch (e) { disk = null; }
     const hits = one('SELECT COUNT(*) n, MIN(at) first FROM hits');
     const L = app.locals; const t = f => { try { return f(); } catch (e) { return null; } };

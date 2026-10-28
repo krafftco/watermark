@@ -141,7 +141,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
     const hour = +new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' });
     if (!force && hour < DAILY_HOUR) return 0;
     const key = `daily_${t.day}`; if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return 0;
-    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(key, new Date().toISOString());
     const owners = db.prepare('SELECT DISTINCT maker_id, buyer_id FROM push_subs').all(); let n = 0;
     for (const o of owners) {
       if (!o.maker_id && !o.buyer_id) continue;

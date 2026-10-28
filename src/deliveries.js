@@ -49,7 +49,7 @@ function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q
     const m = makerOf(req); if (!m) return res.redirect('/signin?to=' + encodeURIComponent('/account/deliveries'));
     const rows = db.prepare('SELECT * FROM deliveries WHERE maker_id=? ORDER BY id DESC LIMIT 100').all(m.id);
     // Sorting and choosing (Will, 21 Oct): the last upload first by default, or by place, by title, by stars; a word filters; Tick all shown.
-    const sort = { newest: 'w.id DESC', place: 'w.place IS NULL, w.place, w.id DESC', title: 'w.title COLLATE NOCASE', stars: 'w.stars DESC, w.id DESC' }[String(req.query.sort || 'newest')] || 'w.id DESC';
+    const sort = { newest: 'w.id DESC', place: 'w.place IS NULL, w.place, w.id DESC', title: 'lower(w.title)', stars: 'w.stars DESC, w.id DESC' }[String(req.query.sort || 'newest')] || 'w.id DESC';
     const works = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.status, w.stars, w.created_at FROM works w WHERE w.maker_id=? AND w.status IN ('held','hidden') ORDER BY ${sort}`).all(m.id);
     const sortNow = String(req.query.sort || 'newest');
     const ok = req.query.ok ? String(req.query.ok) : '';

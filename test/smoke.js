@@ -196,10 +196,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/healthz', { cookie: ck }); { const j = JSON.parse(r.body); assert.ok(j.backup && j.backup.last && j.backup.last.ok && j.backup.drill && j.backup.drill.ok, '/healthz reports the backup to the Studio'); assert.ok(j.vault && 'dataDir' in j.vault, 'the full report'); }
     r = await req(port, 'GET', '/.well-known/security.txt'); assert.ok(r.status === 200 && /Contact: mailto:/.test(r.body) && /Expires:/.test(r.body), 'security.txt');
     // tamper: a backup whose register has a different hash at the same seq must fail
-    const zlib = require('zlib'); const Database = require('better-sqlite3'); const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.db`);
-    fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key))); const t = new Database(tmp); t.prepare("UPDATE ledger SET hash='0000' WHERE seq=(SELECT MAX(seq) FROM ledger)").run(); t.close();
-    await app.locals.store.put('backups/db/watermark-2000-01-01T00-00-00.db.gz', zlib.gzipSync(fs.readFileSync(tmp)), 'application/gzip');
-    let bad = null; try { await app.locals.backup.drill('backups/db/watermark-2000-01-01T00-00-00.db.gz'); } catch (e) { bad = e.message; } assert.ok(/register differs/.test(bad || ''), 'a tampered copy fails the drill');
+    const zlib = require('zlib'); let tampered;
+    if (db.kind === 'postgres') { // the same tamper on a Postgres house: restore the copy into a scratch database, change the hash there, dump it again
+      const { execFileSync } = require('child_process'); const bin = process.env.PG_BIN || ['/usr/lib/postgresql/17/bin', '/usr/lib/postgresql/16/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump')));
+      const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.pgdump`); fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key)));
+      const name = `wm_tamper_${process.pid}`; db.exec(`CREATE DATABASE "${name}"`); const u = new URL(db.url); u.pathname = '/' + name;
+      execFileSync(path.join(bin, 'pg_restore'), ['--no-owner', '--no-acl', '-d', u.toString(), tmp]);
+      const t = require('../src/pgsync').open(u.toString()); t.prepare("UPDATE ledger SET hash='0000' WHERE seq=(SELECT MAX(seq) FROM ledger)").run(); t.close();
+      execFileSync(path.join(bin, 'pg_dump'), ['--format=custom', '--no-owner', '--no-acl', '-f', tmp, u.toString()]); db.exec(`DROP DATABASE "${name}" WITH (FORCE)`);
+      tampered = 'backups/db/watermark-2000-01-01T00-00-00.pgdump.gz'; await app.locals.store.put(tampered, zlib.gzipSync(fs.readFileSync(tmp)), 'application/gzip');
+    } else {
+      const Database = require('better-sqlite3'); const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.db`);
+      fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key))); const t = new Database(tmp); t.prepare("UPDATE ledger SET hash='0000' WHERE seq=(SELECT MAX(seq) FROM ledger)").run(); t.close();
+      tampered = 'backups/db/watermark-2000-01-01T00-00-00.db.gz'; await app.locals.store.put(tampered, zlib.gzipSync(fs.readFileSync(tmp)), 'application/gzip');
+    }
+    let bad = null; try { await app.locals.backup.drill(tampered); } catch (e) { bad = e.message; } assert.ok(/register differs/.test(bad || ''), 'a tampered copy fails the drill');
     assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='backup.failed'").get().n === 1, 'the failure is on the register');
     await new Promise(r => setTimeout(r, 1100)); await app.locals.backup.backup(); await new Promise(r => setTimeout(r, 1100)); await app.locals.backup.backup(); assert.ok(!(await app.locals.store.list('backups/db/')).some(k => k.includes('2000-01-01')), 'old copies are pruned with each backup, never below three'); }
   // The Studio door: with STUDIO_EMAILS set the password is retired; a named person's email code opens the door (no passkey yet), a stranger's does not.

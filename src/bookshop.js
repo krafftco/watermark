@@ -153,7 +153,7 @@ ${shelf('The Library', 'Every book, to read here.', 'The public domain free, the
     const mine = (w) => ({ copies: db.prepare('SELECT c.*, t.title, t.slug FROM copies c JOIN texts t ON t.id=c.text_id WHERE c.seller_kind=? AND c.seller_id=? ORDER BY c.id DESC').all(w.kind, w.id), orders: db.prepare("SELECT o.*, c.kind, c.line, t.title, t.slug FROM copy_orders o JOIN copies c ON c.id=o.copy_id JOIN texts t ON t.id=c.text_id WHERE c.seller_kind=? AND c.seller_id=? AND o.paid=1 ORDER BY CASE o.status WHEN 'asked' THEN 0 WHEN 'packed' THEN 1 WHEN 'sent' THEN 2 ELSE 3 END, o.id DESC").all(w.kind, w.id) });
     app.get(base, (req, res) => {
       const w = who(req); if (!w) return res.status(401).send(V.sign ? V.sign(401) : 'Sign in');
-      const { copies, orders } = mine(w); const books = db.prepare("SELECT slug, title, author FROM texts WHERE status='held' AND public=1 ORDER BY title COLLATE NOCASE LIMIT 400").all();
+      const { copies, orders } = mine(w); const books = db.prepare("SELECT slug, title, author FROM texts WHERE status='held' AND public=1 ORDER BY lower(title) LIMIT 400").all();
       if (V.setDeskPath) V.setDeskPath(base);
       const earned = orders.filter(o => o.status !== 'declined').reduce((a, o) => a + ((o.cents || 0) - (o.house_cents || 0)), 0);
       res.send(V.layout({ title: 'Your shelf · The Bookshop · Watermark', studio: w.kind === 'maker', body: `<section class="studio-wrap bs-desk bs-mine"><p class="k">${w.kind === 'maker' ? '<a href="/account">&larr; Your studio</a>' : '<a href="/yours">&larr; Your gallery</a>'} &middot; The Bookshop</p><h1>Your shelf.</h1>

@@ -12,7 +12,7 @@ function mountDigest(app, { db, C, mail, ledger }) {
   const TO = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
   db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)');
   const get = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
-  const set = (k, v) => db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(k, String(v));
+  const set = (k, v) => db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, String(v));
   const money = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const n = x => (x == null ? '–' : Number(x).toLocaleString('en-US'));
   const when = s => (s ? String(s).replace('T', ' ').slice(0, 16) + ' UTC' : 'never');

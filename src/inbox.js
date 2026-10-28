@@ -59,7 +59,7 @@ function mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch }) {
     const p = provider(ib); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(ib.maker_id); if (!m) return { why: 'no maker' };
     let files; try { files = await p.list(); } catch (e) { db.prepare("UPDATE inboxes SET note=?, last_at=datetime('now') WHERE id=?").run(String(e.message).slice(0, 200), ib.id); return { why: e.message }; }
     const by = await sidecars(p, files); let taken = 0, skipped = 0, failed = 0, n = 0;
-    const seen = db.prepare('SELECT 1 FROM inbox_seen WHERE inbox_id=? AND key=? AND size=?'); const mark = db.prepare('INSERT OR REPLACE INTO inbox_seen (inbox_id, key, size, outcome, what, why) VALUES (?,?,?,?,?,?)');
+    const seen = db.prepare('SELECT 1 FROM inbox_seen WHERE inbox_id=? AND key=? AND size=?'); const mark = db.prepare('INSERT INTO inbox_seen (inbox_id, key, size, outcome, what, why) VALUES (?,?,?,?,?,?) ON CONFLICT(inbox_id, key, size) DO UPDATE SET outcome=excluded.outcome, what=excluded.what, why=excluded.why');
     for (const f of files) {
       if (n >= MAX_PER_LOOK) break; if (SIDE.test(f.name)) continue; if (!force && seen.get(ib.id, f.key, f.size)) continue; n++;
       const sc = sideOf(by, f.name); const tmp = path.join(stage, `ib-${crypto.randomBytes(5).toString('hex')}${path.extname(f.name).toLowerCase()}`);

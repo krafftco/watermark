@@ -12,6 +12,12 @@ const { createStore } = require('../src/storage');
   if (!key) { const j = await store.get('backups/latest.json'); if (!j) throw new Error('no backup in the vault'); key = JSON.parse(j.toString()).key; }
   const gz = await store.get(key); if (!gz) throw new Error(`not found: ${key}`);
   const raw = zlib.gunzipSync(gz);
+  if (/\.pgdump\.gz$/.test(key)) { // a Postgres house's copy: the restore is pg_restore's, with the house stopped
+    const out = path.join(dataDir, 'watermark.restored.pgdump'); fs.writeFileSync(out, raw);
+    console.log(`fetched ${key} → ${out} (${raw.length} bytes)`);
+    console.log('Now, with the house stopped: pg_restore --clean --if-exists --no-owner --no-acl -d "$DATABASE_URL" ' + out + ' ; then start it.');
+    return;
+  }
   const out = path.join(dataDir, 'watermark.restored.db'); fs.writeFileSync(out, raw);
   const b = new Database(out, { readonly: true }); const integ = b.pragma('integrity_check', { simple: true });
   const n = b.prepare('SELECT COUNT(*) n FROM ledger').get().n; b.close();

@@ -44,7 +44,7 @@ function mountFrame(app, { db, C, V, stripe, buyerOf, ledger, pocket, nextRef, g
   // The door.
   app.get('/frame', (req, res) => {
     const b = buyerOf(req);
-    const hangs = db.prepare(`SELECT h.slug, h.title, h.public, COUNT(hw.work_id) n FROM hangs h LEFT JOIN hang_works hw ON hw.hang_id=h.id WHERE h.public=1 OR h.buyer_id=? GROUP BY h.id HAVING n>0 ORDER BY h.public, h.id DESC LIMIT 24`).all(b ? b.id : -1);
+    const hangs = db.prepare(`SELECT h.slug, h.title, h.public, COUNT(hw.work_id) n FROM hangs h LEFT JOIN hang_works hw ON hw.hang_id=h.id WHERE h.public=1 OR h.buyer_id=? GROUP BY h.id HAVING COUNT(hw.work_id)>0 ORDER BY h.public, h.id DESC LIMIT 24`).all(b ? b.id : -1);
     const makers = db.prepare(`SELECT m.handle, m.name, COUNT(w.id) n FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE m.standing='open' GROUP BY m.id ORDER BY n DESC LIMIT 12`).all();
     const frames = b ? db.prepare('SELECT * FROM frames WHERE buyer_id=? ORDER BY updated_at DESC LIMIT 6').all(b.id) : [];
     res.send(framePage({ b, hangs, makers, series: SERIES || [], frames, on: !!stripe, q: req.query.q || '' }));

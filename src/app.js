@@ -231,6 +231,7 @@ function createApp(cfg = {}) {
   }
   // Database backups: a consistent copy of SQLite, written to the vault.
   async function backupDb() {
+    if (app.locals.backup) return (await app.locals.backup.backup()).key; // the backup room knows both engines (27 Oct)
     const tmp = path.join(C.dataDir, 'backup.tmp.db');
     await db.backup(tmp);
     const key = `backups/db/watermark-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
@@ -354,7 +355,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
 
   function countView(workId, host, kind) {
     const day = new Date().toISOString().slice(0, 10);
-    db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=count+1').run(workId, host || null, kind, day);
+    db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+1').run(workId, host || null, kind, day);
   }
 
   async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind, artist }) {
@@ -496,7 +497,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   const studioGen = () => { try { const r = db.prepare("SELECT v FROM settings WHERE k='studio_sess'").get(); return r && r.v ? '.' + r.v : ''; } catch (e) { return ''; } };
   const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp + studioGen()) && Date.now() < +exp; };
   app.locals.isStudio = req => isStudio(req);
-  app.locals.studioBump = () => { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('studio_sess', ?)").run(String(Date.now())); };
+  app.locals.studioBump = () => { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); db.prepare("INSERT INTO settings (k, v) VALUES ('studio_sess', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   // The one number (Will, 27 Oct, after the Musk prescription): paid personal Collects by strangers this week against last.
   // A stranger is a collector who is not a maker of the house and not the house's own gallery: the people who found
@@ -1046,9 +1047,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
       WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
-    const rooms = ids.length ? db.prepare(`SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
+    const rooms = ids.length ? db.prepare(`SELECT * FROM (SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
       FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
-      WHERE c.public=1 GROUP BY c.id HAVING have > 0 ORDER BY (have * 1.0 / total) DESC, have DESC`).all(...ids) : [];
+      WHERE c.public=1 GROUP BY c.id, c.slug, c.title) r WHERE have > 0 ORDER BY (have * 1.0 / total) DESC, have DESC`).all(...ids) : [];
     return { items, rooms, works: ids.length, makers: new Set(items.map(i => i.handle)).size };
   }
   // Rembrandt's room: a maker's fives hang in their own gallery as the artist's copies, alongside what they collect.
@@ -1871,16 +1872,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     try {
       const D = app.locals.deskSummary ? app.locals.deskSummary() : null; const q = (sql, dflt = 0) => { try { return db.prepare(sql).get().n; } catch (e) { return dflt; } };
       const ST = app.locals.strangers();
-      const asks = q("SELECT COUNT(*) n FROM house_asks WHERE status='open' OR status IS NULL"), restoring = q("SELECT COUNT(*) n FROM works WHERE status='restoring'"), lost = (vaultState.lost || []).length;
+      const asks = q("SELECT COUNT(*) n FROM house_asks WHERE answered_at IS NULL"), restoring = q("SELECT COUNT(*) n FROM works WHERE status='restoring'"), lost = (vaultState.lost || []).length;
       const lastBackup = (() => { try { return db.prepare("SELECT at FROM backup_runs WHERE kind='backup' AND ok=1 ORDER BY id DESC LIMIT 1").get(); } catch (e) { return null; } })();
       const need = needs.filter(x => x.n > 0);
       const N = D ? D.needs : {};
       // Two numbers the business runs on (Will, 25 Oct): do collectors come back, and how long does a maker wait for a first sale.
       const so = app.locals.standingOrders ? app.locals.standingOrders.summary() : null;
       const again = (() => { const r = db.prepare(`WITH p AS (SELECT l.buyer_id, MIN(l.starts_at) first FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.buyer_id IS NOT NULL AND l.price_cents > 0 AND l.status IN ('active','expired') AND u.key IN ('social','reference') GROUP BY l.buyer_id)
-        SELECT COUNT(*) n, SUM(EXISTS (SELECT 1 FROM licenses l2 WHERE l2.buyer_id=p.buyer_id AND l2.price_cents > 0 AND l2.status IN ('active','expired') AND l2.starts_at > p.first AND l2.starts_at <= datetime(p.first, '+60 days'))) back FROM p WHERE p.first <= datetime('now', '-60 days') OR EXISTS (SELECT 1 FROM licenses l3 WHERE l3.buyer_id=p.buyer_id AND l3.price_cents > 0 AND l3.starts_at > p.first)`).get();
+        SELECT COUNT(*) n, SUM(CASE WHEN EXISTS (SELECT 1 FROM licenses l2 WHERE l2.buyer_id=p.buyer_id AND l2.price_cents > 0 AND l2.status IN ('active','expired') AND l2.starts_at > p.first AND l2.starts_at <= datetime(p.first, '+60 days')) THEN 1 ELSE 0 END) back FROM p WHERE p.first <= datetime('now', '-60 days') OR EXISTS (SELECT 1 FROM licenses l3 WHERE l3.buyer_id=p.buyer_id AND l3.price_cents > 0 AND l3.starts_at > p.first)`).get();
         return r && r.n >= 3 ? `${Math.round(100 * (r.back || 0) / r.n)}% of ${r.n} collectors, within 60 days` : null; })();
-      const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING d >= 0 ORDER BY d`).all().map(r => r.d);
+      const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) >= 0 ORDER BY 1`).all().map(r => r.d);
         if (days.length < 2) return null; const med = days[Math.floor(days.length / 2)]; return `${Math.round(med)} day${Math.round(med) === 1 ? '' : 's'} from joining, the median of ${days.length}`; })();
       desk = {
         line: [[String(ST.week), `collected by strangers this week · ${ST.last} last week`], [V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
@@ -2315,7 +2316,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const host = String(req.body.host || '').toLowerCase().replace(/[^a-z0-9.\-:]/g, '').slice(0, 120) || null;
     const now = new Date().toISOString();
     db.prepare('UPDATE seals SET opens=opens+1, last_opened_at=? WHERE id=?').run(now, s.id);
-    db.prepare('INSERT INTO seal_opens (seal_id,day,host) VALUES (?,?,?) ON CONFLICT(seal_id,day,host) DO UPDATE SET count=count+1').run(s.id, now.slice(0, 10), host);
+    db.prepare('INSERT INTO seal_opens (seal_id,day,host) VALUES (?,?,?) ON CONFLICT(seal_id,day,host) DO UPDATE SET count=seal_opens.count+1').run(s.id, now.slice(0, 10), host);
     res.set('Cache-Control', 'no-store').json({ open: true, key: SEAL.unwrap(s.wrapped_key, C.secret).toString('base64') });
   });
   app.get('/view', (req, res) => res.send(V.viewer()));
@@ -2448,7 +2449,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const unvaulted = db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works = db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n;
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     res.json({ ...brief, vault: { kind: store.kind, cors: app.locals.vaultCors, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, faults: process.faults || null });

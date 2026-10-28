@@ -123,7 +123,7 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     if (stars) { where += ' AND w.stars>=?'; args.push(stars); }
     if (q) { where += ' AND (w.title LIKE ? OR w.place LIKE ? OR w.keywords LIKE ?)'; const l = `%${q.replace(/[%_]/g, '')}%`; args.push(l, l, l); }
     const works = db.prepare(`SELECT w.* FROM works w WHERE ${where} ORDER BY w.stars DESC, w.curated DESC, w.taken_at DESC, w.id DESC LIMIT 600`).all(...args);
-    const total = db.prepare("SELECT COUNT(*) n, SUM(status='hidden') k FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id);
+    const total = db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN status='hidden' THEN 1 ELSE 0 END) k FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id);
     const shows = showsOf(b, m); const cur = shows.find(s => String(s.id) === String(req.query.show)) || shows[0] || null;
     const inShow = new Set(cur ? showWorks(cur).map(w => w.id) : []);
     const seq = cur ? showWorks(cur) : [];

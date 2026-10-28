@@ -4,6 +4,11 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.3 · Two engines · 27 October 2026
+- The house runs on Postgres when DATABASE_URL names a server, SQLite otherwise, with no room rewritten: the bridge (a worker thread the main thread waits on) and the dialect (SQLite's idiom into Postgres's, by rule), proven by every statement in the source prepared against a real Postgres and the whole suite passing on both.
+- Backups and the restore drill on Postgres (pg_dump, a scratch-database restore, the register verified); `scripts/to-postgres.js` moves a house and proves the move; CI runs the suite on both engines.
+- Launch checks the Stripe webhook for all six events the house listens for.
+
 ## 1.2.1 · The morning digest · 27 October 2026
 
 One letter a day to the house: the week in numbers, what went wrong, how fast, the state of the keeping (vault, backups, fixity, conservation, mail), what needs the house. And an alarm, at most once an hour, only when something is wrong.

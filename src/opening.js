@@ -36,7 +36,7 @@ function mountOpening(app, { db, C, V, mail, buyerOf, isStudio }) {
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req)) return res.redirect(303, back + '#opening');
     const maker = x.maker === '1' ? 1 : 0, plus = x.plus === '1' ? 1 : 0;
     const had = db.prepare('SELECT id FROM rsvps WHERE hang_id=? AND email=?').get(h.id, email);
-    db.prepare(`INSERT INTO rsvps (hang_id, name, email, plus, maker) VALUES (?,?,?,?,?) ON CONFLICT(hang_id, email) DO UPDATE SET name=excluded.name, plus=excluded.plus, maker=MAX(maker, excluded.maker)`).run(h.id, name, email, plus, maker);
+    db.prepare(`INSERT INTO rsvps (hang_id, name, email, plus, maker) VALUES (?,?,?,?,?) ON CONFLICT(hang_id, email) DO UPDATE SET name=excluded.name, plus=excluded.plus, maker=MAX(rsvps.maker, excluded.maker)`).run(h.id, name, email, plus, maker);
     if (!had) {
       const where = `${when(h.opens_at)}${h.venue ? `, ${h.venue}` : ''}`;
       mail.send({ to: email, subject: `${h.title}: you are on the list`, text: `${name},\n\nYou are on the list for ${h.title}: ${where}.${plus ? ' Your guest is welcome.' : ''}\n\nThe photographs are on the wall now: ${C.base}${back}\n${maker ? `\nYou make photographs. Watermark shows a small number of makers, by invitation; the application is here: ${C.base}/join?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}\n` : ''}\nWatermark` });

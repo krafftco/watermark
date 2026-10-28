@@ -52,7 +52,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     const rows = db.prepare('SELECT w.* FROM works w LEFT JOIN mirrors m ON m.work_id=w.id WHERE w.original_file IS NOT NULL AND COALESCE(w.vaulted,1)=1 AND m.work_id IS NULL ORDER BY w.id DESC LIMIT ?').all(n);
     let done = 0;
     for (const w of rows) {
-      try { const buf = fs.readFileSync(await originalPath(w)); if (sha256(buf) !== w.sha256) continue; const key = 'originals/' + w.original_file; await mirror.put(key, buf); db.prepare('INSERT OR REPLACE INTO mirrors (work_id, key, sha256, bytes) VALUES (?,?,?,?)').run(w.id, key, w.sha256, buf.length); done++; }
+      try { const buf = fs.readFileSync(await originalPath(w)); if (sha256(buf) !== w.sha256) continue; const key = 'originals/' + w.original_file; await mirror.put(key, buf); db.prepare("INSERT INTO mirrors (work_id, key, sha256, bytes) VALUES (?,?,?,?) ON CONFLICT(work_id) DO UPDATE SET key=excluded.key, sha256=excluded.sha256, bytes=excluded.bytes, at=datetime('now')").run(w.id, key, w.sha256, buf.length); done++; }
       catch (e) { console.error('[mirror]', w.slug, e.message); }
     }
     return { on: true, done, left: db.prepare('SELECT COUNT(*) n FROM works w LEFT JOIN mirrors m ON m.work_id=w.id WHERE w.original_file IS NOT NULL AND m.work_id IS NULL').get().n };

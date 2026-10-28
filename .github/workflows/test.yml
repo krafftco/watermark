@@ -1,9 +1,11 @@
-# The gate between a push and the house (22 Oct): every push to main runs the suite; Render deploys only when it
-# passes (Render → the service → Settings → "Wait for CI to pass before deploy", Will's switch).
+# The gate between a push and the house (22 Oct): every push to main or next runs the suite; Render deploys only when
+# it passes (Render → the service → Settings → "Wait for CI to pass before deploy", Will's switch). Two engines
+# (27 Oct): the suite runs on SQLite as it always did, and the smoke suite and the static SQL check run against a
+# real Postgres, since that is what the live house will stand on.
 name: test
 on:
   push:
-    branches: [main]
+    branches: [main, next]
   pull_request:
 jobs:
   test:
@@ -23,3 +25,30 @@ jobs:
       - run: npm test
         env:
           NODE_ENV: test
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: wm
+          POSTGRES_DB: wm
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:wm@localhost:5432/wm
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils tesseract-ocr postgresql-client > /dev/null
+      - run: npm ci
+      - run: node test/smoke.js test/fixture.jpg
+      - run: node scripts/sql-check.js
+      # Each test file expects an empty house: the schema is dropped between them, as SQLite's temp directory is.
+      - run: for t in vault drop beta fee boot; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && node test/$t.js || exit 1; done

@@ -140,7 +140,7 @@ function mountBagcheck(app, { db, V, ledger, studioOnly, makerOf, buyerOf }) {
   app.get('/studio/door', studioOnly, (req, res) => {
     const rows = db.prepare('SELECT * FROM bagcheck WHERE ok=0 ORDER BY id DESC LIMIT 200').all();
     const n = db.prepare("SELECT COUNT(*) n, SUM(ok) ok FROM bagcheck WHERE at > datetime('now','-7 days')").get();
-    const repeat = db.prepare("SELECT who, COUNT(*) n FROM bagcheck WHERE ok=0 AND who!='' AND at > datetime('now','-1 day') GROUP BY who HAVING n>=5 ORDER BY n DESC").all();
+    const repeat = db.prepare("SELECT who, COUNT(*) n FROM bagcheck WHERE ok=0 AND who!='' AND at > datetime('now','-1 day') GROUP BY who HAVING COUNT(*)>=5 ORDER BY COUNT(*) DESC").all();
     res.send(V.layout({ title: 'The door · Watermark', path: '/studio/door', studio: true, body: `<section class="studio-wrap bgc"><p class="k">Back office</p><h1>The door.</h1>
 <p class="lede">Every file is looked at before it enters: what it is by its own bytes, that nothing is hidden in it, that it opens whole and is a size a photograph can be. This week: ${(n.n || 0).toLocaleString('en-US')} looked at, ${(n.ok || 0).toLocaleString('en-US')} let in, ${((n.n || 0) - (n.ok || 0)).toLocaleString('en-US')} turned away.</p>
 ${repeat.length ? `<h2>Kept bringing the wrong thing today</h2><ul>${repeat.map(r => `<li><b>${V.esc(r.who)}</b> · ${r.n} refusals</li>`).join('')}</ul>` : ''}

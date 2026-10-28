@@ -168,7 +168,7 @@ ${on() && !a ? `<form method="post" action="${action}" class="ax-f"><input type=
   const cover = a => db.prepare("SELECT slug FROM works WHERE artist_id=? AND status='held' AND zone IS NOT 'mature' ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(a.id);
   app.get('/art', (req, res) => {
     const OB = require('./object');
-    const artists = db.prepare("SELECT a.*, (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held') n FROM artists a WHERE n>0 ORDER BY a.sort_name").all();
+    const artists = db.prepare("SELECT a.*, (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held') n FROM artists a WHERE (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held')>0 ORDER BY a.sort_name").all();
     const kinds = db.prepare("SELECT kind, COUNT(*) n FROM works WHERE status='held' AND (artist_id IS NOT NULL OR COALESCE(kind,'photograph')!='photograph') GROUP BY kind ORDER BY n DESC").all().filter(k => OB.KINDS[k.kind]);
     const movements = db.prepare("SELECT a.movement, COUNT(DISTINCT a.id) artists, COUNT(w.id) n FROM artists a JOIN works w ON w.artist_id=a.id AND w.status='held' WHERE a.movement IS NOT NULL AND a.movement!='' GROUP BY a.movement ORDER BY n DESC").all();
     const mv = String(req.query.movement || ''), kd = String(req.query.kind || '');

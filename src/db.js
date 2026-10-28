@@ -3,13 +3,22 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
+// Two engines, one shape (27 Oct 2026): DATABASE_URL names a Postgres server and the house runs on it through the
+// bridge (pgsync.js, the dialect translated in dialect.js); without it, SQLite in one file as it always was. Every
+// room calls `db.prepare(sql).get/all/run`, `db.exec`, `db.transaction` the same way on either.
 function open(file) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const db = new Database(file);
-  db.pragma('journal_mode = WAL');
-  db.pragma('busy_timeout = 5000'); // a chore writing while a visitor writes waits, never throws SQLITE_BUSY (27 Oct)
-  db.pragma('synchronous = NORMAL'); // safe under WAL: a crash loses at most the last transactions, never corrupts
-  db.pragma('foreign_keys = ON');
+  let db;
+  if (process.env.DATABASE_URL) {
+    db = require('./pgsync').open(process.env.DATABASE_URL);
+  } else {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    db = new Database(file);
+    db.kind = 'sqlite';
+    db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 5000'); // a chore writing while a visitor writes waits, never throws SQLITE_BUSY (27 Oct)
+    db.pragma('synchronous = NORMAL'); // safe under WAL: a crash loses at most the last transactions, never corrupts
+    db.pragma('foreign_keys = ON');
+  }
   db.exec(`
   CREATE TABLE IF NOT EXISTS makers (
     id INTEGER PRIMARY KEY,

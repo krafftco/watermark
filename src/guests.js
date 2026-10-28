@@ -48,7 +48,7 @@ ${gs.length ? `<table class="tbl gst-t"><thead><tr><th>Guest</th><th>Invited</th
       const m = line.match(/([^\s,<>]+@[^\s,<>]+\.[^\s,<>]+)/); if (!m) continue;
       const email = m[1].toLowerCase(), name = line.replace(m[0], '').replace(/[<>,]/g, ' ').trim() || null;
       const token = crypto.randomBytes(12).toString('base64url');
-      db.prepare('INSERT INTO gallery_guests (buyer_id, email, name, token) VALUES (?,?,?,?) ON CONFLICT(buyer_id, email) DO UPDATE SET name=COALESCE(excluded.name, name)').run(b.id, email, name, token);
+      db.prepare('INSERT INTO gallery_guests (buyer_id, email, name, token) VALUES (?,?,?,?) ON CONFLICT(buyer_id, email) DO UPDATE SET name=COALESCE(excluded.name, gallery_guests.name)').run(b.id, email, name, token);
       const g = db.prepare('SELECT * FROM gallery_guests WHERE buyer_id=? AND email=?').get(b.id, email); n++;
       const link = `${C.base}/g/${encodeURIComponent(b.code)}/guest/${g.token}`, who = b.name || 'A collector';
       try { mail.send({ to: email, subject: `${who} invites you to see their collection`, text: `${name ? name.split(' ')[0] + ',\n\n' : ''}${who} has opened their gallery on Watermark to you.${note ? `\n\n"${note}"` : ''}\n\nCome in: ${link}\n\nThe link is yours alone; it lets you in whenever you like. Watermark · Where great work is kept.`, html: `<p>${name ? esc(name.split(' ')[0]) + ',</p><p>' : ''}<b>${esc(who)}</b> has opened their gallery on Watermark to you.${note ? `</p><blockquote>${esc(note)}</blockquote><p>` : ''}</p><p><a href="${link}">Come in</a></p><p style="color:#777">The link is yours alone; it lets you in whenever you like.<br>Watermark · Where great work is kept.</p>` }); } catch (e) { /* mail off */ }

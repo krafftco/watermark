@@ -126,7 +126,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   function bankTold(m, acct) {
     try {
       db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); const k = `bank_told_${m.id}_${acct.id}`; if (db.prepare('SELECT 1 FROM settings WHERE k=?').get(k)) return;
-      db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(k, new Date().toISOString());
+      db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, new Date().toISOString());
       const ext = acct.external_accounts && acct.external_accounts.data && acct.external_accounts.data[0]; const where = ext ? `${ext.bank_name || 'a bank'}${ext.last4 ? `, account ending ${ext.last4}` : ''}` : 'your bank';
       if (m.email && mail.on()) mail.send({ to: m.email, subject: 'Your bank is connected to Watermark', cta: { label: 'Getting paid', url: `${C.base}/account/payouts` }, text: `${m.name.split(' ')[0]},\n\nYour bank is connected: from now on Friday pay goes to ${where}.\n\nIf you did not do this, open Your devices and press Sign out everywhere, then write to the house at ${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}.\n\n${C.base}/yours/devices\n\nWatermark, a Krafft company` }).catch(() => {});
     } catch (e) { console.error('[payouts] bank letter', e.message); }
@@ -138,7 +138,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     if (!ON()) return { ok: false, why: 'off' };
     if (!force && (nyDay() !== 'Fri' || nyHour() < 10)) return { ok: false, why: 'notfriday' };
     const key = weekKey(); if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return { ok: false, why: 'done' };
-    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(key, new Date().toISOString());
     let n = 0, cents = 0;
     for (const m of db.prepare('SELECT * FROM makers WHERE stripe_account IS NOT NULL').all()) { const r = await pay(m, { by: 'friday' }); if (r.ok) { n++; cents += r.amount; } }
     // And everyone else who works for the house: curators, guides, hosts, from their pockets.
@@ -164,7 +164,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   async function fridayLetters({ force = false } = {}) {
     if (!force && (nyDay() !== 'Fri' || nyHour() < 9)) return { ok: false, why: 'notfriday' };
     const key = `friday_letter_${weekKey().slice(11)}`; if (!force && db.prepare('SELECT 1 FROM settings WHERE k=?').get(key)) return { ok: false, why: 'done' };
-    db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(key, new Date().toISOString());
+    db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(key, new Date().toISOString());
     let n = 0;
     for (const m of db.prepare("SELECT * FROM makers WHERE email IS NOT NULL AND email<>'' AND COALESCE(friday_letter,1)=1").all()) {
       const c = letterFor(m); if (!c.sold && !c.cleared && !c.stood) continue;

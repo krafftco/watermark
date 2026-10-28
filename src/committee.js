@@ -73,7 +73,7 @@ ${Object.values(COMMITTEES).map(cm => `<section class="cmt-c"><h2>${esc(cm.name)
 
   // The desk: what waits for each seat the person holds (the Studio sees both).
   const asks = () => db.prepare("SELECT a.*, m.name, m.handle, m.id AS mid FROM house_asks a JOIN makers m ON m.id=a.maker_id WHERE a.answer IS NULL ORDER BY a.at").all();
-  const recent = () => db.prepare("SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.id IN (SELECT CAST(json_extract(data,'$.id') AS INTEGER) FROM ledger WHERE 0) OR (w.status='held' AND w.created_at >= datetime('now','-30 days')) ORDER BY w.created_at DESC LIMIT 60").all();
+  const recent = () => db.prepare("SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.id IN (SELECT CAST(json_extract(data,'$.id') AS INTEGER) FROM ledger WHERE 1=0) OR (w.status='held' AND w.created_at >= datetime('now','-30 days')) ORDER BY w.created_at DESC LIMIT 60").all();
   const votesOn = (key, about) => db.prepare('SELECT v.*, r.name, r.label FROM committee_votes v JOIN reviewers r ON r.id=v.reviewer_id WHERE v.committee=? AND v.about=? ORDER BY v.at').all(key, about);
   app.get('/committee', (req, res) => {
     const mine = reviewerOf(req), house = isStudio(req);

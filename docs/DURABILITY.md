@@ -41,9 +41,41 @@ MAIL_ALLOW, RESEND_API_KEY, the test Stripe keys and STRIPE_WEBHOOK_SECRET in it
 `next.watermark` → its Render address in Route 53. Without the secrets it runs with mail and Stripe off, which is
 enough to walk a change. The branch flow begins now: build on `next`, walk it there, promote to `main`.
 
+## The database: two engines, one shape (27 Oct 2026)
+
+Built the night the development room opened. `DATABASE_URL` names a Postgres server and the house runs on it;
+without it, SQLite in one file as before. Nothing in the rooms changed: every `db.prepare(sql).get/all/run`,
+`db.exec` and `db.transaction` goes through the bridge (`src/pgsync.js`), a worker thread that holds the one
+connection and answers through shared memory while the main thread waits (`Atomics.wait`), and the dialect
+(`src/dialect.js`) turns SQLite's idiom into Postgres's on the way: `?` → `$n`, `datetime('now', …)` with every
+modifier the house uses, `INSERT OR IGNORE`, `pragma_table_info`, `sqlite_master`, `LIKE` → `ILIKE` (SQLite's is
+case-blind), `IS ?`, two-argument `MAX/MIN` → `greatest/least`, `total`, `group_concat`, `json_extract`, `instr`,
+`@named` parameters, camelCase aliases quoted, and in DDL `INTEGER PRIMARY KEY` → an identity column and every
+`INTEGER` → `BIGINT` (SQLite's is 64-bit; millisecond clocks and byte counts live in it). Three statements the
+rules could not reach were rewritten in words both engines accept (`INSERT OR REPLACE` → `ON CONFLICT … DO
+UPDATE`, an alias in `HAVING`, `SUM(a=b)` → `SUM(CASE …)`, `COLLATE NOCASE` → `lower()`).
+
+Proof: `scripts/sql-check.js` prepares every statement in the source (2,444 of them) against a real Postgres,
+and the smoke suite and the other tests pass on both engines; CI runs both (`.github/workflows/test.yml`,
+`postgres` job). `test/dialect.js` holds the rules. The cost of the bridge is one blocked round trip per
+statement, a few hundred microseconds on Render's private network; rooms can move to the async form later, one at
+a time, as a performance pass, and the bridge stays for the rest.
+
+Backups on Postgres: `pg_dump` (custom format) gzipped and sealed into the vault as before; the drill restores the
+copy into a scratch database on the same server (`wm_drill_…`), checks the register against the live one and
+verifies the chain, then drops it; `scripts/restore.js` fetches a copy and names the `pg_restore` to run. The
+Dockerfile carries `postgresql-client-17` from PGDG.
+
+Moving a house: `DATABASE_URL=… node scripts/to-postgres.js /data/watermark.db` with the old house stopped: the
+schema is made by the house itself, tables copied in dependency order, identity sequences set, every count
+compared and the register's chain verified on the new side. Rehearsed on the test house first; the live move is a
+short freeze (the showing switch), the script, `DATABASE_URL` set in Render, one deploy, and the disk kept for a
+week before it is removed. Postgres is portable: Render's now, a dump and a restore to Neon or RDS later.
+
 ## The next three, in order
 
-1. **Postgres.** The database on the disk is why every deploy is a minute of 502 (Render cannot run two copies of
+1. **Postgres.** (The code is done, above; what remains is the move itself: the test house first, then the live
+   house.) The database on the disk is why every deploy is a minute of 502 (Render cannot run two copies of
    a service with a disk) and why the chores cannot move to a second machine. A managed Postgres makes deploys
    zero-downtime and lets a worker run the chores on its own box. A large change (every query), a week's work,
    the biggest single step toward durability. Not before the test house exists to prove it on.

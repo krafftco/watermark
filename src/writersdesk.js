@@ -30,7 +30,7 @@ function mountWritersDesk(app, { db, V, C, ledger, makerOf }) {
   const tree = ms => db.prepare('SELECT id, parent_id, pos, kind, title, synopsis, status, words, updated_at FROM pages WHERE manuscript_id=? ORDER BY parent_id, pos, id').all(ms.id);
   const total = ms => db.prepare("SELECT COALESCE(SUM(words),0) n FROM pages WHERE manuscript_id=? AND kind='text'").get(ms.id).n;
   // The day's words: the difference each save makes, credited to today (a cut counts against it, as Caro's would).
-  function credit(m, delta) { if (!delta) return; db.prepare('INSERT INTO writing_days (maker_id, day, words) VALUES (?,?,?) ON CONFLICT(maker_id, day) DO UPDATE SET words=words+excluded.words').run(m.id, day(), delta); }
+  function credit(m, delta) { if (!delta) return; db.prepare('INSERT INTO writing_days (maker_id, day, words) VALUES (?,?,?) ON CONFLICT(maker_id, day) DO UPDATE SET words=writing_days.words+excluded.words').run(m.id, day(), delta); }
   function days(m) {
     const rows = db.prepare('SELECT day, words FROM writing_days WHERE maker_id=? ORDER BY day DESC LIMIT 400').all(m.id);
     const today = (rows.find(r => r.day === day()) || {}).words || 0;

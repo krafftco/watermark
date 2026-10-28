@@ -106,7 +106,7 @@ function mountKeys(app, { db, V, C, ledger, buyerOf, makerOf, isStudio }) {
     const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m) return res.sendStatus(404);
     const held = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(m.id).n;
     const lines = db.prepare("SELECT bl.body, bl.name, bl.at, w.slug, w.title FROM bench_lines bl JOIN works w ON w.id=bl.subject_id WHERE bl.kind='work' AND w.maker_id=? ORDER BY bl.id DESC LIMIT 6").all(m.id);
-    const tours = db.prepare("SELECT DISTINCT h.slug, h.title, h.line, b.name AS guide FROM hangs h JOIN tour_voices v ON v.hang_id=h.id JOIN buyers b ON b.id=h.buyer_id JOIN hang_works hw ON hw.hang_id=h.id JOIN works w ON w.id=hw.work_id WHERE h.public=1 AND w.maker_id=? ORDER BY h.updated_at DESC LIMIT 6").all(m.id);
+    const tours = db.prepare("SELECT h.slug, h.title, h.line, b.name AS guide FROM hangs h JOIN tour_voices v ON v.hang_id=h.id JOIN buyers b ON b.id=h.buyer_id JOIN hang_works hw ON hw.hang_id=h.id JOIN works w ON w.id=hw.work_id WHERE h.public=1 AND w.maker_id=? GROUP BY h.slug, h.title, h.line, b.name, h.updated_at ORDER BY h.updated_at DESC LIMIT 6").all(m.id);
     const stood = db.prepare("SELECT COUNT(DISTINCT s.viewer) n FROM stood s JOIN works w ON w.id=s.work_id WHERE w.maker_id=? AND COALESCE(s.last_at, s.at) > datetime('now','-3 hours')").get(m.id).n;
     const p = app.locals.clock ? app.locals.clock.programme(req, { maker: m }) : null;
     const T = (app.locals.institutions && m.kind === 'institution') ? db.prepare("SELECT name, role FROM institution_staff WHERE maker_id=? AND status='on'").all(m.id) : [];

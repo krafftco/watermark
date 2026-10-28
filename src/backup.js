@@ -11,6 +11,14 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const { execFileSync } = require('child_process');
+
+// Postgres (27 Oct): the copy is pg_dump's archive (custom format, gzipped, sealed by the vault as before), and the
+// drill restores it into a scratch database on the same server (wm_drill_<n>), checks it, and drops it; where the
+// server refuses CREATE DATABASE the drill lists the archive and says a full restore needs that right.
+const PGBIN = process.env.PG_BIN || ['/usr/lib/postgresql/17/bin', '/usr/lib/postgresql/16/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump'))) || '';
+const pgTool = t => (PGBIN ? path.join(PGBIN, t) : t);
+const dbUrlFor = (url, name) => { const u = new URL(url); u.pathname = '/' + name; return u.toString(); };
 
 const KEEP_DAYS = Number(process.env.BACKUP_KEEP_DAYS || 30);
 const HOUR = Number(process.env.BACKUP_HOUR || 7); // UTC; 3 am New York in winter
@@ -30,12 +38,14 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
 
   // A consistent copy of the database, gzipped, into the vault; portraits beside it; old copies pruned.
   async function backup() {
-    const tmp = path.join(C.dataDir, `backup-${process.pid}.tmp.db`);
+    const pg = db.kind === 'postgres';
+    const tmp = path.join(C.dataDir, `backup-${process.pid}.tmp.${pg ? 'pgdump' : 'db'}`);
     try {
-      await db.backup(tmp);
+      if (pg) execFileSync(pgTool('pg_dump'), ['--format=custom', '--no-owner', '--no-acl', '-f', tmp, db.url], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 600e3 });
+      else await db.backup(tmp);
       const raw = fs.readFileSync(tmp); fs.unlinkSync(tmp);
       const gz = zlib.gzipSync(raw, { level: 6 });
-      const key = `${PREFIX}watermark-${stamp()}.db.gz`, sha256 = crypto.createHash('sha256').update(raw).digest('hex');
+      const key = `${PREFIX}watermark-${stamp()}.${pg ? 'pgdump' : 'db'}.gz`, sha256 = crypto.createHash('sha256').update(raw).digest('hex');
       await store.put(key, gz, 'application/gzip');
       const head = db.prepare('SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1').get() || {};
       await store.put('backups/latest.json', Buffer.from(JSON.stringify({ key, at: new Date().toISOString(), bytes: gz.length, raw: raw.length, sha256, ledger: head, encrypted: !!store.encrypted })), 'application/json');
@@ -60,6 +70,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
       if (!key) { const j = await store.get('backups/latest.json'); if (!j) throw new Error('no backup yet'); key = JSON.parse(j.toString()).key; }
       const gz = await store.get(key); if (!gz) throw new Error(`backup ${key} not found`);
       const raw = zlib.gunzipSync(gz);
+      if (/\.pgdump\.gz$/.test(key)) { tmp = 'pg'; return await drillPg(key, raw); } // records its own outcome
       tmp = path.join(C.dataDir, `drill-${process.pid}.tmp.db`); fs.writeFileSync(tmp, raw);
       const b = new Database(tmp, { readonly: true });
       const integ = b.pragma('integrity_check', { simple: true });
@@ -75,7 +86,38 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
       const detail = `${key}: ${tables} tables; ${counts}; register at ${bh.seq || 0} matches the live one and verifies`;
       record('drill', { key, bytes: raw.length, ok: true, detail });
       return { ok: true, key, detail };
-    } catch (e) { if (tmp) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } } failed('drill', e); throw e; }
+    } catch (e) { if (tmp === 'pg') throw e; if (tmp) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } } failed('drill', e); throw e; }
+  }
+  async function drillPg(key, raw) {
+    const tmp = path.join(C.dataDir, `drill-${process.pid}.tmp.pgdump`); fs.writeFileSync(tmp, raw);
+    const name = `wm_drill_${process.pid}_${Date.now() % 100000}`; let made = false, b = null;
+    try {
+      const listing = execFileSync(pgTool('pg_restore'), ['--list', tmp], { encoding: 'utf8', timeout: 120e3 });
+      const tables = (listing.match(/ TABLE /g) || []).length;
+      if (!tables) throw new Error('the archive lists no tables');
+      try { db.exec(`CREATE DATABASE "${name}"`); made = true; }
+      catch (e) {
+        const detail = `${key}: archive lists ${tables} tables; a full restore needs CREATE DATABASE on the server (${e.message.split('\n')[0]})`;
+        record('drill', { key, bytes: raw.length, ok: true, detail }); return { ok: true, key, detail };
+      }
+      const url = dbUrlFor(db.url, name);
+      execFileSync(pgTool('pg_restore'), ['--no-owner', '--no-acl', '-d', url, tmp], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 600e3 });
+      b = require('./pgsync').open(url);
+      const bh = b.prepare('SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1').get() || {};
+      const lh = bh.seq ? db.prepare('SELECT hash FROM ledger WHERE seq=?').get(bh.seq) : null;
+      if (bh.seq && (!lh || lh.hash !== bh.hash)) throw new Error(`register differs at ${bh.seq}`);
+      const chain = ledger.verifyAll ? ledger.verifyAll(b) : { ok: true };
+      if (!chain.ok) throw new Error(`register chain broken at ${chain.broken_at}`);
+      const counts = ['makers', 'works', 'licenses', 'buyers', 'ledger'].map(t => `${t} ${b.prepare(`SELECT COUNT(*) n FROM ${t}`).get().n}`).join(', ');
+      const detail = `${key}: restored into a scratch database, ${tables} tables; ${counts}; register at ${bh.seq || 0} matches the live one and verifies`;
+      record('drill', { key, bytes: raw.length, ok: true, detail });
+      return { ok: true, key, detail };
+    } catch (e) { failed('drill', e); throw e; }
+    finally {
+      try { if (b) b.close(); } catch (x) { /* */ }
+      if (made) { try { db.exec(`DROP DATABASE "${name}" WITH (FORCE)`); } catch (x) { console.error('[drill] could not drop', name, x.message); } }
+      try { fs.unlinkSync(tmp); } catch (x) { /* */ }
+    }
   }
   const last = kind => db.prepare('SELECT * FROM backup_runs WHERE kind=? ORDER BY id DESC LIMIT 1').get(kind);
   const lastGood = kind => db.prepare('SELECT * FROM backup_runs WHERE kind=? AND ok=1 ORDER BY id DESC LIMIT 1').get(kind);
@@ -92,7 +134,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
 <p><form method="post" action="/studio/backups/run" class="inline"><button class="buy-btn">Back up now</button></form> <form method="post" action="/studio/backups/drill" class="inline"><button>Restore drill now</button></form>${req.query.ok ? ` <span class="ok">${esc(req.query.ok)}</span>` : ''}</p>
 <h2>In the vault</h2>${keys.length ? `<ul class="bk-keys">${keys.map(k => `<li><code>${esc(k)}</code> <form method="post" action="/studio/backups/drill" class="inline"><input type="hidden" name="key" value="${esc(k)}"><button class="bk-alt">Drill this one</button></form></li>`).join('')}</ul>` : '<p>Nothing yet.</p>'}
 <h2>Runs</h2>${runs.length ? `<table class="tbl"><tr><th>When</th><th>What</th><th>Outcome</th><th>Detail</th></tr>${runs.map(r => `<tr class="${r.ok ? '' : 'bad'}"><td>${esc(V.date(r.at))}</td><td>${esc(r.kind)}</td><td>${r.ok ? 'ok' : '<b>failed</b>'}</td><td><small>${esc(r.detail || '')}</small></td></tr>`).join('')}</table>` : '<p>None yet.</p>'}
-<h2>To restore by hand</h2><p>On the server: <code>node scripts/restore.js &lt;key&gt;</code> with the same S3 and VAULT_KEY settings; it fetches the copy, checks it and writes <code>watermark.db</code> beside the live one as <code>watermark.restored.db</code>; stop the app, swap the files, start it. The portraits are under <code>backups/portraits/</code>.</p></section>` }));
+<h2>To restore by hand</h2><p>${db.kind === 'postgres' ? 'A Postgres house: fetch the copy with <code>node scripts/restore.js &lt;key&gt;</code> (it writes the archive beside the app as <code>watermark.restored.pgdump</code>), then <code>pg_restore --clean --no-owner -d $DATABASE_URL watermark.restored.pgdump</code> with the house stopped.' : ''}On the server: <code>node scripts/restore.js &lt;key&gt;</code> with the same S3 and VAULT_KEY settings; it fetches the copy, checks it and writes <code>watermark.db</code> beside the live one as <code>watermark.restored.db</code>; stop the app, swap the files, start it. The portraits are under <code>backups/portraits/</code>.</p></section>` }));
   });
   app.post('/studio/backups/run', async (req, res) => { if (!isStudio(req)) return res.sendStatus(403); try { const r = await backup(); res.redirect(`/studio/backups?ok=${encodeURIComponent(`Backed up: ${r.key} (${r.bytes} bytes)`)}`); } catch (e) { res.redirect(`/studio/backups?ok=${encodeURIComponent('Failed: ' + e.message)}`); } });
   app.post('/studio/backups/drill', async (req, res) => { if (!isStudio(req)) return res.sendStatus(403); try { const r = await drill((req.body || {}).key || null); res.redirect(`/studio/backups?ok=${encodeURIComponent(r.detail)}`); } catch (e) { res.redirect(`/studio/backups?ok=${encodeURIComponent('Drill failed: ' + e.message)}`); } });
