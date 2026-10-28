@@ -41,6 +41,14 @@ split house is the web. They are short. The second cut moves them to the worker 
 
 The way back: remove `ROLE` from `watermark` (everything in one process again) and suspend the worker.
 
+## The test house's limit
+
+`watermark-next` keeps its vault on its own disk (no S3), so its worker and its web share the database but not the
+files: a file chore on the test worker (conservation fetching an original, a backup into the vault) runs against the
+worker's own empty disk. The split is still proved there in what matters (the heartbeat, the showing, a feed queued on
+the web and taken by the worker, the fills, the digest); the live house's vault is S3, shared by both, so the split
+is whole only there. A test bucket for the test house would close the gap; not needed for the first proof.
+
 ## Then
 
 - The disk off `watermark` (a week after the move, `docs/MOVE.md`): deploys become zero-downtime.
