@@ -7,6 +7,7 @@
 // Washington: facts, numbers, the ask, no flattery), the numbers as they stand (the owner's view, live), lately on the
 // register, the papers, and a line the reader may leave for the director. Nothing of a reader on the public register.
 const crypto = require('crypto');
+const I = require('./icons');
 
 function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
   db.exec(`
@@ -42,20 +43,25 @@ function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
     const studios = t(() => db.prepare('SELECT COUNT(*) n FROM studios_imports').get().n) || 0;
     const institutions = t(() => db.prepare("SELECT COUNT(*) n FROM makers WHERE kind='institution'").get().n) || 0;
     const firstEntry = t(() => db.prepare('SELECT at FROM ledger ORDER BY seq LIMIT 1').get()) || null;
-    return { O, clients, placements, clientLic, studios, institutions, firstEntry };
+    const cl = t(() => db.prepare('SELECT name, hosts FROM clients ORDER BY id LIMIT 1').get()) || null; const clientHost = cl && cl.hosts ? String(cl.hosts).split(/[\s,]+/)[0].replace(/^https?:\/\//, '').replace(/\/.*$/, '') : null;
+    return { O, clients, placements, clientLic, studios, institutions, firstEntry, clientHost, clientName: cl ? cl.name : null };
   }
-  function brief(r, N) {
+  // The plates: the house's best work set between the parts, each carrying the mark; the shield opens the watermark, the record and Wander are a tap away. The show of the future is the thing itself.
+  function plates(n) { try { return db.prepare("SELECT w.slug, w.title, w.place, w.taken_at, m.name maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND (w.zone IS NULL OR w.zone='all') ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT ?").all(n); } catch (e) { return db.prepare("SELECT w.slug, w.title, w.place, w.taken_at, m.name maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT ?").all(n); } }
+  function plate(w, line) { if (!w) return ''; const yr = w.taken_at ? String(w.taken_at).slice(0, 4) : ''; return `<figure class="ph-pl"><a href="/w/${esc(w.slug)}?from=peephole"><img src="/img/${esc(w.slug)}/screen" alt="" loading="lazy"></a><figcaption><span class="ph-pl-t"><i>${esc(V.tidy ? V.tidy(w.title) : w.title)}</i> · ${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${yr ? `, ${esc(yr)}` : ''}</span><span class="ph-pl-acts"><button type="button" class="ph-eye" data-eye="${esc(w.slug)}" title="What the watermark carries">${I.shield} The watermark</button> <a href="/w/${esc(w.slug)}">The record</a> <a href="/wander?at=${esc(w.slug)}">Wander from it</a> <img class="ph-badge" src="/w/${esc(w.slug)}/badge.svg?theme=light" alt="Watermark" height="22"></span>${line ? `<span class="ph-pl-why">${line}</span>` : ''}</figcaption></figure>`; }
+  function brief(r, N, P) {
     const O = N.O, g = O.growth || {}, m = O.money || {}, v = O.vault || {}, reg = O.register || {}, live = O.live || {};
     const gb = v.bytes ? (v.bytes / 1e9).toFixed(1) : '0';
     const founded = N.firstEntry ? new Date(N.firstEntry.at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'October 2026';
     const S = (k, h, body) => `<section class="ph-s" id="${k}"><h2 class="ph-h">${h}</h2>${body}</section>`;
     return `
-<p class="ph-sal">Sir,</p>
-<p class="ph-lede">You asked to be brought up to speed. This room is where that happens. What follows is set down as plainly as I can set it, in the order a reader of newspapers would want it: what the thing is, why it matters, what it has done so far, what is in prospect, and what is asked of you. The numbers in it are the house's own and are drawn fresh each time the page is opened; nothing here was typed in by hand. Where a word is mine and not yet a fact, I say so.</p>
+<p class="ph-sal">${esc(first(r.name))},</p>
+<p class="ph-lede">The last time I set something down for you like this was before Vail, on Ethereum and what a contract that runs itself is, so you would walk into that room knowing more than the people across the table. This is the same kind of note, about the thing I have been building since, and it is written so that a man who reads three papers before breakfast can read it in one sitting and know the whole of it: what it is, why it matters, what it has done, what is in prospect, and what I would ask of you. The numbers in it are the house's own and are drawn fresh each time this page is opened; nothing here was typed in by hand. Where a word is mine and not yet a fact, I say so.</p>
 ${S('what', 'I. What this is', `
 <p><b>Watermark is a registry for work made by people, with a museum on top of it.</b> A maker puts the master of a photograph, a painting, a book or a recording into the vault. The house fingerprints it, writes it into a public register the day it arrives, and gives the maker a deed. From then on anyone may look at it for nothing, and anyone may own a numbered piece of it for seven dollars, or license it for a story, a company or a wall at the maker's price. The maker is paid every Friday. The house's share is paid by the collector on top of the maker's price and is published, the way an auction house publishes its premium.</p>
 <p>Three things are true of it that are not true of anything else in the trade. The master is never touched: what the maker gave us is what the collector takes, with the papers written inside the file. The register is public, signed, and stamped every hour into a clock the house does not own, so the house itself cannot rewrite what it said. And there is no advertising, now or ever; nothing counts you; the only thing sold is the work.</p>
 <p>Founded ${esc(founded)}, Dallas and New York. A Krafft company; Krafft Studios made the founding collection and makes the house's media.</p>`)}
+${plate(P[0], 'Every photograph in this brief is a registered work. Tap the shield to see what its watermark carries: the number, the maker’s share, the terms, the proof. Tap the picture to stand before it.')}
 ${S('why', 'II. Why it matters', `
 <p>Every picture on the internet is now suspect. The machines make them by the million, the platforms cannot tell a photograph from a fabrication, and the people who made the real ones are not paid. The institutions that hold the world's art (the Met, the Library of Congress, the Smithsonian) each keep their own records in their own formats behind four addresses and a PDF to print and post. There is no registry for made work that is neutral, open, and trusted the way a title company is trusted for land.</p>
 <p>That is the gap. It is an infrastructure gap, and infrastructure companies are the quiet ones that every other company pays. Visa does not sell shoes. The value of such a registry rises with every surface that uses it, and the registry is worth more <i>not</i> owned by any one platform, which is why the plan is for a foundation to hold the register and the standard and license them to the operating company. That, with counsel, is the next piece of paper.</p>
@@ -69,7 +75,8 @@ ${S('record', 'III. The record so far', `
 <li>Visitors: <b>${(O.people && O.people.visitors7d) || 0}</b> this week (${(O.people && O.people.visitorsPrior) || 0} the week before); ${(O.people && O.people.stood7d) || 0} stood before a work long enough to be counted.</li>
 <li>The machine: Postgres, a worker beside the web, a vault in S3, an edge in front, nightly sealed backups with a weekly restore drill, two factors on the Studio door, an audit of every act. ${live.up ? `Up ${Math.round(live.up / 3600)} hours since the last deploy;` : ''} version ${esc(O.velocity && O.velocity.version || '')}, ${(O.velocity && O.velocity.releases) || 0} releases since launch.</li>
 </ul>
-<p class="ph-note">These are small numbers and I will not dress them. The house opened on ${esc(founded)}. What the numbers show is that every part of the machine works end to end with real money, and that strangers pay. The next job is supply: the founding collection's masters at full size, and the first ten makers who are not me.</p>`)}
+<p class="ph-note">These are a new house's numbers and I will not dress them; what they prove is that the thing is built, end to end, and takes real money. Read them the way you would read a building the week the doors open: the structure is finished, the walls are not yet hung. The work on them today is a first pass of my own archive, put in to build the machine against; the edit comes next, from ten thousand frames of New York alone and the journey out east, and then the first ten makers who are not me. The house is made for the day the walls are full; it does not depend on it.</p>`)}
+${plate(P[1])}
 ${S('studios', 'IV. Krafft Studios: the first surface', `
 <p>Krafft Studios is the magazine and the production house; Watermark is the thing it is built on. Every photograph on a Studios story carries the mark: ${N.studios.toLocaleString('en-US')} pictures are matched to their records in the house, and a reader who stops on one can collect it or license it without leaving the page. Each story carries its credits and a Tip button, shared among the people who made it.</p>
 <p>What it represents: Studios is the first proof that a publisher can run on the registry. The pictures in the magazine are not decoration; each is an asset with a number, a deed and a price, and the magazine is a shop window that never says so. Every publisher in the world has the same pictures and the same problem.</p>`)}
@@ -80,14 +87,15 @@ ${S('platform', 'VI. The platform in prospect', `
 <p>There is a conversation to be had with X. The shape of it is the one I would propose to any platform: the platform is the surface, the house is the registry. A platform opens a studio for each of its creators with one call, puts their pictures in by address, and sells from its own feed; the maker is paid Friday; the platform takes a published share, five percent, from the house's side and never the maker's; the pictures carry the mark, which leads back to the record. No exclusivity, the same terms for every platform, and the house's own surface stands on the same terms. The door is built and the terms are published at <a href="/platforms">/platforms</a>.</p>
 <p>Why a platform would take it rather than build it: a registry is worth more to a platform when the platform does not own it. Its creators, and every museum, will trust a neutral register they will never trust a platform's vault. Provenance is the one thing a platform cannot credibly issue about itself. What X would bring is distribution and a payment rail; what it must not have is the register.</p>
 <p class="ph-note">In prospect means in prospect. Nothing is signed and no name is on any public page of the house.</p>`)}
+${plate(P[2])}
 ${S('getty', 'VII. Getty, and the museum', `
 <p>Getty Images filed for Chapter 11 in Delaware on the twenty-first of October, to restructure its debt and go private. The archive is the collateral and the company means to continue; but a debtor under pressure sells pieces, and the historical collections are the pieces most likely to be offered. The house is built to take them: a bulk door that reads a whole archive (CSV, OAI, IIIF, a bucket), records every item with its rights read per item, and holds it on two floors: the record, where everything is kept and the stock trade sells what sells through the trade desk; and the house, where the Walls committee hangs what belongs in a museum. Junk is recorded, not hung.</p>
 <p>The museums are the other half. The house already speaks the museums' own protocol (IIIF), reads the Met's open collection, replaces the four addresses and the printed form of a rights office with one desk, and offers a museum its own house on its own domain, made with Watermark. The Met's head of licensing is a conversation we have begun.</p>
 <p>These are the two acquisitions that would make the house an institution in a season rather than a decade: a great archive, and a great museum's trust. Both are capital conversations and both are introductions. That is the ask.</p>`)}
 ${S('ask', 'VIII. What is asked of you', `
-<p>Three things, in order. Your judgment on the shape: the foundation holding the register, the operating company taking capital as Class B with the founder's trust holding control, and whether that is a structure you would put money behind. Your introductions: the first institutions, the Dallas collectors, and the bankers who will handle Getty's pieces. And, if the first two hold, your capital, on terms we set down together with counsel before either of us is in a hurry.</p>
+<p>Four things, in order. Your judgment on the shape: the foundation holding the register, the operating company taking capital as Class B with the founder's trust holding control, and whether that is a structure you would put money behind. Your introductions: the first institutions, the Dallas collectors, and the bankers who will handle Getty's pieces. Your capital, if the first two hold, on terms we set down together with counsel before either of us is in a hurry. And one small, concrete thing: the house should own its name. watermark.com is for sale; a registry that means to be the standard cannot live on a subdomain, and the day it is ours the mark on every picture reads the way it should.</p>
 <p>What you may expect from the house in return is the one thing it is built to give: a record. Every dollar in and out is on the register or the statement; this room shows you the numbers as they stand, not as they are described; and when the house breaks a promise it says so in public and puts it right.</p>
-<p class="ph-sign">With great respect,<br>${esc(C.maker && C.maker.name || 'The director')}<br><span>Founding director, Watermark</span></p>`)}`;
+<p class="ph-sign">With great respect,<br><span class="ph-hand">${esc(C.maker && C.maker.name || 'Will Fullerton')}</span><br>${esc(C.maker && C.maker.name || 'Will Fullerton')}<br><span>Founding director, Watermark · founder, Krafft</span></p>`)}`;
   }
 
   // --- The room.
@@ -95,15 +103,30 @@ ${S('ask', 'VIII. What is asked of you', `
     noStore(res); const r = readerOf(req);
     if (!r) return res.status(403).send(V.layout({ title: 'The peephole · Watermark', path: '/peephole', bare: true, body: `<main class="ph ph-door"><p class="k">The peephole</p><h1>A room for one reader.</h1><p>This room is opened by letter. If you have one, open the link in it on this device; if you are signed in, use the address the letter was sent to.</p><p><a href="/signin?next=/peephole">Sign in</a> · <a href="/">The house</a></p></main>` }));
     if (r.id) db.prepare("UPDATE readers SET last_seen=datetime('now'), visits=visits+1 WHERE id=?").run(r.id);
-    const N = numbers(); const O = N.O; const lately = (app.locals.lately ? app.locals.lately(14) : []).map(({ e, line }) => ({ at: e.at, text: String(line.text || '') }));
+    const N = numbers(); const O = N.O; const P = plates(6); const lately = (app.locals.lately ? app.locals.lately(14) : []).map(({ e, line }) => ({ at: e.at, text: String(line.text || '') }));
     const lines = db.prepare('SELECT * FROM reader_lines WHERE reader_id=? ORDER BY id DESC LIMIT 6').all(r.id);
     const g = O.growth || {}, m = O.money || {}, live = O.live || {}, costs = O.costs;
     const spark = (rows, k) => { if (!rows || !rows.length) return ''; const max = Math.max(1, ...rows.map(x => x[k] || 0)); return `<span class="ph-spark">${rows.slice(-30).map(x => `<i style="height:${Math.max(2, Math.round(100 * (x[k] || 0) / max))}%" title="${esc(x.d)}: ${x[k] || 0}"></i>`).join('')}</span>`; };
     const tile = (big, small, sub = '') => `<div class="ph-t"><b>${big}</b><span>${small}</span>${sub ? `<em>${sub}</em>` : ''}</div>`;
     const dateLine = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
     res.send(V.layout({ title: `The peephole · for ${first(r.name)}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"><main class="ph">
-<header class="ph-mast"><p class="ph-k">The peephole · Krafft &amp; Watermark</p><h1>A brief for ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for one reader · the numbers are live · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
-<article class="ph-brief">${brief(r, N)}</article>
+<script src="/static/eye.js" defer></script>
+<header class="ph-mast"><p class="ph-k">${esc(C.maker && C.maker.name || 'Will Fullerton')} · The brief</p><h1>For ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for ${esc(r.name)} · the numbers are live · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
+<article class="ph-brief">${brief(r, N, P)}</article>
+
+<section class="ph-show" id="show"><h2 class="ph-h">The show</h2><p>The best way to understand the house is to use it. Each door below opens in this window; come back with the arrow.</p>
+<ul class="ph-doors">
+<li><a href="/wander?at=${esc(P[3] ? P[3].slug : '')}"><b>Wander</b><span>The museum itself: one work a screen, true to size, the record under every picture, the Collect quiet. Swipe left for the Keys, right for your own gallery.</span></a></li>
+<li><a href="/w/${esc(P[4] ? P[4].slug : (P[0] ? P[0].slug : ''))}"><b>A record</b><span>What sits under every picture: the deed, the number, the uses and prices, the Shield, the guide written with AI, the guest book, the provenance.</span></a></li>
+<li><a href="https://studios.krafftco.com"><b>Krafft Studios</b><span>The magazine on the registry. Stop on any photograph in a story: the K opens its record and its price without leaving the page.</span></a></li>
+${N.clientHost ? `<li><a href="https://${esc(N.clientHost)}"><b>${esc(N.clientName || 'The first company')}</b><span>A company's site with the house's pictures linked in under licence, the credit and the Watermark number on each, counted by the page they hang on.</span></a></li>` : ''}
+<li><a href="/keys"><b>The Keys</b><span>The club of the house: the benches, the balcony at night, the Library, the Listening Room, the Screening Room, the season.</span></a></li>
+<li><a href="/library"><b>The Library</b><span>The public domain, set beautifully: ${(O.vault && O.vault.books) || 0} books in the house's bindings, read in facing translation if you like.</span></a></li>
+<li><a href="/standard"><b>The standard</b><span>What a work carries and how anyone checks it with free tools; the register protocol any house may run.</span></a></li>
+<li><a href="/platforms"><b>For platforms</b><span>The door a platform plugs into, and the published terms.</span></a></li>
+</ul></section>
+
+${playhouse(r)}
 
 <section class="ph-num" id="numbers"><h2 class="ph-h">The numbers, as they stand</h2>
 <div class="ph-tiles">
@@ -155,6 +178,35 @@ ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Dat
     if (app.locals.notify && C.maker) { try { const hm = db.prepare('SELECT id FROM makers WHERE handle=?').get(C.maker.handle); if (hm) app.locals.notify.tell({ maker_id: hm.id, kind: 'note', href: '/studio/peephole', title: `${r.name} wrote a line in the peephole`, body: body.slice(0, 140) }).catch(() => {}); } catch (e) { /* */ } }
     res.redirect('/peephole?ok=line#line');
   });
+
+  // --- The playhouse (Will, 28 Oct: "give him access, a maker's account and a collector's, fake money to play with; he
+  // is not going to break anything and it is not going to go to the real thing"). Only on the test house (STAGING=1,
+  // test Stripe, mail to the allowed list): one press opens the reader's own studio and gallery under their email, puts
+  // PLAY_CENTS of play money in the pocket once, and may open the back office too. The live house only points the way.
+  const PLAY = process.env.STAGING === '1', PLAY_CENTS = Number(process.env.PLAY_CENTS || 50000), NEXT = process.env.PLAYHOUSE_BASE || 'https://watermark-next.onrender.com';
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('readers') WHERE name='played_at'").get()) db.exec('ALTER TABLE readers ADD COLUMN played_at TEXT');
+  app.post('/peephole/play/account', (req, res) => {
+    noStore(res); const r = readerOf(req); if (!PLAY || !r || !r.id) return res.sendStatus(403);
+    const email = r.email.toLowerCase();
+    let m = db.prepare('SELECT * FROM makers WHERE lower(email)=?').get(email);
+    if (!m) {
+      const slugify = x => String(x).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
+      let handle = slugify(r.name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(r.name)}-${i++}`;
+      db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door, bio) VALUES (?,?,?,'maker',datetime('now'),'house',?)").run(handle, r.name, email, 'A reader of the house, at play.');
+      m = db.prepare('SELECT * FROM makers WHERE handle=?').get(handle);
+    }
+    if (app.locals.admit) app.locals.admit(req, res, email, 'the peephole');
+    if (!r.played_at) { const b = db.prepare('SELECT * FROM buyers WHERE lower(email)=? ORDER BY id DESC LIMIT 1').get(email); if (b && app.locals.pocket) { app.locals.pocket.credit(b, PLAY_CENTS, 'topup', 'play', 'Play money, from the house'); db.prepare("UPDATE readers SET played_at=datetime('now') WHERE id=?").run(r.id); } }
+    res.redirect(String(req.body && req.body.to || '') === 'gallery' ? '/yours' : '/account');
+  });
+  app.post('/peephole/play/studio', (req, res) => { noStore(res); const r = readerOf(req); if (!PLAY || !r || !r.id || !app.locals.openStudio) return res.sendStatus(403); app.locals.openStudio(res); res.redirect('/studio'); });
+  function playhouse(r) {
+    if (!r.id) return '';
+    if (PLAY) return `<section class="ph-play" id="play"><h2 class="ph-h">The playhouse</h2><p>This is the house's second, complete copy: everything works, the money is play money, and nothing here reaches the real house. Open your own studio and gallery under your address, put work in, grade it, publish it, collect a piece with the ${money(PLAY_CENTS)} in your pocket, leave a line in a guest book, hang a wall. Break nothing; try everything.</p>
+<div class="ph-playacts"><form method="post" action="/peephole/play/account"><input type="hidden" name="to" value="studio"><button>Open my studio <span>a maker's account, under your name</span></button></form><form method="post" action="/peephole/play/account"><input type="hidden" name="to" value="gallery"><button>Open my gallery <span>a collector's account, ${money(PLAY_CENTS)} to play with</span></button></form><form method="post" action="/peephole/play/studio"><button>Open the back office <span>the Studio: every desk the house runs on</span></button></form></div>
+<p class="ph-note">The signed-in address is yours (${esc(r.email)}); the house's letters to it are real, its money is not.</p></section>`;
+    return `<section class="ph-play" id="play"><h2 class="ph-h">The playhouse</h2><p>There is a second, complete copy of the house with play money in it, where you may open your own studio and gallery, put work in, collect, and walk the back office without touching anything real. The same letter opens it: <a href="${esc(NEXT)}/peephole">${esc(NEXT.replace(/^https?:\/\//, ''))}/peephole</a>.</p></section>`;
+  }
 
   // --- The Studio: who may look in.
   app.get('/studio/peephole', studioOnly, (req, res) => {
