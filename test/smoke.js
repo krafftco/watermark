@@ -2586,6 +2586,19 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/studio/peephole/${rd.id}/close`, { cookie: sck3 }); r = await req(port, 'GET', '/peephole', { cookie: rck }); assert.equal(r.status, 302, 'the keys taken back');
     assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('reader.invited'), 'nothing of a reader on the public register'); }
   console.log('ok: the peephole');
+  // The books (28 Oct): the month's money events, the month by class, the balances held for others, and the one-pager; Studio only; every paid licence a line with the house's part and the maker's.
+  { r = await req(port, 'GET', '/studio/books'); assert.ok(r.status === 401 || r.status === 302 || r.status === 403, 'the books are the Studio’s');
+    r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck4 = r.headers['set-cookie'][0].split(';')[0];
+    const ym = new Date().toISOString().slice(0, 7);
+    r = await req(port, 'GET', '/studio/books', { cookie: sck4 }); assert.ok(r.status === 200 && /The books/.test(r.body.toString()) && r.body.toString().includes(ym), 'the room opens on this month');
+    r = await req(port, 'GET', `/studio/books/${ym}.csv`, { cookie: sck4 }); assert.equal(r.status, 200); const lines = r.body.toString().trim().split('\n'); assert.equal(lines[0], 'date,kind,revenue_class,ref,stripe_id,gross,house,owed_to,owed_name,owed_amount,payer,work,note');
+    const paidN = db.prepare("SELECT COUNT(*) n FROM licenses WHERE status IN ('active','expired') AND price_cents > 0 AND substr(starts_at,1,7)=?").get(ym).n; assert.ok(paidN > 0 && lines.filter(l => l.split(',')[1] === 'license').length === paidN, 'every paid licence of the month is a line: ' + paidN);
+    const lic = lines.find(l => l.split(',')[1] === 'license').split(','); assert.ok(Number(lic[5]) > 0 && Math.abs(Number(lic[5]) - Number(lic[6]) - Number(lic[9])) < 0.005 && /^maker:/.test(lic[7]), 'gross = house + owed to the maker: ' + lic.join(','));
+    r = await req(port, 'GET', `/studio/books/${ym}/summary.csv`, { cookie: sck4 }); assert.ok(r.status === 200 && /TOTAL/.test(r.body.toString()) && /collect|license/.test(r.body.toString()), 'the month by class');
+    r = await req(port, 'GET', `/studio/books/${ym}/balances.csv`, { cookie: sck4 }); assert.ok(r.status === 200 && /as_of,liability,owed_to/.test(r.body.toString()) && /owed to maker/.test(r.body.toString()), 'the balances name what is owed to makers');
+    r = await req(port, 'GET', '/studio/books/how.txt', { cookie: sck4 }); assert.ok(r.status === 200 && /Krafftco LLC/.test(r.body.toString()) && /Friday/.test(r.body.toString()), 'the one-pager');
+    r = await req(port, 'GET', '/studio/books/2026-13.csv', { cookie: sck4 }); assert.equal(r.status, 404); }
+  console.log('ok: the books');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

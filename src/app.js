@@ -2081,7 +2081,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./franchise').mountFranchise(app, { db, V, C, ledger, stripe, mail, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the franchise: a maker's own house at a fee by the month
   require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe });
-  require('./peephole').mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }); // the peephole: a brief room for one reader (the brief, the numbers live, the register, the papers, a line for the director) // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
+  require('./peephole').mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly });
+  require('./books').mountBooks(app, { db, V, studioOnly }); // the books: the month's money events, balances and the one-pager for the bookkeeper (Zeni; Krafftco LLC) // the peephole: a brief room for one reader (the brief, the numbers live, the register, the papers, a line for the director) // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
   if (!cfg.noTimers && ROLE.chores) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });

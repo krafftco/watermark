@@ -11,7 +11,7 @@ const I = require('./icons');
 
 function mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }) {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS readers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, note TEXT, token TEXT UNIQUE NOT NULL, since TEXT NOT NULL DEFAULT (datetime('now')), last_seen TEXT, visits INTEGER NOT NULL DEFAULT 0, ended_at TEXT, letter_at TEXT);
+    CREATE TABLE IF NOT EXISTS readers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, note TEXT, token TEXT UNIQUE NOT NULL, since TEXT NOT NULL DEFAULT (datetime('now')), last_seen TEXT, visits INTEGER NOT NULL DEFAULT 0, ended_at TEXT, letter_at TEXT, played_at TEXT);
     CREATE TABLE IF NOT EXISTS reader_lines (id INTEGER PRIMARY KEY, reader_id INTEGER NOT NULL, body TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')));
   `);
   const esc = V.esc, money = V.money;

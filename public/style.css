@@ -4373,3 +4373,7 @@ html.in-stay .top .nv-back{display:none}
 .ph-close{font-family:'Newsreader',Georgia,serif;font-size:1.2rem;font-weight:500;margin:1.4em 0 .4em}
 .ph-link{width:100%;max-width:420px;font:inherit;font-size:.8rem;padding:4px 6px;margin-bottom:6px;display:block}
 .ph-quiet{font-size:.92rem;opacity:.7;font-style:italic;margin:6px 0 0}
+/* The books (Studio → Back office): the month's money for the bookkeeper. */
+.bks-pick{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 18px;font-size:13px}.bks-pick a{color:var(--mu,#777);text-decoration:none;padding:2px 0;border-bottom:1px solid transparent}.bks-pick a.on{color:inherit;border-bottom-color:currentColor}
+.bks-files{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.bks-tbl td.n,.bks-tbl th.n{text-align:right;font-variant-numeric:tabular-nums}.bks-tbl .bks-sum td{border-top:1px solid currentColor;font-weight:500}

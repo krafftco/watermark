@@ -5,6 +5,7 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 ## 1.5 · The standard · 28 October 2026
+- The books (Studio → House → The books): the month's money events one a line with the Stripe id, the house's part and whose money the rest is; the month by revenue class; what the house holds for others at month end; and the one-pager for the bookkeeper. For Zeni, the finance back office of Krafftco LLC.
 - The house, anywhere: `docker compose up` runs the web, the worker, Postgres and an S3-compatible vault from one file (docs/ANYWHERE.md). The owner's view on the desk (/owner at fullerton.cloud): the house by its own instruments.
 - The peephole: a brief room for one reader, opened by letter from Studio → People → The peephole: the brief (what this is, why it matters, the record so far, Studios, the first company, the platform in prospect, the archive and the museum, the ask) with the house's live numbers in it, the numbers as they stand, the construction site, lately on the register, the papers, and a line for the director. Private; nothing on the public register.
 - The open verifier (open/watermark-verify, MIT, no dependencies): the papers in a file, the register, an anchor, an archival master, checked without asking the house. /platforms, the door as a person reads it. Build on it in the footer.
