@@ -2582,6 +2582,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(db.prepare('SELECT visits FROM readers WHERE id=?').get(rd.id).visits, 1);
     r = await req(port, 'POST', '/peephole/line', { cookie: rck, body: { body: 'Who holds the signing key tonight?' } }); assert.equal(r.status, 302); assert.equal(db.prepare('SELECT COUNT(*) n FROM reader_lines WHERE reader_id=?').get(rd.id).n, 1, 'a line left for the director');
     r = await req(port, 'GET', '/studio/peephole', { cookie: sck3 }); assert.ok(/R\. P\./.test(r.body.toString()) && /Who holds the signing key/.test(r.body.toString()), 'the desk shows the reader and the line: ' + r.status + ' ' + r.body.toString().slice(0, 300));
+    r = await req(port, 'POST', `/studio/peephole/${rd.id}/relink`, { cookie: sck3 }); const rd2 = db.prepare('SELECT * FROM readers WHERE id=?').get(rd.id); assert.ok(rd2.token !== rd.token && rd2.visits === 0, 'a fresh door'); r = await req(port, 'GET', `/peephole/open/${rd.token}`); assert.equal(r.headers.location, '/peephole'); assert.ok(!(r.headers['set-cookie'] || []).find(c => c.startsWith('wm_ph=')), 'the old link is dead');
     r = await req(port, 'POST', `/studio/peephole/${rd.id}/close`, { cookie: sck3 }); r = await req(port, 'GET', '/peephole', { cookie: rck }); assert.equal(r.status, 302, 'the keys taken back');
     assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('reader.invited'), 'nothing of a reader on the public register'); }
   console.log('ok: the peephole');
