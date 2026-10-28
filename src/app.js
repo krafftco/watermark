@@ -639,18 +639,22 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // register told entry by entry and every maker's standing, built once a minute for strangers; anyone signed in, or
   // the Studio, is built fresh. The page is the same for everyone else.
   const pageCache = new Map();
-  const minute = handler => (req, res) => {
-    const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.bck && !c.wm_staff && !c.wm_as && !req.tenant;
+  // Widened for an audience (28 Oct): the hot doors too (/house, /collection, the Library, the Listening Room, the Keys,
+  // the art, Wander's own first page at a shorter window), and only a true stranger is served from it: anyone with a
+  // gallery (wm_b: the old test read a cookie that does not exist), the adult rooms open, the trade on, a guest key or
+  // a welcome due is built fresh.
+  const minute = (handler, ttl = 60e3) => (req, res) => {
+    const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.wm_b && !c.wm_staff && !c.wm_as && !c.wm_trade && !c.wm_hi && !c.wm_gg && !c.wm_g && (!c.wm_zone || c.wm_zone === 'all') && !req.tenant;
     if (!anon) return handler(req, res);
-    const key = req.originalUrl + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0), hit = pageCache.get(key); // any entry on the register makes the page new
-    if (hit && Date.now() - hit.at < 60e3) { res.set('Cache-Control', 'public, max-age=30'); return res.send(hit.body); }
+    const key = req.originalUrl + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) + '#' + (c.wm_tz || ''), hit = pageCache.get(key); // the visitor's zone shapes the clock's rooms // any entry on the register makes the page new
+    if (hit && Date.now() - hit.at < ttl) { res.set('Cache-Control', 'public, max-age=' + Math.max(5, Math.round(ttl / 2000))); return res.send(hit.body); }
     const send = res.send.bind(res);
     res.send = body => { if (res.statusCode === 200 && typeof body === 'string') { pageCache.set(key, { at: Date.now(), body }); if (pageCache.size > 40) pageCache.delete(pageCache.keys().next().value); } return send(body); };
     return handler(req, res);
   };
   app.locals.minute = minute;
   app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent }))));
-  app.get(['/', '/house', '/collection'], (req, res) => {
+  app.get(['/', '/house', '/collection'], minute((req, res) => {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
     const ids = db.prepare("SELECT cw.work_id id FROM collection_works cw JOIN works w ON w.id=cw.work_id WHERE cw.collection_id=? AND w.status='held' ORDER BY cw.sort, cw.work_id");
@@ -673,7 +677,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       try { const c = works[0]; const u = c ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
     }
     res.send(V.collection({ front, rowsHtml, maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
-  });
+  }));
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
   app.get('/api/index.json', (req, res) => {

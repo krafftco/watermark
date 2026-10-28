@@ -171,7 +171,7 @@ ${r.body || r.why ? `<section class="lr-notes"><p class="k">The sleeve</p>${r.wh
 <p class="lr-credit">${esc(r.credit || '')}${r.license_url ? ` <a href="${esc(r.license_url)}" rel="license">The licence</a>.` : ''}${r.ia_id ? ` <a href="https://archive.org/details/${esc(r.ia_id)}">The record at the Archive</a>.` : ''}</p>
 </section>`;
   }
-  app.get('/listening', (req, res) => shell(req, res, null));
+  app.get('/listening', (req, res, next) => (app.locals.minute ? app.locals.minute((q, r) => shell(q, r, null)) : (q, r) => shell(q, r, null))(req, res, next)); // a stranger's shelf once a minute (28 Oct)
   app.get('/listening/:slug', (req, res) => shell(req, res, String(req.params.slug)));
   // The Studio: search the Archive, bring a record in, write the sleeve, set it playing.
   app.get('/studio/listening', async (req, res) => {

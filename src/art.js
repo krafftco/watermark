@@ -167,7 +167,8 @@ ${on() && !a ? `<form method="post" action="${action}" class="ax-f"><input type=
 
   // The room: /art. The kinds of work in the house, the movements, and every artist A–Z with one picture each.
   const cover = a => db.prepare("SELECT slug FROM works WHERE artist_id=? AND status='held' AND zone IS NOT 'mature' ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(a.id);
-  app.get('/art', (req, res) => {
+  app.get('/art', (req, res, next) => (app.locals.minute ? app.locals.minute(artRoom) : artRoom)(req, res, next)); // a stranger's room once a minute (28 Oct)
+  function artRoom(req, res) {
     const OB = require('./object');
     const artists = db.prepare("SELECT a.*, (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held') n FROM artists a WHERE (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held')>0 ORDER BY a.sort_name").all();
     const kinds = db.prepare("SELECT kind, COUNT(*) n FROM works WHERE status='held' AND (artist_id IS NOT NULL OR COALESCE(kind,'photograph')!='photograph') GROUP BY kind ORDER BY n DESC").all().filter(k => OB.KINDS[k.kind]);
@@ -182,7 +183,7 @@ ${movements.length ? `<nav class="ax-mvs"><span>By movement</span>${movements.ma
 ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">${esc(l)}</a>`).join('')}</p><div class="ax-grid">${shown.map((a, i) => { const c = cover(a); const first = i === 0 || (shown[i - 1].sort_name || shown[i - 1].name)[0].toUpperCase() !== (a.sort_name || a.name)[0].toUpperCase(); return `<a class="ax-card" href="/art/${esc(a.slug)}"${first ? ` id="ax-${esc((a.sort_name || a.name)[0].toUpperCase())}"` : ''}><span class="ax-im">${c ? `<img src="/img/${esc(c.slug)}/thumb" alt="" loading="lazy">` : ''}</span><b>${esc(a.name)}</b><span class="ax-meta">${esc([dates(a), a.nationality, a.movement].filter(Boolean).join(' · '))}</span><span class="ax-n">${a.n} work${a.n === 1 ? '' : 's'}${rights(a).state === 'reserved' ? ' · under copyright' : ''}</span></a>`; }).join('')}</div>` : `<p class="ax-empty">No artists yet. The first arrives with the first photograph of a painting, or the first museum collection brought in.</p>`}
 <section class="ax-how"><h2>Photograph the art you love</h2><p>Most museums allow photography of their permanent collection for your own use. Bring your photograph of a painting into the house, name the artist, and it hangs under their name with you as the photographer of record. If the painting is in the public domain, your photograph is yours to collect and license. If it is under copyright, it is shown and credited, yours to collect for yourself, and the house keeps every licence closed: the rights are the artist’s. <a href="/own">You already own it</a> says the rest.</p></section>
 </section>` }));
-  });
+  }
 
   // The artist's page.
   app.get('/art/:slug', (req, res) => {

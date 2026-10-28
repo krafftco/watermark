@@ -128,7 +128,8 @@ ${lines.length ? `<section class="ky-lines"><p class="k">Lately, on the benches<
   });
 
   // The door.
-  app.get('/keys', (req, res) => {
+  app.get('/keys', (req, res, next) => (app.locals.minute ? app.locals.minute(keysPage) : keysPage)(req, res, next)); // a stranger's room once a minute (28 Oct)
+  function keysPage(req, res) {
     const mine = holds(req); const kinds = Object.keys(mine).filter(k => k !== 'house');
     const counts = Object.fromEntries(db.prepare('SELECT kind, COUNT(*) n FROM keys GROUP BY kind').all().map(r => [r.kind, r.n]));
     const b = buyerOf(req), m = makerOf(req);
@@ -154,7 +155,7 @@ ${app.locals.clock ? app.locals.clock.clockBlock(app.locals.clock.programme(req)
 <li><b>Discretion.</b> No one’s looking is shown to anyone. What is said on the balcony stays with the members of that night.</li>
 <li><b>The dinner.</b> Once a month, twelve keyholders at one table, in a city. Shot by Studios.</li></ul></details>
 <p class="ky-foot"><a href="/balcony">The balcony</a> opens in the evening; the benches are under every work and wall. <a href="/friends">Friends of the house</a> is how members give more; it opens nothing on its own.</p></section>` }));
-  });
+  }
 
   // The story (Will, 19 Oct: "my great-grandmother started this restaurant, the Keys; we need to tell that story",
   // and the story of the name). From the Keys' own 1968 menu (Keys Comments, signed Mary Helen Krafft, Mrs. Wm. R.)

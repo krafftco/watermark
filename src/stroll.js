@@ -162,8 +162,10 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   app.get('/stroll', (req, res) => res.redirect(301, '/wander' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
   // The front door is Wander (Will, 26 Oct, the Jobs cut: one name on the door; `/` opens on the picture; the page
   // about the house is /house). A tenant's `/` was rewritten to its maker's page before this.
-  app.get('/', (req, res, next) => wander(req, res, { front: true }));
-  app.get('/wander', (req, res) => wander(req, res, {}));
+  // A stranger's first page of Wander is built once every fifteen seconds (28 Oct, for an audience); anyone the house knows is built fresh.
+  const brief = h => (req, res, next) => (app.locals.minute ? app.locals.minute(h, 15e3) : h)(req, res, next);
+  app.get('/', brief((req, res) => wander(req, res, { front: true })));
+  app.get('/wander', brief((req, res) => wander(req, res, {})));
   function wander(req, res, { front = false }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(req.query.in || '').slice(0, 80);
