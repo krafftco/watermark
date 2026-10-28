@@ -27,7 +27,7 @@ async function connect() {
     await c.connect();
     c.on('error', e => { console.error('[pg] connection', e.message); client = null; connecting = null; });
     client = c; return c;
-  })();
+  })().catch(e => { connecting = null; throw e; }); // a failed connection is tried again on the next statement
   return connecting;
 }
 

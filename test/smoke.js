@@ -198,7 +198,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     // tamper: a backup whose register has a different hash at the same seq must fail
     const zlib = require('zlib'); let tampered;
     if (db.kind === 'postgres') { // the same tamper on a Postgres house: restore the copy into a scratch database, change the hash there, dump it again
-      const { execFileSync } = require('child_process'); const bin = process.env.PG_BIN || ['/usr/lib/postgresql/17/bin', '/usr/lib/postgresql/16/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump')));
+      const { execFileSync } = require('child_process'); const bin = process.env.PG_BIN || ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump')));
       const tmp = path.join(os.tmpdir(), `wm-tamper-${Date.now()}.pgdump`); fs.writeFileSync(tmp, zlib.gunzipSync(await app.locals.store.get(b.key)));
       const name = `wm_tamper_${process.pid}`; db.exec(`CREATE DATABASE "${name}"`); const u = new URL(db.url); u.pathname = '/' + name;
       execFileSync(path.join(bin, 'pg_restore'), ['--no-owner', '--no-acl', '-d', u.toString(), tmp]);

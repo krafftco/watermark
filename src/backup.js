@@ -16,7 +16,7 @@ const { execFileSync } = require('child_process');
 // Postgres (27 Oct): the copy is pg_dump's archive (custom format, gzipped, sealed by the vault as before), and the
 // drill restores it into a scratch database on the same server (wm_drill_<n>), checks it, and drops it; where the
 // server refuses CREATE DATABASE the drill lists the archive and says a full restore needs that right.
-const PGBIN = process.env.PG_BIN || ['/usr/lib/postgresql/17/bin', '/usr/lib/postgresql/16/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump'))) || '';
+const PGBIN = process.env.PG_BIN || ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/bin'].find(d => fs.existsSync(path.join(d, 'pg_dump'))) || '';
 const pgTool = t => (PGBIN ? path.join(PGBIN, t) : t);
 const dbUrlFor = (url, name) => { const u = new URL(url); u.pathname = '/' + name; return u.toString(); };
 

@@ -46,7 +46,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils tesseract-ocr postgresql-client > /dev/null
+      # The client at the server's version (16), from PGDG: the runner's own is newer and its pg_restore is refused by 16.
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils tesseract-ocr curl gnupg > /dev/null
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16 > /dev/null
+          echo "PG_BIN=/usr/lib/postgresql/16/bin" >> $GITHUB_ENV
       - run: npm ci
       # A failure's last lines go out as an annotation, readable through the API where the full log is not.
       - run: |
