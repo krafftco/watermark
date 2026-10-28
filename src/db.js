@@ -7,6 +7,8 @@ function open(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000'); // a chore writing while a visitor writes waits, never throws SQLITE_BUSY (27 Oct)
+  db.pragma('synchronous = NORMAL'); // safe under WAL: a crash loses at most the last transactions, never corrupts
   db.pragma('foreign_keys = ON');
   db.exec(`
   CREATE TABLE IF NOT EXISTS makers (
