@@ -1773,7 +1773,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const key = C.stripeKey || '', live = /^(sk|rk)_live_/.test(key);
     const last = db.prepare('SELECT * FROM stripe_events ORDER BY at DESC LIMIT 1').get();
     const seen = new Set(db.prepare('SELECT DISTINCT type FROM stripe_events').all().map(r => r.type));
-    const want = ['checkout.session.completed', 'payment_intent.succeeded', 'customer.subscription.deleted'];
+    // Every event the house listens for (27 Oct: the list had three; invoice.paid runs the standing orders, account.updated
+    // the bank letter and Connect, checkout.session.expired the market), so Launch says when the endpoint is short one.
+    const want = ['checkout.session.completed', 'checkout.session.expired', 'payment_intent.succeeded', 'invoice.paid', 'account.updated', 'customer.subscription.deleted'];
     let endpoint = null; try { if (stripe) { const l = await stripe.webhookEndpoints.list({ limit: 20 }); endpoint = l.data.find(e => e.url && e.url.startsWith(C.base)) || null; } } catch (e) { endpoint = { error: e.message }; }
     const enabled = endpoint && endpoint.enabled_events ? endpoint.enabled_events : [];
     const missing = want.filter(t => !(enabled.includes('*') || enabled.includes(t)));
