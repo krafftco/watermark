@@ -4337,3 +4337,7 @@ html.in-stay .top .nv-back{display:none}
 .jl-cv{font-size:13px;color:#8a6d2b;display:flex;align-items:center;gap:6px;margin:8px 0 0}.jl-cv svg{width:22px;height:auto;fill:#b48a2f}
 .jl-play{margin:0 0 18px}.jl-play audio{width:100%;max-width:420px;display:block}.jl-play small{color:var(--mu);font-size:12px}
 .jl-tw{margin:18px 0 26px}.jl-tw h2{margin-bottom:4px}.jl-tw td small{color:var(--mu)}.jl-tw form{margin:0}
+/* The standard (28 Oct): the six parts as a table; the anchor line on the register. */
+.std-t{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:.95rem}.std-t th,.std-t td{text-align:left;vertical-align:top;padding:10px 12px 10px 0;border-top:1px solid var(--rule, rgba(0,0,0,.12))}.std-t thead th{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;border-top:0;opacity:.7}.std-t th[scope=row]{font-family:var(--serif, Georgia, serif);font-weight:500;white-space:nowrap;width:9em}.std-t code{font-size:.85em;word-break:break-all}.std-fine{font-size:.85rem;opacity:.75}
+.rg-anchor{font-size:.95rem;opacity:.85}
+@media(max-width:760px){.std-t,.std-t thead,.std-t tbody,.std-t tr,.std-t th,.std-t td{display:block;width:auto}.std-t thead{display:none}.std-t th[scope=row]{border-top:1px solid var(--rule, rgba(0,0,0,.12));padding-bottom:0;white-space:normal}.std-t td{border-top:0;padding-top:4px}}

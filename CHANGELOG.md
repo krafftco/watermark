@@ -4,6 +4,12 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.5 · The standard · 28 October 2026
+- The register is anchored: every hour its head is committed into Bitcoin through OpenTimestamps (free, no token); the proofs stand beside the register (/ledger/anchors.json, one .ots each) and the register page says to which entry and block it stands. `ots verify` checks it against a chain the house does not run.
+- /standard: the six parts of a Watermark work (the record, the number, the register, the anchor, the file, the mark, the identity) and how anyone checks each with free tools.
+- The platform door (/api/partner/v1): a platform opens a creator's studio, puts a work in by address, reads it back by its own id, resolves any picture to its record, and sells from its own surface with the badge (/w/:slug/badge.svg); its share from the house's side, the terms published and the same for everyone.
+- For an audience: Wander's open feed draws from a pool kept a minute, the shelf is read once in five, one record a work in Wander, the API's list once a minute; the load workflow's key.
+
 ## 1.4 · The worker · 28 October 2026
 - The live house moved onto Postgres (docs/MOVE.md), with the register's head the same before and after.
 - `ROLE` (web | worker | all) splits the house into a process that serves people and one that runs its chores, from one image; the worker's heartbeat on /healthz and in the watch (docs/WORKER.md). Nothing changes until it is set.

@@ -180,7 +180,7 @@ const FOOT = [
   ['Look', [['/wander', 'Wander'], ['/collection', 'The collection'], ['/art', 'The art'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/start', 'How it works']]],
   ['Collect', [['/yours', 'Yours'], ['/verify', 'Check a work'], ['/print', 'Print your work'], ['/friends', 'Friends of the house']]],
   ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
-  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/makers', 'For those who make'], ['/clearance', 'What you can do with a photograph'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
+  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/standard', 'The standard'], ['/makers', 'For those who make'], ['/clearance', 'What you can do with a photograph'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
 ];
 function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;
@@ -1385,7 +1385,7 @@ ${r.h ? `<p class="note">SHA-256 of ${r.kind === 'wmark' ? 'the original inside'
 
 // The register: the life of the house, day by day. A photograph enters, is seen, is tipped a hat, is
 // collected, is licensed, changes hands. The hash of each entry is kept small at the end of the line.
-function registerPage({ told, check, counts, chapters = {}, chapter = null, spans = {}, span = 'all', order = 'newest', tally = {} }) {
+function registerPage({ told, check, counts, chapters = {}, chapter = null, spans = {}, span = 'all', order = 'newest', tally = {}, anchor = null }) {
   const q = (c, sp, o) => `/ledger?${[c ? `chapter=${c}` : '', sp && sp !== 'all' ? `span=${sp}` : '', o === 'oldest' ? 'order=oldest' : ''].filter(Boolean).join('&')}`.replace(/\?$/, '');
   const dayOf = at => new Date(at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
   const timeOf = at => new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
@@ -1397,6 +1397,7 @@ function registerPage({ told, check, counts, chapters = {}, chapter = null, span
     title: 'The register · Watermark', desc: 'The life of the house: every work that enters, every hat tipped, every piece collected, licensed or traded, recorded once and chained to the one before.', path: '/ledger',
     body: `<section class="cx-intro rg-intro"><p class="k">The register</p><h1>The life of the house, written once.</h1>
 <p class="lede">Every work that enters, every hat tipped, every piece collected, licensed or passed on, every name on the wall: recorded here as it happens, each entry chained to the one before it so the past cannot be quietly changed. ${check.ok ? `<b>${check.checked} entries, intact.</b>` : `<b class="err">The chain is broken at entry ${check.broken_at}.</b>`}</p>
+${anchor && anchor.latest ? `<p class="lede rg-anchor">The register is anchored: its head is sent every hour to a clock the house does not own${anchor.bitcoin ? `, and to entry ${anchor.bitcoin.seq} it stands in Bitcoin block ${anchor.bitcoin.height || anchor.bitcoin.bitcoin_height}` : ''}. Anyone can check it with free tools: <a href="/ledger/anchors.json">the proofs</a>.</p>` : ''}
 <p class="rg-n"><span><b>${counts.works}</b> works entered</span><span><b>${counts.collected}</b> collected or licensed</span><span><b>${counts.hats}</b> tips of the hat</span><span><b>${counts.all}</b> entries in all</span></p></section>
 <nav class="rg-nav"><div class="rg-ch"><a href="${q(null, span, order)}"${chapter ? '' : ' aria-current="page"'}>Everything</a>${Object.entries(chapters).map(([k, c]) => `<a href="${q(k, span, order)}"${chapter === k ? ' aria-current="page"' : ''}>${esc(c.name)}<small>${tally[k] || 0}</small></a>`).join('')}</div>
 <div class="rg-sp">${Object.entries(spans).map(([k, v]) => `<a href="${q(chapter, k, order)}"${span === k ? ' aria-current="page"' : ''}>${esc(v[0])}</a>`).join('')}<span class="rg-sep"></span><a href="${q(chapter, span, order === 'newest' ? 'oldest' : 'newest')}">${order === 'newest' ? 'Oldest first' : 'Newest first'}</a></div></nav>

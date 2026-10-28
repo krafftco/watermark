@@ -2548,6 +2548,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('platform.earned'), 'never on the public register');
     app.locals.__fetch = prevF; }
   console.log('ok: the platform door');
+  // The standard and the anchor (28 Oct): the page, the proofs' door, the anchors beside the register.
+  { r = await req(port, 'GET', '/standard'); assert.ok(r.status === 200 && /The six parts/.test(r.body.toString()) && /OpenTimestamps/.test(r.body.toString()) && /badge\.svg/.test(r.body.toString()), 'the standard');
+    r = await req(port, 'GET', '/ledger/anchors.json'); const aj = JSON.parse(r.body.toString()); assert.ok(Array.isArray(aj.anchors) && /ots verify/.test(aj.how), 'the proofs listed');
+    r = await req(port, 'GET', '/ledger'); assert.ok(r.status === 200 && !r.body.toString().includes('register.anchored'), 'the register page stands');
+    assert.ok(app.locals.anchor && app.locals.anchor.CALENDARS.length >= 1, 'the anchor is mounted; the clock is tried on the live house, never from here'); }
+  console.log('ok: the standard');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

@@ -1719,6 +1719,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
 
   // The register, told in plain words with the photographs beside it.
   require('./register').mountRegister(app, { db, V, ledger });
+  require('./spec').mountSpec(app, { db, V, C, ledger }); // /standard: the record, the number, the register, the anchor, the file, the mark, the identity, and how each is checked
+  require('./anchor').mountAnchor(app, { db, ledger, C, V, studioOnly, fetchImpl: cfg.fetchImpl, ROLE }); // the register's head into Bitcoin by OpenTimestamps, every hour; the proofs beside the register
   // The register, whole, with the house's public key: anyone can check the chain and every signature offline.
   app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), house: ledger.publicKey(), signature: 'ed25519 over the entry hash, hex', entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
 

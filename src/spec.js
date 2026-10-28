@@ -1,0 +1,37 @@
+// The standard (Will, 28 Oct: "we set the standard; we are literally the people who create the file type"; the web won
+// because its spec and a reference implementation were free, and the people who made it kept the name). /standard says
+// what a Watermark record, number, register, file, badge and identity are, and how each is checked by hand with public
+// tools and no word from the house. Everything here is built on open standards (sha256, Ed25519, JSON, XMP, EXIF,
+// C2PA, did:web, W3C Verifiable Credentials, OpenTimestamps, zip); the format is free to implement; the name and the
+// wave are the house's. Every word a draft for Will and counsel.
+function mountSpec(app, { db, V, C, ledger }) {
+  const esc = V.esc;
+  app.get('/standard', (req, res) => {
+    const head = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get() || { seq: 0, hash: '' };
+    const an = app.locals.anchor ? app.locals.anchor.latest() : null;
+    const key = ledger.publicKey ? ledger.publicKey() : null;
+    const ex = db.prepare("SELECT slug, accession FROM works WHERE status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get();
+    const B = C.base;
+    const row = (what, is, check) => `<tr><th scope="row">${what}</th><td>${is}</td><td>${check}</td></tr>`;
+    res.send(V.layout({ title: 'The Watermark standard', path: '/standard', desc: 'What a Watermark record, number, register, file and badge are, and how anyone checks each of them with free tools.', body: `<article class="dr std">
+<header class="dr-h"><div class="dr-hd"><p class="k">The house</p><h1>The standard.</h1>
+<p class="lede">A work on Watermark is a record, a number, an entry on a signed register, a file that carries its own papers, and a mark. Each of them can be checked by anyone, with free tools, without asking the house. The format is open; the name and the wave are ours. This page is the specification as it stands; <a href="/developers">the open API</a> is its reference implementation.</p></div></header>
+
+<section class="dr-st"><p class="k">The six parts</p>
+<table class="std-t"><thead><tr><th>What</th><th>What it is</th><th>How you check it</th></tr></thead><tbody>
+${row('The record', `One address for the work, <code>${esc(B)}/w/&lt;slug&gt;</code>, and its machine form <code>/api/v1/works/&lt;slug&gt;</code>: the maker, the year and place, the fingerprint (SHA-256 of the master, byte for byte), the accession, the uses and prices, the credit line, the deed.${ex ? ` For example <a href="/w/${esc(ex.slug)}">${esc(ex.accession || ex.slug)}</a>.` : ''}`, `<code>sha256sum master.jpg</code> equals the record’s fingerprint. <code>GET /api/v1/verify?sha256=…</code> answers for any file, including a copy that left the house.`)}
+${row('The number', `A licence is <b>WM YYYY NNNN NNNN</b>: the year, the licence, two check digits (ISO 7064, MOD 97‑10), so a mistyped number is caught before it is looked up. It is written inside every delivered file and printed on every paper.`, `Compute MOD 97‑10 over the digits; look it up at <code>${esc(B)}/t/&lt;number&gt;</code>; <code>/api/v1/licenses/&lt;ref&gt;</code> says whether it is live, for which use, until when.`)}
+${row('The register', `An append‑only chain: each entry carries the SHA‑256 of the one before it, and each entry’s hash is signed with the house’s Ed25519 key. Published whole at <code>/ledger.json</code>; told in words at <a href="/ledger">/ledger</a>. The head today is entry ${head.seq}.`, `Recompute each hash and check each signature against the house key <code>${key ? esc(key.slice(0, 16)) + '…' : '(set in the house)'}</code> (also at <code>/.well-known/did.json</code>). A broken link or a bad signature is a changed past.`)}
+${row('The anchor', `Every hour the register’s head is sent to OpenTimestamps calendars and committed into Bitcoin, a clock the house does not own. The proofs are at <code>/ledger/anchors.json</code>, one <code>.ots</code> file each.${an && an.bitcoin ? ` To entry ${an.bitcoin.seq} the register stands in Bitcoin block ${an.bitcoin.bitcoin_height}.` : ''}`, `<code>ots verify watermark-register-N.ots</code> with the free client, against any Bitcoin node or public explorer: the digest in the file is the head hash, and every entry under that head existed before the block.`)}
+${row('The file', `A delivered file is the master’s own pixels, never re‑encoded, with its papers inside: EXIF (the caption in words, the copyright line, the fingerprint as ImageUniqueID), XMP (<code>dc:</code>, <code>xmpRights:</code>, <code>plus:</code>, <code>Iptc4xmpExt:</code>, and <code>wm:license</code>, <code>wm:number</code>, <code>wm:accession</code>, <code>wm:register</code>), and Content Credentials (C2PA) signed by the house when its certificate is set. The sealed form <code>.wmk</code> opens in <a href="/view">the viewer</a>; the archival master <code>.wmark</code> is the original byte for byte with a signed manifest, the register extract and a certificate of deposit, as a zip.`, `<code>exiftool file.jpg</code> shows the papers; <code>c2patool file.jpg</code> the credentials; <code>unzip -l file.wmark</code> the master beside its manifest. The fingerprint in the papers equals <code>sha256sum</code> of the master in the .wmark.`)}
+${row('The mark', `The wave, and the word Watermark, on any surface: <code>/w/&lt;slug&gt;/badge.svg</code> (dark or light), linking to the record. On a photograph it means registered, by a named human maker, with a number and a licence anyone can look up.`, `Follow it. The address it carries is the record; the record carries the fingerprint; the fingerprint is the file.`)}
+${row('The identity', `The house is <code>did:web:${esc(new URL(B).host)}</code>; each maker <code>did:web:${esc(new URL(B).host)}:m:&lt;slug&gt;</code>, with the maker’s own DID, ISNI or IPI linked when they give them. A licence and an authorship are W3C Verifiable Credentials with <code>eddsa-jcs-2022</code> proofs (<code>/c/&lt;ref&gt;/credential</code>, <code>/w/&lt;slug&gt;/credential</code>).`, `Resolve the DID document, check the proof with any VC library; <code>POST /api/v1/credentials/verify</code> does it for you and says why.`)}
+</tbody></table></section>
+
+<section class="dr-st"><p class="k">What is open, what is ours</p>
+<p>The format is free: anyone may read, write and verify a Watermark record, file, credential or proof, and we publish enough here and at <a href="/developers">/developers</a> to do it without us. The register is public and its proofs are in a chain nobody owns, so the house cannot quietly change what it said. What belongs to the house is its word, which is only worth something because it can be checked: the name Watermark, the wave, and the right to sign an entry onto this register. A platform that wants its creators’ work registered uses <a href="/api/partner/v1/terms">the platform door</a>; a museum, <a href="/museums">the desk</a>.</p>
+<p class="std-fine">Built only from public standards: SHA‑256, Ed25519, JSON, EXIF, XMP, C2PA, did:web, W3C Verifiable Credentials, OpenTimestamps, zip. No token, no coin, no account is needed to check any of it. In public the house says <i>the register, anchored</i>.</p></section>
+</article>` }));
+  });
+}
+module.exports = { mountSpec };
