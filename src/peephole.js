@@ -99,6 +99,10 @@ ${S('getty', 'Getty, and the museums', `
 ${S('data', 'What fills a data center', `
 <p>The campus at Alliance will hold four hundred megawatts. What goes in the racks is mostly weights, caches, and other people's pictures scraped without a record.</p>
 <p>The vault is ${perWork ? `${perWork.toFixed(0)} MB a work` : 'a few tens of megabytes a work'}, kept byte for byte. A million works is a few dozen terabytes with a deed on every one: the only clean material in the building, and something a city can wander in the evening while the racks hum.</p>`)}
+${S('size', 'The size of it', `
+<p>Getty took $981 million last year from 600,000 contributors and is merging with Shutterstock. The trade in pictures is a few billion dollars a year. Title insurance in this country is some twenty billion a year for keeping one kind of record straight.</p>
+<p>The house sells more than the Collect. Prints: a proof for $25, editions from $250, made by local shops that take sixty percent. The Library: the public domain set beautifully, and makers' own books through the house's press. The tools: a darkroom, a writer's desk, a drawing sheet, each a door a professional pays at. The Keys: a club with dues. A museum's or a maker's own house on its own domain, by the month. Every one is live.</p>
+<p>Each is a line in the same register and pays the same Friday.</p>`)}
 ${S('ask', 'The ask', `
 <p>Your judgment first: a foundation to hold the register and the standard; the operating company to take capital as Class B with the founder's trust in control.</p>
 <p>Your introductions second: the first institutions, the Dallas collectors, the bankers who will handle Getty's pieces.</p>
