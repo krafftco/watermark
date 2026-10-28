@@ -27,7 +27,7 @@ What stands, what is next, and the hands that hold the keys. Plain, so it can be
 8. An uptime monitor on /healthz (ok and ledger) to the phone.
 
 ## Next in code
-- A letter on sign-in from a new device; a list of devices with "sign out everywhere"; confirmation by letter when a maker's email or bank changes.
+- Done 27 Oct (src/devices.js, 1.2): a letter on sign-in from a new device; /yours/devices with sign out one or everywhere (a session generation in the cookie's signature: buyers.sess, makers.sess, settings.studio_sess); letters when a bank is connected (account.updated) and when a studio's other addresses change.
 - Error and health digests to the house.
 - SQLite in WAL on the disk; log retention; no PII in logs (none today by design).
 - A threat model and an incident runbook in this file.

@@ -26,7 +26,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
 
   // Let them in: the collection on this device joins the one the email names; a maker opens their room too.
   app.locals.admit = (...a) => admit(...a);
-  function admit(req, res, email) {
+  function admit(req, res, email, how = 'code') {
     const { maker } = whois(email); let { buyer } = whois(email);
     const cur = buyerOf(req);
     if (!buyer) {
@@ -46,6 +46,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     const first = ((maker && maker.name) || fresh.name || '').split(' ')[0];
     res.cookie('wm_hi', first || '·', { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 60 * 1000 });
     ledger.append(db, 'signin.email', `buyer-${fresh.id}`, { maker: !!maker });
+    if (app.locals.devices) app.locals.devices.seen(req, res, { buyer: fresh, maker, how }); // your devices (27 Oct): remembered, and a letter when new
     if (app.locals.studioFactor) { try { app.locals.studioFactor(req, res, email, 'code'); } catch (e) { console.error('[door]', e.message); } } // a named person's first factor at the Studio door
     const name = (maker && maker.name) || fresh.name || null;
     return { name: name ? name.split(' ')[0] : null, to: maker ? '/account' : '/yours', maker: !!maker, fresh: !cur || cur.id !== fresh.id ? !fresh.customer && !maker : false };
@@ -109,14 +110,15 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     const row = db.prepare('SELECT * FROM signins WHERE link=?').get(String(req.params.link));
     if (!row || row.used_at || Date.now() - row.created_at > LIFE) return res.status(410).send(V.signin({ b: buyerOf(req), m: makerOf(req), has: false, mailOn: mail.on(), gone: true }));
     db.prepare('UPDATE signins SET used_at=? WHERE id=?').run(Date.now(), row.id);
-    const r = admit(req, res, row.email);
+    const r = admit(req, res, row.email, 'a link');
     res.redirect(r.to);
   });
 
   // Leaving: the house says goodbye the way a good host does, at the door.
   app.post('/signout', (req, res) => {
     const b = buyerOf(req), m = makerOf(req); const name = ((m && m.name) || (b && b.name) || '').split(' ')[0] || null;
-    for (const c of ['wm_b', 'wm_tap', 'wm_m', 'wm_as', 'wm_s']) res.clearCookie(c);
+    if (req.cookies && req.cookies.wm_d) { try { db.prepare("UPDATE devices SET ended_at=datetime('now') WHERE token=?").run(String(req.cookies.wm_d)); } catch (e) { /* no devices table */ } }
+    for (const c of ['wm_b', 'wm_tap', 'wm_m', 'wm_as', 'wm_s', 'wm_d']) res.clearCookie(c);
     res.redirect(`/farewell${name ? `?to=${encodeURIComponent(name)}` : ''}`);
   });
   app.get('/farewell', (req, res) => {

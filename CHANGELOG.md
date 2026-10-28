@@ -4,6 +4,14 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.2 · Your devices · 27 October 2026
+
+Every phone and computer signed in as you, on one page (Yours → Settings → Your devices). The house writes to you when a sign-in comes from a device it has not seen; you can sign one out, or everywhere at once, and only a fresh code to your email gets back in. A letter when a bank is connected, and when another address is given the keys to a studio.
+
+- The house boots quietly: its own chores wait three minutes and take turns in a lane of their own; a book's pictures or a feed pressed by hand never wait behind them.
+- Two AWS accounts, two scoped keys; no root keys; the cold page lives a minute, not a day.
+- Carnegie whole: numbered chapters joined to their titles, the apparatus dropped, the binding's wave drawn complete.
+
 ## 1.1 · Editions of the house · 27 October 2026
 
 A jewel is one book given everything. The shelf at the head of the Library; the mark on a book; plates brought by hand from Commons or any address; every chapter read aloud in the house voice into the Listening Room; an introduction in someone's own voice. The twelve on the Studio's desk, Franklin first.

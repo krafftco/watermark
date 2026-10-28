@@ -451,6 +451,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
+  require('./devices').mountDevices(app, { db, C, V, mail, ledger }); // your devices (27 Oct): the gate that signs out an ended device, before any route
 
   // Stripe webhook needs the raw body, so it comes before the body parsers.
   app.post('/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
@@ -491,7 +492,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
 
   // --- auth for the Studio ---
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('hex');
-  const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp) && Date.now() < +exp; };
+  // The Studio's own generation (devices.js, 27 Oct): 'Sign out everywhere' from the house bumps it and every Studio cookie dies.
+  const studioGen = () => { try { const r = db.prepare("SELECT v FROM settings WHERE k='studio_sess'").get(); return r && r.v ? '.' + r.v : ''; } catch (e) { return ''; } };
+  const isStudio = req => { const c = req.cookies.wm_s; if (!c) return false; const [exp, mac] = c.split('.'); return mac === sign(exp + studioGen()) && Date.now() < +exp; };
+  app.locals.isStudio = req => isStudio(req);
+  app.locals.studioBump = () => { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); db.prepare("INSERT OR REPLACE INTO settings (k, v) VALUES ('studio_sess', ?)").run(String(Date.now())); };
   const studioOnly = (req, res, next) => isStudio(req) ? next() : res.redirect('/studio/login');
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
@@ -923,11 +928,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const payCfg = () => { const u = q.use.get(maker.id, 'social'); return stripe && C.stripePk && u && u.price_cents != null ? { pk: C.stripePk, amount: u.price_cents, price: V.money(u.price_cents) } : null; };
   app.locals.payCfg = payCfg;
   // The buyer is known only by a signed cookie on their device; no account, no password.
-  const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); return mac === sign('b' + id) ? db.prepare('SELECT * FROM buyers WHERE id=?').get(+id) : null; };
-  app.locals.buyerOf = buyerOf; app.locals.makerSlug = V.makerSlug;
+  // The signature folds in the person's session generation (buyers.sess, devices.js): a bump voids every cookie ever issued.
+  const bmac = b => sign('b' + b.id + (b.sess ? '.' + b.sess : ''));
+  const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(+id); return b && mac === bmac(b) ? b : null; };
+  app.locals.buyerOf = buyerOf; app.locals.makerSlug = V.makerSlug; app.locals.setBuyer = (res, b, tap) => setBuyer(res, b, tap);
   const setBuyer = (res, b, tap) => {
     const o = { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 365 };
-    res.cookie('wm_b', `${b.id}.${sign('b' + b.id)}`, { ...o, httpOnly: true });
+    res.cookie('wm_b', `${b.id}.${bmac(b)}`, { ...o, httpOnly: true });
     if (tap) res.cookie('wm_tap', '1', o); // tells the page a one-tap card is ready (holds nothing)
   };
   if (stripe && C.stripePk && !cfg.noTimers) { // Apple Pay shows only on a domain Stripe knows
@@ -1667,7 +1674,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/ledger.json', (req, res) => res.json({ check: ledger.verify(db), house: ledger.publicKey(), signature: 'ed25519 over the entry hash, hex', entries: db.prepare('SELECT * FROM ledger ORDER BY seq').all() }));
 
   // --- Studio ---
-  const openStudio = res => { const exp = String(Date.now() + 1000 * 60 * 60 * 24 * 14); res.cookie('wm_s', `${exp}.${sign(exp)}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 14 }); };
+  const openStudio = res => { const exp = String(Date.now() + 1000 * 60 * 60 * 24 * 14); res.cookie('wm_s', `${exp}.${sign(exp + studioGen())}`, { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 14 }); };
   app.locals.openStudio = openStudio;
   const doorNamed = () => !!String(process.env.STUDIO_EMAILS || '').trim();
   // The password answers only while no one is named at the door (STUDIO_EMAILS); then the door is email code + passkey (src/door.js).

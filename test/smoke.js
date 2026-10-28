@@ -2872,6 +2872,23 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/ledger?span=all'); assert.ok(!/first sale/.test(r.body), 'nothing of it in public');
     console.log('ok: the first week');
   }
+  // Your devices (27 Oct): a sign-in is a device; a second, unlike the first, is written about; one can be signed out; everywhere voids every cookie but this one's.
+  { const ck = r => (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    const em = 'devices@example.com';
+    r = await req(port, 'POST', '/signin/code', { body: { email: em } }); r = await req(port, 'POST', '/signin/verify', { body: { email: em, code: app.locals.lastCode.code }, headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605 (KHTML, like Gecko) Version/17 Safari/605' } });
+    const c1 = ck(r); assert.ok(/wm_d=/.test(c1), 'a device cookie on sign-in');
+    r = await req(port, 'POST', '/signin/code', { body: { email: em } }); r = await req(port, 'POST', '/signin/verify', { body: { email: em, code: app.locals.lastCode.code }, headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 (KHTML, like Gecko) Version/17 Mobile/15E148 Safari/604' } });
+    const c2 = ck(r);
+    const rows = db.prepare("SELECT * FROM devices WHERE buyer_id=(SELECT id FROM buyers WHERE email=?) AND ended_at IS NULL ORDER BY id").all(em); assert.equal(rows.length, 2, 'two devices'); assert.equal(rows[0].name, 'Safari on Mac'); assert.equal(rows[1].name, 'Safari on iPhone');
+    r = await req(port, 'GET', '/yours/devices', { cookie: c2 }); assert.equal(r.status, 200); assert.ok(r.body.includes('Safari on Mac') && r.body.includes('this one'), 'the list, this device marked');
+    r = await req(port, 'POST', `/yours/devices/${rows[0].id}/end`, { cookie: c2 }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', '/yours?tab=settings', { cookie: c1 }); assert.ok(!r.body.includes(em), 'the ended device is a stranger on its next request');
+    r = await req(port, 'GET', '/yours/devices', { cookie: c2 }); assert.ok(!r.body.includes('Safari on Mac'), 'and off the list');
+    r = await req(port, 'POST', '/signin/code', { body: { email: em } }); r = await req(port, 'POST', '/signin/verify', { body: { email: em, code: app.locals.lastCode.code }, headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537' } }); const c3 = ck(r);
+    r = await req(port, 'POST', '/yours/devices/all', { cookie: c2 }); assert.equal(r.status, 302);
+    r = await req(port, 'GET', '/yours?tab=settings', { cookie: c3 }); assert.ok(!r.body.includes(em), 'everywhere: the other device is out though its row is gone and its cookie was good');
+    r = await req(port, 'GET', '/yours/devices', { cookie: c2 }); assert.equal(r.status, 302, 'the old cookie of this device is void too; the fresh one was set on the redirect');
+    const stranger = await req(port, 'POST', '/yours/devices/all'); assert.equal(stranger.status, 401, 'a stranger cannot'); }
   // Guardrails: headers on every page; a write from another site is refused; the Studio door locks after ten tries.
   r = await req(port, 'GET', '/about'); assert.ok(r.headers['content-security-policy'] && r.headers['x-frame-options'] === 'SAMEORIGIN' && /frame-ancestors 'self'/.test(r.headers['content-security-policy']) && r.headers['referrer-policy'], 'security headers');
   r = await req(port, 'POST', '/guestbook/1/remove', { headers: { origin: 'https://evil.example' } }); assert.equal(r.status, 403, 'cross-site write refused');

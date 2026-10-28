@@ -122,7 +122,16 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   });
   // Friday pay (every Friday from ten in the morning, New York, once), and when a bank is added.
   const prev = app.locals.patronEvent;
-  app.locals.patronEvent = event => { if (prev) prev(event); if (event.type === 'account.updated' && event.data.object.payouts_enabled) { const m = db.prepare('SELECT * FROM makers WHERE stripe_account=?').get(event.data.object.id); if (m) pay(m, { by: 'bank' }).catch(() => {}); } };
+  // The bank connected, said by letter once (27 Oct, SECURITY.md): a change to where the money goes is always written to the maker.
+  function bankTold(m, acct) {
+    try {
+      db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); const k = `bank_told_${m.id}_${acct.id}`; if (db.prepare('SELECT 1 FROM settings WHERE k=?').get(k)) return;
+      db.prepare('INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)').run(k, new Date().toISOString());
+      const ext = acct.external_accounts && acct.external_accounts.data && acct.external_accounts.data[0]; const where = ext ? `${ext.bank_name || 'a bank'}${ext.last4 ? `, account ending ${ext.last4}` : ''}` : 'your bank';
+      if (m.email && mail.on()) mail.send({ to: m.email, subject: 'Your bank is connected to Watermark', cta: { label: 'Getting paid', url: `${C.base}/account/payouts` }, text: `${m.name.split(' ')[0]},\n\nYour bank is connected: from now on Friday pay goes to ${where}.\n\nIf you did not do this, open Your devices and press Sign out everywhere, then write to the house at ${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}.\n\n${C.base}/yours/devices\n\nWatermark, a Krafft company` }).catch(() => {});
+    } catch (e) { console.error('[payouts] bank letter', e.message); }
+  }
+  app.locals.patronEvent = event => { if (prev) prev(event); if (event.type === 'account.updated' && event.data.object.payouts_enabled) { const m = db.prepare('SELECT * FROM makers WHERE stripe_account=?').get(event.data.object.id); if (m) { bankTold(m, event.data.object); pay(m, { by: 'bank' }).catch(() => {}); } } };
   db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)');
   const weekKey = () => { const d = new Date(); const day = new Intl.DateTimeFormat('en-CA', { timeZone: PAY_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); return `friday_pay_${day}`; };
   async function friday({ force = false } = {}) {

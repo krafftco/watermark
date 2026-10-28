@@ -68,6 +68,7 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker
       const fresh = db.prepare('SELECT * FROM buyers WHERE id=?').get(b.id);
       setBuyer(res, fresh, !!fresh.pm);
       if (app.locals.studioFactor && fresh.email) { try { app.locals.studioFactor(req, res, fresh.email, 'passkey'); } catch (e) { console.error('[door]', e.message); } } // the second factor at the Studio door
+      if (app.locals.devices && !(req.cookies && req.cookies.wm_d)) app.locals.devices.seen(req, res, { buyer: fresh, maker: null, how: 'passkey' });
       res.json({ ok: true });
     } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
   });
@@ -103,7 +104,9 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker
         credential: { id: k.cred_id, publicKey: new Uint8Array(k.public_key), counter: k.counter, transports: k.transports ? JSON.parse(k.transports) : undefined } });
       if (!v.verified) return res.status(400).json({ ok: false });
       db.prepare("UPDATE maker_passkeys SET counter=?, used_at=datetime('now') WHERE id=?").run(v.authenticationInfo.newCounter || 0, k.id);
-      setMaker(res, db.prepare('SELECT * FROM makers WHERE id=?').get(k.maker_id)); res.json({ ok: true, to: '/account' });
+      const mk = db.prepare('SELECT * FROM makers WHERE id=?').get(k.maker_id); setMaker(res, mk);
+      if (app.locals.devices && !(req.cookies && req.cookies.wm_d)) app.locals.devices.seen(req, res, { buyer: null, maker: mk, how: 'passkey' });
+      res.json({ ok: true, to: '/account' });
     } catch (e) { console.error('[passkey]', e.message); res.status(400).json({ ok: false }); }
   });
   app.post('/auth/signout', (req, res) => { res.clearCookie('wm_b'); res.clearCookie('wm_tap'); res.redirect('/signin?out=1'); });

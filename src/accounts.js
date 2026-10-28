@@ -23,8 +23,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const c = req.cookies && req.cookies.wm_m;
     if (!c) { const h = isStudio(req) ? (req.query && req.query.maker) || (req.cookies && req.cookies.wm_as) || (C.maker && C.maker.handle) : null; if (h) return db.prepare('SELECT * FROM makers WHERE handle=?').get(String(h)) || null; if (app.locals.institutions && req.cookies && req.cookies.wm_staff) { try { return app.locals.institutions.actingFor(req); } catch (e) { return null; } } return null; }
     const [id, exp, mac] = String(c).split('.');
-    if (mac !== sign(`m${id}.${exp}`) || Date.now() > +exp) return null;
-    return db.prepare('SELECT * FROM makers WHERE id=?').get(+id) || null;
+    if (Date.now() > +exp) return null;
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(+id); if (!m) return null;
+    return mac === sign(`m${id}.${exp}${m.sess ? '.' + m.sess : ''}`) ? m : null; // the session generation (devices.js) is in the signature
   };
   // Will (the Studio) can open any maker's dashboard to see what they see.
   const whose = req => {
@@ -59,13 +60,13 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   });
 
   // ---------- the maker side ----------
-  const setMaker = (res, m) => { const exp = String(Date.now() + cookieOpts.maxAge); res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}`)}`, cookieOpts); };
+  const setMaker = (res, m) => { const exp = String(Date.now() + cookieOpts.maxAge); res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}${m.sess ? '.' + m.sess : ''}`)}`, cookieOpts); };
   app.get('/account/join/:token', (req, res) => {
     const m = db.prepare('SELECT * FROM makers WHERE invite_token=?').get(String(req.params.token));
     if (!m) return res.status(404).send(A.gone());
-    const exp = String(Date.now() + cookieOpts.maxAge);
     db.prepare("UPDATE makers SET invite_token=NULL, joined_at=COALESCE(joined_at, datetime('now')) WHERE id=?").run(m.id);
-    res.cookie('wm_m', `${m.id}.${exp}.${sign(`m${m.id}.${exp}`)}`, cookieOpts);
+    setMaker(res, m);
+    if (app.locals.devices) app.locals.devices.seen(req, res, { buyer: null, maker: m, how: 'the invitation' });
     const none = m.kind === 'maker' && !db.prepare('SELECT 1 FROM works WHERE maker_id=? LIMIT 1').get(m.id);
     res.redirect(none ? '/account/upload?welcome=1' : '/account'); // the first week (26 Oct): a new maker lands in the vault, not on a desk
   });
@@ -89,6 +90,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const site = t(b.site, 200), ig = t(b.instagram, 60);
     // Other addresses that open this studio (Will, 23 Oct: the gmail is the collector's door, the Krafft address the maker's; one person, two doors).
     const emails = String(b.emails || '').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x) && x !== String(m.email || '').toLowerCase()).slice(0, 5).join(', ');
+    if (emails !== String(m.emails || '')) { // another door to the studio opened or closed (27 Oct): said by letter to the address of record
+      if (m.email && mail && mail.on()) mail.send({ to: m.email, subject: emails ? 'Another address can now open your studio' : 'Your studio opens by one address again', cta: { label: 'Your devices', url: `${C.base}/yours/devices` }, text: `${m.name.split(' ')[0]},\n\n${emails ? `These addresses can now open your studio on Watermark as you:\n\n    ${emails.split(', ').join('\n    ')}\n\nbeside ${m.email}.` : `Only ${m.email} opens your studio now; the other addresses were taken off.`}\n\nIf you did not do this, open Your devices and press Sign out everywhere, then write to the house.\n\n${C.base}/yours/devices\n\nWatermark, a Krafft company` }).catch(() => {});
+    }
     db.prepare('UPDATE makers SET emails=? WHERE id=?').run(emails, m.id);
     // Elsewhere: writing, film, music, a shop; label and address, up to six.
     const links = []; for (let i = 0; i < 6; i++) { const L = t((b.link_label || [])[i], 40), U = t((b.link_url || [])[i], 300); if (L && U && /^https?:\/\//i.test(U)) links.push({ label: L, url: U }); }
