@@ -6,6 +6,7 @@
 // e.g. "the founder’s mother") is the house's to write; a draft until Will confirms. Studio → Back office → Founders.
 function mountFounders(app, { db, V, isStudio, FOUNDING = 100 }) {
   const { esc } = V;
+  db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); // read at mount (FIRST_COLLECTOR below) before the rooms that usually make it
   const get = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
   const set = (k, v) => db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, v);
   const firstId = () => Number(get('first_collector')) || null;
