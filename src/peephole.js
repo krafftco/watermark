@@ -101,6 +101,7 @@ ${S('ask', 'IX. The ask', `
 <p>Your judgment first: a foundation to hold the register and the standard; the operating company to take capital as Class B with the founder's trust in control. Your introductions second: the first institutions, the Dallas collectors, and the bankers who will handle Getty's pieces. Capital third, if the first two hold, on terms set down with counsel before either of us is in a hurry.</p>
 <p>And one small, concrete thing. The house should own its name. watermark.com is for sale. A museum is called by its name, not its address.</p>
 <p>What you may expect in return is the one thing the house is built to give: a record. Every dollar in and out is on the register or the statement; this room shows you the numbers as they are, not as described; and when the house breaks a promise it says so in public and puts it right. You will not have to take my word for anything in this brief, which is the point of the thing.</p>
+<p class="ph-close">This is a Texas company. This is a Dallas company. Some day, on the TXSE.</p>
 <p class="ph-sign">With great respect,<br><span class="ph-hand">${esc(C.maker && C.maker.name || 'Will Fullerton')}</span><br>${esc(C.maker && C.maker.name || 'Will Fullerton')}<br><span>Founding director, Watermark · founder, Krafft</span></p>`)}`;
   }
 
