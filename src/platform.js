@@ -134,7 +134,7 @@ function mountPlatform(app, { db, C, V, ledger, registerWork, mail, fetchImpl = 
   // --- The terms, published: the same for every platform (counsel reads them before the first is signed).
   app.get('/api/partner/v1/terms', (req, res) => res.json({
     share: { platform_pct: PLATFORM_PCT, side: 'the house', note: 'The platform\'s share is paid from the house\'s share, never the maker\'s. The price is the maker\'s; the house\'s share on top is published at /share.' },
-    exclusivity: 'none', data: 'The house never sends a buyer\'s name. A licence is posted as a signed credential.', register: `${C.base}/ledger.json`, leave: 'A maker may disconnect a platform at any time and takes every work, deed and register entry with them.',
+    exclusivity: 'none', house_surface: 'The house\'s own surface (Wander) stands on the register on the same terms as every platform: the same record, the same price to the collector, the same pay to the maker, no data a platform does not get.', data: 'The house never sends a buyer\'s name. A licence is posted as a signed credential.', register: `${C.base}/ledger.json`, leave: 'A maker may disconnect a platform at any time and takes every work, deed and register entry with them.',
     doors: { open_studio: 'POST /api/partner/v1/makers', put_work: 'POST /api/partner/v1/makers/:slug/works { url, title, place, caption, external_id, made }', work: 'GET /api/partner/v1/makers/:slug/works/:slug|accession|external_id', resolve: 'GET /api/partner/v1/resolve?sha256=', collect: '/w/:slug?via=p:<partner>', badge: '/w/:slug/badge.svg?theme=dark|light&size=sm|md', webhooks: ['maker.opened', 'work.registered', 'license.granted'] } }));
 
   app.locals.platform = { badge, badgeOf, record, reward, earned, PLATFORM_PCT };
