@@ -1471,6 +1471,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(/Being shown/.test(r.body), 'the desk says so');
       r = await req(port, 'GET', '/studio/launch', { cookie: ck }); assert.ok(/The showing is over/.test(r.body), 'the Launch page offers the way off');
       r = await req(port, 'POST', '/studio/showing', { cookie: ck, body: { on: '0' } }); assert.ok(app.locals.governor.chores() === true, 'chores resume'); }
+    // Closed for the moment (28 Oct): writes from the street refused with the sign, reading on, the chores held, the webhook 503 too; then open again.
+    { r = await req(port, 'POST', '/studio/readonly', { cookie: ck, body: { on: '1' } }); assert.ok(r.status === 302, 'closed');
+      assert.ok(app.locals.readonly() && app.locals.governor.chores() === false, 'closed: the chores hold');
+      r = await req(port, 'POST', '/w/test-dome/applaud', { body: {} }); assert.ok(r.status === 503 && /Closed for the moment/.test(r.body), 'a write from the street meets the sign: ' + r.status);
+      r = await req(port, 'POST', '/stripe/webhook', { body: {} }); assert.equal(r.status, 503, 'the webhook is refused (Stripe retries)');
+      r = await req(port, 'POST', '/w/test-dome/stood', { body: { v: 'x', s: 1 }, headers: { accept: 'application/json' } }); assert.ok(r.status === 503 && /"ok":false/.test(r.body), 'a beacon is told in JSON');
+      r = await req(port, 'GET', '/w/test-dome'); assert.equal(r.status, 200, 'reading goes on');
+      r = await req(port, 'GET', '/studio/launch', { cookie: ck }); assert.ok(/Open again/.test(r.body), 'Launch offers the way open');
+      r = await req(port, 'POST', '/studio/readonly', { cookie: ck, body: { on: '0' } }); assert.ok(r.status === 302 && !app.locals.readonly() && app.locals.governor.chores() === true, 'open again');
+      assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type IN ('house.closed','house.opened')").get().n === 2, 'both on the register (hidden)'); }
     app.locals.__fetch = prev;
   }
   console.log('ok: feeds in');

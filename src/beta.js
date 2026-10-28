@@ -3,7 +3,7 @@ const ROLE = require('./role');
 // Anyone can tell the house what they found (/feedback); the Studio reads it at /studio/feedback and marks it done.
 // The house is in beta until the Studio says it has launched (settings 'launched'); then the word and the
 // footer line go, and the feedback page stays for whoever finds it.
-function mountBeta(app, { db, V, mail, studioOnly, C }) {
+function mountBeta(app, { db, V, mail, studioOnly, C, ledger }) {
   db.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT);
     CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY, kind TEXT, body TEXT NOT NULL, email TEXT, page TEXT, device TEXT, ip TEXT, done INTEGER NOT NULL DEFAULT 0, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const launched = () => { const r = db.prepare("SELECT v FROM settings WHERE k='launched'").get(); return !!(r && r.v === '1'); };
@@ -48,6 +48,19 @@ function mountBeta(app, { db, V, mail, studioOnly, C }) {
     res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'The house is being shown: every chore holds; no deploy until it is off.' : 'The showing is over; the chores resume.'));
   });
   app.locals.showing = showing;
+  // Closed for the moment (28 Oct, after the move onto Postgres left a window where a sale could land on one side only):
+  // settings 'readonly'. On: every write from the street (POST, PUT, PATCH, DELETE) is answered 503 with the sign, the
+  // chores hold, and Stripe's webhook is refused too (Stripe retries a failed delivery for days, so nothing paid is
+  // lost: it lands when the house opens). GET pages are served as before. For a move, a restore, a migration: minutes.
+  const readonly = () => { const r = db.prepare("SELECT v FROM settings WHERE k='readonly'").get(); return !!(r && r.v === '1'); };
+  let roAt = 0, roV = false; const readonlyCached = () => { const now = Date.now(); if (now - roAt > 3000) { try { roV = readonly(); } catch (e) { /* as it was */ } roAt = now; } return roV; };
+  app.locals.readonly = readonlyCached;
+  app.post('/studio/readonly', studioOnly, (req, res) => {
+    const on = String((req.body || {}).on) === '1';
+    db.prepare("INSERT INTO settings (k, v) VALUES ('readonly', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(on ? '1' : '0'); roAt = 0;
+    try { if (ledger) ledger.append(db, on ? 'house.closed' : 'house.opened', 'house', {}); } catch (e) { /* */ }
+    res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'Closed for the moment: every write from the street is refused with the sign until this is turned off.' : 'Open again.'));
+  });
   return { launched, showing, open: () => db.prepare('SELECT COUNT(*) n FROM feedback WHERE done=0').get().n };
 }
 module.exports = { mountBeta };

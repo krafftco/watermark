@@ -20,7 +20,7 @@ top to bottom. Nothing here is clever; the point is that nothing is forgotten.
 
 ## The evening (about twenty minutes; the house is read-only for ten of them)
 
-1. **The showing on.** Studio → Launch → the showing switch. Every chore holds; the desk's line says so. Push nothing.
+1. **Close for the moment.** Studio → Launch → Close for the moment (and the showing on, if a demonstration is near). Every chore holds and no write lands; the desk's line says so. Push nothing.
 2. **The copy.** The SQLite file lives on the service's disk, and only the service's own Shell can see that disk (a
    one-off Job runs the image without it), so the copy runs from Render → `watermark` → **Shell**, with the house up
    and the chores held:
@@ -34,15 +34,17 @@ top to bottom. Nothing here is clever; the point is that nothing is forgotten.
    The gap: a write that lands between the copy's start and the deploy below lives only in SQLite. Note the register's
    head `seq` (`/ledger.json`) before the copy; after the deploy compare it with the SQLite file's (the Shell again: `node -e "console.log(require('better-sqlite3')('/data/watermark.db').prepare('SELECT MAX(seq) s FROM ledger').get().s)"`). Equal (the usual case
    at two in the morning) means nothing was lost; otherwise drop the schema and run the copy again before deploying.
-   A read-only switch for the house would close the gap properly and is the first thing to build before a second
-   move.
+   Since the move, the house has the switch: Studio → Launch → **Close for the moment** (`settings.readonly`): every
+   write from the street is refused with the sign (reading goes on, the chores hold, Stripe's webhook is refused and
+   Stripe retries it), so the copy runs with nothing landing. Close before the copy, open after the deploy, and the gap
+   is gone.
 3. **Switch.** Render → `watermark` → Environment → add `DATABASE_URL` (the internal URL) → Save, rebuild, and deploy.
    One deploy, the usual cold minute. `TRUST_PROXY=2` and everything else stay.
 4. **Check.** `/healthz` → `"db":"postgres"`, `ledger: true`, `works` the same count as before. Sign in. Open a work.
    Studio → Back office → Backups → **Back up now** (the first `pg_dump`), then **Restore drill now** (needs CREATE
    DATABASE on the role; Render's default role has it). The register page. The numbers. A $7 Collect with a real card,
    refunded in Stripe after.
-5. **The showing off.** Chores resume; `warmAll` and the fills will touch Postgres for the first time under load. Watch
+5. **Open again** (and the showing off). Chores resume; `warmAll` and the fills will touch Postgres for the first time under load. Watch
    `/healthz` full for ten minutes: `faults`, `governor`, the deploy's log for `[pg]` lines.
 
 ## After

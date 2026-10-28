@@ -58,7 +58,7 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
   // The showing (27 Oct): while the house is being shown (Studio → Launch → 'Showing'), every chore holds too, so a demo never meets a feed.
   let shown = false;
-  const chores = () => process.env.CHORES !== '0' && !shown && ROLE.chores; // a web process on a split house runs none of the house's chores
+  const chores = () => process.env.CHORES !== '0' && !shown && ROLE.chores && !(app.locals.readonly && app.locals.readonly()); // and never while the house is closed for a move // a web process on a split house runs none of the house's chores
   const hold = on => { shown = !!on; };
   app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores, hold, showing: () => shown };
   return app.locals.governor;

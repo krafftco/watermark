@@ -7,6 +7,7 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 ## 1.4 · The worker · 28 October 2026
 - The live house moved onto Postgres (docs/MOVE.md), with the register's head the same before and after.
 - `ROLE` (web | worker | all) splits the house into a process that serves people and one that runs its chores, from one image; the worker's heartbeat on /healthz and in the watch (docs/WORKER.md). Nothing changes until it is set.
+- Closed for the moment: a read-only switch for a move or a restore (Studio → Launch).
 - Backups run off the event loop; the Studio door answers again (the bag check's desk had shadowed it); founders.js makes the settings table it reads at mount.
 
 ## 1.3 · Two engines · 27 October 2026

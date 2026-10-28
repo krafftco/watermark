@@ -456,6 +456,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
 
   // Stripe webhook needs the raw body, so it comes before the body parsers.
   app.post('/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+    if (app.locals.readonly && app.locals.readonly()) return res.status(503).set('Retry-After', '120').json({ ok: false, error: 'Closed for the moment; send it again.' }); // Stripe retries for days (28 Oct)
     if (!stripe || !C.webhookSecret) return res.status(400).send('Stripe not configured');
     let event;
     try { event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], C.webhookSecret); }
@@ -485,6 +486,14 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   });
 
   require('./guardrails').mountGuardrails(app, { base: C.base });
+  // Closed for the moment (28 Oct): with settings 'readonly' on (Studio → Launch), every write from the street is answered
+  // 503, the sign for a page, JSON for the API and the beacons; Stripe's webhook too, which Stripe retries. Reading goes on.
+  app.use((req, res, next) => {
+    if (!/^(POST|PUT|PATCH|DELETE)$/.test(req.method) || req.path === '/studio/readonly' || !app.locals.readonly || !app.locals.readonly()) return next();
+    res.set('Retry-After', '120');
+    if (/^\/(api|stripe)\//.test(req.path) || /json/.test(req.get('accept') || '') || req.query.json) return res.status(503).json({ ok: false, error: 'Closed for the moment: the house is being moved. Try again in a few minutes.' });
+    res.status(503).send(V.sign({ code: 503, detail: 'The house is being moved for a few minutes; nothing can be collected, signed or written until it is open again. Everything you can read is here.' }));
+  });
   const GOV = require('./governor').mountGovernor(app); // the house's chores take turns and yield to visitors (27 Oct)
   const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
   // The worker's heartbeat: a settings row the web's /healthz reads, so a missing worker is seen from the street.
@@ -1116,7 +1125,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./swaps').mountSwaps(app, { db, C, buyerOf, ledger, V, mail });
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
-  app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C });
+  app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C, ledger });
   require('./releases').mountReleases(app, { V }); // what's new: the shipped product's record (27 Oct)
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
@@ -1838,7 +1847,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         { ok: false, manual: true, name: 'Shares', detail: FEE.on() ? `The price is the maker’s; the house’s share (Collect $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}, else ${FEE.schedule()}) is paid by the collector; 10% resale royalty and 5% market fee are drafts` : '85% to the maker, 10% resale royalty and 5% market fee are drafts' },
         { ok: false, manual: true, name: 'Terms for resale', detail: 'The license says non-transferable; counsel to revise it before the market opens' } ] },
     ];
-    res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, showing: app.locals.beta && app.locals.beta.showing ? app.locals.beta.showing() : false, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8), ok: req.query.ok }));
+    res.send(S.launch({ checks, live, launched: app.locals.beta ? app.locals.beta.launched() : false, showing: app.locals.beta && app.locals.beta.showing ? app.locals.beta.showing() : false, readonly: app.locals.readonly ? app.locals.readonly() : false, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8), ok: req.query.ok }));
   });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
