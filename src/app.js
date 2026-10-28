@@ -525,6 +525,18 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const d = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 19).replace('T', ' ');
     return { week: one(d(7), d(-1)), last: one(d(14), d(7)) };
   };
+  // Two numbers the business runs on (Will, 25 Oct): do collectors come back, and how long does a maker wait for a first sale. Read by the house desk and the owner's view.
+  app.locals.business = () => {
+    let again = null, firstSale = null;
+    try { const r = db.prepare(`WITH p AS (SELECT l.buyer_id, MIN(l.starts_at) first FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.buyer_id IS NOT NULL AND l.price_cents > 0 AND l.status IN ('active','expired') AND u.key IN ('social','reference') GROUP BY l.buyer_id)
+        SELECT COUNT(*) n, SUM(CASE WHEN EXISTS (SELECT 1 FROM licenses l2 WHERE l2.buyer_id=p.buyer_id AND l2.price_cents > 0 AND l2.status IN ('active','expired') AND l2.starts_at > p.first AND l2.starts_at <= datetime(p.first, '+60 days')) THEN 1 ELSE 0 END) back FROM p WHERE p.first <= datetime('now', '-60 days') OR EXISTS (SELECT 1 FROM licenses l3 WHERE l3.buyer_id=p.buyer_id AND l3.price_cents > 0 AND l3.starts_at > p.first)`).get();
+      if (r) again = { n: r.n, back: r.back || 0, pct: r.n ? Math.round(100 * (r.back || 0) / r.n) : null }; } catch (e) { again = null; }
+    try { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) >= 0 ORDER BY 1`).all().map(r => r.d);
+      if (days.length) firstSale = { n: days.length, median: Math.round(days[Math.floor(days.length / 2)]) }; } catch (e) { firstSale = null; }
+    return { again, firstSale,
+      againText: again && again.n >= 3 ? `${again.pct}% of ${again.n} collectors, within 60 days` : null,
+      firstSaleText: firstSale && firstSale.n >= 2 ? `${firstSale.median} day${firstSale.median === 1 ? '' : 's'} from joining, the median of ${firstSale.n}` : null };
+  };
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
@@ -1914,11 +1926,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const N = D ? D.needs : {};
       // Two numbers the business runs on (Will, 25 Oct): do collectors come back, and how long does a maker wait for a first sale.
       const so = app.locals.standingOrders ? app.locals.standingOrders.summary() : null;
-      const again = (() => { const r = db.prepare(`WITH p AS (SELECT l.buyer_id, MIN(l.starts_at) first FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.buyer_id IS NOT NULL AND l.price_cents > 0 AND l.status IN ('active','expired') AND u.key IN ('social','reference') GROUP BY l.buyer_id)
-        SELECT COUNT(*) n, SUM(CASE WHEN EXISTS (SELECT 1 FROM licenses l2 WHERE l2.buyer_id=p.buyer_id AND l2.price_cents > 0 AND l2.status IN ('active','expired') AND l2.starts_at > p.first AND l2.starts_at <= datetime(p.first, '+60 days')) THEN 1 ELSE 0 END) back FROM p WHERE p.first <= datetime('now', '-60 days') OR EXISTS (SELECT 1 FROM licenses l3 WHERE l3.buyer_id=p.buyer_id AND l3.price_cents > 0 AND l3.starts_at > p.first)`).get();
-        return r && r.n >= 3 ? `${Math.round(100 * (r.back || 0) / r.n)}% of ${r.n} collectors, within 60 days` : null; })();
-      const firstSale = (() => { const days = db.prepare(`SELECT (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) d FROM makers m JOIN works w ON w.maker_id=m.id JOIN licenses l ON l.work_id=w.id WHERE l.price_cents > 0 AND l.status IN ('active','expired') AND COALESCE(m.joined_at, m.created_at) IS NOT NULL GROUP BY m.id HAVING (julianday(MIN(l.starts_at)) - julianday(COALESCE(m.joined_at, m.created_at))) >= 0 ORDER BY 1`).all().map(r => r.d);
-        if (days.length < 2) return null; const med = days[Math.floor(days.length / 2)]; return `${Math.round(med)} day${Math.round(med) === 1 ? '' : 's'} from joining, the median of ${days.length}`; })();
+      const BZ = app.locals.business(); const again = BZ.againText, firstSale = BZ.firstSaleText;
       desk = {
         line: [[String(ST.week), `collected by strangers this week · ${ST.last} last week`], [V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
         needs: [
@@ -2071,7 +2079,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
   require('./franchise').mountFranchise(app, { db, V, C, ledger, stripe, mail, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the franchise: a maker's own house at a fee by the month
   require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
-  require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe }); // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
+  require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe });
+  require('./peephole').mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly }); // the peephole: a brief room for one reader (the brief, the numbers live, the register, the papers, a line for the director) // the desk's window: one JSON summary for fullerton.cloud, by DESK_KEY
   if (!cfg.noTimers && ROLE.chores) setInterval(() => { try { const n = app.locals.keys.backfill(); if (n) console.log('[keys]', n, 'keys given'); } catch (e) { console.error('[keys]', e.message); } }, 10 * 60e3).unref();
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });

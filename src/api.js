@@ -114,7 +114,11 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
 <h2>What every file carries</h2><p>Every image that leaves the house carries its maker, its copyright, its license and the way back to the register: in the open as IPTC and PLUS metadata (XMP), sealed as Content Credentials, and within the picture as a mark unique to that delivery. Read the XMP and you have the credit; post the file to verify and you have the rest.</p>
 <h2>The rule</h2><p>Show the credit. Keep the metadata. Honour the never list. Ask the license endpoint before you show a licensed copy. That is all the house asks, and it is what the makers are owed.</p>
 <h2>Writing</h2><p>Registering work, licensing on a person's behalf, and partner embeds that carry a curator's share come with a partner key. Write to <a href="mailto:house@watermark.krafftco.com">house@watermark.krafftco.com</a>.</p>
-<p class="note">Try it: <a href="/api/v1">/api/v1</a> · <a href="/api/v1/works?limit=3">/api/v1/works?limit=3</a>.</p></section>` })));
+<p class="note">Try it: <a href="/api/v1">/api/v1</a> · <a href="/api/v1/works?limit=3">/api/v1/works?limit=3</a>.</p>
+<h2 id="open">Check it yourself</h2>
+<p>The house's own checker is open source (MIT, no dependencies): <code>watermark-verify</code> reads the papers inside a delivered file, checks the register at <a href="/ledger.json">/ledger.json</a> against the house key, reads an anchor (<a href="/ledger/anchors.json">the proofs</a>) and opens an archival master. Nothing in it asks Watermark anything. <a href="/standard">The standard</a> says what each part is.</p>
+<h2 id="platforms">For platforms</h2>
+<p>A platform registers its creators' work, sells from its own surface and carries the mark: <a href="/platforms">the platform door</a>. The terms are published and the same for everyone: <a href="/api/partner/v1/terms">/api/partner/v1/terms</a>.</p></section>` })));
 }
 
 module.exports = { mountApi };

@@ -12,6 +12,7 @@
 const path = require('path');
 const fs = require('fs');
 const I = require('./icons');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const PLATFORM_PCT = Number(process.env.PLATFORM_PCT || 5); // of the price, from the house's side; a draft for counsel
 
@@ -137,6 +138,33 @@ function mountPlatform(app, { db, C, V, ledger, registerWork, mail, fetchImpl = 
     exclusivity: 'none', house_surface: 'The house\'s own surface (Wander) stands on the register on the same terms as every platform: the same record, the same price to the collector, the same pay to the maker, no data a platform does not get.', data: 'The house never sends a buyer\'s name. A licence is posted as a signed credential.', register: `${C.base}/ledger.json`, leave: 'A maker may disconnect a platform at any time and takes every work, deed and register entry with them.',
     doors: { open_studio: 'POST /api/partner/v1/makers', put_work: 'POST /api/partner/v1/makers/:slug/works { url, title, place, caption, external_id, made }', work: 'GET /api/partner/v1/makers/:slug/works/:slug|accession|external_id', resolve: 'GET /api/partner/v1/resolve?sha256=', collect: '/w/:slug?via=p:<partner>', badge: '/w/:slug/badge.svg?theme=dark|light&size=sm|md', webhooks: ['maker.opened', 'work.registered', 'license.granted'] } }));
 
+  // /platforms: the door as a person reads it (Will, 28 Oct: "they need to go: oh, infrastructure; oh, platform").
+  app.get('/platforms', (req, res) => {
+    const FEE = require('./fee'); const n = { works: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, makers: db.prepare("SELECT COUNT(*) n FROM makers WHERE kind IN ('maker','institution','gallery')").get().n, register: db.prepare('SELECT COUNT(*) n FROM ledger').get().n };
+    const ex = db.prepare("SELECT slug FROM works WHERE status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get();
+    res.send(V.layout({ title: 'For platforms · Watermark', path: '/platforms', desc: 'Register your creators’ work, sell it from your own surface, carry the mark. One door, published terms, the same for everyone.', body: `<article class="dr plf">
+<header class="dr-h"><div class="dr-hd"><p class="k">Build on it</p><h1>The registry behind your surface.</h1>
+<p class="lede">Watermark keeps the work: the master untouched, a record, a number, a place on a public register that is stamped every hour by a clock nobody owns. A platform plugs in through one door and its creators’ pictures carry the mark: registered, by a named maker, with a licence anyone can look up. You sell from your own surface; the maker is paid every Friday; you take a published share. ${n.register.toLocaleString('en-US')} entries on the register today, ${n.works.toLocaleString('en-US')} works, ${n.makers} makers.</p></div></header>
+
+<section class="dr-st plf-3"><div><p class="k">What you get</p><h2>Provenance you cannot issue about yourself.</h2><p>Every registered picture on your surface says who made it, when it was recorded, and under what terms it may be used, from a register that is not yours and not ours to rewrite. Open standards throughout; a free checker anyone can run.</p></div>
+<div><p class="k">What your creators get</p><h2>A vault, a deed, Friday pay.</h2><p>You open a studio for a creator with one call. Each work is fingerprinted, deeded and written to the register the day it arrives. When a piece is collected or licensed from your surface, the maker is paid every Friday, every dollar that has cleared, and the papers travel inside the file.</p></div>
+<div><p class="k">What it costs</p><h2>Nothing to plug in. A share when it sells.</h2><p>The price is the maker’s. ${FEE.on() ? 'The house’s share is paid by the collector on top and <a href="/share">published</a>.' : 'The house’s share is published at <a href="/share">/share</a>.'} Your share, ${PLATFORM_PCT}% of each sale that came through your door, is paid from the house’s side, never the maker’s. No exclusivity; the same terms for every platform, and for the house’s own surface.</p></div></section>
+
+<section class="dr-st"><p class="k">The door</p>
+<ol class="plf-steps">
+<li><b>A key.</b> By letter to <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">the house</a>; shown once.</li>
+<li><b>Open a studio</b> for a creator: <code>POST /api/partner/v1/makers</code> with a name and an email. The record is free; nothing is shown until the maker publishes and the house has invited them. The house is curated.</li>
+<li><b>Put a work in</b> by address: <code>POST /api/partner/v1/makers/&lt;slug&gt;/works</code> with the picture’s URL, a title, a place, your own id. The answer is the record: fingerprint, accession, deed, the badge, your Collect link.</li>
+<li><b>Carry the mark</b>: <code>/w/&lt;slug&gt;/badge.svg</code>, dark or light, linking to the record${ex ? ` (<a href="/w/${esc(ex.slug)}/badge.svg">one</a>)` : ''}.</li>
+<li><b>Sell from your surface</b>: any link to a work with <code>?via=p:&lt;you&gt;</code> makes the sale yours for thirty days; the house posts each licence to your webhook as a signed credential, never a buyer’s name.</li>
+<li><b>Resolve any picture</b>: <code>GET /api/partner/v1/resolve?sha256=…</code> finds the record for a fingerprint, including a copy that left the house under licence.</li>
+</ol>
+<p class="fine">Terms, machine-readable: <a href="/api/partner/v1/terms">/api/partner/v1/terms</a>. The standard: <a href="/standard">/standard</a>. The API for reading: <a href="/developers">/developers</a>. Your own house on your own domain: <a href="/enterprise">Enterprise</a>.</p></section>
+
+<section class="dr-st"><p class="k">What stays true</p>
+<ul class="plf-rules"><li>A maker may disconnect you at any time and takes every work, deed and register entry with them.</li><li>The master is never re-encoded by the house and never leaves it without the papers inside.</li><li>No advertisement is ever sold against a work.</li><li>The house’s own surface stands on the register on the same terms as yours.</li><li>The register is public and anchored; what the house says it did, anyone can check.</li></ul></section>
+</article>` }));
+  });
   app.locals.platform = { badge, badgeOf, record, reward, earned, PLATFORM_PCT };
 }
 

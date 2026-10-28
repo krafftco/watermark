@@ -1,0 +1,11 @@
+{
+  "name": "watermark-verify",
+  "version": "0.1.0",
+  "description": "Check a Watermark work without asking Watermark: the papers in a file, a register, an anchor, an archival master.",
+  "license": "MIT",
+  "main": "index.js",
+  "bin": { "watermark-verify": "index.js" },
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/krafftco/watermark", "directory": "open/watermark-verify" },
+  "keywords": ["watermark", "provenance", "register", "opentimestamps", "c2pa", "verify"]
+}

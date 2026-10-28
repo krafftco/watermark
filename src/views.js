@@ -142,7 +142,7 @@ let deskPrinter = false; const setDeskPrinter = v => { deskPrinter = !!v; };
 // menus in the rooms row instead of one list of thirty-three, the same row for the house and for a maker.
 const DESK_GROUPS = [
   ['Work', [['/studio/works', 'Add work'], ['/studio/masters', 'Masters'], ['/studio/editions', 'Editions'], ['/studio/uses', 'Prices'], ['/studio/copyright', 'Copyright Office'], ['/studio/fixity', 'Conservation'], ['/studio/restoration', 'Restoration'], ['/studio/library', 'Library'], ['/studio/iiif', 'Collections in'], ['/studio/feeds', 'Feeds in'], ['/studio/inbox', 'Inboxes'], ['/studio/documents', 'Documents']]],
-  ['People', [['/studio/accounts', 'Accounts'], ['/studio/founders', 'Founders'], ['/studio/committee', 'The committees'], ['/studio/hosts', 'Hosts'], ['/studio/clients', 'Companies'], ['/studio/printers', 'The press'], ['/studio/partners', 'Partners'], ['/studio/rights', 'Rights desks'], ['/studio/art', 'The art'], ['/studio/hall', 'Hall of Patrons']]],
+  ['People', [['/studio/accounts', 'Accounts'], ['/studio/founders', 'Founders'], ['/studio/peephole', 'The peephole'], ['/studio/committee', 'The committees'], ['/studio/hosts', 'Hosts'], ['/studio/clients', 'Companies'], ['/studio/printers', 'The press'], ['/studio/partners', 'Partners'], ['/studio/rights', 'Rights desks'], ['/studio/art', 'The art'], ['/studio/hall', 'Hall of Patrons']]],
   ['Programme', [['/studio/season', 'The season'], ['/studio/hangs', 'Hangs'], ['/studio/screening', 'Screening Room'], ['/studio/listening', 'Listening Room'], ['/studio/reading', 'The public domain'], ['/studio/prints', 'Prints']]],
   ['House', [['/studio/analytics', 'The numbers'], ['/studio/launch', 'Launch'], ['/studio/feedback', 'Feedback'], ['/studio/sightings', 'Sightings'], ['/studio/claims', 'Claims'], ['/studio/contract', 'Contract'], ['/studio/legal', 'Agreements'], ['/studio/activity', 'Activity'], ['/studio/audit', 'Audit'], ['/studio/backups', 'Backups'], ['/studio/bagcheck', 'The door']]],
 ];
@@ -180,7 +180,8 @@ const FOOT = [
   ['Look', [['/wander', 'Wander'], ['/collection', 'The collection'], ['/art', 'The art'], ['/artists', 'Makers'], ['/collectors', 'Galleries'], ['/start', 'How it works']]],
   ['Collect', [['/yours', 'Yours'], ['/verify', 'Check a work'], ['/print', 'Print your work'], ['/friends', 'Friends of the house']]],
   ['The Keys', [['/keys', 'The Keys'], ['/season', 'The season'], ['/library', 'The Library'], ['/listening', 'The Listening Room'], ['/screening', 'The Screening Room']]],
-  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/standard', 'The standard'], ['/makers', 'For those who make'], ['/clearance', 'What you can do with a photograph'], ['/museums', 'For museums'], ['/trade', 'For the trade']]],
+  ['The house', [['/about', 'About'], ['/promises', 'The country store'], ['/ledger', 'The register'], ['/makers', 'For those who make'], ['/clearance', 'What you can do with a photograph'], ['/trade', 'For the trade'], ['/owners', 'Owners']]],
+  ['Build on it', [['/platforms', 'For platforms'], ['/museums', 'For museums'], ['/enterprise', 'Your own house'], ['/developers', 'The API'], ['/standard', 'The standard'], ['/share', 'The house’s share']]],
 ];
 function footer(path) {
   if (TENANT) return `<footer class="foot ft"><div class="ft-top"><a class="ft-brand brand-t" href="/">${TENANT.portrait ? `<img src="${esc(TENANT.portrait)}" alt="" class="brand-pt">` : ''}<span class="brand-tn">${esc(TENANT.name)}</span></a></div><p class="ft-line"><span>${esc(TENANT.name)}</span><span><a href="https://watermark.krafftco.com/enterprise">Made with Watermark</a></span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></p></footer>`;

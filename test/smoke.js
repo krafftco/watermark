@@ -2549,11 +2549,42 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     app.locals.__fetch = prevF; }
   console.log('ok: the platform door');
   // The standard and the anchor (28 Oct): the page, the proofs' door, the anchors beside the register.
-  { r = await req(port, 'GET', '/standard'); assert.ok(r.status === 200 && /The six parts/.test(r.body.toString()) && /OpenTimestamps/.test(r.body.toString()) && /badge\.svg/.test(r.body.toString()), 'the standard');
+  { r = await req(port, 'GET', '/standard'); assert.ok(r.status === 200 && /What a work carries/.test(r.body.toString()) && /OpenTimestamps/.test(r.body.toString()) && /badge\.svg/.test(r.body.toString()), 'the standard');
+    r = await req(port, 'GET', '/platforms'); assert.ok(r.status === 200 && /The registry behind your surface/.test(r.body.toString()) && /badge\.svg/.test(r.body.toString()), 'for platforms');
     r = await req(port, 'GET', '/ledger/anchors.json'); const aj = JSON.parse(r.body.toString()); assert.ok(Array.isArray(aj.anchors) && /ots verify/.test(aj.how), 'the proofs listed');
     r = await req(port, 'GET', '/ledger'); assert.ok(r.status === 200 && !r.body.toString().includes('register.anchored'), 'the register page stands');
     assert.ok(app.locals.anchor && app.locals.anchor.CALENDARS.length >= 1, 'the anchor is mounted; the clock is tried on the live house, never from here'); }
   console.log('ok: the standard');
+  // The open verifier (28 Oct): what the house gives away checks what the house produces, with no word from the house.
+  { const OV = require('../open/watermark-verify');
+    r = await req(port, 'GET', '/ledger.json'); const LJ = JSON.parse(r.body.toString()); const rv = OV.register(LJ.entries, LJ.house); assert.ok(rv.ok && rv.checked === LJ.entries.length && rv.signed && rv.unsigned === 0, 'the register verifies with the published key: ' + JSON.stringify(rv));
+    const bad = JSON.parse(JSON.stringify(LJ.entries)); bad[3].data = bad[3].data + ' '; assert.equal(OV.register(bad, LJ.house).ok, false, 'a changed entry breaks the chain');
+    const wmk = db.prepare("SELECT w.* FROM works w WHERE w.status='held' AND w.original_file IS NOT NULL ORDER BY w.id LIMIT 1").get();
+    r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck2 = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'GET', `/w/${wmk.slug}/archive.wmark`, { cookie: sck2 }); assert.equal(r.status, 200);
+    const wv = OV.wmark(r.body); assert.ok(wv.ok && wv.original.matches && wv.signature.ok && wv.signature.key === LJ.house && wv.register && wv.register.ok, 'the archival master opens and holds: ' + JSON.stringify({ o: wv.original.matches, s: wv.signature.ok, r: wv.register }));
+    const dl = db.prepare("SELECT l.*, w.sha256 FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.download_token IS NOT NULL AND l.status='active' ORDER BY l.id LIMIT 1").get();
+    r = await req(port, 'GET', `/d/${dl.download_token}`); assert.equal(r.status, 200); const pp = OV.papers(r.body); assert.ok(pp.license === dl.ref && pp.fingerprint && dl.sha256.startsWith(pp.fingerprint) && pp.creator, 'the papers read back from the delivered file: ' + JSON.stringify(pp));
+    const AN = require('../src/anchor'); const headHex = LJ.entries[LJ.entries.length - 1].hash; const digestB = Buffer.from(headHex, 'hex');
+    const ots = AN.otsFile(digestB, AN._internal.parseTs(AN._internal.rd2(Buffer.concat([Buffer.from([0xf0]), AN._internal.varbytes(Buffer.from('ab', 'hex')), Buffer.from([0x08]), Buffer.from([0x00]), Buffer.from(AN.TAG_BITCOIN, 'hex'), AN._internal.varbytes(AN._internal.varint(870000))]))));
+    const av = OV.anchor(ots, headHex); assert.ok(av.ok && av.matches && av.bitcoin === 870000, 'the anchor reads: ' + JSON.stringify(av)); assert.equal(OV.anchor(ots, 'ff'.repeat(32)).matches, false, 'another head does not match'); }
+  console.log('ok: the open verifier');
+  // The peephole (28 Oct): a room for one reader, opened by letter, closed by a word; the brief with the live numbers; a line for the director; nothing public.
+  { r = await req(port, 'GET', '/peephole'); assert.equal(r.status, 403, 'a stranger sees the door');
+    r = await req(port, 'POST', '/studio/login', { body: { password: 'pw' } }); const sck3 = r.headers['set-cookie'][0].split(';')[0];
+    r = await req(port, 'GET', '/peephole', { cookie: sck3 }); assert.ok(r.status === 200 && /A brief for The house/.test(r.body.toString()), 'the Studio reads the room as the house');
+    r = await req(port, 'POST', '/studio/peephole', { cookie: sck3, body: { name: 'R. P.', email: 'reader@example.com', note: 'our guide' } }); assert.equal(r.status, 302);
+    const rd = db.prepare("SELECT * FROM readers WHERE email='reader@example.com'").get(); assert.ok(rd && rd.token && rd.letter_at, 'named and written to');
+    const sent = (app.locals.mailLog || []).find(x => /room set aside/.test(x.subject || '')); if (sent) assert.ok(sent.text.includes('/peephole/open/' + rd.token), 'the letter carries the door');
+    r = await req(port, 'GET', `/peephole/open/${rd.token}`); const phck = (r.headers['set-cookie'] || []).find(c => c.startsWith('wm_ph=')); assert.ok(r.status === 302 && phck, 'the door admits the device');
+    const rck = phck.split(';')[0];
+    r = await req(port, 'GET', '/peephole', { cookie: rck }); const room = r.body.toString(); assert.ok(r.status === 200 && /A brief for R\. P\./.test(room) && /I\. What this is/.test(room) && /collected by strangers this week/.test(room) && /The construction site/.test(room) && /Lately, on the register/.test(room) && r.headers['cache-control'].includes('no-store'), 'the room: the brief, the numbers, the site, the register, private');
+    assert.equal(db.prepare('SELECT visits FROM readers WHERE id=?').get(rd.id).visits, 1);
+    r = await req(port, 'POST', '/peephole/line', { cookie: rck, body: { body: 'Who holds the signing key tonight?' } }); assert.equal(r.status, 302); assert.equal(db.prepare('SELECT COUNT(*) n FROM reader_lines WHERE reader_id=?').get(rd.id).n, 1, 'a line left for the director');
+    r = await req(port, 'GET', '/studio/peephole', { cookie: sck3 }); assert.ok(/R\. P\./.test(r.body.toString()) && /Who holds the signing key/.test(r.body.toString()), 'the desk shows the reader and the line: ' + r.status + ' ' + r.body.toString().slice(0, 300));
+    r = await req(port, 'POST', `/studio/peephole/${rd.id}/close`, { cookie: sck3 }); r = await req(port, 'GET', '/peephole', { cookie: rck }); assert.equal(r.status, 403, 'the keys taken back');
+    assert.ok(!(await req(port, 'GET', '/ledger')).body.toString().includes('reader.invited'), 'nothing of a reader on the public register'); }
+  console.log('ok: the peephole');
   // The atelier: the house's guides inside every studio; the Studio edits and confirms them.
   r = await req(port, 'GET', '/account/atelier', { headers: { accept: 'text/html' } }); assert.equal(r.status, 302, 'the atelier is for makers');
   r = await req(port, 'GET', '/account/atelier', { cookie: gck }); assert.ok(r.body.toString().includes('The atelier') && r.body.toString().includes('Scanning film') && r.body.toString().includes('How to look at a photograph'), 'the guides');

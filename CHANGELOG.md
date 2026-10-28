@@ -5,6 +5,8 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 ## 1.5 · The standard · 28 October 2026
+- The peephole: a brief room for one reader, opened by letter from Studio → People → The peephole: the brief (what this is, why it matters, the record so far, Studios, the first company, the platform in prospect, the archive and the museum, the ask) with the house's live numbers in it, the numbers as they stand, the construction site, lately on the register, the papers, and a line for the director. Private; nothing on the public register.
+- The open verifier (open/watermark-verify, MIT, no dependencies): the papers in a file, the register, an anchor, an archival master, checked without asking the house. /platforms, the door as a person reads it. Build on it in the footer.
 - The register is anchored: every hour its head is committed into Bitcoin through OpenTimestamps (free, no token); the proofs stand beside the register (/ledger/anchors.json, one .ots each) and the register page says to which entry and block it stands. `ots verify` checks it against a chain the house does not run.
 - /standard: the six parts of a Watermark work (the record, the number, the register, the anchor, the file, the mark, the identity) and how anyone checks each with free tools.
 - The platform door (/api/partner/v1): a platform opens a creator's studio, puts a work in by address, reads it back by its own id, resolves any picture to its record, and sells from its own surface with the badge (/w/:slug/badge.svg); its share from the house's side, the terms published and the same for everyone.
