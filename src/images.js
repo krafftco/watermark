@@ -53,7 +53,22 @@ const setMarker = m => { marker = m; };
 // (21 Oct, Will: "as good as Lightroom or Leica") Up from 88/90 and 90/92: on a grainy frame JPEG 90 sat at 41 dB
 // against the resized master, 94 at 42.6, with the bytes up by two fifths; WebP 94 matches at two thirds the size.
 const Q = { jpg: { thumb: 80, screen: 92, large: 94, wall: 94 }, webp: { thumb: 76, screen: 92, large: 94, wall: 94 } };
-const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q3.${fmt}`); // q3: the qualities of 21 Oct
+const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q4.${fmt}`); // q3: the qualities of 21 Oct; q4: the maker's colour kept (29 Oct)
+// The maker's colour, kept (Will, 29 Oct: "the best export that's color accurate and that does not change their vision at
+// all; if they put it in one way, that's them telling us that's the way they want it"). A master in sRGB (or untagged,
+// which the web reads as sRGB) is shown in sRGB. A master in anything wider (Display P3 from a phone, Adobe RGB or
+// ProPhoto from Lightroom) is shown in Display P3 with its profile attached, so a wide-gamut screen (every recent iPhone,
+// iPad and Mac) shows the colours the maker made and an sRGB screen is colour-managed by the browser; before, every
+// copy was squeezed into sRGB and the reds and greens past its edge were clipped. Nothing else of the original's
+// metadata rides on a copy for the walls (its GPS, its serial numbers): only the house's copyright line.
+const gamutCache = new Map();
+async function gamut(original) {
+  let st; try { st = fs.statSync(original); } catch (e) { return 'srgb'; }
+  const k = `${original}:${st.size}:${st.mtimeMs}`; if (gamutCache.has(k)) return gamutCache.get(k);
+  let g = 'srgb';
+  try { const m = await sharp(original).metadata(); if (m.icc && m.space === 'srgb' && (m.channels || 3) >= 3 && !/sRGB|IEC ?61966/i.test(m.icc.toString('latin1').replace(/\0/g, ''))) g = 'p3'; } catch (e) { /* unreadable: sRGB */ }
+  if (gamutCache.size > 4000) gamutCache.clear(); gamutCache.set(k, g); return g;
+}
 async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
@@ -67,8 +82,9 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
       const payload = marker.payloadFor(slug);
       if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
     }
-    if (fmt === 'webp') await base.webp({ quality: Q.webp[size], effort: 4 }).toFile(tmp);
-    else await base.jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).withMetadata({ exif: { IFD0: { Copyright: 'Held on Watermark. License at the source.' } } }).toFile(tmp);
+    const g = await gamut(original);
+    if (fmt === 'webp') await base.withIccProfile(g).webp({ quality: Q.webp[size], effort: 4 }).toFile(tmp);
+    else await base.withIccProfile(g).withExif({ IFD0: { Copyright: 'Held on Watermark. License at the source.' } }).jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).toFile(tmp);
     try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
   }
   return out;
@@ -76,7 +92,8 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
 // A copy for delivery (21 Oct): made straight from the master, Lanczos, JPEG 94 at full chroma, nothing laid into the
 // pixels (the mark within the picture took a delivered copy from 41 dB to 36.6 and showed on faces). A Buffer.
 async function copy(original, width = 2400, { quality = 94 } = {}) {
-  return sharp(original).rotate().resize({ width, height: width, fit: 'inside', withoutEnlargement: true }).toColourspace('srgb').jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
+  const g = await gamut(original);
+  return sharp(original).rotate().resize({ width, height: width, fit: 'inside', withoutEnlargement: true }).withIccProfile(g).jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
 }
 // The format a request will take: WebP when the browser says so, else JPEG.
 function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
@@ -106,4 +123,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { gamut, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

@@ -396,6 +396,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     // (21 Oct) The local copy stays: it is the cache, trimmed by budget, and until the bucket has it (vaultPending) it is
     // the only copy in the world. The old line unlinked it here, and fourteen new arrivals were lost that way.
     ledger.append(db, 'work.registered', slug, { maker: owner.handle, fingerprint: info.sha256, camera: info.camera, taken: info.taken_at, accession: accession(nw) });
+    warmSoon(slug); // (29 Oct) its thumbnail and display copies made now, from the master, so the Library shows it at once
     return q.work.get(slug);
   }
 
@@ -2159,6 +2160,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
         EDGE.work(w.slug); // the edge drops its copies of the old picture (25 Oct)
+        warmSoon(w.slug); // the new master's copies made at once (29 Oct)
     return w;
   }
   // The maker's portal for one photograph: upload its full-resolution master. It must be the same picture (by
@@ -2466,11 +2468,20 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return due.length;
   }
   if (!cfg.noTimers && ROLE.chores) { setTimeout(sweep, 5000).unref(); setInterval(sweep, 6 * 3600e3).unref(); }
-  // The renditions are made ahead of the first visitor: every held work, every size, JPEG and WebP, one at a time.
+  // The renditions are made ahead of the first visitor: every work, every size, JPEG and WebP, one at a time.
+  // (29 Oct, Will: "now that we have these high-resolution masters, in the Library I don't think they're popping up")
+  // Every arrival is warmed the moment it is registered, in a lane of its own, so a 60 MP master is decoded once, by
+  // the house, and never by a visitor's first look; kept-back work is warmed too, since the maker's Library shows it.
+  const warmQ = []; let warmBusy = false;
+  function warmSoon(slug) {
+    if (cfg.noTimers || !slug) return; warmQ.push(slug); if (warmBusy) return; warmBusy = true;
+    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s)) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { await images.warm(await originalPath(w), cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
+  }
+  app.locals.warmSoon = warmSoon;
   let warming = false;
   async function warmAll() {
     if (warming) return 0; warming = true; let n = 0;
-    try { for (const w of db.prepare("SELECT * FROM works WHERE status='held' ORDER BY curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
+    try { for (const w of db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
     finally { warming = false; }
     return n;
   }

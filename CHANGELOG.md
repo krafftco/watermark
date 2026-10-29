@@ -4,6 +4,12 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.7.1 · The maker's colour · 29 October 2026
+- Every copy the house shows keeps the colour the maker made: a master in a wide colour space is shown in Display P3, so recent iPhones, iPads and Macs see the reds and greens that used to be clipped. sRGB stays sRGB.
+- A work's thumbnail and display copies are made the moment it arrives, kept-back work included, so the Library shows a 60 MP master at once.
+- No GPS or serial numbers ride on a copy for the walls.
+- The house's standard for showing work: docs/PICTURES.md.
+
 ## 1.7.0 · A museum for everyone · 29 October 2026
 - Anyone who makes work can open their own museum in a minute: put the work in, keep all of it, hang the best. You are its curator, with 36 works on view at a time and the rest in storage, deeded as yours.
 - Watermark's own halls hold what has earned a place: work that someone collected, a curator hung or two people called Bravo, and every work by a maker the house has invited.
