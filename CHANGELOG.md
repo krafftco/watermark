@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.1 · The same frame · 29 October 2026
+- A re-export of a frame you already hold, edited and at the same size, becomes its master instead of hanging a twin beside it: the house knows the frame by the camera's own moment and the picture itself.
+
 ## 1.14.0 · Al's edit · 29 October 2026
 - A picture editor's first pass over a whole archive: Al looks at every frame you have not graded and gives it stars against the rest of your own work (the top five in a hundred five stars, the next fifteen four).
 - Your own grades of two and up are never touched; grade over Al's and the grade is yours.

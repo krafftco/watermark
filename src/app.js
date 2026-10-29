@@ -2311,6 +2311,25 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.upgradeIfHeld = (file, originalname, makerId) => inLane(async () => {
     const info = await images.inspect(file);
     if (db.prepare('SELECT 1 FROM works WHERE sha256=?').get(info.sha256)) return null; // the same bytes: registerWork answers (held, or come home)
+    // (29 Oct, Will re-exporting his picked selects at full size) The same frame by the camera's own moment: a work of this
+    // maker from the same camera at the same second that the eye reads as one picture (pairs' look, crops allowed) is this
+    // file's earlier export. A clearly smaller file is declined; anything else is the newer edit and becomes the master,
+    // so a re-export updates what is held instead of hanging a twin beside it.
+    if (info.taken_at && info.camera) {
+      const cands = db.prepare("SELECT * FROM works WHERE maker_id=? AND taken_at=? AND camera=? AND status NOT IN ('merged','quarantined')").all(makerId, info.taken_at, info.camera)
+        .filter(w => (w.width / w.height >= 1) === (info.width / info.height >= 1));
+      if (cands.length) {
+        const P = require('./pairs'); const A = await P.greyOf(file); let top = null, topS = -1;
+        for (const w of cands) { try { const t = images.fileOf(cache, w.slug, 'thumb', 'jpg'); const s = P.score(A, await P.greyOf(fs.existsSync(t) ? t : await originalPath(w))); if (s > topS) { top = w; topS = s; } } catch (e) { /* that one unread */ } }
+        if (top && topS >= Number(process.env.SAME_FRAME_SCORE || 0.9)) {
+          const ratio = (info.width * info.height) / Math.max(1, (top.width || 0) * (top.height || 0));
+          if (ratio <= 1 / 1.5) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, outcome: 'smaller', slug: top.slug, error: `This is ${tidyT(top.title)}, already held at ${Math.round((top.width || 0) * (top.height || 0) / 1e6)} megapixels; this file is smaller. Nothing was changed.` }; }
+          const w = await replaceMaster(top, { path: file, originalname }, info, await images.dhash(file));
+          ledger.append(db, 'work.edited', w.slug, { by: 'capture', fingerprint: info.sha256, previous: top.sha256, score: Math.round(topS * 100) / 100 });
+          return { ok: true, outcome: 'master', slug: w.slug, title: w.title, mp: Math.round(info.width * info.height / 1e6), width: info.width, height: info.height, fingerprint: info.sha256.slice(0, 12), same: 'capture' };
+        }
+      }
+    }
     const h = await images.dhash(file); let best = null, bestD = 99;
     for (const w of db.prepare('SELECT id, slug, title, dhash, width, height FROM works WHERE maker_id=? AND dhash IS NOT NULL').all(makerId)) {
       const d = images.hamming(h, w.dhash);
