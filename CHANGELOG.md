@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.13.1 · A door for everyone · 29 October 2026
+- The front door says it plainly: keep what you make; own a piece of what others make. The fifth door is Keep: everything you make, safe and yours, shown or held back as you choose, free to begin. Open your museum speaks to everyone who makes pictures, and says the held-back stay private.
+
 ## 1.13.0 · The trip · 29 October 2026
 - A maker's trip, played as it was shot (/trip/<maker>/<place>, 'Trips' on every maker page): every frame from one place in the order it was taken, one at a time on the dark wall, the hour on each, a card when the day turns or the light goes.
 - Frames the maker holds back stay in the film as a wash of their colours, never the picture: held back by the photographer, kept in the archive. A frame taken out of the trip never appears.
