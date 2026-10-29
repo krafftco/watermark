@@ -44,7 +44,7 @@ function mountBriefs(app, { db, V, C, ledger, stripe, mail, makerOf, studioOnly,
       status TEXT NOT NULL DEFAULT 'sent', created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS brief_files (id INTEGER PRIMARY KEY, brief_id INTEGER NOT NULL, work_id INTEGER, file TEXT, name TEXT, mime TEXT, bytes INTEGER, sha256 TEXT,
       kind TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
-  const DIR = path.join(C.dataDir, 'briefs'); fs.mkdirSync(DIR, { recursive: true });
+  const DIR = path.join(C.dataDir, 'briefs'); try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { console.error('[briefs]', e.message); }
   const MAX_MB = Number(process.env.BRIEF_MAX_MB || 4096);
   const APPROVE_DAYS = Number(process.env.BRIEF_APPROVE_DAYS || 14);
   const KILL = Number(process.env.BRIEF_KILL_PCT || 50);

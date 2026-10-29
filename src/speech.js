@@ -17,7 +17,9 @@ function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
   // ElevenLabs first when both are set (Will, 20 Oct: the voice must be elegant and beautiful); OpenAI otherwise.
   const provider = () => (process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : process.env.OPENAI_API_KEY ? 'openai' : null);
   // ElevenLabs' George (a warm, unhurried British narrator from the premade library) unless SPEECH_VOICE names another.
-  const voice = () => process.env.SPEECH_VOICE || (provider() === 'openai' ? 'ash' : provider() === 'elevenlabs' ? 'JBFqnCBsd6RMkjVDRZzb' : '');
+  // (29 Oct: SPEECH_VOICE was 'ash', an OpenAI name, while ElevenLabs was the provider; every reading 404'd.) A name that is
+  // not an ElevenLabs voice id (20 letters and digits) falls back to George.
+  const voice = () => { const v = process.env.SPEECH_VOICE, p = provider(); if (p === 'elevenlabs') return v && /^[A-Za-z0-9]{20}$/.test(v) ? v : 'JBFqnCBsd6RMkjVDRZzb'; return v || (p === 'openai' ? 'ash' : ''); };
   const on = () => !!provider() && process.env.NODE_ENV !== 'test';
   const hashOf = text => crypto.createHash('sha256').update(`${provider()}|${voice()}|${text}`).digest('hex').slice(0, 16);
 
