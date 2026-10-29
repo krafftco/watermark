@@ -45,8 +45,9 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
 
   // The sort. `jobs` keeps one run per maker so a long archive is looked at in the background while the page waits.
   const jobs = new Map();
-  async function plan(m, from) {
-    const rows = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status IN ('hidden','held') AND (stars >= ? OR curated=1) ORDER BY stars DESC, id`).all(m.id, from);
+  async function plan(m, from, place) {
+    // One city at a time (29 Oct, Will: "go put out best work in Milan"): ?place= narrows the sort to a place.
+    const rows = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status IN ('hidden','held') AND (stars >= ? OR curated=1) ORDER BY stars DESC, id`).all(m.id, from).filter(w => !place || String(w.place || '').toLowerCase().includes(place.toLowerCase()));
     const out = { clear: [], people: [], children: [], check: [], unread: [], kept: [], hung: [] };
     const looks = [];
     for (const w of rows) {
@@ -84,8 +85,8 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
     }
     return out;
   }
-  function start(m, from) {
-    const k = `${m.id}:${from}`; const j = jobs.get(k);
+  function start(m, from, place) {
+    const k = `${m.id}:${from}:${place || ''}`; const j = jobs.get(k);
     if (j && (j.running || Date.now() - j.at < 60000)) return j;
     const job = { running: true, at: Date.now(), plan: null, error: null }; jobs.set(k, job);
     (async () => {
@@ -93,10 +94,10 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
         // Al reads what he has not yet read (up to forty a press), so people and children are known before anything hangs.
         const art = app.locals.art;
         if (art && art.attribute && process.env.ANTHROPIC_API_KEY) {
-          const un = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status='hidden' AND keep_back=0 AND attribution IS NULL AND (stars >= ? OR curated=1) LIMIT 40`).all(m.id, from);
+          const un = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status='hidden' AND keep_back=0 AND attribution IS NULL AND (stars >= ? OR curated=1) LIMIT 400`).all(m.id, from).filter(w => !place || String(w.place || '').toLowerCase().includes(place.toLowerCase())).slice(0, 40);
           for (const w of un) { try { await art.attribute(w); } catch (e) { /* stays unread */ } }
         }
-        job.plan = await plan(m, from);
+        job.plan = await plan(m, from, place);
       } catch (e) { job.error = e.message; console.error('[hang]', e.message); }
       job.running = false; job.at = Date.now();
     })();
@@ -129,19 +130,20 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/hang');
     res.set('Cache-Control', 'private, no-store');
     const from = Math.max(1, Math.min(5, parseInt(req.query.from, 10) || 4));
-    const job = start(m, from); const p = job.plan;
-    const head = `<p class="k"><a href="/account">Your studio</a></p><h1>Hang your best.</h1>
+    const place = String(req.query.place || '').trim().slice(0, 60);
+    const job = start(m, from, place); const p = job.plan;
+    const head = `<p class="k"><a href="/account">Your studio</a></p><h1>Hang your best${place ? ` · ${esc(place)}` : ''}.</h1>
 <p class="lede">Everything graded ${'★'.repeat(from)} and up that is still kept back, sorted into what can hang now and what wants one look first. Nothing hangs on a guess, and nothing is deleted.</p>
-<nav class="hb-from">${[3, 4, 5].map(n => `<a href="/account/hang?from=${n}"${n === from ? ' aria-current="page"' : ''}>${'★'.repeat(n)} and up</a>`).join('')}</nav>
+<nav class="hb-from">${[3, 4, 5].map(n => `<a href="/account/hang?from=${n}${place ? '&place=' + encodeURIComponent(place) : ''}"${n === from ? ' aria-current="page"' : ''}>${'★'.repeat(n)} and up</a>`).join('')}</nav>
 ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}`;
     if (!p) return res.send(V.layout({ title: 'Hang your best · Watermark', studio: true, body: `<section class="studio-wrap hb">${head}<p class="muted" data-hb-wait>The house is looking at each file${process.env.ANTHROPIC_API_KEY ? ', and Al at who is in it' : ''}. This page fills in by itself.</p>${job.error ? `<p class="err">${esc(job.error)}</p>` : ''}<script>setTimeout(function(){location.reload()},3000)</script></section>` }));
     const body = `${head}
 <section class="hb-g hb-clear"><h2>Ready to hang · ${p.clear.length}</h2><p class="muted">Graded, sound files, no one recognisable in them.</p>
 <div class="hb-grid">${p.clear.slice(0, 120).map(x => `<span class="hb-t hb-tc"><img src="/img/${encodeURIComponent(x.w.slug)}/thumb" alt="" loading="lazy"></span>`).join('')}</div>
-${p.clear.length ? `<form method="post" action="/account/hang/go"><input type="hidden" name="from" value="${from}"><input type="hidden" name="group" value="clear"><label class="hb-at"><input type="checkbox" name="attest" value="1" required> These are mine and I hold the rights; I accept <a href="/legal/makers" target="_blank">the Maker Agreement</a>.</label><button class="buy-btn">Hang these ${p.clear.length}</button></form>` : '<p class="muted">None waiting.</p>'}</section>
+${p.clear.length ? `<form method="post" action="/account/hang/go"><input type="hidden" name="from" value="${from}"><input type="hidden" name="place" value="${esc(place)}"><input type="hidden" name="group" value="clear"><label class="hb-at"><input type="checkbox" name="attest" value="1" required> These are mine and I hold the rights; I accept <a href="/legal/makers" target="_blank">the Maker Agreement</a>.</label><button class="buy-btn">Hang these ${p.clear.length}</button></form>` : '<p class="muted">None waiting.</p>'}</section>
 ${GROUPS.map(([k, name, line, mode]) => p[k].length ? `<section class="hb-g" data-hb-group="${k}"><h2>${name} · ${p[k].length}</h2><p class="muted">${line}</p>
 <div class="hb-grid">${p[k].map(x => tile(x, mode)).join('')}</div>
-${mode !== 'kept' ? `<form method="post" action="/account/hang/go"><input type="hidden" name="from" value="${from}"><input type="hidden" name="group" value="${k}"><input type="hidden" name="slugs" data-hb-slugs="${k}"><label class="hb-at"><input type="checkbox" name="attest" value="1" required> I have looked; these are mine and I hold the rights.</label><button class="btn">Hang ${mode === 'hold' ? 'the ones tapped in' : 'the rest'}</button></form>` : ''}</section>` : '').join('')}
+${mode !== 'kept' ? `<form method="post" action="/account/hang/go"><input type="hidden" name="from" value="${from}"><input type="hidden" name="place" value="${esc(place)}"><input type="hidden" name="group" value="${k}"><input type="hidden" name="slugs" data-hb-slugs="${k}"><label class="hb-at"><input type="checkbox" name="attest" value="1" required> I have looked; these are mine and I hold the rights.</label><button class="btn">Hang ${mode === 'hold' ? 'the ones tapped in' : 'the rest'}</button></form>` : ''}</section>` : '').join('')}
 ${p.hung.length ? `<p class="muted">${p.hung.length} at this grade already on view.</p>` : ''}
 <script src="/static/hangbest.js?v=${esc(V.VER || '')}" defer></script>`;
     res.send(V.layout({ title: 'Hang your best · Watermark', studio: true, body: `<section class="studio-wrap hb">${body}</section>` }));
@@ -158,14 +160,14 @@ ${p.hung.length ? `<p class="muted">${p.hung.length} at this grade already on vi
   });
   app.post('/account/hang/go', async (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
-    const from = Math.max(1, Math.min(5, parseInt(req.body.from, 10) || 4)); const group = String(req.body.group || 'clear');
+    const from = Math.max(1, Math.min(5, parseInt(req.body.from, 10) || 4)); const group = String(req.body.group || 'clear'); const place = String(req.body.place || '').trim().slice(0, 60);
     if (req.body.attest !== '1') return res.redirect(`/account/hang?from=${from}&ok=` + encodeURIComponent('Tick the line first.'));
-    const k = `${m.id}:${from}`; const p = (jobs.get(k) || {}).plan || await plan(m, from);
+    const k = `${m.id}:${from}:${place}`; const p = (jobs.get(k) || {}).plan || await plan(m, from, place);
     let pick = (p[group] || []).map(x => x.w);
     if (group === 'check') { const want = new Set(String(req.body.slugs || '').split(',').filter(Boolean)); pick = pick.filter(w => want.has(w.slug)); }
     const n = hang(m, pick, group);
     jobs.delete(k);
-    res.redirect(`/account/hang?from=${from}&ok=` + encodeURIComponent(`${n} hung.`));
+    res.redirect(`/account/hang?from=${from}${place ? '&place=' + encodeURIComponent(place) : ''}&ok=` + encodeURIComponent(`${n} hung.`));
   });
   return { plan, qc, hang, start };
 }

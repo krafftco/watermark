@@ -4434,3 +4434,30 @@ html.in-stay .top .nv-back{display:none}
 .brf-file{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.brf-file small{opacity:.6}.brf-ap{margin:10px 0;display:flex;gap:10px;align-items:end;flex-wrap:wrap}
 .brf-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;max-height:360px;overflow:auto}.brf-pw{position:relative;display:block!important}.brf-pw img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px}.brf-pw input{position:absolute;top:6px;left:6px}.brf-held img{opacity:.35}.brf-held small{position:absolute;bottom:4px;left:4px;font-size:10px}
 .brf-body{white-space:normal;line-height:1.6;margin:12px 0}
+/* The trip (29 Oct): a place, as it was shot, played like a film; frames held back as a wash of colour */
+main.trp{min-height:100svh;background:#0b0a09;color:#efe9df}
+.trp-open{max-width:720px;margin:0 auto;padding:18vh 24px 10vh;text-align:center}
+.trp-k{letter-spacing:.18em;text-transform:uppercase;font-size:12px;opacity:.6}
+.trp-open h1{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:clamp(40px,8vw,84px);margin:.2em 0 .1em;color:#efe9df}
+.trp-by{opacity:.75}.trp-n{opacity:.6;font-size:14px;margin:18px 0 28px}.trp-gem{color:#c9a24a}
+.trp-go{font:inherit;background:none;border:1px solid #c9a24a;color:#e6c875;padding:12px 28px;border-radius:99px;cursor:pointer;letter-spacing:.06em}
+.trp-x{margin-left:14px;color:#efe9df;opacity:.6}.trp-own{margin-top:28px;font-size:14px;opacity:.7}
+.trp-film{position:fixed;inset:0;background:#0b0a09}.trp [hidden]{display:none!important}
+.trp-stage{position:absolute;inset:0}
+.trp-layer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity .85s ease}
+.trp-layer.on{opacity:1}
+.trp-im{max-width:94vw;max-height:80svh;object-fit:contain;display:block}
+.trp-im-held{filter:saturate(.9);border-radius:2px;width:min(80vw,900px);max-height:70svh}
+.trp-held{margin-top:16px;font-size:13px;letter-spacing:.04em;opacity:.8}
+.trp-title{margin-top:14px;font-family:var(--serif,Georgia,serif);font-style:italic;opacity:.75}
+.trp-card p{font-family:var(--serif,Georgia,serif);font-size:clamp(22px,4vw,38px);font-style:italic;opacity:.9;text-align:center;padding:0 24px}
+.trp-top{position:absolute;top:0;left:0;right:0;display:flex;gap:16px;align-items:center;padding:calc(14px + env(safe-area-inset-top)) 18px 14px;font-size:13px;background:linear-gradient(#0b0a09cc,transparent);z-index:2}
+.trp-close{color:#efe9df;font-size:24px;text-decoration:none}.trp-place{font-weight:600}.trp-at{opacity:.7}.trp-count{margin-left:auto;opacity:.6}
+.trp-deck{position:absolute;bottom:calc(30px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:2;background:#0b0a0999;padding:6px 10px;border-radius:99px;backdrop-filter:blur(8px)}
+.trp-deck button{font:inherit;background:none;border:0;color:#efe9df;padding:6px 10px;cursor:pointer;font-size:14px}
+.trp-pace button[aria-pressed=true]{color:#e6c875}
+.trp-vis{border:1px solid #efe9df55!important;border-radius:99px}
+.trp-strip{position:absolute;left:0;right:0;bottom:calc(8px + env(safe-area-inset-bottom));display:flex;gap:2px;padding:0 12px;z-index:2}
+.trp-tick{flex:1;height:10px;background:#efe9df33;border:0;padding:0;cursor:pointer;min-width:2px}
+.trp-tick.on{background:#e6c875}.trp-tick-held{background:#c9a24a44;height:6px;align-self:end}
+@media (max-width:760px){.trp-pace{display:none}.trp-top{font-size:12px}.trp-at{display:none}}

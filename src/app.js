@@ -829,14 +829,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.send(V.life({ chart: app.locals.marketChart ? app.locals.marketChart(w.id) : '', trades, w, maker, lic, reg, rules, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
   });
 
-  app.get('/img/:slug/:size', async (req, res) => {
+  app.get('/img/:slug/:size', async (req, res, next) => {
+    if (req.params.size === 'held') return next(); // the trip's wash of colour (trips.js)
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size] || w.status === 'quarantined') return res.sendStatus(404); // a held work is shown to no one (29 Oct)
+    if (w.keep_back) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; if (!((me && me.id === w.maker_id) || isStudio(req) || (app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })()))) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); } res.set('Cache-Control', 'private, no-store'); } // kept back by the maker: only to them and the house (29 Oct)
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
-      res.set('Cache-Control', 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
+      res.set('Cache-Control', w.keep_back ? 'private, no-store' : 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
       res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -2102,6 +2104,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./season').mountSeason(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req), isStudio, notify: app.locals.notify }); // the season (the nights), the Circle (the young members), the cards (how people meet)
   require('./franchise').mountFranchise(app, { db, V, C, ledger, stripe, mail, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the franchise: a maker's own house at a fee by the month
   require('./briefs').mountBriefs(app, { db, V, C, ledger, stripe, mail, studioOnly, originalPath, store, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // brands commission artists: the brief, the agreement, money held, reels and photographs delivered, approval, Friday pay
+  require('./trips').mountTrips(app, { db, V, C, images, cache, originalPath, ledger, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // a trip played as it was shot; frames held back as a wash of colour
   require('./standing').mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail, notify: app.locals.notify, grant, nextRef, stampHouse, collectFor, mk }); // a piece a month: the house chooses, the collector keeps
   require('./desk-api').mountDeskApi(app, { db, C, ledger, stripe });
   require('./peephole').mountPeephole(app, { db, V, C, ledger, mail, isStudio, studioOnly });

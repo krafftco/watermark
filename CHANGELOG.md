@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.13.0 · The trip · 29 October 2026
+- A maker's trip, played as it was shot (/trip/<maker>/<place>, 'Trips' on every maker page): every frame from one place in the order it was taken, one at a time on the dark wall, the hour on each, a card when the day turns or the light goes.
+- Frames the maker holds back stay in the film as a wash of their colours, never the picture: held back by the photographer, kept in the archive. A frame taken out of the trip never appears.
+- The maker sees every frame true and hides or unhides any in one tap. A picture kept back is now shown to no one but its maker, the house and their curators.
+- Hang your best one place at a time (?place=Milan).
+
 ## 1.12.0 · The lock · 29 October 2026
 - With Object Lock on the vault and VAULT_LOCK_DAYS set, every master (originals, raws, music, documents, signed releases) is written under a Governance retention: the house's own key cannot delete or overwrite it until the date. The Studio lays the same lock over what the vault already holds. A bucket that refuses the lock is noted and nothing stops.
 
