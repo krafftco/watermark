@@ -3,7 +3,7 @@
 // wrong on a real day, checked to the file; it fails loudly when anything slips or slows.
 //   node test/drill.js                    the local vault (the house's own road, as on a laptop)
 //   DRILL_S3_ENDPOINT=http://127.0.0.1:9000 DRILL_S3_BUCKET=drill AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… node test/drill.js
-//                                         an S3 vault (MinIO in CI): files go straight to the bucket in parts, as in the browser
+//                                         an S3 vault (moto in CI): files go straight to the bucket in parts, as in the browser
 // What a day holds: full-size 60 MP masters; two frames of one scene at the same size (both held, as their own works);
 // the same bytes under another name (never sent twice: the house already holds them); a truncated JPEG and a page
 // named .jpg (turned away at the door, with why); a file whose bytes change on the way (not kept: the fingerprints
@@ -81,8 +81,8 @@ async function frame(i, w, h, { bright = 0, q = 92 } = {}) {
     if (st.already) return st;
     if (!st.direct) { const r = await go(`/account/arrivals/${st.id}/body`, { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: f.buf }).then(r => r.json()); assert.ok(r.ok, 'body: ' + JSON.stringify(r)); return st; }
     const etags = f.etags || (f.etags = {}); const todo = []; for (let n = 1; n <= st.parts; n++) if (!etags[n]) todo.push(n);
-    let i = 0, sent = 0;
-    const lane = async () => { while (i < todo.length) { const n = todo[i++]; if (stopAfter && sent >= stopAfter) return; const u = await form(`/account/arrivals/${st.id}/urls`, { parts: String(n) }); const part = f.buf.subarray((n - 1) * st.partSize, Math.min(f.buf.length, n * st.partSize)); const r = await fetch(u.urls[n], { method: 'PUT', body: part }); assert.ok(r.ok, 'part ' + n + ' ' + r.status); etags[n] = (r.headers.get('etag') || '').replace(/"/g, ''); sent++; } };
+    let i = 0, sent = 0, taken = 0;
+    const lane = async () => { while (i < todo.length) { if (stopAfter && taken >= stopAfter) return; taken++; const n = todo[i++]; const u = await form(`/account/arrivals/${st.id}/urls`, { parts: String(n) }); const part = f.buf.subarray((n - 1) * st.partSize, Math.min(f.buf.length, n * st.partSize)); const r = await fetch(u.urls[n], { method: 'PUT', body: part }); assert.ok(r.ok, 'part ' + n + ' ' + r.status); etags[n] = (r.headers.get('etag') || '').replace(/"/g, ''); sent++; } };
     await Promise.all([lane(), lane(), lane(), lane()]);
     if (Object.keys(etags).length < st.parts) return { ...st, partial: true };
     const d = await form(`/account/arrivals/${st.id}/done`, { parts: JSON.stringify(Object.entries(etags).map(([n, etag]) => ({ n: +n, etag }))) }); assert.ok(d.ok, 'done: ' + JSON.stringify(d));
@@ -95,7 +95,7 @@ async function frame(i, w, h, { bright = 0, q = 92 } = {}) {
   const queue = files.filter(f => !f.never && !f.after && !f.drop); let qi = 0;
   const lanes = [0, 1, 2].map(async () => { while (qi < queue.length) { const f = queue[qi++]; await send(f); } });
   const dropped = files.find(f => f.drop);
-  if (direct) { const first = await send(dropped, { stopAfter: 3 }); assert.ok(first.partial, 'the connection drops halfway'); const again = await send(dropped); assert.ok(again.again === 'uploading' && again.id === first.id, 'picked up as the same arrival: ' + JSON.stringify(again)); }
+  if (direct) { const first = await send(dropped, { stopAfter: 2 }); assert.ok(first.partial, 'the connection drops halfway'); const again = await send(dropped); assert.ok(again.again === 'uploading' && again.id === first.id, 'picked up as the same arrival: ' + JSON.stringify(again)); }
   else { await send(dropped); } // the local road is one put: a drop there is a resend, which the house takes as the same arrival
   await Promise.all(lanes);
   await waitHeld(files[0].name);
