@@ -94,6 +94,16 @@ async function dhash(file) {
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits += px[y * 9 + x] > px[y * 9 + x + 1] ? '1' : '0';
   return BigInt('0b' + bits).toString(16).padStart(16, '0');
 }
+// The second look (29 Oct, the fire drill's first catch: two different pictures, alike to the 64-bit hash, one turned
+// away as 'already held'). The hash finds candidates; this decides. 32 x 32 in grey, each picture's own mean taken
+// out, so an export and its master (any size, any quality) read as one, and a different picture does not. `alike`
+// is the mean difference in levels: under SAME_LEVELS the two are one picture.
+const SAME_LEVELS = Number(process.env.SAME_LEVELS || 6);
+async function look(file) {
+  const px = await sharp(file).rotate().greyscale().resize(32, 32, { fit: 'fill', kernel: 'cubic' }).raw().toBuffer();
+  let m = 0; for (const v of px) m += v; m /= px.length; return Float32Array.from(px, v => v - m);
+}
+function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { setMarker, fileOf, inspect, derivative, copy, dhash, hamming, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

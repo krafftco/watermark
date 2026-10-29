@@ -2255,6 +2255,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         const d = images.hamming(t.dhash, w.dhash); if (d < bestD && (w.width / w.height > 1) === (t.width / t.height > 1)) { best = w; bestD = d; }
       }
       if (!best || bestD > 6 || (t.width * t.height) < 1.5 * (best.width || 0) * (best.height || 0)) continue; // half again the pixels, or it is a sibling frame (29 Oct)
+      try { if (!(await samePicture(await originalPath(t), best))) continue; } catch (e) { continue; }
       try {
         const file = await originalPath(t); const tmp = path.join(originals, `twin-${t.id}${path.extname(t.original_file)}`); fs.copyFileSync(file, tmp);
         const info = await images.inspect(tmp);
@@ -2269,6 +2270,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   app.locals.mergeTwins = mergeTwins;
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
+  // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's
+  // small copy when it is on disk, else its original.
+  async function samePicture(file, w) {
+    try { w = db.prepare('SELECT * FROM works WHERE id=?').get(w.id) || w; const t = images.fileOf(cache, w.slug, 'thumb', 'jpg'); const held = await images.look(fs.existsSync(t) ? t : await originalPath(w)); return images.alike(await images.look(file), held) < images.SAME_LEVELS; }
+    catch (e) { console.error('[same]', w.slug, e.message); return false; } // when in doubt, it comes in as its own work: never refuse a picture on a guess
+  }
   app.locals.upgradeIfHeld = (file, originalname, makerId) => inLane(async () => {
     const info = await images.inspect(file);
     if (db.prepare('SELECT 1 FROM works WHERE sha256=?').get(info.sha256)) return null; // the same bytes: registerWork answers (held, or come home)
@@ -2278,6 +2285,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
     }
     if (!best || bestD > 6) return null;
+    if (!(await samePicture(file, best))) return null; // alike to the hash, another picture to the eye: its own work
     // (29 Oct) Same size is a sibling, not a copy: two frames of one scene from the same camera read alike to the eye's
     // hash, and a dump from a day in one city has many. Only a file clearly larger (half again the pixels) replaces a
     // master, only one clearly smaller is declined as a lesser copy; anything near the same size comes in as its own work.

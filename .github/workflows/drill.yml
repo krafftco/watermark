@@ -1,0 +1,41 @@
+# The fire drill (29 Oct, Will: "we never can mess up; we have to be all-stars at this"). Every night, and on demand,
+# a real import goes through the real doors with everything a real day throws at it (60 MP masters, near-twins, the
+# same bytes twice, a truncated file, a page named .jpg, bytes changed on the way, a dropped connection, a file never
+# sent), first on the house's own road and then straight into an S3 bucket in parts (MinIO), and the receipt must
+# account for every file. A failed run mails the repository's owner (GitHub's default).
+name: drill
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+  push:
+    branches: [next]
+    paths: ['src/arrivals.js', 'src/imports.js', 'src/images.js', 'src/bagcheck.js', 'public/arrivals.js', 'public/sha256-worker.js', 'test/drill.js']
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The house's own road
+        run: node test/drill.js
+        env:
+          DRILL_MEM_MB: '2200'
+      - name: An S3 vault (MinIO)
+        run: |
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=drill -e MINIO_ROOT_PASSWORD=drillpassword minio/minio server /data
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:9000/minio/health/live && break; sleep 1; done
+          node test/drill.js
+        env:
+          DRILL_S3_ENDPOINT: http://127.0.0.1:9000
+          DRILL_S3_BUCKET: drill
+          AWS_ACCESS_KEY_ID: drill
+          AWS_SECRET_ACCESS_KEY: drillpassword
+          AWS_REGION: us-east-1
+          DRILL_MEM_MB: '2200'
+          DRILL_BIG: '10'

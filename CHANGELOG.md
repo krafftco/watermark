@@ -4,6 +4,13 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.5.2 · The proof · 29 October 2026
+- Every file is fingerprinted on your computer before it leaves, and kept only when the bytes that land are the same, byte for byte: Verified, beside each one.
+- An import is one thing: its own page, file by file, open on any device, a receipt to keep, and a note when it is done.
+- What the house already holds is never sent again; files go three at a time.
+- Two pictures are called the same only when they look alike pixel for pixel.
+- A fire drill every night: a real import with everything a real day throws at it, checked to the file.
+
 ## 1.5.1 · A city's worth · 29 October 2026
 - The vault takes hundreds of full-size masters at once: the pictures beside each file are drawn small and one at a time, so choosing a whole shoot no longer stops the browser.
 - Put in the vault once: Send cannot be pressed twice, and the same file is never sent twice.
