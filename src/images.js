@@ -47,13 +47,27 @@ const FORMATS = { jpg: ['jpg', 'image/jpeg'], webp: ['webp', 'image/webp'] };
 // The mark on renditions (19 Oct: harder to copy the house): when `marker` is set, every screen and large copy
 // carries the invisible mark of mark.js with the work's rendition payload, so a scraped archive traces back.
 let marker = null; // { key, payloadFor(slug) } set by the app
+// Whose it is (29 Oct, Will: "we want to retain their copyright"): every copy carries the maker's own copyright and name,
+// the words the maker wrote into the master when there are any (Lightroom's Copyright and Artist), else the house's
+// record of them. `owner(slug)` → { maker, year } is set by the app.
+let owner = null; const setOwner = fn => { owner = fn; };
+const rightsCache = new Map();
+async function rightsOf(original, slug) {
+  const k = `${original}:${slug}`; if (rightsCache.has(k)) return rightsCache.get(k);
+  let own = {}; try { own = (await exifr.parse(original, { pick: ['Artist', 'Copyright'] })) || {}; } catch (e) { own = {}; }
+  const o = owner ? (owner(slug) || {}) : {};
+  const artist = String(own.Artist || o.maker || '').trim().slice(0, 120) || null;
+  const copyright = String(own.Copyright || '').trim().slice(0, 200) || (o.maker ? `© ${o.year || new Date().getFullYear()} ${o.maker}. All rights reserved.` : null);
+  const r = { artist, copyright: copyright ? `${copyright}${/watermark/i.test(copyright) ? '' : ' Held on Watermark; license at the source.'}` : 'Held on Watermark. License at the source.' };
+  if (rightsCache.size > 4000) rightsCache.clear(); rightsCache.set(k, r); return r;
+}
 const setMarker = m => { marker = m; };
 // Quality (20 Oct, after the blocking): screen and large at JPEG 88 / WebP 82-84, which holds a smooth sky; the file
 // names carry 'q2' so every rendition made before is rebuilt.
 // (21 Oct, Will: "as good as Lightroom or Leica") Up from 88/90 and 90/92: on a grainy frame JPEG 90 sat at 41 dB
 // against the resized master, 94 at 42.6, with the bytes up by two fifths; WebP 94 matches at two thirds the size.
 const Q = { jpg: { thumb: 80, screen: 92, large: 94, wall: 94 }, webp: { thumb: 76, screen: 92, large: 94, wall: 94 } };
-const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q4.${fmt}`); // q3: the qualities of 21 Oct; q4: the maker's colour kept (29 Oct)
+const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q5.${fmt}`); // q3: the qualities of 21 Oct; q4: the maker's colour kept; q5: the maker's copyright on every copy (29 Oct)
 // The maker's colour, kept (Will, 29 Oct: "the best export that's color accurate and that does not change their vision at
 // all; if they put it in one way, that's them telling us that's the way they want it"). A master in sRGB (or untagged,
 // which the web reads as sRGB) is shown in sRGB. A master in anything wider (Display P3 from a phone, Adobe RGB or
@@ -84,7 +98,7 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
     }
     const g = await gamut(original);
     if (fmt === 'webp') await base.withIccProfile(g).webp({ quality: Q.webp[size], effort: 4 }).toFile(tmp);
-    else await base.withIccProfile(g).withExif({ IFD0: { Copyright: 'Held on Watermark. License at the source.' } }).jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).toFile(tmp);
+    else await base.withIccProfile(g).withExif({ IFD0: (rt => ({ Copyright: rt.copyright, ...(rt.artist ? { Artist: rt.artist } : {}) }))(await rightsOf(original, slug)) }).jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).toFile(tmp);
     try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
   }
   return out;
@@ -123,4 +137,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { gamut, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

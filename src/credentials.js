@@ -41,8 +41,12 @@ async function inspect(file) {
     const author = cw && cw.data && cw.data.author ? [].concat(cw.data.author).map(p => p.name).filter(Boolean).join(', ') : null;
     // Earlier links in the chain (a camera's own manifest under a Lightroom export, say).
     const chain = Object.values(st.manifests || {}).map(m => ({ by: (m.signature_info || {}).issuer || null, app: ((m.claim_generator_info || [])[0] || {}).name || m.claim_generator || null }));
+    // The camera that signed at capture (29 Oct, Will: "build in the Leica content credentials"): the active manifest's
+    // own capture, else the first link in the chain signed by a camera maker (Leica, Sony, Nikon, Canon, Fujifilm…).
+    const CAM = /leica|sony|nikon|canon|fujifilm|fuji|hasselblad|panasonic|ricoh|pentax|olympus|om digital|google|samsung|apple/i;
+    const cam = captured && CAM.test(sig.issuer || '') ? sig.issuer : (chain.find(c => CAM.test(c.by || '')) || {}).by || null;
     return { state: st.validation_state || null, issuer: sig.issuer || null, signer: sig.common_name || null, time: sig.time || null,
-      app: gen.name || a.claim_generator || null, captured, author, chain, read_at: new Date().toISOString() };
+      app: gen.name || a.claim_generator || null, captured: captured || !!cam, camera_signer: cam, author, chain, read_at: new Date().toISOString() };
   } catch (e) { return null; }
 }
 

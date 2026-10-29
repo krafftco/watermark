@@ -4402,3 +4402,5 @@ html.in-stay .top .nv-back{display:none}
 .fo .fo-list i{color:var(--muted,#777);font-style:normal;font-size:.85em;margin-left:6px}
 .jn .jn-what{padding-left:18px;margin:26px 0;line-height:1.6}
 .jn .jn-what li{margin:0 0 10px}
+/* signed at capture (29 Oct): the camera's own Content Credentials */
+.cc-sig .cc-tag{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border:1px solid currentColor;border-radius:999px;margin-right:10px;white-space:nowrap}

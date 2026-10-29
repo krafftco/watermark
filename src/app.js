@@ -115,6 +115,7 @@ function createApp(cfg = {}) {
   // Renditions carry the work's mark too (19 Oct): a copy scraped from the walls traces to the work and the house.
   // 20 Oct: the rendition mark showed as faint blocking in smooth skies and gradients (Will: 'the backgrounds have been
   // messed up'). Off until the mark is masked to texture (mark.js embedRaw with masking) and proven by eye; RENDITION_MARK=1 turns it back on.
+  images.setOwner(slug => { const w = q.work.get(slug); const m = w ? mk(w) : null; return m ? { maker: m.name, year: String(w.taken_at || w.created_at || '').slice(0, 4) || null } : null; }); // the maker's copyright on every copy (29 Oct)
   if (process.env.RENDITION_MARK === '1') images.setMarker({ key: MARK_KEY, payloadFor: slug => { const w = q.work.get(slug); return w ? MARK.renditionPayload(w.id) : null; } });
   // What a file says about itself, in words a person reads in Photos or Finder: the photograph, its maker, how it is
   // held, and the Watermark number that finds its license. The fingerprint stays in the file, out of the caption.

@@ -75,6 +75,9 @@ const { createApp } = require('../src/app');
   // Unfollow
   r = await form(col, '/follow', { k: `maker:${am.id}` }); assert.equal((await r.json()).on, false, 'unfollowed');
 
+  // Signed at capture: the camera's own Content Credentials, said on the work's page.
+  db.prepare('UPDATE works SET credentials=? WHERE slug=?').run(JSON.stringify({ captured: true, issuer: 'Leica Camera AG', camera_signer: 'Leica Camera AG', chain: [] }), held[0]);
+  r = await fetch(base + `/w/${held[0]}`); t = await r.text(); assert.ok(/Signed at capture/.test(t) && /signed by Leica at the moment it was made/.test(t), 'the camera’s signature, said');
   // An invited maker's work is in the halls at once.
   db.prepare("UPDATE makers SET door='house' WHERE id=?").run(am.id);
   assert.ok(inHall(held[2]), 'invited: all of it in the halls');

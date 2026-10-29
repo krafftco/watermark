@@ -4,6 +4,10 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.7.2 · Theirs, said everywhere · 29 October 2026
+- Every copy the house shows carries the maker's own copyright and name: what they wrote into the master in Lightroom, or else the house's record of them.
+- A picture whose camera signed it at capture says so on its page: signed by Leica (or any camera maker) at the moment it was made, with the master kept unbroken. That signature is found even when it sits under a Lightroom export.
+
 ## 1.7.1 · The maker's colour · 29 October 2026
 - Every copy the house shows keeps the colour the maker made: a master in a wide colour space is shown in Display P3, so recent iPhones, iPads and Macs see the reds and greens that used to be clipped. sRGB stays sRGB.
 - A work's thumbnail and display copies are made the moment it arrives, kept-back work included, so the Library shows a 60 MP master at once.
