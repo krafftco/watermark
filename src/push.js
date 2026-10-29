@@ -90,6 +90,7 @@ function mountPush(app, { db, C, V }) {
 <pre class="psh-pre">curl -fsSLo watermark.js ${esc(C.base)}/push/watermark.js
 node watermark.js login
 node watermark.js push ~/Pictures/Exports/Philadelphia --place Philadelphia --stars 3</pre>
+<p class="muted">In Lightroom Classic or Capture One? <a href="/lightroom">Publish straight from there</a>.</p>
 <p class="muted"><code>--dry</code> says what would go and sends nothing. Stop it any time; run the same line again and it carries on where it stopped. The full guide: <code>node watermark.js help</code>.</p>
 <h2>The computers that can send to your vault</h2>
 <ol class="psh-list">${keys.map(k => `<li><b>${esc(k.name || 'a computer')}</b><span>since ${esc(k.created_at.slice(0, 10))}${k.last_at ? ` · last seen ${esc(k.last_at.slice(0, 16))}` : ''} · ${k.sent} file${k.sent === 1 ? '' : 's'} sent</span><form method="post" action="/account/push/${k.id}/end"><button class="btn ghost">End it</button></form></li>`).join('') || '<li class="muted">None yet.</li>'}</ol>`));
@@ -98,6 +99,31 @@ node watermark.js push ~/Pictures/Exports/Philadelphia --place Philadelphia --st
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     db.prepare("UPDATE push_keys SET ended_at=datetime('now') WHERE id=? AND maker_id=?").run(+req.params.id, m.id);
     res.redirect('/account/push');
+  });
+  // Lightroom Classic (29 Oct, Will: adoption from Leica and Lightroom): the plug-in, zipped on request from lightroom/.
+  const LRDIR = require('path').join(__dirname, '..', 'lightroom', 'watermark.lrplugin');
+  app.get('/lightroom/watermark.lrplugin.zip', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=300'); res.attachment('watermark.lrplugin.zip'); res.type('application/zip');
+    const z = require('archiver')('zip', { zlib: { level: 9 } }); z.on('error', () => res.end()); z.pipe(res);
+    z.directory(LRDIR, 'watermark.lrplugin'); z.finalize();
+  });
+  app.get(['/lightroom', '/capture-one', '/send'], (req, res) => {
+    const p = `<p class="k">From where you edit</p><h1>Send from Lightroom, Capture One or a folder.</h1>
+<p class="lede">The work goes in as you made it: the full-size file, your colour, your title, caption, keywords, place and stars. It comes in private; you publish it on Watermark when you choose.</p>
+<h2>Lightroom Classic</h2>
+<p>A Publish Service. Each collection you publish is a set of works in your vault; re-publish an edited photograph and it becomes the new master of the same work, with its record, deed and licences unchanged. Removing a photograph from the collection never removes it from your vault.</p>
+<ol class="psh-steps"><li><a href="/lightroom/watermark.lrplugin.zip" download>Download the plug-in</a> and unzip it somewhere it can stay.</li>
+<li>In Lightroom Classic: File → Plug-in Manager → Add, and choose <b>watermark.lrplugin</b>.</li>
+<li>In the Publish Services panel, set up Watermark and press <b>Sign in</b>: your browser opens, you say yes, and Lightroom holds the key.</li>
+<li>Drag photographs into the collection and press <b>Publish</b>.</li></ol>
+<p class="muted">It sends a JPEG at quality 100, or a TIFF if you choose one, at full size with all metadata and no output sharpening, in the colour space you choose (Display P3 or Adobe RGB keep a wider gamut; the house shows it as it is).</p>
+<h2>Capture One</h2>
+<p>Make an Export Recipe (full size, JPEG at 100 or TIFF, your ICC profile, metadata included) into one folder, say <code>Watermark</code>, then send that folder with the command below. Capture One's titles, keywords, places and ratings ride in the file and come in with it.</p>
+<h2>A folder or a whole archive</h2>
+<p>For an archive sent overnight, culled by your stars, every file fingerprinted, never sent twice: <a href="/account/push">send from your computer</a>.</p>
+<h2>Content Credentials</h2>
+<p>If your camera signs at capture (a Leica M11-P or SL3-S with Content Credentials on, and others), turn on Content Credentials in Lightroom's export, so the camera's signature travels with your edit as its history. The house keeps your master byte for byte, reads the signature on arrival, and says on the work's page that it was signed at the moment it was made.</p>`;
+    res.send(V.layout({ title: 'Send from Lightroom · Watermark', path: '/lightroom', body: `<section class="studio-wrap psh">${p}</section>` }));
   });
   app.get('/push/watermark.js', (req, res) => {
     res.set('Cache-Control', 'public, max-age=300'); res.type('application/javascript');

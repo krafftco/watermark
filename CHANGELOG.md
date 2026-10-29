@@ -4,6 +4,13 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.8.0 · From where you edit · 29 October 2026
+
+- What Lightroom, Capture One, Photo Mechanic or Leica FOTOS wrote into the file comes in with it: the title, caption, keywords, place and stars. What you type in the vault still wins.
+- Watermark for Lightroom Classic: a Publish Service. Sign in by a code, publish a collection, and a re-published edit becomes the new master of the same work. Download it at /lightroom.
+- Capture One: an Export Recipe into a folder, sent by the command line.
+- Every master a work has ever had stays in the vault under its own name.
+
 ## 1.7.2 · Theirs, said everywhere · 29 October 2026
 - Every copy the house shows carries the maker's own copyright and name: what they wrote into the master in Lightroom, or else the house's record of them.
 - A picture whose camera signed it at capture says so on its page: signed by Leica (or any camera maker) at the moment it was made, with the master kept unbroken. That signature is found even when it sits under a Lightroom export.

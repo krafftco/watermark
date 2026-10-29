@@ -32,13 +32,38 @@ async function inspect(file) {
   const takenAt = exif.DateTimeOriginal instanceof Date ? exif.DateTimeOriginal.toISOString() : null;
   // EXIF orientation: report the displayed size
   const swap = meta.orientation && meta.orientation >= 5;
+  const said = await saidOf(file);
   return {
+    said,
     sha256,
     width: swap ? meta.height : meta.width,
     height: swap ? meta.width : meta.height,
     camera, lens: exif.LensModel || null, taken_at: takenAt,
     artist: exif.Artist || null, copyright: exif.Copyright || null,
   };
+}
+
+// What the maker wrote into the file (29 Oct, Will: adoption from Leica and Lightroom): the title, caption, keywords,
+// place and stars Lightroom, Capture One, Photo Mechanic or Leica FOTOS leave in XMP and IPTC. Read on arrival so a
+// catalogued export comes in catalogued; what the maker types in the vault still wins, and nothing here is guessed.
+const one = v => { if (v == null) return null; if (Array.isArray(v)) v = v[0]; if (typeof v === 'object') v = v.value != null ? v.value : null; v = v == null ? '' : String(v).replace(/\s+/g, ' ').trim(); return v || null; };
+const list = v => (v == null ? [] : (Array.isArray(v) ? v : String(v).split(/[;,]/))).map(one).filter(Boolean);
+async function saidOf(file) {
+  let x = {};
+  try { x = (await exifr.parse(file, { xmp: true, iptc: true, tiff: false, exif: false, gps: false, icc: false, mergeOutput: true })) || {}; } catch (e) { return {}; }
+  const title = one(x.title) || one(x.ObjectName) || one(x.Headline);
+  const caption = one(x.description) || one(x.Caption) || one(x['Caption-Abstract']);
+  const keywords = [...new Set([...list(x.subject), ...list(x.Keywords)].map(k => k.slice(0, 60)))].slice(0, 40);
+  const city = one(x.City), sub = one(x.Location) || one(x.Sublocation), state = one(x.State) || one(x['Province-State']), country = one(x.Country) || one(x['Country-PrimaryLocationName']);
+  const place = city ? (sub && sub !== city ? `${sub}, ${city}` : city) : (sub || state || country || null);
+  const r = Number(x.Rating); const rating = Number.isFinite(r) ? Math.max(-1, Math.min(5, Math.round(r))) : null;
+  const out = {};
+  if (title && title !== 'Untitled') out.title = title.slice(0, 160);
+  if (caption && caption !== out.title) out.caption = caption.slice(0, 4000);
+  if (keywords.length) out.keywords = keywords.join(', ').slice(0, 400);
+  if (place) out.place = place.slice(0, 160);
+  if (rating != null) out.rating = rating;
+  return out;
 }
 
 // Display copies are cached on disk; sizes are fixed so nobody can ask for the original by size.
@@ -137,4 +162,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

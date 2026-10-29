@@ -4404,3 +4404,4 @@ html.in-stay .top .nv-back{display:none}
 .jn .jn-what li{margin:0 0 10px}
 /* signed at capture (29 Oct): the camera's own Content Credentials */
 .cc-sig .cc-tag{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border:1px solid currentColor;border-radius:999px;margin-right:10px;white-space:nowrap}
+.psh .psh-steps{margin:14px 0 18px 1.2em;line-height:1.8}.psh .psh-steps li{margin:4px 0}

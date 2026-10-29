@@ -29,7 +29,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   db.exec(`CREATE TABLE IF NOT EXISTS arrivals (id INTEGER PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT, folder TEXT, upload_id TEXT, parts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'uploading', outcome TEXT, slug TEXT, title TEXT, error TEXT, by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), arrived_at TEXT, done_at TEXT,
     purpose TEXT NOT NULL DEFAULT 'master', place TEXT, kind TEXT, maker_id INTEGER, result TEXT)`);
-  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT'], ['sha256', 'TEXT'], ['verified', 'INTEGER'], ['import_id', 'INTEGER']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT'], ['sha256', 'TEXT'], ['verified', 'INTEGER'], ['import_id', 'INTEGER'], ['replaces', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS arrivals_status ON arrivals (status, id)');
   fs.mkdirSync(incoming, { recursive: true });
   const direct = !!(store.kind === 's3' && store.multipart);
@@ -72,7 +72,8 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
         return res.json({ ok: true, id: r0.lastInsertRowid, already: 'held', slug: held.slug });
       }
     }
-    const twin = who && db.prepare("SELECT * FROM arrivals WHERE by=? AND purpose=? AND name=? AND size=? AND status IN ('uploading','arrived','working','done') AND created_at > datetime('now','-1 day') ORDER BY id DESC LIMIT 1").get(who, purpose, name, size);
+    let twin = who && !(req.body.replaces && !sha) && db.prepare("SELECT * FROM arrivals WHERE by=? AND purpose=? AND name=? AND size=? AND status IN ('uploading','arrived','working','done') AND created_at > datetime('now','-1 day') ORDER BY id DESC LIMIT 1").get(who, purpose, name, size);
+    if (twin && req.body.replaces && twin.sha256 !== sha) twin = null; // a new edit of the same name and size is a new file
     if (twin && (imp || sha)) db.prepare('UPDATE arrivals SET import_id=COALESCE(?, import_id), sha256=COALESCE(sha256, ?) WHERE id=?').run(imp, sha, twin.id);
     if (twin && twin.status === 'uploading') return res.json({ ok: true, id: twin.id, key: twin.key, partSize, parts: twin.parts, direct: direct && !!twin.upload_id, again: 'uploading' });
     if (twin) return res.json({ ok: true, id: twin.id, already: twin.status });
@@ -80,8 +81,8 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     let uploadId = null;
     if (direct) { try { uploadId = await store.multipart.start(key, type); } catch (e) { console.error('[arrivals] start', e.message); return res.status(502).json({ ok: false, error: 'The vault did not answer: ' + e.message.slice(0, 80) }); } }
     const m = purpose === 'work' ? maker(req) : null;
-    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, artist, maker_id, sha256, import_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
-      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, String(req.body.artist || '').trim().slice(0, 120) || null, m ? m.id : null, sha, imp);
+    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, artist, maker_id, sha256, import_id, replaces) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
+      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, String(req.body.artist || '').trim().slice(0, 120) || null, m ? m.id : null, sha, imp, purpose === 'work' && /^[a-z0-9-]{1,120}$/.test(String(req.body.replaces || '')) ? String(req.body.replaces) : null);
     res.json({ ok: true, id: r.lastInsertRowid, key, partSize, parts, direct });
   });
   app.post(`${base}/arrivals/:id/urls`, guard, async (req, res) => {
@@ -152,7 +153,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
         }
         db.prepare('UPDATE arrivals SET verified=1 WHERE id=?').run(a.id);
       }
-      const r = a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
+      const r = a.purpose === 'work' && a.replaces && app.locals.newEdit ? await app.locals.newEdit(f, a.name, a.replaces, a.maker_id) : a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
       if (r && a.sha256) r.verified = true;
       if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
       else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);

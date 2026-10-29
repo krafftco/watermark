@@ -360,7 +360,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+1').run(workId, host || null, kind, day);
   }
 
-  async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind, artist }) {
+  async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind, artist, fallbackTitle }) {
     const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
     await BAG.throwIfBad(file, { name: originalName || path.basename(file), where: 'registerWork', who: `m:${owner.handle}` }); // the bag check: every arrival, by every door
     const info = await images.inspect(file);
@@ -377,6 +377,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       }
       fs.unlinkSync(file); const e = new Error(`This photograph is already held as "${dupe.slug}".`); e.user = true; throw e;
     }
+    // What Lightroom (or Capture One, FOTOS) wrote into the file fills what the vault left empty, never what the maker typed.
+    const said = info.said || {};
+    if (!String(title || '').trim()) title = said.title || fallbackTitle || 'Untitled';
+    if (!place && said.place) place = said.place;
+    if (!caption && said.caption) caption = said.caption;
     title = require('./titles').titleCase(title);
     let slug = slugify(title), i = 2;
     while (q.work.get(slug)) slug = `${slugify(title)}-${i++}`;
@@ -392,6 +397,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const nw = q.work.get(slug);
     const kindOk = kind && require('./object').KINDS[kind] ? kind : 'photograph';
     db.prepare("UPDATE works SET accession=?, kind=?, medium=CASE WHEN ?='photograph' THEN COALESCE(medium, 'Digital photograph') ELSE medium END, dhash=?, bytes=? WHERE id=?").run(accession(nw), kindOk, kindOk, await images.dhash(dest).catch(() => null), (() => { try { return fs.statSync(dest).size; } catch (e) { return null; } })(), nw.id);
+    if (said.keywords || said.rating) try { db.prepare('UPDATE works SET keywords=COALESCE(keywords, ?), stars=CASE WHEN ? > 0 THEN ? ELSE stars END, flag=CASE WHEN ? < 0 THEN \'reject\' ELSE flag END WHERE id=?').run(said.keywords || null, said.rating || 0, said.rating || 0, said.rating || 0, nw.id); } catch (e) { /* the record stands without */ }
     if (artist && app.locals.art) { try { app.locals.art.link(nw, typeof artist === 'string' ? artist : artist.name, typeof artist === 'object' ? artist : {}); } catch (e) { /* the record stands without */ } }
     const cred = await CR.inspect(dest); if (cred) db.prepare('UPDATE works SET credentials=? WHERE id=?').run(JSON.stringify(cred), nw.id);
     // (21 Oct) The local copy stays: it is the cache, trimmed by budget, and until the bucket has it (vaultPending) it is
@@ -2147,7 +2153,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   async function replaceMaster(w, f, info, h) {
     const file = f.path;
         const ext = (path.extname(f.originalname) || '.jpg').toLowerCase();
-        const name = `${w.slug}-master${ext}`, dest = path.join(originals, name);
+        const name = `${w.slug}-master-${String(info.sha256).slice(0, 10)}${ext}`, dest = path.join(originals, name);
         fs.mkdirSync(originals, { recursive: true });
         try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
         await store.put('originals/' + name, dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
@@ -2300,6 +2306,21 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (ratio <= 1 / 1.5) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, outcome: 'smaller', slug: best.slug, error: `This looks like ${tidyT(best.title)}, already held at ${Math.round((best.width || 0) * (best.height || 0) / 1e6)} megapixels; this file is no larger. Nothing was changed.` }; }
     const w = await replaceMaster(q.work.get(best.slug), { path: file, originalname }, info, h);
     return { ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6), width: info.width, height: info.height, fingerprint: info.sha256.slice(0, 12) };
+  });
+  // The maker's own new edit (29 Oct: a Lightroom re-publish, a Capture One re-export): an arrival that names the work it
+  // replaces becomes that work's master, larger or not, because the maker said so. The slug, deed, licences and entries
+  // stay; the previous master stays in the vault under its own name; the register says it.
+  app.locals.newEdit = (file, originalname, slug, makerId) => inLane(async () => {
+    const w = q.work.get(slug);
+    if (!w || w.maker_id !== makerId) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 404, error: 'That work is not yours to replace.' }; }
+    const info = await images.inspect(file);
+    if (info.sha256 === w.sha256) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: true, outcome: 'held', slug, title: w.title, note: 'The same file as the one held: nothing changed.' }; }
+    const other = db.prepare('SELECT slug FROM works WHERE sha256=? AND id<>?').get(info.sha256, w.id);
+    if (other) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, error: `This file is already held as ${other.slug}.` }; }
+    const h = await images.dhash(file);
+    await replaceMaster(w, { path: file, originalname }, info, h);
+    ledger.append(db, 'work.edited', slug, { by: 'maker', fingerprint: info.sha256, previous: w.sha256 });
+    return { ok: true, outcome: 'master', slug, title: w.title, note: `The new edit of ${tidyT(w.title)} is now the master. The record, the deed and every licence stay as they were.`, mp: Math.round(info.width * info.height / 1e6), width: info.width, height: info.height, fingerprint: info.sha256.slice(0, 12) };
   });
   require('./arrivals').mountArrivals(app, { db, C, store, studioOnly, incoming: path.join(C.dataDir, 'incoming'), makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), takeWork: (f, a) => app.locals.takeWork(f, a) }); // straight into the vault in parts, taken in by a queue; the Studio's masters and every maker's own vault
   app.post('/studio/masters/one', studioOnly, upload.single('file'), BAG.gate('image', { json: true }), (req, res) => inLane(async () => {

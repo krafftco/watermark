@@ -7,9 +7,9 @@ const { execFile } = require('child_process');
 const sharp = require('sharp');
 const { createApp } = require('../src/app');
 
-const xmpJpeg = (buf, rating) => {
+const xmpJpeg = (buf, rating, more = '', inner = '') => {
   const ns = Buffer.from('http://ns.adobe.com/xap/1.0/\0', 'latin1');
-  const pkt = Buffer.from(`<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="${rating}"/></rdf:RDF></x:xmpmeta>`, 'utf8');
+  const pkt = Buffer.from(`<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmp:Rating="${rating}" ${more}>${inner}</rdf:Description></rdf:RDF></x:xmpmeta>`, 'utf8');
   const len = ns.length + pkt.length + 2; const seg = Buffer.concat([Buffer.from([0xff, 0xe1, len >> 8, len & 255]), ns, pkt]);
   return Buffer.concat([buf.subarray(0, 2), seg, buf.subarray(2)]);
 };
@@ -49,7 +49,7 @@ const run = (args, env) => new Promise(res => execFile(process.execPath, [path.j
 
   // A folder as Lightroom leaves it: four exports with stars inside, one a reject, one unrated; a cache folder; a note.
   const src = path.join(dir, 'Philadelphia'); fs.mkdirSync(path.join(src, '02_PHILADELPHIA'), { recursive: true }); fs.mkdirSync(path.join(src, 'Previews'));
-  fs.writeFileSync(path.join(src, 'JOE_PHILLY-001.jpg'), xmpJpeg(await pic(1), 4));
+  fs.writeFileSync(path.join(src, 'JOE_PHILLY-001.jpg'), xmpJpeg(await pic(1), 4, 'photoshop:City="Philadelphia" photoshop:Country="United States"', '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Rittenhouse, evening</rdf:li></rdf:Alt></dc:title><dc:description><rdf:Alt><rdf:li xml:lang="x-default">The square as the lamps come on.</rdf:li></rdf:Alt></dc:description><dc:subject><rdf:Bag><rdf:li>dusk</rdf:li><rdf:li>park</rdf:li></rdf:Bag></dc:subject>'));
   fs.writeFileSync(path.join(src, 'JOE_PHILLY-002.jpg'), xmpJpeg(await pic(2), 5));
   fs.writeFileSync(path.join(src, '02_PHILADELPHIA', 'JOE_PHILLY-003.jpg'), xmpJpeg(await pic(3), 3));
   fs.writeFileSync(path.join(src, 'JOE_PHILLY-004.jpg'), xmpJpeg(await pic(4), -1));
@@ -72,6 +72,10 @@ const run = (args, env) => new Promise(res => execFile(process.execPath, [path.j
   assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM works WHERE maker_id=?').get(maker.id).n, before + 3, 'three works');
   const placed = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND place='Philadelphia'").get(maker.id).n;
   assert.ok(placed >= 3, 'the place carried');
+  // What Lightroom wrote comes in with it: the title, the caption, the keywords, the stars; the file name only when it said none.
+  const lr = db.prepare("SELECT * FROM works WHERE maker_id=? AND caption='The square as the lamps come on.'").get(maker.id);
+  assert.ok(lr && /^Rittenhouse, Evening$/.test(lr.title) && lr.keywords === 'dusk, park' && lr.stars === 4, 'Lightroom’s record: ' + JSON.stringify(lr && { t: lr.title, k: lr.keywords, s: lr.stars }));
+  assert.ok(db.prepare("SELECT 1 FROM works WHERE maker_id=? AND stars=5 AND title LIKE 'Joe Philly%'").get(maker.id), 'no title in the file: the name, and the stars');
   assert.ok(db.prepare('SELECT sent FROM push_keys').get().sent >= 3, 'the key counts what it sent');
 
   // The same line again: nothing goes. A fresh computer (no state): the house already holds the bytes.
