@@ -79,10 +79,10 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
   const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
   const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };
 
-  // What the holder's file is, in pixels: Collect is the 2400-pixel copy; the Reference and working licenses the original.
+  // What the holder's file is, in pixels: Collect is the 3840-pixel copy; the Reference and working licenses the original.
   function fileOf(l, w) {
     const W = w.width || 0, H = w.height || 0, L = Math.max(W, H), S = Math.min(W, H);
-    if (l.use_key === 'social') { const k = L ? Math.min(1, 2400 / L) : 1; return { L: Math.round(L * k), S: Math.round(S * k), what: 'The 2400-pixel copy' }; }
+    if (l.use_key === 'social') { const k = L ? Math.min(1, Number(process.env.COLLECT_PX || 3840) / L) : 1; return { L: Math.round(L * k), S: Math.round(S * k), what: L > Number(process.env.COLLECT_PX || 3840) ? 'The 3840-pixel copy' : 'The full file' }; }
     return { L, S, what: 'The full original' };
   }
 

@@ -87,7 +87,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/thanks/${ss.metadata.ref}?session_id=${ss.id}`); assert.ok(r.body.toString().includes('/d/'));
   const sl1 = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ss.metadata.ref);
   r = await req(port, 'GET', `/d/${sl1.download_token}`); assert.equal(r.status, 200);
-  const sm = await require('sharp')(r.body).metadata(); assert.ok(sm.width <= 2400 && sm.height <= 2400, 'screen-sized for sharing');
+  const sm = await require('sharp')(r.body).metadata(); assert.ok(sm.width <= 3840 && sm.height <= 3840, 'the Collect copy, never past 3840');
   // Share it in place: wallet sheet first time (card remembered), then one tap with a short undo
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('/static/pay.js') && r.body.toString().includes('pk_test_dummy'), 'wallet sheet offered');
   r = await req(port, 'POST', `/pay/${w.slug}`, { body: JSON.stringify({ email: 'tap@me.com', name: 'Tap Fan' }), headers: { 'content-type': 'application/json' } });

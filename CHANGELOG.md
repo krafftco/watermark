@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.3 · More with Collect · 29 October 2026
+
+- A Collect now delivers the 3,840-pixel copy (COLLECT_PX), so the file you buy is larger than anything shown on the wall; never past the master. The share-size copy on every license stays 2,400.
+
 ## 1.14.2 · No one-tap save · 29 October 2026
 - A long press or a right click on a picture offers nothing, in Wander, Study, the viewer and every room. The ways to keep a picture are the house's own: Collect, Save it, an album's Download.
 

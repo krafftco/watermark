@@ -1705,6 +1705,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     deliver(l, res, { size: req.query.size });
   });
   // The licensed file, stamped and sealed: for the holder's link, and for each seat on the license.
+  const COLLECT_PX = Math.max(2400, Number(process.env.COLLECT_PX || 3840));
   async function deliver(l, res, { size = null, seat = null } = {}) {
     if (!l || l.status !== 'active' || (l.ends_at && new Date(l.ends_at) < new Date())) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
@@ -1723,7 +1724,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       try {
         const u = lu;
         const fmt = share ? 'jpeg' : /\.png$/i.test(file) ? 'png' : /\.tiff?$/i.test(file) ? 'tiff' : 'jpeg';
-        const raw = share ? await images.copy(file, 2400) : fs.readFileSync(file); // a share copy straight from the master (21 Oct), the original untouched
+        const px = (lu && lu.key === 'social' && size !== 'share' && R.size !== 'share') ? COLLECT_PX : 2400; // Collect is the 3840 copy (29 Oct: what you buy is bigger than anything on the wall); the share-size copy stays 2400
+        const raw = share ? await images.copy(file, px) : fs.readFileSync(file); // a share copy straight from the master (21 Oct), the original untouched
         const buf = await marked(raw, { w, maker, ref: l.ref, licensee: l.licensee_company || l.licensee_name, use: u.name, ends: l.ends_at, dlId, share, strip: R.strip === false ? false : null, format: fmt });
         if (fmt !== 'jpeg') { res.set('Content-Disposition', disposition(fname)); return res.type(fmt === 'png' ? 'png' : 'tiff').send(buf); }
         res.set('Content-Disposition', disposition(fname));
