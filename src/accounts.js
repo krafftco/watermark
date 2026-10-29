@@ -20,6 +20,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // in a cookie for the Studio session and read wherever a maker is looked for. A real maker sign-in wins.
   app.use((req, res, next) => { if (req.query && req.query.maker && isStudio(req)) res.cookie('wm_as', String(req.query.maker), { ...cookieOpts, maxAge: 12 * 3600e3 }); next(); });
   const makerOf = req => {
+    if (req.wmPush) return req.wmPush; // a computer's key (push.js), on the vault's import doors only
     const c = req.cookies && req.cookies.wm_m;
     if (!c) { const h = isStudio(req) ? (req.query && req.query.maker) || (req.cookies && req.cookies.wm_as) || (C.maker && C.maker.handle) : null; if (h) return db.prepare('SELECT * FROM makers WHERE handle=?').get(String(h)) || null; if (app.locals.institutions && req.cookies && req.cookies.wm_staff) { try { return app.locals.institutions.actingFor(req); } catch (e) { return null; } } return null; }
     const [id, exp, mac] = String(c).split('.');

@@ -4383,3 +4383,10 @@ html.in-stay .top .nv-back{display:none}
 .imx-bar{height:3px;background:var(--line,#e5e2dc);margin:6px 0 14px}.imx-bar i{display:block;height:100%;background:#b39a68;transition:width .6s}
 .imx-say{margin:0 0 18px}.imx-t td{vertical-align:top}.imx-t tr.imx-need td{color:#8a3a30}.imx-v{color:#3f6b3a;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
 .vt-imp{font-size:13px;color:var(--mu,#777);margin:6px 0 0}.vt-imp a{color:inherit}
+/* push (29 Oct): a computer let in to send an archive */
+.psh .psh-code{font-family:ui-monospace,Menlo,monospace;letter-spacing:.12em;font-size:1.25em}
+.psh .psh-acts{display:flex;gap:10px;margin:22px 0}
+.psh .psh-pre{background:#141210;color:#efe9dc;padding:16px 18px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.7}
+.psh .psh-list{list-style:none;padding:0;margin:12px 0}
+.psh .psh-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:12px 0;border-top:1px solid rgba(0,0,0,.1)}
+.psh .psh-list li span{color:var(--muted,#777);font-size:.9em;flex:1}

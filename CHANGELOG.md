@@ -4,6 +4,11 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.6.0 · Send from your computer · 29 October 2026
+- A whole archive goes in from your own computer: one command, a folder or a drive, overnight. It reads the stars you gave each picture in Lightroom and sends only what clears your line, and it can take each work's place from its folder (08_FLORENCE becomes Florence).
+- You let a computer in with a code, approved where you are already signed in. It can put work into your vault and nothing else, and you can end it from Your computers.
+- Every file is fingerprinted, the house is asked before each one, and nothing it already holds is sent. Stop it any time, and the same line carries on, part by part.
+
 ## 1.5.2 · The proof · 29 October 2026
 - Every file is fingerprinted on your computer before it leaves, and kept only when the bytes that land are the same, byte for byte: Verified, beside each one.
 - An import is one thing: its own page, file by file, open on any device, a receipt to keep, and a note when it is done.

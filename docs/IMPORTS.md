@@ -41,7 +41,7 @@ Rule of thumb for the browser and the Mac app: hours ≈ GB ÷ (upload Mbps × 0
 
 **How it is built, in order.**
 
-1. **The command line first (days):** `watermark push <folder>`, one file of Node with no dependencies, speaking the import protocol (imports, start with the fingerprint, parts, done, the receipt). It is the engine the app wraps, the tool a museum's engineer runs on a server, and what the drill can drive.
+1. **The command line first (built, 1.6.0):** `watermark push <folder>` (bin/watermark.js, served at /push/watermark.js; the house's side is src/push.js; test/push.js), one file of Node with no dependencies, speaking the import protocol (imports, start with the fingerprint, parts, done, the receipt). It is the engine the app wraps, the tool a museum's engineer runs on a server, and what the drill can drive.
 2. **The app (weeks):** Tauri (a Rust core with a web window; a 10 MB app, low memory, Mac and Windows from one code base) wrapping the same engine; folders watched with the OS's own file events; the queue kept on disk so a restart resumes.
 3. **Lightroom Classic (after):** a publish service plug-in, so 'Publish to Watermark' sends the export straight in, and a re-edit sends the new master on top of the old record.
 
@@ -55,6 +55,6 @@ Today Wander is installable from the browser (a PWA). A store app is a native sh
 
 1. **S3 versioning and object lock on the vault bucket, and the mirror switched on** (Will's hand in AWS; the most important item for "never").
 2. Apple Developer enrolment for Krafftco LLC (Will's hand; it gates the .dmg).
-3. The command line, then the Mac app.
+3. The Mac app around the command line (built: the command).
 4. Bucket to bucket as a first-class door (an institution names its bucket and a prefix; the house copies, fingerprints, imports and reports, with the same receipt).
 5. One decode per arrival (the bag check, the fingerprint and the second look read each master once).

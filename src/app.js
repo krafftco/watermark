@@ -507,6 +507,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.use((req, res, next) => { try { V.setDeskAdmin(isStudio(req)); V.setHouseMaker(maker.handle); const mm = app.locals.accounts && /^\/account/.test(req.path) ? app.locals.accounts.makerOf(req) : null; V.setDeskGallery(!!(mm && mm.kind === 'gallery')); V.setDeskInstitution(!!(mm && mm.kind === 'institution')); V.setDeskPrinter(!!(mm && mm.kind === 'printer')); } catch (e) { /* before the Studio exists */ } next(); });
   app.use(express.urlencoded({ extended: false, limit: '64kb' }));
   app.use(express.json({ limit: '64kb' }));
+  require('./push').mountPush(app, { db, C, V }); // push (29 Oct): a computer let in by a code to send an archive through the vault's doors (bin/watermark.js)
 
   // --- auth for the Studio ---
   const sign = v => crypto.createHmac('sha256', C.secret).update(v).digest('hex');
