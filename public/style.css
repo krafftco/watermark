@@ -4421,3 +4421,16 @@ html.in-stay .top .nv-back{display:none}
 .hb .hb-at{display:block;margin:6px 0 10px;font-size:14px}
 .sfy .sfy-steps{margin:12px 0 22px 1.2em;line-height:1.7}.sfy .sfy-look img{max-width:min(900px,100%);height:auto;display:block;margin:12px 0}.sfy .sfy-f{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:14px}
 .own-adult{display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0}
+/* The brief (29 Oct): brands commission artists */
+.brf-how{margin:18px 0 26px;padding-left:20px;line-height:1.7}.brf-how b{font-weight:600}
+.brf-f{display:grid;gap:14px;max-width:640px}.brf-f label{display:grid;gap:4px;font-size:14px}.brf-f input,.brf-f textarea{font:inherit;padding:9px 10px;border:1px solid var(--rule,#ccc);border-radius:6px;background:transparent;color:inherit}
+.brf-f fieldset{border:1px solid var(--rule,#ddd);border-radius:8px;padding:12px 14px;display:grid;gap:8px}.brf-f legend{font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:0 4px}
+.brf-o{display:flex!important;gap:10px;align-items:flex-start}.brf-o input{margin-top:4px}.brf-o span{display:grid}.brf-o small{opacity:.7}.brf-row{display:flex;gap:18px;flex-wrap:wrap}
+.brf-state{display:inline-block;padding:4px 10px;border:1px solid currentColor;border-radius:99px;font-size:13px;opacity:.85}
+.brf-ans,.brf-list,.brf-files{list-style:none;padding:0;display:grid;gap:14px}.brf-ans li{border:1px solid var(--rule,#ddd);border-radius:10px;padding:14px}
+.brf-refs{display:flex;gap:6px;overflow-x:auto}.brf-refs img{height:96px;border-radius:4px}
+.brf-list a{display:grid;padding:10px 0;border-bottom:1px solid var(--rule,#eee);text-decoration:none;color:inherit}.brf-list span{opacity:.7;font-size:14px}
+.brf-ag{white-space:pre-wrap;font:14px/1.6 Georgia,serif;background:rgba(0,0,0,.03);padding:16px;border-radius:8px;max-height:420px;overflow:auto}
+.brf-file{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.brf-file small{opacity:.6}.brf-ap{margin:10px 0;display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.brf-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;max-height:360px;overflow:auto}.brf-pw{position:relative;display:block!important}.brf-pw img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px}.brf-pw input{position:absolute;top:6px;left:6px}.brf-held img{opacity:.35}.brf-held small{position:absolute;bottom:4px;left:4px;font-size:10px}
+.brf-body{white-space:normal;line-height:1.6;margin:12px 0}

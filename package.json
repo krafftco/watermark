@@ -1,11 +1,11 @@
 {
   "name": "watermark",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Watermark: hold, show and license photographs at the source.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js test/fixture.jpg && node test/s3.js && node test/anchor.js && node test/raw.js && node test/push.js && node test/museums.js && node test/lightroom.js && node test/pairs.js && node test/hangbest.js && node test/vault.js && node test/arrivals-client.js && node test/sync.js && node test/credentials.js && node test/closer.js && node test/speech.js && node test/beta.js && node test/drop.js && node test/fee.js && node test/pictures.js && node test/boot.js && node test/classes.js && node test/dialect.js && node test/role.js",
+    "test": "node test/smoke.js test/fixture.jpg && node test/s3.js && node test/anchor.js && node test/raw.js && node test/push.js && node test/museums.js && node test/lightroom.js && node test/pairs.js && node test/hangbest.js && node test/briefs.js && node test/vault.js && node test/arrivals-client.js && node test/sync.js && node test/credentials.js && node test/closer.js && node test/speech.js && node test/beta.js && node test/drop.js && node test/fee.js && node test/pictures.js && node test/boot.js && node test/classes.js && node test/dialect.js && node test/role.js",
     "seed": "node scripts/seed.js"
   },
   "keywords": [],

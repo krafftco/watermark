@@ -4,6 +4,13 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+
+## 1.11.0 · The brief · 29 October 2026
+- For brands (/brands): a brand says once what it needs (what, how many, photographs or a reel, the uses, where, how long, exclusively or not, the budget, the date), to an open call or to one artist (Commission on every maker page). No account: the brand's desk comes by letter.
+- Artists answer with a fee, a line and their own work; the brand chooses; the agreement is written from the brief and fingerprinted; the brand pays once, the fee and the house's share on top, and the house holds it.
+- Delivery from the vault and straight: photographs, reels and films (MP4, MOV, WebM), every file through the bag check and fingerprinted. A company's or a campaign's use waits for the releases of anyone recognisable.
+- The brand looks, asks for a change or approves; approved by itself after fourteen days. On approval the licence runs, the files are theirs to take, and the artist's fee joins the statement for Friday pay.
+
 ## 1.10.0 · Hang your best · 29 October 2026
 
 - Hang your best: your graded work sorted into what can hang now and what wants one look first. People and children are shown to you before they hang; a soft, badly exposed or too-small file, or a near twin from one burst, stays down unless you say.

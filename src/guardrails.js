@@ -92,7 +92,7 @@ function mountGuardrails(app, { base }) {
   app.post(['/account/works/one', '/studio/works'], L('upload', 400, 60 * 60000));
   // The public doors a stranger may bring a file to (21 Oct, the bag check): a handful an hour each, never a flood.
   app.post(['/verify', '/yours/add', '/w/:slug/claim', '/cabinet/add'], L('bring', 30, 60 * 60000));
-  app.post(['/account/deliveries', '/trade/quote', '/rights/:handle', '/feedback'], L('ask', 40, 60 * 60000));
+  app.post(['/account/deliveries', '/trade/quote', '/rights/:handle', '/feedback', '/brands/brief'], L('ask', 40, 60 * 60000));
   app.post(['/swap', '/yours/send', '/yours/offer', '/market/:id/bid', '/w/:slug/offer', '/friends', '/m/:slug/patron'], L('money', 60, 10 * 60000));
   app.use(['/w/:slug/capture', '/w/:slug/stood'], L('beacon', 600, 10 * 60000));
 }

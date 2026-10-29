@@ -23,7 +23,7 @@ const TRAIL = 64 * 1024; // bytes allowed after a JPEG's EOI (some cameras and e
 const IMAGE = { jpeg: ['.jpg', 'image/jpeg'], png: ['.png', 'image/png'], tiff: ['.tif', 'image/tiff'], webp: ['.webp', 'image/webp'] };
 const DNG = ['.dng', 'image/x-adobe-dng'];
 const AUDIO = { webm: ['.webm', 'audio/webm'], ogg: ['.ogg', 'audio/ogg'], mp4: ['.m4a', 'audio/mp4'], mp3: ['.mp3', 'audio/mpeg'], wav: ['.wav', 'audio/wav'], flac: ['.flac', 'audio/flac'], aiff: ['.aiff', 'audio/aiff'] };
-const EXPECT = { image: Object.keys(IMAGE), audio: Object.keys(AUDIO), archive: ['zip'], papers: ['pdf', ...Object.keys(IMAGE)], proof: ['zip', ...Object.keys(IMAGE)] };
+const EXPECT = { image: Object.keys(IMAGE), audio: Object.keys(AUDIO), deliverable: [...Object.keys(IMAGE), 'mp4', 'webm', 'pdf'], archive: ['zip'], papers: ['pdf', ...Object.keys(IMAGE)], proof: ['zip', ...Object.keys(IMAGE)] };
 
 // What a file is, from its first bytes; and what it must never be.
 function sniff(head) {
@@ -86,7 +86,7 @@ async function check(file, { expect = 'image', name = '', where = '', who = '', 
   const fd = fs.openSync(file, 'r'); const head = Buffer.alloc(64); const n = fs.readSync(fd, head, 0, 64, 0); fs.closeSync(fd);
   const type = sniff(head.slice(0, n));
   if (!allowed.includes(type)) {
-    const want = expect === 'audio' ? 'a recording (WAV, FLAC, AIFF, MP3, M4A, Ogg or WebM)' : expect === 'archive' ? 'a .wmark archival master' : expect === 'papers' ? 'a photograph or a PDF' : expect === 'proof' ? 'a photograph or a .wmark' : 'a photograph (JPEG, PNG, TIFF or WebP)';
+    const want = expect === 'audio' ? 'a recording (WAV, FLAC, AIFF, MP3, M4A, Ogg or WebM)' : expect === 'archive' ? 'a .wmark archival master' : expect === 'papers' ? 'a photograph or a PDF' : expect === 'proof' ? 'a photograph or a .wmark' : expect === 'deliverable' ? 'a photograph, a film (MP4, MOV or WebM) or a PDF' : 'a photograph (JPEG, PNG, TIFF or WebP)';
     const why = type === 'heic' ? 'This is a HEIC. Export it as a JPEG or a TIFF and bring that.' : `This is ${say(type)}, not ${want}.`;
     return verdict(false, type, why);
   }
