@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.0 · Al's edit · 29 October 2026
+- A picture editor's first pass over a whole archive: Al looks at every frame you have not graded and gives it stars against the rest of your own work (the top five in a hundred five stars, the next fifteen four).
+- Your own grades of two and up are never touched; grade over Al's and the grade is yours.
+- Frames still named by the camera's file name are given a plain title; your wording is kept.
+- The best of the edit is read for people at once, so Hang your best can sort it. Nothing is published by the edit.
+
 ## 1.13.1 · A door for everyone · 29 October 2026
 - The front door says it plainly: keep what you make; own a piece of what others make. The fifth door is Keep: everything you make, safe and yours, shown or held back as you choose, free to begin. Open your museum speaks to everyone who makes pictures, and says the held-back stay private.
 
