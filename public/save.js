@@ -3,6 +3,12 @@
    a[download] of an image) fetches the file and hands it to the share sheet. If the phone needs a fresh tap after the
    fetch, a "Save to Photos" button appears in place for that tap. On a computer, links download as they always did. */
 (function () {
+  // No one-tap save (29 Oct, Will: "we can't make it one tap and save"): a long press or a right click on a picture of
+  // the house offers nothing. A screenshot can't be stopped; the file can be kept from being handed over. The ways to
+  // keep a picture are the house's own: Collect, the holder's Save it, an album's Download.
+  document.addEventListener('contextmenu', function (e) { var t = e.target; if (t && (t.tagName === 'IMG' || t.tagName === 'PICTURE' || t.tagName === 'CANVAS' || (t.closest && t.closest('.ez,.st,.wv,.vr,.trp,.tw,.plate,.dw,.yx'))) && !(t.closest && t.closest('[data-allow-save]'))) e.preventDefault(); }, true);
+  document.addEventListener('dragstart', function (e) { var t = e.target; if (t && t.tagName === 'IMG' && !(t.closest && t.closest('[data-allow-save]'))) e.preventDefault(); }, true);
+
   if (window.__WM_SAVE) return; window.__WM_SAVE = 1;
   var phone = matchMedia('(pointer:coarse)').matches && /iPhone|iPad|iPod|Android/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var can = false;
