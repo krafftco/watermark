@@ -4,6 +4,12 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.9.0 · Pairs · 29 October 2026
+
+- A master and the web copy it was exported beside are joined even when they are not the same file: a different crop, a straightened horizon, a new grade, black and white. The camera's own moment and the picture itself decide.
+- When the house is sure it joins them: the older record keeps its page, number, words and licences, with the larger file as its master. When it is not sure it asks you, side by side, at Your studio → Pairs. Every join can be undone.
+- Two frames of one size are never joined: a burst stays a burst.
+
 ## 1.8.0 · From where you edit · 29 October 2026
 
 - What Lightroom, Capture One, Photo Mechanic or Leica FOTOS wrote into the file comes in with it: the title, caption, keywords, place and stars. What you type in the vault still wins.

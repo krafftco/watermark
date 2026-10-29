@@ -4405,3 +4405,9 @@ html.in-stay .top .nv-back{display:none}
 /* signed at capture (29 Oct): the camera's own Content Credentials */
 .cc-sig .cc-tag{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border:1px solid currentColor;border-radius:999px;margin-right:10px;white-space:nowrap}
 .psh .psh-steps{margin:14px 0 18px 1.2em;line-height:1.8}.psh .psh-steps li{margin:4px 0}
+.pz .pz-list{list-style:none;padding:0;margin:12px 0 28px;display:grid;gap:22px}
+.pz .pz-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px;border:1px solid var(--line,#ddd6c8);border-radius:6px}
+.pz .pz-row figure{margin:0}.pz .pz-row img{width:100%;aspect-ratio:3/2;object-fit:contain;background:#0b0a09;border-radius:3px}
+.pz .pz-row figcaption{display:flex;flex-direction:column;font-size:13px;margin-top:6px}.pz .pz-row figcaption span{opacity:.65}
+.pz .pz-why{grid-column:1/-1;font-size:13px;opacity:.75}.pz .pz-acts{grid-column:1/-1;display:flex;gap:10px;align-items:center}
+@media (max-width:640px){.pz .pz-row{grid-template-columns:1fr 1fr;padding:10px;gap:8px}}

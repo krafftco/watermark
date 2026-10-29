@@ -2281,6 +2281,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return merged;
   }
   app.locals.mergeTwins = mergeTwins;
+  // The second look after an import (29 Oct): masters joined to the web copies they were exported beside, edited or not.
+  app.locals.pairs = require('./pairs').mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly });
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's
   // small copy when it is on disk, else its original.

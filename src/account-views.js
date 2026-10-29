@@ -70,7 +70,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 const I = require('./icons');
-function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
+function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
   const grade = w => `<form method="post" action="/account/works/${esc(w.slug)}/stars" class="st" data-stars="${w.stars}" data-slug="${esc(w.slug)}">${viewing ? `<input type="hidden" name="maker" value="${esc(m.handle)}">` : ''}${[1, 2, 3, 4, 5].map(n => `<button name="n" value="${n}" class="${w.stars >= n ? 'on' : ''}" aria-label="${n} star${n === 1 ? '' : 's'}" title="${n}">&#9733;</button>`).join('')}</form>`;
@@ -102,6 +102,7 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
   const bank = totals.bank;
   const needRows = viewing ? [] : [
     asks ? ['/account/requests', 'Answer', `${asks} request${asks === 1 ? '' : 's'} waiting`] : null,
+    pairs ? ['/account/pairs', 'Confirm', `${pairs} picture${pairs === 1 ? '' : 's'} that look${pairs === 1 ? 's' : ''} like one${pairs === 1 ? '' : 's'} you hold`] : null,
     claims ? ['/account/claims', 'Answer', `${claims} claim${claims === 1 ? '' : 's'} about your work`] : null,
     rep ? ['/account/representation', 'Decide', `${rep} offers to represent you`] : null,
     owed >= 100 && !bank ? ['/account/payouts', 'Add your bank', `${money(owed)} is owed to you`] : null,
