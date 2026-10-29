@@ -2254,7 +2254,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       for (const w of db.prepare('SELECT id, slug, title, dhash, width, height FROM works WHERE maker_id=? AND id<? AND dhash IS NOT NULL AND status IN (\'held\',\'hidden\')').all(t.maker_id, t.id)) {
         const d = images.hamming(t.dhash, w.dhash); if (d < bestD && (w.width / w.height > 1) === (t.width / t.height > 1)) { best = w; bestD = d; }
       }
-      if (!best || bestD > 6 || (best.width || 0) * (best.height || 0) >= t.width * t.height) continue;
+      if (!best || bestD > 6 || (t.width * t.height) < 1.5 * (best.width || 0) * (best.height || 0)) continue; // half again the pixels, or it is a sibling frame (29 Oct)
       try {
         const file = await originalPath(t); const tmp = path.join(originals, `twin-${t.id}${path.extname(t.original_file)}`); fs.copyFileSync(file, tmp);
         const info = await images.inspect(tmp);
@@ -2278,7 +2278,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       if (d < bestD && (w.width / w.height > 1) === (info.width / info.height > 1)) { best = w; bestD = d; }
     }
     if (!best || bestD > 6) return null;
-    if ((best.width || 0) * (best.height || 0) >= info.width * info.height) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, outcome: 'smaller', slug: best.slug, error: `This looks like ${tidyT(best.title)}, already held at ${Math.round((best.width || 0) * (best.height || 0) / 1e6)} megapixels; this file is no larger. Nothing was changed.` }; }
+    // (29 Oct) Same size is a sibling, not a copy: two frames of one scene from the same camera read alike to the eye's
+    // hash, and a dump from a day in one city has many. Only a file clearly larger (half again the pixels) replaces a
+    // master, only one clearly smaller is declined as a lesser copy; anything near the same size comes in as its own work.
+    const ratio = (info.width * info.height) / Math.max(1, (best.width || 0) * (best.height || 0));
+    if (ratio < 1.5 && ratio > 1 / 1.5) return null;
+    if (ratio <= 1 / 1.5) { try { fs.unlinkSync(file); } catch (e) { /* gone */ } return { ok: false, status: 409, outcome: 'smaller', slug: best.slug, error: `This looks like ${tidyT(best.title)}, already held at ${Math.round((best.width || 0) * (best.height || 0) / 1e6)} megapixels; this file is no larger. Nothing was changed.` }; }
     const w = await replaceMaster(q.work.get(best.slug), { path: file, originalname }, info, h);
     return { ok: true, outcome: 'master', slug: w.slug, title: w.title, distance: bestD, mp: Math.round(info.width * info.height / 1e6), width: info.width, height: info.height, fingerprint: info.sha256.slice(0, 12) };
   });

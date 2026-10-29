@@ -48,6 +48,14 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     if (!name || !size || size > MAX_GB * 1e9) return res.status(400).json({ ok: false, error: 'A name and a size under the limit, please.' });
     if (!/^image\//.test(type)) return res.status(400).json({ ok: false, error: 'Images only.' });
     const parts = Math.max(1, Math.ceil(size / partSize));
+    // Once, never twice (29 Oct, Will: "we do not want you to be able to hit put in vault twice"): the same file (name and
+    // size, by the same hand, for the same purpose) already on its way in or taken in the last day is not sent again.
+    // Still uploading: its arrival is handed back and the parts go to the same upload. Arrived, being read or held:
+    // the sender is told so and sends nothing; the page follows that arrival to its end.
+    const who = purpose === 'work' ? (maker(req) ? `m:${maker(req).id}` : null) : 'studio';
+    const twin = who && db.prepare("SELECT * FROM arrivals WHERE by=? AND purpose=? AND name=? AND size=? AND status IN ('uploading','arrived','working','done') AND created_at > datetime('now','-1 day') ORDER BY id DESC LIMIT 1").get(who, purpose, name, size);
+    if (twin && twin.status === 'uploading') return res.json({ ok: true, id: twin.id, key: twin.key, partSize, parts: twin.parts, direct: direct && !!twin.upload_id, again: 'uploading' });
+    if (twin) return res.json({ ok: true, id: twin.id, already: twin.status });
     const key = `arrivals/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safe(name)}`;
     let uploadId = null;
     if (direct) { try { uploadId = await store.multipart.start(key, type); } catch (e) { console.error('[arrivals] start', e.message); return res.status(502).json({ ok: false, error: 'The vault did not answer: ' + e.message.slice(0, 80) }); } }

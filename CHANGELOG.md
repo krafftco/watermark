@@ -4,6 +4,11 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.5.1 · A city's worth · 29 October 2026
+- The vault takes hundreds of full-size masters at once: the pictures beside each file are drawn small and one at a time, so choosing a whole shoot no longer stops the browser.
+- Put in the vault once: Send cannot be pressed twice, and the same file is never sent twice.
+- The next frame of a scene comes in as its own work; only a clearly larger file takes a master's place.
+
 ## 1.5 · The standard · 28 October 2026
 - The books (Studio → House → The books): the month's money events one a line with the Stripe id, the house's part and whose money the rest is; the month by revenue class; what the house holds for others at month end; and the one-pager for the bookkeeper. For Zeni, the finance back office of Krafftco LLC.
 - The house, anywhere: `docker compose up` runs the web, the worker, Postgres and an S3-compatible vault from one file (docs/ANYWHERE.md). The owner's view on the desk (/owner at fullerton.cloud): the house by its own instruments.

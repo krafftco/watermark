@@ -1730,7 +1730,7 @@ body.studio code,body.studio .acc{font-family:ui-monospace,SFMono-Regular,Menlo,
 .vt-go{min-width:280px}
 .vt-list{list-style:none;margin:32px 0 0;padding:0;display:grid;gap:0;border-top:1px solid var(--ink)}
 .vt-i{display:grid;grid-template-columns:112px 1fr;gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid var(--ln);transition:opacity .4s}
-.vt-pl{display:block;width:112px;height:76px;background:#0b0a09;overflow:hidden}.vt-pl img{width:100%;height:100%;object-fit:cover;display:block}
+.vt-pl{display:block;width:112px;height:76px;background:#0b0a09;overflow:hidden}.vt-pl img,.vt-pl canvas{width:100%;height:100%;object-fit:cover;display:block}
 .vt-t b{display:block;font-family:var(--read);font-weight:400;font-size:19px;margin-bottom:6px}
 .vt-s{display:flex;gap:14px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#b8b3aa}.vt-s i{font-style:normal;display:inline-flex;align-items:center;gap:6px;transition:color .3s}.vt-s i::before{content:"";width:6px;height:6px;border-radius:50%;border:1px solid currentColor}.vt-s i.on{color:var(--ink)}.vt-s i.on::before{background:var(--ink);border-color:var(--ink)}
 .vt-i.busy .vt-s i[data-s="1"]::before{animation:vt-pulse 1s infinite}

@@ -29,7 +29,7 @@
     // that was cut short, it does not stand in for a new one (the same eighteen chosen again showed the old records
     // and sent nothing). The masters desk still skips files it has sent, through sentBefore.
     if (m.done) m = {};
-    if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
+    if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); if (st.already) { onBytes(f.size); mem[k] = { id: st.id, done: true }; save(); if (o.onAlready) o.onAlready(st.already); return st.id; } m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
     if (!m.direct || viaHouse) return throughHouse(base, m, f, onBytes);
     var todo = []; for (var n = 1; n <= m.parts; n++) if (!m.etags[n]) todo.push(n); onBytes((m.parts - todo.length) * m.partSize);
     var i = 0;

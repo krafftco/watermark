@@ -526,6 +526,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'PUT', `/account/arrivals/${v.id}/body`, { cookie: mck, body: theirs2, headers: { 'content-type': 'application/octet-stream' } }); assert.ok(JSON.parse(r.body).ok, 'the maker puts');
     for (let t = 0; t < 40; t++) { await new Promise(r2 => setTimeout(r2, 100)); if (db.prepare('SELECT status FROM arrivals WHERE id=?').get(v.id).status === 'done') break; }
     r = await req(port, 'GET', `/account/arrivals/state?ids=${v.id}`, { cookie: mck }); const vs = JSON.parse(r.body); const got = vs.asked.find(x => x.id === v.id); assert.ok(got && got.status === 'done' && got.result.ok && got.result.deed && got.result.accession, 'taken in as the maker\'s: ' + JSON.stringify(got));
+    r = await req(port, 'POST', '/account/arrivals/start', { cookie: mck, body: { name: 'ada_cloister.jpg', size: theirs2.length, type: 'image/jpeg' } }); const tw = JSON.parse(r.body); assert.ok(tw.ok && tw.id === v.id && tw.already === 'done', 'once, never twice: the same file again is not sent: ' + r.body);
+    r = await req(port, 'POST', '/account/arrivals/start', { cookie: mck, body: { name: 'ada_twice.jpg', size: 1234, type: 'image/jpeg' } }); const t1 = JSON.parse(r.body); r = await req(port, 'POST', '/account/arrivals/start', { cookie: mck, body: { name: 'ada_twice.jpg', size: 1234, type: 'image/jpeg' } }); const t2 = JSON.parse(r.body); assert.ok(t1.id === t2.id && t2.again === 'uploading', 'a second press while sending hands back the same arrival');
+    assert.ok(/createImageBitmap/.test((await req(port, 'GET', '/account/upload', { cookie: mck })).body.toString()) && !/createObjectURL/.test((await req(port, 'GET', '/account/upload', { cookie: mck })).body.toString()), 'the vault draws small pictures, never the whole file');
     const vw = db.prepare('SELECT * FROM works WHERE slug=?').get(got.slug); assert.ok(vw.maker_id === est.id && vw.status === 'hidden' && vw.kind === 'painting' && vw.place === 'Genoa, Italy', 'theirs, private, a painting in Genoa');
     r = await req(port, 'GET', '/studio/arrivals/state', { cookie: ck }); assert.ok(!JSON.parse(r.body).recent.some(x => x.id === v.id), 'the masters desk does not list a maker\'s arrivals');
     r = await req(port, 'GET', '/account/upload', { cookie: mck }); assert.ok(r.body.toString().includes('/static/arrivals.js'), 'the vault page uses the sender'); }
@@ -1306,9 +1309,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const b = await app.locals.takeWork(big, { name: 'Up 1 full.jpg', maker_id: mk.id }); assert.ok(b.ok && b.outcome === 'master' && b.slug === a.slug && /master of/.test(b.note), JSON.stringify(b));
     const wr = db.prepare('SELECT * FROM works WHERE slug=?').get(a.slug); assert.ok(wr.width > 300 && wr.master_at, 'the record now holds the full frame');
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.master' AND subject=?").get(a.slug), 'told on the register');
-    const smaller = path.join(dir, 'smaller-up.jpg'); await sharp(fullUp).resize(500).jpeg({ quality: 90 }).toFile(smaller);
+    const smaller = path.join(dir, 'smaller-up.jpg'); await sharp(fullUp).resize(200).jpeg({ quality: 90 }).toFile(smaller);
     const c = await app.locals.takeWork(smaller, { name: 'Up 1 small again.jpg', maker_id: mk.id }); assert.ok(!c.ok && c.outcome === 'smaller' && /no larger/.test(c.error), JSON.stringify(c));
     assert.ok(!fs.existsSync(smaller), 'the declined file is not kept');
+    { const sib = path.join(dir, 'sibling-up.jpg'); await sharp(fullUp).modulate({ brightness: 1.04 }).jpeg({ quality: 82 }).toFile(sib); // the next frame of the same scene, at the same size (29 Oct)
+      const sb = await app.locals.takeWork(sib, { name: 'Up 1 next frame.jpg', maker_id: mk.id }); assert.ok(sb.ok && sb.outcome === 'work' && sb.slug !== a.slug, 'a sibling frame at the same size comes in as its own work: ' + JSON.stringify(sb)); }
     // Twins from before (the full frame registered beside the small one): mergeTwins makes it the master and retires the twin.
     { const tw = path.join(dir, 'twin-full.jpg'); await sharp(SRC).extract({ left: 0, top: 0, width: Math.floor(meta.width * 0.45), height: Math.floor(meta.height * 0.7) }).jpeg({ quality: 95 }).toFile(tw);
       const twS = path.join(dir, 'twin-small.jpg'); await sharp(tw).resize(280).jpeg({ quality: 90 }).toFile(twS);
