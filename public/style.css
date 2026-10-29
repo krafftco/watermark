@@ -4377,3 +4377,9 @@ html.in-stay .top .nv-back{display:none}
 .bks-pick{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 18px;font-size:13px}.bks-pick a{color:var(--mu,#777);text-decoration:none;padding:2px 0;border-bottom:1px solid transparent}.bks-pick a.on{color:inherit;border-bottom-color:currentColor}
 .bks-files{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
 .bks-tbl td.n,.bks-tbl th.n{text-align:right;font-variant-numeric:tabular-nums}.bks-tbl .bks-sum td{border-top:1px solid currentColor;font-weight:500}
+/* Imports (29 Oct): a batch put into the vault, file by file, with its receipt. */
+.imx-list{list-style:none;margin:24px 0 0;padding:0;border-top:1px solid var(--line,#ddd)}.imx-list li{border-bottom:1px solid var(--line,#ddd)}.imx-list a{display:grid;grid-template-columns:1fr auto;gap:4px 18px;padding:14px 0;color:inherit;text-decoration:none}.imx-list a span{color:var(--mu,#777);font-size:13px}.imx-c{grid-column:2;grid-row:1/3;align-self:center;text-align:right}.imx-c em{color:#8a3a30;font-style:normal}
+.imx-n{display:flex;flex-wrap:wrap;gap:8px 26px;margin:22px 0 10px;font-size:14px;color:var(--mu,#777)}.imx-n b{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:26px;color:var(--ink,#111);margin-right:6px}.imx-n .imx-need b{color:#8a3a30}
+.imx-bar{height:3px;background:var(--line,#e5e2dc);margin:6px 0 14px}.imx-bar i{display:block;height:100%;background:#b39a68;transition:width .6s}
+.imx-say{margin:0 0 18px}.imx-t td{vertical-align:top}.imx-t tr.imx-need td{color:#8a3a30}.imx-v{color:#3f6b3a;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.vt-imp{font-size:13px;color:var(--mu,#777);margin:6px 0 0}.vt-imp a{color:inherit}

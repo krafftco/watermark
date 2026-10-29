@@ -29,7 +29,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   db.exec(`CREATE TABLE IF NOT EXISTS arrivals (id INTEGER PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT, folder TEXT, upload_id TEXT, parts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'uploading', outcome TEXT, slug TEXT, title TEXT, error TEXT, by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), arrived_at TEXT, done_at TEXT,
     purpose TEXT NOT NULL DEFAULT 'master', place TEXT, kind TEXT, maker_id INTEGER, result TEXT)`);
-  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT'], ['sha256', 'TEXT'], ['verified', 'INTEGER'], ['import_id', 'INTEGER']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS arrivals_status ON arrivals (status, id)');
   fs.mkdirSync(incoming, { recursive: true });
   const direct = !!(store.kind === 's3' && store.multipart);
@@ -39,6 +39,10 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   const localFile = a => path.join(incoming, `arrival-${a.id}-${safe(a.name)}`);
 
   const maker = req => (makerOf ? makerOf(req) : null);
+  // Imports: the batch a person sends, with its receipt (src/imports.js).
+  require('./imports').mountImports(app, { db, studioOnly, makerOf });
+  const IM = app.locals.imports;
+  const shaFile = f => new Promise((res, rej) => { const h = crypto.createHash('sha256'); fs.createReadStream(f).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); });
   const guardFor = base => (base === '/studio' ? studioOnly : (req, res, next) => (maker(req) ? next() : res.status(401).json({ ok: false, error: 'Sign in.' })));
   const mine = (req, base) => (base === '/studio' ? row(req.params.id) : (() => { const a = row(req.params.id); const m = maker(req); return a && m && a.maker_id === m.id ? a : null; })());
   for (const base of ['/studio', '/account']) {
@@ -53,15 +57,31 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     // Still uploading: its arrival is handed back and the parts go to the same upload. Arrived, being read or held:
     // the sender is told so and sends nothing; the page follows that arrival to its end.
     const who = purpose === 'work' ? (maker(req) ? `m:${maker(req).id}` : null) : 'studio';
+    // The fingerprint taken on the computer (29 Oct): kept with the arrival and checked against the bytes that land.
+    const sha = /^[0-9a-f]{64}$/.test(String(req.body.sha256 || '')) ? String(req.body.sha256) : null;
+    let imp = +req.body.import_id || null; if (imp) { const I = IM.byId(imp); if (!I || I.by !== who) imp = null; }
+    // Ask before sending: bytes the house already holds are not sent again, at any scale. The answer is recorded as an
+    // arrival, so the import that asked counts it.
+    if (sha) {
+      const held = purpose === 'work' ? db.prepare('SELECT slug, title FROM works WHERE sha256=? AND maker_id=? LIMIT 1').get(sha, maker(req) ? maker(req).id : -1) : db.prepare('SELECT slug, title FROM works WHERE sha256=? LIMIT 1').get(sha);
+      if (held) {
+        const m0 = purpose === 'work' ? maker(req) : null;
+        const r0 = db.prepare("INSERT INTO arrivals (key, name, size, type, folder, parts, by, purpose, maker_id, status, outcome, slug, title, sha256, verified, import_id, result, arrived_at, done_at) VALUES (?,?,?,?,?,0,?,?,?,'done','held',?,?,?,1,?,?,datetime('now'),datetime('now'))")
+          .run('none', name, size, type, folder, who, purpose, m0 ? m0.id : null, held.slug, held.title, sha, imp, JSON.stringify({ ok: true, outcome: 'held', slug: held.slug, title: held.title, verified: true, note: 'Already in the vault, byte for byte: nothing was sent.' }));
+        if (imp) IM.soon(imp);
+        return res.json({ ok: true, id: r0.lastInsertRowid, already: 'held', slug: held.slug });
+      }
+    }
     const twin = who && db.prepare("SELECT * FROM arrivals WHERE by=? AND purpose=? AND name=? AND size=? AND status IN ('uploading','arrived','working','done') AND created_at > datetime('now','-1 day') ORDER BY id DESC LIMIT 1").get(who, purpose, name, size);
+    if (twin && (imp || sha)) db.prepare('UPDATE arrivals SET import_id=COALESCE(?, import_id), sha256=COALESCE(sha256, ?) WHERE id=?').run(imp, sha, twin.id);
     if (twin && twin.status === 'uploading') return res.json({ ok: true, id: twin.id, key: twin.key, partSize, parts: twin.parts, direct: direct && !!twin.upload_id, again: 'uploading' });
     if (twin) return res.json({ ok: true, id: twin.id, already: twin.status });
     const key = `arrivals/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safe(name)}`;
     let uploadId = null;
     if (direct) { try { uploadId = await store.multipart.start(key, type); } catch (e) { console.error('[arrivals] start', e.message); return res.status(502).json({ ok: false, error: 'The vault did not answer: ' + e.message.slice(0, 80) }); } }
     const m = purpose === 'work' ? maker(req) : null;
-    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, artist, maker_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
-      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, String(req.body.artist || '').trim().slice(0, 120) || null, m ? m.id : null);
+    const r = db.prepare('INSERT INTO arrivals (key, name, size, type, folder, upload_id, parts, by, purpose, title, place, kind, artist, maker_id, sha256, import_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(key, name, size, type, folder, uploadId, parts, m ? `m:${m.id}` : 'studio', purpose,
+      String(req.body.title || '').trim().slice(0, 200) || null, String(req.body.place || '').trim().slice(0, 120) || null, String(req.body.kind || '').trim().slice(0, 30) || null, String(req.body.artist || '').trim().slice(0, 120) || null, m ? m.id : null, sha, imp);
     res.json({ ok: true, id: r.lastInsertRowid, key, partSize, parts, direct });
   });
   app.post(`${base}/arrivals/:id/urls`, guard, async (req, res) => {
@@ -120,14 +140,27 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     const f = localFile(a);
     try {
       if (direct && a.via !== 'house') { await store.download(a.key, f); }
+      // The proof (29 Oct): the bytes that landed must be the bytes that left the computer, fingerprint for fingerprint,
+      // before anything is kept. A mismatch keeps nothing and says so; the person sends that file again.
+      if (a.sha256) {
+        const got = await shaFile(f);
+        if (got !== a.sha256) {
+          db.prepare("UPDATE arrivals SET status='failed', verified=0, error=?, done_at=datetime('now') WHERE id=?").run('The bytes that arrived are not the bytes that left your computer (the fingerprints differ). Nothing was kept: send this file again.', a.id);
+          console.error('[arrivals] fingerprint differs', a.id, a.name);
+          if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
+          return;
+        }
+        db.prepare('UPDATE arrivals SET verified=1 WHERE id=?').run(a.id);
+      }
       const r = a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
+      if (r && a.sha256) r.verified = true;
       if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
       else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);
       if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
     } catch (e) {
       console.error('[arrivals]', a.name, e.message);
       db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(e.message || e).slice(0, 300), a.id);
-    } finally { try { fs.unlinkSync(f); } catch (e) { /* consumed */ } }
+    } finally { try { fs.unlinkSync(f); } catch (e) { /* consumed */ } if (a.import_id) IM.soon(a.import_id); }
   }
   async function pump() {
     if (pumping) return; pumping = true;

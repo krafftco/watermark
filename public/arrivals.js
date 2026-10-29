@@ -17,6 +17,14 @@
     return fetch(url, { method: 'PUT', body: blob }).then(function (r) { if (!r.ok) throw new Error('the vault answered ' + r.status); var et = r.headers.get('ETag') || r.headers.get('etag'); if (!et) throw new Error(CORS); return et.replace(/"/g, ''); })
       .catch(function (e) { if (e.message === CORS) throw e; if (e instanceof TypeError) { if (tries > 0) return new Promise(function (res) { setTimeout(res, 1200); }).then(function () { return putPart(url, blob, tries - 1); }); throw new Error(CORS); } if (tries > 0) return new Promise(function (res) { setTimeout(res, 1500 * (4 - tries)); }).then(function () { return putPart(url, blob, tries - 1); }); throw e; });
   }
+  // The fingerprint (29 Oct): SHA-256 of each file, taken in a worker before it is sent (public/sha256-worker.js); the
+  // house checks the bytes that land against it and asks first whether it already holds them.
+  var W = null, wq = {}, wn = 0;
+  function hash(f) {
+    if (typeof Worker === 'undefined') return Promise.resolve(null);
+    if (!W) { try { W = new Worker('/static/sha256-worker.js'); W.onmessage = function (e) { var m = e.data, q = wq[m.id]; if (!q) return; if (m.read != null) { if (q.on) q.on(m.read); return; } delete wq[m.id]; if (m.sha256) q.ok(m.sha256); else q.ok(null); }; W.onerror = function () { for (var k in wq) { wq[k].ok(null); delete wq[k]; } }; } catch (e) { return Promise.resolve(null); } }
+    return new Promise(function (ok) { var id = ++wn; wq[id] = { ok: ok }; W.postMessage({ id: id, file: f }); });
+  }
   var viaHouse = false; // once the bucket has refused the browser this visit, every file goes through the house
   async function throughHouse(base, m, f, onBytes) {
     var r = await fetch(base + '/arrivals/' + m.id + '/body', { method: 'PUT', credentials: 'same-origin', body: f, headers: { 'content-type': 'application/octet-stream' } }).then(function (r) { if (r.status === 401 || r.redirected) throw 'signed-out'; return r.json(); });
@@ -29,7 +37,7 @@
     // that was cut short, it does not stand in for a new one (the same eighteen chosen again showed the old records
     // and sent nothing). The masters desk still skips files it has sent, through sentBefore.
     if (m.done) m = {};
-    if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); if (st.already) { onBytes(f.size); mem[k] = { id: st.id, done: true }; save(); if (o.onAlready) o.onAlready(st.already); return st.id; } m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
+    if (!m.id) { var body = { name: f.name, size: f.size, type: f.type || 'image/jpeg', folder: folder }; if (o.sha256 === undefined) o.sha256 = await hash(f); if (o.sha256) body.sha256 = o.sha256; if (o.importId) body.import_id = o.importId; var meta = o.meta || {}; for (var key in meta) if (meta[key] != null) body[key] = meta[key]; var st = await post(base + '/arrivals/start', body); if (!st.ok) throw new Error(st.error || 'refused'); if (st.already) { onBytes(f.size); mem[k] = { id: st.id, done: true }; save(); if (o.onAlready) o.onAlready(st.already); return st.id; } m = { id: st.id, direct: st.direct, partSize: st.partSize, parts: st.parts, etags: {} }; mem[k] = m; save(); }
     if (!m.direct || viaHouse) return throughHouse(base, m, f, onBytes);
     var todo = []; for (var n = 1; n <= m.parts; n++) if (!m.etags[n]) todo.push(n); onBytes((m.parts - todo.length) * m.partSize);
     var i = 0;
@@ -40,7 +48,8 @@
         var et; try { et = await putPart(u.urls[n], blob, 3); } catch (e) { if (e.message === CORS) { viaHouse = true; if (o.onVia) o.onVia('house'); throw 'via-house'; } throw e; } m.etags[n] = et; save(); onBytes(blob.size);
       }
     }
-    try { await Promise.all([worker(), worker(), worker(), worker()]); } catch (e) { if (e === 'via-house') { m.etags = {}; save(); return throughHouse(base, m, f, onBytes); } throw e; }
+    var lanes = []; for (var l = 0; l < (o.lanes || 4); l++) lanes.push(worker());
+    try { await Promise.all(lanes); } catch (e) { if (e === 'via-house') { m.etags = {}; save(); return throughHouse(base, m, f, onBytes); } throw e; }
     if (stopped()) throw 'stopped';
     var parts = []; for (var j = 1; j <= m.parts; j++) parts.push({ n: j, etag: m.etags[j] });
     var d = await post(base + '/arrivals/' + m.id + '/done', { parts: JSON.stringify(parts) }); if (!d.ok) throw new Error(d.error || 'the vault refused');
@@ -48,7 +57,7 @@
   }
   var fmt = function (b) { return b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(0) + ' MB' : Math.round(b / 1e3) + ' KB'; };
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  window.WMArrivals = { send: send, post: post, fmt: fmt, esc: esc, sentBefore: function (base, f) { var m = mem[base + ':' + keyOf(f)]; return !!(m && m.done); } };
+  window.WMArrivals = { send: send, hash: hash, post: post, fmt: fmt, esc: esc, sentBefore: function (base, f) { var m = mem[base + ':' + keyOf(f)]; return !!(m && m.done); } };
 
   // The Studio's masters desk.
   var inp = document.getElementById('mFiles'), go = document.getElementById('mGo'), sum = document.getElementById('mSum'), list = document.getElementById('mList'), bar = document.getElementById('mBar'), q = document.getElementById('mQueue');

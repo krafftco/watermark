@@ -531,7 +531,36 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(/createImageBitmap/.test((await req(port, 'GET', '/account/upload', { cookie: mck })).body.toString()) && !/createObjectURL/.test((await req(port, 'GET', '/account/upload', { cookie: mck })).body.toString()), 'the vault draws small pictures, never the whole file');
     const vw = db.prepare('SELECT * FROM works WHERE slug=?').get(got.slug); assert.ok(vw.maker_id === est.id && vw.status === 'hidden' && vw.kind === 'painting' && vw.place === 'Genoa, Italy', 'theirs, private, a painting in Genoa');
     r = await req(port, 'GET', '/studio/arrivals/state', { cookie: ck }); assert.ok(!JSON.parse(r.body).recent.some(x => x.id === v.id), 'the masters desk does not list a maker\'s arrivals');
-    r = await req(port, 'GET', '/account/upload', { cookie: mck }); assert.ok(r.body.toString().includes('/static/arrivals.js'), 'the vault page uses the sender'); }
+    r = await req(port, 'GET', '/account/upload', { cookie: mck }); assert.ok(r.body.toString().includes('/static/arrivals.js'), 'the vault page uses the sender'); 
+    // Imports and the proof (29 Oct): a batch is one import with its receipt; the fingerprint taken on the computer is
+    // checked against the bytes that land before anything is kept; bytes already held are never sent again.
+    { const crypto2 = require('crypto'); const sharp2 = require('sharp');
+      const good = await sharp2(SRC).extract({ left: 3, top: 3, width: 220, height: 160 }).rotate(90).jpeg({ quality: 93 }).toBuffer();
+      const bad = await sharp2(SRC).extract({ left: 9, top: 40, width: 200, height: 150 }).negate().jpeg({ quality: 93 }).toBuffer();
+      const sha = b => crypto2.createHash('sha256').update(b).digest('hex');
+      const heldW = db.prepare('SELECT * FROM works WHERE slug=?').get(got.slug); const heldBytes = fs.readFileSync(path.join(dir, 'originals', heldW.original_file));
+      const files = [['imp_good.jpg', good.length], ['imp_tampered.jpg', bad.length], ['imp_again.jpg', heldBytes.length], ['imp_never.jpg', 999]];
+      r = await req(port, 'POST', '/account/imports', { cookie: mck, headers: { 'content-type': 'application/x-watermark-import+json' }, body: JSON.stringify({ label: 'Drill', place: 'Philadelphia', files }) }); const im = JSON.parse(r.body); assert.ok(im.ok && im.id && /\/account\/imports\//.test(im.href), 'an import is made: ' + r.body);
+      const put = async (name, buf, claimed) => { const st = JSON.parse((await req(port, 'POST', '/account/arrivals/start', { cookie: mck, body: { name, size: buf.length, type: 'image/jpeg', sha256: claimed, import_id: im.id } })).body); if (st.already) return st; const pr = await req(port, 'PUT', `/account/arrivals/${st.id}/body`, { cookie: mck, body: buf, headers: { 'content-type': 'application/octet-stream' } }); assert.ok(JSON.parse(pr.body).ok); return st; };
+      const g = await put('imp_good.jpg', good, sha(good));
+      const t = await put('imp_tampered.jpg', bad, sha(good)); // the fingerprint of other bytes: what lands is not what left
+      const h2 = await put('imp_again.jpg', heldBytes, sha(heldBytes)); assert.ok(h2.already === 'held' && h2.slug === got.slug, 'bytes already held are not sent again: ' + JSON.stringify(h2));
+      for (let k = 0; k < 60; k++) { await new Promise(r2 => setTimeout(r2, 100)); const a1 = db.prepare('SELECT status FROM arrivals WHERE id=?').get(g.id).status, a2 = db.prepare('SELECT status FROM arrivals WHERE id=?').get(t.id).status; if (/done|failed/.test(a1) && /done|failed/.test(a2)) break; }
+      const ga = db.prepare('SELECT * FROM arrivals WHERE id=?').get(g.id), ta = db.prepare('SELECT * FROM arrivals WHERE id=?').get(t.id);
+      assert.ok(ga.status === 'done' && ga.verified === 1 && JSON.parse(ga.result).verified, 'the good file is held and verified');
+      assert.ok(ta.status === 'failed' && /not the bytes that left/.test(ta.error) && !db.prepare("SELECT 1 FROM works WHERE title LIKE 'Imp Tampered%'").get(), 'a file whose bytes changed on the way is not kept: ' + ta.error);
+      r = await req(port, 'GET', `/account/imports/${im.id}.json`, { cookie: mck }); const ij = JSON.parse(r.body);
+      assert.ok(ij.counts.chosen === 4 && ij.counts.held === 1 && ij.counts.already === 1 && ij.counts.need === 1 && ij.counts.none === 1 && ij.counts.verified === 2, 'the import knows where each file stands: ' + JSON.stringify(ij.counts));
+      r = await req(port, 'GET', `/account/imports/${im.id}`, { cookie: mck }); const ip = r.body.toString(); assert.ok(r.status === 200 && /Needs you/.test(ip) && /Not sent yet/.test(ip) && /verified/.test(ip) && /receipt\.csv/.test(ip), 'the import page');
+      r = await req(port, 'GET', `/account/imports/${im.id}/receipt.csv`, { cookie: mck }); const rc = r.body.toString(); assert.ok(/^file,bytes,state,verified/.test(rc) && /imp_good\.jpg,\d+,Held,yes/.test(rc) && /needs you,1/.test(rc), 'the receipt: ' + rc.slice(0, 300));
+      r = await req(port, 'GET', `/account/imports/${im.id}.json`); assert.equal(r.status, 401, 'a stranger reads nothing');
+      // every file answered (the one never sent is sent now) → the import is finished and the maker told
+      await put('imp_never.jpg', Buffer.alloc(999, 1), null);
+      for (let k = 0; k < 60; k++) { await new Promise(r2 => setTimeout(r2, 100)); if (db.prepare('SELECT finished_at FROM imports WHERE id=?').get(im.id).finished_at) break; }
+      await new Promise(r2 => setTimeout(r2, 2000)); await app.locals.imports.check(im.id);
+      const fin = db.prepare('SELECT * FROM imports WHERE id=?').get(im.id); assert.ok(fin.finished_at && fin.told_at, 'finished and told');
+      assert.ok(db.prepare("SELECT 1 FROM notices WHERE kind='import' AND maker_id=?").get(est.id), 'the maker has a notice'); }
+    }
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck }); assert.ok(r.headers.location.includes('need=attest'), 'no publishing without the attestation');
   r = await req(port, 'POST', `/account/works/${aj.slug}/show`, { cookie: mck, body: { attest: '1' } });
   assert.ok(db.prepare("SELECT COUNT(*) n FROM acceptances WHERE who='maker' AND doc='makers'").get().n >= 1, 'publishing accepted the Maker Agreement');

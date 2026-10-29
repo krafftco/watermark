@@ -30,6 +30,7 @@ const KINDS = {
   standing: { who: 'buyer', label: 'This month’s piece, from your standing order', on: true },
   kept: { who: 'maker', label: 'Someone keeps a work from an album you sent', on: true },
   daily: { who: 'both', label: 'The work of the day, each morning at nine', on: true },
+  import: { who: 'maker', label: 'An import into your vault is finished', on: true },
 };
 
 function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl }) {
