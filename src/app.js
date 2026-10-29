@@ -2544,8 +2544,19 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The disk kept clear (29 Oct): old generations of renditions swept at start and hourly; the originals cache trimmed
   // when the disk runs low; the warming waits while it is low (a visitor's first look still makes what it needs).
   const diskLow = () => (images.free(C.dataDir) ?? Infinity) < DISK_FLOOR;
-  function clearDisk() { try { const r = images.sweep(cache); if (r.n) console.log('[disk] swept', r.n, 'old renditions,', Math.round(r.freed / 1e6), 'MB'); if (diskLow()) { trimOriginals(); console.log('[disk] low:', Math.round((images.free(C.dataDir) || 0) / 1e6), 'MB free'); } } catch (e) { console.error('[disk]', e.message); } }
+  const REND_BUDGET = Number(process.env.RENDITIONS_CACHE_GB || 6) * 1e9;
+  function clearDisk() { try {
+    const r = images.sweep(cache); if (r.n) console.log('[disk] swept', r.n, 'old renditions,', Math.round(r.freed / 1e6), 'MB');
+    // The display copies within their budget always; under twice the floor, to half of it.
+    const tight = (images.free(C.dataDir) ?? Infinity) < DISK_FLOOR * 2;
+    const t = images.trimRenditions(cache, tight ? REND_BUDGET * 0.5 : REND_BUDGET); if (t.n) console.log('[disk] trimmed', t.n, 'display copies,', Math.round(t.freed / 1e6), 'MB');
+    if (tight) trimOriginals();
+    if (diskLow()) console.log('[disk] low:', Math.round((images.free(C.dataDir) || 0) / 1e6), 'MB free');
+  } catch (e) { console.error('[disk]', e.message); } }
+  let usageAt = 0, usageWas = null; const diskUsage = () => { if (!usageWas || Date.now() - usageAt > 300000) { usageAt = Date.now(); const u = images.usage(C.dataDir); usageWas = Object.fromEntries(Object.entries(u).filter(([, v]) => v > 5e7).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round(v / 1e8) / 10])); } return usageWas; };
+  app.locals.diskUsage = diskUsage;
   app.locals.clearDisk = clearDisk; app.locals.diskLow = diskLow;
+  app.post('/studio/disk/clear', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); const before = images.free(C.dataDir); clearDisk(); usageWas = null; res.json({ ok: true, freedGB: Math.round(((images.free(C.dataDir) || 0) - (before || 0)) / 1e8) / 10, freeGB: Math.round((images.free(C.dataDir) || 0) / 1e8) / 10, diskGB: diskUsage() }); });
   if (!cfg.noTimers) { setTimeout(clearDisk, 3000).unref(); setInterval(clearDisk, 15 * 60e3).unref(); }
   let warming = false;
   async function warmAll() {
@@ -2595,7 +2606,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.
     const pgActivity = db.kind === 'postgres' ? (() => { try { return db.prepare("SELECT pid, application_name app, state, wait_event_type wait, wait_event, floor(extract(epoch from (now() - COALESCE(query_start, backend_start)))) age_s, left(query, 120) q FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY backend_start").all(); } catch (e) { return [{ error: e.message.split('\n')[0] }]; } })() : undefined;
-    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, faults: process.faults || null });
+    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, faults: process.faults || null });
   });
   // security.txt (RFC 9116): where a researcher writes, and the house's claims page.
   app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });

@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.4 · The disk kept lean · 29 October 2026
+
+- The display copies are a cache with a budget (RENDITIONS_CACHE_GB, 6): past it the least recently used go, the wall size first, then large, then screen; thumbs stay. Under twice the disk's floor, half the budget.
+- /healthz (full) shows what the disk holds, folder by folder; POST /studio/disk/clear clears it now.
+
 ## 1.14.3 · More with Collect · 29 October 2026
 
 - A Collect now delivers the 3,840-pixel copy (COLLECT_PX), so the file you buy is larger than anything shown on the wall; never past the master. The share-size copy on every license stays 2,400.

@@ -151,6 +151,36 @@ function sweep(cacheDir) {
   }
   return { freed, n };
 }
+// The renditions kept within a budget (29 Oct, Will: "let's really watch that, and figure out a solution"): the display
+// copies are a cache (the edge holds them, and each is remade from the master on the next ask), so when they pass
+// their budget the least recently used go first: the wall size, then large, then screen; thumbs are never trimmed
+// (grids ask for hundreds at once). Darkroom working copies and veils are cache too and go first of all.
+function trimRenditions(cacheDir, budget) {
+  let names = []; try { names = fs.readdirSync(cacheDir); } catch (e) { return { freed: 0, n: 0, total: 0 }; }
+  const rank = f => /-(dkr|held|veil|developed|neg)-?/.test(f) ? 0 : /-wallm?q\d/.test(f) ? 1 : /-largem?q\d/.test(f) ? 2 : /-screenm?q\d/.test(f) ? 3 : null;
+  const files = []; let total = 0;
+  for (const f of names) {
+    const p = path.join(cacheDir, f); let st; try { st = fs.statSync(p); } catch (e) { continue; }
+    if (!st.isFile()) continue; total += st.size;
+    const r = rank(f); if (r == null || /\.tmp$/.test(f)) continue;
+    files.push({ p, size: st.size, r, at: Math.max(st.atimeMs || 0, st.mtimeMs || 0) });
+  }
+  let freed = 0, n = 0; if (total <= budget) return { freed, n, total };
+  files.sort((a, b) => a.r - b.r || a.at - b.at);
+  for (const f of files) { if (total - freed <= budget * 0.85) break; try { fs.unlinkSync(f.p); freed += f.size; n++; } catch (e) { /* in use */ } }
+  return { freed, n, total: total - freed };
+}
+// What the disk holds, folder by folder (for /healthz), in bytes.
+function usage(dir) {
+  const out = {};
+  let tops = []; try { tops = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }
+  for (const t of tops) {
+    const walk = q => { let n = 0; let es = []; try { es = fs.readdirSync(q, { withFileTypes: true }); } catch (e) { return 0; } for (const e of es) { const r = path.join(q, e.name); if (e.isDirectory()) n += walk(r); else { try { n += fs.statSync(r).size; } catch (x) { /* gone */ } } } return n; };
+    const p = path.join(dir, t.name); let n = 0; try { n = t.isDirectory() ? walk(p) : fs.statSync(p).size; } catch (e) { /* gone */ }
+    out[t.name] = n;
+  }
+  return out;
+}
 // Free bytes on the disk that holds a folder (null when the system cannot say).
 function free(dir) { try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch (e) { return null; } }
 // The format a request will take: WebP when the browser says so, else JPEG.
@@ -181,4 +211,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { sweep, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
