@@ -18,7 +18,7 @@ const { createApp } = require('../src/app');
   assert.ok(/Open your museum/.test(t) && /action="\/record"/.test(t) && /Collectors, not followers/.test(t), 'the door is open');
 
   // An artist opens a museum and puts work in.
-  const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com' });
+  const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com', adult: '1' });
   assert.ok(/\/account\/upload/.test(r.headers.get('location')), 'opened');
   const am = db.prepare("SELECT * FROM makers WHERE email='ana@example.com'").get(); assert.equal(am.door, 'record');
   const slugs = [];

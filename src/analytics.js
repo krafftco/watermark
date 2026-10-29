@@ -95,12 +95,13 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
         minute[kind] = (minute[kind] || 0) + 1; if (bot) minute.bot++; if (kind === 'page' && !bot) minute.ms.push(ms);
         if (kind === 'img' || kind === 'static') return;
         const v = visitorOf(req);
-        if (kind === 'page' && !bot && req.method === 'GET' && res.statusCode < 400) present.set(v, { at: Date.now(), path: page(req.path), device: device(ua) });
+        const kid = /^\/kids(\/|$)/.test(req.path); // the kids' corner keeps no one: counted, never a visitor, a referrer or a device (29 Oct)
+        if (kind === 'page' && !bot && !kid && req.method === 'GET' && res.statusCode < 400) present.set(v, { at: Date.now(), path: page(req.path), device: device(ua) });
         if (res.statusCode >= 400 && res.statusCode !== 404 || res.statusCode >= 500) { errors.unshift({ at: new Date().toISOString(), path: req.originalUrl.slice(0, 120), status: res.statusCode, ms }); if (errors.length > 40) errors.pop(); }
         let ref = null; try { const r = req.get('referer'); if (r) { const h = new URL(r).hostname; ref = h === new URL(C.base).hostname ? null : h.replace(/^www\./, ''); } } catch (e) { ref = null; }
         const country = (req.get('cloudfront-viewer-country') || req.get('cf-ipcountry') || req.get('x-vercel-ip-country') || req.get('x-country') || '').toUpperCase().slice(0, 2) || null;
         const bytes = +(res.get('content-length') || 0) || null;
-        buf.push([Math.floor(Date.now() / 1000), page(req.path), kind, res.statusCode, ms, bot ? null : v, ref, device(ua), browser(ua), bot, country, bytes]);
+        buf.push([Math.floor(Date.now() / 1000), page(req.path), kind, res.statusCode, ms, bot || kid ? null : v, kid ? null : ref, kid ? null : device(ua), kid ? null : browser(ua), bot, kid ? null : country, bytes]);
       } catch (e) { /* never in the way of a request */ }
     });
     next();

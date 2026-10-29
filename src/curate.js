@@ -77,7 +77,7 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
   app.post('/account/shows/:id/approve', (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     const h = db.prepare("SELECT * FROM hangs WHERE id=? AND for_maker_id=?").get(+req.params.id, m.id); if (!h) return res.sendStatus(404);
-    const hidden = db.prepare("SELECT w.* FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='hidden' AND w.maker_id=?").all(h.id, m.id);
+    const hidden = db.prepare("SELECT w.* FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='hidden' AND COALESCE(w.keep_back,0)=0 AND w.maker_id=?").all(h.id, m.id);
     for (const w of hidden) { db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { by: 'show', show: h.slug }); }
     db.prepare("UPDATE hangs SET review='approved', review_note=NULL, public=1, updated_at=datetime('now') WHERE id=?").run(h.id);
     ledger.append(db, 'hang.opened', h.slug, { show: true, maker: m.handle });

@@ -4,6 +4,13 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.10.0 · Hang your best · 29 October 2026
+
+- Hang your best: your graded work sorted into what can hang now and what wants one look first. People and children are shown to you before they hang; a soft, badly exposed or too-small file, or a near twin from one burst, stays down unless you say.
+- Keep back: a lock on any work that every publish respects.
+- What you may do with a picture of a person, said plainly: hang it, have it collected, print it, put it in a book of your work; a company's work or a campaign waits for their release.
+- Child safety: a picture read as a child unclothed or in a sexual picture is held out of every room at once and decided by a person at the house. Accounts are for adults. The kids' corner keeps no record of anyone.
+
 ## 1.9.0 · Pairs · 29 October 2026
 
 - A master and the web copy it was exported beside are joined even when they are not the same file: a different crop, a straightened horizon, a new grade, black and white. The camera's own moment and the picture itself decide.

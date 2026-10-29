@@ -828,7 +828,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/img/:slug/:size', async (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
-    if (!w || !images.SIZES[req.params.size]) return res.sendStatus(404);
+    if (!w || !images.SIZES[req.params.size] || w.status === 'quarantined') return res.sendStatus(404); // a held work is shown to no one (29 Oct)
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
@@ -1952,6 +1952,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
           ...need.filter(x => /ending within/.test(x.label)).map(x => [x.href, 'Renew', `${x.n} license${x.n === 1 ? '' : 's'} ending within 60 days`]),
           ...need.filter(x => /missing part/.test(x.label)).map(x => [x.href, 'Complete', `${x.n} record${x.n === 1 ? '' : 's'} missing a part`]),
           N.feedback ? ['/studio/feedback', 'Read', `${N.feedback} note${N.feedback === 1 ? '' : 's'} from visitors`] : null,
+          (app.locals.safety && app.locals.safety.waiting()) ? ['/studio/safety', 'Decide', `${app.locals.safety.waiting()} held for the house’s look`] : null,
           restoring ? ['/studio/restoration', 'Restore', `${restoring} work${restoring === 1 ? '' : 's'} off view`] : null,
           lost ? ['/studio/restoration', 'Find', `${lost} original${lost === 1 ? '' : 's'} not in the vault`] : null,
           ...need.filter(x => /masters|sightings/.test(x.label)).map(x => [x.href, /masters/.test(x.label) ? 'Upload masters' : 'Look', /masters/.test(x.label) ? `${x.n} public work${x.n === 1 ? '' : 's'} below full resolution` : `${x.n} sighting${x.n === 1 ? '' : 's'} of the work`]),
@@ -2282,6 +2283,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   app.locals.mergeTwins = mergeTwins;
   // The second look after an import (29 Oct): masters joined to the web copies they were exported beside, edited or not.
+  require('./safety').mountSafety(app, { db, V, ledger, studioOnly, originalPath }); // child safety: held out of every room at once, decided by a person (29 Oct)
+  app.locals.hangBest = require('./hangbest').mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // hang your best (29 Oct)
   app.locals.pairs = require('./pairs').mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly });
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's

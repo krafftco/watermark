@@ -76,7 +76,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- open a studio: anyone, in a minute ----------
   // A name and an email make a maker. They are signed in at once and can upload; what they publish is
   // their word (the attestation) and the Studio sees every new maker on Accounts, and can hold one.
-  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); if (app.locals.museums && req.query.sent !== '1') return res.send(V.layout({ title: 'Open your museum · Watermark', desc: 'Put your work in, keep all of it, hang the best: your own museum, under your name.', path: '/join', body: require('./museums').joinPage({ esc: V.esc, base: C.base, err: req.query.err || null }) })); res.send(A.join({ err: req.query.err || null, sent: req.query.sent === '1', name: req.query.name || '', email: req.query.email || '' })); });
+  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); if (app.locals.museums && req.query.sent !== '1') return res.send(V.layout({ title: 'Open your museum · Watermark', desc: 'Put your work in, keep all of it, hang the best: your own museum, under your name.', path: '/join', body: require('./museums').joinPage({ esc: V.esc, base: C.base, err: req.query.ok === 'adult' ? 'The house is for adults: tick that you are eighteen or older.' : req.query.err || null }) })); res.send(A.join({ err: req.query.err || null, sent: req.query.sent === '1', name: req.query.name || '', email: req.query.email || '' })); });
   // Studios are opened by invitation (Studio → Makers approves an application; the letter opens the studio). The old instant door is closed.
   app.post('/join', (req, res) => res.redirect(303, '/join'));
 
@@ -211,7 +211,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     const from = Math.max(1, Math.min(5, Math.round(Number((req.body || {}).from)) || 3));
     const down = db.prepare("UPDATE works SET status='hidden' WHERE maker_id=? AND status='held' AND stars>0 AND stars<?").run(m.id, from).changes;
-    const up = m.standing === 'held' ? 0 : db.prepare("UPDATE works SET status='held' WHERE maker_id=? AND status='hidden' AND stars>=? AND id IN (SELECT w.id FROM works w JOIN ledger g ON g.subject=w.slug AND g.type='work.published' WHERE w.maker_id=?)").run(m.id, from, m.id).changes;
+    const up = m.standing === 'held' ? 0 : db.prepare("UPDATE works SET status='held' WHERE maker_id=? AND status='hidden' AND COALESCE(keep_back,0)=0 AND stars>=? AND id IN (SELECT w.id FROM works w JOIN ledger g ON g.subject=w.slug AND g.type='work.published' WHERE w.maker_id=?)").run(m.id, from, m.id).changes;
     ledger.append(db, 'maker.culled', m.handle, { from, down, up });
     res.redirect(`/account?culled=${from}&down=${down}&up=${up}#holdings`);
   });
@@ -268,6 +268,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
     if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
     if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
+    if (w.keep_back) return res.redirect('/account?need=kept#w-' + w.slug); // kept back by the maker (29 Oct): let it go at /account/hang first
     if (app.locals.mayHang && !app.locals.mayHang(m)) return res.redirect('/account?need=wall#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
     ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });

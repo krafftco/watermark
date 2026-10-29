@@ -1076,7 +1076,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // You already own it, the way in, the rooms (20 Oct).
   { r = await req(port, 'GET', '/own'); assert.ok(r.status === 200 && /You already own it\./.test(r.body) && /Open my studio/.test(r.body), '/own');
     r = await req(port, 'GET', `/w/${w.slug}/deed`); assert.ok(r.status === 200 && /a deed of authorship/.test(r.body) && /Fingerprint/.test(r.body) && /Entered the register/.test(r.body), 'the deed');
-    r = await req(port, 'POST', '/record', { body: { name: 'Rec Order', email: 'rec@example.com' } }); assert.ok(/\/account\/upload\?welcome=own/.test(r.headers.location), 'the open door opens a studio'); const rck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    r = await req(port, 'POST', '/record', { body: { name: 'Rec Order', email: 'rec@example.com', adult: '1' } }); assert.ok(/\/account\/upload\?welcome=own/.test(r.headers.location), 'the open door opens a studio'); const rck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
     const rm = db.prepare("SELECT * FROM makers WHERE email='rec@example.com'").get(); assert.ok(rm && rm.door === 'record', 'a recorded maker');
     r = await req(port, 'GET', '/account/upload?welcome=own', { cookie: rck }); assert.ok(r.status === 200 && /Your studio is open/.test(r.body), 'the vault welcomes');
     const MINE = path.join(dir, 'mine.jpg'); await require('sharp')(SRC).resize({ width: 2600, height: 1700, fit: 'fill' }).modulate({ hue: 90 }).jpeg({ quality: 80 }).toFile(MINE);
@@ -1127,7 +1127,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const s1 = await seatOf('Ada Seat', 'ada@example.com', 'door'), s2 = await seatOf('Bo Seat', 'bo@example.com', 'door');
     r = await req(port, 'GET', '/committee?welcome=1', { cookie: s1 }); assert.ok(r.status === 200 && /Your seat is open/.test(r.body) && /The Front Door/.test(r.body) && !/The Walls/.test(String(r.body).replace(/Who hangs[^]*$/, '')) , 'a seat sees its own committee');
     // a second recorded maker, ready, asks; two votes hang the first show
-    r = await req(port, 'POST', '/record', { body: { name: 'Cee Order', email: 'cee@example.com' } }); const cck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+    r = await req(port, 'POST', '/record', { body: { name: 'Cee Order', email: 'cee@example.com', adult: '1' } }); const cck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
     const cm = db.prepare("SELECT * FROM makers WHERE email='cee@example.com'").get();
     const ceeSlugs = []; for (let i = 0; i < 12; i++) { const sl = `cee-body-${i}`; ceeSlugs.push(sl); db.prepare("INSERT INTO works (maker_id, slug, title, caption, place, taken_at, width, height, original_file, sha256, status, stars) VALUES (?,?,?,?,?,?,?,?,?,?,'hidden',?)").run(cm.id, sl, `Cee ${i}`, 'A sentence.', 'Lisbon', '2025-06-01', 4000, 3000, 'mine.jpg', 'cee' + i, i < 8 ? 4 : 0); }
     db.prepare("UPDATE makers SET bio='Streets at the blue hour, for a decade now.' WHERE id=?").run(cm.id); db.prepare("INSERT INTO uses (maker_id, key, name, description, price_cents) VALUES (?, 'social', 'Collect', 'Keep it', 500)").run(cm.id);
