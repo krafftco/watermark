@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.11.2 · No room is never a failure · 29 October 2026
+- An arrival that meets a full disk goes back to the queue and is taken in by itself once the disk is cleared; those that failed for want of room today, still whole in the bucket, are put back at start.
+
 ## 1.11.1 · The disk kept clear · 29 October 2026
 - The display copies of every past quality (q2 to q4) are swept from the disk at start and every fifteen minutes; when free space falls under 3 GB the originals cache halves and the warming waits. /healthz says what is free.
 

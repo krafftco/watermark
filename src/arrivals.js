@@ -156,15 +156,26 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
       const r = a.purpose === 'work' && a.replaces && app.locals.newEdit ? await app.locals.newEdit(f, a.name, a.replaces, a.maker_id) : a.purpose === 'work' ? await takeWork(f, a) : await app.locals.takeMaster(f, a.name, a.folder);
       if (r && a.sha256) r.verified = true;
       if (r.ok) db.prepare("UPDATE arrivals SET status='done', outcome=?, slug=?, title=?, result=?, done_at=datetime('now') WHERE id=?").run(r.outcome, r.slug || null, r.title || null, JSON.stringify(r), a.id);
+      else if (NOROOM.test(r.error || '') && direct && a.via !== 'house') { wait(a); return; }
       else db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(r.error || 'could not be taken in').slice(0, 300), a.id);
       if (direct && a.via !== 'house') { try { await store.del(a.key); } catch (e) { /* later */ } }
     } catch (e) {
       console.error('[arrivals]', a.name, e.message);
+      if (NOROOM.test(String(e.code || '') + ' ' + String(e.message || '')) && direct && a.via !== 'house') { wait(a); return; }
       db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=?").run(String(e.message || e).slice(0, 300), a.id);
     } finally { try { fs.unlinkSync(f); } catch (e) { /* consumed */ } if (a.import_id) IM.soon(a.import_id); }
   }
+  // No room is never a failure (29 Oct, Milan: 'ENOSPC: no space left on device'): the file is still whole in the
+  // bucket, so the arrival goes back to the queue and the pump waits for the disk to be cleared. Arrivals that failed
+  // for want of room before this (and are still in the bucket) are put back in the queue at start.
+  const NOROOM = /ENOSPC|no space left/i;
+  let held = 0;
+  function wait(a) { db.prepare("UPDATE arrivals SET status='arrived', error=? WHERE id=?").run('Waiting for room on the house’s disk; it will be taken in by itself.', a.id); held = Date.now() + 60e3; try { if (app.locals.clearDisk) app.locals.clearDisk(); } catch (e) { /* */ } setTimeout(pump, 61e3).unref(); }
+  const roomy = () => !(app.locals.diskLow && app.locals.diskLow());
   async function pump() {
-    if (pumping) return; pumping = true;
+    if (pumping) return;
+    if (Date.now() < held || !roomy()) { if (!roomy() && app.locals.clearDisk) app.locals.clearDisk(); if (!roomy()) { held = Date.now() + 60e3; setTimeout(pump, 61e3).unref(); return; } }
+    pumping = true;
     try {
       for (;;) {
         while (running < PARALLEL) {
@@ -179,7 +190,9 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   // Stale uploads are aborted after a day; a failed arrival can be retried from the desk.
   const sweep = async () => { for (const a of db.prepare("SELECT * FROM arrivals WHERE status='uploading' AND created_at < datetime('now','-1 day')").all()) { if (direct && a.upload_id) await store.multipart.abort(a.key, a.upload_id); try { fs.unlinkSync(localFile(a)); } catch (e) { /* none */ } db.prepare('DELETE FROM arrivals WHERE id=?').run(a.id); }
     // a server that restarted mid-work: those go back to the queue
-    db.prepare("UPDATE arrivals SET status='arrived' WHERE status='working'").run(); pump(); };
+    db.prepare("UPDATE arrivals SET status='arrived' WHERE status='working'").run();
+    if (direct) db.prepare("UPDATE arrivals SET status='arrived', error=NULL, done_at=NULL WHERE status='failed' AND (error LIKE '%ENOSPC%' OR error LIKE '%no space left%') AND COALESCE(via,'')<>'house' AND created_at > datetime('now','-3 days')").run();
+    pump(); };
   if (process.env.NODE_ENV !== 'test' && ROLE.web) { setTimeout(() => sweep().catch(e => console.error('[arrivals] sweep', e.message)), 30000).unref(); setInterval(() => sweep().catch(() => {}), 3600000).unref(); }
   app.locals.arrivals = { pump, direct, partSize, sweep };
   return { pump, direct };
