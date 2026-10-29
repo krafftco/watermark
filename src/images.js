@@ -134,6 +134,25 @@ async function copy(original, width = 2400, { quality = 94 } = {}) {
   const g = await gamut(original);
   return sharp(original).rotate().resize({ width, height: width, fit: 'inside', withoutEnlargement: true }).withIccProfile(g).jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
 }
+// The disk (29 Oct: Milan stopped with 'no space left on device'): every change of quality renamed the renditions
+// (q2, q3, q4, q5) and the old generations stayed on the disk beside the new, four copies of every picture. `sweep`
+// drops every rendition that is not of the current generation, and temp files an hour old. Veils, the served scripts
+// and anything else in the cache are left alone.
+const GEN = 'q5';
+function sweep(cacheDir) {
+  let freed = 0, n = 0;
+  let names = []; try { names = fs.readdirSync(cacheDir); } catch (e) { return { freed, n }; }
+  for (const f of names) {
+    const r = /-(thumb|screen|large|wall)m?(q\d+)?\.(jpg|webp)(\.\d+\.\d+\.tmp)?$/.exec(f); if (!r) continue;
+    const p = path.join(cacheDir, f); let st; try { st = fs.statSync(p); } catch (e) { continue; }
+    const stale = r[4] ? Date.now() - st.mtimeMs > 3600e3 : r[2] !== GEN;
+    if (!stale) continue;
+    try { fs.unlinkSync(p); freed += st.size; n++; } catch (e) { /* in use */ }
+  }
+  return { freed, n };
+}
+// Free bytes on the disk that holds a folder (null when the system cannot say).
+function free(dir) { try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch (e) { return null; } }
 // The format a request will take: WebP when the browser says so, else JPEG.
 function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
@@ -162,4 +181,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { sweep, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

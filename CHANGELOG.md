@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.11.1 · The disk kept clear · 29 October 2026
+- The display copies of every past quality (q2 to q4) are swept from the disk at start and every fifteen minutes; when free space falls under 3 GB the originals cache halves and the warming waits. /healthz says what is free.
+
 ## 1.11.0 · The brief · 29 October 2026
 - For brands (/brands): a brand says once what it needs (what, how many, photographs or a reel, the uses, where, how long, exclusively or not, the budget, the date), to an open call or to one artist (Commission on every maker page). No account: the brand's desk comes by letter.
 - Artists answer with a fee, a line and their own work; the brand chooses; the agreement is written from the brief and fingerprinted; the brand pays once, the fee and the house's share on top, and the house holds it.

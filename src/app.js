@@ -183,13 +183,16 @@ function createApp(cfg = {}) {
   // copies least recently used, so sixty-megapixel masters never fill the disk (20 Oct: a 10 GB disk, 50 GB of masters
   // on the way). Stale upload temp files (incoming/) older than a day go too.
   const CACHE_BUDGET = Number(process.env.ORIGINALS_CACHE_GB || 3) * 1e9;
+  const DISK_FLOOR = Number(process.env.DISK_FLOOR_GB || 3) * 1e9;
   function trimOriginals(keep) {
     if (store.kind !== 's3') return;
     try {
       const files = fs.readdirSync(originals).map(f => { const p = path.join(originals, f); try { const st = fs.statSync(p); return { p, size: st.size, at: Math.max(st.atimeMs || 0, st.mtimeMs || 0) }; } catch (e) { return null; } }).filter(Boolean);
-      let total = files.reduce((a, f) => a + f.size, 0); if (total <= CACHE_BUDGET) return;
+      // The disk's own floor (29 Oct): when free space falls under DISK_FLOOR_GB (3), the cache shrinks to half its budget.
+      const low = (images.free(C.dataDir) ?? Infinity) < DISK_FLOOR; const budget = low ? CACHE_BUDGET * 0.5 : CACHE_BUDGET;
+      let total = files.reduce((a, f) => a + f.size, 0); if (total <= budget) return;
       const hold = unvaulted();
-      for (const f of files.sort((a, b) => a.at - b.at)) { if (total <= CACHE_BUDGET * 0.8) break; if (f.p === keep || hold.has(path.basename(f.p)) || (/\.tmp$/.test(f.p) && Date.now() - f.at < 600000)) continue; try { fs.unlinkSync(f.p); total -= f.size; } catch (e) { /* in use */ } }
+      for (const f of files.sort((a, b) => a.at - b.at)) { if (total <= budget * 0.8) break; if (f.p === keep || hold.has(path.basename(f.p)) || (/\.tmp$/.test(f.p) && Date.now() - f.at < 600000)) continue; try { fs.unlinkSync(f.p); total -= f.size; } catch (e) { /* in use */ } }
     } catch (e) { /* no cache dir yet */ }
   }
   setInterval(() => { try { const inc = path.join(C.dataDir, 'incoming'); for (const f of fs.readdirSync(inc)) { const p = path.join(inc, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 86400000) fs.unlinkSync(p); } catch (e) { /* gone */ } } } catch (e) { /* none */ } }, 3600000).unref();
@@ -2504,13 +2507,19 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const warmQ = []; let warmBusy = false;
   function warmSoon(slug) {
     if (cfg.noTimers || !slug) return; warmQ.push(slug); if (warmBusy) return; warmBusy = true;
-    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s)) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { await images.warm(await originalPath(w), cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
+    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s) || diskLow()) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { await images.warm(await originalPath(w), cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
   }
   app.locals.warmSoon = warmSoon;
+  // The disk kept clear (29 Oct): old generations of renditions swept at start and hourly; the originals cache trimmed
+  // when the disk runs low; the warming waits while it is low (a visitor's first look still makes what it needs).
+  const diskLow = () => (images.free(C.dataDir) ?? Infinity) < DISK_FLOOR;
+  function clearDisk() { try { const r = images.sweep(cache); if (r.n) console.log('[disk] swept', r.n, 'old renditions,', Math.round(r.freed / 1e6), 'MB'); if (diskLow()) { trimOriginals(); console.log('[disk] low:', Math.round((images.free(C.dataDir) || 0) / 1e6), 'MB free'); } } catch (e) { console.error('[disk]', e.message); } }
+  app.locals.clearDisk = clearDisk; app.locals.diskLow = diskLow;
+  if (!cfg.noTimers) { setTimeout(clearDisk, 3000).unref(); setInterval(clearDisk, 15 * 60e3).unref(); }
   let warming = false;
   async function warmAll() {
     if (warming) return 0; warming = true; let n = 0;
-    try { for (const w of db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
+    try { for (const w of db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); break; } try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
     finally { warming = false; }
     return n;
   }
@@ -2550,7 +2559,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const unvaulted = db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works = db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n;
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), up: Math.round(process.uptime()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.
