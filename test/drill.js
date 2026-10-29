@@ -120,7 +120,7 @@ async function frame(i, w, h, { bright = 0, q = 92 } = {}) {
   say(`${(bytes / 1e6).toFixed(0)} MB in ${secs.toFixed(0)} s (${(bytes / 1e6 / secs).toFixed(1)} MB/s end to end), the house's peak memory ${peakMb} MB`);
   if (peakMb > MEM) miss.push(`memory peaked at ${peakMb} MB, over ${MEM}`);
   if (secs > SECS) miss.push(`took ${secs.toFixed(0)} s, over ${SECS}`);
-  if (miss.length) { console.error('THE DRILL FAILED:\n  ' + miss.join('\n  ')); process.exit(1); }
+  if (miss.length) { console.error('THE DRILL FAILED:\n  ' + miss.join('\n  ')); if (process.env.GITHUB_ACTIONS) for (const m of miss) console.log('::error::' + m.replace(/\n/g, ' ')); process.exit(1); }
   console.log('the drill: every file accounted for');
   process.exit(0);
-})().catch(e => { console.error('THE DRILL FAILED:', e.stack || e); process.exit(1); });
+})().catch(e => { console.error('THE DRILL FAILED:', e.stack || e); if (process.env.GITHUB_ACTIONS) console.log('::error::' + String(e.stack || e).replace(/\n/g, ' | ').slice(0, 1500)); process.exit(1); });

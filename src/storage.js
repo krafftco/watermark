@@ -41,7 +41,8 @@ function localStore(root) {
 function s3Store({ bucket, region, endpoint, client }) {
   const S3 = require('@aws-sdk/client-s3');
   const c = client || new S3.S3Client({ region: region || 'us-east-1', ...(endpoint ? { endpoint, forcePathStyle: true } : {}) });
-  const isR2 = endpoint && /r2\.cloudflarestorage/.test(endpoint);
+  // R2 and a bare MinIO (the fire drill's stand-in) take no server-side encryption header; S3_NO_SSE=1 says so.
+  const isR2 = (endpoint && /r2\.cloudflarestorage/.test(endpoint)) || process.env.S3_NO_SSE === '1';
   return {
     kind: 's3',
     async put(key, body, type = 'application/octet-stream') {

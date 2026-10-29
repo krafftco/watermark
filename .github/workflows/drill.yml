@@ -37,5 +37,6 @@ jobs:
           AWS_ACCESS_KEY_ID: drill
           AWS_SECRET_ACCESS_KEY: drillpassword
           AWS_REGION: us-east-1
+          S3_NO_SSE: '1'
           DRILL_MEM_MB: '2200'
           DRILL_BIG: '10'
