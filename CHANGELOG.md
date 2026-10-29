@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.12.0 · The lock · 29 October 2026
+- With Object Lock on the vault and VAULT_LOCK_DAYS set, every master (originals, raws, music, documents, signed releases) is written under a Governance retention: the house's own key cannot delete or overwrite it until the date. The Studio lays the same lock over what the vault already holds. A bucket that refuses the lock is noted and nothing stops.
+
 ## 1.11.3 · Repairs · 29 October 2026
 - The house starts on a full disk (a new folder no longer stops it); the house voice reads with George when the voice named is not one of ElevenLabs'.
 

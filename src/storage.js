@@ -43,10 +43,45 @@ function s3Store({ bucket, region, endpoint, client }) {
   const c = client || new S3.S3Client({ region: region || 'us-east-1', ...(endpoint ? { endpoint, forcePathStyle: true } : {}) });
   // R2 and a bare MinIO (the fire drill's stand-in) take no server-side encryption header; S3_NO_SSE=1 says so.
   const isR2 = (endpoint && /r2\.cloudflarestorage/.test(endpoint)) || process.env.S3_NO_SSE === '1';
+  // The lock (29 Oct, Will: "give these people the redundancy and safety they need"). With Object Lock on the bucket and
+  // VAULT_LOCK_DAYS set, every master the house keeps (originals, negatives, music, documents, signed releases) is
+  // written under a GOVERNANCE retention: no one with the house's own key can delete or overwrite that version until the
+  // date, and a delete only lays a marker over it (versioning keeps the bytes). GOVERNANCE, not COMPLIANCE, so that the
+  // account's owner can still lift it by hand for a court order or a child-safety takedown; the app's key is never given
+  // s3:BypassGovernanceRetention. A bucket that refuses the lock is noted and the write goes through without it.
+  const LOCK_DAYS = Number(process.env.VAULT_LOCK_DAYS || 0);
+  const LOCKED = /^(originals|negatives|music|documents|releases)\//;
+  const lock = { on: LOCK_DAYS > 0, state: LOCK_DAYS > 0 ? 'asked' : 'off', locked: 0, last: null };
+  const until = () => new Date(Date.now() + LOCK_DAYS * 864e5);
   return {
-    kind: 's3',
+    kind: 's3', lock,
     async put(key, body, type = 'application/octet-stream') {
-      await c.send(new S3.PutObjectCommand({ Bucket: bucket, Key: key, Body: Buffer.isBuffer(body) ? body : fs.readFileSync(body), ContentType: type, ...(isR2 ? {} : { ServerSideEncryption: 'AES256' }) }));
+      const base = { Bucket: bucket, Key: key, Body: Buffer.isBuffer(body) ? body : fs.readFileSync(body), ContentType: type, ...(isR2 ? {} : { ServerSideEncryption: 'AES256' }) };
+      if (lock.on && lock.state !== 'refused' && LOCKED.test(key)) {
+        try { await c.send(new S3.PutObjectCommand({ ...base, ObjectLockMode: 'GOVERNANCE', ObjectLockRetainUntilDate: until(), ChecksumAlgorithm: 'SHA256' })); lock.state = 'on'; lock.locked++; return; }
+        catch (e) { if (!/lock|InvalidRequest|AccessDenied|checksum/i.test(`${e.name} ${e.message}`)) throw e; lock.state = 'refused'; lock.last = `${e.name}: ${String(e.message).slice(0, 120)}`; console.error('[vault] the lock was refused; writing without it.', lock.last); }
+      }
+      await c.send(new S3.PutObjectCommand(base));
+    },
+    // Lay the lock over what the vault already holds (once, by hand or at start): every current version under the
+    // locked prefixes gets the same retention. Paged; an object already retained longer is left as it is.
+    async retainAll({ pause = 0 } = {}) {
+      if (!lock.on) return { ok: false, why: 'VAULT_LOCK_DAYS is not set' };
+      let n = 0, failed = 0, token; const date = until();
+      for (const prefix of ['originals/', 'negatives/', 'music/', 'documents/', 'releases/']) {
+        token = undefined;
+        do {
+          const r = await c.send(new S3.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }));
+          for (const o of r.Contents || []) {
+            try { await c.send(new S3.PutObjectRetentionCommand({ Bucket: bucket, Key: o.Key, Retention: { Mode: 'GOVERNANCE', RetainUntilDate: date }, ChecksumAlgorithm: 'SHA256' })); n++; }
+            catch (e) { failed++; lock.last = `${e.name}: ${String(e.message).slice(0, 120)}`; if (/NotFound|InvalidRequest|AccessDenied/.test(e.name || '') && failed > 20 && !n) return { ok: false, n, failed, why: lock.last }; }
+            if (pause) await new Promise(z => setTimeout(z, pause));
+          }
+          token = r.IsTruncated ? r.NextContinuationToken : undefined;
+        } while (token);
+      }
+      lock.retained = { n, failed, at: new Date().toISOString() };
+      return { ok: true, n, failed };
     },
     async get(key) {
       try { const r = await c.send(new S3.GetObjectCommand({ Bucket: bucket, Key: key })); return Buffer.from(await r.Body.transformToByteArray()); }
@@ -95,7 +130,7 @@ function createStore(cfg) {
     list: prefix => raw.list(prefix),
     del: key => raw.del(key),
     size: key => raw.size(key),
-    multipart: raw.multipart || null, download: raw.download || null, ensureCors: raw.ensureCors || null,
+    multipart: raw.multipart || null, download: raw.download || null, ensureCors: raw.ensureCors || null, lock: raw.lock || null, retainAll: raw.retainAll || null,
     // A known object proves the key is the right one before anything is written with it.
     async checkKey() {
       if (!k.on) return 'off';

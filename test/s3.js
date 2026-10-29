@@ -32,5 +32,16 @@ const client = { async send(cmd) {
   const wrong = createStore({ bucket: 'b', client, vaultKey: require('crypto').randomBytes(32).toString('base64') });
   await assert.rejects(wrong.checkKey(), /does not match/);
   assert.throws(() => createStore({ bucket: 'b', client, vaultKey: 'short' }), /32 characters/);
+  // The lock (29 Oct): masters written under GOVERNANCE retention; others not; a bucket that refuses is noted, the write goes through.
+  process.env.VAULT_LOCK_DAYS = '365';
+  const L = createStore({ bucket: 'b', client });
+  seen.length = 0; await L.put('originals/c.jpg', Buffer.from('m'), 'image/jpeg'); await L.put('backups/x.gz', Buffer.from('b'));
+  assert.equal(seen[0][1].ObjectLockMode, 'GOVERNANCE'); assert.ok(seen[0][1].ObjectLockRetainUntilDate > new Date(Date.now() + 300 * 864e5)); assert.ok(!seen[1][1].ObjectLockMode, 'backups are not locked');
+  assert.equal(L.lock.state, 'on');
+  let ret = 0; const send0 = client.send; client.send = async cmd => { if (cmd.constructor.name === 'PutObjectRetentionCommand') { ret++; return {}; } return send0(cmd); };
+  const r = await L.retainAll(); assert.ok(r.ok && r.n === ret && ret >= 3, 'the lock laid over what is held: ' + JSON.stringify(r));
+  client.send = async cmd => { if (cmd.input.ObjectLockMode) { const e = new Error('Bucket is missing Object Lock Configuration'); e.name = 'InvalidRequest'; throw e; } return send0(cmd); };
+  const R = createStore({ bucket: 'b', client }); await R.put('originals/d.jpg', Buffer.from('m'), 'image/jpeg');
+  assert.equal(R.lock.state, 'refused'); assert.ok(objs['originals/d.jpg'], 'written without the lock'); client.send = send0; delete process.env.VAULT_LOCK_DAYS;
   console.log('ok: s3 driver');
 })().catch(e => { console.error(e); process.exit(1); });
