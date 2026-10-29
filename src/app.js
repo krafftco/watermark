@@ -643,8 +643,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // reason to come back in the morning and something to talk about. /today opens it.
   function todays() {
     const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    const rows = db.prepare("SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4) ORDER BY id").all();
-    const pool = rows.length >= 7 ? rows : db.prepare("SELECT id, slug, title, place, width, height FROM works WHERE status='held' ORDER BY id").all();
+    const H = app.locals.museums ? app.locals.museums.hallSql('works') : '';
+    const rows = db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4)${H} ORDER BY id`).all();
+    const pool = rows.length >= 7 ? rows : db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held'${H} ORDER BY id`).all();
     if (!pool.length) return null;
     const h = crypto.createHash('sha1').update('today:' + day).digest(); const i = h.readUInt32BE(0) % pool.length;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(pool[i].id) || pool[i]; const m = mk(w) || {};
@@ -692,7 +693,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); const m = String(r.title || '').match(/^[^:]{3,40}:\s*(.+)$/); if (m) r.title = ROOM_AS[m[1].toLowerCase()] || m[1].replace(/^The /, ''); });
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
-    const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all())
+    const works = RG.byRegard(db, db.prepare(`SELECT * FROM works WHERE status='held'${app.locals.museums ? app.locals.museums.hallSql('works') : ''} ORDER BY id`).all())
       .map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w)
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
@@ -1105,7 +1106,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const ownHand = (b, req) => { const m = (b && db.prepare('SELECT * FROM makers WHERE buyer_id=? OR (email IS NOT NULL AND email=?) ORDER BY buyer_id=? DESC LIMIT 1').get(b.id, b.email || '', b.id)) || (req && app.locals.accounts.makerOf(req)); if (!m || m.standing === 'held') return []; return db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND stars=5 ORDER BY id DESC").all(m.id).map(w => ({ ...w, maker: m.name, maker_slug: V.makerSlug(m) })); };
   // The collector's house (26 Oct): the counts its doors carry.
   const houseOf = b => { if (!b) return null; const n = (sql, ...p) => { try { return db.prepare(sql).get(...p).n; } catch (e) { return 0; } };
-    return { eye: app.locals.galleries && app.locals.galleries.eye ? app.locals.galleries.eye(b) : null, hangsN: n('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?', b.id), cabinetN: n('SELECT COUNT(*) n FROM cabinet WHERE buyer_id=?', b.id), showingsN: n('SELECT COUNT(*) n FROM showings WHERE buyer_id=?', b.id), hasOrder: !!n("SELECT COUNT(*) n FROM standing WHERE buyer_id=? AND status IN ('active','ending')", b.id), tourHref: app.locals.tours && app.locals.tours.galleryDoor ? app.locals.tours.galleryDoor(b) : null, guestsN: app.locals.guests ? app.locals.guests.guestsOf(b).length : 0 }; };
+    return { eye: app.locals.galleries && app.locals.galleries.eye ? app.locals.galleries.eye(b) : null, hangsN: n('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?', b.id), cabinetN: n('SELECT COUNT(*) n FROM cabinet WHERE buyer_id=?', b.id), showingsN: n('SELECT COUNT(*) n FROM showings WHERE buyer_id=?', b.id), hasOrder: !!n("SELECT COUNT(*) n FROM standing WHERE buyer_id=? AND status IN ('active','ending')", b.id), tourHref: app.locals.tours && app.locals.tours.galleryDoor ? app.locals.tours.galleryDoor(b) : null, guestsN: app.locals.guests ? app.locals.guests.guestsOf(b).length : 0, follow: app.locals.museums ? app.locals.museums.button('gallery:' + b.id) : null }; };
   app.get('/yours', (req, res) => {
     let b = buyerOf(req);
     // A maker signed in without a gallery yet is given one: every maker is a collector.
@@ -1162,6 +1163,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./releases').mountReleases(app, { V }); // what's new: the shipped product's record (27 Oct)
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
+  require('./museums').mountMuseums(app, { db, C, V, studioOnly }); // a museum for everyone (29 Oct): the open door, the limited wall, the halls earned, following
   require('./own').mountOwn(app, { db, V, C, ledger, stripe, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly, registerWork }); // you already own it: the deed, /own, the open door, the Office one tap, said simply
   require('./committee').mountCommittee(app, { db, V, C, ledger, mail, studioOnly, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) }); // the committees: the Front Door (who hangs) and the Walls (what stays)
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).

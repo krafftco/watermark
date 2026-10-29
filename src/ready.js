@@ -61,7 +61,8 @@ ${m.bio ? `<blockquote class="rv-bio">${esc(m.bio)}</blockquote>` : '<p class="n
   let floorAt = 0, floorOk = false;
   app.locals.editSql = (alias = 'w') => {
     if (Date.now() - floorAt > 60000) { floorAt = Date.now(); floorOk = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held' AND (stars>=3 OR curated=1)").get().n >= WANDER_FLOOR; }
-    return floorOk ? ` AND (${alias}.stars>=3 OR ${alias}.curated=1)` : '';
+    const hall = app.locals.museums ? app.locals.museums.hallSql(alias) : ''; // the house's halls hold what was placed (museums.js)
+    return (floorOk ? ` AND (${alias}.stars>=3 OR ${alias}.curated=1)` : '') + hall;
   };
   app.locals.ready = { READY_WORKS, READY_BEST, READY_MP, WANDER_FLOOR };
 }

@@ -157,7 +157,7 @@ function library({ shelves, n }) {
   return layout({ title: 'The Library · Watermark', desc: 'Books, journals, essays, papers and documents, kept with the photographs. Read in the house; take a copy to keep.', path: '/library', body: `<section class="cx-intro lb-intro"><p class="k">The Library</p><h1>Read in the house.</h1>
 <p class="lede">Written work, kept the way the photographs are kept: books, journals, essays, papers and the important documents, each fingerprinted and on the register. Everything on the shelves is read here for nothing. To take a copy, or to use it elsewhere, you pay, and the taking is recorded. No advertising, ever.</p></section>
 ${shelves.length ? shelves.map(s => `<section class="gal lb-shelf"><header class="gh"><h2>${esc(s.name)}</h2><span>${s.texts.length}</span></header><div class="lb-grid">${s.texts.map(card).join('')}</div></section>`).join('') : '<section class="gal"><p class="note">The shelves are being filled. The first volumes are on their way.</p></section>'}
-<section class="gal"><p class="note lb-note">A writer, a scholar, an estate with papers that should be kept? <a href="/join">Apply with the work</a>.</p></section>` });
+<section class="gal"><p class="note lb-note">A writer, a scholar, an estate with papers that should be kept? <a href="/join">Open your museum</a>.</p></section>` });
 }
 const byName = a => { const x = String(a || '').trim(); if (!x) return ''; const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}`.replace(/\s+/g, ' ') : x; };
 function text({ t, html, words, mine, taken, stripe, ok, studio, shop = '', shelf = '', front = '', back = '', jacketDesk = '', plates = '', edition = '' }) {

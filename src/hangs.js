@@ -6,7 +6,7 @@
 // card. What a curator earns can be spent in the house or cashed out (pocket.js). The maker's 85% is untouched.
 const I = require('./icons');
 const { layout, esc, money, date, tidy } = require('./views');
-const CURATOR_PCT = 5;      // of the sale price, paid from the house's share; confirmed by Will, 17 Oct 2026
+const CURATOR_PCT = Number(process.env.CURATOR_PCT || 10); // of the sale price, paid from the house's share; 5 confirmed by Will 17 Oct, 10 on 29 Oct (curating as a living)
 const VIA_DAYS = 30;
 const hangHref = h => (h.curator_code ? `/g/${h.curator_code}/hang/${h.slug}` : `/hang/${h.slug}`);
 const href = hangHref;

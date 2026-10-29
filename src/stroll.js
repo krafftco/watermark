@@ -89,6 +89,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
       const seen = new Set(); const works = [...hand, ...v.works].filter(w => !seen.has(w.slug) && seen.add(w.slug));
       return { label: 'Your gallery', href: '/yours', works };
     }
+    if (key === 'following') return app.locals.museums ? app.locals.museums.set(req) : null; // 29 Oct: what the people you follow did lately
     if (key === 'studio') { const m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null; if (!m) return null; const v = setOf('maker:' + m.handle); return v ? Object.assign({}, v, { label: 'Your work', href: '/account' }) : null; }
     // A delivery (Will, 21 Oct: the friend wanders the album as one wanders the house; the work stays the maker's):
     // the album's photographs, held or kept back, in the album's order, for as long as the link is live.
@@ -170,7 +171,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     // The house, from inside Wander (Will, 26 Oct: "you have to be able to access Read and Listen"): the five verbs at the top of the Yours door.
     let reading = 0; try { reading = b ? db.prepare("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'").get(b.id).n : 0; } catch (e) { reading = 0; }
     const verbs = `<nav class="sd-verbs" aria-label="The house">${[
-      ['/wander', 'Look', 'Wander everything', I.wave || ''],
+      ...(() => { const F = app.locals.museums; const n = F && F.meOf(req) ? F.followed(req).length : 0; return [n ? ['/wander?in=following', 'Look', `Following · ${n}`, I.wave || ''] : ['/wander', 'Look', 'Wander everything', I.wave || '']]; })(),
       [reading ? '/yours/reading' : '/wander?in=shelf', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'Wander the shelf', I.facing || I.page || ''],
       ['/listening', 'Listen', 'The Listening Room', I.play || ''],
       ['/collection', 'Collect', 'The collection', I.collect || ''],

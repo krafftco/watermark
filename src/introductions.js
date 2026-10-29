@@ -96,7 +96,7 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
   return app.locals.introductions;
 }
 
-function gone() { return layout({ title: 'An introduction · Watermark', body: `<section class="narrow cl"><p class="k">An introduction</p><h1>This introduction has been used, or closed.</h1><p class="lede">The house is entered by invitation. If you make work, <a href="/join">apply with the work</a>; if you collect, the <a href="/collection">collection</a> is open to walk, and a gallery of your own begins with the first piece you collect.</p></section>` }); }
+function gone() { return layout({ title: 'An introduction · Watermark', body: `<section class="narrow cl"><p class="k">An introduction</p><h1>This introduction has been used, or closed.</h1><p class="lede">If you make work, <a href="/join">open your museum</a>; if you collect, the <a href="/collection">collection</a> is open to walk, and a gallery of your own begins with the first piece you collect.</p></section>` }); }
 
 function introPage({ i, who, err, cover = null, make = false }) {
   // One door for everyone in the room (23 Oct, the Magnum night): the photograph behind, the question in front. A

@@ -794,7 +794,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     Object.assign(hs, { payment_status: 'paid', amount_total: hs.line_items[0].price_data.unit_amount, customer_details: { email: 'vis@example.com', name: 'A Visitor' } });
     r = await req(port, 'GET', `/thanks/${hs.metadata.ref}?session_id=${hid}`);
     const ada = db.prepare('SELECT * FROM buyers WHERE email=?').get('ada@example.com') || db.prepare('SELECT b.* FROM buyers b JOIN hangs h ON h.buyer_id=b.id WHERE h.id=?').get(hg.id);
-    const cur = db.prepare("SELECT * FROM pocket WHERE kind='curation' ORDER BY id DESC LIMIT 1").get(); assert.ok(cur && cur.cents === Math.round(hs.line_items[0].price_data.unit_amount * 0.05), 'the curator\'s share, 5%'); assert.equal(cur.buyer_id, hg.buyer_id);
+    const cur = db.prepare("SELECT * FROM pocket WHERE kind='curation' ORDER BY id DESC LIMIT 1").get(); assert.ok(cur && cur.cents === Math.round(hs.line_items[0].price_data.unit_amount * 0.10), 'the curator\'s share, 10%'); assert.equal(cur.buyer_id, hg.buyer_id);
     assert.equal(db.prepare('SELECT sales FROM hangs WHERE id=?').get(hg.id).sales, 1);
     r = await req(port, 'GET', '/yours?tab=settings', { cookie: sck }); assert.ok(r.body.toString().includes('Cash out'), 'cash out offered');
     r = await req(port, 'POST', '/pocket/cashout', { cookie: sck }); assert.ok(r.headers.location.includes('pocket=cashed'));
@@ -1082,7 +1082,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const MINE = path.join(dir, 'mine.jpg'); await require('sharp')(SRC).resize({ width: 2600, height: 1700, fit: 'fill' }).modulate({ hue: 90 }).jpeg({ quality: 80 }).toFile(MINE);
     const fd = Buffer.concat([Buffer.from('--b\r\nContent-Disposition: form-data; name="file"; filename="mine.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'), fs.readFileSync(MINE), Buffer.from('\r\n--b--\r\n')]);
     r = await req(port, 'POST', '/account/works/one', { cookie: rck, headers: { 'content-type': 'multipart/form-data; boundary=b' }, body: fd }); const j = JSON.parse(r.body); assert.ok(j.ok && /This is yours\. It has been since/.test(j.yours) && /\/deed$/.test(j.deed), 'the arrival sentence and the deed');
-    r = await req(port, 'POST', `/account/works/${j.slug}/show`, { cookie: rck, body: { attest: '1' } }); assert.ok(/need=invited/.test(r.headers.location), 'a recorded maker cannot hang until invited');
+    r = await req(port, 'POST', `/account/works/${j.slug}/show`, { cookie: rck, body: { attest: '1' } }); assert.ok(!/need=/.test(r.headers.location), 'every maker hangs their own museum (29 Oct)');
+    assert.equal(db.prepare('SELECT status FROM works WHERE slug=?').get(j.slug).status, 'held', 'on view in their museum');
+    { const H = app.locals.museums.hallSql('w'); assert.ok(!db.prepare(`SELECT 1 FROM works w WHERE w.slug=?${H}`).get(j.slug), 'not yet in the house’s halls'); }
+    r = await req(port, 'GET', '/api/stroll?n=40'); assert.ok(!JSON.parse(r.body).items.some(i => i.slug === j.slug), 'not in the open Wander until it earns the hall');
+    db.prepare("UPDATE works SET status='hidden' WHERE slug=?").run(j.slug);
     r = await req(port, 'GET', '/account', { cookie: rck }); assert.ok(/The way in/.test(r.body) && /Ask the house/.test(r.body), 'the way in on the studio');
     // ready to hang: the moment is read from the work; one piece is not a body of work
     r = await req(port, 'POST', '/account/ask-house', { cookie: rck, body: { note: 'Please look.' } }); assert.ok(/ok=notyet/.test(r.headers.location), 'not yet: the house reads the moment from the work'); assert.equal(db.prepare('SELECT COUNT(*) n FROM house_asks WHERE maker_id=?').get(rm.id).n, 0);

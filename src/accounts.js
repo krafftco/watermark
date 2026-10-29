@@ -76,7 +76,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- open a studio: anyone, in a minute ----------
   // A name and an email make a maker. They are signed in at once and can upload; what they publish is
   // their word (the attestation) and the Studio sees every new maker on Accounts, and can hold one.
-  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); res.send(A.join({ err: req.query.err || null, sent: req.query.sent === '1', name: req.query.name || '', email: req.query.email || '' })); });
+  app.get('/join', (req, res) => { const m = makerOf(req); if (m) return res.redirect('/account'); if (app.locals.museums) return res.send(V.layout({ title: 'Open your museum · Watermark', desc: 'Put your work in, keep all of it, hang the best: your own museum, under your name.', path: '/join', body: require('./museums').joinPage({ esc: V.esc, base: C.base, err: req.query.err || null }) })); res.send(A.join({ err: req.query.err || null, sent: req.query.sent === '1', name: req.query.name || '', email: req.query.email || '' })); });
   // Studios are opened by invitation (Studio → Makers approves an application; the letter opens the studio). The old instant door is closed.
   app.post('/join', (req, res) => res.redirect(303, '/join'));
 
@@ -268,7 +268,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
     if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
     if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
-    if (app.locals.mayHang && !app.locals.mayHang(m)) return res.redirect('/account?need=invited#w-' + w.slug);
+    if (app.locals.mayHang && !app.locals.mayHang(m)) return res.redirect('/account?need=wall#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
     ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases' });
     if (app.locals.legal) { try { app.locals.legal.accept('maker', m.id, 'makers', req.ip, w.slug); } catch (e) { console.error('[legal]', e.message); } } // publishing accepts the Maker Agreement

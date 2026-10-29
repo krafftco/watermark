@@ -4390,3 +4390,15 @@ html.in-stay .top .nv-back{display:none}
 .psh .psh-list{list-style:none;padding:0;margin:12px 0}
 .psh .psh-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:12px 0;border-top:1px solid rgba(0,0,0,.1)}
 .psh .psh-list li span{color:var(--muted,#777);font-size:.9em;flex:1}
+/* following (29 Oct): one quiet button; no counts */
+.fo-b{font:inherit;font-size:13px;letter-spacing:.04em;padding:7px 16px;border-radius:999px;border:1px solid currentColor;background:none;color:inherit;cursor:pointer}
+.fo-b[aria-pressed="true"]{background:currentColor}
+.fo-b[aria-pressed="true"] span{color:var(--bg,#0b0a09);filter:invert(0)}
+.mh-fo,.ch-fo{margin:0 0 14px}
+.fo .fo-list{list-style:none;padding:0;margin:18px 0}
+.fo .fo-list li{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid rgba(0,0,0,.1)}
+.fo .fo-list a{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none}
+.fo .fo-list img,.fo .fo-ph{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#ddd;display:inline-block}
+.fo .fo-list i{color:var(--muted,#777);font-style:normal;font-size:.85em;margin-left:6px}
+.jn .jn-what{padding-left:18px;margin:26px 0;line-height:1.6}
+.jn .jn-what li{margin:0 0 10px}

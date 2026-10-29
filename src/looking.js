@@ -43,7 +43,7 @@ function mountLooking(app, { db, C, buyerOf, mail, fetchImpl = (...a) => fetch(.
     const wPlace = new Map(), wMaker = new Map(), wKey = new Map();
     for (const t of taste) { const k = 1 + Math.log1p(t.seconds || 0); if (t.place) wPlace.set(t.place, (wPlace.get(t.place) || 0) + k); wMaker.set(t.maker_id, (wMaker.get(t.maker_id) || 0) + k); for (const kw of String(t.keywords || '').toLowerCase().split(/[,;]\s*/).filter(Boolean)) wKey.set(kw, (wKey.get(kw) || 0) + k); }
     const stoodSet = new Set(db.prepare(`SELECT s.work_id FROM stood s WHERE ${w.sql}`).all(...w.args).map(r => r.work_id));
-    const all = db.prepare("SELECT wk.id, wk.slug, wk.title, wk.place, wk.keywords, wk.maker_id, wk.stars, wk.curated, m.name AS maker FROM works wk JOIN makers m ON m.id=wk.maker_id WHERE wk.status='held' AND wk.disputed=0 AND m.standing='open'").all();
+    const all = db.prepare("SELECT wk.id, wk.slug, wk.title, wk.place, wk.keywords, wk.maker_id, wk.stars, wk.curated, m.name AS maker FROM works wk JOIN makers m ON m.id=wk.maker_id WHERE wk.status='held' AND wk.disputed=0 AND m.standing='open'" + (app.locals.museums ? app.locals.museums.hallSql('wk') : '')).all();
     let pool = all.filter(x => !seen.has(x.id));
     if (pool.length < k) pool = all.filter(x => !stoodSet.has(x.id)); // a small house: shown again before seen again
     const scored = pool.map(x => { let s = (x.stars || 0) * .4 + (x.curated ? 1 : 0) + Math.random() * .6; if (x.place && wPlace.has(x.place)) s += wPlace.get(x.place) * .8; if (wMaker.has(x.maker_id)) s += wMaker.get(x.maker_id) * .5; for (const kw of String(x.keywords || '').toLowerCase().split(/[,;]\s*/).filter(Boolean)) if (wKey.has(kw)) s += wKey.get(kw) * .6; return { ...x, score: s }; }).sort((a, c) => c.score - a.score);

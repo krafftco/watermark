@@ -79,7 +79,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
 <div><p class="k">Show it</p><p>Your own page, your own gallery; the stroll and the walls when the house invites you. Private until you say otherwise.</p></div>
 <div><p class="k">Let someone use it</p><p>Set a price for each use, or none and answer each ask yourself. Every license is a signed record, every delivered file carries your name and the way back, and ${require('./fee').yours(85)}.</p></div></div></section>
 <section class="own-s"><h2>And then, if you want, register it</h2><p>Registration with the U.S. Copyright Office is the one thing that does change: it lets you sue for infringement and ask for statutory damages. The Office takes groups of up to ${GROUP} photographs by one maker, published in one year, for one fee. The house prepares the filing from your deeds; you tap once and pay the Office’s fee at cost.</p></section>
-<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>The collection on these walls is curated, by invitation. The register is open to everyone. Your name and your email open a studio; your first files get their deeds in a minute.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
+<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>Your name and your email open your own museum: put your work in, keep all of it, hang the best. Your first files get their deeds in a minute. Watermark’s own halls hold what has been collected, hung by a curator, or called Bravo.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
 <p class="own-fine">Not legal advice; the law differs by country and by case. The house keeps the record and says what it is; a lawyer says what it means for you. <a href="/legal/makers">The Maker Agreement</a> · <a href="/copyright">How the house works with the Copyright Office</a>.</p>
 </article>` }));
   });
@@ -97,7 +97,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
       const id = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?,?,?,'maker',datetime('now'),'record')").run(handle, name, email).lastInsertRowid;
       m = mk(id);
       ledger.append(db, 'maker.recorded', m.handle, {});
-      mail.send({ to: email, subject: 'Your studio is open', text: `${name.split(/\s+/)[0]},\n\nYour studio on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
+      mail.send({ to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     }
     if (app.locals.admit) app.locals.admit(req, res, email);
     res.redirect('/account/upload?welcome=own');
@@ -126,7 +126,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     app.locals.inviteMaker(m, hang, { by: 'house' });
     res.redirect('/studio/accounts?ok=' + encodeURIComponent(`${m.name} is invited to the house.`));
   });
-  app.locals.mayHang = m => !m || m.door !== 'record';
+  app.locals.mayHang = m => !m || m.door !== 'record' || !app.locals.museums || app.locals.museums.wallLeft(m) > 0; // 29 Oct: every maker hangs their own museum, up to its wall
 
   // The way in (Will, 20 Oct: getting hung must be a journey, doable, and one that ensures quality; the house has its
   // own eye but does not tell an artist what to make: the standard is craft, honesty and a body of work, not a style).

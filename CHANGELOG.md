@@ -4,6 +4,13 @@ Watermark is a shipped product. Each release is named and dated here, in plain w
 The version is the house's own: the first number changes when the house itself changes shape, the second when a room is
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
+## 1.7.0 · A museum for everyone · 29 October 2026
+- Anyone who makes work can open their own museum in a minute: put the work in, keep all of it, hang the best. You are its curator, with 36 works on view at a time and the rest in storage, deeded as yours.
+- Watermark's own halls hold what has earned a place: work that someone collected, a curator hung or two people called Bravo, and every work by a maker the house has invited.
+- Follow anyone: an artist, a collector or a curator. Who you follow, and who follows you, is private; a page shows its collectors.
+- Following, in Wander: what the people you follow did lately. New work on view, a wall hung, a piece collected.
+- A curator's share of what sells through their walls is now 10%, from the house's part.
+
 ## 1.6.0 · Send from your computer · 29 October 2026
 - A whole archive goes in from your own computer: one command, a folder or a drive, overnight. It reads the stars you gave each picture in Lightroom and sends only what clears your line, and it can take each work's place from its folder (08_FLORENCE becomes Florence).
 - You let a computer in with a code, approved where you are already signed in. It can put work into your vault and nothing else, and you can end it from Your computers.

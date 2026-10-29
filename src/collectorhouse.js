@@ -25,6 +25,7 @@ function head(o) {
     o.eye && o.eye.line ? esc(o.eye.line) : null
   ].filter(Boolean);
   const name = byName(b, own);
+  const follow = !own && b && b.id && o.follow ? `<p class="ch-fo">${o.follow}</p><script src="/static/follow.js" defer></script>` : '';
   const eyeLine = b && b.statement ? `<p class="ch-eye">${esc(b.statement)}</p>` : own ? `<form method="post" action="/yours/statement" class="ch-eyef"><input name="statement" maxlength="400" placeholder="Your eye, in a line: what you look for" aria-label="Your eye, in a line"><button class="link">Keep</button></form>` : '';
   const door = (href, verb, line, { gold = false, soon = false } = {}) => `<a class="ch-d${gold ? ' ch-gold' : ''}${soon ? ' ch-soon' : ''}" href="${esc(href)}"><b>${verb}</b><i>${line}</i></a>`;
   const code = b && b.code ? b.code : null, pub = !!(b && b.public && code);
@@ -60,7 +61,7 @@ ${door('/keys', 'The Keys', 'The members’ club of the house: the benches, the 
 </div>` : '';
   return `<section class="ch${own ? ' ch-own' : ''}">
 <div class="ch-hero"><a class="ch-pic" href="${own && best.ref ? `/yours/p/${esc(best.ref)}` : `/w/${esc(best.slug)}`}"><img src="/img/${esc(best.slug)}/large" alt="${esc(tidy(best.title))}" draggable="false"></a>
-<div class="ch-t"><p class="k">${own ? 'Your house' : 'A collector’s house'}</p><h1 class="ch-name">${esc(name)}</h1><p class="ch-plate">${plate.join(' <span>·</span> ')}</p>${eyeLine}${!own && o.tourHref ? `<p class="ch-tour"><a href="${esc(o.tourHref)}">Take the tour, in ${esc((name || 'the collector').split(' ')[0])}’s voice &rarr;</a></p>` : own && o.tourHref ? `<p class="ch-tour"><a href="${esc(o.tourHref)}">Take your tour &rarr;</a></p>` : ''}<p class="ch-cap">${esc(tidy(best.title))}${best.maker ? ` · ${esc(best.maker)}` : ''}${best.collector_no ? ` · No. ${best.collector_no}` : ''}</p></div></div>
+<div class="ch-t"><p class="k">${own ? 'Your house' : 'A collector’s house'}</p><h1 class="ch-name">${esc(name)}</h1><p class="ch-plate">${plate.join(' <span>·</span> ')}</p>${follow}${eyeLine}${!own && o.tourHref ? `<p class="ch-tour"><a href="${esc(o.tourHref)}">Take the tour, in ${esc((name || 'the collector').split(' ')[0])}’s voice &rarr;</a></p>` : own && o.tourHref ? `<p class="ch-tour"><a href="${esc(o.tourHref)}">Take your tour &rarr;</a></p>` : ''}<p class="ch-cap">${esc(tidy(best.title))}${best.maker ? ` · ${esc(best.maker)}` : ''}${best.collector_no ? ` · No. ${best.collector_no}` : ''}</p></div></div>
 ${rows}</section>`;
 }
 

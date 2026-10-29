@@ -79,7 +79,7 @@ ${!t && rows.length ? `<h2>On your shelf</h2><table class="tbl"><tr><th>Title</t
 <div><h2>The franchise</h2><p>A press and type in another town, a share for the house, the shop the printer’s own. The whole house under your name at your own address, for a fee by the month: the press stays ours, the paper is yours. <a href="/enterprise">Your own house</a></p></div>
 <div><h2>The Junto</h2><p>The Keys: benches under the work, the balcony at night, the dinner. Where the makers and the collectors meet. <a href="/keys">The Keys</a></p></div>
 </div>
-${require('./inscriptions').insc('press')}<p class="pw-n">${n ? `${n} maker${n === 1 ? ' has' : 's have'} published words here so far.` : 'The first words are being set.'} Makers publish from their studio under Writing; by invitation, as everything in the house is. <a href="/join">Apply with the work</a>.</p></section>` }));
+${require('./inscriptions').insc('press')}<p class="pw-n">${n ? `${n} maker${n === 1 ? ' has' : 's have'} published words here so far.` : 'The first words are being set.'} Makers publish from their studio under Writing. <a href="/join">Open your museum</a>.</p></section>` }));
   });
   app.locals.press = { block, shelves, KINDS };
   return app.locals.press;
