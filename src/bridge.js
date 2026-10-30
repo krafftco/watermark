@@ -167,11 +167,15 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
   app.get('/api/partner/v1/claims/:id', P, (req, res) => { const c = db.prepare('SELECT id, kind, state, signed, created_at, decided_at FROM claims_in WHERE id=? AND partner_id=?').get(Number(req.params.id), req.partner.id); c ? res.json(c) : res.sendStatus(404); });
 
   // An accepted exclusive blocks the uses it covers while it runs (`offered` and `listed` consult this).
-  app.locals.blockedBy = (w, useKey) => {
-    const now = new Date().toISOString();
-    return db.prepare("SELECT c.*, p.name partner FROM claims_in c JOIN partners p ON p.id=c.partner_id WHERE c.work_id=? AND c.state='accepted' AND c.kind='exclusive' AND (c.starts_at IS NULL OR c.starts_at <= ?) AND (c.ends_at IS NULL OR c.ends_at >= ?)").all(w.id, now, now)
-      .find(c => { const u = JSON.parse(c.uses || '[]'); return !u.length || u.includes(useKey); }) || null;
+  // One read of every running exclusive per turn of the loop, not one per work and use (30 Oct: /trade asked twelve times a work).
+  let exTick = null;
+  const exclusives = () => {
+    if (exTick) return exTick;
+    const now = new Date().toISOString(), by = new Map();
+    for (const c of db.prepare("SELECT c.*, p.name partner FROM claims_in c JOIN partners p ON p.id=c.partner_id WHERE c.state='accepted' AND c.kind='exclusive' AND (c.starts_at IS NULL OR c.starts_at <= ?) AND (c.ends_at IS NULL OR c.ends_at >= ?)").all(now, now)) { if (!by.has(c.work_id)) by.set(c.work_id, []); by.get(c.work_id).push(c); }
+    exTick = by; setImmediate(() => { exTick = null; }); return by;
   };
+  app.locals.blockedBy = (w, useKey) => (exclusives().get(w.id) || []).find(c => { const u = JSON.parse(c.uses || '[]'); return !u.length || u.includes(useKey); }) || null;
 
   // Notice of each sale, signed, to every partner the maker has connected (the use, the term, the price; never a person's name).
   async function notice(ref) {

@@ -30,7 +30,9 @@ function mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, ma
 
   const reading = w => (app.locals.art ? app.locals.art.attributionOf(w) : null);
   const attestOf = w => { try { return w.clear_attest ? JSON.parse(w.clear_attest) : {}; } catch (e) { return {}; } };
-  const releases = w => db.prepare('SELECT * FROM work_releases WHERE work_id=? ORDER BY id').all(w.id);
+  // Read once a turn of the loop per work: a page that asks about every use asks the table once.
+  let relTick = null;
+  const releases = w => { if (!relTick) { relTick = new Map(); setImmediate(() => { relTick = null; }); } if (!relTick.has(w.id)) relTick.set(w.id, db.prepare('SELECT * FROM work_releases WHERE work_id=? ORDER BY id').all(w.id)); return relTick.get(w.id); };
 
   // The answer for one work: what Al saw, what papers are held, what each use needs.
   function needs(w) {
