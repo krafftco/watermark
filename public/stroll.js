@@ -20,6 +20,11 @@
 
   function screenFor(w) {
     var el = document.createElement('section');
+    if (w.kind === 'sheet') {
+      el.className = 'st-i st-sheet'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'sheet');
+      el.innerHTML = '<article class="st-sh"><a class="ctc-paper ctc-mini" href="' + esc(w.href) + '">' + (w.film || '') + '</a><p class="k">From the contact sheet</p><h2>' + esc(w.title) + '</h2><p class="st-shby">' + esc(w.maker) + (w.place ? ' · ' + esc(w.place) : '') + (w.day ? ' · ' + esc(w.day) : '') + '</p><a class="st-shgo" href="' + esc(w.href) + '">See the whole roll · ' + w.n + ' frames</a></article>';
+      return el;
+    }
     if (w.kind === 'record') {
       el.className = 'st-i st-rec'; el.setAttribute('data-slug', w.slug); el.setAttribute('data-kind', 'record');
       el.innerHTML = '<article class="st-rc"><a class="st-rdisc" href="' + esc(w.href) + '"><img src="' + esc(w.img) + '" alt="" loading="lazy"></a><p class="k">From the Listening Room</p><h2>' + esc(w.title) + '</h2><p class="st-rby">' + esc(w.by) + (w.composer ? ' · ' + esc(w.composer) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</p>' + (w.line ? '<p class="st-rline">' + esc(w.line) + '</p>' : '') + '<div class="st-racts"><button type="button" class="st-rplay" data-st-rplay data-src="' + esc(w.url) + '">' + (ic.play || '') + (ic.pause || '') + '<span>Play ' + esc(w.side) + '</span></button><a class="st-rgo" href="' + esc(w.href) + '">Into the room' + (w.n > 1 ? ' · ' + w.n + ' sides' : '') + '</a></div></article>';
@@ -46,6 +51,7 @@
       + '<button type="button" class="st-b" data-st-share title="Send it to someone.">' + ic.share + '<span>Share</span></button>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
       + '<div class="st-more" data-st-morebox hidden>'
+      + (w.sheet ? '<a class="st-b" data-st-sheet href="' + esc(w.sheet.href) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="The contact sheet: every frame around this one, as it was shot.">' + (ic.page || '') + '<span>Contact sheet</span></a>' : '')
       + '<a class="st-b" data-st-record href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the record under the picture; the guide, the papers, the prices, the provenance.">' + (ic.page || '') + '<span>Watermark</span></a>'
       + (w.guide ? '<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">' + ic.guide + '<span>Look closer</span></button>' : '')
       + '<a class="st-b" data-st-easel href="/draw/from/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Draw it: the picture alone, with the easel\'s tools.">' + (ic.easel || '') + '<span>Draw</span></a>'
@@ -94,7 +100,7 @@
   if (!navigator.onLine && pack.length && !set) { var open0 = fromPack(8); if (open0.length) { scroller.querySelectorAll('.st-i').forEach(function (el) { el.remove(); }); items = {}; order = []; seen = []; open0.forEach(function (w) { var el = screenFor(w); scroller.appendChild(el); register(w, el); }); lost(); } }
   setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
-  function stood(slug, s) { if (!slug || s < 2 || /^[tr]:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
+  function stood(slug, s) { if (!slug || s < 2 || /^[trc]:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
   function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && w.img && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
@@ -184,7 +190,7 @@
     gt.innerHTML = w.guide.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
     gby.innerHTML = esc(w.approved ? 'Written with AI, approved by the maker.' : 'Written by AI from the photograph and its record.') + (w.study ? ' <a class="st-gmore" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '#study">Go further: what to look for, the history, the artists, what to read</a>' : '');
     if (!quiet) sheet.hidden = false;
-    if (w.audio) { audio = new Audio(w.audio); audio.onerror = function () { audio = null; speak(w); }; var p = audio.play(); if (p && p.catch) p.catch(function () { audio = null; speak(w); }); }
+    if (w.audio) { audio = new Audio(w.audio + (!quiet && /\/closer\//.test(w.audio) ? '?play=1' : '')); audio.onerror = function () { audio = null; speak(w); }; var p = audio.play(); if (p && p.catch) p.catch(function () { audio = null; speak(w); }); }
     else speak(w);
   }
   function speak(w) { if (!Sy) return; Sy.cancel(); w.guide.split(/\n{2,}/).forEach(function (t) { var u = new SpeechSynthesisUtterance(t); u.rate = 0.94; Sy.speak(u); }); }

@@ -62,12 +62,17 @@ function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
   }
   const has = w => { const c = closerOf(w); if (!c) return false; const row = db.prepare('SELECT hash FROM speech WHERE work_id=?').get(w.id); return !!row && row.hash === hashOf(c.text); };
 
+  const DAY = { d: '', n: 0 };
+  const underCap = () => { const d = new Date().toISOString().slice(0, 10); if (DAY.d !== d) { DAY.d = d; DAY.n = 0; } if (DAY.n >= Number(process.env.SPEECH_DAY_MAX || 40)) return false; DAY.n++; return true; };
   // Serve it. 404 when there is no recording and none can be made: the page falls back to the browser's voice.
   app.get('/closer/:slug/audio', async (req, res) => {
     const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug);
     if (!w) return res.sendStatus(404);
     try {
-      const f = await fileFor(w, { make: on() });
+      // (30 Oct, Will: the voice costs credits; "I want it to sound good if someone does it; I'm not saying we do it to
+      // everybody"): a recording is made only when a person presses play (?play=1), never for a preload, and no more
+      // than SPEECH_DAY_MAX (40) new ones a day; one made is kept and served to everyone after.
+      const f = await fileFor(w, { make: on() && req.query.play === '1' && underCap() });
       if (!f) return res.sendStatus(404);
       res.set('Cache-Control', 'public, max-age=86400'); res.type('audio/mpeg'); res.sendFile(f);
     } catch (e) { console.error('[speech]', w.slug, e.message); res.sendStatus(404); }
@@ -88,7 +93,7 @@ function mountSpeech(app, { db, C, store, closerOf, fetchImpl = fetch }) {
     return n;
   }
   app.locals.speech = { on, provider, voice, fileFor, has, fill, hashOf, render };
-  if (on() && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('speech fill', () => fill().then(n => { if (n) console.log('[speech]', n, 'guides read'); })); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  if (on() && process.env.SPEECH_FILL === '1' && process.env.NODE_ENV !== 'test' && ROLE.chores) { /* (30 Oct) off unless asked for: every guide read in advance spent credits on pictures no one listened to */ app.locals.governor.boot('speech fill', () => fill().then(n => { if (n) console.log('[speech]', n, 'guides read'); })); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
   return app.locals.speech;
 }
 

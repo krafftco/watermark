@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.15.0 · The contact sheet · 30 October 2026
+- Frames shot one after another in one place become a contact sheet: strips of film printed on paper, sprocket holes and edge numbers, the maker's name and the place in marker, the chosen frame circled in red china marker, the others on view ticked.
+- Tap any frame to blow it up; arrows, a swipe or the keys walk the roll; a double-tap looks closer; a loupe rides the cursor on a computer; Print in silver.
+- Outtakes show as a wash of colour until the maker opens the sheet; a frame held back, a child, or work for the adult rooms never shows. The maker can circle another frame.
+- In Wander: a cut of nine frames comes among the screens, and More offers the contact sheet of any frame on one. On the work page and the maker's page too; the maker's list at /account/sheets.
+- The house voice reads a guide only when someone presses play, and no more than forty new readings a day; nothing is read in advance.
+
 ## 1.14.8 · The moment on the Library's list · 30 October 2026
 
 - /account/table.json carries each work's moment of capture (`taken`), so a maker's editing catalogue can be matched against what the house holds.

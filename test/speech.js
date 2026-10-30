@@ -27,7 +27,8 @@ const { mountSpeech, STYLE } = require('../src/speech');
   assert.strictEqual((await get('/closer/dome/audio')).status, 404, 'no provider: 404');
   // A provider: rendered once, served, kept in the store.
   process.env.OPENAI_API_KEY = 'test-key';
-  let r = await get('/closer/dome/audio'); assert.strictEqual(r.status, 200); assert.strictEqual(r.headers.get('content-type'), 'audio/mpeg');
+  assert.strictEqual((await get('/closer/dome/audio')).status, 404, 'a preload never makes a recording'); assert.strictEqual(calls, 0);
+  let r = await get('/closer/dome/audio?play=1'); assert.strictEqual(r.status, 200); assert.strictEqual(r.headers.get('content-type'), 'audio/mpeg');
   assert.ok(/^ID3mp3bytes/.test(Buffer.from(await r.arrayBuffer()).toString()));
   assert.strictEqual(calls, 1);
   r = await get('/closer/dome/audio'); assert.strictEqual(r.status, 200); assert.strictEqual(calls, 1, 'served from the house, not rendered again');

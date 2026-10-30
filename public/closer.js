@@ -29,7 +29,7 @@
   }
   // The recording: paragraphs light in proportion to their length as the audio plays.
   function playRecording() {
-    if (!audio) { audio = new Audio(src); audio.preload = 'auto'; }
+    if (!audio || audio.error) { audio = new Audio(src + (src.indexOf('?') < 0 ? '?' : '&') + 'play=1'); audio.preload = 'auto'; } // (30 Oct) a recording is made only when someone presses play
     var total = paras.reduce(function (n, p) { return n + p.textContent.length; }, 0) || 1;
     var ends = [], acc = 0; paras.forEach(function (p) { acc += p.textContent.length; ends.push(acc / total); });
     audio.onended = stop; audio.onerror = function () { if (S) { audio = null; playing = true; i = 0; nextSpoken(); } else stop(); };

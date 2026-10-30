@@ -20,7 +20,7 @@
   function doneSaying() { saying = false; sayB.setAttribute('aria-pressed', 'false'); clearInterval(recTick); if (auto) go(1); }
   // The house voice: a recording of the guide, when the house has made one; else the browser's own voice.
   function sayRecording(w, paras, fallback) {
-    rec = new Audio(w.audio); rec.preload = 'auto';
+    rec = new Audio(w.audio + (/\/closer\//.test(w.audio) ? '?play=1' : '')); rec.preload = 'auto';
     var total = paras.reduce(function (n, p) { return n + p.textContent.length; }, 0) || 1, ends = [], acc = 0;
     paras.forEach(function (p) { acc += p.textContent.length; ends.push(acc / total); });
     rec.onended = function () { if (saying) doneSaying(); };
