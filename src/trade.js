@@ -18,6 +18,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
   const safe = b => { b = String(b || ''); return /^\/[^/\\]/.test(b) ? b.slice(0, 300) : null; };
 
   // The search a professional runs: a word, a maker, a shape, a size, a use, a ceiling.
+  const jcache = new Map();
   app.get('/trade', (req, res) => {
     const Q = { q: String(req.query.q || '').trim().slice(0, 80), maker: String(req.query.maker || '').slice(0, 80), shape: ORIENT[req.query.shape] ? req.query.shape : '', min: [12, 24, 40].includes(+req.query.min) ? +req.query.min : 0, use: String(req.query.use || '').slice(0, 30), max: Math.max(0, parseInt(req.query.max, 10) || 0), sort: ['best', 'new', 'big'].includes(req.query.sort) ? req.query.sort : 'best' };
     let rows = db.prepare("SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(w.disputed,0)=0 AND COALESCE(m.standing,'open')='open'").all();
@@ -27,12 +28,22 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
     if (Q.min) rows = rows.filter(w => (mp(w) || 0) >= Q.min);
     const J = app.locals.workJSON;
     const rel = u => String(u || '').replace(C.base, '') || '/';
-    let items = rows.map(w => { const j = J(w); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); return { w, j }; });
-    if (Q.use) items = items.filter(x => x.j.uses.some(u => u.key === Q.use));
-    if (Q.max) items = items.filter(x => x.j.uses.some(u => (!Q.use || u.key === Q.use) && u.instant && u.price_cents != null && u.price_cents <= Q.max * 100));
-    items.sort(Q.sort === 'new' ? (a, b) => String(b.w.taken_at || '').localeCompare(String(a.w.taken_at || '')) : Q.sort === 'big' ? (a, b) => (mp(b.w) || 0) - (mp(a.w) || 0) : (a, b) => (b.w.curated - a.w.curated) || ((b.w.stars || 0) - (a.w.stars || 0)) || (b.w.id - a.w.id));
-    const total = items.length, page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;
-    items = items.slice(page * per, page * per + per);
+    // Each work's record costs a dozen lookups, so make it only for what is shown (30 Oct: /trade made every
+    // held work's record before paging and took ten seconds). A filter on use or price needs the records;
+    // those are kept a minute.
+    const make = w => { const k = w.slug + ':' + (w.updated_at || '') + ':' + (w.stars || 0); const hit = jcache.get(w.slug); if (hit && hit.k === k && Date.now() - hit.at < 60000) return hit.j; const j = J(w); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); jcache.set(w.slug, { k, j, at: Date.now() }); return j; };
+    const order = Q.sort === 'new' ? (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')) : Q.sort === 'big' ? (a, b) => (mp(b) || 0) - (mp(a) || 0) : (a, b) => (b.curated - a.curated) || ((b.stars || 0) - (a.stars || 0)) || (b.id - a.id);
+    rows.sort(order);
+    const page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;
+    let items, total;
+    if (Q.use || Q.max) {
+      items = rows.map(w => ({ w, j: make(w) }));
+      if (Q.use) items = items.filter(x => x.j.uses.some(u => u.key === Q.use));
+      if (Q.max) items = items.filter(x => x.j.uses.some(u => (!Q.use || u.key === Q.use) && u.instant && u.price_cents != null && u.price_cents <= Q.max * 100));
+      total = items.length; items = items.slice(page * per, page * per + per);
+    } else {
+      total = rows.length; items = rows.slice(page * per, page * per + per).map(w => ({ w, j: make(w) }));
+    }
     const makers = db.prepare("SELECT DISTINCT m.* FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held'").all();
     const useKeys = [...new Map(db.prepare("SELECT key, name FROM uses WHERE kind!='delivery' ORDER BY id").all().map(u => [u.key, u.key === 'social' ? 'Collect' : u.name])).entries()];
     const qs = o => '?' + new URLSearchParams(Object.entries({ ...Q, ...o }).filter(([, v]) => v !== '' && v != null && v !== 0)).toString();
