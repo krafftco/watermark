@@ -115,13 +115,34 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const r = await pay(m, { by: 'maker' });
     res.redirect(`/account/payouts?ok=${r.ok ? 'paid' : r.why}`);
   });
+  // What the house owes its makers, one screen (30 Oct: the house desk's 'Pay the makers' had led nowhere). Every maker
+  // owed money: what has cleared, what is still inside the week's hold, whether a bank is connected; Send it now (a
+  // Connect transfer of what has cleared) or record a payment made by hand.
+  app.get('/studio/payouts', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const V = require('./views'); const esc = V.esc;
+    const rows = db.prepare("SELECT * FROM makers WHERE COALESCE(kind,'maker')<>'institution' ORDER BY name").all().map(m => ({ m, st: statement(m) })).filter(x => x.st.owed > 0 || x.st.paid > 0).sort((a, b) => b.st.owed - a.st.owed);
+    const owed = rows.reduce((n, x) => n + x.st.owed, 0), cleared = rows.reduce((n, x) => n + x.st.cleared, 0);
+    const why = { off: 'Payouts are not switched on (PAYOUTS=stripe)', nobank: 'No bank connected yet', clearing: 'Still inside the hold', small: 'Under a dollar', notready: 'Stripe has not finished the account' };
+    const ok = req.query.ok ? `<p class="ok">${esc(String(req.query.ok))}</p>` : '';
+    res.set('Cache-Control', 'private, no-store').send(V.layout({ title: 'Pay the makers · Watermark', studio: true, path: '/studio/payouts', body: `<section class="wrap"><p class="k">Money</p><h1>Pay the makers.</h1>
+<p class="lede">${money(owed)} owed in all; ${money(cleared)} has cleared and can go now. Friday pay sends what has cleared to every connected bank on ${esc(nextFriday())}${ON() ? '' : ' (payouts are not switched on: pay by hand and record it here)'}.</p>${ok}
+<table class="tbl"><thead><tr><th>Maker</th><th>Owed</th><th>Cleared</th><th>Clearing</th><th>Paid in all</th><th>Bank</th><th></th></tr></thead><tbody>${rows.map(({ m, st }) => `<tr><td><a href="/account?maker=${esc(m.handle)}">${esc(m.name)}</a></td><td>${money(st.owed)}</td><td>${money(st.cleared)}</td><td>${money(st.clearing)}</td><td>${money(st.paid)}</td><td>${m.stripe_account ? 'Connected' : 'None yet'}</td><td>${st.cleared >= 100 && m.stripe_account && ON() ? `<form method="post" action="/studio/payouts/${esc(m.handle)}/send"><button>Send ${money(st.cleared)} now</button></form>` : ''}<form method="post" action="/studio/payouts/${esc(m.handle)}" class="inline"><input name="amount" inputmode="decimal" placeholder="$ paid by hand" size="10" aria-label="Amount paid by hand"><input name="note" placeholder="How (cheque, Zelle…)" size="14" aria-label="How"><button>Record</button></form></td></tr>`).join('') || '<tr><td colspan="7">Nothing owed. Every maker is paid.</td></tr>'}</tbody></table>
+<p class="note">${Object.entries(why).map(([k, v]) => `<b>${k}</b>: ${v}`).join(' · ')}</p></section>` }));
+  });
+  app.post('/studio/payouts/:handle/send', async (req, res) => {
+    if (!isStudio(req)) return res.sendStatus(401);
+    const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m) return res.sendStatus(404);
+    const r = await pay(m, { by: 'house' });
+    res.redirect(`/studio/payouts?ok=${encodeURIComponent(r.ok ? `${money(r.amount)} sent to ${m.name}.` : `Not sent: ${r.why}.`)}`);
+  });
   // The Studio records a payment made by hand.
   app.post('/studio/payouts/:handle', (req, res) => {
     if (!isStudio(req)) return res.sendStatus(401);
     const m = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m) return res.sendStatus(404);
-    const cents = Math.round(Number((req.body || {}).amount) * 100); if (!(cents > 0)) return res.redirect('/studio/accounts');
+    const cents = Math.round(Number((req.body || {}).amount) * 100); if (!(cents > 0)) return res.redirect('/studio/payouts');
     record(m, cents, String((req.body || {}).note || '').slice(0, 200));
-    res.redirect(`/studio/accounts?ok=${encodeURIComponent(`${money(cents)} recorded as paid to ${m.name}.`)}`);
+    res.redirect(`/studio/payouts?ok=${encodeURIComponent(`${money(cents)} recorded as paid to ${m.name}.`)}`);
   });
   // Friday pay (every Friday from ten in the morning, New York, once), and when a bank is added.
   const prev = app.locals.patronEvent;

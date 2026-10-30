@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.16.0 · Every room · 30 October 2026
+- Every room in one place: All rooms (or the M key) opens a sheet of every tool, grouped by what it is for (Today, Your work, Make, Your page and store, Money, Learn, You), a line on each, a field to find one by name. The studio, the house and your gallery each have their own.
+- The header keeps only the daily doors: Studio, Library, Add work, Requests, Getting paid.
+- Pay the makers is a real page now: what each maker is owed, what has cleared, Send it now, or record a payment by hand.
+- A test opens every room and every link on the studio's, the house's and the gallery's front pages; a dead one fails the build.
+
 ## 1.15.0 · The contact sheet · 30 October 2026
 - Frames shot one after another in one place become a contact sheet: strips of film printed on paper, sprocket holes and edge numbers, the maker's name and the place in marker, the chosen frame circled in red china marker, the others on view ticked.
 - Tap any frame to blow it up; arrows, a swipe or the keys walk the roll; a double-tap looks closer; a loupe rides the cursor on a computer; Print in silver.
