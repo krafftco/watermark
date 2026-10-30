@@ -14,7 +14,7 @@ function mountTable(app, { db, V, C, makerOf, KINDS }) {
   const list = m => db.prepare(`SELECT w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.height, w.taken_at, w.created_at, w.accession,
       (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired') AND l.price_cents>0) AS sold
     FROM works w WHERE w.maker_id=? AND w.status IN ('held','hidden','restoring') ORDER BY COALESCE(w.taken_at, w.created_at) DESC, w.id DESC`).all(m.id)
-    .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), accession: w.accession || '', sold: w.sold || 0 }));
+    .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0 }));
   app.get('/account/table.json', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); res.set('Cache-Control', 'private, no-store').json({ works: list(m), kinds: KINDS }); });
   app.get('/account/table', (req, res) => {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/table');

@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.8 · The moment on the Library's list · 30 October 2026
+
+- /account/table.json carries each work's moment of capture (`taken`), so a maker's editing catalogue can be matched against what the house holds.
+
 ## 1.14.7 · The sort reads the thumbs · 29 October 2026
 
 - Hang your best's sort (and so Al's picks) looks at the thumb already on the disk instead of fetching each master from the vault to make one.
