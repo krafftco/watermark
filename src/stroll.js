@@ -6,7 +6,9 @@
 const { esc } = require('./views');
 
 const I = require('./icons');
+let HOUSE = null; // the app, for the page's screens (strollPage is outside the mount)
 function mountStroll(app, { db, V, wanderJSON, I }) {
+  HOUSE = app;
   const PAGE = 8;
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
   // little chance in it, and when there is a word, only what matches it (place, title, maker, keywords).
@@ -216,8 +218,8 @@ function strollPage({ items, q = '', maker = null, set = null, I, front = false,
     : `<section class="st-i st-txt" data-slug="${esc(w.slug)}" data-kind="text">${bookObj(w)}<article class="st-tx"><p class="k">From the shelf</p><h2>${esc(w.title)}</h2>${w.author ? `<p class="st-txa">${esc(w.author)}</p>` : ''}${w.head ? `<p class="st-txh">${esc(w.head)}</p>` : ''}<div class="st-txb">${w.excerpt.map(p => `<p>${esc(p)}</p>`).join('')}</div><a class="st-txgo" href="${esc(w.href)}">Read on${w.n ? ` · ${w.n} chapters` : ''}</a><p class="st-txacts"><button type="button" data-st-keep title="Keep it on your shelf: among your books, to read when you like">${I.plus}<span>Keep</span></button><button type="button" data-st-share title="Send the book to someone">${I.share}<span>Share</span></button></p></article></section>`;
   // A screen from the shelf, the turntable or a contact sheet never takes the wall down with it (30 Oct: a third of
   // Wander's first loads answered 500); the fault is kept for /healthz and the screen left out.
-  function screenFault(e) { app.locals.screenFault = { at: new Date().toISOString(), message: String(e && e.message || e).slice(0, 300), stack: String(e && e.stack || '').split('\n').slice(0, 6).join(' | ') }; console.error('[wander] screen', e); }
-  const card = (w, i) => { if (w.kind === 'sheet' || w.kind === 'text' || w.kind === 'record') { try { return w.kind === 'sheet' ? (app.locals.sheets ? app.locals.sheets.card(w) : '') : w.kind === 'text' ? textCard(w) : recordCard(w); } catch (e) { screenFault(e); return ''; } } return cardOf(w, i); };
+  function screenFault(e) { HOUSE.locals.screenFault = { at: new Date().toISOString(), message: String(e && e.message || e).slice(0, 300), stack: String(e && e.stack || '').split('\n').slice(0, 6).join(' | ') }; console.error('[wander] screen', e); }
+  const card = (w, i) => { if (w.kind === 'sheet' || w.kind === 'text' || w.kind === 'record') { try { return w.kind === 'sheet' ? (HOUSE.locals.sheets ? HOUSE.locals.sheets.card(w) : '') : w.kind === 'text' ? textCard(w) : recordCard(w); } catch (e) { screenFault(e); return ''; } } return cardOf(w, i); };
   const cardOf = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}" data-st-maker>${esc(w.maker)}</a><a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span><a class="st-tog" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>${I.wave}Wander</b><span>${I.shield}Watermark</span></a></div>

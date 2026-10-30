@@ -46,6 +46,8 @@ const { createApp } = require('../src/app');
   assert.ok(app.locals.wanderJSON(db.prepare('SELECT * FROM works WHERE slug=?').get(s[4]), { cookies: {} }).sheet, 'Wander knows');
   const sc = SH.screen([]); assert.ok(sc && sc.kind === 'sheet' && /ctc-cut/.test(sc.film) && !/data-ctc-open/.test(sc.film), 'a still cut for Wander');
   assert.ok(/st-sheet/.test(SH.card(sc)));
+  { const { strollPage } = require('../src/stroll'); const one = app.locals.wanderJSON(db.prepare('SELECT * FROM works WHERE slug=?').get(s[4]), { cookies: {} });
+    const page = strollPage({ items: [one, sc, one], I: require('../src/icons') }); assert.ok(/st-sheet/.test(page) && /ctc-cut/.test(page), 'Wander draws the contact sheet screen on its own page (30 Oct: it threw)'); }
   assert.ok(/data-ctc/.test(await (await go(`/sheet/${s[6]}`)).text()) === false, 'a lone frame goes to its own page');
   console.log('sheets: ok'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
