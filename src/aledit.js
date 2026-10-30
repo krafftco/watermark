@@ -98,9 +98,13 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
   // people may hang, a single person is a portrait and waits, any child waits; "better safe than sorry"). From the house's
   // sort (Hang your best's plan at every grade, so its file checks hold), only Al's strong convictions: score ≥ min.
   // GET answers the list (nothing moves); POST with attest=1 publishes it through hangbest's own `hang`.
-  async function picks(m, min) {
+  // The sort looks at every kept-back file (its sharpness, its burst twins), which takes minutes on a large archive, so it
+  // runs as hangbest's background job (`start`) and the page asks again; `wait` lets a test or a POST wait for it.
+  async function picks(m, min, { wait = false } = {}) {
     const HB = app.locals.hangBest; if (!HB) return null;
-    const p = await HB.plan(m, 1);
+    let p;
+    if (HB.start) { let job = HB.start(m, 1); for (let i = 0; wait && job.running && i < 1800; i++) { await new Promise(r => setTimeout(r, 200)); job = HB.start(m, 1); } if (!job.plan) return { running: true }; p = job.plan; }
+    else p = await HB.plan(m, 1);
     const score = w => { try { const g = JSON.parse(w.al_grade || 'null'); return g && !g.refused ? g.score : 0; } catch (e) { return 0; } };
     const strong = x => score(x.w) >= min;
     const crowd = w => { try { const a = JSON.parse(w.attribution || 'null'); return !!(a && a.people && a.people.crowd); } catch (e) { return false; } };
@@ -112,12 +116,13 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
   app.get('/account/edit/al/picks', async (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     const r = await picks(m, Number(req.query.min) || 4.3); if (!r) return res.sendStatus(503);
-    res.set('Cache-Control', 'private, no-store').json({ ok: true, go: r.go, held: r.held });
+    res.set('Cache-Control', 'private, no-store').json(r.running ? { ok: true, running: true } : { ok: true, go: r.go, held: r.held });
   });
   app.post('/account/edit/al/picks', async (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     if (!req.body || req.body.attest !== '1') return res.status(400).json({ ok: false, why: 'attest' });
     const r = await picks(m, Number(req.body.min) || 4.3); if (!r) return res.sendStatus(503);
+    if (r.running) return res.json({ ok: true, running: true });
     const n = app.locals.hangBest.hang(m, r.works, 'al');
     res.json({ ok: true, published: n, go: r.go, held: r.held });
   });

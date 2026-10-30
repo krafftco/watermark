@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.6 · Al's picks in the background · 29 October 2026
+
+- The sort behind Al's picks looks at every kept-back file, which outran the edge's minute; it now runs as Hang your best's background job and the page asks again.
+
 ## 1.14.5 · Al's picks · 29 October 2026
 
 - Al's strong convictions published by one rule: score 4.3 and up, the file sound, street work with people yes, a single person (a portrait) and any child held for the maker. GET /account/edit/al/picks lists; POST with the attestation publishes.
