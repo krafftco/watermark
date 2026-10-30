@@ -4548,3 +4548,7 @@ html.rm-on{overflow:hidden}
 .rm-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1280px;margin:0 auto;padding:10px clamp(16px,4vw,56px);font-size:13px}
 .rm-bar>a{color:var(--mu);text-decoration:none;letter-spacing:.04em}
 @media (max-width:760px){.rm-in{margin:0;border-radius:0;min-height:100%;padding-bottom:calc(40px + env(safe-area-inset-bottom))}.rm-gs{grid-template-columns:1fr;gap:22px}.dh-rooms .rm-b{position:sticky;left:0;z-index:1;box-shadow:8px 0 10px -6px var(--bg,#fff)}}
+/* The Library fits its screen (30 Oct): a long title never widens a column; the header never pushes past a phone. */
+.lib-grid{grid-template-columns:repeat(var(--n),minmax(0,1fr))}.lib-t,.lib-im{min-width:0}.lib-t img{max-width:100%}
+.lib{overflow-x:clip}
+@media (max-width:760px){.dh-top{overflow-x:clip}.dh-right{gap:10px;min-width:0}}
