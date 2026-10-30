@@ -16,6 +16,7 @@
 // A person shown can always ask for a picture to come down (the claims door); a company's or a campaign's use stays
 // closed until a release is in (clearance.js). Every word a draft for Will.
 'use strict';
+const fs = require('fs');
 const sharp = require('sharp');
 
 const MIN_MP = Number(process.env.HANG_MIN_MP || 12);
@@ -27,7 +28,9 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
   for (const [c, t] of [['keep_back', 'INTEGER NOT NULL DEFAULT 0'], ['qc', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   const esc = V.esc;
   const P = require('./pairs');
-  const thumbOf = async w => { try { return await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { return null; } };
+  // The thumb already on the disk first: fetching each master from the vault only to make a thumb that is already
+  // there made the sort of a large archive pull every 60 MP master down (29 Oct).
+  const thumbOf = async w => { try { const f = images.fileOf(cache, w.slug, 'thumb', 'jpg'); if (fs.existsSync(f)) return f; return await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { return null; } };
 
   // The house's look at the file: sharpness and exposure from the thumb, kept by fingerprint.
   async function qc(w) {

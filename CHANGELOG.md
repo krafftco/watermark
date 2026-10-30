@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.7 · The sort reads the thumbs · 29 October 2026
+
+- Hang your best's sort (and so Al's picks) looks at the thumb already on the disk instead of fetching each master from the vault to make one.
+
 ## 1.14.6 · Al's picks in the background · 29 October 2026
 
 - The sort behind Al's picks looks at every kept-back file, which outran the edge's minute; it now runs as Hang your best's background job and the page asks again.
