@@ -46,5 +46,14 @@ const { createApp } = require('../src/app');
   // A second run reads only what is new.
   const j2 = app.locals.alEdit.run(m); assert.strictEqual(j2.total, 0);
   const lib = await (await go('/account/table')).text(); assert.ok(/Al’s edit: 20 of 20 read/.test(lib), 'the Library says it: ' + (lib.match(/lib-line.{0,600}/) || [lib.slice(0, 300)])[0]);
+  // Al's picks: strong convictions only; street work with people goes, a portrait and a child wait.
+  const W = i => db.prepare('SELECT * FROM works WHERE slug=?').get(slugs[i]);
+  const setA = (i, a) => db.prepare('UPDATE works SET attribution=? WHERE slug=?').run(JSON.stringify(a), slugs[i]);
+  setA(18, { people: { recognisable: 4, crowd: true } }); setA(17, { people: { recognisable: 1, crowd: false } }); setA(16, { people: { recognisable: 1, minors: true } });
+  const hung = [];
+  app.locals.hangBest = { plan: async () => ({ clear: [{ w: W(19) }, { w: W(2) }], people: [{ w: W(18) }, { w: W(17) }], children: [{ w: W(16) }], check: [], unread: [] }), hang: (mm, ws) => { hung.push(...ws.map(x => x.slug)); return ws.length; } };
+  const pk = await app.locals.alEdit.picks(m, 4.3);
+  assert.deepStrictEqual(pk.go.map(x => x.slug).sort(), [slugs[18], slugs[19]].sort(), 'the strong clear frame and the street scene: ' + JSON.stringify(pk.go));
+  assert.strictEqual(pk.held.portraits[0].slug, slugs[17]); assert.strictEqual(pk.held.children[0].slug, slugs[16]);
   console.log('al edit: ok'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

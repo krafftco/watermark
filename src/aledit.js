@@ -94,7 +94,34 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
     res.json({ ok: true, ...state(m), job });
   });
   app.get('/account/edit/al', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); res.set('Cache-Control', 'private, no-store').json({ ok: true, ...state(m) }); });
-  app.locals.alEdit = { grade, stars, run, state, FILE_NAME };
+  // Al's picks (29 Oct, Will: "stuff that he has a real strong belief that it should be published"; street work with
+  // people may hang, a single person is a portrait and waits, any child waits; "better safe than sorry"). From the house's
+  // sort (Hang your best's plan at every grade, so its file checks hold), only Al's strong convictions: score ≥ min.
+  // GET answers the list (nothing moves); POST with attest=1 publishes it through hangbest's own `hang`.
+  async function picks(m, min) {
+    const HB = app.locals.hangBest; if (!HB) return null;
+    const p = await HB.plan(m, 1);
+    const score = w => { try { const g = JSON.parse(w.al_grade || 'null'); return g && !g.refused ? g.score : 0; } catch (e) { return 0; } };
+    const strong = x => score(x.w) >= min;
+    const crowd = w => { try { const a = JSON.parse(w.attribution || 'null'); return !!(a && a.people && a.people.crowd); } catch (e) { return false; } };
+    const go = [...p.clear.filter(strong), ...p.people.filter(strong).filter(x => crowd(x.w))];
+    const held = { portraits: p.people.filter(strong).filter(x => !crowd(x.w)), children: p.children.filter(strong), check: p.check.filter(strong), unread: p.unread.filter(strong) };
+    const row = x => ({ slug: x.w.slug, title: x.w.title, place: x.w.place, score: score(x.w), why: x.why || null });
+    return { go: go.map(row).sort((a, b) => b.score - a.score), held: Object.fromEntries(Object.entries(held).map(([k, v]) => [k, v.map(row)])), works: go.map(x => x.w) };
+  }
+  app.get('/account/edit/al/picks', async (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const r = await picks(m, Number(req.query.min) || 4.3); if (!r) return res.sendStatus(503);
+    res.set('Cache-Control', 'private, no-store').json({ ok: true, go: r.go, held: r.held });
+  });
+  app.post('/account/edit/al/picks', async (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    if (!req.body || req.body.attest !== '1') return res.status(400).json({ ok: false, why: 'attest' });
+    const r = await picks(m, Number(req.body.min) || 4.3); if (!r) return res.sendStatus(503);
+    const n = app.locals.hangBest.hang(m, r.works, 'al');
+    res.json({ ok: true, published: n, go: r.go, held: r.held });
+  });
+  app.locals.alEdit = { grade, stars, run, state, picks, FILE_NAME };
   return app.locals.alEdit;
 }
 module.exports = { mountAlEdit, PCT, FILE_NAME };

@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.14.5 · Al's picks · 29 October 2026
+
+- Al's strong convictions published by one rule: score 4.3 and up, the file sound, street work with people yes, a single person (a portrait) and any child held for the maker. GET /account/edit/al/picks lists; POST with the attestation publishes.
+
 ## 1.14.4 · The disk kept lean · 29 October 2026
 
 - The display copies are a cache with a budget (RENDITIONS_CACHE_GB, 6): past it the least recently used go, the wall size first, then large, then screen; thumbs stay. Under twice the disk's floor, half the budget.
