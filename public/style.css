@@ -3857,7 +3857,7 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 /* The franchise: a maker's own house at a fee (25 Oct). */
 .fch-on{padding:18px 20px;border:1px solid var(--line,#ddd);border-radius:10px;margin:0 0 28px}.fch-on p{margin:0 0 10px}.fch-f{display:grid;gap:10px;justify-items:start;margin:0 0 32px}.fch-f small{max-width:48em;color:var(--mu)}.fch-list{padding-left:1.2em;max-width:44em;font-family:var(--read);font-size:17px;line-height:1.5}.fch-list li{margin:0 0 8px}
 /* The Library (25 Oct): Lightroom's grid and loupe for the maker's own work. */
-.lib{background:#1c1b19;color:#d9d4cb;min-height:100vh;padding-bottom:120px}
+.lib{background:#1c1b19;color:#d9d4cb;min-height:100vh;padding-bottom:120px;overflow-x:clip}
 .lib-top{padding:18px clamp(14px,3vw,40px) 8px;border-bottom:1px solid #2a2927;position:sticky;top:0;z-index:5;background:#1c1b19}
 .lib-tt{display:flex;align-items:baseline;gap:14px}.lib-tt .k{margin:0;color:#8f8a81}.lib-tt h1{margin:0;font-size:clamp(22px,2.4vw,30px);color:#f2efe9}
 .lib-filt{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:10px}
@@ -4550,5 +4550,4 @@ html.rm-on{overflow:hidden}
 @media (max-width:760px){.rm-in{margin:0;border-radius:0;min-height:100%;padding-bottom:calc(40px + env(safe-area-inset-bottom))}.rm-gs{grid-template-columns:1fr;gap:22px}.dh-rooms .rm-b{position:sticky;left:0;z-index:1;box-shadow:8px 0 10px -6px var(--bg,#fff)}}
 /* The Library fits its screen (30 Oct): a long title never widens a column; the header never pushes past a phone. */
 .lib-grid{grid-template-columns:repeat(var(--n),minmax(0,1fr))}.lib-t,.lib-im{min-width:0}.lib-t img{max-width:100%}
-.lib{overflow-x:clip}
 @media (max-width:760px){.dh-top{overflow-x:clip}.dh-right{gap:10px;min-width:0}}
