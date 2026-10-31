@@ -95,25 +95,37 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   if (!db.prepare("SELECT 1 FROM pragma_table_info('iiif_imports') WHERE name='max'").get()) db.exec('ALTER TABLE iiif_imports ADD COLUMN max INTEGER');
   const stage = path.join(C.dataDir, 'incoming'); fs.mkdirSync(stage, { recursive: true });
   const placeOf = meta => { const hit = meta.find(x => /^(place|location|geography|site|city)$/i.test(x.label)); return hit ? hit.value.slice(0, 120) : null; };
-  const yearOf = (it) => { const hit = it.meta.find(x => /^(date|year|created|dated)$/i.test(x.label)); const m = hit && String(hit.value).match(/\b(1[5-9]\d\d|20\d\d)\b/); return m ? m[1] : null; };
+  const yearOf = (it) => { const hit = it.meta.find(x => /^(date|year|created|dated)$/i.test(x.label)); const m = hit && String(hit.value).match(/\b(1[0-9]\d\d|20\d\d)\b/); return m ? m[1] : null; };
 
   // One item through the door (shared with the feeds, feeds.js): the picture fetched, the work registered as the maker's, the licence and year set.
+  // A picture from another house (31 Oct: Wikimedia answered 429 to 433 of the Van Gogh files): Wikimedia asks for a
+  // User-Agent that names the caller and for a gentle pace; a 429 or 503 is waited out (Retry-After, else 15 s, 30 s, 60 s).
+  const UA = 'Watermark/1.17 (https://watermark.krafftco.com; house@watermark.krafftco.com)'; let wikiLast = 0;
+  async function fetchPicture(url) {
+    const wiki = /(^|\.)wikimedia\.org$/.test((() => { try { return new URL(url).hostname; } catch (e) { return ''; } })());
+    for (let i = 0; ; i++) {
+      if (wiki && !app.locals.noTimers) { const gap = 2000 - (Date.now() - wikiLast); if (gap > 0) await new Promise(x => setTimeout(x, gap)); wikiLast = Date.now(); }
+      const r = await doFetch(url, wiki ? { headers: { 'User-Agent': UA } } : undefined);
+      if (![429, 503].includes(r.status) || i >= 3) return r;
+      const ra = +((r.headers && r.headers.get && r.headers.get('retry-after')) || 0); await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : Math.min(120, ra > 0 ? ra : 15 * 2 ** i) * 1000));
+    }
+  }
   async function take(it, job, man = { label: '', meta: [] }) {
     if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) return { skipped: true };
     const tmp = path.join(stage, `feed-${job.id || 0}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
     try {
         if (it.file) fs.copyFileSync(it.file, tmp); // a file already on the house's disk (an inbox)
-        else { const r = await doFetch(it.image); if (!r.ok) throw new Error(`image ${r.status}`); fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer())); }
+        else { const r = await fetchPicture(it.image); if (!r.ok) throw new Error(`image ${r.status}`); fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer())); }
         const title = (it.label || man.label || 'Untitled').slice(0, 160);
         const caption = [it.summary, ...it.meta.filter(x => !/^(place|location|date|year)$/i.test(x.label)).slice(0, 6).map(x => `${x.label}: ${x.value}`)].filter(Boolean).join(' · ').slice(0, 1200) || null;
-        const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = it.artist || (artistMeta ? { name: artistMeta.value } : null);
+        const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = job.artist ? { name: job.artist } : it.artist || (artistMeta ? { name: artistMeta.value } : null);
         const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: it.name || 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
-        const year = yearOf(it);
+        const year = yearOf(it); // the object's own date wins over the file's (a museum scan's EXIF says 2011; the painting says 1889)
         // The item's own rights first (a feed mixes open and closed objects: Te Papa, Wellcome, Europeana); the feed's licence only when the item says nothing.
         const rk = it.rights ? rightsKey(it.rights) : (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) ? rightsKey(it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)).value) : null);
         const open = rk === 'closed' ? null : (rk || job.open || null);
         if (rk === 'closed') db.prepare("UPDATE works SET rights_note=? WHERE id=?").run(String(it.rights || (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) || {}).value || '').slice(0, 300), w.id);
-        db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(taken_at, ?), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', open, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
+        db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(?, taken_at), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', open, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
         if (open) { try { ledger.append(db, 'work.opened', w.slug, { licence: open, by: rk ? 'item' : 'iiif' }); } catch (e) { /* */ } }
         return { w };
     } catch (e) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } if (/already held/.test(e.message)) return { skipped: true }; throw e; }

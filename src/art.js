@@ -288,7 +288,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   }
   async function bringArtist(a, { cats = [], words = true, max = 400 } = {}) {
     const m = shelf(); const out = { feeds: [], words: [] }; const F = app.locals.feeds; const pd = rights(a).state === 'pd';
-    if (F) for (const url of cats) { if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/Category:/.test(url)) { out.feeds.push(`not a Commons category: ${url}`); continue; } if (db.prepare("SELECT 1 FROM feeds WHERE url=? AND status NOT IN ('failed','stopped')").get(url)) { out.feeds.push(`already: ${url}`); continue; } try { out.feeds.push(F.enqueue({ name: `${a.name}: ${decodeURIComponent(url.split('Category:')[1]).replace(/_/g, ' ')}`, url, kind: 'commons', maker: m.handle, open: pd ? 'pd' : '', show: pd ? '1' : '', max: String(max) })); } catch (e) { out.feeds.push(String(e.message)); } }
+    if (F) for (const url of cats) { if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/Category:/.test(url)) { out.feeds.push(`not a Commons category: ${url}`); continue; } if (db.prepare("SELECT 1 FROM feeds WHERE url=? AND status NOT IN ('failed','stopped')").get(url)) { out.feeds.push(`already: ${url}`); continue; } try { out.feeds.push(F.enqueue({ name: `${a.name}: ${decodeURIComponent(url.split('Category:')[1]).replace(/_/g, ' ')}`, url, kind: 'commons', maker: m.handle, open: pd ? 'pd' : '', show: pd ? '1' : '', max: String(max), artist: a.name })); } catch (e) { out.feeds.push(String(e.message)); } }
     if (words) { try { out.words = await writingsFor(a); } catch (e) { out.words = [String(e.message)]; } }
     pageCache.delete(a.slug); try { ledger.append(db, 'artist.brought', a.slug, { feeds: out.feeds.length }); } catch (e) { /* */ }
     return out;

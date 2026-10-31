@@ -68,7 +68,13 @@ ${ws.length ? groups.map(g => `<section class="vg-p"><h2>${esc(g.name)}</h2><p c
     const m = ensureShelf(); const out = { feeds: [], book: null };
     try { if (app.locals.art) { const a = app.locals.art.ensure('Vincent van Gogh', { born: 1853, died: 1890, nationality: 'Dutch', movement: 'Post-Impressionism' }); if (a && !a.periods) db.prepare('UPDATE artists SET periods=? WHERE id=?').run(PERIODS.map(([f, t, n, l]) => `${f}${t !== f ? `–${t}` : ''} ${n}: ${l}`).join('\n'), a.id); if (a && !a.bio) db.prepare('UPDATE artists SET bio=? WHERE id=?').run('He made some nine hundred paintings in about ten years and sold almost none of them while he lived. His brother Theo kept him going; after both brothers had died, Theo’s widow, Jo van Gogh-Bonger, spent her life getting the work seen.', a.id); } } catch (e) { /* */ }
     const F = app.locals.feeds;
-    if (F) for (const [name, url] of FEEDS) { if (!db.prepare('SELECT 1 FROM feeds WHERE url=? AND status NOT IN (\'failed\',\'stopped\')').get(url)) { try { out.feeds.push(F.enqueue({ name, url, kind: 'commons', maker: m.handle, open: 'pd', show: '1', max: '400' })); } catch (e) { out.feeds.push(String(e.message)); } } }
+    if (F) for (const [name, url] of FEEDS) {
+      const had = db.prepare("SELECT * FROM feeds WHERE url=? AND status NOT IN ('failed','stopped') ORDER BY id DESC LIMIT 1").get(url);
+      try {
+        if (!had) out.feeds.push(F.enqueue({ name, url, kind: 'commons', maker: m.handle, open: 'pd', show: '1', max: '400', artist: 'Vincent van Gogh' }));
+        else if (had.status === 'done' && F.missesOf && F.missesOf(had).length) { const nid = F.retry(had.id); if (nid) { db.prepare("UPDATE feeds SET artist='Vincent van Gogh' WHERE id=?").run(nid); out.feeds.push(nid); } }
+      } catch (e) { out.feeds.push(String(e.message)); }
+    }
     const R = app.locals.reading;
     if (R && R.bring) { try { const t = await R.bring(LETTERS); out.book = t && (t.slug || t.id) || null; } catch (e) { out.book = String(e.message); } }
     cache.at = 0;

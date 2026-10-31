@@ -97,7 +97,7 @@ function commonsItems(j) {
   for (const p of pages) {
     const ii = (p.imageinfo || [])[0]; if (!ii || !ii.url || !/^image\/(jpeg|png|tiff|webp)/.test(ii.mime || '')) continue;
     const em = ii.extmetadata || {}; const v = k => strip((em[k] || {}).value);
-    const title = (v('ObjectName') || String(p.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ')).slice(0, 160);
+    const title = (v('ObjectName').replace(/\s+(?:title|label)\s+QS:.*$/i, '').replace(/\s+QS:.*$/, '').trim() || String(p.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ')).slice(0, 160);
     const meta = []; const add = (label, x) => { if (x) meta.push({ label, value: String(x).slice(0, 300) }); };
     add('Artist', v('Artist')); add('Date', v('DateTimeOriginal')); add('Credit', v('Credit'));
     const desc = v('ImageDescription'); const artist = v('Artist').replace(/\s*\(.*$/, '').replace(/,\s*\d{4}.*$/, '');
@@ -271,13 +271,14 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     const url = String(body.url || '').trim(); if (!url && !file) throw new Error('an address or a file');
     if (url && !/^https?:\/\//.test(url)) throw new Error('an https address');
     const open = ['pd', 'cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc'].includes(body.open) ? body.open : null;
-    const id = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max) VALUES (?,?,?,?,?,?,?,?)').run(String(body.name || '').trim().slice(0, 120) || null, KINDS.some(k => k[0] === body.kind) ? body.kind : 'auto', url || null, file || null, m.id, open, body.show ? 1 : 0, +body.max > 0 ? Math.min(+body.max, MAX) : null).lastInsertRowid;
+    const id = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, artist) VALUES (?,?,?,?,?,?,?,?,?)').run(String(body.name || '').trim().slice(0, 120) || null, KINDS.some(k => k[0] === body.kind) ? body.kind : 'auto', url || null, file || null, m.id, open, body.show ? 1 : 0, +body.max > 0 ? Math.min(+body.max, MAX) : null, String(body.artist || '').trim().slice(0, 120) || null).lastInsertRowid;
     setTimeout(kick, app.locals.noTimers ? 0 : 20); return id;
   }
-  function retry(id) { const j = db.prepare('SELECT * FROM feeds WHERE id=?').get(id); if (!j || !missesOf(j).length) return null; const nid = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, retry_of) VALUES (?,?,?,?,?,?,?,?,?)').run(`${j.name || j.url || 'feed'} · the misses`, j.kind, j.url, j.file, j.maker_id, j.open, j.show, j.max, j.id).lastInsertRowid; setTimeout(kick, app.locals.noTimers ? 0 : 20); return nid; }
+  function retry(id) { const j = db.prepare('SELECT * FROM feeds WHERE id=?').get(id); if (!j || !missesOf(j).length) return null; const nid = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, retry_of, artist) VALUES (?,?,?,?,?,?,?,?,?,?)').run(`${j.name || j.url || 'feed'} · the misses`, j.kind, j.url, j.file, j.maker_id, j.open, j.show, j.max, j.id, j.artist || null).lastInsertRowid; setTimeout(kick, app.locals.noTimers ? 0 : 20); return nid; }
   // A restart puts a running job back in the queue; the cursor resumes it, two minutes after the house is up (the house breathes first).
   // A job that was running through two restarts is paused instead: it may be what brought the house down (27 Oct).
   try { db.exec('ALTER TABLE feeds ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* held */ }
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('feeds') WHERE name='artist'").get()) db.exec('ALTER TABLE feeds ADD COLUMN artist TEXT'); // every work of the feed is this artist's (31 Oct: Commons' Artist field is a template's text)
   if (ROLE.chores) { db.prepare("UPDATE feeds SET status='queued', restarts=restarts+1 WHERE status='running'").run(); if (!app.locals.noTimers) { setTimeout(kick, 120000).unref(); if (ROLE.split) setInterval(kick, 60000).unref(); } }
   app.post('/studio/feeds/:id/resume', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare("UPDATE feeds SET status='queued', restarts=0, note=NULL WHERE id=? AND status IN ('paused','stopped','failed')").run(+req.params.id); setTimeout(kick, app.locals.noTimers ? 0 : 20); res.redirect('/studio/feeds/' + req.params.id); });
 
