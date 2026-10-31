@@ -27,6 +27,7 @@ function mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, gr
   async function accept(ref, cents, by) {
     const l = full(ref); if (!l || !open(l)) return { ok: false, why: 'This request is no longer open.' };
     if (!(cents > 0)) return { ok: false, why: 'Set a fee.' };
+    { const wt = app.locals.sitters ? app.locals.sitters.waiting(l.ref) : null; if (wt) return { ok: false, why: wt.no ? `${wt.who} has not agreed to this use.` : `Waiting on ${wt.who}: the person in the photograph says yes or no first.` }; }
     db.prepare("UPDATE licenses SET price_cents=?, status='awaiting_payment', updated_at=datetime('now') WHERE ref=?").run(cents, l.ref);
     ledger.append(db, 'license.quoted', l.ref, { currency: l.currency, by });
     if (!stripe) return { ok: true, url: null, note: 'Fee saved. Connect Stripe to send a payment link.' };
@@ -36,6 +37,7 @@ function mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, gr
   }
   function give(ref, by) {
     const l = full(ref); if (!l || !open(l)) return { ok: false, why: 'This request is no longer open.' };
+    { const wt = app.locals.sitters ? app.locals.sitters.waiting(l.ref) : null; if (wt) return { ok: false, why: wt.no ? `${wt.who} has not agreed to this use.` : `Waiting on ${wt.who}: the person in the photograph says yes or no first.` }; }
     grant(l.ref, { paid: false });
     ledger.append(db, 'license.granted.free', l.ref, { by });
     return { ok: true, note: 'Granted. The file and certificate have gone to the buyer.' };

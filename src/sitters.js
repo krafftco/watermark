@@ -25,6 +25,12 @@ function mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf,
     CREATE TABLE IF NOT EXISTS sittings (id INTEGER PRIMARY KEY, sitter_id INTEGER NOT NULL, maker_id INTEGER NOT NULL, work_id INTEGER NOT NULL,
       release_id INTEGER, status TEXT NOT NULL DEFAULT 'asked', by TEXT, token TEXT, credit INTEGER NOT NULL DEFAULT 1, at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE (sitter_id, work_id));`);
+  for (const [c, t] of [['share_pct', 'INTEGER NOT NULL DEFAULT ' + Math.max(0, Math.min(50, Number(process.env.SITTER_PCT || 10)))], ['share_all', 'INTEGER NOT NULL DEFAULT 0']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('sittings') WHERE name=?").get(c)) db.exec(`ALTER TABLE sittings ADD COLUMN ${c} ${t}`);
+  // The sitter's word on one company's or campaign's use (a link they answer), and what their pictures have paid them.
+  db.exec(`CREATE TABLE IF NOT EXISTS sitter_asks (id INTEGER PRIMARY KEY, license_ref TEXT NOT NULL, sitting_id INTEGER NOT NULL, sitter_id INTEGER NOT NULL, token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')), answered_at TEXT, UNIQUE (license_ref, sitter_id));
+    CREATE TABLE IF NOT EXISTS sitter_pay (id INTEGER PRIMARY KEY, sitter_id INTEGER NOT NULL, maker_id INTEGER NOT NULL, license_ref TEXT NOT NULL, cents INTEGER NOT NULL,
+      at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (sitter_id, license_ref));`);
   const COMMERCIAL = new Set(['commercial', 'campaign']);
   const first = n => String(n || '').trim().split(/\s+/)[0] || '';
   const money = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
@@ -88,6 +94,7 @@ function mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf,
     const back = `${studio ? '/studio' : '/account'}/works/${encodeURIComponent(w.slug)}#sitters`;
     const x = req.body || {};
     if (x.do === 'remove') { db.prepare('DELETE FROM sittings WHERE id=? AND work_id=?').run(+x.id, w.id); return res.redirect(303, back); }
+    if (x.do === 'share') { const pct = Math.max(0, Math.min(50, parseInt(x.pct, 10) || 0)); db.prepare('UPDATE sittings SET share_pct=?, share_all=? WHERE id=? AND work_id=?').run(pct, x.all ? 1 : 0, +x.id, w.id); return res.redirect(303, back); }
     const name = String(x.name || '').trim().slice(0, 120), email = String(x.email || '').trim().toLowerCase().slice(0, 160);
     if (!name || !okEmail(email)) return res.redirect(303, back.replace('#', '?sit=need#'));
     const s = sitterFor(email, name);
@@ -110,7 +117,9 @@ function mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf,
   function block(w, action) {
     const list = sittingsOf(w); const said = { need: 'A name and an email, please.', asked: 'Asked. They will see the photograph and say whether it is them.', linked: 'Linked: they had signed with you before, and they have been told.' };
     return `<section class="sit-rec" id="sitters"><h2>In this picture</h2><p class="note">The people in it, by their own word: a release they signed, or their yes to your letter. The copyright is yours; their likeness is theirs. No face is ever recognised by the house.</p>
-${list.length ? `<ul class="sit-ls">${list.map(x => `<li><b>${esc(x.name || 'A sitter')}</b><span>${x.status === 'on' ? (x.release_id ? 'Signed a release' : 'Said it is them') : x.status === 'asked' ? 'Asked, not yet answered' : x.status === 'declined' ? 'Said it is not them' : 'Stepped out'}${x.status === 'on' ? ` · commercial use: ${x.commercial === 'open' ? 'yes' : x.commercial === 'closed' ? 'no' : 'ask them first'}${x.fee_cents ? ` · their fee ${money(x.fee_cents)}` : ''}${x.credit && x.scredit ? ' · credited' : ''}` : ''}</span><form method="post" action="${esc(action)}"><input type="hidden" name="do" value="remove"><input type="hidden" name="id" value="${x.id}"><button class="link">Remove</button></form></li>`).join('')}</ul>` : ''}
+${list.length ? `<ul class="sit-ls">${list.map(x => `<li><b>${esc(x.name || 'A sitter')}</b><span>${x.status === 'on' ? (x.release_id ? 'Signed a release' : 'Said it is them') : x.status === 'asked' ? 'Asked, not yet answered' : x.status === 'declined' ? 'Said it is not them' : 'Stepped out'}${x.status === 'on' ? ` · commercial use: ${x.commercial === 'open' ? 'yes' : x.commercial === 'closed' ? 'no' : 'ask them first'}${x.fee_cents ? ` · their fee ${money(x.fee_cents)}` : ''}${x.credit && x.scredit ? ' · credited' : ''}` : ''}</span><form method="post" action="${esc(action)}"><input type="hidden" name="do" value="remove"><input type="hidden" name="id" value="${x.id}"><button class="link">Remove</button></form>
+<form method="post" action="${esc(action)}" class="sit-share"><input type="hidden" name="do" value="share"><input type="hidden" name="id" value="${x.id}"><label>Their share of your side <select name="pct">${[0, 5, 10, 15, 20, 25].map(n => `<option value="${n}"${x.share_pct === n ? ' selected' : ''}>${n}%</option>`).join('')}</select></label><label><input type="checkbox" name="all" value="1"${x.share_all ? ' checked' : ''}> on every sale, not only a company&rsquo;s or a campaign&rsquo;s</label><button class="link">Set</button></form></li>`).join('')}</ul>
+<p class="note">A company or a campaign cannot use a likeness without the sitter&rsquo;s yes, so their share there is the price of that yes: a cost of your business, taken from your side, paid to them on Fridays. Collections and prints need nothing from them; a share there is yours to give.</p>` : ''}
 <form method="post" action="${esc(action)}" class="sit-add">${''}<input name="name" placeholder="Their name" maxlength="120" required><input name="email" type="email" placeholder="Their email" maxlength="160" required><button class="bk-alt">Ask them</button></form>
 ${app.locals.signRelease ? `<p class="note">Better still, a release: <a href="/account/release/sign?work=${esc(w.slug)}">signed on this phone</a> links them at once.</p>` : ''}</section>`;
   }
@@ -154,7 +163,7 @@ ${st.status === 'asked' ? `<form method="post" action="/sit/${esc(st.token)}" cl
     res.send(V.layout({ title: 'Pictures of you · Watermark', path: '/yours/sitter', body: `<main class="sit">
 <header class="sit-h">${hero ? `<figure class="sit-hero"><img src="/img/${esc(hero.slug)}/large" alt=""></figure>` : ''}<div class="sit-ht"><p class="k">Pictures of you</p><h1>${esc(name || 'You')}.</h1>
 <p class="sit-line">${on.length ? `${on.length} photograph${on.length === 1 ? '' : 's'} by ${by.size} photographer${by.size === 1 ? '' : 's'}.` : 'Photographs of you gather here, by your own word: a release you sign, or your yes to a photographer&rsquo;s letter.'} The photographers keep their pictures; your likeness is yours.</p>
-${said ? `<p class="sit-said">${esc(said)}</p>` : ''}</div></header>
+${s && earnedBy(s).c ? `<p class="sit-earn"><b>${money(earnedBy(s).c)}</b> from ${earnedBy(s).n} sale${earnedBy(s).n === 1 ? '' : 's'} of photographs of you, in your pocket and to your bank on Fridays. <a href="/yours?tab=more#pocket">Your pocket</a></p>` : ''}${said ? `<p class="sit-said">${esc(said)}</p>` : ''}</div></header>
 ${asked.length ? `<section class="sit-ask"><h2>Is it you?</h2><ul class="sit-grid">${asked.map(r => `<li><img src="/img/${esc(r.slug)}/thumb" alt=""><span>${esc(r.maker)} says you are in <i>${esc(tidy(r.title))}</i>.</span><form method="post" action="/sit/${esc(r.token)}"><button name="a" value="yes" class="bk-alt">Yes</button> <button name="a" value="no" class="link">Not me</button></form></li>`).join('')}</ul></section>` : ''}
 ${s ? `<form method="post" action="/yours/sitter" class="sit-word"><h2>Your word on your likeness</h2>
 <label class="sit-sw"><input type="checkbox" name="credit" value="1"${s.credit ? ' checked' : ''}> <span>Credit me by name: <b>With ${esc(name || 'you')}</b>, on the photographs.</span></label>
@@ -212,7 +221,80 @@ ${rows.length ? `<ul class="sit-mls">${rows.map(r => `<li><img src="/img/${esc(r
 <p><a class="buy-btn" href="/account/release/sign">Sign a release now, on this phone</a></p></section>` }));
   });
 
-  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf };
+
+  // ---- A company's or a campaign's use, asked of the sitter (31 Oct, Will: "a link that is sent out and someone can
+  // say yes or no, and the sitter gets money from the sale of the work, from the maker's percentage; a functioning
+  // business within the ecosystem, not charity"). The request waits for every sitter who said "ask me first"; a no
+  // declines it, kindly; a yes lets the photographer quote it. What the sitter is paid is their share of the
+  // photographer's side, set by the photographer, recorded as the photographer's cost and credited to the sitter's
+  // pocket, which goes to their bank on Fridays.
+  function ask(ref) {
+    const l = db.prepare('SELECT l.*, u.key AS use_key, u.name AS use_name, u.term_months FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?').get(ref);
+    if (!l || !COMMERCIAL.has(l.use_key)) return 0;
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+    let n = 0;
+    for (const st of sittingsOf(w).filter(x => x.status === 'on' && x.commercial === 'ask')) {
+      if (db.prepare('SELECT 1 FROM sitter_asks WHERE license_ref=? AND sitter_id=?').get(ref, st.sitter_id)) continue;
+      const token = crypto.randomBytes(12).toString('base64url');
+      db.prepare('INSERT INTO sitter_asks (license_ref, sitting_id, sitter_id, token) VALUES (?,?,?,?)').run(ref, st.id, st.sitter_id, token); n++;
+      const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(st.buyer_id); const link = `${C.base}/sit/ask/${token}`;
+      const who = l.licensee_company || 'A company';
+      const text = `${first(st.name)},\n\n${who} would like to use a photograph of you, by ${m.name}: ${tidy(w.title)}.\n\nThe use: ${l.use_name}${l.term_months ? `, for ${l.term_months} months` : ''}.${l.intended_use ? `\nWhat for: ${String(l.intended_use).slice(0, 300)}` : ''}\n${st.share_pct ? `\nIf you say yes and it is licensed, ${st.share_pct}% of ${first(m.name)}'s side of the fee is yours, paid on Fridays.` : ''}\n\nYes or no, here: ${link}\n\nNothing goes ahead without your yes.\nWatermark`;
+      if (b && b.email && mail.on()) mail.send({ to: b.email, subject: `${who} would like to use a photograph of you`, text, feature: 'Your yes', cta: { label: 'Say yes or no', url: link } });
+      else if (app.locals.mailLog) app.locals.mailLog.push({ to: b && b.email, subject: 'sitter ask', link });
+      tell({ buyer_id: st.buyer_id, kind: 'sitter', href: `/sit/ask/${token}`, title: `${who} would like to use a photograph of you`, body: tidy(w.title) });
+    }
+    return n;
+  }
+  // What still waits on a sitter for this request: null when all have said yes (or none were asked).
+  function waiting(ref) {
+    const rows = db.prepare("SELECT a.status, s.name FROM sitter_asks a JOIN sitters s ON s.id=a.sitter_id WHERE a.license_ref=?").all(ref);
+    const no = rows.find(r => r.status === 'no'); if (no) return { no: true, who: no.name || 'The sitter' };
+    const wait = rows.filter(r => r.status === 'asked'); return wait.length ? { no: false, who: wait.map(r => r.name || 'the sitter').join(' and ') } : null;
+  }
+  app.get('/sit/ask/:token', (req, res) => {
+    const a = db.prepare('SELECT * FROM sitter_asks WHERE token=?').get(String(req.params.token)); if (!a) return res.sendStatus(404);
+    const l = db.prepare('SELECT l.*, u.name AS use_name, u.term_months FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?').get(a.license_ref);
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id), st = db.prepare('SELECT * FROM sittings WHERE id=?').get(a.sitting_id);
+    res.set('Cache-Control', 'private, no-store');
+    res.send(V.layout({ title: 'Your yes · Watermark', bare: true, body: `<main class="sit-door"><figure><img src="/img/${esc(w.slug)}/screen" alt=""></figure><section>
+<p class="k">A photograph of you, by ${esc(m.name)}</p><h1>${esc(l.licensee_company || 'A company')} would like to use it.</h1>
+<dl class="sit-dl"><dt>The use</dt><dd>${esc(l.use_name)}${l.term_months ? `, for ${l.term_months} months` : ''}</dd>${l.intended_use ? `<dt>What for</dt><dd>${esc(String(l.intended_use).slice(0, 400))}</dd>` : ''}<dt>Yours if it goes ahead</dt><dd>${st && st.share_pct ? `${st.share_pct}% of ${esc(first(m.name))}&rsquo;s side of the fee, paid to you on Fridays` : `Nothing has been set; ${esc(first(m.name))} can set a share`}</dd></dl>
+${a.status === 'asked' ? `<form method="post" action="/sit/ask/${esc(a.token)}" class="sit-yes"><button name="a" value="yes" class="buy-btn">Yes, they may</button><button name="a" value="no" class="link">No</button></form><p class="note">Nothing goes ahead without your yes. A no is passed on kindly, without a reason unless you give one.</p>` : `<p class="lede">You said ${a.status === 'yes' ? 'yes' : 'no'}. <a href="/yours/sitter">Pictures of you</a></p>`}</section></main>` }));
+  });
+  app.post('/sit/ask/:token', async (req, res) => {
+    const a = db.prepare('SELECT * FROM sitter_asks WHERE token=?').get(String(req.params.token)); if (!a) return res.sendStatus(404);
+    if (a.status !== 'asked') return res.redirect(303, `/sit/ask/${a.token}`);
+    const yes = (req.body || {}).a === 'yes'; db.prepare("UPDATE sitter_asks SET status=?, answered_at=datetime('now') WHERE id=?").run(yes ? 'yes' : 'no', a.id);
+    const l = db.prepare('SELECT * FROM licenses WHERE ref=?').get(a.license_ref); const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); const s = db.prepare('SELECT * FROM sitters WHERE id=?').get(a.sitter_id);
+    try { ledger.append(db, 'sitter.answered', a.license_ref, { yes }); } catch (e) { /* */ }
+    tell({ maker_id: w.maker_id, kind: 'sitter', href: `/account/requests/${encodeURIComponent(l.ref)}`, title: yes ? `${nameOf(s)} said yes` : `${nameOf(s)} said no`, body: `${l.licensee_company || 'A company'}, ${tidy(w.title)}` });
+    if (!yes && app.locals.requests) try { app.locals.requests.decline(l.ref, 'The person in the photograph has not agreed to this use.', 'sitter'); } catch (e) { /* */ }
+    if (app.locals.admit) { const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(s.buyer_id); if (b && b.email) app.locals.admit(req, res, b.email, 'a link'); }
+    res.redirect(303, `/sit/ask/${a.token}`);
+  });
+  // Paid: each sitter's share of the photographer's side, to their pocket; a cost on the photographer's statement.
+  function pay(ref) {
+    const l = db.prepare('SELECT l.*, u.key AS use_key FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?').get(ref); if (!l || !(l.price_cents > 0)) return 0;
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+    const side = require('./fee').makerOf(l, m.share_pct || 85); let n = 0;
+    for (const st of sittingsOf(w).filter(x => x.status === 'on' && x.share_pct > 0 && (x.share_all || COMMERCIAL.has(l.use_key)))) {
+      const cents = Math.floor(side * st.share_pct / 100); if (cents < 1) continue;
+      if (db.prepare('SELECT 1 FROM sitter_pay WHERE sitter_id=? AND license_ref=?').get(st.sitter_id, ref)) continue;
+      db.prepare('INSERT INTO sitter_pay (sitter_id, maker_id, license_ref, cents) VALUES (?,?,?,?)').run(st.sitter_id, m.id, ref, cents);
+      const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(st.buyer_id);
+      if (app.locals.pocket) app.locals.pocket.credit(b, cents, 'sitting', ref, `From ${m.name}: ${tidy(w.title)}`);
+      tell({ buyer_id: st.buyer_id, kind: 'sitter', href: '/yours/sitter', title: `${money(cents)} from a photograph of you`, body: `${tidy(w.title)}, by ${m.name}` });
+      n++;
+    }
+    return n;
+  }
+  // The photographer's cost: what their sitters have been paid from their side.
+  const owedOut = m => { const r = db.prepare('SELECT COALESCE(SUM(p.cents),0) s, COUNT(*) n FROM sitter_pay p WHERE p.maker_id=?').get(m.id); const by = {}; for (const x of db.prepare('SELECT s.name, SUM(p.cents) c FROM sitter_pay p JOIN sitters s ON s.id=p.sitter_id WHERE p.maker_id=? GROUP BY s.id').all(m.id)) by[x.name || 'A sitter'] = x.c; return { s: r.s, n: r.n, by }; };
+  const earnedBy = s => db.prepare('SELECT COALESCE(SUM(cents),0) c, COUNT(*) n FROM sitter_pay WHERE sitter_id=?').get(s.id);
+  { const append = ledger.append; ledger.append = function (db_, type, subject, data) { const r = append.apply(this, arguments); try { if (type === 'license.requested') setImmediate(() => { try { ask(subject); } catch (e) { console.error('[sitters] ask', e.message); } }); if (type === 'license.granted' && data && data.paid) setImmediate(() => { try { pay(subject); } catch (e) { console.error('[sitters] pay', e.message); } }); } catch (e) { /* */ } return r; }; }
+
+  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf, ask, waiting, pay, owedOut, earnedBy };
   return app.locals.sitters;
 }
 module.exports = { mountSitters };

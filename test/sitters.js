@@ -44,5 +44,26 @@ const { createApp } = require('../src/app');
   r = await go(`/yours/sitter/keep/${a}`, form({}), bea); assert.strictEqual(r.status, 403, 'only her own pictures');
   t = await (await go('/account/sitters', {}, me)).text(); assert.ok(/Ana Ruiz/.test(t) && /Bea Stone/.test(t), 'your sitters');
   t = await (await go(`/account/works/${a}`, {}, me)).text(); assert.ok(/In this picture/.test(t) && /Signed a release/.test(t), 'on the record');
+
+  // 7. A company asks to use a picture of Ana (ask me first): she is asked by link; the photographer cannot quote until she says yes.
+  { const u = db.prepare("SELECT * FROM uses WHERE maker_id=? AND key='commercial'").get(mid); const ref = 'WM-2026-990001';
+    db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,status) VALUES (?,?,?,?,?,?,?,'requested')").run(ref, W(a).id, u.id, 'Buyer', 'buyer@example.com', 'Halden', 'The spring catalogue');
+    require('../src/ledger').append(db, 'license.requested', ref, { work: a, use: 'commercial' }); await new Promise(r => setTimeout(r, 30));
+    const ak = db.prepare("SELECT * FROM sitter_asks WHERE license_ref=?").get(ref); assert.ok(ak && ak.status === 'asked', 'Ana is asked');
+    let x = await app.locals.requests.accept(ref, 90000, 'test'); assert.ok(!x.ok && /Waiting on Ana/.test(x.why), 'no quote before her yes: ' + x.why);
+    const anaJar = {}; let tx = await (await go(`/sit/ask/${ak.token}`, {}, anaJar)).text(); assert.ok(/Halden would like to use it/.test(tx) && /10% of Pia/.test(tx), 'what she is asked, and her share');
+    await go(`/sit/ask/${ak.token}`, form({ a: 'yes' }), anaJar);
+    // Her yes; paid: 10% of the photographer's side to her pocket, a cost on the photographer's statement.
+    db.prepare("UPDATE licenses SET price_cents=90000, house_cents=0, status='active' WHERE ref=?").run(ref);
+    assert.strictEqual(app.locals.sitters.pay(ref), 1, 'paid');
+    const pay = db.prepare("SELECT * FROM sitter_pay WHERE license_ref=?").get(ref); assert.strictEqual(pay.cents, 9000, '10% of the side');
+    assert.ok(db.prepare("SELECT 1 FROM pocket WHERE kind='sitting' AND ref=? AND cents=9000").get(ref), 'in her pocket');
+    const st = app.locals.payouts.statement(db.prepare('SELECT * FROM makers WHERE id=?').get(mid)); assert.strictEqual(st.sitters.s, 9000, 'a cost on the statement');
+    assert.strictEqual(app.locals.sitters.pay(ref), 0, 'never twice');
+    // A no declines the request.
+    const ref2 = 'WM-2026-990002'; db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,status) VALUES (?,?,?,?,?,?,'requested')").run(ref2, W(a).id, u.id, 'Buyer', 'buyer@example.com', 'Other Co');
+    require('../src/ledger').append(db, 'license.requested', ref2, { work: a, use: 'commercial' }); await new Promise(r => setTimeout(r, 30));
+    const ak2 = db.prepare("SELECT * FROM sitter_asks WHERE license_ref=?").get(ref2); await go(`/sit/ask/${ak2.token}`, form({ a: 'no' }), {});
+    assert.strictEqual(db.prepare('SELECT status FROM licenses WHERE ref=?').get(ref2).status, 'declined', 'her no declines it'); }
   console.log('sitters: all hold'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
