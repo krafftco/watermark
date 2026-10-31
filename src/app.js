@@ -838,7 +838,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (w.keep_back) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; if (!((me && me.id === w.maker_id) || isStudio(req) || (app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })()))) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); } res.set('Cache-Control', 'private, no-store'); } // kept back by the maker: only to them and the house (29 Oct)
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
-      const file = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, fmt);
+      const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, fmt);
       res.set('Cache-Control', w.keep_back ? 'private, no-store' : 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
       res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
@@ -1185,7 +1185,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
   // Look closer: a guide written by AI on every photograph, which the maker can correct, approve or hide.
   require('./closer').mountCloser(app, { db, C, studioOnly, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V,
-    imageOf: async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen')) });
+    imageOf: async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen')) });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
   require('./speech').mountSpeech(app, { db, C, store, closerOf: w => app.locals.closerOf(w) });
   require('./notify').mountNotify(app, { db, C, ledger, V, mk, makerOf: req => app.locals.accounts.makerOf(req), buyerOf });
@@ -1679,7 +1679,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = q.work.get(String(req.params.slug)); if (!w || w.status !== 'held') return res.sendStatus(404);
     const maker = mk(w);
     try {
-      const file = await images.derivative(await originalPath(w), cache, w.slug, 'screen', 'jpg');
+      const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg');
       let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `watermark.krafftco.com/w/${w.slug}` });
       out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at watermark.krafftco.com/license/${w.slug}.` }));
       res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
@@ -2087,7 +2087,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./rows').mountRows(app, { db, V, C }); // the front door's rows (Apple TV as a museum)
   require('./listening').mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), fetchImpl: cfg.fetchImpl });
   { const multer = require('multer'); const mUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.MUSIC_MAX_MB || 400) * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^audio\//.test(f.mimetype) || /\.(wav|flac|aiff?|mp3|m4a|ogg)$/i.test(f.originalname || '')) }); require('./music').mountMusic(app, { db, V, C, store, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req), dataDir: C.dataDir, bagcheck: BAG, upload: mUp }); } // the makers' own music: masters in the vault, sides streamed to keyholders // the Keys' room for sound: records from the Archive, cleared at the door, played whole // the Screening Room: films chosen, shown whole at an hour
-  app.locals.imageOf = async w => fs.promises.readFile(await images.derivative(await originalPath(w), cache, w.slug, 'screen', 'jpg'));
+  app.locals.imageOf = async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });
   require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
@@ -2540,13 +2540,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const warmQ = []; let warmBusy = false;
   function warmSoon(slug) {
     if (cfg.noTimers || !slug) return; warmQ.push(slug); if (warmBusy) return; warmBusy = true;
-    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s) || diskLow()) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { await images.warm(await originalPath(w), cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
+    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s) || diskLow()) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { const o = await originalPath(w); await images.warm(o, cache, s, THUMB); if (w.status === 'held' && !w.keep_back) await images.warm(o, cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
   }
   app.locals.warmSoon = warmSoon;
   // The disk kept clear (29 Oct): old generations of renditions swept at start and hourly; the originals cache trimmed
   // when the disk runs low; the warming waits while it is low (a visitor's first look still makes what it needs).
   const diskLow = () => (images.free(C.dataDir) ?? Infinity) < DISK_FLOOR;
-  const REND_BUDGET = Number(process.env.RENDITIONS_CACHE_GB || 6) * 1e9;
+  const REND_BUDGET = Number(process.env.RENDITIONS_CACHE_GB || 12) * 1e9;
   function clearDisk() { try {
     const r = images.sweep(cache); if (r.n) console.log('[disk] swept', r.n, 'old renditions,', Math.round(r.freed / 1e6), 'MB');
     // The display copies within their budget always; under twice the floor, to half of it.
@@ -2561,10 +2561,19 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.post('/studio/disk/clear', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); const before = images.free(C.dataDir); clearDisk(); usageWas = null; res.json({ ok: true, freedGB: Math.round(((images.free(C.dataDir) || 0) - (before || 0)) / 1e8) / 10, freeGB: Math.round((images.free(C.dataDir) || 0) / 1e8) / 10, diskGB: diskUsage() }); });
   if (!cfg.noTimers) { setTimeout(clearDisk, 3000).unref(); setInterval(clearDisk, 15 * 60e3).unref(); }
   let warming = false;
+  // Thumbnails first, for everything held or kept back (they are what the Library, the contact sheets and the grids
+  // ask for); then the larger sizes for work on view only. Kept-back work makes its larger copies when it is opened
+  // (31 Oct: warming every size of 1,700 new masters hourly, against a budget that trimmed them again, kept the house
+  // busy and left the contact sheets' thumbnails unmade).
+  const THUMB = ['thumb'];
   async function warmAll() {
     if (warming) return 0; warming = true; let n = 0;
-    try { for (const w of db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all()) { if (images.warmed(cache, w.slug)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); break; } try { await images.warm(await originalPath(w), cache, w.slug); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); } }
-    finally { warming = false; }
+    try {
+      const all = db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all();
+      for (const pass of [{ sizes: THUMB, rows: all }, { sizes: undefined, rows: all.filter(w => w.status === 'held' && !w.keep_back) }]) {
+        for (const w of pass.rows) { if (images.warmed(cache, w.slug, pass.sizes)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); return n; } try { await images.warm(await originalPath(w), cache, w.slug, pass.sizes); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); }
+      }
+    } finally { warming = false; }
     return n;
   }
   app.locals.warmAll = warmAll;

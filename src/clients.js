@@ -61,7 +61,7 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
     } catch (e) { /* no referer: served, not counted */ }
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept);
-      const file = await images.derivative(await originalPath(w), cache, w.slug, size, fmt);
+      const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, size, fmt);
       res.set('Cache-Control', 'public, max-age=3600').set('Vary', 'Accept'); // an hour: an ended license stops showing the same day
       res.type(images.FORMATS[fmt][1]).sendFile(file);
     } catch (e) { res.sendStatus(500); }

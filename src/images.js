@@ -185,11 +185,19 @@ function usage(dir) {
 function free(dir) { try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch (e) { return null; } }
 // The format a request will take: WebP when the browser says so, else JPEG.
 function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'; }
-// Make every size in both formats ahead of the first visitor (one work at a time, in the background).
-async function warm(original, cacheDir, slug) {
-  for (const size of WARM) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
+// A rendition already made is served as it is: the original is fetched (from the vault, when the disk's copy has
+// been trimmed) only when the copy must be made (31 Oct: every /img asked for the original first, so a thumbnail of a
+// trimmed 60 MP master waited seconds for a download it never needed).
+async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg') {
+  const f = fileOf(cacheDir, slug, size, FORMATS[fmt] ? fmt : 'jpg');
+  if (fs.existsSync(f)) return f;
+  return derivative(await getOriginal(), cacheDir, slug, size, fmt);
 }
-const warmed = (cacheDir, slug) => WARM.every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
+// Make every size in both formats ahead of the first visitor (one work at a time, in the background).
+async function warm(original, cacheDir, slug, sizes = WARM) {
+  for (const size of sizes) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
+}
+const warmed = (cacheDir, slug, sizes = WARM) => sizes.every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
 
 // A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
 // so a full-resolution master can be matched to the web copy already held.
@@ -211,4 +219,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };

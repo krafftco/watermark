@@ -30,7 +30,7 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
   const P = require('./pairs');
   // The thumb already on the disk first: fetching each master from the vault only to make a thumb that is already
   // there made the sort of a large archive pull every 60 MP master down (29 Oct).
-  const thumbOf = async w => { try { const f = images.fileOf(cache, w.slug, 'thumb', 'jpg'); if (fs.existsSync(f)) return f; return await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { return null; } };
+  const thumbOf = async w => { try { const f = images.fileOf(cache, w.slug, 'thumb', 'jpg'); if (fs.existsSync(f)) return f; return await images.derivativeOf(() => originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { return null; } };
 
   // The house's look at the file: sharpness and exposure from the thumb, kept by fingerprint.
   async function qc(w) {

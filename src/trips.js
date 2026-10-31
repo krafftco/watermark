@@ -48,7 +48,7 @@ function mountTrips(app, { db, V, C, images, cache, originalPath, ledger, makerO
     try {
       const out = path.join(cache, `${w.slug}-held.jpg`);
       if (!fs.existsSync(out)) {
-        const src = await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg');
+        const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'thumb', 'jpg');
         const r = (w.width || 3) / (w.height || 2); const W = 900, H = Math.max(200, Math.round(W / r));
         const tiny = await sharp(src).resize(12, Math.max(4, Math.round(12 / r)), { fit: 'fill' }).blur(1.2).toBuffer();
         const tmp = `${out}.${process.pid}.tmp`;

@@ -41,7 +41,7 @@ function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q
   function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
   if (ROLE.chores) { setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref(); }
   // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
-  const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
+  const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
   if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') app.locals.governor.boot('warm albums', () => warmAlbums());
   const first = s => String(s || '').trim().split(/\s+/)[0] || '';
 
@@ -91,7 +91,7 @@ ${rows.length ? `<h2>Sent</h2><table class="tbl dv-t"><tr><th>What</th><th>For</
     }
     if (!n) { db.prepare('DELETE FROM deliveries WHERE id=?').run(id); return res.redirect('/account/deliveries?ok=' + encodeURIComponent('None of those photographs are yours to send.')); }
     const d = byToken.get(token);
-    setTimeout(async () => { for (const w of worksOf(d)) { try { await images.derivative(await originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* made on the first download instead */ } } }, 50).unref(); // the copies made now, in the background
+    setTimeout(async () => { for (const w of worksOf(d)) { try { await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* made on the first download instead */ } } }, 50).unref(); // the copies made now, in the background
     try { ledger.append(db, 'delivery.sent', m.handle, { n, size, days }); } catch (e) { /* */ }
     if (email) mail.send({ to: email, subject: `${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}: ${title}`, text: `${first(client)},\n\n${m.name} has sent you ${n === 1 ? 'a photograph' : `${n} photographs`}, "${title}".\n\n${url(d)}\n\n${d.note ? d.note + '\n\n' : ''}Each file carries ${m.name}'s name and its licence number inside it; anyone can check a file at ${C.base}/verify.${d.expires_at ? ` The link closes on ${date(d.expires_at)}.` : ''}\n\nWatermark, for ${m.name}` });
     res.redirect(`/account/deliveries?sent=${token}`);

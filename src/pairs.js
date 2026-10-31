@@ -75,7 +75,7 @@ function mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, in
   const greys = new Map();
   async function grey(w) {
     const k = `${w.id}:${w.sha256}`; if (greys.has(k)) return greys.get(k);
-    let file; try { file = await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { file = await originalPath(w); }
+    let file; try { file = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'thumb', 'jpg'); } catch (e) { file = await originalPath(w); }
     const g = await greyOf(file); if (greys.size > 3000) greys.clear(); greys.set(k, g); return g;
   }
   const px = w => (w.width || 0) * (w.height || 0);

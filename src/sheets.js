@@ -96,7 +96,7 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
   function film(s, mine, { max = ROLL, cls = '', still = false } = {}) {
     const fr = framesJSON(s, mine); let a = 0;
     if (fr.length > max) { const at = fr.findIndex(f => f.pick); a = Math.max(0, Math.min(fr.length - max, at - Math.floor(max / 2))); }
-    return `<ol class="ctc-film${cls}">${fr.slice(a, a + max).map((f, i) => `<li class="ctc-f${f.pt ? ' ctc-pt' : ''}${f.open ? '' : ' ctc-held'}${f.pick ? ' ctc-pk' : ''}" data-i="${a + i}"><span class="ctc-ed" aria-hidden="true">${(f.n % 6 === 1) ? 'WATERMARK 400' : ''}</span>${still ? `<span class="ctc-x">` : `<button type="button" class="ctc-x" data-ctc-open="${a + i}" aria-label="Frame ${f.n}${f.title ? ': ' + esc(f.title) : ''}">`}<img src="${esc(f.thumb)}" alt="" loading="lazy" decoding="async" draggable="false">${still ? '</span>' : '</button>'}${f.pick ? mark('pick', s.pick.slug) : f.on ? mark('tick') : ''}<span class="ctc-no" aria-hidden="true">${f.n}<i>▸${f.n}A</i></span></li>`).join('')}</ol>`;
+    return `<ol class="ctc-film${cls}">${fr.slice(a, a + max).map((f, i) => `<li class="ctc-f${f.pt ? ' ctc-pt' : ''}${f.open ? '' : ' ctc-held'}${f.pick ? ' ctc-pk' : ''}" data-i="${a + i}"><span class="ctc-ed" aria-hidden="true">${(f.n % 4 === 1) ? 'WATERMARK 400' : ''}</span>${still ? `<span class="ctc-x">` : `<button type="button" class="ctc-x" data-ctc-open="${a + i}" aria-label="Frame ${f.n}${f.title ? ': ' + esc(f.title) : ''}">`}<img src="${esc(f.thumb)}" alt="" loading="lazy" decoding="async" draggable="false">${still ? '</span>' : '</button>'}${f.pick ? mark('pick', s.pick.slug) : f.on ? mark('tick') : ''}<span class="ctc-no" aria-hidden="true">${f.n}<i>▸${f.n}A</i></span></li>`).join('')}</ol>`;
   }
 
   // The wash of a frame's colours, never the picture: public, since it shows nothing.
@@ -105,7 +105,7 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
     try {
       const out = path.join(cache, `${w.slug}-sheetwash.jpg`);
       if (!fs.existsSync(out)) {
-        const src = await images.derivative(await originalPath(w), cache, w.slug, 'thumb', 'jpg');
+        const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'thumb', 'jpg');
         const r = (w.width || 3) / (w.height || 2); const W = 600, H = Math.max(160, Math.round(W / r));
         const tiny = await sharp(src).resize(10, Math.max(4, Math.round(10 / r)), { fit: 'fill' }).blur(1.2).toBuffer();
         const tmp = `${out}.${process.pid}.tmp`;

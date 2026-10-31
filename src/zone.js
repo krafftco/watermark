@@ -60,7 +60,7 @@ ${fam ? '<p>This device is set to Family, so this door stays closed. <a href="/z
     const me = makerOf(req); if ((me && me.id === w.maker_id) || isStudio(req)) return next();
     try {
       const out = path.join(cache, `${w.slug}-${req.params.size}-veil.jpg`);
-      if (!fs.existsSync(out)) { const src = await images.derivative(await originalPath(w), cache, w.slug, req.params.size, 'jpg'); const tmp = `${out}.${process.pid}.tmp`; await sharp(src).blur(60).modulate({ brightness: 0.8, saturation: 0.5 }).jpeg({ quality: 70 }).toFile(tmp); try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* there */ } } }
+      if (!fs.existsSync(out)) { const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, 'jpg'); const tmp = `${out}.${process.pid}.tmp`; await sharp(src).blur(60).modulate({ brightness: 0.8, saturation: 0.5 }).jpeg({ quality: 70 }).toFile(tmp); try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* there */ } } }
       res.set('Cache-Control', 'private, max-age=3600'); res.set('Vary', 'Cookie'); res.type('image/jpeg').sendFile(out);
     } catch (e) { next(); }
   });

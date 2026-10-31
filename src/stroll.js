@@ -40,7 +40,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const items = out.slice(0, n).map(w => wanderJSON(w, req));
     // Wander across everything (Will, 24 Oct, after StumbleUpon): in the open wander, every sixth screen or so is a
     // page from the shelf, a chapter's opening set on the wall, with Read on. Never in a set, a word or a maker's walk.
-    if (!q && !mk && items.length >= 4) { const r0 = Math.random(); let t = null; try { t = (r0 < 0.3 && app.locals.sheets ? app.locals.sheets.screen(seen) : null) || (r0 < 0.65 ? textScreen(seen) : recordScreen(seen)); } catch (e) { screenFault(e); } if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
+    if (!q && !mk && items.length >= 4) { const r0 = Math.random(); let t = null; try { t = (r0 < 0.3 && app.locals.sheets && process.env.SHEETS_IN_WANDER === '1' ? app.locals.sheets.screen(seen) : null) || (r0 < 0.65 ? textScreen(seen) : recordScreen(seen)); } catch (e) { screenFault(e); } if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
     return items;
   }
   // A page from the shelf: a public book with a body, a chapter at random, its first paragraphs.

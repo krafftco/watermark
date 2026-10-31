@@ -63,7 +63,7 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
     const ws = db.prepare('SELECT * FROM works WHERE copyright_group=? ORDER BY created_at, id').all(g.id);
     res.set('Content-Disposition', `attachment; filename="copyright-group-${g.id}-deposit.zip"`).type('application/zip');
     const zip = archiver('zip', { zlib: { level: 0 } }); zip.on('error', e => { console.error('[copyright]', e.message); res.end(); }); zip.pipe(res);
-    for (const w of ws) { try { zip.file(await images.derivative(await originalPath(w), cache, w.slug, 'screen'), { name: `${w.slug}.jpg` }); } catch (e) { /* missing original: left out */ } }
+    for (const w of ws) { try { zip.file(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen'), { name: `${w.slug}.jpg` }); } catch (e) { /* missing original: left out */ } }
     zip.finalize();
   });
   app.post('/studio/copyright/:id', studioOnly, (req, res) => {
