@@ -87,6 +87,7 @@ ${kind === 'property' ? '<label><span>The property (what and where)</span><input
     try { if (store && store.put) await store.put('releases/' + name, buf, 'application/pdf'); } catch (e) { console.error('[sign] vault', e.message); }
     const token = crypto.randomBytes(16).toString('base64url');
     db.prepare('UPDATE work_releases SET file=?, mime=?, sha256=?, token=? WHERE id=?').run(name, 'application/pdf', sha, token, id);
+    if (app.locals.sitters) setTimeout(() => { try { app.locals.sitters.sync(); } catch (e) { /* */ } }, 50);
     try { ledger.append(db, 'release.signed', w ? w.slug : `maker:${m.handle}`, { kind, minor, id, sha256: sha }); } catch (e) { /* */ }
     if (email) mail.send({ to: email, subject: `Your copy of the release you signed for ${m.name}`, text: `Thank you. This is your copy of the ${kind === 'property' ? 'property' : 'model'} release you signed today for ${m.name}${w ? ` (${V.tidy(w.title)})` : ''} on Watermark:\n\n${C.base}/release/r/${token}\n\nThe record carries the date, the time and your signature as you drew it; its fingerprint is ${sha}. Keep this letter.\n\nWatermark, a Krafft company.` });
     res.redirect(w ? `/account/works/${w.slug}?ok=signed#clearance` : `/account/release/sign?done=${id}`);
@@ -103,7 +104,7 @@ ${kind === 'property' ? '<label><span>The property (what and where)</span><input
   app.post('/account/works/:slug/clearance/attach', (req, res) => {
     const m = makerOf(req); const w = m && workOf(m, req.params.slug); if (!w) return res.sendStatus(403);
     const x = db.prepare('SELECT * FROM work_releases WHERE id=? AND maker_id=? AND work_id=0').get(+(req.body || {}).id, m.id); if (!x) return res.redirect(`/account/works/${w.slug}#clearance`);
-    db.prepare('UPDATE work_releases SET work_id=? WHERE id=?').run(w.id, x.id);
+    db.prepare('UPDATE work_releases SET work_id=? WHERE id=?').run(w.id, x.id); if (app.locals.sitters) app.locals.sitters.sync();
     try { ledger.append(db, 'release.kept', w.slug, { kind: x.kind, minor: !!x.minor, file: !!x.file, signed: true }); } catch (e) { /* */ }
     res.redirect(`/account/works/${w.slug}?ok=release#clearance`);
   });

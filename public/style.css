@@ -4607,3 +4607,31 @@ html.rm-on{overflow:hidden}
 .cur-empty,.cur-money{font-size:15px;color:var(--mu);max-width:62ch;line-height:1.6}.cur-money b{font:400 26px/1 var(--read);color:var(--ink,#0e0e0e)}
 .cur-links{margin-top:30px;font-size:13px}
 @media (max-width:700px){.cur-s{grid-template-columns:110px minmax(0,1fr)}.cur-go{grid-column:2}}
+/* The sitter (31 Oct): pictures of you, by your own word; the credit "With"; the photographer's sitters. */
+.sit-with{margin:6px 0 0;font:italic 15px/1.4 var(--read);color:var(--mu)}.sit-with span{font-style:normal;color:var(--ink,#0e0e0e)}
+.sit{max-width:1180px;margin:0 auto;padding:clamp(24px,4vw,56px) clamp(16px,4vw,48px) 64px}
+.sit-h{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(20px,4vw,56px);align-items:end;margin-bottom:34px}
+.sit-hero{margin:0}.sit-hero img{width:100%;max-height:72svh;object-fit:cover;display:block}
+.sit-ht h1{font:400 clamp(44px,6vw,84px)/1 var(--read);margin:6px 0 14px;letter-spacing:-.01em}.sit-line{color:var(--mu);font-size:16px;line-height:1.6;max-width:44ch}
+.sit-said{color:#2f6b3a;font-size:14px}
+.sit h2{font:400 12px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mu);margin:40px 0 16px;padding-top:14px;border-top:1px solid var(--ln)}
+.sit-by h2 a{color:var(--ink,#0e0e0e)}.sit-by h2 small{margin-left:6px}
+.sit-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:22px}
+.sit-grid li{display:grid;gap:6px}.sit-grid img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:var(--soft,#f2f0eb)}
+.sit-grid span{font-size:13px;color:var(--mu)}.sit-grid b{font:400 17px/1.2 var(--read);color:var(--ink,#0e0e0e)}
+.sit-kept img{opacity:.75}
+.sit-acts{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:2px 0 0;font-size:12px}.sit-acts form{display:inline;margin:0}.sit-acts em{font-style:normal;color:#2f6b3a}
+.sit-ask li{grid-template-columns:72px 1fr;align-items:center}.sit-ask img{width:72px;aspect-ratio:1}.sit-ask form{grid-column:2}
+.sit-word{max-width:640px;display:grid;gap:14px}.sit-word fieldset{border:0;padding:0;margin:0;display:grid;gap:8px}.sit-word legend{font-size:14px;margin-bottom:6px}
+.sit-word fieldset label{display:grid;grid-template-columns:auto auto 1fr;gap:10px;align-items:baseline}.sit-word fieldset span{font-size:13px;color:var(--mu)}
+.sit-sw{display:flex;gap:10px;align-items:baseline}.sit-fee{display:grid;gap:6px}.sit-fi{display:inline-flex;align-items:center;gap:4px}.sit-fi input{font:inherit;padding:8px 10px;border:1px solid var(--ln);width:140px}
+.sit-foot{margin-top:40px}
+.sit-door{min-height:100svh;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);background:#0b0a09;color:#efe9df}
+.sit-door figure{margin:0}.sit-door img{width:100%;height:100svh;object-fit:cover;display:block}
+.sit-door section{padding:clamp(28px,6vw,80px);align-self:center;max-width:560px}.sit-door h1{font:400 clamp(44px,6vw,76px)/1 var(--read);margin:8px 0 16px;color:#f2efe9}
+.sit-door .lede{color:#cfc8bb}.sit-door .note{color:#8f897f}.sit-door a{color:#e9e4da}
+.sit-yes{display:flex;gap:18px;align-items:center;margin:26px 0}
+.sit-rec .sit-ls{list-style:none;padding:0;margin:10px 0}.sit-ls li{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--ln)}.sit-ls span{font-size:13px;color:var(--mu)}
+.sit-add{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.sit-add input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ln);min-width:0;flex:1 1 180px}
+.sit-mls{list-style:none;padding:0;margin:20px 0}.sit-mls li{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--ln)}.sit-mls img{width:64px;height:64px;object-fit:cover}.sit-mls div{display:grid;gap:3px}.sit-mls b{font:400 19px/1.2 var(--read)}.sit-mls span{font-size:13px;color:var(--mu)}
+@media (max-width:760px){.sit-h,.sit-door{grid-template-columns:1fr}.sit-door img{height:52svh}.sit-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
