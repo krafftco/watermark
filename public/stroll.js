@@ -4,7 +4,9 @@
   var root = document.querySelector('[data-stroll]'); if (!root) return;
   var scroller = root.querySelector('[data-st-scroll]'), S = window.__WM_STROLL || { items: [] }, q = S.q || '', maker = S.maker || '', guideOn = false;
   var set = S.set || null;
-  try { guideOn = localStorage.getItem('wm_stroll_guide') === '1'; } catch (e) {}
+  // The guide is never read by itself (31 Oct, Will: "it goes off without you asking"): it plays only on a press, or
+  // while you are sitting in this visit. Nothing about it is remembered between visits; the old setting is cleared.
+  try { localStorage.removeItem('wm_stroll_guide'); sessionStorage.removeItem('wm_stroll_guide'); } catch (e) {}
   var items = {}, order = [], seen = [], cur = null, since = Date.now(), loading = false, done = false, chrome = true;
   var toast = root.querySelector('[data-st-toast]'), tt;
   var V = (document.cookie.match(/(?:^|;\s*)wm_v=([^;]+)/) || [])[1] || '';
@@ -310,7 +312,7 @@
   var gon = root.querySelector('[data-st-gon]');
   function paintGon() { if (gon) gon.checked = !!guideOn; }
   paintGon();
-  if (gon) gon.addEventListener('change', function () { guideOn = gon.checked; try { localStorage.setItem('wm_stroll_guide', guideOn ? '1' : '0'); } catch (e) {} if (guideOn && items[cur]) guide(items[cur], true); else stopGuide(); say(guideOn ? 'The guide will read each one.' : 'Guide off.'); });
+  if (gon) gon.addEventListener('change', function () { guideOn = gon.checked; if (guideOn && items[cur]) guide(items[cur], true); else stopGuide(); say(guideOn ? 'The guide will read each one.' : 'Guide off.'); });
   // The doors beside the stroll (Will, 19 Oct): a swipe left opens the Keys (the bench under this work, the balcony,
   // your keys; then your gallery and the collection); a swipe right opens Yours (your wallet, as a collector or a maker,
   // with a switch). The door follows the finger and snaps; a swipe back, the shade, or Esc closes it. Fetched once a
@@ -615,8 +617,8 @@
   function setPace(p) { pace = p; try { localStorage.setItem('wm_stroll_pace', String(p)); } catch (e) {} paintPace(); clearTimeout(sitT); if (pace > 0) { wake(); if (cur) { sitT = setTimeout(next, SIT); } } else { try { lock && lock.release(); } catch (e) {} lock = null; quiet(); } }
   function setMusic(on) { musicOn = on; try { localStorage.setItem('wm_stroll_music', on ? '1' : '0'); } catch (e) {} if (on && !ac) music(true); if (!on && ac) music(false); paintPace(); }
   function sit(on) {
-    if (on) { setPace(90); setMusic(true); if (!guideOn) { guideOn = true; try { localStorage.setItem('wm_stroll_guide', '1'); } catch (e) {} paintGon(); if (items[cur]) guide(items[cur], true); } say('Sit as long as you like. Each one stays a while.', 3200); }
-    else { setPace(0); setMusic(false); if (guideOn) { guideOn = false; try { localStorage.setItem('wm_stroll_guide', '0'); } catch (e) {} paintGon(); stopGuide(); } }
+    if (on) { setPace(90); setMusic(true); if (!guideOn) { guideOn = true; paintGon(); if (items[cur]) guide(items[cur], true); } say('Sit as long as you like. Each one stays a while.', 3200); }
+    else { setPace(0); setMusic(false); if (guideOn) { guideOn = false; paintGon(); stopGuide(); } }
     paintPace();
   }
   [].forEach.call(paceB, function (b) { b.addEventListener('click', function () { setPace(+b.getAttribute('data-pace')); say(pace ? 'Moving on every ' + pace + ' seconds.' : 'You scroll.'); }); });
