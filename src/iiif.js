@@ -106,20 +106,27 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     for (let i = 0; ; i++) {
       if (wiki && !app.locals.noTimers) { const gap = 2000 - (Date.now() - wikiLast); if (gap > 0) await new Promise(x => setTimeout(x, gap)); wikiLast = Date.now(); }
       const r = await doFetch(url, wiki ? { headers: { 'User-Agent': UA } } : undefined);
+      if (wiki && r.status >= 400 && r.status < 500 && r.status !== 429 && /\/7680px-/.test(url)) { url = url.replace('/7680px-', '/3840px-'); continue; } // a width Wikimedia will not render
       if (![429, 503].includes(r.status) || i >= 3) return r;
       const ra = +((r.headers && r.headers.get && r.headers.get('retry-after')) || 0); await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : Math.min(120, ra > 0 ? ra : 15 * 2 ** i) * 1000));
     }
   }
+  // Commons' ObjectName carries a QuickStatements tail ('The Starry Night title QS:P1476,en:"The Starry Night" label QS:…').
+  const cleanTitle = t => String(t || '').replace(/\s+(?:title|label)\s+QS:[\s\S]*$/i, '').replace(/\s+QS:[\s\S]*$/, '').trim() || 'Untitled';
+  // The works already in with that tail, made right once at start (31 Oct).
+  try { for (const w of db.prepare("SELECT id, title FROM works WHERE title LIKE '% QS:%'").all()) db.prepare('UPDATE works SET title=? WHERE id=?').run(cleanTitle(w.title), w.id); } catch (e) { /* */ }
+  // A feed for one artist names its kind by its category (Paintings…, Drawings…, a codex or notebook).
+  const kindOfJob = job => job && job.artist ? (/drawing|codex|notebook|sketch/i.test(job.name || job.url || '') ? 'drawing' : /print|etching|woodcut|lithograph/i.test(job.name || job.url || '') ? 'print' : 'painting') : undefined;
   async function take(it, job, man = { label: '', meta: [] }) {
     if (db.prepare('SELECT 1 FROM works WHERE source_url=?').get(it.id)) return { skipped: true };
     const tmp = path.join(stage, `feed-${job.id || 0}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
     try {
         if (it.file) fs.copyFileSync(it.file, tmp); // a file already on the house's disk (an inbox)
         else { const r = await fetchPicture(it.image); if (!r.ok) throw new Error(`image ${r.status}`); fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer())); }
-        const title = (it.label || man.label || 'Untitled').slice(0, 160);
+        const title = cleanTitle(it.label || man.label || 'Untitled').slice(0, 160);
         const caption = [it.summary, ...it.meta.filter(x => !/^(place|location|date|year)$/i.test(x.label)).slice(0, 6).map(x => `${x.label}: ${x.value}`)].filter(Boolean).join(' · ').slice(0, 1200) || null;
         const artistMeta = it.meta.find(x => /^(artist|creator|maker|author)$/i.test(x.label)); const artist = job.artist ? { name: job.artist } : it.artist || (artistMeta ? { name: artistMeta.value } : null);
-        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: it.name || 'iiif.jpg', makerId: job.maker_id, kind: it.kind || undefined, artist });
+        const w = await registerWork({ file: tmp, title, place: placeOf(it.meta) || placeOf(man.meta), caption, source_url: it.id, originalName: it.name || 'iiif.jpg', makerId: job.maker_id, kind: it.kind || kindOfJob(job), artist });
         const year = yearOf(it); // the object's own date wins over the file's (a museum scan's EXIF says 2011; the painting says 1889)
         // The item's own rights first (a feed mixes open and closed objects: Te Papa, Wellcome, Europeana); the feed's licence only when the item says nothing.
         const rk = it.rights ? rightsKey(it.rights) : (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) ? rightsKey(it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)).value) : null);

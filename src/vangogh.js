@@ -75,6 +75,7 @@ ${ws.length ? groups.map(g => `<section class="vg-p"><h2>${esc(g.name)}</h2><p c
         else if (had.status === 'done' && F.missesOf && F.missesOf(had).length) { const nid = F.retry(had.id); if (nid) { db.prepare("UPDATE feeds SET artist='Vincent van Gogh' WHERE id=?").run(nid); out.feeds.push(nid); } }
       } catch (e) { out.feeds.push(String(e.message)); }
     }
+    try { const a = artist(); if (a) db.prepare("UPDATE works SET kind='painting' WHERE artist_id=? AND maker_id=? AND COALESCE(kind,'photograph')='photograph'").run(a.id, m.id); } catch (e) { /* */ }
     const R = app.locals.reading;
     if (R && R.bring) { try { const t = await R.bring(LETTERS); out.book = t && (t.slug || t.id) || null; } catch (e) { out.book = String(e.message); } }
     cache.at = 0;

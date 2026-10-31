@@ -91,6 +91,9 @@ function siItems(rows) {
 
 // Wikimedia Commons pages (api.php, generator=categorymembers + imageinfo) → items: the original file, the licence per file
 // (LicenseUrl, else LicenseShortName), the title from ObjectName else the file's name, the artist and date from extmetadata.
+// A scan past BIG_PX (the Google Art Project's Starry Night is 712 MP; the house's door takes 400, and a decode that size
+// fills the box) comes in as Wikimedia's own 7680-pixel rendering instead (31 Oct).
+const BIG_PX = +(process.env.COMMONS_BIG_MP || 150) * 1e6;
 function commonsItems(j) {
   const out = []; const pages = Object.values(((j || {}).query || {}).pages || {});
   const strip = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -101,7 +104,7 @@ function commonsItems(j) {
     const meta = []; const add = (label, x) => { if (x) meta.push({ label, value: String(x).slice(0, 300) }); };
     add('Artist', v('Artist')); add('Date', v('DateTimeOriginal')); add('Credit', v('Credit'));
     const desc = v('ImageDescription'); const artist = v('Artist').replace(/\s*\(.*$/, '').replace(/,\s*\d{4}.*$/, '');
-    out.push({ id: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(p.title || '').replace(/ /g, '_'))}`, label: title, summary: desc && desc !== title ? desc.slice(0, 1000) : null, image: ii.url, meta, artist: artist ? { name: artist } : null, kind: null, rights: v('LicenseUrl') || v('LicenseShortName') || null, width: ii.width, height: ii.height });
+    out.push({ id: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(p.title || '').replace(/ /g, '_'))}`, label: title, summary: desc && desc !== title ? desc.slice(0, 1000) : null, image: (ii.width * ii.height > BIG_PX && ii.thumburl) ? ii.thumburl : ii.url, meta, artist: artist ? { name: artist } : null, kind: null, rights: v('LicenseUrl') || v('LicenseShortName') || null, width: ii.width, height: ii.height });
   }
   return out;
 }
@@ -150,7 +153,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       const cat = decodeURIComponent((String(job.url).match(/(Category:[^?#&]+)/) || [])[1] || '').replace(/_/g, ' '); if (!cat) throw new Error('a category address (commons.wikimedia.org/wiki/Category:…)');
       let cont = job.cursor || null, n = 0;
       while (n < LIM) {
-        const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: cat, gcmtype: 'file', gcmlimit: '50', prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiextmetadatafilter: 'ObjectName|ImageDescription|Artist|DateTimeOriginal|LicenseShortName|LicenseUrl|Credit|Permission|Categories' })) u.searchParams.set(k, v); if (cont) u.searchParams.set('gcmcontinue', cont);
+        const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: cat, gcmtype: 'file', gcmlimit: '50', prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiurlwidth: '7680', iiextmetadatafilter: 'ObjectName|ImageDescription|Artist|DateTimeOriginal|LicenseShortName|LicenseUrl|Credit|Permission|Categories' })) u.searchParams.set(k, v); if (cont) u.searchParams.set('gcmcontinue', cont);
         const r = await doFetch(u.href, { headers: { 'User-Agent': 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)' } }); if (!r.ok) throw new Error(`commons ${r.status}`); const j = await r.json();
         const items = commonsItems(j); n += items.length; cont = (j.continue && j.continue.gcmcontinue) || null;
         yield { items, cursor: cont }; if (!cont) return;
