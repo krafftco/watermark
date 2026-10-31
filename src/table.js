@@ -8,7 +8,7 @@
 // nothing reloads, the tiles repaint, a toast says what happened, Undo takes it back.
 //   `works.flag` pick | reject | null. GET /account/table (the room), GET /account/table.json (the works),
 //   POST /account/works/batch with json=1 (batch.js answers {ok, msg, works}), do=flag with flag=pick|reject|none.
-function mountTable(app, { db, V, C, makerOf, KINDS }) {
+function mountTable(app, { db, V, C, images, originalPath, makerOf, KINDS }) {
   const { esc, tidy } = V;
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='flag'").get()) db.exec('ALTER TABLE works ADD COLUMN flag TEXT');
   // How a work on the walls is holding up (31 Oct, Will: "look through what is published and make private some
@@ -31,6 +31,17 @@ function mountTable(app, { db, V, C, makerOf, KINDS }) {
     LEFT JOIN (SELECT work_id, COUNT(*) AS n FROM bravos GROUP BY work_id) bv ON bv.work_id=w.id
     WHERE w.maker_id=? AND w.status IN ('held','hidden','restoring') ORDER BY COALESCE(w.taken_at, w.created_at) DESC, w.id DESC`).all(m.id)
     .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0, merit: merit(w), seen: w.seen || 0, hats: w.hats || 0, bravos: w.bravos || 0 }));
+  // The stars Lightroom wrote into each master, read again from the file (31 Oct, Will: "Garda, because that was a time
+  // in Lightroom that I made 1's selects into 5s"; Al's edit had since graded over some). ?place= narrows it; one at a
+  // time, from the original (the vault's copy fetched when the disk's was trimmed). Reading only; the Library grades.
+  app.get('/account/table/lightroom.json', async (req, res) => {
+    const m = makerOf(req); if (!m) return res.sendStatus(401);
+    const word = String(req.query.place || '').trim().toLowerCase().slice(0, 60);
+    const rows = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden')").all(m.id).filter(w => !word || String(w.place || '').toLowerCase().includes(word)).slice(0, 400);
+    const out = [];
+    for (const w of rows) { let rating = null; try { const said = await images.saidOf(await originalPath(w)); rating = said.rating ?? null; } catch (e) { rating = null; } out.push({ slug: w.slug, title: tidy(w.title), place: w.place || '', stars: w.stars || 0, by: w.stars_by || null, status: w.status === 'held' ? 'public' : 'private', lightroom: rating }); }
+    res.set('Cache-Control', 'private, no-store').json({ works: out });
+  });
   app.get('/account/table.json', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); res.set('Cache-Control', 'private, no-store').json({ works: list(m), kinds: KINDS }); });
   app.get('/account/table', (req, res) => {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/table');
