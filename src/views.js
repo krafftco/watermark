@@ -167,6 +167,7 @@ const ROOMS = {
   yours: [
     ['Your gallery', [['/yours', 'Your gallery', 'Every piece you hold'], ['/wander?in=mine', 'Wander your gallery', 'One piece at a time'], ['/yours/tour', 'Your tour', 'Your gallery in your own voice'], ['/yours/guests', 'Guests of the house', 'People who may see a private gallery'], ['/yours/cabinet/book', 'The catalogue', 'What you own, as a registrar keeps it'], ['/yours/add', 'Bring a work home', 'A file you were given']]],
     ['Reading and looking', [['/yours/reading', 'Your library', 'What you are reading'], ['/yours/commonplace', 'Your commonplace book', 'Passages you kept'], ['/yours/looking', 'Your looking', 'What held you'], ['/yours/following', 'Following', 'Makers and galleries you follow']]],
+    ['Curating', [['/curate', 'Your curating', 'Archives open to you, your shows, the share']]],
     ['Collecting', [['/yours/standing', 'A piece a month', 'A standing order'], ['/basket', 'Your basket', 'What you mean to collect'], ['/verify', 'Check a work', 'Is it genuine, and whose']]],
     ['You', [['/notices', 'Notices', 'What happened'], ['/yours/devices', 'Your devices', 'Where you are signed in'], ['/yours?tab=settings', 'Settings', 'Your pocket, your name']]],
   ],

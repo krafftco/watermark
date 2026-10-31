@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.17.0 · The curator · 31 October 2026
+- The curator's invitation arrives engraved: the maker's best photograph on its mount, what the key opens, one door. While none has been given, it is the first curator's key of the house.
+- The key is given the moment the keys are accepted, with its own letter: the number and three first steps.
+- The curator's desk: the first photograph tapped begins the show; hanging changes in place, no reload; whole pictures in their own shape; on a phone the show is a tray at the foot of the screen.
+- Your curating (/curate): the key, the archives open to you, every show by where it stands with what it placed and earned, your walls, the share.
+- Albums for the group: send it on to see (no downloads), a card in the chat, a book the group signs, a door for the photographers who see it; Save and Instax in Wander from an album; files save to Photos on a phone.
+- Wander: full screen where the browser can; turning the phone keeps your place. The Library fits its screen; For the trade loads in half a second; contact sheets load faster and stand portraits upright.
+
 ## 1.16.0 · Every room · 30 October 2026
 - Every room in one place: All rooms (or the M key) opens a sheet of every tool, grouped by what it is for (Today, Your work, Make, Your page and store, Money, Learn, You), a line on each, a field to find one by name. The studio, the house and your gallery each have their own.
 - The header keeps only the daily doors: Studio, Library, Add work, Requests, Getting paid.

@@ -111,11 +111,42 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
       if (k && !had && c.email) { const L = require('./mail-letters'); const letter = L.curatorKey({ base: C.base, name: c.name, makerFirst: m.name.split(' ')[0], no: k.no, desk: `${C.base}/curate/${slugOfMaker(m)}` }); if (mail.on()) mail.send({ to: c.email, subject: letter.subject, text: letter.text, html: letter.html }); } }
     res.redirect(`/curate/${slugOfMaker(m)}?welcome=1`);
   });
+  // The curator's own room (31 Oct, Will: "we need curators more than anybody; they are the driver; their account
+  // must be the most thought through"): the key, the archives open to them with a picture of each, every show by
+  // where it stands with what it has placed and earned, their own walls, the money, the way on. One page, no dead ends.
   app.get('/curate', (req, res) => {
-    const b = buyerOf(req); const list = archivesFor(b); const me = makerOf(req);
+    const me = makerOf(req); let b = buyerOf(req);
+    if (!b && me && me.email) b = db.prepare('SELECT * FROM buyers WHERE lower(email)=lower(?)').get(me.email) || null;
     if (!b && !me) return res.redirect('/signin?next=/curate');
-    if (list.length === 1 && !me) return res.redirect(`/curate/${slugOfMaker(list[0])}`);
-    res.send(shell('Curate', `<section class="cu"><p class="k">Curate</p><h1>The archives open to you.</h1>${list.length ? `<ul class="cu-arch">${list.map(m => `<li><a href="/curate/${esc(slugOfMaker(m))}"><b>${esc(m.name)}</b><span>${esc(m.house || '')}</span></a></li>`).join('')}</ul>` : '<p class="lede">None yet. A maker opens their archive to you by letter.</p>'}${me ? `<p><a href="/curate/${esc(slugOfMaker(me))}">Your own archive</a> &middot; <a href="/account/curators">Who holds your keys</a></p>` : ''}</section>`));
+    if (b) codeFor(b);
+    const list = archivesFor(b);
+    const key = b ? db.prepare("SELECT * FROM keys WHERE kind='curator' AND buyer_id=?").get(b.id) : null;
+    const shows = b ? db.prepare("SELECT h.*, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) AS n FROM hangs h WHERE h.buyer_id=? AND h.for_maker_id IS NOT NULL ORDER BY CASE h.review WHEN 'returned' THEN 0 WHEN 'draft' THEN 1 WHEN 'proposed' THEN 2 ELSE 3 END, h.updated_at DESC").all(b.id) : [];
+    const walls = b ? db.prepare("SELECT h.*, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) AS n FROM hangs h WHERE h.buyer_id=? AND h.for_maker_id IS NULL ORDER BY h.updated_at DESC LIMIT 12").all(b.id) : [];
+    const thumbs = h => db.prepare("SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? ORDER BY hw.pos, w.id LIMIT 3").all(h.id).map(x => x.slug);
+    const earned = b ? db.prepare("SELECT COALESCE(SUM(cents),0) c, COALESCE(SUM(CASE WHEN at >= date('now','start of month') THEN cents ELSE 0 END),0) m FROM pocket WHERE buyer_id=? AND kind='curation'").get(b.id) : { c: 0, m: 0 };
+    const placed = shows.concat(walls).reduce((n, h) => n + (h.sales || 0), 0);
+    const eye = b && app.locals.galleries ? app.locals.galleries.eye(b) : null;
+    const coverOf = m => db.prepare("SELECT slug FROM works WHERE maker_id=? AND status='held' AND COALESCE(keep_back,0)=0 ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(m.id);
+    const countOf = m => db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN status='hidden' THEN 1 ELSE 0 END) k FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id);
+    const state = h => h.review === 'approved' ? ['Open', 'open'] : h.review === 'proposed' ? ['With the maker', 'with'] : h.review === 'returned' ? ['Returned with a note', 'ret'] : ['Draft', 'draft'];
+    const first = b && b.name ? String(b.name).split(' ')[0] : '';
+    const money = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
+    const hrefOf = h => app.locals.hangs ? app.locals.hangs.href({ ...h, curator_code: b ? b.code : null }) : `/hang/${h.slug}`;
+    res.set('Cache-Control', 'private, no-store');
+    res.send(shell('Your curating', `<section class="cu cur">
+<header class="cur-h"><p class="k">${key ? `The curator&rsquo;s key, No.&nbsp;${key.no}` : 'Curating'}</p><h1>${first ? `${esc(first)}&rsquo;s curating.` : 'Your curating.'}</h1>
+<p class="cur-line">${[list.length ? `${list.length} archive${list.length === 1 ? '' : 's'} open to you` : null, shows.length ? `${shows.length} show${shows.length === 1 ? '' : 's'}` : null, placed ? `${placed} placed` : null, earned.c ? `${money(earned.c)} earned` : null].filter(Boolean).join(' · ') || 'Where your shows begin.'}${eye && eye.badge ? ` · <i>${esc(eye.badge)}</i>` : ''}</p></header>
+${shows.some(h => h.review === 'returned') ? `<p class="cur-need">${shows.filter(h => h.review === 'returned').map(h => `<a href="/curate/${esc(slugOfMaker(db.prepare('SELECT * FROM makers WHERE id=?').get(h.for_maker_id)))}?show=${h.id}">${esc(h.title)}</a> came back with a note${h.review_note ? `: &ldquo;${esc(h.review_note)}&rdquo;` : '.'}`).join('<br>')}</p>` : ''}
+<h2 class="cur-k">The archives open to you</h2>
+${list.length ? `<ul class="cur-arch">${list.map(m => { const c = coverOf(m), n = countOf(m); return `<li><a href="/curate/${esc(slugOfMaker(m))}">${c ? `<img src="/img/${esc(c.slug)}/screen" alt="" loading="lazy">` : '<span class="cur-blank"></span>'}<b>${esc(m.name)}</b><span>${n.n} works${n.k ? `, ${n.k} kept back` : ''}</span><em>Open the archive</em></a></li>`; }).join('')}</ul>` : `<p class="cur-empty">None yet. A maker opens their archive to you by letter; a gallery that represents makers has their archives too.${me ? ` <a href="/account/curators">Open yours to a curator</a>.` : ''}</p>`}
+<h2 class="cur-k">Your shows</h2>
+${shows.length ? `<ul class="cur-shows">${shows.map(h => { const mm = db.prepare('SELECT * FROM makers WHERE id=?').get(h.for_maker_id); const [st, cls] = state(h); const t = thumbs(h); return `<li class="cur-s cur-${cls}"><a class="cur-strip" href="/curate/${esc(slugOfMaker(mm))}?show=${h.id}">${t.length ? t.map(x => `<img src="/img/${esc(x)}/thumb" alt="" loading="lazy">`).join('') : '<span class="cur-blank"></span>'}</a><div class="cur-st"><b>${esc(h.title)}</b><span>${esc(mm ? mm.name : '')} · ${h.n} work${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} placed, ${money(h.earned || 0)}` : ''}</span><i>${st}</i></div><p class="cur-go"><a href="/curate/${esc(slugOfMaker(mm))}?show=${h.id}">${h.review === 'approved' ? 'Change it' : 'Go on'}</a>${h.review === 'approved' ? ` <a href="${esc(hrefOf(h))}">See it</a>` : ` <a href="/curate/show/${h.id}">Preview</a>`}</p></li>`; }).join('')}</ul>` : `<p class="cur-empty">${list.length ? 'Open an archive and tap a photograph: the show begins with your first choice.' : 'Your shows will gather here.'}</p>`}
+${walls.length ? `<h2 class="cur-k">Your walls</h2><ul class="cur-shows">${walls.map(h => { const t = thumbs(h); return `<li class="cur-s"><a class="cur-strip" href="${esc(hrefOf(h))}">${t.map(x => `<img src="/img/${esc(x)}/thumb" alt="" loading="lazy">`).join('') || '<span class="cur-blank"></span>'}</a><div class="cur-st"><b>${esc(h.title)}</b><span>${h.n} work${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} placed` : ''}</span><i>${h.public ? 'Shown' : 'Private'}</i></div><p class="cur-go"><a href="${esc(hrefOf(h))}">See it</a></p></li>`; }).join('')}</ul>` : ''}
+<h2 class="cur-k">The share</h2>
+<p class="cur-money">${earned.c ? `<b>${money(earned.c)}</b> earned in all${earned.m ? `, ${money(earned.m)} this month` : ''}. It sits in your pocket and goes to your bank on Fridays once connected. <a href="/yours?tab=more#pocket">Your pocket</a>` : 'When a work is collected through a show of yours or your gallery&rsquo;s link, the curator&rsquo;s share is yours, paid on Fridays.'}</p>
+<p class="cur-links"><a href="/keys">The Keys</a> · <a href="/yours">Your gallery</a> · <a href="/legal/curators">The Curator and Gallery Agreement</a></p>
+</section>`));
   });
   const showsOf = (b, m) => (b ? db.prepare("SELECT h.*, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) AS n FROM hangs h WHERE h.buyer_id=? AND h.for_maker_id=? ORDER BY h.updated_at DESC").all(b.id, m.id) : []);
   const showWorks = h => db.prepare("SELECT w.*, hw.pos, hw.note FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? ORDER BY hw.pos, w.id").all(h.id);
