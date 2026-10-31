@@ -44,6 +44,7 @@ function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, 
   db.exec(`CREATE TABLE IF NOT EXISTS artists (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, sort_name TEXT, born INTEGER, died INTEGER, nationality TEXT, movement TEXT,
     bio TEXT, sources TEXT, wiki TEXT, claim_status TEXT, claimed_name TEXT, claimed_email TEXT, claimed_maker_id INTEGER, sale_ok INTEGER NOT NULL DEFAULT 0, terms TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS artist_claims (id INTEGER PRIMARY KEY, artist_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, relation TEXT NOT NULL, note TEXT, ip TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')), decided_at TEXT)`);
+  for (const [c, t] of [['periods', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('artists') WHERE name=?").get(c)) db.exec(`ALTER TABLE artists ADD COLUMN ${c} ${t}`);
   for (const [c, t] of [['artist_id', 'INTEGER'], ['attribution', 'TEXT'], ['art_override', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS works_artist ON works (artist_id)');
 
@@ -180,8 +181,8 @@ ${on() && !a ? `<form method="post" action="${action}" class="ax-f"><input type=
     const mv = String(req.query.movement || ''), kd = String(req.query.kind || '');
     const shown = artists.filter(a => (!mv || a.movement === mv)).filter(a => !kd || db.prepare("SELECT 1 FROM works WHERE artist_id=? AND status='held' AND kind=?").get(a.id, kd));
     const letters = [...new Set(shown.map(a => (a.sort_name || a.name)[0].toUpperCase()))];
-    res.send(V.layout({ title: 'Art · Watermark', path: '/art', desc: 'The artists behind the work in the house: paintings, sculpture, drawings, photographed and kept, each under its maker’s name.', body: `<section class="ax-room">
-<header class="ax-head"><p class="k">The art</p><h1>The artists behind the work.</h1><p class="lede">A photograph can show a painting, but the painting is someone’s. Every work of art photographed into the house hangs here under the name of the person who made it, with the photographer credited, and the artist’s page gathers all of it. Where the work is in the public domain the photographs are collected and licensed as any work; where it is under copyright they are shown and credited, may be collected for yourself, and are never licensed for a story, a company, an audience, a wall or a print until the artist or their estate sets terms.</p></header>
+    res.send(V.layout({ title: 'The hall · Watermark', path: '/art', desc: 'The artists behind the work in the house: paintings, sculpture, drawings, photographed and kept, each under its maker’s name.', body: `<section class="ax-room">
+<header class="ax-head"><p class="k">The hall</p><h1>Every artist, and all of their work.</h1><p class="lede">A page for every artist, living or long gone: the work in the order it was made, the life as a line, and their own words beside it. Wander one from the first picture to the last. A photograph can show a painting, but the painting is someone’s. Every work of art photographed into the house hangs here under the name of the person who made it, with the photographer credited, and the artist’s page gathers all of it. Where the work is in the public domain the photographs are collected and licensed as any work; where it is under copyright they are shown and credited, may be collected for yourself, and are never licensed for a story, a company, an audience, a wall or a print until the artist or their estate sets terms.</p></header>
 ${kinds.length ? `<nav class="ax-kinds"><a href="/art"${!kd && !mv ? ' aria-current="page"' : ''}>Everything</a>${kinds.map(k => `<a href="/art?kind=${esc(k.kind)}"${kd === k.kind ? ' aria-current="page"' : ''}>${esc(OB.KINDS[k.kind])}s <small>${k.n}</small></a>`).join('')}</nav>` : ''}
 ${movements.length ? `<nav class="ax-mvs"><span>By movement</span>${movements.map(m => `<a href="/art?movement=${encodeURIComponent(m.movement)}"${mv === m.movement ? ' aria-current="page"' : ''}>${esc(m.movement)} <small>${m.artists}</small></a>`).join('')}</nav>` : ''}
 ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">${esc(l)}</a>`).join('')}</p><div class="ax-grid">${shown.map((a, i) => { const c = cover(a); const first = i === 0 || (shown[i - 1].sort_name || shown[i - 1].name)[0].toUpperCase() !== (a.sort_name || a.name)[0].toUpperCase(); return `<a class="ax-card" href="/art/${esc(a.slug)}"${first ? ` id="ax-${esc((a.sort_name || a.name)[0].toUpperCase())}"` : ''}><span class="ax-im">${c ? `<img src="/img/${esc(c.slug)}/thumb" alt="" loading="lazy">` : ''}</span><b>${esc(a.name)}</b><span class="ax-meta">${esc([dates(a), a.nationality, a.movement].filter(Boolean).join(' · '))}</span><span class="ax-n">${a.n} work${a.n === 1 ? '' : 's'}${rights(a).state === 'reserved' ? ' · under copyright' : ''}</span></a>`; }).join('')}</div>` : `<p class="ax-empty">No artists yet. The first arrives with the first photograph of a painting, or the first museum collection brought in.</p>`}
@@ -189,23 +190,37 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
 </section>` }));
   }
 
-  // The artist's page.
+  // The artist's page (31 Oct): src/artistpage.js. Every work in the order it was made, the life as a line, their words.
+  const AP = require('./artistpage');
+  const keeps = w => { const m = /(?:Credit line|Credit|Museum|Collection|Repository|Institution): ([^·\n]+)/i.exec(w.caption || '') || /(Van Gogh Museum|Kröller-Müller Museum|Museum of Modern Art|Metropolitan Museum of Art|National Gallery[^.;,·]*|Art Institute of Chicago|Musée d'Orsay|Musée de l'Orangerie|Musée Marmottan[^.;,·]*|Rijksmuseum|Louvre|Uffizi|Royal Collection|British Museum|Biblioteca Ambrosiana|Hermitage|Courtauld[^.;,·]*|Getty[^.;,·]*|Cleveland Museum of Art|Philadelphia Museum of Art|Museum of Fine Arts[^.;,·]*)/i.exec(w.caption || ''); return m ? m[1].trim().slice(0, 80) : null; };
+  function chronology(a) {
+    return db.prepare("SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND w.status='held' AND COALESCE(w.zone,'all')!='mature'").all(a.id)
+      .map(w => ({ ...w, y: AP.madeIn(w, a), keeps: keeps(w) })).sort((x, y) => (x.y || 99999) - (y.y || 99999) || x.id - y.id);
+  }
+  // The wall Wander walks for an artist: the house's, public, in the order made.
+  function wallOf(a, ws) {
+    const H = app.locals.hangs; if (!H || !H.houseBuyer || !ws.length) return null; const hb = H.houseBuyer(); if (!hb) return null;
+    const slug = `art-${a.slug}`.slice(0, 90); let h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(slug);
+    if (!h) { db.prepare('INSERT INTO hangs (buyer_id, slug, title, line, public) VALUES (?,?,?,?,1)').run(hb.id, slug, a.name, 'The work, in the order it was made.'); h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(slug); }
+    const have = new Map(db.prepare('SELECT work_id, pos FROM hang_works WHERE hang_id=?').all(h.id).map(r => [r.work_id, r.pos]));
+    ws.slice(0, 1000).forEach((w, i) => { if (!have.has(w.id)) db.prepare('INSERT INTO hang_works (hang_id, work_id, pos) VALUES (?,?,?)').run(h.id, w.id, i); else if (have.get(w.id) !== i) db.prepare('UPDATE hang_works SET pos=? WHERE hang_id=? AND work_id=?').run(i, h.id, w.id); });
+    return h;
+  }
+  const pageCache = new Map();
   app.get('/art/:slug', (req, res) => {
     const a = bySlug(req.params.slug); if (!a) return res.sendStatus(404);
-    const OB = require('./object'); const ws = worksOf(a); const r = rights(a, ws[0] || null);
-    const photographers = [...new Map(ws.map(w => [w.handle, w.maker_name])).entries()];
-    const kinds = [...new Set(ws.map(w => OB.kindWord(w)))];
-    const museums = [...new Set(ws.map(w => { const m = /(?:Credit line|Museum|Collection): ([^·]+)/i.exec(w.caption || ''); return m ? m[1].trim() : null; }).filter(Boolean))].slice(0, 6);
-    res.send(V.layout({ title: `${a.name} · Art · Watermark`, path: `/art/${a.slug}`, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: the work of theirs photographed into the house.`, body: `<section class="ax-one">
-<header class="ax-head"><p class="k"><a href="/art">The art</a>${a.movement ? ` · <a href="/art?movement=${encodeURIComponent(a.movement)}">${esc(a.movement)}</a>` : ''}</p><h1>${esc(a.name)}</h1><p class="ax-dates">${esc([dates(a), a.nationality].filter(Boolean).join(' · '))}${a.claim_status === 'claimed' ? ' · <span class="ax-claimed">This page is kept by the artist’s side</span>' : ''}</p>
-${a.bio ? `<div class="ax-bio">${a.bio.split(/\n\s*\n/).map(p => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
-<p class="ax-rights"><b>${r.state === 'pd' ? 'Public domain.' : r.state === 'reserved' ? 'Under copyright.' : 'Terms set.'}</b> ${esc(r.why)}${r.state === 'reserved' ? ` <a href="/art/${esc(a.slug)}/claim">Are you ${esc(a.name)}, or the estate?</a>` : ''}</p></header>
-${ws.length ? `<p class="ax-sum">${ws.length} ${ws.length === 1 ? 'work' : 'works'} in the house${kinds.length ? `: ${esc(kinds.map(k => k.toLowerCase() + 's').join(', '))}` : ''}${photographers.length ? ` · photographed by ${photographers.map(([h, n]) => `<a href="/m/${esc(h)}">${esc(n)}</a>`).join(', ')}` : ''}${museums.length ? ` · ${esc(museums.join('; '))}` : ''}</p>
-<div class="ax-works">${ws.map(w => `<a class="ax-w" href="/m/${esc(w.handle)}/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" loading="lazy"><span><b>${esc(w.title)}</b>${yearOf(w.taken_at) ? ` · ${yearOf(w.taken_at)}` : ''}${w.medium ? ` · ${esc(w.medium)}` : ''}<br><small>Photograph by ${esc(w.maker_name)}</small></span></a>`).join('')}</div>
-<p class="ax-wander"><a class="buy-btn" href="/wander?q=${encodeURIComponent(a.name)}">Wander ${esc(a.name)}</a></p>` : '<p class="ax-empty">Nothing of theirs is in the house yet.</p>'}
-${a.sources || a.wiki ? `<section class="ax-src"><h2>Read further</h2>${a.wiki ? `<p><a href="${esc(a.wiki)}" rel="noopener">${esc(a.wiki.replace(/^https?:\/\//, ''))}</a></p>` : ''}${a.sources ? a.sources.split('\n').filter(Boolean).map(s => `<p>${/^https?:/.test(s.trim()) ? `<a href="${esc(s.trim())}" rel="noopener">${esc(s.trim().replace(/^https?:\/\//, ''))}</a>` : esc(s)}</p>`).join('') : ''}</section>` : ''}
-<section class="ax-claim"><h2>${a.claim_status === 'claimed' ? 'Kept by the artist’s side' : 'Claim this page'}</h2><p>${a.claim_status === 'claimed' ? `This page is kept with ${esc(a.claimed_name || 'the artist’s representative')}. ${a.terms ? esc(a.terms) : ''}` : `If you are ${esc(a.name)}, the estate, a foundation or the gallery that represents the work, the page is yours to keep: the life, the dates, what may be collected and on what terms. <a href="/art/${esc(a.slug)}/claim">Write to the house</a>.`}</p></section>
-</section>` }));
+    const studio = isStudio(req); const hit = pageCache.get(a.slug); if (!studio && hit && Date.now() - hit.at < 60e3) return res.send(hit.html);
+    const OB = require('./object'); const ws = chronology(a); const r = rights(a, ws[0] || null); const h = wallOf(a, ws);
+    const photographers = [...new Map(ws.filter(w => w.handle !== 'the-public-domain').map(w => [w.handle, w.maker_name])).entries()];
+    const kinds = [...new Set(ws.map(w => OB.kindWord(w).toLowerCase() + 's'))];
+    const museums = [...new Set(ws.map(w => w.keeps).filter(Boolean))].slice(0, 12);
+    const claimLine = a.claim_status === 'claimed' ? `This page is kept with ${esc(a.claimed_name || 'the artist’s representative')}.${a.terms ? ` ${esc(a.terms)}` : ''}` : `Are you ${esc(a.name)}, the estate, a foundation or the gallery that represents the work? The page is yours to keep: the life in your words, the dates, and what may be collected. <a href="/art/${esc(a.slug)}/claim">Write to the house</a>.`;
+    let binding = null; try { binding = require('./binding'); } catch (e) { /* */ }
+    const body = AP.render({ a, ws, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander?in=hang:${h.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const hero = ws.find(w => w.curated) || ws[0];
+    const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/img/${hero.slug}/screen` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
+    if (!studio) pageCache.set(a.slug, { at: Date.now(), html });
+    res.send(html);
   });
 
   app.get('/art/:slug/claim', (req, res) => {
@@ -240,18 +255,49 @@ ${a.sources || a.wiki ? `<section class="ax-src"><h2>Read further</h2>${a.wiki ?
     res.send(V.layout({ title: `${a.name} · Studio · Watermark`, path: '/studio/art', studio: true, body: `<section class="studio-wrap ax-desk"><p class="k"><a href="/studio/art">The art</a></p><h1>${esc(a.name)}</h1><p class="note"><a href="/art/${esc(a.slug)}">The public page</a> · ${ws.length} works · rights: <b>${rights(a).state}</b>. ${esc(rights(a).why || '')}</p>
 ${req.query.ok ? `<p class="ok">${esc({ saved: 'Saved.', accepted: 'The claim is accepted; the page is theirs to keep.', declined: 'Declined.' }[req.query.ok] || req.query.ok)}</p>` : ''}
 <form method="post" action="/studio/art/${esc(a.slug)}" class="ax-edit"><div class="ax-row"><label>Name<input name="name" value="${esc(a.name)}" required></label><label>Born<input name="born" value="${a.born || ''}" inputmode="numeric"></label><label>Died<input name="died" value="${a.died || ''}" inputmode="numeric"></label><label>Nationality<input name="nationality" value="${esc(a.nationality || '')}"></label><label>Movement<input name="movement" value="${esc(a.movement || '')}" list="ax-mv"></label><datalist id="ax-mv">${MOVEMENTS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
-<label>The life, in paragraphs<textarea name="bio" rows="8">${esc(a.bio || '')}</textarea></label><label>Read further, one address or line each<textarea name="sources" rows="3">${esc(a.sources || '')}</textarea></label><label>Wikipedia or the estate’s site<input name="wiki" value="${esc(a.wiki || '')}"></label>
+<label>The life, in paragraphs<textarea name="bio" rows="8">${esc(a.bio || '')}</textarea></label><label>Periods, a line each (<code>1886–1887 Paris: Two years with Theo in Montmartre.</code>); the page hangs the work by them<textarea name="periods" rows="5">${esc(a.periods || '')}</textarea></label><label>Read further, one address or line each<textarea name="sources" rows="3">${esc(a.sources || '')}</textarea></label><label>Wikipedia or the estate’s site<input name="wiki" value="${esc(a.wiki || '')}"></label>
 <div class="ax-row"><label>Kept by (name)<input name="claimed_name" value="${esc(a.claimed_name || '')}"></label><label>Their email<input name="claimed_email" value="${esc(a.claimed_email || '')}"></label><label>Status<select name="claim_status"><option value="">None</option><option value="asked"${a.claim_status === 'asked' ? ' selected' : ''}>Asked</option><option value="claimed"${a.claim_status === 'claimed' ? ' selected' : ''}>Claimed</option></select></label><label class="ax-ck"><input type="checkbox" name="sale_ok" value="1"${a.sale_ok ? ' checked' : ''}> The rights holder allows Collect and licences (terms below)</label></div>
 <label>Terms, in their words<textarea name="terms" rows="3">${esc(a.terms || '')}</textarea></label><button class="buy-btn">Save</button></form>
+<form method="post" action="/studio/art/${esc(a.slug)}/bring" class="ax-edit"><h2>Bring in more of the work</h2><p class="note">Wikimedia Commons categories, one address a line (a category of files: Paintings by…, Drawings by…, a codex). Each file comes in under the house’s shelf for open work with its own licence read from Commons; ${rights(a).state === 'pd' ? 'this artist is in the public domain, so the photographs are open, shown, never sold.' : 'this artist is under copyright: files come in kept back until a person looks.'} The feeds run one at a time in the background (Feeds in).</p>
+<label>Commons categories<textarea name="cats" rows="4" placeholder="https://commons.wikimedia.org/wiki/Category:Paintings_by_Claude_Monet"></textarea></label><label class="ax-ck"><input type="checkbox" name="words" value="1" checked> Their writings from Project Gutenberg, found by name</label><label>At most, a feed<input name="max" value="400" inputmode="numeric"></label><button class="buy-btn">Bring it in</button></form>
 ${claims.length ? `<h2>Claims</h2><table class="tbl"><thead><tr><th>When</th><th>Who</th><th>As</th><th>Note</th><th></th></tr></thead><tbody>${claims.map(c => `<tr><td>${esc(V.date(c.at))}</td><td>${esc(c.name)}<br><small>${esc(c.email)}</small></td><td>${esc(c.relation)}</td><td>${esc(c.note || '')}</td><td>${c.status === 'asked' ? `<form method="post" action="/studio/art/${esc(a.slug)}/claims/${c.id}" class="ax-f"><button name="do" value="accept" class="buy-btn">Accept</button> <button name="do" value="decline" class="btn">Decline</button></form>` : esc(c.status)}</td></tr>`).join('')}</tbody></table>` : ''}
 ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w => `<a class="ax-w" href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span><b>${esc(w.title)}</b><br><small>${esc(w.maker_name)}</small></span></a>`).join('')}</div>` : ''}</section>` }));
   });
   app.post('/studio/art/:slug', studioOnly, (req, res) => {
     const a = bySlug(req.params.slug); if (!a) return res.sendStatus(404); const b = req.body;
-    db.prepare('UPDATE artists SET name=?, sort_name=?, born=?, died=?, nationality=?, movement=?, bio=?, sources=?, wiki=?, claimed_name=?, claimed_email=?, claim_status=?, sale_ok=?, terms=? WHERE id=?')
-      .run(String(b.name || a.name).trim(), sortName(String(b.name || a.name).trim()), +b.born || null, +b.died || null, String(b.nationality || '').trim() || null, String(b.movement || '').trim() || null, String(b.bio || '').trim() || null, String(b.sources || '').trim() || null, String(b.wiki || '').trim() || null, String(b.claimed_name || '').trim() || null, String(b.claimed_email || '').trim() || null, b.claim_status || null, b.sale_ok ? 1 : 0, String(b.terms || '').trim() || null, a.id);
+    db.prepare('UPDATE artists SET name=?, sort_name=?, born=?, died=?, nationality=?, movement=?, bio=?, periods=?, sources=?, wiki=?, claimed_name=?, claimed_email=?, claim_status=?, sale_ok=?, terms=? WHERE id=?')
+      .run(String(b.name || a.name).trim(), sortName(String(b.name || a.name).trim()), +b.born || null, +b.died || null, String(b.nationality || '').trim() || null, String(b.movement || '').trim() || null, String(b.bio || '').trim() || null, String(b.periods || '').trim() || null, String(b.sources || '').trim() || null, String(b.wiki || '').trim() || null, String(b.claimed_name || '').trim() || null, String(b.claimed_email || '').trim() || null, b.claim_status || null, b.sale_ok ? 1 : 0, String(b.terms || '').trim() || null, a.id);
     try { ledger.append(db, 'artist.edited', a.slug, {}); } catch (e) { /* */ }
     res.redirect(`/studio/art/${a.slug}?ok=saved`);
+  });
+  // The house's shelf for open work (31 Oct): works whose makers died long ago, shown free, credited, never sold.
+  function shelf() {
+    let m = db.prepare("SELECT * FROM makers WHERE handle='the-public-domain'").get(); if (m) return m;
+    db.prepare("INSERT INTO makers (handle, name, kind, house, bio, joined_at, door) VALUES ('the-public-domain', 'The public domain', 'institution', 'Open to everyone', 'Works whose makers died long ago and that belong now to everyone: shown here free, credited, never sold.', datetime('now'), 'house')").run();
+    return db.prepare("SELECT * FROM makers WHERE handle='the-public-domain'").get();
+  }
+  // Their writings: Gutendex by name, every book whose author carries every part of the name; English first.
+  async function writingsFor(a, n = 8) {
+    const R = app.locals.reading; if (!R || !R.bring) return [];
+    const parts = norm(a.name).split(' ').filter(p => p.length > 2 && !['van', 'von', 'der', 'den', 'del', 'della'].includes(p)); if (!parts.length) return [];
+    const r = await doFetch(`${process.env.GUTENDEX || 'https://gutendex.com'}/books/?search=${encodeURIComponent(a.name)}`); if (!r.ok) return [`gutendex ${r.status}`];
+    const j = await r.json(); const out = [];
+    const mine = (j.results || []).filter(b => (b.authors || []).some(x => parts.every(p => norm(x.name).includes(p)))).sort((x, y) => ((y.languages || []).includes('en') - (x.languages || []).includes('en')) || (y.download_count || 0) - (x.download_count || 0)).slice(0, n);
+    for (const b of mine) { try { const t = await R.bring(b.id, { by: 'the hall', meta: b }); out.push(t && t.slug); } catch (e) { out.push(`${b.id}: ${e.message}`); } }
+    return out;
+  }
+  async function bringArtist(a, { cats = [], words = true, max = 400 } = {}) {
+    const m = shelf(); const out = { feeds: [], words: [] }; const F = app.locals.feeds; const pd = rights(a).state === 'pd';
+    if (F) for (const url of cats) { if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/Category:/.test(url)) { out.feeds.push(`not a Commons category: ${url}`); continue; } if (db.prepare("SELECT 1 FROM feeds WHERE url=? AND status NOT IN ('failed','stopped')").get(url)) { out.feeds.push(`already: ${url}`); continue; } try { out.feeds.push(F.enqueue({ name: `${a.name}: ${decodeURIComponent(url.split('Category:')[1]).replace(/_/g, ' ')}`, url, kind: 'commons', maker: m.handle, open: pd ? 'pd' : '', show: pd ? '1' : '', max: String(max) })); } catch (e) { out.feeds.push(String(e.message)); } }
+    if (words) { try { out.words = await writingsFor(a); } catch (e) { out.words = [String(e.message)]; } }
+    pageCache.delete(a.slug); try { ledger.append(db, 'artist.brought', a.slug, { feeds: out.feeds.length }); } catch (e) { /* */ }
+    return out;
+  }
+  app.post('/studio/art/:slug/bring', studioOnly, async (req, res) => {
+    const a = bySlug(req.params.slug); if (!a) return res.sendStatus(404);
+    const out = await bringArtist(a, { cats: String(req.body.cats || '').split(/\s*\n\s*/).map(s => s.trim()).filter(Boolean), words: !!req.body.words, max: Math.min(2000, +req.body.max || 400) });
+    if (req.body.json) return res.json({ ok: true, ...out });
+    res.redirect(`/studio/art/${a.slug}?ok=${encodeURIComponent(`${out.feeds.filter(x => typeof x === 'number').length} feeds queued · ${out.words.filter(x => x && !/:/.test(x)).length} books`)}`);
   });
   app.post('/studio/art/:slug/claims/:id', studioOnly, (req, res) => {
     const a = bySlug(req.params.slug); const c = db.prepare('SELECT * FROM artist_claims WHERE id=? AND artist_id=?').get(+req.params.id, a ? a.id : -1); if (!a || !c) return res.sendStatus(404);

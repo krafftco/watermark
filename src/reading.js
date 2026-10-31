@@ -182,7 +182,11 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     const had = db.prepare("SELECT slug FROM texts WHERE source LIKE ? OR source = ?").get(`%gutenberg.org/ebooks/${id}`, `https://www.gutenberg.org/ebooks/${id}`); if (had) return { slug: had.slug, already: true };
     const rec = given || await meta(id);
     const f = rec.formats || {}; const url = Object.keys(f).filter(k => /^text\/plain/.test(k) && !/\.zip$/.test(f[k])).map(k => f[k]).sort((a, b) => (/utf-8/.test(b) ? 1 : 0) - (/utf-8/.test(a) ? 1 : 0))[0] || `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
-    let raw = rec.raw; if (!raw) { const tr = await doFetch(url); if (!tr.ok) throw new Error(`gutenberg ${tr.status}`); raw = await tr.text(); }
+    let raw = rec.raw; if (!raw) {
+      // 31 Oct (the Van Gogh letters, No. 40393): the record's plain-text address answered 404 while the book stood; try Gutenberg's other two.
+      let last = 0; for (const u of [...new Set([url, `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`, `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`])]) { try { const tr = await doFetch(u); if (tr.ok) { raw = await tr.text(); break; } last = tr.status; } catch (e) { last = e.message; } }
+      if (!raw) throw new Error(`gutenberg ${last}`);
+    }
     const text = strip(raw); if (text.length < 2000) throw new Error('too little text');
     const chs = chapters(text); const body = toBody(chs);
     const author = (rec.authors && rec.authors[0] && rec.authors[0].name) || null; const title = tidy(String(rec.title || `Gutenberg ${id}`).split(/\r?\n/)[0].slice(0, 160));

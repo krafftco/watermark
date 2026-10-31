@@ -1216,7 +1216,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(/Under copyright: yours to collect, not to license/.test(r.body), 'said on the page');
     r = await req(port, 'GET', `/api/v1/works/${w.slug}`); const uj = JSON.parse(r.body); assert.ok(uj.uses.every(u => u.key === 'social'), 'the API lists only the Collect: ' + uj.uses.map(u => u.key).join(','));
     process.env.ART_STRICT = '1'; assert.ok(app.locals.art.blocks(w2, 'social'), 'strict closes the Collect too'); delete process.env.ART_STRICT;
-    r = await req(port, 'GET', '/art/pollock-jackson'); assert.ok(/Under copyright/.test(r.body) && /Are you Pollock, Jackson, or the estate/.test(r.body), 'the claim door on a reserved page');
+    r = await req(port, 'GET', '/art/pollock-jackson'); assert.ok(/Under copyright/.test(r.body) && /Are you Pollock, Jackson, the estate/.test(r.body), 'the claim door on a reserved page');
     // the house overrides
     r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'override', value: 'open' } }); assert.ok(!app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'story'), 'the house opens it');
     r = await req(port, 'POST', `/studio/works/${w.slug}/art`, { cookie: ck, body: { do: 'override', value: 'closed' } }); assert.ok(app.locals.art.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), 'social'), 'the house closes everything');

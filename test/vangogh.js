@@ -21,5 +21,12 @@ const { createApp } = require('../src/app');
   t = await (await go('/vangogh')).text(); assert.ok(t.includes('Saint-Rémy') && t.includes('The Starry Night') && t.includes('/wander?in=hang:vincent-van-gogh'), 'grouped by where he was, the wall to wander');
   assert.ok(db.prepare("SELECT 1 FROM hangs h JOIN hang_works hw ON hw.hang_id=h.id WHERE h.slug='vincent-van-gogh' AND h.public=1").get(), 'the wall holds it');
   const jw = app.locals.workJSON(db.prepare('SELECT * FROM works WHERE slug=?').get(j.slug)); assert.ok(!jw.uses.length && jw.open, 'open: nothing for sale');
+  // The artist's page: periods from the bring, the life line, the wall, the claim door; the bring for any artist.
+  t = await (await fetch(base + '/art/' + a.slug)).text();
+  assert.ok(t.includes('class="apl"') && t.includes('Saint-Rémy') && t.includes('apl-tick') && t.includes('/wander?in=hang:art-') && t.includes('/claim'), 'the artist page, by period, the life as a line');
+  const mo = app.locals.art.ensure('Claude Monet', { born: 1840, died: 1926 }); let queued = []; app.locals.feeds.enqueue = b => { queued.push(b); return queued.length; };
+  const br = await (await go('/studio/art/' + mo.slug + '/bring', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&cats=' + encodeURIComponent('https://commons.wikimedia.org/wiki/Category:Paintings_by_Claude_Monet\nhttps://example.com/x') })).json();
+  assert.ok(br.ok && queued.length === 1 && queued[0].open === 'pd' && /not a Commons/.test(br.feeds[1]), 'one Commons feed, open, the stranger address refused');
+  t = await (await fetch(base + '/art/' + mo.slug)).text(); assert.ok(t.includes('Claude Monet') && t.includes('Born 1840'), 'an empty page still stands, with the life');
   console.log('vincent: all hold'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
