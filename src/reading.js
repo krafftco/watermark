@@ -174,6 +174,10 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
       .replace(/(^|[^\w])_([^_\n]{1,200}?)_(?=[^\w]|$)/g, '$1*$2*');
   }
   const toBody = chs => chs.map(c => (c.head ? `## ${/^[A-Z0-9 .,:;'’—-]+$/.test(c.head) && /[A-Z]{3}/.test(c.head) ? titleCase(c.head) : c.head}\n\n` : '') + c.paras.map(p => /^[\s*\-_—·]{3,}$/.test(p) ? '* * *' : polish(p)).join('\n\n')).join('\n\n');
+  const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', hellip: '…', eacute: 'é', egrave: 'è', agrave: 'à', ccedil: 'ç', ouml: 'ö', uuml: 'ü', auml: 'ä' };
+  const htmlText = h => String(h).replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|h[1-6]|li|blockquote|pre|tr)>/gi, '\n\n').replace(/<(h[1-6])[^>]*>/gi, '\n\n').replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] || m)
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   // A Gutenberg book, by number: metadata from Gutendex, the text from gutenberg.org.
   async function bring(id, { why = null, by = 'the house', meta: given = null } = {}) {
     id = +id; if (!id) throw new Error('a number');
@@ -185,6 +189,8 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     let raw = rec.raw; if (!raw) {
       // 31 Oct (the Van Gogh letters, No. 40393): the record's plain-text address answered 404 while the book stood; try Gutenberg's other two.
       let last = 0; for (const u of [...new Set([url, `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`, `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`])]) { try { const tr = await doFetch(u); if (tr.ok) { raw = await tr.text(); break; } last = tr.status; } catch (e) { last = e.message; } }
+      // Some books stand only as HTML (40393: the Van Gogh letters): read the HTML edition as text, a paragraph a block.
+      if (!raw) for (const u of [`https://www.gutenberg.org/cache/epub/${id}/pg${id}-images.html`, `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`]) { try { const tr = await doFetch(u); if (tr.ok) { raw = htmlText(await tr.text()); if (raw.length > 2000) break; raw = null; } else last = tr.status; } catch (e) { last = e.message; } }
       if (!raw) throw new Error(`gutenberg ${last}`);
     }
     const text = strip(raw); if (text.length < 2000) throw new Error('too little text');
