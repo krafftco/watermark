@@ -65,7 +65,11 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     db.prepare("INSERT INTO curators (maker_id, email, name, label, token, status) VALUES (?,?,?,?,?,'invited') ON CONFLICT(maker_id, email) DO UPDATE SET name=excluded.name, label=excluded.label, token=excluded.token, status=CASE WHEN curators.status='on' THEN 'on' ELSE 'invited' END").run(m.id, email, name, label, token);
     const link = `${C.base}/curate/join/${token}`;
     ledger.append(db, 'curator.invited', m.handle, { label });
-    if (mail.on()) mail.send({ to: email, subject: `${m.name} has opened the archive to you`, text: `${name ? name.split(' ')[0] + ',\n\n' : ''}${m.name} has given you the keys to the archive on Watermark: every photograph held there, including the work kept back, to curate a show from.\n\nOpen it here (the link signs you in as yourself):\n${link}\n\nBuild the show, sequence it, write a line for each photograph if you like, and send it to ${m.name.split(' ')[0]}. Nothing opens to the public until ${m.name.split(' ')[0]} approves it.\n\nWatermark` });
+    { // The invitation, engraved (31 Oct): the maker's best photograph on its mount, what the key opens, one door.
+      const L = require('./mail-letters'); const best = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND COALESCE(keep_back,0)=0 ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(m.id);
+      const K = app.locals.keys; const given = K ? db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='curator'").get().n : 1;
+      const letter = L.curatorInvite({ base: C.base, name, maker: m.name, makerFirst: m.name.split(' ')[0], label, link, no: given === 0 ? 1 : null, img: best ? `${C.base}/img/${best.slug}/screen?f=jpg` : null, href: best ? `${C.base}/w/${best.slug}` : C.base, title: best ? V.tidy(best.title) : '', year: best ? String(best.taken_at || '').slice(0, 4) : '' });
+      if (mail.on()) mail.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html }); else if (app.locals.mailLog) app.locals.mailLog.push({ to: email, subject: letter.subject }); }
     res.redirect('/account/curators?ok=' + encodeURIComponent(mail.on() ? `The keys are on their way to ${email}.` : `Mail is off. Send this link yourself: ${link}`));
   });
   app.post('/account/curators/:id/end', (req, res) => {
@@ -102,6 +106,9 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     db.prepare("UPDATE curators SET status='on', buyer_id=?, joined_at=COALESCE(joined_at, datetime('now')) WHERE id=?").run(b ? b.id : null, c.id);
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(c.maker_id);
     tell({ maker_id: m.id, kind: 'show', href: '/account/curators', title: `${c.name || c.email} opened your archive`, body: c.label ? `As ${c.label}.` : 'They can begin a show.' });
+    // The key at once, not at the next backfill, and its letter: the number and the first three steps.
+    if (b && app.locals.keys) { const had = db.prepare("SELECT 1 FROM keys WHERE kind='curator' AND buyer_id=?").get(b.id); const k = app.locals.keys.issue('curator', { buyer_id: b.id }, 'archive');
+      if (k && !had && c.email) { const L = require('./mail-letters'); const letter = L.curatorKey({ base: C.base, name: c.name, makerFirst: m.name.split(' ')[0], no: k.no, desk: `${C.base}/curate/${slugOfMaker(m)}` }); if (mail.on()) mail.send({ to: c.email, subject: letter.subject, text: letter.text, html: letter.html }); } }
     res.redirect(`/curate/${slugOfMaker(m)}?welcome=1`);
   });
   app.get('/curate', (req, res) => {
@@ -129,19 +136,20 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     const seq = cur ? showWorks(cur) : [];
     const starsOf = n => '★'.repeat(n || 0);
     res.set('Cache-Control', 'private, no-store');
-    res.send(shell(`Curating ${m.name}`, `<section class="cu cu-desk" data-cu data-show="${cur ? cur.id : ''}">
-<header class="cu-h"><div><p class="k">Curating</p><h1>${esc(m.name)}&rsquo;s archive.</h1><p class="cu-n">${total.n} works held${total.k ? `, ${total.k} kept back (marked)` : ''}. ${req.query.welcome ? `${esc(m.name.split(' ')[0])} has given you the keys. Choose a show, or begin one.` : ''}</p></div>
+    res.send(shell(`Curating ${m.name}`, `<section class="cu cu-desk" data-cu data-show="${cur ? cur.id : ''}" data-maker="${esc(slugOfMaker(m))}" data-first="${esc(m.name.split(' ')[0])}">
+<header class="cu-h"><div><p class="k">Curating</p><h1>${esc(m.name)}&rsquo;s archive.</h1><p class="cu-n">${total.n} works held${total.k ? `, ${total.k} kept back (marked)` : ''}. </p></div>
 <form method="get" class="cu-f"><input type="hidden" name="show" value="${cur ? cur.id : ''}"><input name="q" value="${esc(q)}" placeholder="A place, a word"><select name="stars" onchange="this.form.submit()"><option value="0">Every grade</option>${[3, 4, 5].map(s => `<option value="${s}"${stars === s ? ' selected' : ''}>${s}★ and above</option>`).join('')}</select><button class="bk-alt">Find</button></form></header>
+${!shows.length ? `<ol class="cu-steps"><li><b>Walk the archive.</b><span>Tap a photograph to hang it. The show begins with your first choice.</span></li><li><b>Sequence it.</b><span>Drag the order, a line beside each, a title and a statement.</span></li><li><b>Send it to ${esc(m.name.split(' ')[0])}.</b><span>Approved, it opens to the house under your name; a work collected through it pays you the curator&rsquo;s share.</span></li></ol>` : ''}
 <div class="cu-cols">
-<div class="cu-grid">${works.map(w => `<button type="button" class="cu-w${inShow.has(w.id) ? ' on' : ''}${w.status === 'hidden' ? ' kept' : ''}" data-cu-w="${esc(w.slug)}" aria-pressed="${inShow.has(w.id)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"><span><b>${esc(tidy(w.title))}</b><i>${esc(w.place || '')}${w.stars ? ` ${starsOf(w.stars)}` : ''}${w.status === 'hidden' ? ' · kept back' : ''}</i></span><em>${I.check}</em></button>`).join('') || '<p class="note">Nothing by that word or grade.</p>'}</div>
-<aside class="cu-show">${cur ? `<form method="post" action="/curate/show/${cur.id}/title" class="cu-st"><input name="title" value="${esc(cur.title)}" maxlength="120" aria-label="The show's title"><textarea name="line" rows="3" maxlength="600" placeholder="The curator's statement">${esc(cur.line || '')}</textarea><button class="bk-alt">Keep</button></form>
+<div class="cu-grid">${works.map(w => `<button type="button" class="cu-w${inShow.has(w.id) ? ' on' : ''}${w.status === 'hidden' ? ' kept' : ''}" data-cu-w="${esc(w.slug)}" aria-pressed="${inShow.has(w.id)}"><span class="cu-im"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"></span><span><b>${esc(tidy(w.title))}</b><i>${esc(w.place || '')}${w.stars ? ` ${starsOf(w.stars)}` : ''}${w.status === 'hidden' ? ' · kept back' : ''}</i></span><em>${I.check}</em></button>`).join('') || '<p class="note">Nothing by that word or grade.</p>'}</div>
+<aside class="cu-show" data-cu-tray><button type="button" class="cu-tray" data-cu-tray-t aria-expanded="false"><b data-cu-tn>${seq.length}</b><span>${cur ? esc(cur.title) : 'Your show'}</span><i>Open</i></button>${cur ? `<form method="post" action="/curate/show/${cur.id}/title" class="cu-st"><input name="title" value="${esc(cur.title)}" maxlength="120" aria-label="The show's title"><textarea name="line" rows="3" maxlength="600" placeholder="The curator's statement">${esc(cur.line || '')}</textarea><button class="bk-alt">Keep</button></form>
 <p class="cu-state">${cur.review === 'proposed' ? `With ${esc(m.name.split(' ')[0])} for approval.` : cur.review === 'approved' ? 'Open to the public.' : cur.review === 'returned' ? `Returned${cur.review_note ? `: &ldquo;${esc(cur.review_note)}&rdquo;` : '.'}` : 'A draft. Only you can see it.'}</p>
 <ol class="cu-seq" data-cu-seq>${seq.map(w => `<li data-slug="${esc(w.slug)}"><span class="cu-grip">${I.grip}</span><img src="/img/${esc(w.slug)}/thumb" alt=""><div><b>${esc(tidy(w.title))}</b><input data-cu-note value="${esc(w.note || '')}" placeholder="A line for the wall" maxlength="240"></div><button type="button" class="cu-x" data-cu-out aria-label="Take it out">${I.close}</button></li>`).join('')}</ol>
 <p class="cu-hint">${seq.length ? `${seq.length} in the show. Drag to sequence; the order is the walk.` : 'Tap works on the left to hang them here.'}</p>
 ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form method="post" action="/curate/show/${cur.id}/propose"><button class="buy-btn">Send to ${esc(m.name.split(' ')[0])}</button><small class="cu-agree">Sending accepts <a href="/legal/curators" target="_blank">the Curator and Gallery Agreement</a>.</small></form>` : ''}
-<p class="cu-links"><a href="/curate/show/${cur.id}">Preview</a>${shows.length > 1 ? ` &middot; ${shows.filter(s => s.id !== cur.id).map(s => `<a href="?show=${s.id}">${esc(s.title)}</a>`).join(' &middot; ')}` : ''}</p>` : '<p class="lede">Begin a show.</p>'}
+<p class="cu-links"><a href="/curate/show/${cur.id}">Preview</a>${shows.length > 1 ? ` &middot; ${shows.filter(s => s.id !== cur.id).map(s => `<a href="?show=${s.id}">${esc(s.title)}</a>`).join(' &middot; ')}` : ''}</p>` : '<p class="cu-empty">Your show begins with the first photograph you tap. Name it whenever you like.</p><ol class="cu-seq" data-cu-seq></ol>'}
 <form method="post" action="/curate/${esc(slugOfMaker(m))}/show" class="cu-new"><input name="title" placeholder="${cur ? 'Another show' : 'The show’s title'}" maxlength="120" required><button class="bk-alt">Begin</button></form></aside>
-</div></section><script src="/static/curate.js?v=${V.VER}" defer></script>`));
+</div><template data-cu-ic="grip">${I.grip}</template><template data-cu-ic="close">${I.close}</template></section><script src="/static/curate.js?v=${V.VER}" defer></script>`));
   });
   app.post('/curate/:maker/show', (req, res) => {
     const m = makerBySlug(String(req.params.maker)); if (!m || !canCurate(req, m)) return res.sendStatus(403);
@@ -149,6 +157,7 @@ ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form 
     const title = String((req.body || {}).title || '').trim().slice(0, 120) || `A show of ${m.name}`;
     let base = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'show', s = base, k = 2; while (db.prepare('SELECT 1 FROM hangs WHERE slug=?').get(s)) s = `${base}-${k++}`;
     const id = db.prepare("INSERT INTO hangs (buyer_id, slug, title, public, for_maker_id, review) VALUES (?,?,?,0,?,'draft')").run(b.id, s, title, m.id).lastInsertRowid;
+    if ((req.headers.accept || '').includes('application/json')) return res.json({ ok: true, id, title });
     res.redirect(`/curate/${slugOfMaker(m)}?show=${id}`);
   });
   const myShow = (req, id) => { const b = buyerOf(req); const h = db.prepare('SELECT * FROM hangs WHERE id=? AND for_maker_id IS NOT NULL').get(+id); if (!h) return null; const m = db.prepare('SELECT * FROM makers WHERE id=?').get(h.for_maker_id); const me = makerOf(req); if ((b && h.buyer_id === b.id && canCurate(req, m)) || (me && me.id === m.id)) return { h, m, mine: !!(b && h.buyer_id === b.id) }; return null; };
@@ -160,7 +169,8 @@ ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form 
     else db.prepare('INSERT INTO hang_works (hang_id, work_id, pos) VALUES (?,?,(SELECT COALESCE(MAX(pos),-1)+1 FROM hang_works WHERE hang_id=?))').run(s.h.id, w.id, s.h.id);
     if (s.h.review === 'returned') db.prepare("UPDATE hangs SET review='draft' WHERE id=?").run(s.h.id);
     db.prepare("UPDATE hangs SET updated_at=datetime('now') WHERE id=?").run(s.h.id);
-    res.json({ ok: true, in: !had, n: db.prepare('SELECT COUNT(*) n FROM hang_works WHERE hang_id=?').get(s.h.id).n, w: { slug: w.slug, title: tidy(w.title) } });
+    const seqNow = showWorks(s.h).map(x => ({ slug: x.slug, title: tidy(x.title), note: x.note || '' }));
+    res.json({ ok: true, in: !had, n: seqNow.length, w: { slug: w.slug, title: tidy(w.title) }, seq: seqNow });
   });
   app.post('/curate/show/:id/order', (req, res) => {
     const s = myShow(req, req.params.id); if (!s || !s.mine) return res.status(403).json({ ok: false });

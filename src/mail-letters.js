@@ -223,4 +223,43 @@ function looking(c) {
   return { subject: `One for you: ${title}`, text, html };
 }
 
-module.exports = { collected, sold, ready, frame, friday, looking };
+
+// The curator's invitation (31 Oct, Will: "like Augusta National sending an invitation to play in the Masters; describing
+// what it means; the onboarding seamless"). Engraved, not marketed: who asks, what is given, what it opens, one door.
+// c: { base, name, maker, makerFirst, label, link, no (the key's number if accepted now), img, href, title, year }
+function curatorInvite(c) {
+  const first = c.name ? clean(String(c.name).split(' ')[0]) : '';
+  const firstKey = c.no === 1;
+  const body = `${kicker(firstKey ? 'The first curator&rsquo;s key of the house' : 'The curator&rsquo;s key')}
+${headline(`${esc(c.maker)} requests the pleasure of your eye.`)}
+${lede(`${first ? `${esc(first)}, ` : ''}${esc(c.makerFirst)} has opened the whole archive to you on Watermark: every photograph held there, and the work kept back from the walls, to choose from, to sequence and to hang as a show of your own making.`)}
+${c.img ? mount({ img: c.img, href: c.href, title: c.title, year: c.year, maker: c.maker }) : ''}
+<tr><td style="padding:34px 56px 0" class="wm-pad"><p style="margin:0 0 14px;font:10px/1 ${SANS};letter-spacing:.28em;text-transform:uppercase;color:${MUTED}">What the key opens</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The archive.</b> Everything ${esc(c.makerFirst)} holds, including what no visitor has seen.</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The show.</b> Hang a wall: choose, sequence, a line beside each photograph, a statement. ${esc(c.makerFirst)} approves it and it opens to the house under your name.</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The share.</b> When a work is collected through your show, a curator&rsquo;s share is yours, paid on Fridays with the makers.</p>
+<p style="margin:0;font:16px/1.65 ${BODY};color:#2c2a26"><b>The Keys.</b> The house&rsquo;s rooms for those who hold one: the benches, the balcony at night, the season&rsquo;s dinners.</p></td></tr>
+${firstKey ? `<tr><td align="center" style="padding:30px 56px 0" class="wm-pad"><p style="margin:0;font:italic 16px/1.6 ${BODY};color:#4a463f">No one has held this key before you. It is numbered, it is never given twice, and the number is yours for as long as there is a house.</p></td></tr>` : ''}
+${button('Accept the keys', c.link)}
+<tr><td align="center" style="padding:16px 56px 0" class="wm-pad"><p style="margin:0;font:12px/1.7 ${SANS};color:${MUTED}">One tap opens the archive, signed in as yourself. Nothing to set up, nothing to install.${c.label ? ` Given to you as ${esc(c.label)}.` : ''}</p></td></tr>
+<tr><td align="center" style="padding:34px 48px 46px" class="wm-pad"><p style="margin:0;font:italic 15px/1.6 ${BODY};color:#4a463f">With the compliments of the house.</p></td></tr>`;
+  const text = `${first ? first + ',\n\n' : ''}${c.maker} requests the pleasure of your eye.\n\n${c.makerFirst} has opened the whole archive to you on Watermark: every photograph held there, and the work kept back from the walls, to choose from, to sequence and to hang as a show of your own making.\n\nWhat the key opens:\n- The archive: everything ${c.makerFirst} holds.\n- The show: choose, sequence, a line beside each, a statement; ${c.makerFirst} approves it and it opens under your name.\n- The share: when a work is collected through your show, a curator's share is yours, paid on Fridays.\n- The Keys: the house's rooms for those who hold one.\n${firstKey ? '\nNo one has held this key before you. It is numbered, never given twice, and the number is yours.\n' : ''}\nAccept the keys (one tap, signed in as yourself):\n${c.link}\n\nWith the compliments of the house.\nWatermark`;
+  return { subject: firstKey ? `The first curator’s key, from ${c.maker}` : `${c.maker} requests the pleasure of your eye`, text, html: frame({ base: c.base, preheader: `${c.makerFirst} has opened the archive to you.`, body }) };
+}
+// The key itself, the moment it is given: the number, and the first three steps.
+function curatorKey(c) {
+  const first = c.name ? clean(String(c.name).split(' ')[0]) : '';
+  const body = `${kicker('Watermark &middot; The Keys')}
+${headline(`The curator&rsquo;s key, No.&nbsp;${esc(c.no)}.`)}
+${lede(`${first ? `Welcome, ${esc(first)}. ` : 'Welcome. '}${c.no === 1 ? 'The first ever given. ' : ''}It is yours: numbered in the order given, never reissued.`)}
+<tr><td style="padding:30px 56px 0" class="wm-pad"><p style="margin:0 0 14px;font:10px/1 ${SANS};letter-spacing:.28em;text-transform:uppercase;color:${MUTED}">Where to begin</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>1.</b> Walk the archive. Tap any photograph to hang it in your show.</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>2.</b> Give the show a title and a few lines, and drag the photographs into their order.</p>
+<p style="margin:0;font:16px/1.65 ${BODY};color:#2c2a26"><b>3.</b> Send it to ${esc(c.makerFirst)}. When it is approved, it opens to the house under your name.</p></td></tr>
+${button('Open the archive', c.desk)}
+${links([`<a href="${c.base}/keys" style="color:${MUTED}">The Keys</a>`, `<a href="${c.base}/yours" style="color:${MUTED}">Your gallery</a>`])}
+<tr><td align="center" style="padding:30px 48px 46px" class="wm-pad"><p style="margin:0;font:italic 15px/1.6 ${BODY};color:#4a463f">We are glad you are here.</p></td></tr>`;
+  const text = `${first ? 'Welcome, ' + first + '.' : 'Welcome.'}\n\nThe curator's key, No. ${c.no}.${c.no === 1 ? ' The first ever given.' : ''} It is yours: numbered in the order given, never reissued.\n\nWhere to begin:\n1. Walk the archive. Tap any photograph to hang it in your show.\n2. Give the show a title and a few lines, and drag the photographs into their order.\n3. Send it to ${c.makerFirst}. When it is approved, it opens to the house under your name.\n\nOpen the archive: ${c.desk}\n\nWe are glad you are here.\nWatermark`;
+  return { subject: `The curator’s key, No. ${c.no}`, text, html: frame({ base: c.base, preheader: `Numbered ${c.no}, never reissued.`, body }) };
+}
+module.exports = { collected, sold, ready, frame, friday, looking, curatorInvite, curatorKey };

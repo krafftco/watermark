@@ -4566,3 +4566,26 @@ html.rm-on{overflow:hidden}
 @media (max-width:640px){.dv-bookf{grid-template-columns:1fr}}
 .dv-cta{border:1px solid rgba(217,188,124,.45);border-radius:6px;padding:18px 20px;margin:0 0 22px}.dv-cta p{margin:0 0 10px;color:#e9e4da}.dv-cta p:last-child{margin:0;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
 .dv-cta-a{display:inline-block;padding:10px 18px;border-radius:999px;background:#d9bc7c;color:#0b0a09;text-decoration:none;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+/* The curator's desk, second pass (31 Oct): whole pictures in their own shape; three first steps; the show as a tray on a phone. */
+.cu-im{position:relative;display:block;overflow:hidden;aspect-ratio:1;background:var(--soft,#f2f0eb);outline:3px solid transparent;outline-offset:-3px;transition:outline-color .2s}
+.cu-w .cu-im img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;object-fit:contain;outline:0}
+.cu-w.on .cu-im{outline-color:#0e0e0e}.cu-w.kept .cu-im img{opacity:.6}
+.cu-steps{list-style:none;counter-reset:cs;margin:0 0 22px;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cu-steps li{counter-increment:cs;border-top:1px solid var(--ink,#0e0e0e);padding-top:10px;display:grid;gap:4px}.cu-steps li:before{content:counter(cs);font:400 13px/1 var(--sans);color:var(--mu)}
+.cu-steps b{font:400 20px/1.15 var(--read)}.cu-steps span{font-size:13px;color:var(--mu);line-height:1.5}
+.cu-tray{display:none}.cu-empty{font-size:14px;color:var(--mu);margin:0 0 12px}
+@media (max-width:900px){
+  .cu-steps{grid-template-columns:1fr}.cu-f{flex-wrap:wrap}.cu-f input{flex:1 1 140px;min-width:0}
+  .cu-cols{grid-template-columns:1fr;padding-bottom:84px}
+  .cu-desk .cu-show{position:fixed!important;left:0;right:0;bottom:0;top:auto;z-index:60;background:#fff;border-top:1px solid var(--ln);box-shadow:0 -10px 30px rgba(0,0,0,.08);padding:0 16px calc(12px + env(safe-area-inset-bottom));max-height:64px;overflow:hidden;transition:max-height .35s var(--e,ease)}
+  .cu-tray-open .cu-show{max-height:82svh;overflow:auto}
+  .cu-desk .cu-show{display:block}
+  .cu-tray{display:flex;align-items:center;gap:12px;width:100%;height:64px;border:0;background:none;font:inherit;color:inherit;padding:0;cursor:pointer;text-align:left}
+  .cu-tray b{display:grid;place-items:center;min-width:30px;height:30px;border-radius:15px;background:#0e0e0e;color:#fff;font:600 13px/1 var(--sans)}
+  .cu-tray span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:400 18px/1.2 var(--read)}
+  .cu-tray i{font-style:normal;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+  .cu-tray-open .cu-tray i{visibility:hidden}
+  .cu-bump b{animation:cuBump .4s ease}
+}
+@keyframes cuBump{40%{transform:scale(1.25)}}
+.cu-desk .cu-w,.cu-desk .cu-w:hover,.cu-desk .cu-w:active,.cu-desk .cu-w:focus{width:100%;min-width:0;-webkit-tap-highlight-color:transparent;background:none;border-radius:0;box-shadow:none;transform:none}
