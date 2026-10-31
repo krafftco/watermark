@@ -4702,3 +4702,22 @@ html.rm-on{overflow:hidden}
 .apl-who{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px 48px}.apl-who p{color:#cfc8ba;line-height:1.8;margin:0}
 .apl-foot p{font-size:13px;line-height:1.65;color:#8f897f;max-width:80ch}.apl-foot a{color:#d9bc7c}.apl-rights b{color:#e9e4da}
 @media(max-width:760px){.apl-h{grid-template-columns:1fr}.apl-hero img{max-height:60svh}.apl-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}.apl-w b{font-size:14px}.apl-ch header small{margin-left:0}}
+/* The stand (31 Oct): src/stand.js. The maker's phone at a party. */
+.sd2{min-height:100svh;background:#0b0a09;color:#ece6db;padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 28px)}
+.sd2 a{color:inherit}.sd2-h a{color:#a39d92;text-decoration:none;font-size:14px}
+.sd2-h h1{font:400 clamp(36px,8vw,56px)/1 var(--read);margin:10px 0 8px;text-transform:none;color:#f4efe6}.sd2-h p{color:#cfc8ba;max-width:44ch;line-height:1.5}
+.sd2-acts{display:flex;gap:10px;flex-wrap:wrap}
+.sd2 h2{font:400 20px/1.2 var(--read);text-transform:none;letter-spacing:0;color:#f4efe6;margin:26px 0 12px}
+.sd2-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}
+.sd2-t{position:relative;display:block;aspect-ratio:1;overflow:hidden;background:#1a1816}.sd2-t img{width:100%;height:100%;object-fit:cover;display:block}
+.sd2-t span{position:absolute;left:4px;bottom:4px;font-size:10px;padding:2px 6px;border-radius:99px;background:rgba(11,10,9,.65)}
+.sd2-e{color:#a39d92}
+.sd2-one{display:grid;grid-template-rows:auto 1fr auto;gap:14px;position:relative}
+.sd2-x{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:14px;font-size:30px;line-height:1;text-decoration:none;z-index:2}
+.sd2-pic{margin:24px 0 0;display:flex;justify-content:center}.sd2-pic img{max-width:100%;max-height:52svh;object-fit:contain;display:block}
+.sd2-sell{display:grid;justify-items:center;gap:12px;text-align:center}
+.sd2-qr{background:#fff;padding:12px;border-radius:10px;line-height:0}.sd2-qr svg{width:min(62vw,240px);height:auto}
+.sd2-say{margin:0;color:#cfc8ba;font-size:14px;line-height:1.5}.sd2-say b{font:400 22px/1.3 var(--read);color:#f4efe6}
+.sd2-f{display:grid;gap:12px;max-width:360px}.sd2-ck{font-size:14px;line-height:1.45;color:#cfc8ba;text-align:left;display:flex;gap:10px;align-items:flex-start}.sd2-ck input{margin-top:3px;width:20px;height:20px}
+.sd2-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:0}
+.sd2-nav{display:flex;justify-content:space-between;width:100%;max-width:420px;margin:6px 0 0;font-size:14px;color:#a39d92}.sd2-nav a{text-decoration:none}

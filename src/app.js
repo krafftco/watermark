@@ -2059,6 +2059,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./drop').mountDrop(app, { db, C, V, mail, ledger, buyerOf, setBuyer, mk });
   app.locals.vr = require('./vr').mountVR(app, { db, V });
   app.locals.opening = require('./opening').mountOpening(app, { db, C, V, mail, buyerOf, isStudio });
+  require('./stand').mountStand(app, { db, V, C, ledger, originalPath, makerOf: req => app.locals.accounts.makerOf(req) }); // the stand (31 Oct): sell on the spot
   require('./deliveries').mountDeliveries(app, { db, C, V, I: require('./icons'), mail, ledger, grant, nextRef, mk, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, originalPath, images, cache, marked, fileName, buyerOf, setBuyer });
   require('./sitters').mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, buyerOf, setBuyer }); // the sitter: pictures of you, by your own word
   app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio });
