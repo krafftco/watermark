@@ -4551,3 +4551,18 @@ html.rm-on{overflow:hidden}
 /* The Library fits its screen (30 Oct): a long title never widens a column; the header never pushes past a phone. */
 .lib-grid{grid-template-columns:repeat(var(--n),minmax(0,1fr))}.lib-t,.lib-im{min-width:0}.lib-t img{max-width:100%}
 @media (max-width:760px){.dh-top{overflow-x:clip}.dh-right{gap:10px;min-width:0}}
+/* Wander's full screen (31 Oct) sits in the bar with Find; the label folds away on a narrow phone. */
+.st-full[hidden]{display:none!important}@media (max-width:760px){.st-full span{display:none}}
+/* The album in Wander: Save and Instax in the rail, in place of Collect. */
+.st-dv{display:contents}.st-dvb{text-decoration:none}
+/* The album, social (31 Oct): send to the group; the book the group signs; the door for the photographers who see it. */
+.dv-send{display:inline-flex;flex-direction:column;gap:2px;padding:12px 22px 10px;border:1px solid rgba(233,228,218,.4);border-radius:4px;background:none;color:#e9e4da;font:inherit;text-align:left;cursor:pointer}
+.dv-send .ic{width:18px;height:18px;margin-bottom:4px}.dv-send span{font:400 18px/1.1 var(--disp)}.dv-send i{font-style:normal;font-size:12px;color:#a39d92}
+.dv-send:hover{border-color:#e9e4da}
+.dv-book{max-width:720px;margin:56px auto 0;padding:0 4px}.dv-book h2{font:400 clamp(26px,3vw,34px)/1.1 var(--disp);color:#f2efe9;text-transform:none;letter-spacing:0;margin:4px 0 18px}
+.dv-said{color:#d9bc7c;font-size:14px}
+.dv-lines{list-style:none;padding:0;margin:0 0 22px;display:grid;gap:14px}.dv-lines li{border-top:1px solid rgba(233,228,218,.14);padding-top:12px}.dv-lines p{margin:0;font:400 19px/1.45 var(--disp);color:#efe9df}.dv-lines span{display:block;margin-top:4px;font-size:13px;color:#a39d92}.dv-lines form{display:inline}
+.dv-bookf{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:8px}.dv-bookf input{background:rgba(255,255,255,.06);border:1px solid rgba(233,228,218,.25);color:#f2efe9;border-radius:4px;padding:11px 12px;font:inherit;font-size:15px;min-width:0}
+@media (max-width:640px){.dv-bookf{grid-template-columns:1fr}}
+.dv-cta{border:1px solid rgba(217,188,124,.45);border-radius:6px;padding:18px 20px;margin:0 0 22px}.dv-cta p{margin:0 0 10px;color:#e9e4da}.dv-cta p:last-child{margin:0;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.dv-cta-a{display:inline-block;padding:10px 18px;border-radius:999px;background:#d9bc7c;color:#0b0a09;text-decoration:none;font-size:13px;letter-spacing:.06em;text-transform:uppercase}

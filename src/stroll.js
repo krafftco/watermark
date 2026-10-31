@@ -96,9 +96,10 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // A delivery (Will, 21 Oct: the friend wanders the album as one wanders the house; the work stays the maker's):
     // the album's photographs, held or kept back, in the album's order, for as long as the link is live.
     if (key.startsWith('delivery:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(9)) : null;
+    if (key.startsWith('album:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(6), true) : null;
     return setOf(key);
   }
-  const isDelivery = key => String(key || '').startsWith('delivery:');
+  const isDelivery = key => /^(delivery|album):/.test(String(key || ''));
   function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
     const v = mine(req, key); if (!v || !v.works.length) return null;
     const slugs = v.works.map(w => w.slug), not = new Set(seen);
@@ -106,7 +107,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const out = [];
     for (let k = 1; k <= slugs.length && out.length < n; k++) { const sl = slugs[(i + k) % slugs.length]; if (!not.has(sl) && sl !== at) { out.push(sl); not.add(sl); } }
     const rows = out.map(sl => db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(sl)).filter(Boolean);
-    return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, items: rows.map(w => wanderJSON(w, req)) };
+    return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, files: v.files || null, items: rows.map(w => wanderJSON(w, req)) };
   }
   app.get('/api/stroll', (req, res) => {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
@@ -198,12 +199,12 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
-    if (isDelivery(key) && !set) return res.redirect('/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
+    if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
     let items = set ? set.items : next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (at) items = [wanderJSON(at, req), ...items];
     const mk = set ? null : makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null } : null, I , front }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null, files: set.files || null } : null, I , front }));
   }
 }
 
@@ -235,7 +236,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   return V.layout({ title: front ? 'Watermark · Where great work is kept' : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: front ? 'Keep what you make. Own a piece of what others make. Wander: the finest work, one at a time, edge to edge.' : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: front ? '/' : '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}" data-stroll${front ? ' data-front="1"' : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
-<header class="st-top"><a class="st-home" href="${front ? '/house' : '/'}" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><a class="st-x" href="${set ? esc(set.href) : front ? '/house' : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
+<header class="st-top"><a class="st-home" href="${front ? '/house' : '/'}" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span><button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon st-full" data-st-fs hidden aria-label="Full screen" title="Full screen (F)">${I.full || ''}<span>Full screen</span></button><a class="st-x" href="${set ? esc(set.href) : front ? '/house' : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>
 <p class="st-skeys">Keys: arrows or space move · H hat · B bravo · S hang · G guide · C collect · Esc leaves.</p></div></div>
@@ -245,7 +246,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 ${front ? `<div class="st-hello" data-st-hello><p>Keep what you make. Own a piece of what others make.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave','wilhelm'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Yours: your gallery and your wallet">${I.collect}<span>Yours</span></button><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="The Keys">${BUNCH}<span>The Keys</span></button>
 <aside class="st-side st-side-l" data-st-side="yours" aria-label="Yours"><div class="sdr" data-sd-body></div></aside><aside class="st-side st-side-r" data-st-side="keys" aria-label="The Keys"><div class="sdr" data-sd-body></div></aside><div class="st-shade" data-st-shade hidden></div>
-<template data-st-ic="wave">${I.wave}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
+<template data-st-ic="wave">${I.wave}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>
 <p class="st-swipe" data-st-swipe hidden><span>Swipe up for the next</span><i></i></p>

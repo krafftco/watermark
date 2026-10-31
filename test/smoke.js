@@ -1326,6 +1326,18 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'Nia Friend', email: 'nia@example.com' } }); const kl2 = db.prepare("SELECT COUNT(*) n FROM licenses WHERE licensee_email='nia@example.com' AND work_id=?").get(w.id).n; assert.equal(kl2, 1, 'kept once, however often it is asked');
       r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'No Mail' } }); assert.ok(/keep=email/.test(r.headers.location), 'an email is needed');
       r = await req(port, 'GET', '/ledger'); assert.ok(!/Nia Friend|nia@example/.test(r.body.toString()) && !/license\.kept/.test(r.body.toString()), 'the friend is never named on the public register'); }
+    // Social (31 Oct): the address passed on shows, signs and thanks, never a file; the card for a chat; the book; Instax; Save and Instax in Wander.
+    { r = await req(port, 'GET', `/deliver/${dtok}`); const t = r.body.toString(); const sh = (t.match(/\/a\/([A-Za-z0-9_-]+)/) || [])[1]; assert.ok(sh && t.includes('Send to the group') && t.includes(`/a/${sh}/card.jpg`), 'send to the group, the card in the head');
+      r = await req(port, 'GET', `/a/${sh}`); const v = r.body.toString(); assert.ok(r.status === 200 && !v.includes(dtok) && !v.includes('/file') && !v.includes('all.zip') && v.includes('Deliver your own photographs') && v.includes(`in=album:${sh}`), 'the passed-on album shows and never hands over a file, nor the album\'s own address');
+      r = await req(port, 'GET', `/a/${sh}/card.jpg`); assert.ok(r.status === 200 && /image\/jpeg/.test(r.headers['content-type']), 'the card for a chat');
+      r = await req(port, 'POST', `/a/${sh}/note`, { body: { name: 'Sam', body: 'What a night. Thank you.' } }); assert.ok(/book=ok/.test(r.headers.location), 'the group signs');
+      r = await req(port, 'POST', `/a/${sh}/note`, { body: { name: 'Spam', body: 'see https://x.example' } }); assert.ok(/book=no/.test(r.headers.location), 'no links in the book');
+      r = await req(port, 'GET', `/deliver/${dtok}`); assert.ok(r.body.toString().includes('What a night. Thank you.') && r.body.toString().includes('— Sam'), 'the book on the album');
+      r = await req(port, 'GET', `/wander?in=album:${sh}`); { const t2 = r.body.toString(); assert.ok(r.status === 200 && !t2.includes(dtok) && t2.includes('"files":null'), 'Wander from the passed-on album: no files'); }
+      r = await req(port, 'GET', `/wander?in=delivery:${dtok}&at=${w.slug}`); assert.ok(r.body.toString().includes(`"files":"${dtok}"`), 'Wander from the album itself carries its files');
+      r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/instax?film=mini`); { assert.equal(r.status, 200); const im = await require('sharp')(r.body).metadata(); assert.ok(im.width === 800 && im.height === 600 || im.width === 600 && im.height === 800, 'Instax mini from the album'); }
+      r = await req(port, 'GET', `/a/${sh}/${w.slug}/file`); assert.ok(r.status === 404, 'no file by the passed-on address');
+      console.log('ok: the album, social'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');

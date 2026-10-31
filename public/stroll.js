@@ -13,9 +13,31 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
-  ['wave', 'play', 'pause', 'plus', 'share'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
+  ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
 
-  function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; }
+  // An album (31 Oct, Will: "view photos in deliveries in Wander, and download from Wander; make the Instax option
+  // there"): with the album's own address, every screen carries Save (the 2,400-pixel copy, to Photos on a phone) and
+  // Instax; the address passed on to the group (album:) shows the pictures and never a file.
+  var FILES = S.set && S.set.files ? S.set.files : '';
+  function albumActs(w, el) {
+    if (!FILES || !el || el.__dv || !/^[a-z0-9-]+$/i.test(w.slug || '')) return; el.__dv = 1; var rail = el.querySelector('.st-rail'); if (!rail) return;
+    var base = '/deliver/' + encodeURIComponent(FILES) + '/' + encodeURIComponent(w.slug);
+    var box = document.createElement('div'); box.className = 'st-dv';
+    box.innerHTML = '<a class="st-b st-dvb" href="' + base + '/file" download title="Save the photograph: on a phone it goes to Photos">' + (ic.in || '') + '<span>Save</span></a><a class="st-b st-dvb" href="' + base + '/instax?film=mini" download title="Instax mini: the exact pixels the printer lays down; print it from the Instax or Leica FOTOS app">' + (ic.card || '') + '<span>Instax</span></a>';
+    var buy = rail.querySelector('[data-st-buy]'); if (buy) buy.remove(); rail.appendChild(box);
+  }
+  // Full screen where the browser can (31 Oct, Will: "make sure it works full screen in Chrome"): a button in the bar
+  // and F; the turn of the screen keeps the work (resnap on fullscreenchange). iPhone browsers have no full screen for
+  // a page; there the button stays away and the app on the home screen is the full screen.
+  (function () {
+    var fb = root.querySelector('[data-st-fs]'); var can = document.fullscreenEnabled || document.webkitFullscreenEnabled; if (!fb || !can) return; fb.hidden = false;
+    function on() { return document.fullscreenElement || document.webkitFullscreenElement; }
+    function toggle() { try { if (on()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else { var el = document.documentElement; var p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(function () {}); } } catch (e) { /* refused */ } }
+    fb.addEventListener('click', toggle);
+    addEventListener('keydown', function (e) { if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !(e.target.closest && e.target.closest('input,textarea'))) toggle(); });
+    document.addEventListener('fullscreenchange', function () { fb.setAttribute('aria-pressed', on() ? 'true' : 'false'); var s2 = fb.querySelector('span'); if (s2) s2.textContent = on() ? 'Leave full screen' : 'Full screen'; });
+  })();
+  function register(w, el) { items[w.slug] = w; order.push(w.slug); seen.push(w.slug); w.el = el; albumActs(w, el); }
   S.items.forEach(function (w) { var el = scroller.querySelector('.st-i[data-slug="' + w.slug + '"]'); if (el) register(w, el); });
 
   function screenFor(w) {
@@ -105,17 +127,21 @@
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
   // turn the current work is held in place, and landscape is its own presentation (the picture alone, edge to edge).
-  var turning = false, turnT = null;
+  // The work held through a turn is taken the instant the screen starts to change (the resize steps run before the
+  // observer's), never after a debounce, by when the observer had already moved to a neighbour (31 Oct).
+  var turning = false, turnT = null, keep = null;
+  function hold() { if (!turning) keep = cur; turning = true; clearTimeout(turnT); }
   function resnap() {
-    var w = items[cur]; if (!w || !w.el) return;
+    var w = items[keep || cur]; if (!w || !w.el) { turning = false; return; }
+    if (keep && keep !== cur) cur = keep;
     turning = true; clearTimeout(turnT);
     scroller.style.scrollSnapType = 'none'; scroller.scrollTop = w.el.offsetTop;
-    requestAnimationFrame(function () { scroller.scrollTop = w.el.offsetTop; scroller.style.scrollSnapType = ''; turnT = setTimeout(function () { scroller.scrollTop = w.el.offsetTop; turning = false; }, 320); });
+    requestAnimationFrame(function () { scroller.scrollTop = w.el.offsetTop; scroller.style.scrollSnapType = ''; turnT = setTimeout(function () { scroller.scrollTop = w.el.offsetTop; turning = false; keep = null; }, 320); });
     var land = innerWidth > innerHeight; root.classList.toggle('st-land', land);
     if (land && TOUCH) { root.classList.add('st-arr'); clearTimeout(stillT); }
   }
-  var rsT = null; addEventListener('resize', function () { clearTimeout(rsT); rsT = setTimeout(resnap, 60); }); addEventListener('orientationchange', function () { setTimeout(resnap, 120); setTimeout(resnap, 420); });
-  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', function () { setTimeout(resnap, 100); });
+  var rsT = null; addEventListener('resize', function () { hold(); clearTimeout(rsT); rsT = setTimeout(resnap, 60); }); addEventListener('orientationchange', function () { hold(); setTimeout(resnap, 120); setTimeout(resnap, 420); }); if (window.visualViewport) visualViewport.addEventListener('resize', function () { hold(); clearTimeout(rsT); rsT = setTimeout(resnap, 60); });
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', function () { hold(); setTimeout(resnap, 100); }); document.addEventListener('fullscreenchange', function () { hold(); setTimeout(resnap, 80); setTimeout(resnap, 400); });
   root.classList.toggle('st-land', innerWidth > innerHeight);
   var io = new IntersectionObserver(function (es) {
     es.forEach(function (e) {
