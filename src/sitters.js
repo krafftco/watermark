@@ -294,7 +294,37 @@ ${a.status === 'asked' ? `<form method="post" action="/sit/ask/${esc(a.token)}" 
   const earnedBy = s => db.prepare('SELECT COALESCE(SUM(cents),0) c, COUNT(*) n FROM sitter_pay WHERE sitter_id=?').get(s.id);
   { const append = ledger.append; ledger.append = function (db_, type, subject, data) { const r = append.apply(this, arguments); try { if (type === 'license.requested') setImmediate(() => { try { ask(subject); } catch (e) { console.error('[sitters] ask', e.message); } }); if (type === 'license.granted' && data && data.paid) setImmediate(() => { try { pay(subject); } catch (e) { console.error('[sitters] pay', e.message); } }); } catch (e) { /* */ } return r; }; }
 
-  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf, ask, waiting, pay, owedOut, earnedBy };
+
+  // ---- In an album (31 Oct, Will: "make this experience for the rest of the world"): a guest says "That's me" or
+  // "That's <a friend>" on a photograph. Signed in, their own word links them at once; otherwise a letter to the
+  // address given asks them to confirm, so no one is linked to a picture by someone else's say alone.
+  // from: { buyer } | { email, name }; friend: { email, name } (naming someone else); where: label of the album.
+  function claim(w, { buyer = null, email = '', name = '', friend = null, where = '', back = '' }) {
+    const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); if (!m) return { ok: false };
+    const target = friend ? { email: friend.email, name: friend.name } : buyer ? { email: buyer.email, name: buyer.name || name } : { email, name };
+    if (!okEmail(target.email)) return { ok: false, why: 'email' };
+    const s = sitterFor(target.email, target.name); if (!s) return { ok: false, why: 'email' };
+    const had = db.prepare('SELECT * FROM sittings WHERE sitter_id=? AND work_id=?').get(s.id, w.id);
+    if (had && had.status === 'on') return { ok: true, linked: true, already: true };
+    const now = !friend && buyer && buyer.id === s.buyer_id; // your own word, signed in
+    const token = (had && had.token) || crypto.randomBytes(12).toString('base64url');
+    if (had) db.prepare('UPDATE sittings SET status=?, token=?, by=? WHERE id=?').run(now ? 'on' : 'asked', token, friend ? 'friend' : 'self', had.id);
+    else db.prepare('INSERT INTO sittings (sitter_id, maker_id, work_id, status, by, token) VALUES (?,?,?,?,?,?)').run(s.id, m.id, w.id, now ? 'on' : 'asked', friend ? 'friend' : 'self', token);
+    if (!now) {
+      const link = `${C.base}/sit/${token}`; const who = friend && buyer ? (buyer.name || 'A friend') : friend ? 'A friend' : '';
+      const text = `${first(target.name) || 'Hello'},\n\n${friend ? `${who} says you are in a photograph by ${m.name}` : `You said you are in a photograph by ${m.name}`}${where ? `, from ${where}` : ''}: ${tidy(w.title)}.\n\nIs it you? One tap, and it comes to Pictures of you, credited to ${first(m.name)}: keep it, share it, and say what may be done with your likeness.\n\n${link}\n\nIf it is not you, say so and nothing is linked.\nWatermark`;
+      if (mail.on()) mail.send({ to: target.email, subject: friend ? `${who} says you are in a photograph` : 'Is it you?', text, feature: 'Is it you?', cta: { label: 'See the photograph', url: link } });
+      else if (app.locals.mailLog) app.locals.mailLog.push({ to: target.email, subject: 'claim', link });
+    }
+    try { ledger.append(db, 'sitter.claimed', w.slug, { by: friend ? 'friend' : 'self', now: !!now }); } catch (e) { /* */ }
+    if (now) tell({ maker_id: m.id, kind: 'sitter', href: '/account/sitters', title: `${nameOf(s)} found themselves in ${tidy(w.title)}`, body: where || '' });
+    return { ok: true, linked: !!now, asked: !now };
+  }
+  // Who is in each of these works (confirmed, credited), for an album's captions; and the works a buyer is in.
+  const inWorks = ids => { const out = {}; if (!ids.length) return out; for (const r of db.prepare(`SELECT st.work_id, s.name FROM sittings st JOIN sitters s ON s.id=st.sitter_id WHERE st.status='on' AND st.credit=1 AND s.credit=1 AND st.work_id IN (${ids.map(() => '?').join(',')})`).all(...ids)) (out[r.work_id] = out[r.work_id] || []).push(r.name || 'a guest'); return out; };
+  const mineIn = (b, ids) => { if (!b || !ids.length) return new Set(); const s = sitterOf(b); if (!s) return new Set(); return new Set(db.prepare(`SELECT work_id FROM sittings WHERE sitter_id=? AND status='on' AND work_id IN (${ids.map(() => '?').join(',')})`).all(s.id, ...ids).map(r => r.work_id)); };
+
+  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf, ask, waiting, pay, owedOut, earnedBy, claim, inWorks, mineIn };
   return app.locals.sitters;
 }
 module.exports = { mountSitters };

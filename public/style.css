@@ -4638,3 +4638,14 @@ html.rm-on{overflow:hidden}
 .sit-share{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;grid-column:1/-1;font-size:12px;color:var(--mu);margin:2px 0 0}.sit-share select{font:inherit;font-size:12px;padding:2px 4px}
 .sit-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:18px 0 6px;font-size:15px}.sit-dl dt{color:#8f897f}.sit-dl dd{margin:0;color:#efe9df}
 .sit-earn{font-size:15px;color:var(--mu)}.sit-earn b{font:400 26px/1 var(--read);color:var(--ink,#0e0e0e)}
+/* The album for the world (31 Oct): find yourself (That's me), name a friend, share a photograph to your story. */
+.dv-you{margin:18px 0 0;font-size:14px;color:#a39d92}.dv-you a{color:#e9e4da}.dv-you b{color:#e9e4da;font-weight:500}
+.dv-with{display:block;font:italic 13px/1.4 var(--read);color:#cfc8bb}
+.dv-me{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12px}.dv-me .link{color:#d9bc7c;background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.dv-me em{font-style:normal;color:#9cc59a}
+.dv-tag{grid-column:1/-1;display:grid;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(233,228,218,.2);border-radius:6px;padding:16px;max-width:560px}
+.dv-tag label{display:grid;gap:4px;font-size:12px;color:#a39d92}.dv-tag input{background:rgba(0,0,0,.25);border:1px solid rgba(233,228,218,.25);color:#f2efe9;border-radius:4px;padding:10px 12px;font:inherit;font-size:16px}
+.dv-tag-t{margin:0;color:#efe9df;font-size:14px}.dv-tag-me{margin:0;font-size:13px;color:#a39d92}.dv-tag-row{display:flex;gap:16px;align-items:center;margin:0}.dv-tag .note{color:#8f897f;font-size:12px;margin:0}
+.dv-tag [hidden]{display:none!important}
+.dv-done{margin:6px 0 0;font-size:12px;color:#9cc59a}
+.dv-me{flex-basis:100%}
+.dv-tag .buy-btn{background:#d9bc7c;color:#0b0a09;border-color:#d9bc7c}.dv-tag .link{color:#a39d92}

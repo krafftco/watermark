@@ -1337,6 +1337,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', `/wander?in=delivery:${dtok}&at=${w.slug}`); assert.ok(r.body.toString().includes(`"files":"${dtok}"`), 'Wander from the album itself carries its files');
       r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/instax?film=mini`); { assert.equal(r.status, 200); const im = await require('sharp')(r.body).metadata(); assert.ok(im.width === 800 && im.height === 600 || im.width === 600 && im.height === 800, 'Instax mini from the album'); }
       r = await req(port, 'GET', `/a/${sh}/${w.slug}/file`); assert.ok(r.status === 404, 'no file by the passed-on address');
+      // Find yourself (31 Oct): That's me, That's a friend, a story-sized photograph.
+      { const mk = async (body) => JSON.parse((await req(port, 'POST', `/a/${sh}/${w.slug}/me`, { body })).body.toString());
+        let j = await mk({ name: 'Rae Guest', email: 'rae@example.com' }); assert.ok(j.ok && j.asked && !j.linked, 'a stranger saying that is me is asked to confirm by letter');
+        j = await mk({ friend: '1', friend_name: 'Tom Friend', friend_email: 'tom@example.com' }); assert.ok(j.ok && j.asked, 'a friend named is asked');
+        j = await mk({ friend: '1', friend_name: 'No Mail' }); assert.ok(!j.ok, 'an email, please');
+        const t3 = (await req(port, 'GET', `/a/${sh}`)).body.toString(); assert.ok(t3.includes('data-dv-me') && t3.includes('Share to your story') && t3.includes('Find yourself'), 'the album offers it');
+        const sr = await req(port, 'GET', `/a/${sh}/${w.slug}/story.jpg`); assert.equal(sr.status, 200); const sm = await require('sharp')(sr.body).metadata(); assert.ok(sm.width === 1080 && sm.height === 1920, 'a story, 1080 by 1920');
+        const tok = db.prepare("SELECT st.token FROM sittings st JOIN sitters s ON s.id=st.sitter_id JOIN buyers b ON b.id=s.buyer_id WHERE b.email='rae@example.com'").get().token;
+        await req(port, 'POST', `/sit/${tok}`, { body: { a: 'yes' } });
+        assert.ok((await req(port, 'GET', `/a/${sh}`)).body.toString().includes('With Rae Guest'), 'confirmed, she is credited on the album'); }
       console.log('ok: the album, social'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
