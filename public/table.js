@@ -7,7 +7,7 @@
   var grid = root.querySelector('[data-lib-grid]'), bar = root.querySelector('[data-lib-bar]'), nEl = root.querySelector('[data-lib-n]');
   var sel = new Set(); var anchor = null; var cur = null; var shown = works.slice();
   var F = { flag: 'all', stars: 0, pub: 'all', q: '' };
-  var f0 = root.getAttribute('data-f'); if (f0 === 'private') F.pub = 'private'; if (f0 === 'picks') F.flag = 'pick';
+  var f0 = root.getAttribute('data-f'); if (f0 === 'private') F.pub = 'private'; if (f0 === 'picks') F.flag = 'pick'; if (f0 === 'weak') F.pub = 'weak';
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   var auto = root.querySelector('[data-lib-auto]');
   try { auto.checked = localStorage.getItem('wm_lib_auto') === '1'; } catch (e) { /* */ }
@@ -18,7 +18,7 @@
   function matches(w) {
     if (F.flag === 'pick' && w.flag !== 'pick') return false; if (F.flag === 'reject' && w.flag !== 'reject') return false; if (F.flag === 'unflagged' && w.flag) return false;
     if (F.stars && (w.stars || 0) < F.stars) return false;
-    if (F.pub === 'private' && w.status !== 'private') return false; if (F.pub === 'public' && w.status !== 'public') return false;
+    if (F.pub === 'private' && w.status !== 'private') return false; if ((F.pub === 'public' || F.pub === 'weak') && w.status !== 'public') return false;
     if (F.q) { var q = F.q.toLowerCase(); if ((w.title + ' ' + w.place + ' ' + w.accession + ' ' + w.at).toLowerCase().indexOf(q) < 0) return false; }
     return true;
   }
@@ -38,11 +38,11 @@
     return '<figure class="lib-t' + (sel.has(w.slug) ? ' is-sel' : '') + (w.flag ? ' is-' + w.flag : '') + (w.status === 'public' ? ' is-pub' : '') + '" data-slug="' + w.slug + '" style="--r:' + r.toFixed(3) + '" tabindex="-1">' +
       '<span class="lib-im"><img src="/img/' + encodeURIComponent(w.slug) + '/thumb" alt="" loading="lazy" decoding="async" draggable="false"></span>' +
       '<span class="lib-badges"><i class="lib-flag"></i>' + (w.status === 'public' ? '<i class="lib-pubdot" title="Public"></i>' : '') + (w.curated ? '<i class="lib-jewel" title="Curated">◆</i>' : '') + (w.sold ? '<i class="lib-sold" title="Collected ' + w.sold + '">' + w.sold + '</i>' : '') + '</span>' +
-      '<figcaption><b>' + esc(w.title) + '</b><span class="lib-st">' + stars(w.stars) + '</span></figcaption></figure>';
+      '<figcaption><b>' + esc(w.title) + (F.pub === 'weak' ? ' <small class="lib-why">' + (w.seen ? w.seen + ' stood' : 'not yet seen') + (w.hats ? ' · ' + w.hats + ' hats' : '') + '</small>' : '') + '</b><span class="lib-st">' + stars(w.stars) + '</span></figcaption></figure>';
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function render() {
-    shown = works.filter(matches); paintFilters();
+    shown = works.filter(matches); if (F.pub === 'weak') shown.sort(function (a, b) { return (a.merit || 0) - (b.merit || 0); }); paintFilters();
     grid.innerHTML = shown.map(tile).join('');
     root.querySelector('[data-lib-empty]').hidden = shown.length > 0;
     root.querySelector('[data-lib-count]').textContent = shown.length === works.length ? works.length + ' works' : shown.length + ' of ' + works.length;

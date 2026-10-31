@@ -11,10 +11,26 @@
 function mountTable(app, { db, V, C, makerOf, KINDS }) {
   const { esc, tidy } = V;
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='flag'").get()) db.exec('ALTER TABLE works ADD COLUMN flag TEXT');
+  // How a work on the walls is holding up (31 Oct, Will: "look through what is published and make private some
+  // non-performing, non-interesting photos"): the grade (the maker's stars, else Al's), what people did before it
+  // (hats, bravos, the time they stood), whether it sold or is curated. Lowest first under 'Weakest on view'.
+  const alScore = w => { try { const g = JSON.parse(w.al_grade || 'null'); return g && !g.refused ? +g.score || 0 : 0; } catch (e) { return 0; } };
+  const merit = w => {
+    if (w.curated) return 99; if (w.sold) return 50 + w.sold;
+    const grade = w.stars || alScore(w) || 2.5;
+    const per = w.seen ? (w.secs || 0) / w.seen : 0;
+    const looked = w.seen >= 5 ? Math.min(1.5, per / 20) : 0.6;
+    return Math.round((grade + Math.min(2, (w.hats || 0) * 0.5 + (w.bravos || 0) * 1.5) + looked) * 100) / 100;
+  };
   const list = m => db.prepare(`SELECT w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.height, w.taken_at, w.created_at, w.accession,
-      (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired') AND l.price_cents>0) AS sold
-    FROM works w WHERE w.maker_id=? AND w.status IN ('held','hidden','restoring') ORDER BY COALESCE(w.taken_at, w.created_at) DESC, w.id DESC`).all(m.id)
-    .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0 }));
+      (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired') AND l.price_cents>0) AS sold,
+      w.al_grade, w.created_at AS arrived, COALESCE(st.n, 0) AS seen, COALESCE(st.s, 0) AS secs, COALESCE(ap.n, 0) AS hats, COALESCE(bv.n, 0) AS bravos
+    FROM works w
+    LEFT JOIN (SELECT work_id, COUNT(*) AS n, SUM(seconds) AS s FROM stood GROUP BY work_id) st ON st.work_id=w.id
+    LEFT JOIN (SELECT work_id, COUNT(*) AS n FROM applause GROUP BY work_id) ap ON ap.work_id=w.id
+    LEFT JOIN (SELECT work_id, COUNT(*) AS n FROM bravos GROUP BY work_id) bv ON bv.work_id=w.id
+    WHERE w.maker_id=? AND w.status IN ('held','hidden','restoring') ORDER BY COALESCE(w.taken_at, w.created_at) DESC, w.id DESC`).all(m.id)
+    .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0, merit: merit(w), seen: w.seen || 0, hats: w.hats || 0, bravos: w.bravos || 0 }));
   app.get('/account/table.json', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); res.set('Cache-Control', 'private, no-store').json({ works: list(m), kinds: KINDS }); });
   app.get('/account/table', (req, res) => {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/table');
@@ -27,7 +43,7 @@ function mountTable(app, { db, V, C, makerOf, KINDS }) {
 <header class="lib-top"><div class="lib-tt"><p class="k">Your studio</p><h1>The Library.</h1></div>
 <nav class="lib-filt" aria-label="Filter"><div class="lib-fg" data-lib-flags><button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="pick" title="Flagged as picks (P)">Picks</button><button type="button" data-f="unflagged" title="Not yet flagged">Unflagged</button><button type="button" data-f="reject" title="Rejected (X)">Rejected</button></div>
 <div class="lib-fg" data-lib-stars><button type="button" data-s="0" aria-pressed="true">Any stars</button>${[1, 2, 3, 4, 5].map(n => `<button type="button" data-s="${n}" title="${n} stars and up">${'★'.repeat(n)}<small>+</small></button>`).join('')}</div>
-<div class="lib-fg" data-lib-pub><button type="button" data-p="all" aria-pressed="true">Public and private</button><button type="button" data-p="private">Private</button><button type="button" data-p="public">Public</button></div>
+<div class="lib-fg" data-lib-pub><button type="button" data-p="all" aria-pressed="true">Public and private</button><button type="button" data-p="private">Private</button><button type="button" data-p="public">Public</button><button type="button" data-p="weak" title="Work on view, the weakest first: the grade, what people did before it, whether it sold">Weakest on view</button></div>
 <label class="lib-q"><input type="search" placeholder="A word, a place, a title" data-lib-q></label>
 <label class="lib-size" title="Thumbnail size"><input type="range" min="2" max="10" value="6" data-lib-size></label></nav>
 <p class="lib-line"><span data-lib-count>${works.length} works</span> · <span data-lib-sel>0 selected</span> · <label class="lib-auto"><input type="checkbox" data-lib-auto> Auto-advance after a grade</label> <a class="lib-help" href="#" data-lib-help>Keys</a>${app.locals.alEdit ? (() => { const st = app.locals.alEdit.state(m); return st.on ? ` · <form method="post" action="/account/edit/al" class="lib-al"><button class="link" title="Al looks at every frame you have not graded and gives it stars against the rest of your archive; your own grades of two and up are never touched">${st.job && st.job.running ? `Al is editing: ${st.job.done} of ${st.job.total}` : st.graded ? `Al’s edit: ${st.graded} of ${st.all} read · again for new work` : 'Al’s edit: grade the archive'}</button></form>` : ''; })() : ''}</p></header>
