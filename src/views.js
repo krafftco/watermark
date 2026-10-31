@@ -13,7 +13,10 @@ const WAVE_MARK = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden
 // Each maker's own mark on the Collect seal: Krafft's makers carry the hand-made K, every other maker the Watermark wave.
 const isKrafft = m => !!m && (/krafft/i.test(m.house || '') || m.handle === 'krafft');
 const WAVE_USE = '<svg viewBox="1.5 14.2 41 11" fill="currentColor" aria-hidden="true"><use href="#wm-wave-p"/></svg>'; // the plate's mark by reference: the path is written once a page (WAVE_SYMBOL in layout), not 381 times (21 Oct: /collection was 790 KB)
-const WAVE_SYMBOL = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="wm-wave-p" viewBox="1.5 14.2 41 11">' + WAVE_MARK.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') + '</symbol></svg>';
+// A plain group, not a <symbol>: a symbol used without its own x, y, width and height is laid at the origin, and since
+// the wave's viewBox begins at (1.5, 14.2) it fell outside every frame that used it (31 Oct: the Collect seal and the
+// plates' marks had been empty circles since 21 Oct). A group keeps the path's own coordinates.
+const WAVE_SYMBOL = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><g id="wm-wave-p">' + WAVE_MARK.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') + '</g></defs></svg>';
 const markOf = () => WAVE_USE; // Will, 18 Oct: the Watermark sign moves forward; the K stays with Krafft's own sites
 const mlink = (name, cls = '') => `<a href="/m/${esc(makerSlug({ name }))}"${cls ? ` class="${cls}"` : ''}>${esc(name)}</a>`;
 const makerSlug = m => String((m && m.name) || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

@@ -663,7 +663,7 @@ section.cx-intro h2{text-transform:none;letter-spacing:-.01em;color:var(--ink)}
 .share-buy button.seal.is-down{background:#f7f6f3}
 .share-buy button.seal.is-up,.share-buy .seal-row.is-yours button.seal{background:#0e0e0e;color:#f7f6f3;border-color:#0e0e0e}
 .share-buy .seal-t span{font-size:13px;letter-spacing:0;text-transform:none;font-weight:400}
-.share-buy .seal-k{width:34px;height:34px}
+.share-buy .seal-k{width:44px;height:auto}
 .share-buy p{margin:0}
 .share-buy button.seal{justify-content:center;align-content:center;place-items:center}
 .share-buy .seal-t b{padding-left:0;border-left:0;font-size:30px}
@@ -4345,8 +4345,8 @@ html.in-stay .top .nv-back{display:none}
 .plf-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}.plf-3 h2{font-size:1.25rem;margin:4px 0 8px;text-transform:none;letter-spacing:0}.plf-steps{padding-left:1.2em;margin:8px 0}.plf-steps li{margin:0 0 10px;line-height:1.5}.plf-steps code{font-size:.85em;word-break:break-all}.plf-rules{padding-left:1.1em;margin:6px 0}.plf-rules li{margin:0 0 6px}
 @media(max-width:860px){.plf-3{grid-template-columns:1fr}}
 /* The peephole (28 Oct): a brief room for one reader. Paper, a broadsheet's masthead, the brief in the reading room's serif, the numbers as tiles. */
-.ph{min-height:100svh;background:#f6f1e7;color:#1d1a16;font-family:'Newsreader',Georgia,'Times New Roman',serif;padding:clamp(20px,4vw,56px) clamp(16px,5vw,72px) 80px}
-.ph a{color:inherit}.ph .k{font-family:var(--sans,system-ui,sans-serif);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;opacity:.65;margin:0 0 6px}
+.phb{min-height:100svh;background:#f6f1e7;color:#1d1a16;font-family:'Newsreader',Georgia,'Times New Roman',serif;padding:clamp(20px,4vw,56px) clamp(16px,5vw,72px) 80px}
+.phb a{color:inherit}.phb .k{font-family:var(--sans,system-ui,sans-serif);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;opacity:.65;margin:0 0 6px}
 .ph-mast{border-top:3px solid #1d1a16;border-bottom:1px solid #1d1a16;padding:14px 0 12px;margin-bottom:28px}.ph-k{font-family:var(--sans,system-ui,sans-serif);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;margin:0 0 8px}
 .ph-mast h1{font-family:'Bodoni Moda','Newsreader',Georgia,serif;font-weight:500;font-size:clamp(2rem,5vw,3.6rem);line-height:1.02;margin:0 0 10px;letter-spacing:-.01em;text-transform:none}
 .ph-date{font-family:var(--sans,system-ui,sans-serif);font-size:.78rem;letter-spacing:.04em;opacity:.75;margin:0}.ph-date a{text-decoration:none;border-bottom:1px solid rgba(29,26,22,.35)}
