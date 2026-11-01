@@ -18,5 +18,11 @@ const { createApp } = require('../src/app');
   assert.strictEqual(db.prepare('SELECT status FROM works WHERE slug=?').get(j.slug).status, 'held', 'on view');
   t = await (await go(`/account/stand/${j.slug}`)).text(); assert.ok(t.includes('Scan to make it yours') && t.includes('sd2-qr'), 'the code to scan');
   const ix = await go(`/account/stand/${j.slug}/instax`); assert.strictEqual(ix.status, 200, "instax"); if (!/image/.test(ix.headers.get("content-type"))) { console.log(ix.headers.get("content-type"), (await ix.text()).slice(0, 300)); process.exit(1); } const meta = await sharp(Buffer.from(await ix.arrayBuffer())).metadata(); assert.ok(meta.width === 800 && meta.height === 600, 'the Instax mini file');
+  // People, not requests: a browser that answers is a person; a bare fetch is not; the Studio is never counted.
+  const before = app.locals.analytics.report('today').cur.people;
+  await fetch(base + '/api/here', { method: 'POST', headers: { origin: base, cookie: 'wm_v=abc123def456', 'user-agent': 'Mozilla/5.0 (iPhone)' } });
+  await fetch(base + '/api/here', { method: 'POST', headers: { origin: base, 'user-agent': 'Googlebot/2.1' } });
+  const R = app.locals.analytics.report('today'); assert.strictEqual(R.cur.people, before + 1, 'one person, not the bot'); assert.ok(R.now.people >= 1, 'on the site now');
+  assert.ok((await (await go('/studio/analytics')).text()).includes('their browsers answering'), 'the numbers say it');
   console.log('the stand: all hold'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

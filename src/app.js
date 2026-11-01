@@ -553,7 +553,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       againText: again && again.n >= 3 ? `${again.pct}% of ${again.n} collectors, within 60 days` : null,
       firstSaleText: firstSale && firstSale.n >= 2 ? `${firstSale.median} day${firstSale.median === 1 ? '' : 's'} from joining, the median of ${firstSale.n}` : null };
   };
-  app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
+  app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, isStudio, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card

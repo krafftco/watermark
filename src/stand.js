@@ -33,7 +33,7 @@ ${ws.length ? `<h2>Today</h2><div class="sd2-g">${ws.map(tile).join('')}</div>` 
     res.set('Cache-Control', 'private, no-store');
     res.send(V.layout({ title: `${tidy(w.title)} · The stand`, bare: true, path: '/account/stand', body: `<main class="sd2 sd2-one"><a class="sd2-x" href="/account/stand" aria-label="Back to the stand">×</a>
 <figure class="sd2-pic"><img src="/img/${esc(w.slug)}/large" alt=""></figure>
-<section class="sd2-sell">${shown ? `<div class="sd2-qr">${QR.svg(url, { size: 220 })}</div><p class="sd2-say"><b>Scan to make it yours${p ? ` · ${money(p)}` : ''}</b><br>Apple Pay on your phone. The file and the licence are yours at once.</p>`
+<section class="sd2-sell">${shown ? `<div class="sd2-qr">${QR.svg(url, { size: 220 })}</div><p class="sd2-say"><b>Scan to make it yours${p ? ` · ${money(p)}` : ''}</b><br>Apple Pay on your phone. The file and the licence are yours at once, and your gallery opens with it: no account to make, no password. Your email gets you in.</p>`
       : `<form method="post" action="/account/stand/${esc(w.slug)}/sell" class="sd2-f"><label class="sd2-ck"><input type="checkbox" name="attest" value="1" required> I made this and hold the rights. A personal Collect needs no release; a company’s use would.</label><button class="buy-btn">Put it on view to sell</button></form>`}
 <p class="sd2-row"><a class="btn" href="/account/stand/${esc(w.slug)}/instax" download>Print on Instax</a>${shown ? `<a class="btn" href="${esc(url)}">Open its page</a>` : ''}</p>
 <p class="sd2-nav">${prev ? `<a href="/account/stand/${esc(prev.slug)}">← Newer</a>` : '<span></span>'}${next ? `<a href="/account/stand/${esc(next.slug)}">Older →</a>` : '<span></span>'}</p></section></main>` }));

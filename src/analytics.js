@@ -52,7 +52,7 @@ function kindOf(p) {
   return 'page';
 }
 
-function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
+function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, ledger, mailState }) {
   db.exec(`CREATE TABLE IF NOT EXISTS hits (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, status INTEGER NOT NULL, ms INTEGER NOT NULL,
     visitor TEXT, ref TEXT, device TEXT, browser TEXT, bot INTEGER NOT NULL DEFAULT 0, country TEXT, bytes INTEGER)`);
   db.exec('CREATE INDEX IF NOT EXISTS hits_at ON hits (at)');
@@ -70,6 +70,22 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
   const minute = { img: 0, static: 0, page: 0, api: 0, bot: 0 };
   const minutes = []; // last 60 { t, page, api, img, static, bot, ms[] }
   const present = new Map(); // visitor → { at, path, device }
+  // People, not requests (Will, 1 Nov: "how do we have or know real users"): a visitor is counted as a person only when
+  // their browser answers: every page sends /api/here after a second and a half in view and once a minute while it stays
+  // in view (layout). A scraper fetches pages and runs nothing; a person's browser runs the page. Kept a day per visitor.
+  db.exec('CREATE TABLE IF NOT EXISTS here (day TEXT NOT NULL, visitor TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (day, visitor))');
+  db.exec('CREATE INDEX IF NOT EXISTS here_at ON here (at)');
+  const alive = new Map(); // visitor → last ping (ms)
+  const putHere = db.prepare('INSERT OR IGNORE INTO here (day, visitor, at) VALUES (?,?,?)');
+  app.post('/api/here', (req, res) => {
+    try {
+      const ua = req.get('user-agent') || ''; if (BOT.test(ua) || isStudio(req)) return res.sendStatus(204);
+      const v = visitorOf(req); const t = Date.now(); alive.set(v, t);
+      putHere.run(new Date(t).toISOString().slice(0, 10), v, Math.floor(t / 1000));
+      const p = present.get(v); if (p) p.human = true;
+    } catch (e) { /* never in the way */ }
+    res.sendStatus(204);
+  });
   const errors = []; // last 40 { at, path, status, ms }
   let buf = [];
   const insert = db.prepare('INSERT INTO hits (at, path, kind, status, ms, visitor, ref, device, browser, bot, country, bytes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -80,6 +96,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
     minutes.push({ t: Date.now(), ...minute, ms: minute.ms || [] }); if (minutes.length > 60) minutes.shift();
     for (const k of Object.keys(minute)) minute[k] = 0; minute.ms = [];
     const cut = Date.now() - 5 * 60000; for (const [k, v] of present) if (v.at < cut) present.delete(k);
+    for (const [k, t] of alive) if (t < cut) alive.delete(k);
   }, 60000); minuteTimer.unref();
   minute.ms = [];
   const prune = () => { try { db.prepare('DELETE FROM hits WHERE at < ?').run(Math.floor(Date.now() / 1000) - KEEP_DAYS * 86400); } catch (e) { /* later */ } };
@@ -96,7 +113,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
         if (kind === 'img' || kind === 'static') return;
         const v = visitorOf(req);
         const kid = /^\/kids(\/|$)/.test(req.path); // the kids' corner keeps no one: counted, never a visitor, a referrer or a device (29 Oct)
-        if (kind === 'page' && !bot && !kid && req.method === 'GET' && res.statusCode < 400) present.set(v, { at: Date.now(), path: page(req.path), device: device(ua) });
+        if (kind === 'page' && !bot && !kid && req.method === 'GET' && res.statusCode < 400 && !isStudio(req)) present.set(v, { at: Date.now(), path: page(req.path), device: device(ua), human: alive.has(v) });
         if (res.statusCode >= 400 && res.statusCode !== 404 || res.statusCode >= 500) { errors.unshift({ at: new Date().toISOString(), path: req.originalUrl.slice(0, 120), status: res.statusCode, ms }); if (errors.length > 40) errors.pop(); }
         let ref = null; try { const r = req.get('referer'); if (r) { const h = new URL(r).hostname; ref = h === new URL(C.base).hostname ? null : h.replace(/^www\./, ''); } } catch (e) { ref = null; }
         const country = (req.get('cloudfront-viewer-country') || req.get('cf-ipcountry') || req.get('x-vercel-ip-country') || req.get('x-country') || '').toUpperCase().slice(0, 2) || null;
@@ -110,7 +127,8 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
   // ---- the report
   const dayStart = (n = 0) => { const d = new Date(); d.setHours(0, 0, 0, 0); return Math.floor(d.getTime() / 1000) - n * 86400; };
   const spanOf = s => (s === '7d' ? { from: dayStart(6), label: 'Seven days', prev: dayStart(13) } : s === '30d' ? { from: dayStart(29), label: 'Thirty days', prev: dayStart(59) } : { from: dayStart(0), label: 'Today', prev: dayStart(1) });
-  const iso = s => new Date(s * 1000).toISOString();
+  // The tables written by SQL keep 'YYYY-MM-DD HH:MM:SS' (UTC); an ISO 'T' compared as text set every count a day out (1 Nov: 'stood 0, −100%').
+  const iso = s => new Date(s * 1000).toISOString().replace('T', ' ').slice(0, 19);
   const q = (sql, ...a) => db.prepare(sql).all(...a);
   const one = (sql, ...a) => db.prepare(sql).get(...a);
   const pct = (arr, p) => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
@@ -123,7 +141,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
     const t = (sql, ...a) => { try { return one(sql, ...a).n; } catch (e) { return 0; } };
     const f = iso(from), g = iso(to);
     return {
-      visitors: H.visitors, views: H.views, api: A, bots: B, errors: E, notFound: N4,
+      visitors: H.visitors, views: H.views, people: t('SELECT COUNT(DISTINCT visitor) n FROM here WHERE at>=? AND at<?', from, to), api: A, bots: B, errors: E, notFound: N4,
       stood: t('SELECT COUNT(*) n FROM stood WHERE at>=? AND at<?', f, g),
       hats: t('SELECT COUNT(*) n FROM applause WHERE at>=? AND at<?', f, g),
       bravos: t('SELECT COUNT(*) n FROM bravos WHERE at>=? AND at<?', f, g),
@@ -160,7 +178,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
     const sinceMin = minutes.slice(-60);
     const lastHour = { page: sinceMin.reduce((a, m) => a + m.page, 0) + minute.page, img: sinceMin.reduce((a, m) => a + m.img, 0) + minute.img, api: sinceMin.reduce((a, m) => a + m.api, 0) + minute.api, bot: sinceMin.reduce((a, m) => a + m.bot, 0) + minute.bot };
     const onNow = [...present.values()].sort((a, b) => b.at - a.at);
-    return { at: new Date().toISOString(), span, label: S.label, days, now: { people: present.size, where: onNow.slice(0, 12), lastHour, minutes: sinceMin.map(m => ({ t: m.t, page: m.page, img: m.img, api: m.api, bot: m.bot })) },
+    return { at: new Date().toISOString(), span, label: S.label, days, now: { people: alive.size, unconfirmed: [...present.keys()].filter(k => !alive.has(k)).length, where: onNow.filter(x => x.human || alive.size === 0).slice(0, 12), lastHour, minutes: sinceMin.map(m => ({ t: m.t, page: m.page, img: m.img, api: m.api, bot: m.bot })) },
       cur, prev, hours, byDay, works, pages, refs, direct, devices, browsers, countries, stoodTop, speed, slow, errs, errors: errors.slice(0, 12), bots, health: health() };
   }
   function health() {
@@ -179,7 +197,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
       loadavg: t(() => require('os').loadavg().map(x => +x.toFixed(2))), staging: !!C.staging,
     };
   }
-  app.locals.analytics = { report, health, present: () => present.size };
+  app.locals.analytics = { report, health, present: () => alive.size };
 
   // ---- the page
   const { esc } = V;
@@ -204,13 +222,13 @@ function mountAnalytics(app, { db, V, C, studioOnly, ledger, mailState }) {
 <nav class="an-span">${[['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']].map(([k, t]) => `<a href="/studio/analytics?span=${k}"${R.span === k ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav></div>
 
 <div class="an-grid">
-<article class="an-card an-now"><h2>On the site now</h2><p class="an-big">${n(R.now.people)}<span>${R.now.people === 1 ? 'person' : 'people'} in the last five minutes</span></p>
+<article class="an-card an-now"><h2>On the site now</h2><p class="an-big">${n(R.now.people)}<span>${R.now.people === 1 ? 'person' : 'people'} in the last five minutes, their browsers answering</span></p><p class="an-line">${n(R.now.unconfirmed)} more fetched pages and ran nothing: scrapers and crawlers that do not say so. The house in your own hands is not counted.</p>
 <p class="an-line">Last hour: ${n(R.now.lastHour.page)} pages · ${n(R.now.lastHour.api)} API · ${n(R.now.lastHour.img)} pictures · ${n(R.now.lastHour.bot)} by bots</p>
 ${minuteRows.length ? bars(minuteRows, 'k', 'v', r => `${r.k}: ${r.v} requests, ${r.u} pictures`) : ''}
 ${R.now.where.length ? `<ul class="an-where">${R.now.where.map(w => `<li><span>${esc(w.path)}</span><i>${esc(w.device)}</i></li>`).join('')}</ul>` : ''}</article>
 
 <article class="an-card an-wide"><h2>${esc(R.label)}<small> against the ${R.days === 1 ? 'day' : R.days === 7 ? 'seven days' : 'thirty days'} before</small></h2>
-<div class="an-stats">${stat('visitors', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('first-time collectors', c.firstTimers, p.firstTimers)}${stat('makers joined', c.newMakers, p.newMakers)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
+<div class="an-stats">${stat('people', c.people, p.people)}${stat('addresses that fetched pages', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('first-time collectors', c.firstTimers, p.firstTimers)}${stat('makers joined', c.newMakers, p.newMakers)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
 ${bars(hourRows, 'k', 'v', r => `${r.k}: ${r.v} views, ${r.u} visitors`)}<p class="an-axis"><span>${esc(hourRows[0] ? hourRows[0].k : '')}</span><span>${esc(hourRows[hourRows.length - 1] ? hourRows[hourRows.length - 1].k : '')}</span></p></article>
 
 <article class="an-card"><h2>Works, most seen</h2>${list(R.works, [r => `<a href="/w/${esc(r.slug || r.path.slice(3))}">${esc(r.title || r.path)}</a>`, r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>
