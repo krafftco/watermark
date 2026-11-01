@@ -1288,9 +1288,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   // Deliveries (21 Oct): the maker sends a client their photographs by one link; no payment; each file licensed, marked, counted; the link closes.
   { r = await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('Make the link'), 'the deliveries desk');
     const dck = `${ck}; ${(r.headers['set-cookie'] || []).find(c => c.startsWith('wm_as=')).split(';')[0]}`;
-    r = await req(port, 'POST', '/account/deliveries', { cookie: dck, body: { title: 'The thirtieth', client: 'R. D.', email: 'rd@example.com', days: '30', size: 'original', note: 'With love.', works: w.slug } });
+    r = await req(port, 'POST', '/account/deliveries', { cookie: dck, body: { title: 'The thirtieth', client: 'R. D.', email: 'rd@example.com', phone: '(214) 555-0199', days: '30', size: 'original', note: 'With love.', works: w.slug } });
     assert.ok(/sent=/.test(r.headers.location), 'a delivery made'); const dtok = r.headers.location.split('sent=')[1];
     const dv = db.prepare('SELECT * FROM deliveries WHERE token=?').get(dtok); assert.ok(dv && dv.client_name === 'R. D.' && dv.expires_at, 'the delivery row');
+    assert.strictEqual(dv.client_phone, '+12145550199', 'the phone kept as a number');
+    { const pg = (await req(port, 'GET', `/account/deliveries?maker=${me}&sent=${dtok}`, { cookie: dck })).body.toString(); assert.ok(/href="sms:\+12145550199\?&amp;body=/.test(pg) && pg.includes('Text it to +12145550199'), 'text it from your own phone'); }
     const dl = db.prepare("SELECT l.* FROM licenses l JOIN delivery_works dw ON dw.ref=l.ref WHERE dw.delivery_id=?").get(dv.id); assert.ok(dl && dl.status === 'active' && dl.price_cents == null && dl.download_token, 'a free licence of use delivery');
     assert.equal(db.prepare('SELECT u.key FROM uses u WHERE u.id=?').get(dl.use_id).key, 'delivery');
     r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Download all') && t.includes('The thirtieth') && t.includes('With love.') && t.includes(`/deliver/${dtok}/${w.slug}/file`) && t.includes(`/deliver/${dtok}/${w.slug}/file?full=1`), 'the client door: the copy, and the full file'); }
