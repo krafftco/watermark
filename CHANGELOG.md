@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.29.1 · The artist's own card · 2 November 2026
+
+Sending an artist sends their page: the life, the dates, the work in order, never the wall. Every link to an artist unfurls into the house's card: the work beside the name, the dates and the life as a line.
+
 ## 1.29 · An artist's wander, to send · 2 November 2026
 - Every artist's work can be walked and sent at its own address, /wander/art/ and the artist's name, which unfurls as the artist's card. The artist's page carries Share this wander, and inside Wander a Share button sends the whole walk (an artist, a wall, a maker, a series), not just the work on screen.
 
