@@ -33,6 +33,12 @@
     var by = {};
     (data.works || []).forEach(function (w) { by[w.slug] = by[w.ref] = by[digits(w.number)] = w; });
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+    // A credit line of the site's own (over a hero, say) may carry data-wm-go="<slug or number>": it becomes the way through.
+    [].forEach.call(document.querySelectorAll('[data-wm-go]'), function (el) {
+      var k = el.getAttribute('data-wm-go'), w = by[k] || by[digits(k)]; if (!w || !w.live) return;
+      if (el.tagName === 'A') { el.href = w.go || w.page; el.target = '_blank'; el.rel = 'noopener'; el.title = 'Open it on Watermark'; }
+      else { el.style.cursor = 'pointer'; el.addEventListener('click', function () { window.open(w.go || w.page, '_blank', 'noopener'); }); }
+    });
     [].forEach.call(document.querySelectorAll('[data-wm]'), function (img) {
       if (img.__wm) return; img.__wm = 1;
       var key = img.getAttribute('data-wm'), w = by[key] || by[digits(key)];
