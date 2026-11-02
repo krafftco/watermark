@@ -5,6 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.24 · See it in person, and zoom unlocked · 2 November 2026
+
+- Every catalogued work carries the museum, foundation or library that keeps the original: its city, its website, the museum's own page for the work.
+- A work's page says where to see it in person, with a way to plan the visit.
+- /art/visit: every house that keeps a work in the hall, by city, nearest first when you allow it; /art/visit/[museum]: what you can see there.
+- The artist's page lists where the originals are, each linked.
+- Zoom in Wander works again: an arrival animation had been holding every picture still, so a pinch moved nothing.
+- On Wander's plate a museum's or the public domain's work is named by its artist, linked to the artist's page; an open work offers no sale.
+
 ## 1.23 · The catalogue · 2 November 2026
 
 - An artist's whole body of work, read from Wikidata: every work it knows by them, with the date, the kind, the medium, the size, and the collection that keeps it.

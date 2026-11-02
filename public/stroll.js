@@ -66,7 +66,7 @@
     }
     el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
-      + '<div class="st-plate"><a class="st-by" href="/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span><a class="st-tog" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>' + (ic.wave || '') + 'Wander</b><span>' + (ic.eye || '') + 'Watermark</span></a></div>'
+      + '<div class="st-plate"><a class="st-by" href="' + (w.artist ? esc(w.artist.href) + '"' : '/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker') + '>' + esc(w.maker) + '</a><a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span><a class="st-tog" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>' + (ic.wave || '') + 'Wander</b><span>' + (ic.eye || '') + 'Watermark</span></a></div>'
       + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="The Watermark: the asset, its number, its terms">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
@@ -257,7 +257,7 @@
       else if (navigator.clipboard) navigator.clipboard.writeText(bu).then(function () { say('Link copied. It opens on the book.'); });
       return;
     }
-    var url = location.origin + '/m/' + w.makerSlug + '/' + w.slug, text = w.title + ', a photograph by ' + w.maker + ' on Watermark';
+    var url = location.origin + '/m/' + w.makerSlug + '/' + w.slug, text = w.title + (w.artist ? ', by ' : ', a photograph by ') + w.maker + ' on Watermark';
     if (navigator.share) navigator.share({ title: w.title, text: text, url: url }).catch(function () {});
     else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('Link copied.'); });
   }

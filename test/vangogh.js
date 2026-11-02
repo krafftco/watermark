@@ -49,6 +49,7 @@ const { createApp } = require('../src/app');
     t = await (await fetch(base + '/w/' + j.slug)).text(); assert.ok(t.includes('class="ipn"') && t.includes('See it in person') && t.includes('Museum of Modern Art') && t.includes('https://www.moma.org/collection/works/79802') && t.includes('no. 472.1941'), 'the work: where to see the original');
     t = await (await fetch(base + '/art/' + a.slug)).text(); assert.ok(t.includes('/art/visit/Q180788') && t.includes('See it in person: every museum'), 'the artist page: where the originals are, linked');
     assert.equal((await fetch(base + '/art/visit/Q999999')).status, 404, 'an unknown house');
+    { const wj = app.locals.wanderJSON(db.prepare('SELECT * FROM works WHERE slug=?').get(j.slug), { cookies: {}, headers: {} }); assert.ok(wj.maker === 'Vincent van Gogh' && wj.artist && wj.artist.href === '/art/' + a.slug && !wj.collect && wj.makerSlug, 'Wander names the artist, never the shelf, and sells nothing open'); }
     const its = app.locals.catalogue.items('Q5582'); assert.ok(its.length === 1 && its[0].label === 'Sunflowers' && /Special:FilePath\/Sunflowers\.jpg\?width=3840/.test(its[0].image) && its[0].id === 'https://commons.wikimedia.org/wiki/File%3ASunflowers.jpg', 'what the feed will bring: only the open photograph not yet held');
     let fed = null; app.locals.feeds.enqueue = x => { fed = x; return 77; };
     const bq = await (await go('/studio/art/' + a.slug + '/catalogue', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&do=bring' })).json();

@@ -2316,7 +2316,7 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;-webkit-user-select:none;user-select:none}
 .st-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}.st-scroll::-webkit-scrollbar{display:none}
 .st-i{position:relative;height:100%;height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;display:grid;place-items:center;overflow:hidden}
-.st-im{width:100%;height:100%;object-fit:contain;display:block;background:#0b0a09;-webkit-user-drag:none;pointer-events:none;animation:st-in .9s ease both}
+.st-im{width:100%;height:100%;object-fit:contain;display:block;background:#0b0a09;-webkit-user-drag:none;pointer-events:none;animation:st-in .9s ease backwards}
 @keyframes st-in{from{opacity:0;transform:scale(1.015)}to{opacity:1;transform:none}}
 .st-plate{position:absolute;left:16px;right:88px;bottom:calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:3px;text-decoration:none;color:#f2efe9;text-shadow:0 1px 14px rgba(0,0,0,.9);transition:opacity .4s,transform .4s;z-index:2}
 .st-by{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(242,239,233,.75)}
@@ -4888,3 +4888,6 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .ipv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}.ipv-w{display:block;text-decoration:none;color:inherit}.ipv-w img{width:100%;height:auto;display:block}.ipv-w span{display:block;font-size:13px;margin-top:6px}
 .ipv-g{border:1px dashed var(--line,rgba(120,112,100,.35));border-radius:3px;padding:14px;display:flex;flex-direction:column;gap:4px;min-height:160px;justify-content:flex-end}.ipv-g b{font:400 16px/1.25 var(--disp)}.ipv-g span,.ipv-g i{font-size:12px;opacity:.7;font-style:normal}.ipv-g a{font-size:12px}
 .ipv-n{margin-top:40px;font-size:12px;opacity:.6}
+
+/* Zoom, unlocked (2 Nov): an arrival animation that kept its last frame held every picture at transform:none, so a pinch moved nothing. Arrivals now leave no frame behind, and a zoomed picture carries none. */
+.st.st-zoom .st-i>.st-im,.st-im[style*="scale("]{animation:none}

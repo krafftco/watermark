@@ -11,3 +11,7 @@ const BASE = { top: 6, foot: 2, ct: 2, plate: 4, snav: 2, sv: 2, cat: 2, plates:
 const bad = [...seen].filter(([c, n]) => !/-/.test(c) && n > (BASE[c] || 1));
 assert.deepEqual(bad, [], 'a room class defined again, by another room? ' + bad.map(([c, n]) => `.${c}×${n}`).join(', '));
 console.log('ok: no two rooms share a class');
+// Zoom stays free (2 Nov): a picture people pinch must never carry an animation that keeps its last frame, since a
+// held 'transform' frame overrides the zoom's own (Wander's arrival held every picture at transform:none for weeks).
+for (const sel of ['.st-im', '.ez-im', '.lib-loupe img', '.wv img', '.ctc-vs img']) { const re = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{[^}]*animation:[^;}]*\\b(both|forwards)\\b'); assert.ok(!re.test(css), `${sel} carries an animation that holds its last frame: zoom would be locked`); }
+console.log('ok: zoom is free on every picture people pinch');

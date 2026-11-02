@@ -637,11 +637,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const key = w.slug + '#' + (w.updated_at || '') + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0); let base = wanderBase.get(key); // any entry on the register (a hat, a guide, a sale) makes it new
     if (!base || Date.now() - base.at > 60e3) {
       const m = mk(w); const c = app.locals.closerOf ? app.locals.closerOf(w) : null; const u = q.use.get(m.id, 'social');
-      const pr = u ? priced(u, w) : null; const can = u && u.price_cents != null && offered(R.parse(w.rules), 'social', w);
+      const pr = u ? priced(u, w) : null; const can = !w.open && u && u.price_cents != null && offered(R.parse(w.rules), 'social', w); // an open work offers no sale (2 Nov: Wander had shown Collect on the public domain)
+      const art = m.kind === 'institution' && app.locals.art ? app.locals.art.ofWork(w) : null; // a museum's or the public domain's work is named by its artist (2 Nov)
       const ap = app.locals.applauseBrief ? app.locals.applauseBrief(w, null) : null;
       const ag = app.locals.audioGuides ? app.locals.audioGuides.first(w) : null;
       const e = can ? edition(w) : null;
-      base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: m.name, makerSlug: V.makerSlug(m), width: w.width, height: w.height,
+      base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: art ? art.name : m.name, makerSlug: V.makerSlug(m), artist: art ? { name: art.name, href: `/art/${art.slug}` } : null, width: w.width, height: w.height,
         img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'),
         price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null,
         hat: ap ? { n: ap.n, mine: false } : null, bravo: ap && ap.bravo ? { mine: false } : null, sheet: app.locals.sheets ? (() => { try { return app.locals.sheets.of(w); } catch (e) { return null; } })() : null } };
