@@ -4970,3 +4970,22 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .sct-dm{padding:16px 20px 22px;font-size:14px}.sct-dm h2{text-transform:none;font:400 24px/1.15 var(--disp,Georgia),Georgia,serif;color:#f2efe9;margin:0 0 6px}.sct-dm dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:12px 0}.sct-dm dt{color:#a59c8d}.sct-dm dd{margin:0}.sct-dm a{color:#e6c875}
 .sct-x{position:absolute;top:10px;right:12px;z-index:1;background:rgba(11,10,9,.7);color:#f2efe9;border:1px solid rgba(255,255,255,.3);padding:6px 12px}
 .sct .buy-btn{width:auto;padding:10px 22px;margin:0}.sct-im{border-radius:0!important;box-shadow:none!important}a.sct-hd,.sct-hd{color:#f7f6f3!important}
+
+/* The line (2 Nov): the queue in front of the feeds */
+.bl{max-width:860px;margin:0 auto;padding:28px 16px 80px}
+.bl-ok{background:#f3efe4;border-left:3px solid #b08d3c;padding:10px 14px;margin:12px 0}
+.bl-state{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 22px}
+.bl-in{display:inline-block;margin:0}
+.bl-add{border-top:1px solid rgba(0,0,0,.12);padding:18px 0}
+.bl-add form:not(.bl-in){display:grid;gap:10px;max-width:560px}
+.bl-add label{display:grid;gap:4px}
+.bl-add .bl-ck{display:flex;gap:8px;align-items:center}
+.bl-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.bl-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.bl-r{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border:1px solid rgba(0,0,0,.1);border-radius:6px}
+.bl-r b{display:block;font-weight:500}
+.bl-r small{color:#6f675c}
+.bl-r form{display:flex;gap:6px;flex:0 0 auto}
+.bl-running{border-color:#b08d3c;background:#fbf8f1}
+.bl-done{opacity:.7}
+.bl-failed{border-color:#a33}

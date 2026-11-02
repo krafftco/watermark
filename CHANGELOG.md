@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.30 · The line · 2 November 2026
+
+Line up as much as you like, from a phone, and the house brings it in one run at a time: the Met a hundred at a time, by department or highlights, going on by itself until the search runs dry; the masters, thirty of them, each page made, the catalogue read and every public-domain photograph brought in. It never runs beside another feed, holds while the house is being shown, and can be paused.
+
 ## 1.29.2 · A museum by its whole name · 2 November 2026
 
 A museum's page and its Gazette call it by its whole name, never its first word. A painting from the Met reads as a painting when its medium says oil, tempera or canvas.

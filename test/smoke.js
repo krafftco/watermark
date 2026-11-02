@@ -1589,6 +1589,21 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       for (let i = 0; i < 100 && db.prepare('SELECT status FROM feeds WHERE id=?').get(bj.feed).status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
       const hv = db.prepare("SELECT * FROM works WHERE source_url='https://www.metmuseum.org/art/collection/search/777'").get(); assert.ok(hv && hv.title === 'The Harvesters' && hv.open === 'cc0' && hv.status === 'held' && hv.kind === 'painting', 'in, as chosen: ' + JSON.stringify(hv && { t: hv.title, o: hv.open, s: hv.status, k: hv.kind }));
       app.locals.__fetch = p2; }
+    { // The line (2 Nov): line up the Met; the house takes it a hundred at a time, one run at a time, and keeps going.
+      r = await req(port, 'GET', '/studio/line'); assert.ok(r.status !== 200, 'the line is the Studio\'s');
+      r = await req(port, 'GET', '/studio/line', { cookie: ck }); assert.ok(r.status === 200 && /The line\./.test(r.body) && /European Paintings/.test(r.body), 'the line');
+      r = await req(port, 'POST', '/studio/line/met', { cookie: ck, body: { dept: '11', highlight: '1', more: '1' } });
+      let it = db.prepare("SELECT * FROM lineup ORDER BY id DESC LIMIT 1").get(); assert.ok(it && it.status === 'waiting' && /European Paintings, highlights · 1–100/.test(it.label), 'in line: ' + JSON.stringify(it));
+      await app.locals.line.tick(); it = db.prepare('SELECT * FROM lineup WHERE id=?').get(it.id);
+      const fj = it.feed_id && db.prepare('SELECT * FROM feeds WHERE id=?').get(it.feed_id); assert.ok(it.status === 'running' && fj && /departmentId=11/.test(fj.url) && /isHighlight=true/.test(fj.url) && fj.max === 100, 'started as a feed: ' + JSON.stringify(fj));
+      for (let i = 0; i < 100 && db.prepare('SELECT status FROM feeds WHERE id=?').get(it.feed_id).status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+      await app.locals.line.tick(); it = db.prepare('SELECT * FROM lineup WHERE id=?').get(it.id); assert.equal(it.status, 'done', 'done when its feed is');
+      const nx = db.prepare("SELECT * FROM lineup WHERE status='waiting' AND kind='met' ORDER BY id DESC LIMIT 1").get(); assert.ok(nx && /101–200/.test(nx.label) && /offset=100/.test(app.locals.line.metUrl(JSON.parse(nx.spec))), 'keeps going: the next hundred: ' + JSON.stringify(nx));
+      r = await req(port, 'POST', '/studio/line/masters', { cookie: ck }); assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE kind='artist' AND status='waiting'").get().n, app.locals.line.MASTERS.length, 'the masters in line');
+      r = await req(port, 'POST', '/studio/line/masters', { cookie: ck }); assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE kind='artist'").get().n, app.locals.line.MASTERS.length, 'never twice');
+      r = await req(port, 'POST', '/studio/line/' + nx.id, { cookie: ck, body: { do: 'remove' } }); assert.ok(!db.prepare('SELECT 1 FROM lineup WHERE id=?').get(nx.id), 'taken out of line');
+      r = await req(port, 'POST', '/studio/line/pause', { cookie: ck }); await app.locals.line.tick(); assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE status='running'").get().n, 0, 'paused: nothing starts');
+      db.prepare("DELETE FROM lineup WHERE status='waiting'").run(); }
     app.locals.__fetch = prev;
   }
   console.log('ok: the Met, in');
