@@ -37,7 +37,7 @@
     var r = w.w && w.h ? (w.w / w.h) : 1.5;
     return '<figure class="lib-t' + (sel.has(w.slug) ? ' is-sel' : '') + (w.flag ? ' is-' + w.flag : '') + (w.status === 'public' ? ' is-pub' : '') + '" data-slug="' + w.slug + '" style="--r:' + r.toFixed(3) + '" tabindex="-1">' +
       '<span class="lib-im"><img src="/img/' + encodeURIComponent(w.slug) + '/thumb" alt="" loading="lazy" decoding="async" draggable="false"></span>' +
-      '<span class="lib-badges"><i class="lib-flag"></i>' + (w.status === 'public' ? '<i class="lib-pubdot" title="Public"></i>' : '') + (w.curated ? '<i class="lib-jewel" title="Curated">◆</i>' : '') + (w.sold ? '<i class="lib-sold" title="Collected ' + w.sold + '">' + w.sold + '</i>' : '') + '</span>' +
+      '<button type="button" class="lib-tk" data-lib-tk aria-label="Select" title="Select (or ⌘/shift-click)"></button>' + '<span class="lib-badges"><i class="lib-flag"></i>' + (w.status === 'public' ? '<i class="lib-pubdot" title="Public"></i>' : '') + (w.curated ? '<i class="lib-jewel" title="Curated">◆</i>' : '') + (w.sold ? '<i class="lib-sold" title="Collected ' + w.sold + '">' + w.sold + '</i>' : '') + '</span>' +
       '<figcaption><b>' + esc(w.title) + (F.pub === 'weak' ? ' <small class="lib-why">' + (w.seen ? w.seen + ' stood' : 'not yet seen') + (w.hats ? ' · ' + w.hats + ' hats' : '') + '</small>' : '') + '</b><span class="lib-st">' + stars(w.stars) + '</span></figcaption></figure>';
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -65,12 +65,16 @@
   function none() { sel.clear(); paintSel(); }
   function all() { shown.forEach(function (w) { sel.add(w.slug); }); paintSel(); }
   // Click, shift, ⌘; a double-click opens the loupe.
+  // A press on the picture opens it large (Will, 1 Nov: "pressing the image doesn't blow it up"); the tick in its corner,
+  // shift, ⌘, a marquee or a press-and-drag select. While something is selected, a press adds or takes away instead.
   grid.addEventListener('click', function (e) {
     var t = e.target.closest('.lib-t'); if (!t) return; var slug = t.getAttribute('data-slug');
-    if (coarse) { select(slug, 'toggle'); return; }
-    if (e.shiftKey) select(slug, 'range'); else if (e.metaKey || e.ctrlKey) select(slug, 'toggle'); else select(slug, sel.size === 1 && sel.has(slug) ? 'toggle' : 'one');
+    if (Date.now() - swEnd < 400) return;
+    if (e.target.closest('[data-lib-tk]')) { select(slug, 'toggle'); return; }
+    if (e.shiftKey) { select(slug, 'range'); return; } if (e.metaKey || e.ctrlKey) { select(slug, 'toggle'); return; }
+    if (sel.size) { select(slug, 'toggle'); return; }
+    loupe(slug);
   });
-  grid.addEventListener('dblclick', function (e) { var t = e.target.closest('.lib-t'); if (t) loupe(t.getAttribute('data-slug')); });
   // The marquee (a pointer on the wall between tiles, dragged).
   var mq = null, mqEl = null;
   grid.addEventListener('pointerdown', function (e) {
@@ -98,7 +102,7 @@
     var a = idx(sw.from), b = idx(t.getAttribute('data-slug')); if (a < 0 || b < 0) return;
     sel = new Set(sw.base); var lo = Math.min(a, b), hi = Math.max(a, b); for (var i = lo; i <= hi; i++) sel.add(shown[i].slug); paintSel();
   }, { passive: false });
-  grid.addEventListener('touchend', function () { clearTimeout(swT); if (sw) { sw = null; } }, { passive: true });
+  var swEnd = 0; grid.addEventListener('touchend', function () { clearTimeout(swT); if (sw) { sw = null; swEnd = Date.now(); } }, { passive: true });
   grid.addEventListener('touchcancel', function () { clearTimeout(swT); sw = null; }, { passive: true });
   // Acts: one POST for the selection, the tiles repainted, Undo offered.
   var busy = false; var last = null;
@@ -148,21 +152,70 @@
   function advance() { var i = idx(cur); if (i < 0 || i + 1 >= shown.length) return; select(shown[i + 1].slug, 'one'); var el = grid.querySelector('.is-cur'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); if (loupeSlug) loupe(cur); }
   // The loupe.
   var L = root.querySelector('[data-lib-loupe]'), Lim = root.querySelector('[data-lib-lim]'), loupeSlug = null;
-  function loupe(slug) { loupeSlug = slug; cur = slug; if (!sel.has(slug)) select(slug, 'one'); loupePaint(); L.hidden = false; document.body.classList.add('lib-loupe-on'); }
-  function loupePaint() { var w = bySlug[loupeSlug]; if (!w) return; Lim.src = '/img/' + encodeURIComponent(w.slug) + '/large'; root.querySelector('[data-lib-lt]').textContent = w.title; root.querySelector('[data-lib-ll]').textContent = [w.place, w.at.slice(0, 4), w.status === 'public' ? 'Public' : 'Private', w.flag === 'pick' ? 'Pick' : w.flag === 'reject' ? 'Rejected' : ''].filter(Boolean).join(' · '); root.querySelector('[data-lib-lstars]').innerHTML = stars(w.stars); root.querySelector('[data-lib-lopen]').href = '/w/' + encodeURIComponent(w.slug); var i = idx(loupeSlug); var im2 = shown[i + 1]; if (im2) { var pre = new Image(); pre.src = '/img/' + encodeURIComponent(im2.slug) + '/large'; } }
-  function loupeClose() { loupeSlug = null; L.hidden = true; document.body.classList.remove('lib-loupe-on'); }
-  function loupeStep(d) { var i = idx(loupeSlug); var w = shown[i + d]; if (!w) return; select(w.slug, 'one'); loupe(w.slug); }
+  var selBefore = null;
+  function loupe(slug) { if (!loupeSlug) selBefore = new Set(sel); loupeSlug = slug; cur = slug; zReset(); sel = new Set([slug]); paintSel(); loupePaint(); L.hidden = false; document.body.classList.add('lib-loupe-on'); }
+  function loupePaint() { var w = bySlug[loupeSlug]; if (!w) return; if (Lim.getAttribute('data-for') !== w.slug) { Lim.setAttribute('data-for', w.slug); Lim.src = '/img/' + encodeURIComponent(w.slug) + '/large'; } root.querySelector('[data-lib-lt]').textContent = w.title; root.querySelector('[data-lib-ll]').textContent = [w.place, w.at.slice(0, 4), w.status === 'public' ? 'Public' : 'Private', w.flag === 'pick' ? 'Pick' : w.flag === 'reject' ? 'Rejected' : ''].filter(Boolean).join(' · '); root.querySelector('[data-lib-lstars]').innerHTML = stars(w.stars); root.querySelector('[data-lib-lopen]').href = '/w/' + encodeURIComponent(w.slug); var i = idx(loupeSlug); var im2 = shown[i + 1]; if (im2) { var pre = new Image(); pre.src = '/img/' + encodeURIComponent(im2.slug) + '/large'; } }
+  function loupeClose() { loupeSlug = null; zReset(); L.hidden = true; document.body.classList.remove('lib-loupe-on'); if (selBefore) { sel = selBefore; selBefore = null; paintSel(); } }
+  function loupeStep(d) { var i = idx(loupeSlug); var w = shown[i + d]; if (!w) return; loupe(w.slug); var el = grid.querySelector('[data-slug="' + w.slug + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }
   root.querySelector('[data-lib-lclose]').addEventListener('click', loupeClose);
+  var la = root.querySelector('[data-lib-lookall]'); if (la) la.addEventListener('click', function () { if (shown.length) loupe((cur && idx(cur) >= 0) ? cur : shown[0].slug); });
   root.querySelector('[data-lib-lprev]').addEventListener('click', function () { loupeStep(-1); });
   root.querySelector('[data-lib-lnext]').addEventListener('click', function () { loupeStep(1); });
   root.querySelector('[data-lib-lstars]').addEventListener('click', function (e) { var i = e.target.closest('i'); if (!i) return; var n = Array.prototype.indexOf.call(i.parentNode.children, i) + 1; var w = bySlug[loupeSlug]; act({ do: 'stars', stars: w.stars === n ? 0 : n }); });
-  var tx = null; L.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true }); L.addEventListener('touchend', function (e) { if (tx == null) return; var dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 50) loupeStep(dx < 0 ? 1 : -1); }, { passive: true });
+  // The loupe looks closer (1 Nov): a pinch or a trackpad's pinch scales the picture about the fingers, a double-tap or
+  // double-click goes in or out, a drag moves around it while close; a swipe walks to the next only when at fit.
+  var Z = { s: 1, x: 0, y: 0 }, zBig = false;
+  function zPaint(anim) { Lim.style.transition = anim ? 'transform .3s cubic-bezier(.2,.8,.2,1)' : 'none'; Lim.style.transform = Z.s > 1.001 ? 'translate(' + Z.x + 'px,' + Z.y + 'px) scale(' + Z.s + ')' : ''; L.classList.toggle('is-z', Z.s > 1.001); }
+  function zReset() { Z.s = 1; Z.x = 0; Z.y = 0; zBig = false; if (Lim) zPaint(false); }
+  function zClamp() { var w = Lim.offsetWidth * Z.s, h = Lim.offsetHeight * Z.s; var mx = Math.max(0, (w - innerWidth) / 2 + 40), my = Math.max(0, (h - innerHeight) / 2 + 40); Z.x = Math.max(-mx, Math.min(mx, Z.x)); Z.y = Math.max(-my, Math.min(my, Z.y)); }
+  function zTo(s, cx, cy, anim) {
+    var r = Lim.getBoundingClientRect(); var c0x = r.left + r.width / 2 - Z.x, c0y = r.top + r.height / 2 - Z.y; // the untransformed centre
+    var k = s / Z.s; Z.x = (cx - c0x) * (1 - k) + k * Z.x; Z.y = (cy - c0y) * (1 - k) + k * Z.y;
+    Z.s = s; if (Z.s <= 1.02) { Z.s = 1; Z.x = 0; Z.y = 0; } else zClamp(); zPaint(anim);
+    if (Z.s > 1.3 && !zBig && loupeSlug) { zBig = true; var want = '/img/' + encodeURIComponent(loupeSlug) + '/wall', slug = loupeSlug; var b = new Image(); b.onload = function () { if (loupeSlug === slug) Lim.src = want; }; b.src = want; }
+  }
+  Lim.style.transformOrigin = '50% 50%';
+  var lastTap = 0;
+  function dbl(cx, cy) { zTo(Z.s > 1.05 ? 1 : 2.5, cx, cy, true); }
+  Lim.addEventListener('dblclick', function (e) { e.preventDefault(); dbl(e.clientX, e.clientY); });
+  L.addEventListener('wheel', function (e) {
+    if (L.hidden) return; e.preventDefault();
+    if (e.ctrlKey || e.metaKey) { zTo(Math.max(1, Math.min(8, Z.s * Math.exp(-e.deltaY * 0.012))), e.clientX, e.clientY, false); return; }
+    if (Z.s > 1.001) { Z.x -= e.deltaX; Z.y -= e.deltaY; zClamp(); zPaint(false); return; }
+    if (Math.abs(e.deltaX) > 30 || Math.abs(e.deltaY) > 30) { var now = Date.now(); if (now - (L._w || 0) > 450) { L._w = now; loupeStep((Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) > 0 ? 1 : -1); } }
+  }, { passive: false });
+  var md = null;
+  Lim.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse' || Z.s <= 1.001) return; md = { x: e.clientX - Z.x, y: e.clientY - Z.y }; L.classList.add('is-drag'); e.preventDefault(); });
+  addEventListener('pointermove', function (e) { if (!md) return; Z.x = e.clientX - md.x; Z.y = e.clientY - md.y; zClamp(); zPaint(false); });
+  addEventListener('pointerup', function () { md = null; L.classList.remove('is-drag'); });
+  var T = null;
+  L.addEventListener('touchstart', function (e) {
+    if (e.target.closest('button, a')) { T = null; return; }
+    if (e.touches.length === 2) { var a = e.touches[0], b = e.touches[1]; T = { pinch: true, d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, s0: Z.s, cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 }; e.preventDefault(); return; }
+    if (e.touches.length === 1) { var p = e.touches[0]; T = { x0: p.clientX, y0: p.clientY, px: p.clientX, py: p.clientY, t: Date.now() }; if (Z.s > 1.001) e.preventDefault(); }
+  }, { passive: false });
+  L.addEventListener('touchmove', function (e) {
+    if (!T) return; e.preventDefault();
+    if (T.pinch && e.touches.length >= 2) { var a = e.touches[0], b = e.touches[1]; var d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); var cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2; zTo(Math.max(1, Math.min(8, T.s0 * d / T.d0)), T.cx, T.cy, false); Z.x += cx - T.cx; Z.y += cy - T.cy; T.cx = cx; T.cy = cy; zClamp(); zPaint(false); return; }
+    if (!T.pinch && Z.s > 1.001 && e.touches.length === 1) { var p = e.touches[0]; Z.x += p.clientX - T.px; Z.y += p.clientY - T.py; T.px = p.clientX; T.py = p.clientY; zClamp(); zPaint(false); }
+  }, { passive: false });
+  L.addEventListener('touchend', function (e) {
+    if (!T) return; if (e.touches.length) { if (T.pinch && e.touches.length === 1) { var p = e.touches[0]; T = { x0: p.clientX, y0: p.clientY, px: p.clientX, py: p.clientY, t: Date.now(), after: true }; } return; }
+    var c = e.changedTouches[0], dx = c.clientX - T.x0, dy = c.clientY - T.y0, was = T; T = null;
+    if (was.pinch || was.after) { if (Z.s <= 1.05) zTo(1, 0, 0, true); return; }
+    if (Math.hypot(dx, dy) < 10 && Date.now() - was.t < 300) { var now = Date.now(); if (now - lastTap < 320) { lastTap = 0; dbl(c.clientX, c.clientY); } else lastTap = now; return; }
+    if (Z.s <= 1.001 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) loupeStep(dx < 0 ? 1 : -1);
+    else if (Z.s <= 1.001 && dy > 90 && Math.abs(dy) > Math.abs(dx)) loupeClose();
+  }, { passive: true });
   // Keys, as Lightroom's.
   var help = root.querySelector('[data-lib-keys]'); root.querySelector('[data-lib-help]').addEventListener('click', function (e) { e.preventDefault(); help.hidden = !help.hidden; }); root.querySelector('[data-lib-keys-close]').addEventListener('click', function () { help.hidden = true; });
   document.addEventListener('keydown', function (e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { if (e.key === 'Escape') e.target.blur(); return; }
     var k = e.key;
     if (k === 'Escape') { if (!attest.hidden) { attest.hidden = true; return; } if (!help.hidden) { help.hidden = true; return; } if (loupeSlug) { loupeClose(); return; } none(); return; }
+    if (loupeSlug && (k === '+' || k === '=')) { e.preventDefault(); zTo(Math.min(8, Z.s * 1.6), innerWidth / 2, innerHeight / 2, true); return; }
+    if (loupeSlug && (k === '-' || k === '_')) { e.preventDefault(); zTo(Math.max(1, Z.s / 1.6), innerWidth / 2, innerHeight / 2, true); return; }
+    if (loupeSlug && k === '0' && Z.s > 1.001) { e.preventDefault(); zTo(1, 0, 0, true); return; }
     if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === 'a') { e.preventDefault(); all(); return; }
     if (/^[0-5]$/.test(k) && sel.size) { e.preventDefault(); act({ do: 'stars', stars: k }); return; }
     var kl = k.toLowerCase();

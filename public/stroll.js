@@ -283,6 +283,7 @@
   var lastTap = 0, tapT = null, tapX = 0, tapY = 0;
   scroller.addEventListener('pointerup', function (e) {
     if (e.pointerType === 'touch' && Date.now() - Z.at < 400) return; // the end of a pinch or a pan is not a tap
+    if (Z.dragged && Date.now() - Z.dragged < 300) return; // the end of a drag with the mouse is not a click
     if (e.target.closest('button, a')) return; var it = e.target.closest('.st-i'); if (!it) return;
     var now = Date.now();
     if (now - lastTap < 320 && Math.hypot(e.clientX - tapX, e.clientY - tapY) < 40) { clearTimeout(tapT); lastTap = 0; zTap(it, e.clientX, e.clientY); return; }
@@ -398,6 +399,38 @@
     scroller.addEventListener('gesturechange', function (e) { e.preventDefault(); if (!Z.on || Z.d0) return; Z.s = Math.max(1, Math.min(6, g0 * e.scale)); Z.x += e.clientX - gx; Z.y += e.clientY - gy; gx = e.clientX; gy = e.clientY; zClamp(); zApply(false); }, { passive: false });
     scroller.addEventListener('gestureend', function (e) { e.preventDefault(); if (!Z.on || Z.d0) return; zHold(); }, { passive: false });
   })();
+  // Zoom on a desk (Will, 1 Nov: "make it where you can zoom on an image in Wander"; the pinch was a phone's alone):
+  // a trackpad's pinch (the browser's ctrl+wheel) or ctrl and the wheel scale the picture about the pointer; while
+  // zoomed the wheel and a drag with the mouse move around it; a double-click goes in or comes out; + − and 0 on
+  // the keys; Esc sets it to rights before it leaves anything.
+  (function () {
+    function zoomBy(f, cx, cy) {
+      var img = zPick(); if (!img) return;
+      if (Z.s <= 1.001) zOrigin(cx, cy);
+      Z.s = Math.max(1, Math.min(6, Z.s * f)); zClamp(); zApply(false);
+      if (Z.s <= 1.04) { zEnd(true); return; }
+      Z.on = true; Z.held = true; root.classList.add('st-zoom');
+    }
+    scroller.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) { e.preventDefault(); e.stopPropagation(); zoomBy(Math.exp(-e.deltaY * 0.012), e.clientX, e.clientY); Z.at = Date.now(); return; }
+      if (Z.on && Z.held) { e.preventDefault(); e.stopPropagation(); Z.x -= e.deltaX; Z.y -= e.deltaY; zClamp(); zApply(false); }
+    }, { passive: false });
+    var md = null;
+    scroller.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0 || !Z.on || !Z.held) return; if (e.target.closest('button, a')) return;
+      md = { x: e.clientX - Z.x, y: e.clientY - Z.y, x0: e.clientX, y0: e.clientY, moved: false }; root.classList.add('st-zdrag'); e.preventDefault();
+    });
+    addEventListener('pointermove', function (e) { if (!md) return; if (Math.hypot(e.clientX - md.x0, e.clientY - md.y0) > 4) md.moved = true; Z.x = e.clientX - md.x; Z.y = e.clientY - md.y; zClamp(); zApply(false); });
+    addEventListener('pointerup', function () { if (!md) return; if (md.moved) Z.dragged = Date.now(); md = null; root.classList.remove('st-zdrag'); });
+    addEventListener('keydown', function (e) {
+      var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      var k = e.key; var cx = innerWidth / 2, cy = innerHeight / 2;
+      if (k === '+' || k === '=') { e.preventDefault(); e.stopImmediatePropagation(); zoomBy(1.6, cx, cy); }
+      else if ((k === '-' || k === '_') && Z.on) { e.preventDefault(); e.stopImmediatePropagation(); zoomBy(1 / 1.6, cx, cy); }
+      else if ((k === '0' || k === 'Escape') && Z.on) { e.preventDefault(); e.stopImmediatePropagation(); zEnd(true); }
+      else if (Z.on && /^Arrow/.test(k)) { e.preventDefault(); e.stopImmediatePropagation(); var d = 80; if (k === 'ArrowLeft') Z.x += d; if (k === 'ArrowRight') Z.x -= d; if (k === 'ArrowUp') Z.y += d; if (k === 'ArrowDown') Z.y -= d; zClamp(); zApply(true); }
+    }, true);
+  })();
   scroller.addEventListener('touchcancel', function () { if (Z.on) { Z.d0 = 0; zHold(); } }, { passive: true });
   scroller.addEventListener('touchend', function (e) {
     if (Z.on) {
@@ -454,6 +487,7 @@
   // A sideways scroll on a trackpad: one step per gesture.
   var wx = 0, wT = null, wDone = false;
   addEventListener('wheel', function (e) {
+    if (e.ctrlKey || Z.on) return;
     if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5) return;
     clearTimeout(wT); wT = setTimeout(function () { wx = 0; wDone = false; }, 350);
     if (wDone) return; wx += e.deltaX;

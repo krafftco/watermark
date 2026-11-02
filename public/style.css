@@ -3566,7 +3566,8 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .hd-fresh{margin:8px 0 28px;padding:16px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--ln);font:400 16px/1.5 var(--read,Georgia),Georgia,serif;color:var(--mu)}
 /* Pinch inside Wander (23 Oct): while zoomed the scroll is held and the chrome rests; the picture pans under one finger. */
 /* (the scroller's overflow is left alone while a finger is down: changing it mid-gesture makes iOS cancel the touch) */
-.st.st-zoom .st-i>.st-im{will-change:transform;z-index:3}
+.st.st-zoom .st-i>.st-im{will-change:transform;z-index:3}.st.st-zoom .st-scroll{overflow:hidden!important;scroll-snap-type:none!important}
+@media (pointer:fine){.st.st-zoom .st-i>.st-im{cursor:grab}.st.st-zdrag .st-i>.st-im{cursor:grabbing}.st .st-i>.st-im{cursor:zoom-in}}
 .st.st-zoom .st-plate,.st.st-zoom .st-rail,.st.st-zoom .st-eye,.st.st-zoom .bk-pill,.st.st-zoom .st-line,.st.st-zoom .st-tab{opacity:0;pointer-events:none}
 .yx-acts .yx-instax{background:none;color:var(--ink);border:1px solid var(--ink)}
 /* The tour, /start (23 Oct): a minute on how the house works, by who you are. */
@@ -3867,6 +3868,8 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .lib-line{margin:10px 0 0;font-size:12px;color:#8f8a81;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.lib-auto{display:inline-flex;gap:6px;align-items:center;margin-left:8px}.lib-help{color:#bdb9b1;margin-left:auto}
 .lib-grid{--n:6;display:grid;grid-template-columns:repeat(var(--n),1fr);gap:8px;padding:12px clamp(14px,3vw,40px);outline:none;user-select:none;-webkit-user-select:none;min-height:40vh;touch-action:pan-y}
 .lib-t{margin:0;background:#2a2927;border-radius:4px;padding:6px 6px 4px;border:2px solid transparent;cursor:pointer;position:relative;transition:background .12s,border-color .12s}
+.lib-tk{position:absolute;left:9px;top:9px;z-index:2;width:24px;height:24px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);background:rgba(0,0,0,.35);padding:0;cursor:pointer;opacity:0;transition:opacity .15s}.lib-t:hover .lib-tk,.lib-on .lib-tk,.lib-t.is-sel .lib-tk{opacity:1}.lib-t.is-sel .lib-tk{background:#c9a24a;border-color:#c9a24a}.lib-t.is-sel .lib-tk:after{content:'';position:absolute;left:7px;top:3px;width:6px;height:11px;border:solid #0b0a09;border-width:0 2px 2px 0;transform:rotate(45deg)}@media (pointer:coarse){.lib-tk{opacity:.9;width:28px;height:28px;left:6px;top:6px}.lib-t.is-sel .lib-tk:after{left:9px;top:4px}}
+.lib-t{cursor:zoom-in}.lib-on .lib-t{cursor:pointer}.lib-loupe img{cursor:zoom-in;touch-action:none;-webkit-user-select:none;user-select:none}.lib-loupe.is-z img{cursor:grab}.lib-loupe.is-drag img{cursor:grabbing}.lib-loupe.is-z .lib-lplate,.lib-loupe.is-z .lib-lopen{opacity:0;pointer-events:none}.lib-loupe{touch-action:none;overflow:hidden}
 .lib-t:hover{background:#333230}.lib-t.is-sel{background:#5b5750;border-color:#e9e2d6}.lib-t.is-cur{border-color:#c9a24a}
 .lib-im{display:block;aspect-ratio:1;background:#1c1b19;display:grid;place-items:center;overflow:hidden;border-radius:2px}.lib-im img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;pointer-events:none}
 .lib-t figcaption{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-top:5px;font:11px/1.2 var(--sans);color:#a8a39a;min-width:0}.lib-t figcaption b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d9d4cb}
