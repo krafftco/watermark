@@ -70,7 +70,7 @@ function mountRows(app, { db, V, C }) {
   // maker's work, series, books, records, stories and what they collect, each a row of large tiles.
   const SORTS = [['regarded', 'Most regarded'], ['newest', 'Newest'], ['year', 'By year'], ['place', 'By place']];
   function maker(req, { m, works = [], sort = 'regarded', years = [], texts = [], records = [], series = [], stories = [], collects = null, hangs = [] }) {
-    const rows = []; const first = m.kind && m.kind !== 'maker' ? String(m.name || '') : String(m.name || '').split(' ')[0]; // a museum or a gallery goes by its whole name const slug = `/m/${encodeURIComponent(m.handle)}`;
+    const rows = []; const first = m.kind && m.kind !== 'maker' ? String(m.name || '') : String(m.name || '').split(' ')[0]; const slug = `/m/${encodeURIComponent(m.handle)}`;
     const wt = w => ({ href: `/m/${encodeURIComponent(m.handle)}/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: [w.place, (w.taken_at || '').slice(0, 4)].filter(Boolean).join(' · ') || undefined, wide: (w.width || 0) > (w.height || 0) * 1.3 });
     // The Gazette (Will, 25 Oct: "each page can become their own media company's newspaper"; Franklin's paper): a
     // masthead in the maker's name with the day's dateline, then Latest, one stream across works, writing, records
