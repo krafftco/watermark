@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.26.1 · The Met's new search · 2 November 2026
+- The Met retired its old search on 1 October; the house now reads the new one, a page of up to 500 at a time, so a whole Open Access search comes in.
+
 ## 1.26 · The easel, forward · 2 November 2026
 
 - Study is on Wander's rail and in every work's acts; Draw steps back (its address still answers).

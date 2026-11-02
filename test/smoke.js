@@ -1555,7 +1555,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { // The Met's Open Access API as a source: the search gives ids, each object its public-domain picture and record; CC0 by default.
     const sharp = require('sharp'); const pic = await sharp({ create: { width: 800, height: 640, channels: 3, background: '#5a4a3a' } }).jpeg().toBuffer();
     const prev = app.locals.__fetch;
-    app.locals.__fetch = async (u) => { u = String(u); if (/collectionapi\.metmuseum\.org\/public\/collection\/v1\/search/.test(u)) return { ok: true, json: async () => ({ total: 2, objectIDs: [436535, 999]}) };
+    app.locals.__fetch = async (u) => { u = String(u); if (/collectionapi\.metmuseum\.org\/public\/collection\/v1(\.1)?\/search/.test(u)) return { ok: true, json: async () => ({ total: 2, objectIDs: [436535, 999]}) };
       if (/objects\/436535$/.test(u)) return { ok: true, json: async () => ({ objectID: 436535, isPublicDomain: true, primaryImage: 'https://images.metmuseum.org/x/436535.jpg', title: 'Wheat Field with Cypresses', artistDisplayName: 'Vincent van Gogh', objectDate: '1889', medium: 'Oil on canvas', dimensions: '28 7/8 × 36 3/4 in.', creditLine: 'Purchase, The Annenberg Foundation Gift, 1993', department: 'European Paintings', accessionNumber: '1993.132', objectURL: 'https://www.metmuseum.org/art/collection/search/436535' }) };
       if (/objects\/999$/.test(u)) return { ok: true, json: async () => ({ objectID: 999, isPublicDomain: false, primaryImage: 'https://images.metmuseum.org/x/999.jpg', title: 'Not open' }) };
       if (/images\.metmuseum\.org/.test(u)) return { ok: true, arrayBuffer: async () => pic };

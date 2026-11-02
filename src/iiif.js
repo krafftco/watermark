@@ -66,10 +66,20 @@ function parseManifest(m) {
 // about 80 requests a second; the house takes one object at a time.
 const MET = 'https://collectionapi.metmuseum.org/public/collection/v1/';
 async function parseMet(url, doFetch, max) {
-  const u = new URL(url); if (!u.searchParams.get('q')) u.searchParams.set('q', '*');
-  u.searchParams.set('isPublicDomain', 'true'); u.searchParams.set('hasImages', 'true');
-  const r = await doFetch(u.toString(), { headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(`met search ${r.status}`);
-  const j = await r.json(); const ids = (j.objectIDs || []).slice(0, max);
+  // The search moved (the Met, 4 Sep 2026: /v1/search retired 1 Oct; /v1.1/search pages by offset and limit, 500 a page,
+  // 10,000 a query at most). Any address given in the old form is read the new way.
+  const u = new URL(url.replace('/collection/v1/search', '/collection/v1.1/search')); if (!u.searchParams.get('q')) u.searchParams.set('q', '*');
+  u.searchParams.set('hasImages', 'true'); u.searchParams.set('isPublicDomain', 'true');
+  const ids = []; let total = Infinity;
+  for (let off = 0; ids.length < max && off < Math.min(total, 10000);) {
+    u.searchParams.set('offset', String(off)); u.searchParams.set('limit', String(Math.min(500, max - ids.length)));
+    let r = await doFetch(u.toString(), { headers: { accept: 'application/json' } });
+    if (r.status === 400 && u.searchParams.has('isPublicDomain')) { u.searchParams.delete('isPublicDomain'); continue; } // each object is checked anyway
+    if (!r.ok) throw new Error(`met search ${r.status}`);
+    const j = await r.json(); const got = j.objectIDs || []; total = +j.total || 0;
+    ids.push(...got); if (!got.length) break; off += got.length;
+  }
+  ids.length = Math.min(ids.length, max);
   const out = { label: `The Met · ${u.searchParams.get('q')}`, summary: '', items: [], meta: [] };
   for (const id of ids) {
     try {
@@ -174,7 +184,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
       const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); DEFAULT_USES.forEach(u => ins.run(m.id, ...u));
       try { db.prepare("UPDATE makers SET rights_open=1, rights_note=? WHERE id=?").run('A demonstration desk on open-access objects. Requests here reach the house, not the museum.', m.id); } catch (e) { /* before the rights desk */ }
     }
-    return enqueue(m.id, { url: 'https://collectionapi.metmuseum.org/public/collection/v1/search?isHighlight=true&hasImages=true&q=painting', open: 'cc0', show: '1', max: String(+(req.body || {}).max || 100) }, res);
+    return enqueue(m.id, { url: 'https://collectionapi.metmuseum.org/public/collection/v1.1/search?isHighlight=true&hasImages=true&q=painting', open: 'cc0', show: '1', max: String(+(req.body || {}).max || 100) }, res);
   });
   app.post('/studio/accounts/:id/iiif', studioOnly, (req, res) => enqueue(req.params.id, req.body || {}, res));
   app.get('/studio/iiif', studioOnly, (req, res) => {
@@ -183,7 +193,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     res.send(V.layout({ title: 'IIIF · Studio · Watermark', studio: true, path: '/studio/iiif', body: `<section class="studio-wrap"><p class="k">The house</p><h1>Collections, brought in.</h1>
 <p class="lede">A museum’s collection comes in from its IIIF manifest: every canvas becomes a held work, the full picture fetched once, fingerprinted, sealed and registered. Works arrive held back for review unless shown at once.</p>
 <form method="post" action="/studio/iiif/demo" class="iif-demo"><button class="buy-btn">Stand up the demo desk</button> <small>A museum desk on a hundred of the Met’s open-access highlights, named as a demonstration: /m/museum-demo, /rights/museum-demo, /keys/at/museum-demo.</small></form>
-<form method="post" action="/studio/iiif" class="iif-f"><label>Manifest address, or a Met Open Access search<input name="url" placeholder="https://…/manifest.json · https://collectionapi.metmuseum.org/public/collection/v1/search?q=Vermeer" required></label><label>For<select name="maker">${makers.map(x => `<option value="${x.id}">${esc(x.name)}${x.kind && x.kind !== 'maker' ? ` (${esc(x.kind)})` : ''}</option>`).join('')}</select></label><label>Licence on arrival<select name="open"><option value="">The institution’s terms (licensable)</option><option value="pd">Public domain</option><option value="cc0">CC0</option><option value="cc-by">CC BY</option><option value="cc-by-sa">CC BY-SA</option><option value="cc-by-nc">CC BY-NC</option></select></label><label class="iif-ck"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label><button class="buy-btn">Bring it in</button></form>
+<form method="post" action="/studio/iiif" class="iif-f"><label>Manifest address, or a Met Open Access search<input name="url" placeholder="https://…/manifest.json · https://collectionapi.metmuseum.org/public/collection/v1.1/search?artistOrCulture=true&q=Vermeer" required></label><label>For<select name="maker">${makers.map(x => `<option value="${x.id}">${esc(x.name)}${x.kind && x.kind !== 'maker' ? ` (${esc(x.kind)})` : ''}</option>`).join('')}</select></label><label>Licence on arrival<select name="open"><option value="">The institution’s terms (licensable)</option><option value="pd">Public domain</option><option value="cc0">CC0</option><option value="cc-by">CC BY</option><option value="cc-by-sa">CC BY-SA</option><option value="cc-by-nc">CC BY-NC</option></select></label><label class="iif-ck"><input type="checkbox" name="show" value="1"> Show at once (else held back for review)</label><button class="buy-btn">Bring it in</button></form>
 <table class="tbl"><tr><th>When</th><th>For</th><th>Manifest</th><th>Status</th><th>Brought in</th></tr>${rows.map(r => `<tr><td>${esc(r.at.slice(0, 16))}</td><td>${esc(r.maker)}</td><td><a href="/studio/iiif/${r.id}">${esc(r.label || r.url.slice(0, 60))}</a></td><td>${esc(r.status)}${r.note ? ` · ${esc(r.note)}` : ''}</td><td>${r.done} of ${r.n}${r.skipped ? ` · ${r.skipped} already held` : ''}${r.failed ? ` · ${r.failed} failed` : ''}</td></tr>`).join('') || '<tr><td colspan="5">None yet.</td></tr>'}</table></section>` }));
   });
   app.post('/studio/iiif', studioOnly, (req, res) => enqueue((req.body || {}).maker, req.body || {}, res));
