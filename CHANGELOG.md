@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.20.0 · The founding licensee · 2 November 2026
+- A company's year on Watermark is one bill: every photograph it holds on its site, one amount the house names, paid through a page it keeps as its receipt. Never a bill a picture.
+- The first company ever to pay is the house's founding licensee, said on the register and beside its photographs.
+
 ## 1.19.0 · The click-through · 2 November 2026
 - A company's site that shows a photograph licensed on Watermark now opens it on Watermark with one click: the picture is the link, a quiet Watermark mark on hover, a new tab so the site stays open.
 - Arriving from the company's site, the photograph's page says where it was seen, the licence it hangs there under, and the way back.

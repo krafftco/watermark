@@ -489,6 +489,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (app.locals.hangEvent) app.locals.hangEvent(event); // a card for a curator
     if (app.locals.keepEvent) app.locals.keepEvent(event); // a proof paid for
     if (app.locals.seasonEvent) app.locals.seasonEvent(event); // the Circle: joined, or ended
+    if (app.locals.clientEvent) app.locals.clientEvent(event); // a company's bill for the year
     if (app.locals.briefEvent) app.locals.briefEvent(event); // a brand's commission funded
     if (app.locals.franchiseEvent) app.locals.franchiseEvent(event); // a maker's own house: opened or closed
     if (app.locals.standingEvent) app.locals.standingEvent(event); // a piece a month: begun, a month paid, or ended
@@ -2062,7 +2063,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./stand').mountStand(app, { db, V, C, ledger, originalPath, makerOf: req => app.locals.accounts.makerOf(req) }); // the stand (31 Oct): sell on the spot
   require('./deliveries').mountDeliveries(app, { db, C, V, I: require('./icons'), mail, ledger, grant, nextRef, mk, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, originalPath, images, cache, marked, fileName, buyerOf, setBuyer });
   require('./sitters').mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf: req => app.locals.accounts.makerOf(req), isStudio, buyerOf, setBuyer }); // the sitter: pictures of you, by your own word
-  app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio });
+  app.locals.clients = require('./clients').mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio, stripe });
   app.get('/studio/fixity', studioOnly, (req, res) => res.send(S.fixity({ sum: app.locals.archive.summary(), failing: db.prepare("SELECT w.slug, w.title, w.accession, f.checked_at, f.note FROM works w JOIN fixity f ON f.id=(SELECT MAX(id) FROM fixity WHERE work_id=w.id) WHERE f.ok=0").all(), ok: req.query.ok || null })));
   app.post('/studio/fixity/run', studioOnly, async (req, res) => { const r = await app.locals.archive.fixity(Number(req.body.n) || 50); res.redirect(`/studio/fixity?ok=${encodeURIComponent(`Checked ${r.ran}: ${r.ok} whole, ${r.bad} failing.`)}`); });
   require('./open').mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req) });

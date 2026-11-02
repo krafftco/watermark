@@ -475,6 +475,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       assert.ok(pg.includes('class="sen"') && pg.includes('Seen on natora.com') && pg.includes('href="https://natora.com/about"') && pg.includes('Back to natora.com'), 'arriving from the site: where, the licence, the way back');
       assert.ok(!(await req(port, 'GET', `/w/${w.slug}?from=nobody`)).body.toString().includes('class="sen"'), 'no band for a stranger name');
       assert.ok((await req(port, 'GET', '/site.js')).body.toString().includes('wm-a'), 'the script makes the picture the link'); }
+    // The year's bill (2 Nov): one amount for every photograph; the first company to pay is the founding licensee.
+    { r = await req(port, 'POST', '/studio/clients/natora/bill', { cookie: ck, body: { amount: '2500', months: '12', note: 'With thanks.' } }); const btok = (decodeURIComponent(r.headers.location).match(/\/bill\/([\w-]+)/) || [])[1]; assert.ok(btok, 'a bill made');
+      let bp = (await req(port, 'GET', `/bill/${btok}`)).body.toString(); assert.ok(bp.includes('$2,500') && bp.includes('Pay $2,500') && bp.includes('With thanks.') && bp.includes(cj.works[0].number), 'the bill: the photographs, one amount, the way to pay');
+      assert.equal((await req(port, 'POST', '/studio/clients/natora/bill', { body: { amount: '1' } })).status, 302, 'the Studio only');
+      r = await req(port, 'POST', `/bill/${btok}/pay`); const bsid = r.headers.location.split('/').pop(); assert.ok(sessions[bsid] && sessions[bsid].metadata.client_bill, 'Checkout for the bill'); bp = (await req(port, 'GET', `/bill/${btok}?session_id=${bsid}`)).body.toString(); assert.ok(bp.includes('Pay $2,500'), 'unpaid until Stripe says paid'); sessions[bsid].payment_status = 'paid'; bp = (await req(port, 'GET', `/bill/${btok}?session_id=${bsid}`)).body.toString(); assert.ok(bp.includes('Paid') && bp.includes('founding licensee'), 'paid: the receipt, and the founding licensee');
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='client.founding'").get().n, 1, 'told on the register once');
+      assert.equal(db.prepare('SELECT price_cents FROM licenses WHERE ref=?').get(cref).price_cents, 250000, 'the licence carries what was paid');
+      assert.ok((await req(port, 'GET', `/w/${w.slug}?from=natora`)).body.toString().includes('founding licensee'), 'said on the photograph'); }
     db.prepare('UPDATE licenses SET ends_at=? WHERE ref=?').run(new Date(Date.now() - 864e5).toISOString(), cref);
     r = await req(port, 'GET', `/p/${cref}/screen`); assert.equal(r.status, 410, 'an ended license is not served');
     console.log('ok: companies');

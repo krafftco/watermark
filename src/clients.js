@@ -10,8 +10,9 @@
 // When a license ends the image is no longer served: the script shows the credit and "Renew" in its place.
 // Nothing is mailed to the client from here: the Studio sends the papers when Will says.
 const T = require('./track');
+const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
 
-function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio }) {
+function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio, stripe }) {
   db.exec(`CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, hosts TEXT, email TEXT,
       note TEXT, public INTEGER NOT NULL DEFAULT 0, at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS client_licenses (client_id INTEGER NOT NULL, ref TEXT NOT NULL, place TEXT, PRIMARY KEY (client_id, ref));
@@ -63,7 +64,7 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
     const hosts = hostsOf(c); let back = hosts.length ? `https://${hosts[0]}` : '';
     try { const ref = new URL(String(req.get('referer') || '')); if (hosts.includes(ref.hostname.toLowerCase())) back = ref.href; } catch (e) { /* none */ }
     const site = hosts[0] ? hosts[0].replace(/^www\./, '') : c.name;
-    return `<aside class="sen" aria-label="Where you came from"><p class="sen-k">Seen on ${esc(site)}</p><p class="sen-t">${esc(m ? m.name : '')}&rsquo;s photograph hangs on ${esc(c.name)}&rsquo;s site under licence <a href="${esc(`${C.base}/t/${T.compact(r.ref)}`)}">${esc(T.track(r.ref))}</a>${live(r) ? '' : ', now ended'}. This is the original, held on Watermark.</p>${back ? `<a class="sen-b" href="${esc(back)}">&larr; Back to ${esc(site)}</a>` : ''}</aside>`;
+    return `<aside class="sen" aria-label="Where you came from"><p class="sen-k">Seen on ${esc(site)}</p><p class="sen-t">${esc(m ? m.name : '')}&rsquo;s photograph hangs on ${esc(c.name)}&rsquo;s site under licence <a href="${esc(`${C.base}/t/${T.compact(r.ref)}`)}">${esc(T.track(r.ref))}</a>${live(r) ? '' : ', now ended'}. This is the original, held on Watermark.${founding() === c.id ? ` ${esc(c.name)} is the house&rsquo;s founding licensee.` : ''}</p>${back ? `<a class="sen-b" href="${esc(back)}">&larr; Back to ${esc(site)}</a>` : ''}</aside>`;
   };
   // The photograph, served under its license. Counted by the page it hangs on (the Referer), never by person.
   app.get('/p/:ref/:size', async (req, res) => {
@@ -88,6 +89,67 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
     } catch (e) { res.sendStatus(500); }
   });
 
+  // The founding licensee (Will, 2 Nov: "I want him to be the first person to pay, like the founding licensee"; "don't be
+  // penny-wise and pound-foolish… send him bills every so often, but we should not be foolish"): one bill a year for
+  // every photograph the company holds on its site, a flat amount the house names, never a bill a picture. The bill is
+  // a page the company opens by its link (/bill/<token>), pays through Checkout, and keeps as its receipt. The first
+  // company ever to pay is the house's founding licensee, said on the register and on its photographs' pages.
+  db.exec(`CREATE TABLE IF NOT EXISTS client_bills (id INTEGER PRIMARY KEY, client_id INTEGER NOT NULL, token TEXT UNIQUE NOT NULL, cents INTEGER NOT NULL,
+    refs TEXT NOT NULL, title TEXT, note TEXT, months INTEGER NOT NULL DEFAULT 12, status TEXT NOT NULL DEFAULT 'open', stripe_session TEXT,
+    paid_at TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  const billBy = t => db.prepare('SELECT * FROM client_bills WHERE token=?').get(String(t || ''));
+  const founding = () => { const r = db.prepare("SELECT client_id FROM client_bills WHERE status='paid' ORDER BY paid_at, id LIMIT 1").get(); return r ? r.client_id : null; };
+  app.locals.clientFounding = founding;
+  const usd = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
+  function billPaid(b, session) {
+    if (!b || b.status === 'paid') return;
+    const first = founding() == null;
+    db.prepare("UPDATE client_bills SET status='paid', paid_at=datetime('now'), stripe_session=COALESCE(?, stripe_session) WHERE id=?").run(session || null, b.id);
+    const refs = JSON.parse(b.refs || '[]'), each = refs.length ? Math.floor(b.cents / refs.length) : 0;
+    for (const ref of refs) db.prepare("UPDATE licenses SET price_cents=?, ends_at=?, updated_at=datetime('now') WHERE ref=? AND status='active'").run(each, new Date(Date.now() + b.months * 30.44 * 864e5).toISOString(), ref);
+    const c = db.prepare('SELECT * FROM clients WHERE id=?').get(b.client_id);
+    try { ledger.append(db, first ? 'client.founding' : 'client.paid', c.slug, { n: refs.length, name: c.public ? c.name : null }); } catch (e) { /* */ }
+    try { require('./mail').send({ to: HOUSE, subject: `${c.name} paid: ${usd(b.cents)}${first ? ' · the founding licensee' : ''}`, text: `${c.name} paid ${usd(b.cents)} for ${refs.length} photograph${refs.length === 1 ? '' : 's'} on ${hostsOf(c).join(', ')}, for ${b.months} months.${first ? '\n\nThe first company to pay: the house\'s founding licensee.' : ''}` }); } catch (e) { /* */ }
+  }
+  app.locals.clientEvent = event => { const o = event.data.object; if (event.type === 'checkout.session.completed' && o.metadata && o.metadata.client_bill && o.payment_status === 'paid') billPaid(db.prepare('SELECT * FROM client_bills WHERE id=?').get(+o.metadata.client_bill), o.id); };
+  // The bill as the company sees it: their photographs on their site, one line, one amount, the way to pay.
+  app.get('/bill/:token', async (req, res) => {
+    let b = billBy(req.params.token); if (!b) return res.sendStatus(404);
+    if (b.status !== 'paid' && req.query.session_id && stripe) { try { const s = await stripe.checkout.sessions.retrieve(String(req.query.session_id)); if (s.payment_status === 'paid' && s.metadata && +s.metadata.client_bill === b.id) { billPaid(b, s.id); b = billBy(req.params.token); } } catch (e) { /* the webhook will */ } }
+    const c = db.prepare('SELECT * FROM clients WHERE id=?').get(b.client_id), refs = JSON.parse(b.refs || '[]');
+    const list = refs.map(ref => { const l = q.lic.get(ref); const w = l && db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); return w ? { ref, w, m: mk(w) } : null; }).filter(Boolean);
+    const site = hostsOf(c)[0] ? hostsOf(c)[0].replace(/^www\./, '') : 'your site', isFirst = founding() === c.id, paid = b.status === 'paid';
+    res.set('Cache-Control', 'private, no-store').set('X-Robots-Tag', 'noindex');
+    res.send(V.layout({ title: `${c.name} · Watermark`, path: '/bill', body: `<section class="narrow bil"><p class="k">Watermark · ${paid ? 'Paid, with thanks' : 'A licence for the year'}</p>
+<h1>${esc(b.title || `The photographs on ${site}.`)}</h1>
+<p class="lede">${paid ? `Received ${esc(String(b.paid_at).slice(0, 10))}. ${isFirst ? `${esc(c.name)} is the house&rsquo;s founding licensee: the first company to license work on Watermark. Thank you.` : 'Thank you.'}` : `Every photograph below hangs on ${esc(site)} under its own licence, with its maker named and its number anyone can check. One amount covers all of them for ${b.months === 12 ? 'the year' : `${b.months} months`}.`}</p>
+${b.note ? `<blockquote class="bil-note"><p>${esc(b.note)}</p></blockquote>` : ''}
+<ul class="bil-g">${list.map(x => `<li><a href="/m/${esc(V.makerSlug ? V.makerSlug(x.m) : x.m.handle)}/${esc(x.w.slug)}?from=${esc(c.slug)}"><img src="/img/${esc(x.w.slug)}/thumb" alt="" loading="lazy"></a><p><b>${esc(tidy(x.w.title))}</b><span>${esc(x.m.name)}</span><a class="wm-no" href="/t/${esc(T.compact(x.ref))}">${esc(T.track(x.ref))}</a></p></li>`).join('')}</ul>
+<div class="bil-sum"><p><span>${list.length} photograph${list.length === 1 ? '' : 's'} · for a company · non-exclusive · ${b.months} months</span><b>${usd(b.cents)}</b></p>
+${paid ? '<p class="bil-paid">Paid</p>' : `<form method="post" action="/bill/${esc(b.token)}/pay"><button class="buy-btn">Pay ${usd(b.cents)}</button></form><p class="note">By card or bank through Stripe. The receipt is this page.</p>`}</div>
+<p class="note">Questions: ${esc(HOUSE)}. The licences are Watermark&rsquo;s standard terms for a company&rsquo;s use (<a href="/terms">terms</a>).</p></section>` }));
+  });
+  app.post('/bill/:token/pay', async (req, res) => {
+    const b = billBy(req.params.token); if (!b) return res.sendStatus(404); if (b.status === 'paid') return res.redirect(`/bill/${b.token}`);
+    const c = db.prepare('SELECT * FROM clients WHERE id=?').get(b.client_id);
+    if (!stripe) { if (process.env.NODE_ENV === 'test') { billPaid(b, 'test'); return res.redirect(`/bill/${b.token}`); } return res.redirect(`/bill/${b.token}?ok=closed`); }
+    try {
+      const s = await stripe.checkout.sessions.create({ mode: 'payment', line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: b.cents, product_data: { name: `Photographs on ${hostsOf(c)[0] || c.name}`, description: `${JSON.parse(b.refs).length} licences for a company, ${b.months} months. Watermark.` } } }],
+        customer_email: c.email || undefined, metadata: { client_bill: String(b.id) }, payment_method_types: undefined,
+        success_url: `${C.base}/bill/${b.token}?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/bill/${b.token}` });
+      db.prepare('UPDATE client_bills SET stripe_session=? WHERE id=?').run(s.id, b.id); res.redirect(303, s.url);
+    } catch (e) { console.error('[bill]', e.message); res.redirect(`/bill/${b.token}?ok=unavailable`); }
+  });
+  // Studio → Companies → a company: make the year's bill.
+  app.post('/studio/clients/:slug/bill', studioOnly, (req, res) => {
+    const c = client(req.params.slug); if (!c) return res.sendStatus(404);
+    const x = req.body || {}, cents = Math.round(parseFloat(String(x.amount || '').replace(/[^0-9.]/g, '')) * 100);
+    const refs = rows(c).filter(r => live(r)).map(r => r.ref);
+    if (!(cents >= 100) || !refs.length) return res.redirect(`/studio/clients/${c.slug}?ok=` + encodeURIComponent('An amount, and at least one live licence.'));
+    const token = require('crypto').randomBytes(16).toString('base64url');
+    db.prepare('INSERT INTO client_bills (client_id, token, cents, refs, title, note, months) VALUES (?,?,?,?,?,?,?)').run(c.id, token, cents, JSON.stringify(refs), String(x.title || '').trim().slice(0, 160) || null, String(x.note || '').trim().slice(0, 800) || null, Math.max(1, Math.min(36, +x.months || 12)));
+    res.redirect(`/studio/clients/${c.slug}?ok=` + encodeURIComponent(`The bill is ready: ${C.base}/bill/${token}`));
+  });
   // --- the public account (only when the Studio turns it on: a company's name is theirs to show) ---
   app.get('/for/:slug', (req, res) => {
     const c = client(req.params.slug);
@@ -131,6 +193,7 @@ ${cs.length ? `<ul class="cl-l">${cs.map(c => `<li><a href="/studio/clients/${es
 <button>License them to ${esc(c.name)}</button></form>
 <h2>On their site</h2><p>Once in the site's head or footer, then <code>data-wm</code> on each image (a slug, or the license number). Their own image file may stay as it is; add <code>data-wm-keep</code> to keep it.</p><pre class="cl-s">${snippet}</pre>
 ${pl.length ? `<h2>Where they hang</h2><ul class="cl-l">${pl.map(p => `<li>${esc(p.host)}${esc(p.page)} &middot; ${esc(T.track(p.ref))} &middot; ${p.n} time${p.n === 1 ? '' : 's'} &middot; last ${esc(String(p.last_at).slice(0, 10))}</li>`).join('')}</ul>` : ''}
+${(() => { const bills = db.prepare('SELECT * FROM client_bills WHERE client_id=? ORDER BY id DESC').all(c.id); return `<h2>The year's bill</h2><p>One amount a year for every photograph ${esc(c.name)} holds, never a bill a picture. The first company ever to pay is the house's founding licensee.</p>${bills.length ? `<ul class="cl-l">${bills.map(b => `<li><a href="/bill/${esc(b.token)}">${esc(usd(b.cents))} · ${b.months} months · ${JSON.parse(b.refs).length} photographs</a> · ${b.status === 'paid' ? `paid ${esc(String(b.paid_at).slice(0, 10))}` : 'open'} · <code>${esc(base)}/bill/${esc(b.token)}</code></li>`).join('')}</ul>` : ''}<form method="post" action="/studio/clients/${esc(c.slug)}/bill" class="cl-f"><label>Amount for the year, in dollars <input name="amount" inputmode="decimal" required maxlength="10" placeholder="2500"></label><label>Months <input name="months" inputmode="numeric" value="12" maxlength="2"></label><label>A heading (optional) <input name="title" maxlength="160" placeholder="The photographs on natoragroup.com."></label><label>A note in your words (optional) <textarea name="note" rows="3" maxlength="800"></textarea></label><button>Make the bill</button></form>`; })()}
 <h2>The company</h2><form method="post" action="/studio/clients/${esc(c.slug)}" class="cl-f"><label>Sites <input name="hosts" value="${esc(c.hosts || '')}" maxlength="300"></label>
 <label>Who to write to <input name="email" type="email" value="${esc(c.email || '')}" maxlength="160"></label>
 <label class="cl-c"><input type="checkbox" name="public" value="1"${c.public ? ' checked' : ''}> Show the public account at <a href="/for/${esc(c.slug)}">/for/${esc(c.slug)}</a> (with ${esc(c.name)}'s yes)</label><button>Save</button></form>`, req.query.ok));
