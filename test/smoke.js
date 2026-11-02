@@ -1286,13 +1286,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the easel');
 
   // Deliveries (21 Oct): the maker sends a client their photographs by one link; no payment; each file licensed, marked, counted; the link closes.
-  { r = await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('Make the link'), 'the deliveries desk');
+  { r = await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: ck }); assert.ok(r.status === 200 && r.body.toString().includes('New album'), 'the albums desk');
+    { const np = (await req(port, 'GET', `/account/deliveries/new?maker=${me}`, { cookie: ck })).body.toString(); assert.ok(np.includes('Make the album') && np.includes('Select the photographs'), 'a new album, on its own page'); }
     const dck = `${ck}; ${(r.headers['set-cookie'] || []).find(c => c.startsWith('wm_as=')).split(';')[0]}`;
     r = await req(port, 'POST', '/account/deliveries', { cookie: dck, body: { title: 'The thirtieth', client: 'R. D.', email: 'rd@example.com', phone: '(214) 555-0199', days: '30', size: 'original', note: 'With love.', works: w.slug } });
-    assert.ok(/sent=/.test(r.headers.location), 'a delivery made'); const dtok = r.headers.location.split('sent=')[1];
+    assert.ok(/^\/account\/deliveries\/\d+\?sent=1$/.test(r.headers.location), 'a delivery made, landing on its own page'); const dtok = db.prepare('SELECT token FROM deliveries WHERE id=?').get(+r.headers.location.match(/\/(\d+)\?/)[1]).token;
     const dv = db.prepare('SELECT * FROM deliveries WHERE token=?').get(dtok); assert.ok(dv && dv.client_name === 'R. D.' && dv.expires_at, 'the delivery row');
     assert.strictEqual(dv.client_phone, '+12145550199', 'the phone kept as a number');
-    { const pg = (await req(port, 'GET', `/account/deliveries?maker=${me}&sent=${dtok}`, { cookie: dck })).body.toString(); assert.ok(/href="sms:\+12145550199\?&amp;body=/.test(pg) && pg.includes('Text it to +12145550199'), 'text it from your own phone'); }
+    { const pg = (await req(port, 'GET', `/account/deliveries/${dv.id}?sent=1`, { cookie: dck })).body.toString(); assert.ok(/href="sms:\+12145550199\?&amp;body=/.test(pg) && pg.includes('<span>Text</span>') && pg.includes('Copy link') && pg.includes('Preview') && pg.includes('Made. Send it'), 'the album’s page: Text from your own phone, Copy link, Preview');
+      const old = await req(port, 'GET', `/account/deliveries?sent=${dtok}`, { cookie: dck }); assert.equal(old.headers.location, `/account/deliveries/${dv.id}?sent=1`, 'an old ?sent= link lands on the album');
+      const list = (await req(port, 'GET', '/account/deliveries', { cookie: dck })).body.toString(); assert.ok(list.includes('class="dvd-card') && list.includes(`/account/deliveries/${dv.id}`), 'albums as cards'); }
     const dl = db.prepare("SELECT l.* FROM licenses l JOIN delivery_works dw ON dw.ref=l.ref WHERE dw.delivery_id=?").get(dv.id); assert.ok(dl && dl.status === 'active' && dl.price_cents == null && dl.download_token, 'a free licence of use delivery');
     assert.equal(db.prepare('SELECT u.key FROM uses u WHERE u.id=?').get(dl.use_id).key, 'delivery');
     r = await req(port, 'GET', `/deliver/${dtok}`); { const t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Download all') && t.includes('The thirtieth') && t.includes('With love.') && t.includes(`/deliver/${dtok}/${w.slug}/file`) && t.includes(`/deliver/${dtok}/${w.slug}/file?full=1`), 'the client door: the copy, and the full file'); }
@@ -1329,7 +1332,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/keep`, { body: { name: 'No Mail' } }); assert.ok(/keep=email/.test(r.headers.location), 'an email is needed');
       r = await req(port, 'GET', '/ledger'); assert.ok(!/Nia Friend|nia@example/.test(r.body.toString()) && !/license\.kept/.test(r.body.toString()), 'the friend is never named on the public register'); }
     // Social (31 Oct): the address passed on shows, signs and thanks, never a file; the card for a chat; the book; Instax; Save and Instax in Wander.
-    { r = await req(port, 'GET', `/deliver/${dtok}`); const t = r.body.toString(); const sh = (t.match(/\/a\/([A-Za-z0-9_-]+)/) || [])[1]; assert.ok(sh && t.includes('Send to the group') && t.includes(`/a/${sh}/card.jpg`), 'send to the group, the card in the head');
+    { r = await req(port, 'GET', `/deliver/${dtok}`); const t = r.body.toString(); const sh = (t.match(/\/a\/([A-Za-z0-9_-]+)/) || [])[1]; assert.ok(sh && t.includes('Share with the group') && t.includes(`/a/${sh}/card.jpg`) && t.includes('class="dvt"') && t.includes('data-dvo') && t.includes('data-dvt="dl"'), 'the toolbar of plain verbs, share with the group, the card in the head');
       r = await req(port, 'GET', `/a/${sh}`); const v = r.body.toString(); assert.ok(r.status === 200 && !v.includes(dtok) && !v.includes('/file') && !v.includes('all.zip') && v.includes('Deliver your own photographs') && v.includes(`in=album:${sh}`), 'the passed-on album shows and never hands over a file, nor the album\'s own address');
       r = await req(port, 'GET', `/a/${sh}/card.jpg`); assert.ok(r.status === 200 && /image\/jpeg/.test(r.headers['content-type']), 'the card for a chat');
       r = await req(port, 'POST', `/a/${sh}/note`, { body: { name: 'Sam', body: 'What a night. Thank you.' } }); assert.ok(/book=ok/.test(r.headers.location), 'the group signs');
@@ -1344,7 +1347,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
         let j = await mk({ name: 'Rae Guest', email: 'rae@example.com' }); assert.ok(j.ok && j.asked && !j.linked, 'a stranger saying that is me is asked to confirm by letter');
         j = await mk({ friend: '1', friend_name: 'Tom Friend', friend_email: 'tom@example.com' }); assert.ok(j.ok && j.asked, 'a friend named is asked');
         j = await mk({ friend: '1', friend_name: 'No Mail' }); assert.ok(!j.ok, 'an email, please');
-        const t3 = (await req(port, 'GET', `/a/${sh}`)).body.toString(); assert.ok(t3.includes('data-dv-me') && t3.includes('Share to your story') && t3.includes('Find yourself'), 'the album offers it');
+        const t3 = (await req(port, 'GET', `/a/${sh}`)).body.toString(); assert.ok(t3.includes('data-dv-me') && t3.includes('data-dv-story-kind="story"') && t3.includes('data-dv-story-kind="post"'), 'the album offers it: That’s me, a story, a post');
+        { const pr = await req(port, 'GET', `/a/${sh}/${w.slug}/post.jpg`); assert.equal(pr.status, 200); const pm = await require('sharp')(pr.body).metadata(); assert.ok(pm.width === 1080 && pm.height === 1350, 'a post, 1080 by 1350'); }
         const sr = await req(port, 'GET', `/a/${sh}/${w.slug}/story.jpg`); assert.equal(sr.status, 200); const sm = await require('sharp')(sr.body).metadata(); assert.ok(sm.width === 1080 && sm.height === 1920, 'a story, 1080 by 1920');
         const tok = db.prepare("SELECT st.token FROM sittings st JOIN sitters s ON s.id=st.sitter_id JOIN buyers b ON b.id=s.buyer_id WHERE b.email='rae@example.com'").get().token;
         await req(port, 'POST', `/sit/${tok}`, { body: { a: 'yes' } });
@@ -1358,6 +1362,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       hr = await req(port, 'GET', `/deliver/${dtok}/all.zip?fav=1`); assert.equal(hr.status, 302, 'no favourites: back to the album');
       assert.ok((await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: dck })).body.toString().includes('♥ 1'), 'the maker sees the count');
       hj = JSON.parse((await req(port, 'POST', `/deliver/${dtok}/${w.slug}/heart`, { cookie: hck, headers: { accept: 'application/json' } })).body.toString()); assert.ok(hj.ok && !hj.on && hj.n === 0, 'and taken back'); }
+    // The album's own page (2 Nov): the cover chosen, a photograph added and taken out (its licence ends; it stays in the vault), the name and note edited; another maker refused.
+    { r = await req(port, 'POST', `/account/deliveries/${dv.id}/cover`, { cookie: dck, body: { slug: w.slug } }); assert.ok(/ok=/.test(r.headers.location) && db.prepare('SELECT cover_slug FROM deliveries WHERE id=?').get(dv.id).cover_slug === w.slug, 'the cover chosen');
+      const extra = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND id NOT IN (SELECT work_id FROM delivery_works WHERE delivery_id=?) LIMIT 1").get(dv.maker_id, dv.id);
+      if (extra) { r = await req(port, 'POST', `/account/deliveries/${dv.id}/add`, { cookie: dck, body: { works: extra.slug } }); assert.ok(/1%20added/.test(r.headers.location), 'a photograph added');
+        const xr = db.prepare('SELECT ref FROM delivery_works WHERE delivery_id=? AND work_id=?').get(dv.id, extra.id); assert.ok(xr && db.prepare('SELECT status FROM licenses WHERE ref=?').get(xr.ref).status === 'active', 'licensed to them like the rest');
+        r = await req(port, 'POST', `/account/deliveries/${dv.id}/remove`, { cookie: dck, body: { slug: extra.slug } }); assert.ok(!db.prepare('SELECT 1 FROM delivery_works WHERE delivery_id=? AND work_id=?').get(dv.id, extra.id) && new Date(db.prepare('SELECT ends_at FROM licenses WHERE ref=?').get(xr.ref).ends_at) < new Date() && db.prepare('SELECT 1 FROM works WHERE id=?').get(extra.id), 'taken out: the licence ends, the work stays'); }
+      r = await req(port, 'POST', `/account/deliveries/${dv.id}/scenes`, { cookie: dck, body: { [`n_${w.slug}`]: 'The toast' } }); assert.equal(JSON.parse(db.prepare('SELECT scene_names FROM deliveries WHERE id=?').get(dv.id).scene_names)[w.slug], 'The toast', 'a scene named');
+      r = await req(port, 'POST', `/account/deliveries/${dv.id}/edit`, { cookie: dck, body: { title: 'The thirtieth, again', note: 'With love, still.' } }); assert.equal(db.prepare('SELECT title FROM deliveries WHERE id=?').get(dv.id).title, 'The thirtieth, again', 'renamed');
+      r = await req(port, 'POST', `/account/deliveries/${dv.id}/cover`, { body: { slug: w.slug } }); assert.equal(r.status, 401, 'a stranger refused'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');

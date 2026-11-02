@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.18.0 · The album, cleaned · 2 November 2026
+- The album as a client sees it: a cover, then a clean grid with a heart on each photograph and nothing else. A tap opens the photograph large, with Download · Share · Print · More beneath it.
+- Share makes the photograph ready for a feed (4:5) or a story (9:16), credited, or sends the album's link.
+- One toolbar for the album: Favourites · Play · Wander · Download · Share.
+- For the photographer: albums as cards, a New album page, and each album's own page with Preview · Share · Text · Copy link · Add · Close. Choose the cover, name the scenes, add photographs or take one out (its link ends; it stays in your vault), rename it.
+- The house's design standard written down: the rooms in the house's voice, the tools in plain verbs.
+
 ## 1.17.0 · The curator · 31 October 2026
 - The curator's invitation arrives engraved: the maker's best photograph on its mount, what the key opens, one door. While none has been given, it is the first curator's key of the house.
 - The key is given the moment the keys are accepted, with its own letter: the number and three first steps.
