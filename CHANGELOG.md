@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.26 · The easel, forward · 2 November 2026
+
+- Study is on Wander's rail and in every work's acts; Draw steps back (its address still answers).
+- The easel's own door, /easel: the masters, the house's best, an artist at a time, a word to find any work; how to set a phone or tablet on a stand.
+- Value finder: tap any passage for its value, 0 black to 10 white, its colour, and its place on a value scale.
+- Side by side: the colour beside the values, the notan or the squint, the two moving together as you zoom; made for a Duo open on its stand, or an iPad.
+- On the stand: one press puts everything away, holds the view and keeps the screen awake.
+- A 4 × 4 grid between thirds and 6 × 4; the tools you used are remembered on the device.
+- Every painting on an artist's page has Study it on the easel; the page has Study the work.
+
 ## 1.25.1 · Oil on canvas · 2 November 2026
 
 - The medium as a museum label says it: Wikidata's materials joined, the paint first and the support after 'on' (Oil on canvas; Chalk on paper; Watercolour and pencil on paper).

@@ -2341,8 +2341,12 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/draw'); assert.ok(r.status === 200 && /class="dw"/.test(r.body) && /data-dw-tool="pencil"/.test(r.body) && /data-dw-tool="wash"/.test(r.body) && /Sign in to keep/.test(r.body) && /draw\.js/.test(r.body), 'the blank sheet for a stranger');
     const dwW = db.prepare("SELECT slug FROM works WHERE status='held' LIMIT 1").get();
     r = await req(port, 'GET', `/draw/from/${dwW.slug}`); assert.ok(r.status === 200 && /data-dw-refim/.test(r.body) && /data-dw-rf="notan"/.test(r.body) && /data-dw="trace"/.test(r.body) && new RegExp(`data-ref="${dwW.slug}"`).test(r.body), 'drawing from a work: the reference and its tools');
-    r = await req(port, 'GET', `/w/${dwW.slug}`); assert.ok(new RegExp(`/draw/from/${dwW.slug}`).test(r.body), 'the door on the work page');
-    r = await req(port, 'GET', `/easel/${dwW.slug}`); assert.ok(/ez-draw/.test(r.body), 'the door on the easel');
+    // The easel forward (2 Nov): the work page and Wander lead to the easel, not the sheet; Draw stays by its own address.
+    r = await req(port, 'GET', `/w/${dwW.slug}`); assert.ok(new RegExp(`class="ap-share ap-study" href="/easel/${dwW.slug}"`).test(r.body) && !new RegExp(`/draw/from/${dwW.slug}`).test(r.body), 'Study on the work page; Draw no longer offered');
+    r = await req(port, 'GET', `/easel/${dwW.slug}`); assert.ok(!/ez-draw/.test(r.body) && /data-ez="pick"/.test(r.body) && /data-ez="compare"/.test(r.body) && /data-ez="stand"/.test(r.body) && /data-ez-pane2/.test(r.body) && /ez-scale/.test(r.body), 'the easel: value, side by side, on the stand');
+    r = await req(port, 'GET', '/easel'); assert.ok(r.status === 200 && /The easel\./.test(r.body) && /ezl-w/.test(r.body) && /On the stand/.test(r.body), 'the easel’s own door');
+    r = await req(port, 'GET', '/easel?q=' + encodeURIComponent('a')); assert.ok(r.status === 200 && /Found: a/.test(r.body), 'find a work to study');
+    r = await req(port, 'GET', `/wander?at=${dwW.slug}`); assert.ok(new RegExp(`data-st-easel href="/easel/${dwW.slug}`).test(r.body) && /<span>Study<\/span>/.test(r.body), 'Study on Wander’s rail');
     const sharp = require('sharp'); const png = await sharp({ create: { width: 64, height: 48, channels: 4, background: { r: 20, g: 20, b: 20, alpha: 1 } } }).png().toBuffer();
     const wmd = JSON.stringify({ v: 1, title: 'A study', w: 64, h: 48, ref: dwW.slug, layers: [{ name: 'Paper', opacity: 1, visible: true, png: 'data:image/png;base64,' + png.toString('base64') }] });
     const dwBody = o => ({ body: JSON.stringify(o), headers: { 'content-type': 'application/x-watermark-drawing+json' } });
