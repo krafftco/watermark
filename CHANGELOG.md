@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.29.2 · A museum by its whole name · 2 November 2026
+
+A museum's page and its Gazette call it by its whole name, never its first word. A painting from the Met reads as a painting when its medium says oil, tempera or canvas.
+
 ## 1.29.1 · The artist's own card · 2 November 2026
 
 Sending an artist sends their page: the life, the dates, the work in order, never the wall. Every link to an artist unfurls into the house's card: the work beside the name, the dates and the life as a line.
