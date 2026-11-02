@@ -14,7 +14,12 @@ function mountDoor(app, { db, C, V, ledger, buyerOf, openStudio, isStudio, passk
   const named = email => list().includes(String(email || '').trim().toLowerCase());
   const keysFor = email => { const b = db.prepare('SELECT * FROM buyers WHERE lower(email)=lower(?)').get(email); return b ? passkeysOf(b) : []; };
   const fresh = email => { const since = Date.now() - LIFE; db.prepare('DELETE FROM studio_factors WHERE at < ?').run(since - 864e5); return new Set(db.prepare('SELECT factor FROM studio_factors WHERE email=? AND at > ?').all(String(email).toLowerCase(), since).map(r => r.factor)); };
-  const state = email => { const f = fresh(email), hasKey = keysFor(email).length > 0; const code = f.has('code') || f.has('link'); const key = f.has('passkey'); return { code, key, hasKey, open: code && (key || !hasKey) }; };
+  // The passkey set aside (2 Nov, Will locked out: the passkey lived on a device he did not have to hand). Only someone who
+  // can change the house's own settings in Render can name an email here; while it is named, that email's code alone opens
+  // the door, the page says why, and every such opening is on the register. Add a passkey on the device at hand, then take
+  // the setting out.
+  const setAside = email => String(process.env.STUDIO_PASSKEY_RESET || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean).includes(String(email || '').toLowerCase());
+  const state = email => { const f = fresh(email), hasKey = keysFor(email).length > 0; const code = f.has('code') || f.has('link'); const key = f.has('passkey'); const aside = hasKey && setAside(email); return { code, key, hasKey, aside, open: code && (key || !hasKey || aside) }; };
 
   // Called by the sign-in (code, link) and the passkey verification. Returns true when the door opened.
   function factor(req, res, email, which) {
@@ -24,7 +29,7 @@ function mountDoor(app, { db, C, V, ledger, buyerOf, openStudio, isStudio, passk
     if (!s.open || isStudio(req)) return s.open;
     openStudio(res);
     db.prepare('DELETE FROM studio_factors WHERE email=?').run(email);
-    try { ledger.append(db, 'studio.opened', email.replace(/@.*/, '@…'), { factors: s.key ? 'code+passkey' : 'code', passkey: s.hasKey }); } catch (e) { /* */ }
+    try { ledger.append(db, 'studio.opened', email.replace(/@.*/, '@…'), { factors: s.key ? 'code+passkey' : s.aside ? 'code (passkey set aside)' : 'code', passkey: s.hasKey }); } catch (e) { /* */ }
     return true;
   }
   app.locals.studioFactor = factor;
@@ -41,7 +46,7 @@ function mountDoor(app, { db, C, V, ledger, buyerOf, openStudio, isStudio, passk
 ${!list().length ? `<p class="err">No one is named at the door yet. Set <code>STUDIO_EMAILS</code> on the server to the addresses that may enter; until then <a href="/studio/login">the password</a> answers.</p>` : ''}
 <ol class="dr-steps">
 <li class="${s && s.code ? 'done' : email ? 'now' : 'now'}"><b>Your email code.</b> ${s && s.code ? 'Done.' : `<a class="buy-btn" href="/signin?next=/studio/door">Sign in with your email</a>`}${email && !(s && s.code) ? `<small>Signed in as ${esc(email)}; the door needs a fresh code.</small>` : ''}</li>
-<li class="${s && s.code ? (s.key || !s.hasKey ? 'done' : 'now') : ''}"><b>Your passkey.</b> ${s && s.code ? (s.hasKey ? (s.key ? 'Done.' : `<button type="button" class="buy-btn" data-door-key>Use your passkey</button><small>Face ID, Touch ID or your phone.</small>`) : `<span>You have none yet, so the code alone opens the door today. <a href="/yours?tab=settings#passkey">Add a passkey</a> and it will be asked for from then on.</span>`) : '<small>After the code.</small>'}</li>
+<li class="${s && s.code ? (s.key || !s.hasKey ? 'done' : 'now') : ''}"><b>Your passkey.</b> ${s && s.code ? (s.hasKey && s.aside && !s.key ? `<span>Set aside for now by the house's settings, so the code alone opens the door. <a href="/yours?tab=settings#passkey">Add a passkey on this device</a>, then take STUDIO_PASSKEY_RESET out in Render.</span>` : s.hasKey ? (s.key ? 'Done.' : `<button type="button" class="buy-btn" data-door-key>Use your passkey</button><small>Face ID, Touch ID or your phone.</small>`) : `<span>You have none yet, so the code alone opens the door today. <a href="/yours?tab=settings#passkey">Add a passkey</a> and it will be asked for from then on.</span>`) : '<small>After the code.</small>'}</li>
 </ol>
 ${s && s.open ? `<p class="ok">The door is open. <a href="/studio">Into the studio →</a></p>` : ''}
 <p class="note">Two factors, ten minutes apart at most: the code proves the inbox, the passkey proves the device and the person. Every opening is on the register.</p>

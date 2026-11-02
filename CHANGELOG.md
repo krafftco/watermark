@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.30.1 · The way back in · 2 November 2026
+
+When the passkey lives on a device that is not to hand, the house's own settings can set it aside for one email: the code alone opens the Studio, the door says so, and the register records it. Add a passkey on the device at hand, then take the setting out.
+
 ## 1.30 · The line · 2 November 2026
 
 Line up as much as you like, from a phone, and the house brings it in one run at a time: the Met a hundred at a time, by department or highlights, going on by itself until the search runs dry; the masters, thirty of them, each page made, the catalogue read and every public-domain photograph brought in. It never runs beside another feed, holds while the house is being shown, and can be paused.

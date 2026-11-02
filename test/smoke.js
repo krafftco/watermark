@@ -224,6 +224,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const sc = String(r.headers['set-cookie'] || ''); assert.ok(/wm_s=/.test(sc), 'the named person\'s code opens the door');
     const dck = sc.match(/wm_s=[^;]+/)[0]; r = await req(port, 'GET', '/studio/legal', { cookie: dck }); assert.equal(r.status, 200, 'and the studio answers');
     assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.opened'").get().n >= 1, 'the opening is on the register');
+    // With a passkey on file the code alone no longer opens; the house's own setting can set the passkey aside (2 Nov: Will locked out).
+    { const db2 = db.prepare("SELECT id FROM buyers WHERE lower(email)='door@example.com'").get(); db.prepare("INSERT INTO passkeys (buyer_id, cred_id, public_key) VALUES (?, 'door-test-cred', ?)").run(db2.id, Buffer.from('x'));
+      const fake = () => ({ cookies: {}, headers: {}, get: () => '' }), out = { cookie() { this.set = true; return this; }, clearCookie() { return this; } };
+      assert.equal(app.locals.studioFactor(fake(), out, 'door@example.com', 'code'), false, 'with a passkey on file, the code alone opens nothing');
+      process.env.STUDIO_PASSKEY_RESET = 'door@example.com';
+      assert.equal(app.locals.studioFactor(fake(), out, 'door@example.com', 'code'), true, 'set aside by the house\'s settings, the code opens');
+      assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='studio.opened' AND data LIKE '%set aside%'").get(), 'and the register says how');
+      delete process.env.STUDIO_PASSKEY_RESET; db.prepare("DELETE FROM passkeys WHERE cred_id='door-test-cred'").run(); }
     delete process.env.STUDIO_EMAILS; }
   // The numbers: every page hit is recorded without a person's name; the room reads today against yesterday, who is on now, speed, errors and health; a stranger is sent to the door.
   { app.locals.analytics.flush(); const R = app.locals.analytics.report('today'); assert.ok(R.cur.views > 10 && R.cur.visitors >= 1, 'hits were kept'); assert.ok(R.works.length >= 1, 'works most seen');
