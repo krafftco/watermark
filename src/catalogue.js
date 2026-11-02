@@ -12,6 +12,17 @@ const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
 const SPARQL = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql';
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const qidOf = s => (String(s || '').match(/\bQ\d+\b/) || [])[0] || null;
+// The medium as a museum label says it (Will, 2 Nov: "this needs to say oil on canvas"): Wikidata gives the materials one
+// by one (oil paint, canvas); the label joins them, the paint first, the support after 'on'.
+const PAINTS = [[/^oil paint$|^oil$/, 'Oil'], [/tempera/, 'Tempera'], [/watercolou?r/, 'Watercolour'], [/gouache/, 'Gouache'], [/pastel/, 'Pastel'], [/charcoal/, 'Charcoal'], [/graphite|pencil/, 'Pencil'], [/black chalk|red chalk|chalk/, 'Chalk'], [/ink|bistre/, 'Ink'], [/metalpoint|silverpoint/, 'Silverpoint'], [/fresco/, 'Fresco'], [/acrylic/, 'Acrylic'], [/bronze/, 'Bronze'], [/marble/, 'Marble']];
+const SUPPORTS = [[/canvas|linen/, 'canvas'], [/panel|wood|oak|poplar|walnut|lime/, 'panel'], [/cardboard|board/, 'board'], [/paper|vellum|parchment/, 'paper'], [/plaster|wall/, 'plaster'], [/copper/, 'copper']];
+function mediumLabel(list) {
+  const ms = [...new Set((list || []).map(x => String(x || '').toLowerCase().trim()).filter(Boolean))]; if (!ms.length) return null;
+  const paints = [], supports = [], other = [];
+  for (const m of ms) { const p = PAINTS.find(([re]) => re.test(m)); const s = SUPPORTS.find(([re]) => re.test(m)); if (p && !paints.includes(p[1])) paints.push(p[1]); else if (s && !supports.includes(s[1])) supports.push(s[1]); else if (!p && !s) other.push(m); }
+  if (paints.length || supports.length) { const head = paints.length ? paints.map((p, i) => i ? p.toLowerCase() : p).join(' and ') : (other[0] ? other[0][0].toUpperCase() + other[0].slice(1) : 'Painted'); return supports.length ? `${head} on ${supports.join(' and ')}` : head; }
+  return ms[0][0].toUpperCase() + ms[0].slice(1);
+}
 const KIND = t => { t = String(t || '').toLowerCase(); return /painting|portrait|landscape|still life|triptych|altarpiece|fresco|mural/.test(t) ? 'painting' : /drawing|sketch|cartoon|study/.test(t) ? 'drawing' : /print|etching|lithograph|woodcut|engraving/.test(t) ? 'print' : /sculpture|statue|bust|relief/.test(t) ? 'sculpture' : /codex|notebook|manuscript|letter/.test(t) ? 'drawing' : /textile|tapestry/.test(t) ? 'textile' : t ? 'other' : null; };
 
 function mountCatalogue(app, { db, V, C, ledger, studioOnly }) {
@@ -59,7 +70,7 @@ function mountCatalogue(app, { db, V, C, ledger, studioOnly }) {
     for (const r of rows) {
       const q = qidOf(r.w.value); if (!q) continue; const v = k => r[k] ? String(r[k].value) : null;
       const title = v('wLabel'); if (!title || /^Q\d+$/.test(title)) continue;
-      let o = by.get(q); if (!o) { o = { qid: q, collection_qid: null, object_url: null, title, year: null, year_end: null, image: null, collection: null, inventory: null, medium: null, type: null, place: null, size: null, wiki: null }; by.set(q, o); }
+      let o = by.get(q); if (!o) { o = { qid: q, media: [], collection_qid: null, object_url: null, title, year: null, year_end: null, image: null, collection: null, inventory: null, medium: null, type: null, place: null, size: null, wiki: null }; by.set(q, o); }
       const y = s => { const m = String(s || '').match(/^(-?\d{1,4})-/); return m ? +m[1] : null; };
       if (o.year == null && v('date')) o.year = y(v('date'));
       if (o.year_end == null && v('end')) o.year_end = y(v('end'));
@@ -68,21 +79,31 @@ function mountCatalogue(app, { db, V, C, ledger, studioOnly }) {
       if (!o.collection_qid && v('coll')) o.collection_qid = qidOf(v('coll'));
       if (!o.object_url && v('described') && /^https:\/\//.test(v('described'))) o.object_url = v('described');
       if (!o.inventory && v('inv')) o.inventory = v('inv');
-      if (!o.medium && v('medLabel') && !/^Q\d+$/.test(v('medLabel'))) o.medium = v('medLabel');
+      if (v('medLabel') && !/^Q\d+$/.test(v('medLabel'))) o.media.push(v('medLabel'));
       if (!o.type && v('typeLabel') && !/^Q\d+$/.test(v('typeLabel'))) o.type = v('typeLabel');
       if (!o.place && v('locLabel') && !/^Q\d+$/.test(v('locLabel'))) o.place = v('locLabel');
       if (!o.size && v('h') && v('wd')) o.size = `${(+v('h')).toFixed(1).replace(/\.0$/, '')} × ${(+v('wd')).toFixed(1).replace(/\.0$/, '')} cm`;
       if (!o.wiki && v('article')) o.wiki = v('article');
     }
+    for (const o of by.values()) o.medium = mediumLabel(o.media);
     const items = [...by.values()].filter(o => !/^(exhibition|written work|literary work|letter|book|edition)$/i.test(o.type || ''));
     const up = db.prepare(`INSERT INTO catalogue (artist_id, qid, title, year, year_end, kind, type, medium, collection, inventory, place, image, size, wiki, collection_qid, object_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT (artist_id, qid) DO UPDATE SET collection_qid=excluded.collection_qid, object_url=excluded.object_url, title=excluded.title, year=excluded.year, year_end=excluded.year_end, kind=excluded.kind, type=excluded.type, medium=excluded.medium, collection=excluded.collection, inventory=excluded.inventory, place=excluded.place, image=excluded.image, size=excluded.size, wiki=excluded.wiki, read_at=datetime('now')`);
     db.transaction(() => { for (const o of items) up.run(a.id, o.qid, o.title.slice(0, 300), o.year, o.year_end, KIND(o.type), o.type, o.medium, o.collection, o.inventory, o.place, o.image, o.size, o.wiki, o.collection_qid, o.object_url); })();
+    try { settle(a); } catch (e) { console.error('[catalogue] settle', e.message); }
     try { await readKeepers([...new Set(items.map(o => o.collection_qid).filter(Boolean))]); } catch (e) { console.error('[catalogue] keepers', e.message); }
     db.prepare("UPDATE artists SET qid=?, catalogue_at=datetime('now') WHERE id=?").run(qid, a.id);
     try { A().uncache(a.slug); } catch (e) { /* */ }
     try { ledger.append(db, 'artist.catalogued', a.slug, { qid, n: items.length, pictures: items.filter(o => o.image).length }); } catch (e) { /* */ }
     return { qid, n: items.length, pictures: items.filter(o => o.image).length };
+  }
+  // The house's own photographs of an artist's work take Wikidata's English title and the medium as a label says it
+  // (Commons' file titles run 'German: Quittenstillleben Still Life with Quinces'); the old title stays in title_given.
+  function settle(a) {
+    const held = db.prepare("SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND m.kind='institution'").all(a.id);
+    for (const r of of(a, held)) { const w = r.work; if (!w) continue;
+      db.prepare("UPDATE works SET title_given=COALESCE(title_given, title), title=?, medium=COALESCE(?, medium), taken_at=COALESCE(taken_at, ?) WHERE id=?").run(r.title.slice(0, 160), r.medium || null, r.year ? `${r.year}-01-01` : null, w.id); }
+    try { A().uncache(a.slug); } catch (e) { /* */ }
   }
   // The collections themselves: name, city, country, website, coordinates; two hundred to a question.
   async function readKeepers(qids) {
@@ -176,4 +197,4 @@ ${[...by.entries()].map(([slug, g]) => `<section class="ipv-art"><h2><a href="/a
   app.locals.catalogue = { read, of, count, bring, items, desk, findQid, commonsId, inPerson, rowOfWork, keeper, keepersAll, readKeepers };
   return app.locals.catalogue;
 }
-module.exports = { mountCatalogue, KIND, qidOf };
+module.exports = { mountCatalogue, KIND, qidOf, mediumLabel };

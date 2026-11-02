@@ -192,7 +192,8 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
 
   // The artist's page (31 Oct): src/artistpage.js. Every work in the order it was made, the life as a line, their words.
   const AP = require('./artistpage');
-  const keeps = w => { const m = /(?:Credit line|Credit|Museum|Collection|Repository|Institution): ([^·\n]+)/i.exec(w.caption || '') || /(Van Gogh Museum|Kröller-Müller Museum|Museum of Modern Art|Metropolitan Museum of Art|National Gallery[^.;,·]*|Art Institute of Chicago|Musée d'Orsay|Musée de l'Orangerie|Musée Marmottan[^.;,·]*|Rijksmuseum|Louvre|Uffizi|Royal Collection|British Museum|Biblioteca Ambrosiana|Hermitage|Courtauld[^.;,·]*|Getty[^.;,·]*|Cleveland Museum of Art|Philadelphia Museum of Art|Museum of Fine Arts[^.;,·]*)/i.exec(w.caption || ''); return m ? m[1].trim().slice(0, 80) : null; };
+  const keeps0 = w => { const m = /(?:Credit line|Credit|Museum|Collection|Repository|Institution): ([^·\n]+)/i.exec(w.caption || '') || /(Van Gogh Museum|Kröller-Müller Museum|Museum of Modern Art|Metropolitan Museum of Art|National Gallery[^.;,·]*|Art Institute of Chicago|Musée d'Orsay|Musée de l'Orangerie|Musée Marmottan[^.;,·]*|Rijksmuseum|Louvre|Uffizi|Royal Collection|British Museum|Biblioteca Ambrosiana|Hermitage|Courtauld[^.;,·]*|Getty[^.;,·]*|Cleveland Museum of Art|Philadelphia Museum of Art|Museum of Fine Arts[^.;,·]*)/i.exec(w.caption || ''); return m ? m[1].trim().slice(0, 80) : null; };
+  const keeps = w => { const k = keeps0(w); return k && !/google|cultural institute|zoom level|wikimedia|commons|home page|\bimage\b|^[\w-]{8,}\b/i.test(k) ? k : ''; };
   function chronology(a) {
     return db.prepare("SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND w.status='held' AND COALESCE(w.zone,'all')!='mature'").all(a.id)
       .map(w => ({ ...w, y: AP.madeIn(w, a), keeps: keeps(w) })).sort((x, y) => (x.y || 99999) - (y.y || 99999) || x.id - y.id);
@@ -218,6 +219,7 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const claimLine = a.claim_status === 'claimed' ? `This page is kept with ${esc(a.claimed_name || 'the artist’s representative')}.${a.terms ? ` ${esc(a.terms)}` : ''}` : `Are you ${esc(a.name)}, the estate, a foundation or the gallery that represents the work? The page is yours to keep: the life in your words, the dates, and what may be collected. <a href="/art/${esc(a.slug)}/claim">Write to the house</a>.`;
     let binding = null; try { binding = require('./binding'); } catch (e) { /* */ }
     const CAT = app.locals.catalogue; const cat = CAT ? CAT.of(a, ws) : [];
+    for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki }));
     const body = AP.render({ a, ws, ghosts, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander?in=hang:${h.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];

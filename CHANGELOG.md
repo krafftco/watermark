@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.25.1 · Oil on canvas · 2 November 2026
+
+- The medium as a museum label says it: Wikidata's materials joined, the paint first and the support after 'on' (Oil on canvas; Chalk on paper; Watercolour and pencil on paper).
+- Reading an artist's catalogue gives the house's photographs of their work Wikidata's English title and that medium; the old title is kept.
+- The artist's page shows, under each painting, the medium and the museum that keeps it, never a photograph's source credit.
+
 ## 1.25 · Backgrounds · 2 November 2026
 
 - Any work made to the exact pixels of a screen: iPhone, iPad, Surface Duo (open or folded), MacBook, a 5K display, the Samsung Frame and any 4K television.

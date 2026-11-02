@@ -3017,7 +3017,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/yours/send', { cookie: sck, body: { ref: mine.ref, to: 'WM-halwallet' } }); assert.ok(r.headers.location.includes('sent=done'), 'sent to a wallet: ' + r.headers.location);
     assert.equal(db.prepare('SELECT buyer_id FROM licenses WHERE ref=?').get(mine.ref).buyer_id, hb, 'it moved');
     const sig = db.prepare('SELECT hash, sig FROM ledger ORDER BY seq DESC LIMIT 1').get(); assert.ok(sig.sig && ledger.checkSig(sig.hash, sig.sig, ledger.publicKey()), 'the house signed it');
-    assert.ok(!ledger.checkSig(sig.hash, sig.sig.replace(/^../, '00'), ledger.publicKey()), 'a forged signature fails');
+    assert.ok(!ledger.checkSig(sig.hash, (sig.sig.slice(0, 2) === '00' ? 'ff' : '00') + sig.sig.slice(2), ledger.publicKey()), 'a forged signature fails');
     // A working license stays put: the agreement does not allow transfer.
     const edl = db.prepare("SELECT l.ref FROM licenses l JOIN uses u ON u.id=l.use_id WHERE u.key='editorial' AND l.status='active' LIMIT 1").get();
     if (edl) { db.prepare('UPDATE licenses SET buyer_id=?, collector_no=COALESCE(collector_no, 1) WHERE ref=?').run(setLs[0].buyer_id, edl.ref); r = await req(port, 'POST', '/yours/send', { cookie: sck, body: { ref: edl.ref, to: 'WM-halwallet' } }); assert.ok(r.headers.location.includes('sent=locked'), 'a working license is locked'); } }
