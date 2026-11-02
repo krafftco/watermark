@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.29 · An artist's wander, to send · 2 November 2026
+- Every artist's work can be walked and sent at its own address, /wander/art/ and the artist's name, which unfurls as the artist's card. The artist's page carries Share this wander, and inside Wander a Share button sends the whole walk (an artist, a wall, a maker, a series), not just the work on screen.
+
 ## 1.28 · The scout · 2 November 2026
 - The Studio can look into a museum's open collection before bringing any of it in: the Met, the Art Institute of Chicago and Cleveland searched where they live, a wall of thumbnails with each record and its rights, what the house already holds marked, a tick on what is worth keeping, and one press to bring the chosen in.
 

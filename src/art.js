@@ -221,7 +221,7 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const CAT = app.locals.catalogue; const cat = CAT ? CAT.of(a, ws) : [];
     for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki }));
-    const body = AP.render({ a, ws, ghosts, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander?in=hang:${h.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const body = AP.render({ a, ws, ghosts, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
     const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/img/${hero.slug}/screen` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     if (!studio) pageCache.set(a.slug, { at: Date.now(), html });
@@ -327,7 +327,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   }
   if (!app.locals.noTimers && ROLE.chores) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
 
-  app.locals.art = { uncache: slug => pageCache.delete(slug), verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
+  app.locals.art = { wall: a => wallOf(a, chronology(a)), uncache: slug => pageCache.delete(slug), verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
 }
 
 module.exports = { mountArt, rights, slugify, sortName, MOVEMENTS, PD_YEARS };

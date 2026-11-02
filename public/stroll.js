@@ -12,6 +12,13 @@
   var V = (document.cookie.match(/(?:^|;\s*)wm_v=([^;]+)/) || [])[1] || '';
   var sayHold = 0;
   function say(m, ms) { if (sayHold > Date.now() && m.indexOf('A hat is') !== 0) { setTimeout(function () { say(m, ms); }, sayHold - Date.now()); return; } toast.textContent = m; toast.hidden = false; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); setTimeout(function () { toast.hidden = true; }, 400); }, ms || 2200); }
+  // Share the whole wander (an artist's, a wall, a maker's): the walk from its first work, not the one on the screen.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-st-setshare]'); if (!b) return; e.preventDefault();
+    var url = new URL(b.dataset.url, location.href).href, d = { title: b.dataset.title, text: b.dataset.text, url: url };
+    if (navigator.share) { navigator.share(d).catch(function () {}); return; }
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('The link to this wander is copied.'); }, function () { say(url, 5000); }); else say(url, 5000);
+  });
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();

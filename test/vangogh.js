@@ -23,7 +23,9 @@ const { createApp } = require('../src/app');
   const jw = app.locals.workJSON(db.prepare('SELECT * FROM works WHERE slug=?').get(j.slug)); assert.ok(!jw.uses.length && jw.open, 'open: nothing for sale');
   // The artist's page: periods from the bring, the life line, the wall, the claim door; the bring for any artist.
   t = await (await fetch(base + '/art/' + a.slug)).text();
-  assert.ok(t.includes('class="apl"') && t.includes('Saint-Rémy') && t.includes('apl-tick') && t.includes('/wander?in=hang:art-') && t.includes('/claim'), 'the artist page, by period, the life as a line');
+  assert.ok(t.includes('class="apl"') && t.includes('Saint-Rémy') && t.includes('apl-tick') && t.includes('/wander/art/' + a.slug) && t.includes('Share this wander') && t.includes('/claim'), 'the artist page, by period, the life as a line');
+  { const ww = await (await fetch(base + '/wander/art/' + a.slug)).text(); assert.ok(ww.includes('data-st-setshare') && ww.includes('data-url="/wander/art/' + a.slug + '"') && ww.includes('Vincent van Gogh · Wander') && ww.includes('class="st-i'), 'the artist\'s wander, at an address worth sending, with its own card');
+    const nx = await fetch(base + '/wander/art/nobody-at-all', { redirect: 'manual' }); assert.equal(nx.status, 302, 'no such artist: to the hall'); }
   const mo = app.locals.art.ensure('Claude Monet', { born: 1840, died: 1926 }); let queued = []; app.locals.feeds.enqueue = b => { queued.push(b); return queued.length; };
   const br = await (await go('/studio/art/' + mo.slug + '/bring', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&cats=' + encodeURIComponent('https://commons.wikimedia.org/wiki/Category:Paintings_by_Claude_Monet\nhttps://example.com/x') })).json();
   assert.ok(br.ok && queued.length === 1 && queued[0].open === 'pd' && /not a Commons/.test(br.feeds[1]), 'one Commons feed, open, the stranger address refused');
