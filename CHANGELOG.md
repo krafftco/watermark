@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.27 · A letter to one person · 2 November 2026
+- An introduction can be written to someone: their name and a letter from the founding director, on a page made for them, with what the house is in five lines, a walk through the work, and the door to their own studio.
+
 ## 1.26.1 · The Met's new search · 2 November 2026
 - The Met retired its old search on 1 October; the house now reads the new one, a page of up to 500 at a time, so a whole Open Access search comes in.
 

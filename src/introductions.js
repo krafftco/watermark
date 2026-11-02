@@ -10,6 +10,7 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
   db.exec(`CREATE TABLE IF NOT EXISTS introductions (id INTEGER PRIMARY KEY, token TEXT UNIQUE NOT NULL, by_kind TEXT NOT NULL, by_id INTEGER, label TEXT, opens TEXT NOT NULL DEFAULT 'maker',
       uses INTEGER NOT NULL DEFAULT 0, max_uses INTEGER, closed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   for (const [t, c] of [['makers', 'introduced_by'], ['buyers', 'introduced_by']]) if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} TEXT`);
+  for (const c of ['to_name', 'note']) if (!db.prepare(`SELECT 1 FROM pragma_table_info('introductions') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE introductions ADD COLUMN ${c} TEXT`);
   const { nanoid } = require('nanoid');
   const byToken = t => db.prepare('SELECT * FROM introductions WHERE token=?').get(String(t));
   const live = i => i && !i.closed && (i.max_uses == null || i.uses < i.max_uses);
@@ -17,7 +18,7 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
   const url = i => `${C.base}/i/${i.token}`;
   const mine = (kind, id) => db.prepare('SELECT * FROM introductions WHERE by_kind=? AND by_id=? ORDER BY id DESC').all(kind, id);
   const yearUsed = m => db.prepare("SELECT COALESCE(SUM(uses),0) n, COUNT(*) c FROM introductions WHERE by_kind='maker' AND by_id=? AND opens='maker' AND created_at > datetime('now','-1 year')").get(m.id);
-  const make = ({ by_kind, by_id, label, opens, max_uses }) => { const id = db.prepare('INSERT INTO introductions (token, by_kind, by_id, label, opens, max_uses) VALUES (?,?,?,?,?,?)').run(nanoid(14), by_kind, by_id || null, label || null, opens === 'collector' ? 'collector' : 'maker', max_uses == null ? null : Number(max_uses)).lastInsertRowid; return db.prepare('SELECT * FROM introductions WHERE id=?').get(id); };
+  const make = ({ by_kind, by_id, label, opens, max_uses, to_name = null, note = null }) => { const id = db.prepare('INSERT INTO introductions (token, by_kind, by_id, label, opens, max_uses, to_name, note) VALUES (?,?,?,?,?,?,?,?)').run(nanoid(14), by_kind, by_id || null, label || null, opens === 'collector' ? 'collector' : 'maker', max_uses == null ? null : Number(max_uses), to_name || null, note || null).lastInsertRowid; return db.prepare('SELECT * FROM introductions WHERE id=?').get(id); };
 
   // Giving one. A maker: a few maker introductions a year, collectors without limit. The Studio: partner links.
   app.post('/account/introductions', (req, res) => {
@@ -37,7 +38,9 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
   app.post('/studio/introductions', (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio/login'); const x = req.body || {};
     if (x.do === 'close') { db.prepare('UPDATE introductions SET closed=1 WHERE id=?').run(Number(x.id)); return res.redirect('/studio/accounts?ok=Link+closed.#introductions'); }
-    const i = make({ by_kind: 'house', label: String(x.label || '').trim().slice(0, 120) || null, opens: x.opens, max_uses: x.max_uses ? Number(x.max_uses) : null });
+    const toName = String(x.to_name || '').trim().slice(0, 120) || null, note = String(x.note || '').replace(/\r/g, '').trim().slice(0, 4000) || null;
+    if (x.do === 'letter') { db.prepare('UPDATE introductions SET to_name=?, note=? WHERE id=?').run(toName, note, Number(x.id)); return res.redirect('/studio/accounts?ok=The+letter+is+set.#introductions'); }
+    const i = make({ by_kind: 'house', label: String(x.label || '').trim().slice(0, 120) || toName, opens: x.opens, max_uses: x.max_uses ? Number(x.max_uses) : null, to_name: toName, note });
     ledger.append(db, 'introduction.issued', `intro-${i.id}`, { label: i.label, opens: i.opens });
     res.redirect(`/studio/accounts?ok=${encodeURIComponent(`A partner link for ${i.label || 'someone'}: ${url(i)}`)}#introductions`);
   });
@@ -53,11 +56,24 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
 <p class="inc-lede">${i.opens === 'maker' ? 'Scan it. Photographers: your name, your email, and your studio opens; put a photograph in and it is deeded, fingerprinted and on the register in a minute. Everyone else: wander, and collect one for seven dollars.' : 'Scan it: your name, your email, and your gallery opens. Collect a photograph for seven dollars and it is yours, numbered, with its papers.'}</p>
 <div class="inc-qr">${qr}</div><p class="inc-url">${esc(url(i).replace(/^https?:\/\//, ''))}</p><p class="inc-foot">${i.max_uses != null ? `Good for ${i.max_uses - i.uses} more.` : ''} Entered by invitation; introduced by the house.</p></section><p class="inc-print"><button type="button" class="link" onclick="print()">Print</button></p></main>` }));
   });
+  // A letter (Will, 2 Nov, for Phil Penman: "create a space for him to realize what it is"): an introduction written to
+  // one person. The Studio sets a name and a letter on a house link; /i/:token then reads as a page made for them: the
+  // letter signed by the founding director, what the house is in five plain lines with live pictures, a strip to wander,
+  // and the door to their own studio at the foot. Private (noindex, no-store); nothing on the register until they enter.
+  const letterData = () => {
+    const h = C.maker && C.maker.handle ? db.prepare('SELECT * FROM makers WHERE handle=?').get(C.maker.handle) : null;
+    const strip = db.prepare("SELECT w.slug, w.title, w.width, w.height FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(w.zone,'all')<>'mature' AND COALESCE(m.kind,'maker') NOT IN ('institution') AND (w.curated=1 OR w.stars>=4) ORDER BY w.curated DESC, RANDOM() LIMIT 8").all();
+    if (strip.length < 5) strip.push(...db.prepare("SELECT slug, title, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')<>'mature' ORDER BY RANDOM() LIMIT 8").all().filter(w => !strip.some(x => x.slug === w.slug)).slice(0, 8 - strip.length));
+    const n = db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n;
+    const makersN = db.prepare("SELECT COUNT(DISTINCT maker_id) n FROM works WHERE status='held'").get().n;
+    return { cover: coverOf(), director: h, strip, n, makersN };
+  };
   // Taking one up.
   // The cover: one of the house's best, wide, behind the door.
   const coverOf = () => db.prepare("SELECT slug, title FROM works WHERE status='held' AND width > height*1.3 AND (curated=1 OR stars>=4) ORDER BY curated DESC, stars DESC, RANDOM() LIMIT 1").get() || db.prepare("SELECT slug, title FROM works WHERE status='held' AND width > height*1.3 ORDER BY RANDOM() LIMIT 1").get() || null;
   app.get('/i/:token', (req, res) => {
     const i = byToken(req.params.token); if (!i || !live(i)) return res.status(404).send(gone());
+    if (i.to_name || i.note) { res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store'); return res.send(letterPage({ i, err: req.query.err || null, ...letterData() })); }
     res.send(introPage({ i, who: introducer(i), err: req.query.err || null, cover: coverOf(), make: req.query.make === '1' }));
   });
   app.post('/i/:token', (req, res) => {
@@ -118,14 +134,36 @@ ${body}
 ${maker && (make || err) ? `<p class="inv-back"><a href="/i/${esc(i.token)}">\u2190 I came to look</a></p>` : ''}
 </div>${cover ? `<p class="inv-cap">${esc(cover.title)}</p>` : ''}</main>` });
 }
+function letterPage({ i, err, cover, director, strip, n, makersN }) {
+  const FEE = require('./fee');
+  const to = i.to_name || '', first = to.split(/\s+/)[0] || '';
+  const dName = director ? director.name : 'Will Fullerton', dFirst = dName.split(/\s+/)[0];
+  const paras = String(i.note || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const pic = (w, k) => w ? `<img src="/img/${esc(w.slug)}/${k || 'screen'}" alt="" loading="lazy" draggable="false">` : '';
+  const pts = [
+    ['No numbers on the wall.', 'No likes, no counts, no feed deciding who is seen. How long someone stands before a picture is the only measure, and it stays between you and the house.'],
+    ['Every picture, the whole screen.', 'One work at a time, edge to edge, at the size it was made to be seen. Wander is how people walk through it.'],
+    ['Collectors, not followers.', `Anyone can own a piece. ${FEE.on && FEE.on() ? 'The price is yours; the house’s share is paid on top by the collector.' : 'Most of every sale is yours.'} You are paid every Friday.`],
+    ['Yours, on the record.', 'Every file is fingerprinted, deeded and registered the minute it arrives; your name and copyright travel inside it. Companies license at your prices.'],
+    ['The whole body of work.', 'Not only what does well: your trips in the order you shot them, your contact sheets, your best in front and the rest kept safe, shown when you say.'],
+  ];
+  const form = `<form method="post" action="/i/${esc(i.token)}" class="inv-f ltr-f"><label><span>Your name</span><input name="name" required maxlength="120" autocomplete="name" value="${esc(to)}"></label><label><span>Email</span><input name="email" type="email" required maxlength="160" autocomplete="email" inputmode="email"></label>${i.opens === 'maker' ? '<label><span>Where your work can be seen <em>(optional)</em></span><input name="site" maxlength="300" placeholder="https://" inputmode="url"></label>' : ''}<button class="inv-go">${i.opens === 'maker' ? 'Open my studio' : 'Open my gallery'}</button><p class="inv-note">No password: your email gets you in. Nothing is published until you say. <a href="/terms">The terms</a>.</p></form>`;
+  return layout({ title: `${to ? `For ${to}` : 'A letter'} · Watermark`, path: `/i/${i.token}`, bare: true, body: `<main class="ltr">
+<header class="ltr-hero">${pic(cover, 'large')}<div class="ltr-ht"><p class="ltr-k">${WAVE} Watermark${to ? ` · for ${esc(to)}` : ''}</p><h1>${first ? `${esc(first)}, a museum for your work.` : 'A museum for your work.'}</h1><p>${n.toLocaleString('en-US')} works by ${makersN} ${makersN === 1 ? 'maker' : 'makers'}, kept where they were made to be seen.</p><a class="ltr-down" href="#letter">Read the letter ↓</a></div>${cover ? `<p class="ltr-cap">${esc(cover.title)}</p>` : ''}</header>
+${paras ? `<section class="ltr-letter" id="letter">${paras}<p class="ltr-sig">${director ? `<img src="/portrait/${esc(director.handle)}" alt="" onerror="this.remove()">` : ''}<span>${esc(dFirst)}<small>${esc(dName)} · founding director, Watermark</small></span></p></section>` : '<span id="letter"></span>'}
+<section class="ltr-what"><p class="ltr-k2">What it is, in a minute</p><ol>${pts.map((p, k) => `<li>${pic(strip[k])}<div><b>${esc(p[0])}</b><span>${esc(p[1])}</span></div></li>`).join('')}</ol></section>
+${strip.length ? `<section class="ltr-walk"><p class="ltr-k2">See it before you decide</p><div class="ltr-strip">${strip.slice(0, 8).map(w => `<a href="/wander?at=${esc(w.slug)}" data-nv-wander>${pic(w, 'thumb')}</a>`).join('')}</div><a class="ltr-wander" href="/wander${strip[0] ? `?at=${esc(strip[0].slug)}` : ''}" data-nv-wander>${WAVE} Wander the house first</a><p class="ltr-small">Best on your phone. Swipe up for the next; tap the shield for the record behind a picture.</p></section>` : ''}
+<section class="ltr-door" id="door"><p class="ltr-k2">Your studio</p><h2>${first ? `When you are ready, ${esc(first)}.` : 'When you are ready.'}</h2><p class="ltr-lede">Your name and an email, and your studio opens. Put in one picture and it is yours on the record in a minute; nothing shows until you say.</p>${err ? '<p class="inv-err">Your name and a working email are needed.</p>' : ''}${form}</section>
+</main>` });
+}
 const WAVE = require('./views').WAVE_MARK;
 // On a maker's Your page, and on the Studio's Accounts: the links to give.
 function introBlock({ list, used, limit, base, action, opens = true, studio = false }) {
-  const row = i => `<li class="in-row"><span>${esc(i.label || (i.opens === 'maker' ? 'A maker' : 'Collectors'))}<small>${i.opens === 'maker' ? 'opens a studio' : 'opens galleries'} · ${i.uses} taken${i.max_uses != null ? ` of ${i.max_uses}` : ''}${i.closed ? ' · closed' : ''}${studio && i.who ? ` · by ${esc(i.who.name)}` : ''}</small></span>${i.closed || (i.max_uses != null && i.uses >= i.max_uses) ? '<code class="in-dead">used</code>' : `<a href="/i/${esc(i.token)}/card" class="in-card">Card</a> <code>${esc(base)}/i/${esc(i.token)}</code><button type="button" class="link" data-copy="${esc(base)}/i/${esc(i.token)}">Copy</button>`}${!i.closed ? `<form method="post" action="${action}"><input type="hidden" name="do" value="close"><input type="hidden" name="id" value="${i.id}"><button class="link">Close</button></form>` : ''}</li>`;
+  const row = i => `<li class="in-row"><span>${esc(i.label || (i.opens === 'maker' ? 'A maker' : 'Collectors'))}<small>${i.opens === 'maker' ? 'opens a studio' : 'opens galleries'} · ${i.uses} taken${i.max_uses != null ? ` of ${i.max_uses}` : ''}${i.closed ? ' · closed' : ''}${studio && i.who ? ` · by ${esc(i.who.name)}` : ''}</small></span>${i.closed || (i.max_uses != null && i.uses >= i.max_uses) ? '<code class="in-dead">used</code>' : `<a href="/i/${esc(i.token)}/card" class="in-card">Card</a> <code>${esc(base)}/i/${esc(i.token)}</code><button type="button" class="link" data-copy="${esc(base)}/i/${esc(i.token)}">Copy</button>`}${!i.closed ? `<form method="post" action="${action}"><input type="hidden" name="do" value="close"><input type="hidden" name="id" value="${i.id}"><button class="link">Close</button></form>` : ''}${studio && !i.closed ? `<details class="in-letter"><summary>${i.to_name || i.note ? `The letter to ${esc(i.to_name || 'them')}` : 'Write a letter'}</summary><form method="post" action="${action}" class="cl-f"><input type="hidden" name="do" value="letter"><input type="hidden" name="id" value="${i.id}"><label><span>Written to</span><input name="to_name" maxlength="120" value="${esc(i.to_name || '')}"></label><label><span>The letter</span><textarea name="note" rows="7" maxlength="4000">${esc(i.note || '')}</textarea></label><button class="buy-btn">Set it</button> <a href="/i/${esc(i.token)}" target="_blank" rel="noopener">See the page</a></form></details>` : ''}</li>`;
   return `<section class="in" id="introductions"><header class="gh"><h2>Introductions</h2><span>${studio ? 'partner links' : `${used} of ${limit} this year`}</span></header>
 <p class="lede pk-lede">${studio ? 'A partner link opens accounts for a curator, a museum or an artist the house has a relationship with: as many as you set, until you close it. The register records who introduced whom.' : `The house is entered by invitation, and your name is one. You may introduce ${limit} makers a year: a link each, good once, that opens their studio at once; the register records that you introduced them. Introduce collectors without limit.`}</p>
 ${list.length ? `<ul class="in-list">${list.map(row).join('')}</ul>` : ''}
-<form method="post" action="${action}" class="cl-f in-new"><label><span>For whom (a name or a note, shown on the letter)</span><input name="label" maxlength="120"></label>${opens ? `<fieldset><legend>Opens</legend><label class="cl-k"><input type="radio" name="opens" value="maker" checked> A maker's studio</label><label class="cl-k"><input type="radio" name="opens" value="collector"> A collector's gallery</label></fieldset>` : ''}${studio ? '<label><span>How many may take it (blank: no limit)</span><input name="max_uses" inputmode="numeric" maxlength="5"></label>' : ''}<button class="buy-btn">Make the link</button></form>
+<form method="post" action="${action}" class="cl-f in-new"><label><span>For whom (a name or a note, shown on the letter)</span><input name="label" maxlength="120"></label>${opens ? `<fieldset><legend>Opens</legend><label class="cl-k"><input type="radio" name="opens" value="maker" checked> A maker's studio</label><label class="cl-k"><input type="radio" name="opens" value="collector"> A collector's gallery</label></fieldset>` : ''}${studio ? '<label><span>How many may take it (blank: no limit)</span><input name="max_uses" inputmode="numeric" maxlength="5"></label><label><span>Written to (a name; makes the link a page for them)</span><input name="to_name" maxlength="120" placeholder="Phil Penman"></label><label><span>A letter (shown on their page, signed by you; a blank line between paragraphs)</span><textarea name="note" rows="7" maxlength="4000"></textarea></label>' : ''}<button class="buy-btn">Make the link</button></form>
 <script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)})})</script></section>`;
 }
 

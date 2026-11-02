@@ -4916,3 +4916,37 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .ezl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:14px}.ezl-w{text-decoration:none;color:inherit}.ezl-w img{width:100%;height:auto;display:block}.ezl-w span{display:block;font-size:13px;opacity:.85;margin-top:6px}.ezl-w b{display:block;font:400 15px/1.3 var(--disp);opacity:1}
 .ap-share.ap-study svg{width:16px;height:16px}
 .apl-st{font-size:12px;color:#c9b98f;text-decoration:none;margin-top:2px}.apl-st:hover{text-decoration:underline}
+/* A letter to one person (introductions with a name): the hero, the letter, what it is, the walk, the door. */
+.ltr{background:#0b0a09;color:#f2efe9;min-height:100svh}
+.ltr-hero{position:relative;min-height:88svh;display:grid;align-items:end;overflow:hidden}
+.ltr-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.62}
+.ltr-hero:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,10,9,.2),rgba(11,10,9,.15) 45%,rgba(11,10,9,.92))}
+.ltr-ht{position:relative;z-index:1;padding:0 clamp(16px,6vw,96px) clamp(40px,8vh,96px);max-width:900px}
+.ltr-k,.ltr-k2{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:500 11px/1.4 system-ui,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#c9bfae;margin:0 0 14px}.ltr-k svg{width:24px;height:auto}
+.ltr-ht h1{font-family:var(--disp,Georgia),Georgia,serif;font-weight:400;font-size:clamp(38px,6.4vw,84px);line-height:1;letter-spacing:-.015em;margin:0 0 16px;text-transform:none}
+.ltr-ht p{font:400 18px/1.5 var(--read,Georgia),Georgia,serif;color:#ddd5c8;margin:0 0 22px}
+.ltr-down{color:#e6c875;text-decoration:none;font-size:14px;letter-spacing:.04em}
+.ltr-cap{position:absolute;right:16px;bottom:12px;z-index:1;font-size:11px;color:#a59c8d;margin:0}
+.ltr-letter{max-width:640px;margin:0 auto;padding:clamp(48px,9vh,96px) 16px;font:400 clamp(18px,2vw,21px)/1.62 var(--read,Georgia),Georgia,serif;color:#ece6dc}
+.ltr-letter p{margin:0 0 1.1em}
+.ltr-sig{display:flex;align-items:center;gap:14px;margin-top:2em!important}
+.ltr-sig img{width:56px;height:56px;border-radius:50%;object-fit:cover}
+.ltr-sig span{font:italic 400 28px/1 var(--disp,Georgia),Georgia,serif;display:grid;gap:6px}
+.ltr-sig small{font:400 12px/1.3 system-ui,sans-serif;font-style:normal;letter-spacing:.04em;color:#a59c8d}
+.ltr-what{max-width:1040px;margin:0 auto;padding:clamp(32px,6vh,72px) 16px;border-top:1px solid rgba(242,239,233,.12)}
+.ltr-what ol{list-style:none;padding:0;margin:0;display:grid;gap:clamp(18px,3vw,32px)}
+.ltr-what li{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:clamp(16px,3vw,36px);align-items:center}
+.ltr-what li img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+.ltr-what b{display:block;font:400 clamp(22px,2.6vw,30px)/1.15 var(--disp,Georgia),Georgia,serif;margin:0 0 8px}
+.ltr-what li span{font:400 16px/1.55 var(--read,Georgia),Georgia,serif;color:#cfc7ba}
+.ltr-walk{max-width:1040px;margin:0 auto;padding:clamp(32px,6vh,72px) 16px;border-top:1px solid rgba(242,239,233,.12);text-align:center}
+.ltr-strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 0 14px}
+.ltr-strip a{flex:0 0 min(42vw,200px);scroll-snap-align:start}.ltr-strip img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.ltr-wander{display:inline-flex;align-items:center;gap:10px;margin-top:14px;padding:12px 22px;border:1px solid #e6c875;color:#e6c875;text-decoration:none;font-size:15px;letter-spacing:.04em}.ltr-wander svg{width:26px;height:auto}
+.ltr-small{font-size:12.5px;color:#a59c8d;margin:12px 0 0}
+.ltr-door{max-width:560px;margin:0 auto;padding:clamp(40px,8vh,96px) 16px calc(72px + env(safe-area-inset-bottom));border-top:1px solid rgba(242,239,233,.12)}
+.ltr-door h2{font:400 clamp(30px,4vw,44px)/1.05 var(--disp,Georgia),Georgia,serif;text-transform:none;letter-spacing:-.01em;color:#f2efe9;margin:0 0 12px}
+.ltr-lede{font:400 16.5px/1.55 var(--read,Georgia),Georgia,serif;color:#cfc7ba;margin:0 0 22px}
+.ltr-f{background:rgba(247,246,243,.96);color:#141311;padding:clamp(20px,3vw,32px)}
+.in-letter summary{cursor:pointer;font-size:13px;color:var(--accent,#8a6d3b)}
+@media (max-width:640px){.ltr-what li{grid-template-columns:1fr}.ltr-hero{min-height:78svh}}
