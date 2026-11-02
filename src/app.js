@@ -840,10 +840,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size] || w.status === 'quarantined') return res.sendStatus(404); // a held work is shown to no one (29 Oct)
     if (w.keep_back) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; if (!((me && me.id === w.maker_id) || isStudio(req) || (app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })()))) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); } res.set('Cache-Control', 'private, no-store'); } // kept back by the maker: only to them and the house (29 Oct)
+    // A photograph kept back in a private gallery (deliveries.js, 2 Nov): only the maker, the Studio, a curator, a holder and the people inside see it.
+    const inPrivate = w.status === 'hidden' && !w.keep_back && app.locals.deliveries && app.locals.deliveries.guarded(w.id);
+    if (inPrivate && !app.locals.deliveries.mayView(req, w) && !(app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })())) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); }
     try {
       const fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, fmt);
-      res.set('Cache-Control', w.keep_back ? 'private, no-store' : 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
+      res.set('Cache-Control', w.keep_back || inPrivate ? 'private, no-store' : 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
       res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');

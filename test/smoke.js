@@ -1357,7 +1357,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', `/wander?in=album:${sh}`); { const t2 = r.body.toString(); assert.ok(r.status === 200 && !t2.includes(dtok) && t2.includes('"files":null'), 'Wander from the passed-on album: no files'); }
       r = await req(port, 'GET', `/wander?in=delivery:${dtok}&at=${w.slug}`); assert.ok(r.body.toString().includes(`"files":"${dtok}"`), 'Wander from the album itself carries its files');
       r = await req(port, 'GET', `/deliver/${dtok}/${w.slug}/instax?film=mini`); { assert.equal(r.status, 200); const im = await require('sharp')(r.body).metadata(); assert.ok(im.width === 800 && im.height === 600 || im.width === 600 && im.height === 800, 'Instax mini from the album'); }
-      r = await req(port, 'GET', `/a/${sh}/${w.slug}/file`); assert.ok(r.status === 404, 'no file by the passed-on address');
+      r = await req(port, 'GET', `/a/${sh}/${w.slug}/file`); assert.ok(r.status === 403, 'no file by the passed-on address');
       // Find yourself (31 Oct): That's me, That's a friend, a story-sized photograph.
       { const mk = async (body) => JSON.parse((await req(port, 'POST', `/a/${sh}/${w.slug}/me`, { body })).body.toString());
         let j = await mk({ name: 'Rae Guest', email: 'rae@example.com' }); assert.ok(j.ok && j.asked && !j.linked, 'a stranger saying that is me is asked to confirm by letter');
@@ -1387,6 +1387,50 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'POST', `/account/deliveries/${dv.id}/scenes`, { cookie: dck, body: { [`n_${w.slug}`]: 'The toast' } }); assert.equal(JSON.parse(db.prepare('SELECT scene_names FROM deliveries WHERE id=?').get(dv.id).scene_names)[w.slug], 'The toast', 'a scene named');
       r = await req(port, 'POST', `/account/deliveries/${dv.id}/edit`, { cookie: dck, body: { title: 'The thirtieth, again', note: 'With love, still.' } }); assert.equal(db.prepare('SELECT title FROM deliveries WHERE id=?').get(dv.id).title, 'The thirtieth, again', 'renamed');
       r = await req(port, 'POST', `/account/deliveries/${dv.id}/cover`, { body: { slug: w.slug } }); assert.equal(r.status, 401, 'a stranger refused'); }
+    // Private galleries (2 Nov): a friend group's album behind a door; the pictures only to the people inside; the rules the maker sets; the group's own bench.
+    { const pw = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND slug<>? ORDER BY id DESC LIMIT 1").get(dv.maker_id, w.slug);
+      db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(pw.id);
+      r = await req(port, 'POST', '/account/deliveries', { cookie: dck, body: { title: 'The lake house', client: 'Ana B.', email: 'ana@example.com', days: '30', size: 'original', door: 'join', works: pw.slug } });
+      const pid = +r.headers.location.match(/\/(\d+)\?/)[1]; const pd = db.prepare('SELECT * FROM deliveries WHERE id=?').get(pid); assert.equal(pd.door, 'join', 'a private gallery made');
+      let t = (await req(port, 'GET', `/account/deliveries/${pid}`, { cookie: dck })).body.toString(); assert.ok(t.includes('Who can see it') && t.includes('Who is inside') && t.includes('Talk on the bench') && t.includes('The client'), 'the maker sees the door, the rules and the people');
+      const psh = (t.match(/\/a\/([A-Za-z0-9_-]{8,})/) || [])[1]; assert.ok(psh, 'the group\'s door');
+      r = await req(port, 'GET', `/a/${psh}`); t = r.body.toString(); assert.ok(r.status === 200 && t.includes('Come in') && !t.includes(`/img/${pw.slug}/`), 'a stranger at the door sees no picture');
+      r = await req(port, 'GET', `/img/${pw.slug}/thumb`); assert.equal(r.status, 404, 'nor the picture by its address');
+      r = await req(port, 'GET', `/wander?in=album:${psh}`); assert.equal(r.status, 302, 'nor wanders it');
+      r = await req(port, 'GET', `/a/${psh}/${pw.slug}/file`); assert.equal(r.status, 403, 'nor takes a file');
+      r = await req(port, 'GET', `/deliver/${pd.token}`); assert.ok(r.status === 200 && r.body.toString().includes(`/img/${pw.slug}/`), 'the client\'s link opens it');
+      { const cck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(c => c.startsWith('wm_pg=')).join('; '); assert.equal((await req(port, 'GET', `/img/${pw.slug}/thumb`, { cookie: cck })).status, 200, 'and its pictures'); }
+      r = await req(port, 'POST', `/a/${psh}/join`, { body: { name: 'Lou Guest' } }); assert.equal(r.headers.location, `/a/${psh}`, 'a name and you are in');
+      const gck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(c => c.startsWith('wm_pg=')).join('; '); assert.ok(gck, 'remembered on the device');
+      r = await req(port, 'GET', `/a/${psh}`, { cookie: gck }); t = r.body.toString(); assert.ok(t.includes(`/img/${pw.slug}/`) && t.includes('The bench') && t.includes('<span>Lou</span>') && t.includes(`/a/${psh}/${pw.slug}/file`), 'inside: the pictures, the people, the bench, a download');
+      r = await req(port, 'GET', `/img/${pw.slug}/thumb`, { cookie: gck }); assert.ok(r.status === 200 && /private/.test(r.headers['cache-control']), 'the picture, privately');
+      r = await req(port, 'GET', `/a/${psh}/${pw.slug}/file`, { cookie: gck }); assert.equal(r.status, 200, 'a member downloads');
+      r = await req(port, 'POST', `/a/${psh}/note`, { cookie: gck, body: { body: 'That light on the water.', work: pw.slug } }); assert.ok(/book=ok/.test(r.headers.location), 'said on the bench');
+      r = await req(port, 'POST', `/a/${psh}/note`, { body: { name: 'Stranger', body: 'Let me in.' } }); assert.ok(/book=closed/.test(r.headers.location), 'a stranger cannot speak');
+      t = (await req(port, 'GET', `/a/${psh}`, { cookie: gck })).body.toString(); assert.ok(t.includes('That light on the water.') && t.includes('— Lou Guest') && t.includes(`on ${pw.title}`.slice(0, 12)), 'the line, about one photograph');
+      r = await req(port, 'GET', '/api/my-galleries', { cookie: gck }); assert.ok(JSON.parse(r.body).galleries.some(g => g.title === 'The lake house'), 'the Keys know the room');
+      // The maker closes the door to invitations and narrows the rules: keep only, no downloads, no bench.
+      r = await req(port, 'POST', `/account/deliveries/${pid}/door`, { cookie: dck, body: { door: 'invited', r_keep: '1' } }); assert.ok(/ok=/.test(r.headers.location));
+      t = (await req(port, 'GET', `/a/${psh}`, { cookie: gck })).body.toString(); assert.ok(t.includes(`/img/${pw.slug}/`) && !t.includes(`/a/${psh}/${pw.slug}/file`) && t.includes(`data-dv-keep="${pw.slug}"`) && !t.includes('data-dv-bookf'), 'the rules hold: keep, no download, no bench');
+      assert.equal((await req(port, 'GET', `/a/${psh}/${pw.slug}/file`, { cookie: gck })).status, 403, 'no file');
+      r = await req(port, 'POST', `/a/${psh}/join`, { body: { name: 'Max Ask' } }); assert.ok(/door=no/.test(r.headers.location), 'by invitation: an email to ask');
+      r = await req(port, 'POST', `/a/${psh}/join`, { body: { name: 'Max Ask', email: 'max@example.com' } }); assert.ok(/asked=1/.test(r.headers.location), 'asked');
+      const ask = db.prepare("SELECT * FROM delivery_members WHERE delivery_id=? AND email='max@example.com'").get(pid); assert.equal(ask.status, 'asked');
+      assert.equal((await req(port, 'GET', `/in/${ask.token}`)).headers.location, `/a/${psh}?asked=1`, 'not in until let in');
+      r = await req(port, 'POST', `/account/deliveries/${pid}/members/${ask.id}/let`, { cookie: dck }); assert.ok(/is%20in/.test(r.headers.location), 'let in');
+      r = await req(port, 'GET', `/in/${ask.token}`); const mck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(c => c.startsWith('wm_pg=')).join('; '); assert.ok(r.headers.location === `/a/${psh}` && mck, 'their own link lets them in');
+      assert.ok((await req(port, 'GET', `/a/${psh}`, { cookie: mck })).body.toString().includes(`/img/${pw.slug}/`), 'inside');
+      r = await req(port, 'POST', `/account/deliveries/${pid}/members`, { cookie: dck, body: { name: 'Kit Close', email: 'kit@example.com', phone: '2125550123' } }); const kt = decodeURIComponent((r.headers.location.match(/made=([^#&]+)/) || [])[1] || '');
+      t = (await req(port, 'GET', `/account/deliveries/${pid}?made=${encodeURIComponent(kt)}`, { cookie: dck })).body.toString(); assert.ok(t.includes(`/in/${kt}`) && /href="sms:\+12125550123\?&amp;body=/.test(t), 'invited: the link, by text');
+      r = await req(port, 'POST', `/account/deliveries/${pid}/members/${ask.id}/out`, { cookie: dck }); assert.equal((await req(port, 'GET', `/a/${psh}`, { cookie: mck })).body.toString().includes(`/img/${pw.slug}/`), false, 'taken out, the door closes on them');
+      r = await req(port, 'POST', `/a/${psh}/invite`, { cookie: gck, body: { name: 'Pal' } }); assert.equal(r.status, 403, 'a member may not invite unless the maker allows it');
+      r = await req(port, 'POST', `/account/deliveries/${pid}/door`, { cookie: dck, body: { door: 'invited', r_invite: '1', r_ask: '1', r_speak: '1' } });
+      r = await req(port, 'POST', `/a/${psh}/invite`, { cookie: gck, body: { name: 'Pal', email: 'pal@example.com' } }); assert.ok(/invited=/.test(r.headers.location), 'now they may');
+      r = await req(port, 'GET', `/a/${psh}/${pw.slug}/ask`, { cookie: gck }); assert.ok(r.status === 200 && r.body.toString().includes('Ask to license'), 'ask to license, from inside');
+      r = await req(port, 'POST', `/a/${psh}/${pw.slug}/ask`, { cookie: gck, body: { use: 'commercial', name: 'Lou Guest', email: 'lou@example.com', company: 'Lou Co', note: 'A poster' } }); assert.ok(/sent=1/.test(r.headers.location), 'asked');
+      r = await req(port, 'GET', '/ledger'); assert.ok(!/Lou Guest|lake house|That light/.test(r.body.toString()), 'nothing of the group on the public register');
+      db.prepare("UPDATE works SET status='held' WHERE id=?").run(pw.id);
+      console.log('ok: private galleries'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');

@@ -5,6 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.21 · Private galleries · 2 November 2026
+
+- An album has a door: anyone with the link (as before), the group (the link asks a name and they are in), or by invitation (only those invited; others ask and the maker lets them in).
+- Behind a private door the photographs are shown only to the people inside: the page, Wander and the pictures' own addresses.
+- The maker sets what the people inside may do: download the copies or the full files, keep one in their own gallery, ask to license one, talk on the bench, invite others, pass it on.
+- Each person has a link of their own, sent by letter or texted from the maker's phone; the maker sees who is in, lets in, takes out.
+- The bench: the group's own conversation, about the day or about one photograph, seen by no one outside.
+- The Keys show the private galleries you are inside.
+
 ## 1.20.0 · The founding licensee · 2 November 2026
 - A company's year on Watermark is one bill: every photograph it holds on its site, one amount the house names, paid through a page it keeps as its receipt. Never a bill a picture.
 - The first company ever to pay is the house's founding licensee, said on the register and beside its photographs.

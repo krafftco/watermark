@@ -96,7 +96,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // A delivery (Will, 21 Oct: the friend wanders the album as one wanders the house; the work stays the maker's):
     // the album's photographs, held or kept back, in the album's order, for as long as the link is live.
     if (key.startsWith('delivery:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(9)) : null;
-    if (key.startsWith('album:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(6), true) : null;
+    if (key.startsWith('album:')) return app.locals.deliveries && app.locals.deliveries.set ? app.locals.deliveries.set(key.slice(6), true, req) : null;
     return setOf(key);
   }
   const isDelivery = key => /^(delivery|album):/.test(String(key || ''));
