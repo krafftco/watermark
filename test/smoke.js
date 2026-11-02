@@ -1350,6 +1350,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
         await req(port, 'POST', `/sit/${tok}`, { body: { a: 'yes' } });
         assert.ok((await req(port, 'GET', `/a/${sh}`)).body.toString().includes('With Rae Guest'), 'confirmed, she is credited on the album'); }
       console.log('ok: the album, social'); }
+    // The album, after Pic-Time (2 Nov): the cover, a heart toggled and kept per device, the favourites downloaded, the film's list, the maker's count.
+    { const pg = (await req(port, 'GET', `/deliver/${dtok}`)).body.toString(); assert.ok(pg.includes('class="dvc"') && pg.includes('Album · beta') && pg.includes('data-dvp') && pg.includes('/static/album.js') && pg.includes(`/yours/p/${dl.ref}?k=${dl.download_token}#print`), 'the cover, the film and Print it');
+      let hr = await req(port, 'POST', `/deliver/${dtok}/${w.slug}/heart`, { headers: { accept: 'application/json' } }); const hck = (hr.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; '); let hj = JSON.parse(hr.body.toString()); assert.ok(hj.ok && hj.on && hj.n === 1 && /wm_dvh=/.test(hck), 'a heart given');
+      assert.ok((await req(port, 'GET', `/deliver/${dtok}`, { cookie: hck })).body.toString().includes('data-hearted'), 'the heart stays with the device');
+      hr = await req(port, 'GET', `/deliver/${dtok}/all.zip?fav=1`, { cookie: hck }); assert.ok(hr.status === 200 && /zip/.test(hr.headers['content-type']), 'the favourites as one');
+      hr = await req(port, 'GET', `/deliver/${dtok}/all.zip?fav=1`); assert.equal(hr.status, 302, 'no favourites: back to the album');
+      assert.ok((await req(port, 'GET', `/account/deliveries?maker=${me}`, { cookie: dck })).body.toString().includes('♥ 1'), 'the maker sees the count');
+      hj = JSON.parse((await req(port, 'POST', `/deliver/${dtok}/${w.slug}/heart`, { cookie: hck, headers: { accept: 'application/json' } })).body.toString()); assert.ok(hj.ok && !hj.on && hj.n === 0, 'and taken back'); }
     r = await req(port, 'POST', `/account/deliveries/${dv.id}/close`, { cookie: dck });
     r = await req(port, 'GET', `/deliver/${dtok}`); assert.equal(r.status, 410, 'closed');
     r = await req(port, 'GET', `/wander?in=delivery:${dtok}`); assert.equal(r.status, 302, 'a closed album cannot be wandered');

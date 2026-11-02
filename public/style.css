@@ -4724,3 +4724,41 @@ html.rm-on{overflow:hidden}
 .sd2-f{display:grid;gap:12px;max-width:360px}.sd2-ck{font-size:14px;line-height:1.45;color:#cfc8ba;text-align:left;display:flex;gap:10px;align-items:flex-start}.sd2-ck input{margin-top:3px;width:20px;height:20px}
 .sd2-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:0}
 .sd2-nav{display:flex;justify-content:space-between;width:100%;max-width:420px;margin:6px 0 0;font-size:14px;color:#a39d92}.sd2-nav a{text-decoration:none}
+/* The album, after Pic-Time (2 Nov): the cover, scenes, hearts, the film. */
+.dvc{position:relative;height:100svh;min-height:520px;overflow:hidden;background:#0b0a09;display:flex;align-items:flex-end}
+.dvc-im{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:dvc-in 2.4s ease-out both}
+@keyframes dvc-in{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:none}}
+.dvc:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,10,9,.35),rgba(11,10,9,0) 30%,rgba(11,10,9,0) 50%,rgba(11,10,9,.85))}
+.dvc-t{position:static;width:100%;max-width:1180px;margin:0 auto;padding:0 20px calc(48px + env(safe-area-inset-bottom));color:#f2ede4}
+.dvc-t>*{position:relative;z-index:1}.dvc-t>.dv-logo{position:absolute;z-index:2;top:calc(24px + env(safe-area-inset-top));left:20px;margin:0}
+.dvc-t .k{color:#e0d9cc;letter-spacing:.12em;text-transform:uppercase;font-size:11px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dvc-beta{border:1px solid rgba(242,237,228,.5);border-radius:999px;padding:2px 9px;font-size:10px;letter-spacing:.1em}
+.dvc-t h1{font:400 clamp(44px,8vw,104px)/1 var(--disp);margin:10px 0 12px;letter-spacing:-.015em;text-shadow:0 1px 30px rgba(0,0,0,.35)}
+.dvc-line{margin:0 0 22px;font-size:14px;color:#e0d9cc}
+.dvc-acts{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:0}
+.dvc-go,.dvc-play{display:inline-flex;align-items:center;gap:10px;padding:13px 24px;border-radius:999px;font:500 13px var(--sans);letter-spacing:.06em;text-decoration:none;cursor:pointer}
+.dvc-go{background:#f2ede4;color:#0b0a09;border:0}.dvc-play{background:rgba(11,10,9,.35);color:#f2ede4;border:1px solid rgba(242,237,228,.7);backdrop-filter:blur(6px)}.dvc-play svg{width:16px;height:16px}
+.dvc ~ .dv-wall .dv-h>.dv-logo,.dvc ~ .dv-wall .dv-h>.k,.dvc ~ .dv-wall .dv-h>h1{display:none}
+.dvs-nav{position:sticky;top:0;z-index:5;display:flex;gap:6px;overflow-x:auto;padding:12px 0;margin:0 0 18px;background:linear-gradient(#0b0a09 80%,rgba(11,10,9,0));scrollbar-width:none}
+.dvs-nav a{flex:none;color:#cfc8bb;text-decoration:none;font-size:13px;padding:7px 14px;border:1px solid rgba(255,255,255,.16);border-radius:999px;white-space:nowrap}.dvs-nav a:hover{border-color:#e9e4da;color:#fff}.dvs-nav small{color:#8f897f;margin-left:4px}
+.dvs{margin:0 0 54px;scroll-margin-top:64px}.dvs h2{font:400 clamp(26px,3.4vw,38px)/1.1 var(--disp);text-transform:none;letter-spacing:0;color:#f2ede4;margin:0 0 18px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.dvs h2 small{font:400 14px var(--sans);color:#a39d92}.dvs h2 span{font:400 12px var(--sans);color:#6f6a62;margin-left:auto}
+.dv-w{position:relative}
+.dvh-b{position:absolute;top:10px;right:10px;z-index:2;width:38px;height:38px;border-radius:50%;border:0;background:rgba(11,10,9,.42);color:#f2ede4;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px);opacity:.0;transition:opacity .2s,transform .2s}
+.dv-w:hover .dvh-b,.dv-w[data-hearted] .dvh-b,.dvh-b:focus-visible{opacity:1}@media (pointer:coarse){.dvh-b{opacity:.9}}
+.dvh-b svg{width:20px;height:20px}.dv-w[data-hearted] .dvh-b{color:#e9707a}.dv-w[data-hearted] .dvh-b path{fill:currentColor}
+.dvh-pop{transform:scale(1.25)}
+.dvh-n{position:absolute;top:16px;left:12px;z-index:2;font-size:12px;color:#f2ede4;background:rgba(11,10,9,.55);border-radius:999px;padding:3px 9px}
+.dvh-bar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:0 0 26px;font-size:13px;color:#a39d92}
+.dvh-f{display:inline-flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,.22);color:#e9e4da;border-radius:999px;padding:8px 16px;font:inherit;cursor:pointer}.dvh-f svg{width:16px;height:16px}.dvh-f[aria-pressed=true]{border-color:#e9707a;color:#fff}.dvh-f[aria-pressed=true] path{fill:#e9707a;stroke:#e9707a}
+.dvh-dl{color:#e9e4da}.dvh-mk{color:#8f897f;font-size:12px}.dvh-none{color:#a39d92;font-size:14px;margin:12px 0 40px}
+.dv-print{color:inherit}
+.dvp{position:fixed;inset:0;z-index:90;background:#000;display:block}.dvp[hidden],.dvh-none[hidden],.dv-w[hidden],.dvs[hidden],.dvs-nav[hidden]{display:none}
+.dvp img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity 1.4s ease}.dvp img.on{opacity:1;animation:dvp-drift 7s ease-out both}
+@keyframes dvp-drift{from{transform:scale(1.03)}to{transform:none}}
+.dvp-cap{position:absolute;left:20px;bottom:calc(22px + env(safe-area-inset-bottom));margin:0;color:rgba(242,237,228,.75);font-size:12px;letter-spacing:.04em;white-space:pre;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
+.dvp-deck{position:absolute;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:6px;align-items:center;background:rgba(20,18,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:6px}
+.dvp-deck button{background:none;border:0;color:#f2ede4;min-width:38px;height:38px;border-radius:999px;display:grid;place-items:center;font:12px var(--sans);cursor:pointer;padding:0 10px}.dvp-deck button svg{width:18px;height:18px}.dvp-deck button[aria-pressed=true],.dvp-deck button.on{background:rgba(242,237,228,.16)}
+html.dvp-on{overflow:hidden}
+@media (max-width:760px){.dvc-t{padding-bottom:calc(30px + env(safe-area-inset-bottom))}.dvp-cap{display:none}.dvp-deck{left:50%;right:auto;transform:translateX(-50%)}}
+.dv .dvh-b{padding:0;min-width:0;max-width:38px;flex:none;line-height:0}
+@media (pointer:fine){.dv-grid .dv-w figcaption a,.dv-grid .dv-w figcaption button,.dv-grid .dv-w .dv-me{opacity:0;transition:opacity .2s}.dv-grid .dv-w:hover figcaption a,.dv-grid .dv-w:hover figcaption button,.dv-grid .dv-w:hover .dv-me,.dv-grid .dv-w:focus-within figcaption a,.dv-grid .dv-w:focus-within figcaption button,.dv-grid .dv-w:focus-within .dv-me{opacity:1}}
