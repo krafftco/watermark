@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.21.1 · Look only · 2 November 2026
+
+- A private gallery's rules gain Post it (a credited copy for a feed or a story), off unless the maker turns it on.
+- Look only, in one press: no downloads, no posting, no passing it on, nothing to keep; the group may still talk on the bench.
+- In a look-only gallery a press on a picture hands nothing over, and the pictures veil themselves in the capture moment (the page loses the eye, Print Screen, the Mac's capture keys, a copy).
+
 ## 1.21 · Private galleries · 2 November 2026
 
 - An album has a door: anyone with the link (as before), the group (the link asks a name and they are in), or by invitation (only those invited; others ask and the maker lets them in).

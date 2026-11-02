@@ -4852,3 +4852,7 @@ html.dvp-on{overflow:hidden}
 .dvd .grp-f input{background:#fff;color:inherit;border-color:var(--line,#d9d3c7)}
 .grp-keys{max-width:1100px;margin:48px auto 0;padding:0 16px}.grp-kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.grp-kc{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;text-decoration:none;color:inherit;border:1px solid rgba(201,162,74,.4);border-radius:6px;padding:10px}.grp-kc img{width:72px;height:72px;object-fit:cover;border-radius:3px}.grp-kc b{display:block;font:400 19px/1.2 var(--disp)}.grp-kc i,.grp-kc em{display:block;font-size:12.5px;font-style:normal;opacity:.75;margin-top:3px}
 @media (max-width:760px){.grp-list li{grid-template-columns:1fr auto}.grp-list li span:not(.grp-la){grid-column:1}.grp-la{grid-column:2;grid-row:1/span 3}.dv-bookf .dv-as{grid-column:1}}
+.grp-look{margin-left:10px;font-size:12px;letter-spacing:0;text-transform:none}
+.grp-lo{max-width:720px;margin:40px auto 0;padding:0 4px;font-size:13px;color:#8f897f;text-align:center}
+html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);transition:filter .08s}
+.dv img,.dvo img{-webkit-user-select:none;user-select:none}
