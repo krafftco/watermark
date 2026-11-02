@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.23 · The catalogue · 2 November 2026
+
+- An artist's whole body of work, read from Wikidata: every work it knows by them, with the date, the kind, the medium, the size, and the collection that keeps it.
+- The artist's page shows the life's work in the order it was made: the works the house holds as pictures, the rest named in their place, with where the original is and whether an open photograph exists.
+- The life drawn as a line now marks every known work, not only those held.
+- Bring in the pictures: every open photograph the catalogue names, through one feed and the one door, for an artist in the public domain only. A living artist's work is listed, never copied.
+
 ## 1.22 · The Gazette by post · 2 November 2026
 
 - Readers subscribe to a maker on their page or at the end of any piece: an email, confirmed with one tap, or at once when signed in with that address.

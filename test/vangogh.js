@@ -28,5 +28,27 @@ const { createApp } = require('../src/app');
   const br = await (await go('/studio/art/' + mo.slug + '/bring', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&cats=' + encodeURIComponent('https://commons.wikimedia.org/wiki/Category:Paintings_by_Claude_Monet\nhttps://example.com/x') })).json();
   assert.ok(br.ok && queued.length === 1 && queued[0].open === 'pd' && /not a Commons/.test(br.feeds[1]), 'one Commons feed, open, the stranger address refused');
   t = await (await fetch(base + '/art/' + mo.slug)).text(); assert.ok(t.includes('Claude Monet') && t.includes('Born 1840'), 'an empty page still stands, with the life');
+  // The catalogue (2 Nov): every work Wikidata knows by him, in order; the house's own as pictures, the rest named in their place; the open photographs queued through one feed.
+  { const held = db.prepare('SELECT * FROM works WHERE slug=?').get(j.slug); db.prepare('UPDATE works SET source_url=? WHERE id=?').run('https://commons.wikimedia.org/wiki/File:Starry_Night.jpg', held.id);
+    const b = (x) => ({ type: 'literal', value: x }); let asked = [];
+    app.locals.iiif.doFetch = async u => { asked.push(u); const q = decodeURIComponent(String(u).split('query=')[1] || '');
+      const rows = /rdfs:label/.test(q) ? [{ p: b('http://www.wikidata.org/entity/Q5582'), born: b('1853-03-30T00:00:00Z'), n: b('900') }]
+        : [{ w: b('http://www.wikidata.org/entity/Q45585'), wLabel: b('The Starry Night'), date: b('1889-06-01T00:00:00Z'), image: b('http://commons.wikimedia.org/wiki/Special:FilePath/Starry%20Night.jpg'), collLabel: b('Museum of Modern Art'), medLabel: b('oil paint'), typeLabel: b('painting') },
+           { w: b('http://www.wikidata.org/entity/Q151047'), wLabel: b('Sunflowers'), date: b('1888-08-01T00:00:00Z'), image: b('http://commons.wikimedia.org/wiki/Special:FilePath/Sunflowers.jpg'), collLabel: b('National Gallery'), typeLabel: b('painting'), h: b('92.1'), wd: b('73') },
+           { w: b('http://www.wikidata.org/entity/Q1'), wLabel: b('A lost study'), date: b('1885-01-01T00:00:00Z'), typeLabel: b('drawing') },
+           { w: b('http://www.wikidata.org/entity/Q2'), wLabel: b('Q2'), typeLabel: b('painting') }];
+      return { ok: true, status: 200, json: async () => ({ results: { bindings: rows } }) }; };
+    const cr = await (await go('/studio/art/' + a.slug + '/catalogue', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&do=read' })).json();
+    assert.ok(cr.ok && cr.qid === 'Q5582' && cr.n === 3 && cr.pictures === 2, 'read: three works, two with a photograph, an unlabelled item left out');
+    t = await (await fetch(base + '/art/' + a.slug)).text();
+    assert.ok(t.includes('3 known works, 1 in the house') && t.includes('apl-gh') && t.includes('Sunflowers') && t.includes('National Gallery') && t.includes('A lost study') && t.includes('No open photograph') && t.includes('92.1 × 73 cm'), 'the whole body of work, the gaps named');
+    assert.ok(t.indexOf('A lost study') < t.indexOf('Sunflowers') && t.indexOf('Sunflowers') < t.lastIndexOf('/img/' + j.slug + '/screen'), 'in the order made');
+    const its = app.locals.catalogue.items('Q5582'); assert.ok(its.length === 1 && its[0].label === 'Sunflowers' && /Special:FilePath\/Sunflowers\.jpg\?width=3840/.test(its[0].image) && its[0].id === 'https://commons.wikimedia.org/wiki/File%3ASunflowers.jpg', 'what the feed will bring: only the open photograph not yet held');
+    let fed = null; app.locals.feeds.enqueue = x => { fed = x; return 77; };
+    const bq = await (await go('/studio/art/' + a.slug + '/catalogue', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&do=bring' })).json();
+    assert.ok(bq.ok && bq.feed === 77 && fed.kind === 'catalogue' && fed.open === 'pd' && /Q5582/.test(fed.url), 'brought through one feed');
+    const mr = await (await go('/studio/art/' + mo.slug + '/catalogue', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&do=bring' })).json(); assert.ok(!mr.ok, 'not before the catalogue is read');
+    const liv = app.locals.art.ensure('A Living Painter', { born: 1980 }); db.prepare("UPDATE artists SET qid='Q9', catalogue_at=datetime('now') WHERE id=?").run(liv.id);
+    const lr = await (await go('/studio/art/' + liv.slug + '/catalogue', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'json=1&do=bring' })).json(); assert.ok(!lr.ok && /not in the public domain/.test(lr.error), 'a living artist is listed, never copied'); }
   console.log('vincent: all hold'); srv.close(); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

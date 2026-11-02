@@ -51,15 +51,16 @@ ${Object.entries(n).map(([y, c]) => `<a class="apl-tick" href="#y-${y}" style="l
 <span class="apl-end apl-b" style="left:0">${a.born ? `Born ${a.born}` : from}</span><span class="apl-end apl-d" style="left:100%">${a.died ? `Died ${a.died}` : 'Today'}</span></div>`;
 }
 
-function render({ a, ws, writings, V, rights, wanderHref, museums, photographers, claimLine, kinds, binding, isStudio }) {
-  const { esc, tidy } = V; const ch = chapters(a, ws); const r = rights;
+function render({ a, ws, ghosts = [], known = 0, writings, V, rights, wanderHref, museums, photographers, claimLine, kinds, binding, isStudio }) {
+  const { esc, tidy } = V; const all = ghosts.length ? ws.concat(ghosts).sort((x, y) => (x.y || 99999) - (y.y || 99999) || (x.ghost ? 1 : 0) - (y.ghost ? 1 : 0)) : ws; const ch = chapters(a, all); const r = rights;
   const hero = ws.find(w => w.curated) || ws.slice().sort((x, y) => (y.stars || 0) - (x.stars || 0))[0];
   const ys = ws.map(w => w.y).filter(Boolean); const span = ys.length ? (Math.min(...ys) === Math.max(...ys) ? `${ys[0]}` : `${Math.min(...ys)} to ${Math.max(...ys)}`) : '';
   const seen = new Set();
   const plate = w => { const anchor = w.y && !seen.has(w.y) ? (seen.add(w.y), ` id="y-${w.y}"`) : '';
+    if (w.ghost) return `<figure class="apl-w apl-gh"${anchor}><div class="apl-ghb"><b>${esc(tidy(w.title))}</b>${w.y ? `<span>${w.y}</span>` : ''}${w.medium || w.size ? `<i>${esc([w.medium, w.size].filter(Boolean).join(', '))}</i>` : ''}<em>${w.keeps ? esc(w.keeps) : 'Where it is kept is not known'}</em><small>${w.image ? 'A photograph exists; not yet brought into the house' : 'No open photograph'}</small></div><figcaption>${w.wiki ? `<a href="${esc(w.wiki)}" rel="noopener">Read about it</a> · ` : ''}<a href="https://www.wikidata.org/wiki/${esc(w.qid)}" rel="noopener">The record</a></figcaption></figure>`;
     return `<figure class="apl-w"${anchor}><a href="/m/${esc(w.handle)}/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}></a><figcaption><b>${esc(tidy(w.title))}</b>${w.y ? `<span>${w.y}</span>` : ''}${w.keeps ? `<i>${esc(w.keeps)}</i>` : ''}${w.handle && w.handle !== 'the-public-domain' ? `<small>Photograph by ${esc(w.maker_name)}</small>` : ''}</figcaption></figure>`; };
   const bio = String(a.bio || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const facts = [ws.length ? `${ws.length} work${ws.length === 1 ? '' : 's'}${kinds.length ? ` · ${kinds.join(', ')}` : ''}` : null, span ? `made ${span}` : null, writings.length ? `${writings.length} in their own words` : null, museums.length ? `kept in ${museums.length} collection${museums.length === 1 ? '' : 's'}` : null].filter(Boolean);
+  const facts = [known ? `${known} known work${known === 1 ? '' : 's'}, ${ws.length} in the house` : null, !known && ws.length ? `${ws.length} work${ws.length === 1 ? '' : 's'}${kinds.length ? ` · ${kinds.join(', ')}` : ''}` : null, span ? `made ${span}` : null, writings.length ? `${writings.length} in their own words` : null, museums.length ? `kept in ${museums.length} collection${museums.length === 1 ? '' : 's'}` : null].filter(Boolean);
   return `<main class="apl">
 <header class="apl-h">${hero ? `<figure class="apl-hero"><img src="/img/${esc(hero.slug)}/large" alt="${esc(tidy(hero.title))}"><figcaption>${esc(tidy(hero.title))}${hero.y ? `, ${hero.y}` : ''}</figcaption></figure>` : ''}
 <div class="apl-ht"><p class="k"><a href="/art">The hall</a>${a.movement ? ` · <a href="/art?movement=${encodeURIComponent(a.movement)}">${esc(a.movement)}</a>` : ''}</p><h1>${esc(a.name)}</h1>
@@ -67,7 +68,7 @@ function render({ a, ws, writings, V, rights, wanderHref, museums, photographers
 ${bio.length ? `<p class="apl-lede">${esc(bio[0])}</p>` : ''}
 ${facts.length ? `<p class="apl-facts">${esc(facts.join(' · '))}</p>` : ''}
 <p class="apl-acts">${ws.length ? `<a class="apl-wander" href="${esc(wanderHref)}">${V.WAVE_MARK || ''}<span>Wander the work</span><i>One at a time, in the order it was made</i></a>` : ''}${writings.length ? `<a class="apl-read" href="#writings"><span>Read their words</span><i>${esc(tidy(writings[0].title))}${writings.length > 1 ? ` and ${writings.length - 1} more` : ''}</i></a>` : ''}</p></div></header>
-${lifeLine(a, ws, esc)}
+${lifeLine(a, all, esc)}
 ${bio.length > 1 ? `<section class="apl-bio">${bio.slice(1).map(p => `<p>${esc(p)}</p>`).join('')}</section>` : ''}
 ${ch.length > 1 ? `<nav class="apl-toc">${ch.map(c => `<a href="#${esc(c.id)}">${esc(c.name)}${c.years ? ` <small>${esc(c.years)}</small>` : ''}</a>`).join('')}</nav>` : ''}
 ${ch.map(c => `<section class="apl-ch" id="${esc(c.id)}"><header><h2>${esc(c.name)}</h2>${c.years ? `<span>${esc(c.years)}</span>` : ''}${c.line ? `<p>${esc(c.line)}</p>` : ''}<small>${c.list.length} work${c.list.length === 1 ? '' : 's'}</small></header><div class="apl-grid">${c.list.map(plate).join('')}</div></section>`).join('') || '<p class="apl-empty">Nothing of theirs is in the house yet.</p>'}

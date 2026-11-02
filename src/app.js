@@ -563,6 +563,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   require('./clearance').mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), bagcheck: BAG });
   require('./sign').mountSign(app, { db, V, C, store, ledger, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a release signed on the spot, with a finger (26 Oct) // the clearance desk: releases, what may be licensed (26 Oct)
   const ART = require('./art').mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk, fetchImpl: cfg.fetchImpl, imageOf: w => app.locals.imageOf(w) }); // the artists behind the work (26 Oct)
+  require('./catalogue').mountCatalogue(app, { db, V, C, ledger, studioOnly }); // the catalogue (2 Nov): every work Wikidata knows by an artist, in the order made, the gaps named
   require('./easel').mountEasel(app, { db, V, mk, I: require('./icons') }); // the easel: the master study
   require('./conservation').mountConservation(app, { db, V, C, ledger, mail, images, store, cache, originalPath, originals, studioOnly, mk, notify: null }); // the restoration room: if it is not sound, it is not shown (the sign must come before /w)
   // The audit (Will, 19 Oct: security 3/6): every Studio action that changes anything is told on the register, signed into the
