@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.28 · The scout · 2 November 2026
+- The Studio can look into a museum's open collection before bringing any of it in: the Met, the Art Institute of Chicago and Cleveland searched where they live, a wall of thumbnails with each record and its rights, what the house already holds marked, a tick on what is worth keeping, and one press to bring the chosen in.
+
 ## 1.27 · A letter to one person · 2 November 2026
 - An introduction can be written to someone: their name and a letter from the founding director, on a page made for them, with what the house is in five lines, a walk through the work, and the door to their own studio.
 

@@ -200,6 +200,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       while (n < LIM) { u.searchParams.set('page', String(page)); const r = await doFetch(u.href); if (!r.ok) throw new Error(`archive ${r.status}`); const j = await r.json(); const docs = ((j.response || {}).docs || []); const items = docs.map(x => ({ ia: x.identifier, id: `ia:${x.identifier}`, label: Array.isArray(x.title) ? x.title[0] : (x.title || x.identifier) })); n += items.length; page++; yield { items, cursor: String(page) }; if (!items.length || items.length < 500) return; await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT)); }
       return;
     }
+    if (kind === 'picked') { let items = []; try { items = JSON.parse(job.picked || '[]'); } catch (e) { /* */ } yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
     if (kind === 'met') { const man = await I.parseMet(job.url, doFetch, LIM); yield { items: man.items.slice(+job.cursor || 0), cursor: null, man }; return; }
     if (kind === 'oai') {
       let token = job.cursor || null; let n = 0; let base = String(job.url).replace(/[?&]verb=.*$/, ''); const set = (String(job.url).match(/[?&]set=([^&]+)/) || [])[1]; const prefix = (String(job.url).match(/[?&]metadataPrefix=([^&]+)/) || [])[1] || 'oai_dc';
@@ -282,10 +283,19 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     const id = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, artist) VALUES (?,?,?,?,?,?,?,?,?)').run(String(body.name || '').trim().slice(0, 120) || null, KINDS.some(k => k[0] === body.kind) ? body.kind : 'auto', url || null, file || null, m.id, open, body.show ? 1 : 0, +body.max > 0 ? Math.min(+body.max, MAX) : null, String(body.artist || '').trim().slice(0, 120) || null).lastInsertRowid;
     setTimeout(kick, app.locals.noTimers ? 0 : 20); return id;
   }
+  // Chosen by hand in the scout (2 Nov): the items themselves, already read, kept on the run so a restart resumes them.
+  function enqueuePicked(body, items) {
+    const m = db.prepare('SELECT * FROM makers WHERE id=? OR handle=?').get(+body.maker || 0, String(body.maker || '').trim()); if (!m) throw new Error('which maker');
+    const list = (Array.isArray(items) ? items : []).filter(it => it && it.id && it.image).slice(0, MAX).map(it => ({ id: String(it.id), label: String(it.label || '').slice(0, 200), image: String(it.image), summary: it.summary ? String(it.summary).slice(0, 400) : '', meta: Array.isArray(it.meta) ? it.meta.slice(0, 14).map(x => ({ label: String(x.label || '').slice(0, 40), value: String(x.value || '').slice(0, 300) })) : [], artist: it.artist && it.artist.name ? { name: String(it.artist.name).slice(0, 120), born: +it.artist.born || null, died: +it.artist.died || null, nationality: it.artist.nationality || null } : null, kind: it.kind || null, rights: it.rights || null }));
+    if (!list.length) throw new Error('nothing chosen');
+    const id = db.prepare('INSERT INTO feeds (name, kind, url, maker_id, open, show, max, picked) VALUES (?,?,?,?,?,?,?,?)').run(String(body.name || '').slice(0, 120) || `Chosen in the scout (${list.length})`, 'picked', null, m.id, ['pd', 'cc0', 'cc-by', 'cc-by-sa'].includes(body.open) ? body.open : null, body.show ? 1 : 0, list.length, JSON.stringify(list)).lastInsertRowid;
+    setTimeout(kick, app.locals.noTimers ? 0 : 20); return id;
+  }
   function retry(id) { const j = db.prepare('SELECT * FROM feeds WHERE id=?').get(id); if (!j || !missesOf(j).length) return null; const nid = db.prepare('INSERT INTO feeds (name, kind, url, file, maker_id, open, show, max, retry_of, artist) VALUES (?,?,?,?,?,?,?,?,?,?)').run(`${j.name || j.url || 'feed'} · the misses`, j.kind, j.url, j.file, j.maker_id, j.open, j.show, j.max, j.id, j.artist || null).lastInsertRowid; setTimeout(kick, app.locals.noTimers ? 0 : 20); return nid; }
   // A restart puts a running job back in the queue; the cursor resumes it, two minutes after the house is up (the house breathes first).
   // A job that was running through two restarts is paused instead: it may be what brought the house down (27 Oct).
   try { db.exec('ALTER TABLE feeds ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* held */ }
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('feeds') WHERE name='picked'").get()) db.exec('ALTER TABLE feeds ADD COLUMN picked TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('feeds') WHERE name='artist'").get()) db.exec('ALTER TABLE feeds ADD COLUMN artist TEXT'); // every work of the feed is this artist's (31 Oct: Commons' Artist field is a template's text)
   if (ROLE.chores) { db.prepare("UPDATE feeds SET status='queued', restarts=restarts+1 WHERE status='running'").run(); if (!app.locals.noTimers) { setTimeout(kick, 120000).unref(); if (ROLE.split) setInterval(kick, 60000).unref(); } }
   app.post('/studio/feeds/:id/resume', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); db.prepare("UPDATE feeds SET status='queued', restarts=0, note=NULL WHERE id=? AND status IN ('paused','stopped','failed')").run(+req.params.id); setTimeout(kick, app.locals.noTimers ? 0 : 20); res.redirect('/studio/feeds/' + req.params.id); });
@@ -327,7 +337,7 @@ ${came.length ? `<h2>What came in</h2><div class="fe-came">${came.map(w => `<a h
   });
   app.post('/studio/feeds/:id/stop', studioOnly, (req, res) => { const id = +req.params.id; if (current === id) stopAsked = true; else db.prepare("UPDATE feeds SET status='stopped', finished_at=datetime('now') WHERE id=? AND status='queued'").run(id); res.redirect(`/studio/feeds/${id}`); });
   app.post('/studio/feeds/:id/retry', studioOnly, (req, res) => { const nid = retry(+req.params.id); res.redirect(nid ? `/studio/feeds/${nid}?ok=` + encodeURIComponent('The misses are going through the door again.') : `/studio/feeds/${req.params.id}`); });
-  app.locals.feeds = { enqueue, retry, kick, run, pages, parseCSV, csvItems, oaiPage, siItems, commonsItems, kindOf, missesOf };
+  app.locals.feeds = { enqueue, enqueuePicked, retry, kick, run, pages, parseCSV, csvItems, oaiPage, siItems, commonsItems, kindOf, missesOf };
   return app.locals.feeds;
 }
 

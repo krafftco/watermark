@@ -1578,6 +1578,17 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
     const dj = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(dj.status === 'done' && dj.max === 1 && dj.n <= 1, 'capped at one for the test: ' + JSON.stringify(dj));
     r = await req(port, 'GET', '/rights/museum-demo'); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
+    // The scout: look before bringing. The search shows what the house holds; a tick brings one in through the feeds.
+    r = await req(port, 'GET', '/studio/scout'); assert.ok(r.status === 302 || r.status === 401 || r.status === 403, 'the scout is the Studio\'s');
+    r = await req(port, 'GET', '/studio/scout', { cookie: ck }); assert.ok(r.status === 200 && /The scout\./.test(r.body) && /data-sct-go/.test(r.body), 'the scout');
+    { const p2 = app.locals.__fetch; app.locals.__fetch = async (u) => { u = String(u); if (/v1\.1\/search/.test(u)) return { ok: true, json: async () => ({ total: 2, objectIDs: [436535, 777] }) }; if (/objects\/777$/.test(u)) return { ok: true, json: async () => ({ objectID: 777, isPublicDomain: true, isHighlight: true, primaryImage: 'https://images.metmuseum.org/x/777.jpg', primaryImageSmall: 'https://images.metmuseum.org/x/777s.jpg', title: 'The Harvesters', artistDisplayName: 'Pieter Bruegel the Elder', objectDate: '1565', medium: 'Oil on wood', objectURL: 'https://www.metmuseum.org/art/collection/search/777', classification: 'Paintings' }) }; if (/x\/777\.jpg/.test(u)) { const b2 = await require('sharp')({ create: { width: 900, height: 600, channels: 3, background: '#2e5a3a' } }).jpeg().toBuffer(); return { ok: true, arrayBuffer: async () => b2 }; } return p2(u); };
+      r = await req(port, 'GET', '/studio/scout/api?src=met&q=bruegel&highlight=1', { cookie: ck }); const j = JSON.parse(r.body); assert.ok(j.total === 2 && j.items.length === 2, 'the search: ' + r.body.slice(0, 200));
+      assert.ok(j.items.find(i => /436535/.test(i.id)).held && !j.items.find(i => /777/.test(i.id)).held, 'what the house holds is marked');
+      const it = j.items.find(i => /777/.test(i.id)); const dm2 = db.prepare("SELECT id FROM makers WHERE handle='museum-demo'").get();
+      r = await req(port, 'POST', '/studio/scout/bring', { cookie: ck, headers: { 'content-type': 'application/x-watermark-scout+json' }, body: JSON.stringify({ src: 'met', q: 'bruegel', maker: String(dm2.id), show: true, items: [it] }) }); const bj = JSON.parse(r.body); assert.ok(bj.ok && bj.feed, 'brought: ' + r.body);
+      for (let i = 0; i < 100 && db.prepare('SELECT status FROM feeds WHERE id=?').get(bj.feed).status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
+      const hv = db.prepare("SELECT * FROM works WHERE source_url='https://www.metmuseum.org/art/collection/search/777'").get(); assert.ok(hv && hv.title === 'The Harvesters' && hv.open === 'cc0' && hv.status === 'held' && hv.kind === 'painting', 'in, as chosen: ' + JSON.stringify(hv && { t: hv.title, o: hv.open, s: hv.status, k: hv.kind }));
+      app.locals.__fetch = p2; }
     app.locals.__fetch = prev;
   }
   console.log('ok: the Met, in');
