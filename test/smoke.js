@@ -467,6 +467,14 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/site.js'); assert.ok(r.body.toString().includes('data-wm') && !r.body.toString().includes('__WM_BASE__'));
     r = await req(port, 'GET', '/for/natora'); assert.equal(r.status, 404, 'private until the company says yes');
     r = await req(port, 'GET', '/studio/clients/natora', { cookie: ck }); assert.ok(r.body.toString().includes('natora.com/about'), 'the desk shows where it hangs');
+    // The click-through (2 Nov): the photograph opens on Watermark, counted, and the work page says where it was seen and the way back.
+    { assert.ok(cj.works[0].go.endsWith(`/go/${cref}`) && /\?from=natora$/.test(cj.works[0].page), 'the API carries the way through');
+      r = await req(port, 'GET', `/go/${cref}`); assert.ok(r.status === 302 && new RegExp(`/${w.slug}\\?from=natora$`).test(r.headers.location), 'the click lands on the work');
+      assert.equal(db.prepare('SELECT opens FROM client_licenses WHERE ref=?').get(cref).opens, 1, 'counted');
+      const pg = (await req(port, 'GET', `/w/${w.slug}?from=natora`, { headers: { referer: 'https://natora.com/about' } })).body.toString();
+      assert.ok(pg.includes('class="sen"') && pg.includes('Seen on natora.com') && pg.includes('href="https://natora.com/about"') && pg.includes('Back to natora.com'), 'arriving from the site: where, the licence, the way back');
+      assert.ok(!(await req(port, 'GET', `/w/${w.slug}?from=nobody`)).body.toString().includes('class="sen"'), 'no band for a stranger name');
+      assert.ok((await req(port, 'GET', '/site.js')).body.toString().includes('wm-a'), 'the script makes the picture the link'); }
     db.prepare('UPDATE licenses SET ends_at=? WHERE ref=?').run(new Date(Date.now() - 864e5).toISOString(), cref);
     r = await req(port, 'GET', `/p/${cref}/screen`); assert.equal(r.status, 410, 'an ended license is not served');
     console.log('ok: companies');

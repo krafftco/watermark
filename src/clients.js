@@ -17,21 +17,24 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
     CREATE TABLE IF NOT EXISTS client_licenses (client_id INTEGER NOT NULL, ref TEXT NOT NULL, place TEXT, PRIMARY KEY (client_id, ref));
     CREATE TABLE IF NOT EXISTS placements (ref TEXT NOT NULL, host TEXT NOT NULL, page TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0,
       first_at TEXT NOT NULL DEFAULT (datetime('now')), last_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (ref, host, page));`);
+  // The click-through (2 Nov, Will: "click the photo on the website and it goes directly to the Watermark page"):
+  // how many times someone on the company's site opened the photograph's page on Watermark.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('client_licenses') WHERE name='opens'").get()) db.exec('ALTER TABLE client_licenses ADD COLUMN opens INTEGER NOT NULL DEFAULT 0');
   const esc = V.esc, tidy = V.tidy || (s => s);
   const slugify = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
   const client = s => db.prepare('SELECT * FROM clients WHERE slug=?').get(String(s || ''));
   const hostsOf = c => String(c.hosts || '').split(/[\s,]+/).map(h => h.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter(Boolean);
   const live = l => l && l.status === 'active' && (!l.ends_at || new Date(l.ends_at) > new Date());
   const rows = c => db.prepare(`SELECT l.*, w.slug, w.title, w.width, w.height, w.status wstatus, cl.place, u.key ukey, u.name uname,
-      (SELECT COALESCE(SUM(n),0) FROM placements p WHERE p.ref=l.ref) shown, (SELECT COUNT(*) FROM placements p WHERE p.ref=l.ref) pages
+      cl.opens, (SELECT COALESCE(SUM(n),0) FROM placements p WHERE p.ref=l.ref) shown, (SELECT COUNT(*) FROM placements p WHERE p.ref=l.ref) pages
     FROM client_licenses cl JOIN licenses l ON l.ref=cl.ref JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
     WHERE cl.client_id=? ORDER BY l.id`).all(c.id);
   const item = (c, r) => {
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(r.work_id), m = mk(w);
-    return { slug: r.slug, ref: r.ref, number: T.track(r.ref), title: tidy(r.title), maker: m.name, year: w.year || null, place: w.place || null,
+    return { slug: r.slug, ref: r.ref, number: T.track(r.ref), title: tidy(r.title), kind: w.kind && w.kind !== 'photograph' ? 'a ' + w.kind : 'a photograph', maker: m.name, year: w.year || null, place: w.place || null,
       width: r.width, height: r.height, use: r.uname, live: live(r), ends: r.ends_at || null,
       image: { screen: `${C.base}/p/${r.ref}/screen`, large: `${C.base}/p/${r.ref}/large` },
-      credit: `© ${m.name}. Licensed to ${c.name}.`, check: `${C.base}/t/${T.compact(r.ref)}`, renew: `${C.base}/license/${r.slug}?use=${r.ukey}` };
+      credit: `© ${m.name}. Licensed to ${c.name}.`, page: `${C.base}/m/${V.makerSlug ? V.makerSlug(m) : m.handle}/${r.slug}?from=${c.slug}`, go: `${C.base}/go/${r.ref}`, check: `${C.base}/t/${T.compact(r.ref)}`, renew: `${C.base}/license/${r.slug}?use=${r.ukey}` };
   };
 
   // --- on the client's site ---
@@ -44,6 +47,24 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
     res.type('application/javascript').set('Cache-Control', 'public, max-age=300').set('Access-Control-Allow-Origin', '*');
     res.send(require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'site.js'), 'utf8').replace(/__WM_BASE__/g, C.base));
   });
+  // The click-through: a photograph on the company's site opens its page on Watermark. Counted, never by person.
+  app.get('/go/:ref', (req, res) => {
+    const l = q.lic.get(req.params.ref); const cl = l && db.prepare('SELECT c.slug FROM client_licenses x JOIN clients c ON c.id=x.client_id WHERE x.ref=?').get(l.ref);
+    if (!l || !cl) return res.redirect('/');
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) return res.redirect('/');
+    db.prepare('UPDATE client_licenses SET opens=opens+1 WHERE ref=?').run(l.ref);
+    res.set('Cache-Control', 'no-store').redirect(302, `/m/${V.makerSlug ? V.makerSlug(mk(w)) : mk(w).handle}/${w.slug}?from=${cl.slug}`);
+  });
+  // Arriving from the company's site: one line above the photograph saying where it was seen, whose it is, the licence
+  // it hangs there under, and the way back. Only for a company that holds a licence on this work.
+  app.locals.clientSeen = (req, w, m) => {
+    const c = req.query.from ? client(req.query.from) : null; if (!c || !w) return '';
+    const r = db.prepare("SELECT l.* FROM client_licenses x JOIN licenses l ON l.ref=x.ref WHERE x.client_id=? AND l.work_id=? ORDER BY l.id DESC LIMIT 1").get(c.id, w.id); if (!r) return '';
+    const hosts = hostsOf(c); let back = hosts.length ? `https://${hosts[0]}` : '';
+    try { const ref = new URL(String(req.get('referer') || '')); if (hosts.includes(ref.hostname.toLowerCase())) back = ref.href; } catch (e) { /* none */ }
+    const site = hosts[0] ? hosts[0].replace(/^www\./, '') : c.name;
+    return `<aside class="sen" aria-label="Where you came from"><p class="sen-k">Seen on ${esc(site)}</p><p class="sen-t">${esc(m ? m.name : '')}&rsquo;s photograph hangs on ${esc(c.name)}&rsquo;s site under licence <a href="${esc(`${C.base}/t/${T.compact(r.ref)}`)}">${esc(T.track(r.ref))}</a>${live(r) ? '' : ', now ended'}. This is the original, held on Watermark.</p>${back ? `<a class="sen-b" href="${esc(back)}">&larr; Back to ${esc(site)}</a>` : ''}</aside>`;
+  };
   // The photograph, served under its license. Counted by the page it hangs on (the Referer), never by person.
   app.get('/p/:ref/:size', async (req, res) => {
     const l = q.lic.get(req.params.ref);
@@ -102,7 +123,7 @@ ${cs.length ? `<ul class="cl-l">${cs.map(c => `<li><a href="/studio/clients/${es
     const uses = db.prepare("SELECT key, name FROM uses WHERE kind NOT IN ('print','delivery') GROUP BY key, name ORDER BY MIN(sort)").all();
     const snippet = `&lt;script src="${esc(base)}/site.js" data-client="${esc(c.slug)}" defer&gt;&lt;/script&gt;\n&lt;img data-wm="${esc((list[0] && list[0].slug) || 'the-staircase')}" alt="…"&gt;`;
     res.send(desk(`<h1>${esc(c.name)}.</h1><p class="lede">${esc(hostsOf(c).join(', ') || 'No site on the books yet.')}${c.note ? ` &middot; ${esc(c.note)}` : ''}</p>
-<h2>Licensed</h2>${list.length ? `<table class="tbl"><tr><th></th><th>Photograph</th><th>Use</th><th>Number</th><th>Covered</th><th>Shown</th></tr>${list.map(r => `<tr><td><img class="cat-th" src="/img/${esc(r.slug)}/thumb" alt=""></td><td><a href="/w/${esc(r.slug)}">${esc(tidy(r.title))}</a>${r.place ? `<br><small>${esc(r.place)}</small>` : ''}</td><td>${esc(r.uname)}${r.price_cents ? ` &middot; ${V.money(r.price_cents)}` : ''}</td><td><a href="/c/${esc(r.ref)}">${esc(T.track(r.ref))}</a></td><td>${live(r) ? (r.ends_at ? `until ${esc(String(r.ends_at).slice(0, 10))}` : 'yes') : 'ended'}</td><td>${r.shown} on ${r.pages} page${r.pages === 1 ? '' : 's'}</td></tr>`).join('')}</table>` : '<p>Nothing licensed yet.</p>'}
+<h2>Licensed</h2>${list.length ? `<table class="tbl"><tr><th></th><th>Photograph</th><th>Use</th><th>Number</th><th>Covered</th><th>Shown</th></tr>${list.map(r => `<tr><td><img class="cat-th" src="/img/${esc(r.slug)}/thumb" alt=""></td><td><a href="/w/${esc(r.slug)}">${esc(tidy(r.title))}</a>${r.place ? `<br><small>${esc(r.place)}</small>` : ''}</td><td>${esc(r.uname)}${r.price_cents ? ` &middot; ${V.money(r.price_cents)}` : ''}</td><td><a href="/c/${esc(r.ref)}">${esc(T.track(r.ref))}</a></td><td>${live(r) ? (r.ends_at ? `until ${esc(String(r.ends_at).slice(0, 10))}` : 'yes') : 'ended'}</td><td>${r.shown} on ${r.pages} page${r.pages === 1 ? '' : 's'}${r.opens ? `<br><small>opened on Watermark ${r.opens} time${r.opens === 1 ? '' : 's'}</small>` : ''}</td></tr>`).join('')}</table>` : '<p>Nothing licensed yet.</p>'}
 <h2>License photographs</h2><form method="post" action="/studio/clients/${esc(c.slug)}/license" class="cl-f">
 <label>Photographs (one slug or address a line; a line may add where it hangs after a space: <code>the-staircase /about</code>)<textarea name="works" rows="6" required></textarea></label>
 <label>Use <select name="use">${uses.map(u => `<option value="${esc(u.key)}"${u.key === 'commercial' ? ' selected' : ''}>${esc(u.name)}</option>`).join('')}</select></label>

@@ -4825,3 +4825,7 @@ html.dvp-on{overflow:hidden}
 .dvd .dvd-new{width:auto;flex:none;align-self:flex-end}
 .dvo .dvh-b{position:static;order:2;margin:14px auto 0;width:46px;height:46px;max-width:46px;background:rgba(255,255,255,.08);opacity:1}.dvo-f figcaption{order:3}.dvo-f .dvo-im{order:1}
 @media (max-width:760px){.dvo .dvo-im img{max-height:calc(100svh - 300px)}.dvo .dvh-b{margin:8px auto 0;width:40px;height:40px}.dvo-f figcaption>b{font-size:18px}}
+/* Arriving from a company's site (2 Nov, the click-through): where it was seen, the licence, the way back. */
+.sen{max-width:1180px;margin:0 auto 14px;padding:12px 18px;display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;border:1px solid var(--ln);border-left:2px solid #b8913f;background:rgba(184,145,63,.05);font-size:13px}
+.sen-k{margin:0;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a6d2f}.sen-t{margin:0;flex:1 1 360px;color:var(--ink)}.sen-t a{color:inherit}
+.sen-b{color:var(--ink);font-weight:500;text-decoration:none;white-space:nowrap}.sen-b:hover{text-decoration:underline}

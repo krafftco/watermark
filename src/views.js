@@ -448,7 +448,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ prints = '', objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, spoken = '', edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ seen = '', prints = '', objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, spoken = '', edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -493,7 +493,7 @@ function work({ prints = '', objectLabel = '', zoneLabel = '', bench = '', walk 
       copyrightHolder: { '@type': 'Person', name: maker.name }, license: `${BASE()}/terms`, acquireLicensePage: `${BASE()}/license/${w.slug}`,
       dateCreated: w.taken_at || undefined, contentLocation: w.place ? { '@type': 'Place', name: w.place } : undefined, identifier: w.accession || undefined,
       sourceOrganization: { '@type': 'Organization', name: 'Watermark', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } } },
-    body: `<article class="work lot">
+    body: `<article class="work lot">${seen}
 <div class="lot-wall"><figure class="plate" style="aspect-ratio:${ratio};--ar:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.5}" data-viewer data-full="/img/${esc(w.slug)}/large" data-title="${esc(title)}" data-credit="${esc(OBJ.by(w, maker.name))}" data-place="${esc([w.place, year].filter(Boolean).join(', '))}">
 <img src="/img/${esc(w.slug)}/screen" alt="${esc(title)}" draggable="false"><span class="shield"></span><button type="button" class="eye-b" data-eye="${esc(w.slug)}" aria-label="The Watermark: the asset, its number, its terms">${require('./icons').shield}<span>Watermark</span></button></figure>
 <p class="lot-hint"><span class="lot-hint-c">Click the ${OBJ.kindWord(w).toLowerCase()} to see it whole.${walk ? ' Arrows walk.' : ''}</span><span class="lot-hint-t">Tap the ${OBJ.kindWord(w).toLowerCase()} to see it whole.${walk ? ' Swipe to walk.' : ''}</span></p>${objectLabel || ''}${require('./walk').walkBar(walk)}</div>

@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.19.0 · The click-through · 2 November 2026
+- A company's site that shows a photograph licensed on Watermark now opens it on Watermark with one click: the picture is the link, a quiet Watermark mark on hover, a new tab so the site stays open.
+- Arriving from the company's site, the photograph's page says where it was seen, the licence it hangs there under, and the way back.
+- The Studio sees how often each photograph was opened from the company's site.
+
 ## 1.18.0 · The album, cleaned · 2 November 2026
 - The album as a client sees it: a cover, then a clean grid with a heart on each photograph and nothing else. A tap opens the photograph large, with Download · Share · Print · More beneath it.
 - Share makes the photograph ready for a feed (4:5) or a story (9:16), credited, or sends the album's link.
