@@ -197,11 +197,12 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   app.get('/wander/art/:slug', brief((req, res) => {
     const A = app.locals.art; const a = A && A.bySlug ? A.bySlug(String(req.params.slug)) : null; if (!a) return res.redirect('/art');
     const h = A.wall ? A.wall(a) : null; if (!h) return res.redirect(`/art/${a.slug}`);
-    return wander(req, res, { key: `hang:${h.slug}`, share: { url: `/wander/art/${a.slug}`, title: `${a.name} · Wander`, text: `${a.name}${a.born || a.died ? ` (${a.born || ''}–${a.died || ''})` : ''}: the work, one at a time, in the order it was made.` } });
+    // What is sent is the artist's own page (Will, 2 Nov): the life, the dates, the work in order; never the wall.
+    return wander(req, res, { key: `hang:${h.slug}`, as: { label: a.name, href: `/art/${a.slug}` }, share: { url: `/art/${a.slug}`, image: `/art/${a.slug}/card.png`, title: a.name, text: `${a.name}${a.born || a.died ? ` (${a.born || ''}–${a.died || ''})` : ''}: the life and the work, in the order it was made.` } });
   }));
   // A set worth sending: public walls, a maker's work, a series, the collection; never a private room or an album.
   const SHAREABLE = k => /^(hang|maker|series):[\w-]+$/.test(k) || k === 'collection';
-  function wander(req, res, { front = false, key: keyIn = null, share = null }) {
+  function wander(req, res, { front = false, key: keyIn = null, share = null, as = null }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);
     const at = req.query.at ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
@@ -214,7 +215,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     const mk = set ? null : makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
     const sh = share || (set && SHAREABLE(key) ? { url: `/wander?in=${encodeURIComponent(key)}`, title: `${set.label} · Wander`, text: `${set.label}: one work at a time, on Watermark.` } : null);
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: set.label, href: set.href, n: set.n, via: set.via || null, files: set.files || null } : null, I , front, share: sh }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: (as && as.label) || set.label, href: (as && as.href) || set.href, n: set.n, via: set.via || null, files: set.files || null } : null, I , front, share: sh }));
   }
 }
 
@@ -245,7 +246,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 </nav>
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
-  return V.layout({ title: front ? 'Watermark · Where great work is kept' : share ? `${share.title} · Watermark` : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: front ? 'Keep what you make. Own a piece of what others make. Wander: the finest work, one at a time, edge to edge.' : share ? share.text : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: front ? '/' : share ? share.url : '/wander', bare: true, image: items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}" data-stroll${front ? ' data-front="1"' : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
+  return V.layout({ title: front ? 'Watermark · Where great work is kept' : share ? `${share.title} · Watermark` : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: front ? 'Keep what you make. Own a piece of what others make. Wander: the finest work, one at a time, edge to edge.' : share ? share.text : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: front ? '/' : share ? share.url : '/wander', bare: true, image: share && share.image ? share.image : items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}" data-stroll${front ? ' data-front="1"' : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}">
 <header class="st-top"><a class="st-home" href="${front ? '/house' : '/'}" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span>${share ? `<button type="button" class="st-gon" data-st-setshare data-url="${esc(share.url)}" data-title="${esc(share.title)}" data-text="${esc(share.text)}" aria-label="Share this wander" title="Send this wander: the whole walk, from the first work">${I.share || I.send}<span>Share</span></button>` : ''}<button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon st-full" data-st-fs hidden aria-label="Full screen" title="Full screen (F)">${I.full || ''}<span>Full screen</span></button><a class="st-x" href="${set ? esc(set.href) : front ? '/house' : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>

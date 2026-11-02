@@ -223,9 +223,45 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki }));
     const body = AP.render({ a, ws, ghosts, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
-    const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/img/${hero.slug}/screen` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
+    const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     if (!studio) pageCache.set(a.slug, { at: Date.now(), html });
     res.send(html);
+  });
+
+  // The card a link to an artist unfurls into (Will, 2 Nov): the work on the left; the name, the dates and the life as a line on the right.
+  const artCards = new Map();
+  app.get('/art/:slug/card.png', async (req, res) => {
+    const a = bySlug(req.params.slug); if (!a) return res.sendStatus(404);
+    const ws = chronology(a); const hero = ws.find(w => w.curated) || ws[0];
+    const key = `${a.slug}|${hero ? hero.slug : ''}|${ws.length}|${a.born}|${a.died}`; let png = artCards.get(key);
+    if (!png) {
+      try {
+        const sharp = require('sharp'); const X = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const GILT = '#c9a24a', INK = '#f6f1e7', W = 1200, H = 630, L = 560;
+        const words = String(a.name).split(/\s+/); const lines = []; let cur = '';
+        for (const wd of words) { if ((cur + ' ' + wd).trim().length > 14 && cur) { lines.push(cur); cur = wd; } else cur = (cur + ' ' + wd).trim(); } if (cur) lines.push(cur);
+        const size = lines.length > 2 ? 52 : 68, lh = size * 1.08, y0 = 210;
+        const sub = [a.nationality, a.movement].filter(Boolean).join(' · ');
+        const yrs = new Set(ws.map(w => AP.madeIn(w, a)).filter(Boolean));
+        const ys = [...yrs]; const b0 = a.born || (ys.length ? Math.min(...ys) : null), b1 = a.died || (a.born ? new Date().getFullYear() : ys.length ? Math.max(...ys) : null);
+        const lx = L + 64, lw = W - lx - 64, ly = 470;
+        const ticks = b0 && b1 && b1 > b0 ? [...yrs].filter(y => y >= b0 && y <= b1).map(y => { const x = lx + (y - b0) / (b1 - b0) * lw; return `<path d="M${x.toFixed(1)} ${ly - 14}v14" stroke="${GILT}" stroke-width="2"/>`; }).join('') : '';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#0b0a09"/>
+<text x="${lx}" y="120" font-family="Inter, 'DejaVu Sans', sans-serif" font-size="15" letter-spacing="3" fill="${GILT}">THE HALL · WATERMARK</text>
+${lines.map((l, i) => `<text x="${lx}" y="${y0 + i * lh}" font-family="'Bitstream Charter', 'GFS Baskerville', 'DejaVu Serif', serif" font-size="${size}" fill="${INK}">${X(l)}</text>`).join('')}
+${a.born || a.died ? `<text x="${lx}" y="${y0 + lines.length * lh + 14}" font-family="'Bitstream Charter', 'DejaVu Serif', serif" font-style="italic" font-size="30" fill="${INK}" opacity=".85">${X(a.born || '?')} – ${X(a.died || 'today')}</text>` : ''}
+${sub ? `<text x="${lx}" y="${y0 + lines.length * lh + 56}" font-family="Inter, 'DejaVu Sans', sans-serif" font-size="17" letter-spacing="1" fill="${INK}" opacity=".6">${X(sub)}</text>` : ''}
+${b0 && b1 && b1 > b0 ? `<path d="M${lx} ${ly}h${lw}" stroke="${INK}" stroke-opacity=".35" stroke-width="1.5"/>${ticks}<text x="${lx}" y="${ly + 30}" font-family="Inter, 'DejaVu Sans', sans-serif" font-size="15" fill="${INK}" opacity=".6">${X(b0)}</text><text x="${lx + lw}" y="${ly + 30}" text-anchor="end" font-family="Inter, 'DejaVu Sans', sans-serif" font-size="15" fill="${INK}" opacity=".6">${X(a.died || 'today')}</text>` : ''}
+<text x="${lx}" y="${H - 54}" font-family="Inter, 'DejaVu Sans', sans-serif" font-size="15" letter-spacing="2" fill="${INK}" opacity=".55">${ws.length ? `${ws.length} ${ws.length === 1 ? 'WORK' : 'WORKS'}, IN THE ORDER MADE` : 'THE LIFE AND THE WORK'}</text>
+</svg>`;
+        const layers = [];
+        if (hero && app.locals.imageOf) { try { const buf = await app.locals.imageOf(hero); layers.push({ input: await sharp(buf).resize(L, H, { fit: 'cover', position: 'attention' }).jpeg({ quality: 88 }).toBuffer(), left: 0, top: 0 }); } catch (e) { /* the words stand alone */ } }
+        png = await sharp(Buffer.from(svg)).composite(layers).png({ compressionLevel: 8 }).toBuffer();
+        if (artCards.size > 300) artCards.delete(artCards.keys().next().value);
+        artCards.set(key, png);
+      } catch (e) { console.error('[art-card]', e.message); return res.sendStatus(500); }
+    }
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' }).send(png);
   });
 
   app.get('/art/:slug/claim', (req, res) => {
