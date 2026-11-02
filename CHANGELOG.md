@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.25 · Backgrounds · 2 November 2026
+
+- Any work made to the exact pixels of a screen: iPhone, iPad, Surface Duo (open or folded), MacBook, a 5K display, the Samsung Frame and any 4K television.
+- Filled to the edge, cropped where the eye is least; or set whole on the dark like a print in its mat (on the Frame, a paper-white mat).
+- Never stretched more than half again: a smaller file is set whole instead.
+- Free for open work; for a maker's work, for anyone who holds it. The colour and the name travel inside the file.
+
 ## 1.24 · See it in person, and zoom unlocked · 2 November 2026
 
 - Every catalogued work carries the museum, foundation or library that keeps the original: its city, its website, the museum's own page for the work.
