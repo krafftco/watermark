@@ -286,6 +286,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     const t = db.prepare("SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.slug=?").get(String(req.params.slug));
     const DOC = app.locals.documents; const docPages = t && t.kind === 'document' && DOC ? DOC.pagesOf(t) : [];
     if (!t || (!t.body && !t.plates && !docPages.length) || (!t.public && !isStudio(req)) || t.status !== 'held') return res.sendStatus(404);
+    { const GZ = app.locals.gazette; if (GZ && t.maker_id) { const lock = GZ.locked(t, req); if (lock) t.body = lock.preview + '\n\n⟦wm-end⟧'; const end = (lock ? lock.card : '') + GZ.endOf(t, req); const s0 = res.send.bind(res); res.send = h => s0(typeof h === 'string' ? (lock ? h.replace(/<p[^>]*>⟦wm-end⟧<\/p>/, '') : h).replace('</article>', end + '</article>') : h); res.set('Cache-Control', 'private, no-store'); } }
     const I = require('./icons');
     // A document (documents.js) reads two ways: the text, and the pages one a screen (?pages=1; the only way when it has no text).
     const asPages = docPages.length > 0 && (!t.body || /[?&]pages=1/.test(req.url));

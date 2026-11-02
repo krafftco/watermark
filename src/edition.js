@@ -66,6 +66,7 @@ function mountEdition(app, { db, V, C, isStudio, makerOf, buyerOf, imageOf = nul
   app.get('/read/:slug.pdf', async (req, res) => {
     const t = db.prepare('SELECT * FROM texts WHERE slug=?').get(String(req.params.slug));
     if (!t || (!t.body && !t.plates) || t.status !== 'held' || (!t.public && !isStudio(req))) return res.sendStatus(404);
+    if (t.subscribers_only && app.locals.gazette && app.locals.gazette.locked(t, req)) return res.redirect(`/read/${t.slug}`);
     if (t.price_cents) { // a priced text: the maker, the Studio, or a paid copy's holder
       const m = makerOf ? makerOf(req) : null; const b = buyerOf ? buyerOf(req) : null;
       const paid = req.query.t ? db.prepare("SELECT 1 FROM text_orders WHERE text_id=? AND token=? AND status='paid'").get(t.id, String(req.query.t)) : b ? db.prepare("SELECT 1 FROM text_orders WHERE text_id=? AND buyer_id=? AND status='paid'").get(t.id, b.id) : null;

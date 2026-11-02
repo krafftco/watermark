@@ -82,7 +82,7 @@ function mountFacing(app, { db, ledger, fetchImpl }) {
     return job;
   }
 
-  const textOf = slug => db.prepare("SELECT * FROM texts WHERE slug=? AND status='held' AND public=1").get(String(slug));
+  const textOf = slug => db.prepare("SELECT * FROM texts WHERE slug=? AND status='held' AND public=1 AND COALESCE(subscribers_only,0)=0").get(String(slug));
 
   // What the reader asks for: GET /read/:slug/facing?c=&lang= → the chapter's twin. Made now if it is not yet kept
   // (the reader shows the wave meanwhile); ?peek=1 answers only what is already kept, never making one.

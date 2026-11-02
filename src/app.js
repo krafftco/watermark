@@ -492,6 +492,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (app.locals.clientEvent) app.locals.clientEvent(event); // a company's bill for the year
     if (app.locals.briefEvent) app.locals.briefEvent(event); // a brand's commission funded
     if (app.locals.franchiseEvent) app.locals.franchiseEvent(event); // a maker's own house: opened or closed
+    if (app.locals.gazetteEvent) app.locals.gazetteEvent(event); // a maker's paid Gazette: begun, a month paid, or ended
     if (app.locals.standingEvent) app.locals.standingEvent(event); // a piece a month: begun, a month paid, or ended
     if (app.locals.ownEvent) app.locals.ownEvent(event); // a Copyright Office filing paid for
     if (app.locals.bookshopEvent) app.locals.bookshopEvent(event); // a copy bought from the Bookshop
@@ -2129,6 +2130,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./shelves').mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl: cfg.fetchImpl }); // the Library as a room: the shelves, by author, begin here (before library.js, whose /library it replaces)
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
+  require('./gazette').mountGazette(app, { db, V, C, mail, ledger, stripe, buyerOf, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Gazette by post: subscribers, the letter, the paid tier, the bench under writing (2 Nov)
   require('./jacket').mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl: cfg.fetchImpl }); // the jacket (26 Oct): the house's own front and back of every book
   require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });

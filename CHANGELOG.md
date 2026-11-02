@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.22 · The Gazette by post · 2 November 2026
+
+- Readers subscribe to a maker on their page or at the end of any piece: an email, confirmed with one tap, or at once when signed in with that address.
+- Each new piece goes to the list as a letter in the house's design, from the maker's own Writing desk ("Send it to your subscribers by post") or from Your Gazette; never twice.
+- The paid tier: the maker's price by the month, every dollar of it theirs (the house's share on top when the fee is on), through Stripe, on the statement, paid out on Fridays.
+- A piece may be for paying subscribers: they read it whole, everyone else the opening; the PDF, Wander, the commonplace feed and translation leave it alone.
+- The bench under writing, for subscribers (paying ones, under a paid piece) and the writer.
+- The list is the maker's: exported as a CSV, brought in from elsewhere (only people who asked), one tap off from every letter, with the mail's own unsubscribe header.
+- Recommendations: up to three makers each maker reads, on their page and at the moment someone subscribes.
+
 ## 1.21.1 · Look only · 2 November 2026
 
 - A private gallery's rules gain Post it (a credited copy for a feed or a story), off unless the maker turns it on.

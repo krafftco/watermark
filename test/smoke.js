@@ -2230,6 +2230,46 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/press'); assert.ok(r.status === 200 && /The printing house\./.test(r.body) && /Franklin/.test(r.body), 'the printing house, as the public reads it');
   }
   console.log('ok: the printing house');
+  { // The Gazette by post (2 Nov): a reader subscribes and confirms; a piece goes out as a letter; the paid tier, a piece for paying subscribers, the bench under writing; the list exported, brought in, left in one tap.
+    const tx = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get(); const mkr = db.prepare('SELECT * FROM makers WHERE id=?').get(tx.maker_id); const ms = require('../src/views').makerSlug(mkr); const GZ = app.locals.gazette;
+    r = await req(port, 'GET', `/m/${ms}`); assert.ok(/class="gz-sub"/.test(r.body) && /new work, by post/.test(r.body), 'the box on the masthead');
+    const m0 = (app.locals.mailLog || []).length;
+    r = await req(port, 'POST', `/m/${ms}/subscribe`, { body: { email: 'Reader@Example.com', name: 'Reader One' } }); assert.ok(/gz=check/.test(r.headers.location), 'asked to confirm');
+    const sub = db.prepare("SELECT * FROM gazette_subs WHERE email='reader@example.com'").get(); assert.ok(sub && sub.status === 'pending', 'waiting');
+    assert.ok((app.locals.mailLog || []).slice(m0).some(x => x.to === 'reader@example.com' && /Confirm/.test(x.subject) && x.text.includes(`/gz/c/${sub.token}`)), 'the confirming letter');
+    r = await req(port, 'GET', `/gz/c/${sub.token}`); const rck = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(c => c.startsWith('wm_gz=')).join('; ');
+    assert.ok(r.status === 200 && /You are on the list/.test(r.body) && rck && db.prepare('SELECT status FROM gazette_subs WHERE id=?').get(sub.id).status === 'on', 'confirmed, and remembered on the device');
+    r = await req(port, 'GET', '/account/gazette', { cookie: mck }); assert.ok(r.status === 200 && /Your Gazette/.test(r.body) && /reader@example\.com/.test(r.body) && /Send to 1/.test(r.body), 'the desk: the list and the send');
+    const m1 = (app.locals.mailLog || []).length;
+    r = await req(port, 'POST', `/account/gazette/send/${tx.id}`, { cookie: mck }); assert.ok(/1%20reader/.test(r.headers.location), 'sent'); await GZ.drain();
+    { const l = (app.locals.mailLog || []).slice(m1).find(x => x.to === 'reader@example.com'); assert.ok(l && l.subject === 'On Looking Longer' && l.text.includes('Paragraph 1.') && l.text.includes(`/gz/u/${sub.token}`) && l.text.includes('/bench/text/'), 'the letter: the piece, the bench, one tap off'); }
+    r = await req(port, 'POST', `/account/gazette/send/${tx.id}`, { cookie: mck }); assert.ok(/gone%20already/.test(r.headers.location), 'never twice');
+    // The paid tier, and a piece for paying subscribers.
+    r = await req(port, 'POST', '/account/gazette/plan', { cookie: mck, body: { paid_on: '1', price: '5', welcome: 'Thank you for reading.' } }); assert.equal(GZ.plan(mkr).price_cents, 500);
+    r = await req(port, 'POST', `/account/gazette/only/${tx.id}`, { cookie: mck }); assert.equal(db.prepare('SELECT subscribers_only FROM texts WHERE id=?').get(tx.id).subscribers_only, 1, 'for paying subscribers');
+    r = await req(port, 'GET', `/read/${tx.slug}`, { cookie: rck }); assert.ok(/gz-lock/.test(r.body) && /Paragraph 3\./.test(r.body) && !/Paragraph 9\./.test(r.body) && !/⟦wm-end⟧/.test(r.body), 'a free reader reads the opening');
+    r = await req(port, 'GET', `/read/${tx.slug}`, { cookie: mck }); assert.ok(/Paragraph 9\./.test(r.body) && !/gz-lock/.test(r.body), 'the writer reads it whole');
+    r = await req(port, 'GET', `/read/${tx.slug}.pdf`); assert.equal(r.status, 302, 'the PDF is theirs too');
+    r = await req(port, 'POST', `/bench/text/${tx.slug}`, { cookie: rck, body: { body: 'This changed how I look at a print on the wall.' } }); assert.ok(/ok=no/.test(r.headers.location), 'the bench of a paying piece is for paying subscribers');
+    r = await req(port, 'POST', `/m/${ms}/subscribe/paid`, { cookie: rck, body: { email: 'reader@example.com', name: 'Reader One' } }); const cs = sessions[r.headers.location.split('/').pop()];
+    assert.ok(cs && cs.mode === 'subscription' && cs.metadata.gazette === String(sub.id) && cs.line_items[0].price_data.unit_amount >= 500, 'Checkout, by the month');
+    app.locals.gazetteEvent({ type: 'checkout.session.completed', data: { object: { id: cs.id, metadata: { gazette: String(sub.id) }, payment_status: 'paid', status: 'complete', amount_total: cs.line_items[0].price_data.unit_amount, subscription: 'sub_gz_1', invoice: 'in_gz_1' } } });
+    assert.equal(db.prepare('SELECT tier FROM gazette_subs WHERE id=?').get(sub.id).tier, 'paid', 'a paying subscriber');
+    app.locals.gazetteEvent({ type: 'invoice.paid', data: { object: { id: 'in_gz_2', subscription: 'sub_gz_1', billing_reason: 'subscription_cycle', amount_paid: cs.line_items[0].price_data.unit_amount } } });
+    assert.ok(GZ.earned(mkr.id).n === 2 && GZ.earned(mkr.id).s >= 850, 'two months, on the writer’s statement');
+    r = await req(port, 'GET', `/read/${tx.slug}`, { cookie: rck }); assert.ok(/Paragraph 9\./.test(r.body) && !/class="gz-lock"/.test(r.body), 'a paying reader reads it whole');
+    r = await req(port, 'POST', `/bench/text/${tx.slug}`, { cookie: rck, body: { body: 'This changed how I look at a print on the wall.' } }); assert.ok(/ok=said/.test(r.headers.location), 'on the bench');
+    r = await req(port, 'GET', `/bench/text/${tx.slug}`); assert.ok(/This changed how I look/.test(r.body) && /Reader One/.test(r.body), 'the bench reads');
+    r = await req(port, 'POST', `/bench/text/${tx.slug}`, { body: { body: 'A stranger trying to speak on this bench.' } }); assert.ok(/ok=no/.test(r.headers.location), 'a stranger may not speak');
+    // The list is the writer's.
+    r = await req(port, 'GET', '/account/gazette.csv', { cookie: mck }); assert.ok(/reader@example\.com/.test(r.body) && /paid/.test(r.body), 'exported');
+    r = await req(port, 'POST', '/account/gazette/import', { cookie: mck, body: { list: 'ana@example.com, Ana\nnot-an-email\nreader@example.com', attest: '1' } }); assert.ok(/1%20brought%20in/.test(r.headers.location), 'brought in');
+    r = await req(port, 'POST', `/gz/u/${sub.token}`, { body: { 'List-Unsubscribe': 'One-Click' } }); assert.equal(r.status, 200, 'one-click off, from the mail');
+    assert.equal(db.prepare('SELECT status FROM gazette_subs WHERE id=?').get(sub.id).status, 'off');
+    db.prepare('UPDATE texts SET subscribers_only=0 WHERE id=?').run(tx.id);
+    r = await req(port, 'GET', '/ledger'); assert.ok(!/reader@example|Reader One/.test(r.body), 'no reader on the public register');
+  }
+  console.log('ok: the Gazette by post');
   { // The Gazette and the almanack (25 Oct): the maker's page opens with a masthead and Latest; the year as one book, made in one press, read, set as a PDF with plates, remade at its address.
     const tx = db.prepare("SELECT * FROM texts WHERE title='On Looking Longer'").get(); const mkr = db.prepare('SELECT * FROM makers WHERE id=?').get(tx.maker_id);
     r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(/class="gz"/.test(r.body) && /gz-m/.test(r.body) && /id="latest"/.test(r.body) && /No\. \d+/.test(r.body), 'the Gazette: the masthead and Latest');

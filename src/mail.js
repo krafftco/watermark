@@ -36,7 +36,7 @@ async function probe() { // the sending domain's standing at Resend, read once a
   } catch (e) { state.domain = 'unreachable: ' + e.message; }
 }
 const log = []; // letters the house would have sent with mail off (tests read app.locals.mailLog)
-async function send({ to, subject, text, from, html, feature, cta }) {
+async function send({ to, subject, text, from, html, feature, cta, headers, replyTo }) {
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
   if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); log.push({ to, subject, text: text || '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
@@ -50,7 +50,7 @@ async function send({ to, subject, text, from, html, feature, cta }) {
   const SAFE = 'Watermark <house@watermark.krafftco.com>'; // the verified sending domain
   const post = f => fetch('https://api.resend.com/emails', {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: f, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }),
+    body: JSON.stringify(Object.assign({ from: f, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }, headers ? { headers } : {}, replyTo ? { reply_to: replyTo } : {})),
   });
   try {
     let r = await post(sender);

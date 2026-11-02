@@ -58,7 +58,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // read a whole body); one book's chapters are cut once and kept, the first two hundred books at a time.
   const SHELF = { at: 0, ids: [] }; const CHAPTERS = new Map();
   function shelfBook() {
-    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
+    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
     if (!SHELF.ids.length) return null;
     const id = SHELF.ids[Math.floor(Math.random() * SHELF.ids.length)]; const kept = CHAPTERS.get(id); if (kept && Date.now() - kept.at < 3600e3) return kept;
     const t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.id=?").get(id); if (!t) return null;

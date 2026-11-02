@@ -84,7 +84,7 @@ function mountRows(app, { db, V, C }) {
     ].filter(x => x.at).sort((a, b) => b.at.localeCompare(a.at));
     const issue = works.length + texts.length + records.length + stories.length;
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const mast = `<header class="gz"><p class="gz-k">${esc(first)}’s own paper</p><h2 class="gz-m">${esc(m.name)}</h2><p class="gz-d"><span>${esc(today)}</span>${m.place ? `<span>${esc(m.place)}</span>` : ''}<span>No. ${issue}</span><span>Made with Watermark</span></p></header>`;
+    const mast = `<header class="gz"><p class="gz-k">${esc(first)}’s own paper</p><h2 class="gz-m">${esc(m.name)}</h2><p class="gz-d"><span>${esc(today)}</span>${m.place ? `<span>${esc(m.place)}</span>` : ''}<span>No. ${issue}</span><span>Made with Watermark</span></p>${app.locals.gazette ? app.locals.gazette.box(m, req) : ''}</header>`;
     if (latest.length) rows.push({ k: 'latest', id: 'latest', title: 'Latest', line: `the newest, across everything`, mast, tiles: latest.slice(0, 12).map((x, i) => ({ ...x.t, wide: i === 0 ? true : x.t.wide, line: `${x.kind} · ${V.date(x.at)}` })) });
     const sortBar = `<nav class="rw-sort" aria-label="Sort">${SORTS.map(([k, l]) => `<a href="${slug}?sort=${k}#work"${sort === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</nav>`;
     const byDate = [...works].sort((a, b) => String(b.taken_at || b.created_at || '').localeCompare(String(a.taken_at || a.created_at || '')));

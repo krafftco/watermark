@@ -22,8 +22,8 @@ function mountCommonplace(app, { db, V, C, buyerOf, ledger }) {
   // One passage, never one the visitor has seen this visit (`seen` carries p:<slug>:<c>:<p>).
   function passage(seen = [], { book = null } = {}) {
     const rows = book
-      ? db.prepare("SELECT t.id, t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND t.slug=? AND t.body IS NOT NULL").all(book)
-      : db.prepare("SELECT t.id, t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND t.kind IN ('book','essay','document','history','paper') AND t.body IS NOT NULL AND length(t.body) > 1200 ORDER BY RANDOM() LIMIT 8").all();
+      ? db.prepare("SELECT t.id, t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.slug=? AND t.body IS NOT NULL").all(book)
+      : db.prepare("SELECT t.id, t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay','document','history','paper') AND t.body IS NOT NULL AND length(t.body) > 1200 ORDER BY RANDOM() LIMIT 8").all();
     for (const t of rows) {
       const chs = chaptersOf(t.body); const cands = [];
       chs.forEach((c, ci) => c.paras.forEach((p, pi) => { if (whole(p)) cands.push({ ci, pi, p }); }));
@@ -42,7 +42,7 @@ function mountCommonplace(app, { db, V, C, buyerOf, ledger }) {
   app.post('/commonplace/keep', (req, res) => {
     const b = buyerOf(req); const json = req.body.json || /application\/json/.test(req.headers.accept || '');
     if (!b) return json ? res.status(401).json({ ok: false, signin: true }) : res.redirect('/signin?next=' + encodeURIComponent(req.body.back || '/wander?in=shelf') + '&why=commonplace');
-    const t = db.prepare("SELECT id, slug, body FROM texts WHERE slug=? AND status='held' AND public=1").get(String(req.body.book || '')); if (!t) return json ? res.status(404).json({ ok: false }) : res.sendStatus(404);
+    const t = db.prepare("SELECT id, slug, body FROM texts WHERE slug=? AND status='held' AND public=1 AND COALESCE(subscribers_only,0)=0").get(String(req.body.book || '')); if (!t) return json ? res.status(404).json({ ok: false }) : res.sendStatus(404);
     const chs = chaptersOf(t.body); const c = +req.body.c || 0, p = +req.body.p || 0; const para = chs[c] && chs[c].paras[p]; if (!para) return json ? res.status(400).json({ ok: false }) : res.sendStatus(400);
     db.prepare('INSERT OR IGNORE INTO commonplace (buyer_id, text_id, chapter, para, passage) VALUES (?,?,?,?,?)').run(b.id, t.id, c, p, plain(para).slice(0, 2000));
     const n = db.prepare('SELECT COUNT(*) n FROM commonplace WHERE buyer_id=?').get(b.id).n;
