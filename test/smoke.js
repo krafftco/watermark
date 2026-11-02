@@ -222,6 +222,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(!/wm_s=/.test(String(r.headers['set-cookie'] || '')), 'a stranger\'s code opens no studio');
     r = await req(port, 'POST', '/signin/code', { body: { email: 'door@example.com' } }); r = await req(port, 'POST', '/signin/verify', { body: { email: 'door@example.com', code: app.locals.lastCode.code } });
     const sc = String(r.headers['set-cookie'] || ''); assert.ok(/wm_s=/.test(sc), 'the named person\'s code opens the door');
+    { const bc = (sc.match(/wm_b=[^;]+/) || [''])[0]; r = await req(port, 'GET', '/signin?next=/studio/door', { cookie: bc }); assert.ok(/data-step="email"/.test(r.body.toString()) && !/Good to see you/.test(r.body.toString()), 'signed in already, the door\'s sign-in still asks for a fresh code (2 Nov: it said "Good to see you" and looped)'); }
     const dck = sc.match(/wm_s=[^;]+/)[0]; r = await req(port, 'GET', '/studio/legal', { cookie: dck }); assert.equal(r.status, 200, 'and the studio answers');
     assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='studio.opened'").get().n >= 1, 'the opening is on the register');
     // With a passkey on file the code alone no longer opens; the house's own setting can set the passkey aside (2 Nov: Will locked out).

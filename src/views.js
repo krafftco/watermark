@@ -934,7 +934,8 @@ function handPage({ url, svg, mailOn, email, next }) {
 }
 function signin({ b, m, has, mailOn = true, out = false, gone = false, next = null }) {
   // One field. The code comes by mail; a passkey, when the browser holds one, is offered in the same field.
-  const inside = !!(b && (b.email || has)) || !!m;
+  // The Studio door asks for a fresh code even of someone signed in, so never answer it with 'you are in'.
+  const inside = !(next && next.startsWith('/studio')) && (!!(b && (b.email || has)) || !!m);
   const who = m ? m.name.split(' ')[0] : (b && b.name ? b.name.split(' ')[0] : null);
   return layout({ title: 'Sign in · Watermark', body: `<section class="si" data-si data-next="${next ? esc(next) : ''}">
 <div class="si-card">

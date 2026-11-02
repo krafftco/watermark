@@ -17,7 +17,7 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker
   const newBuyer = res => { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', NULL)").run().lastInsertRowid; const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); return b; };
   app.locals.passkeysOf = keysOf;
 
-  app.get('/signin', (req, res) => { const b = buyerOf(req); res.send(V.signin({ b, has: keysOf(b).length > 0 })); });
+  // GET /signin is signin.js's (it carries `next`; this older one answered first and dropped it, 2 Nov).
   app.get('/static/webauthn.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'public, max-age=86400'); res.sendFile(require('path').join(__dirname, '..', 'node_modules', '@simplewebauthn', 'browser', 'dist', 'bundle', 'index.umd.min.js')); });
 
   // Save this collection with a passkey.
