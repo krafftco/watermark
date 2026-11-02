@@ -207,13 +207,14 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     return h;
   }
   const pageCache = new Map();
-  app.get('/art/:slug', (req, res) => {
-    const a = bySlug(req.params.slug); if (!a) return res.sendStatus(404);
+  app.get('/art/:slug', (req, res, next) => {
+    const a = bySlug(req.params.slug); if (!a) return next();
     const studio = isStudio(req); const hit = pageCache.get(a.slug); if (!studio && hit && Date.now() - hit.at < 60e3) return res.send(hit.html);
     const OB = require('./object'); const ws = chronology(a); const r = rights(a, ws[0] || null); const h = wallOf(a, ws);
     const photographers = [...new Map(ws.filter(w => w.handle !== 'the-public-domain').map(w => [w.handle, w.maker_name])).entries()];
     const kinds = [...new Set(ws.map(w => OB.kindWord(w).toLowerCase() + 's'))];
-    const museums = [...new Set(ws.map(w => w.keeps).filter(Boolean))].slice(0, 12);
+    const KP = app.locals.catalogue ? db.prepare('SELECT k.qid, k.name, k.city, COUNT(c.id) n FROM catalogue c JOIN keepers k ON k.qid=c.collection_qid WHERE c.artist_id=? GROUP BY k.qid, k.name, k.city ORDER BY COUNT(c.id) DESC, k.name LIMIT 40').all(a.id) : [];
+    const museums = KP.length ? KP.map(k => ({ html: `<a href="/art/visit/${esc(k.qid)}">${esc(k.name)}</a>${k.city ? `, ${esc(k.city)}` : ''} <small>${k.n}</small>` })) : [...new Set(ws.map(w => w.keeps).filter(Boolean))].slice(0, 12);
     const claimLine = a.claim_status === 'claimed' ? `This page is kept with ${esc(a.claimed_name || 'the artist’s representative')}.${a.terms ? ` ${esc(a.terms)}` : ''}` : `Are you ${esc(a.name)}, the estate, a foundation or the gallery that represents the work? The page is yours to keep: the life in your words, the dates, and what may be collected. <a href="/art/${esc(a.slug)}/claim">Write to the house</a>.`;
     let binding = null; try { binding = require('./binding'); } catch (e) { /* */ }
     const CAT = app.locals.catalogue; const cat = CAT ? CAT.of(a, ws) : [];

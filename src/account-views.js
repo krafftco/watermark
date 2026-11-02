@@ -147,7 +147,7 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
     totals.royalties ? ['/account/payouts', 'Royalties', `${money(totals.royalties)} from ${totals.resales} resale${totals.resales === 1 ? '' : 's'}`] : null,
     ['/share', 'The split', require('./fee').on ? 'The price is yours; the house’s share is on top' : `You keep ${pct}% of every sale`],
   ].filter(Boolean);
-  const col = (title, rows, empty) => `<section class="dk2-col"><h2>${title}</h2>${rows.length ? `<ul>${rows.map(([href, verb, line]) => `<li><a href="${href}"><b>${esc(verb)}</b><span>${esc(line)}</span></a></li>`).join('')}</ul>` : `<p class="dk2-empty">${empty}</p>`}</section>`;
+  const col = (title, rows0, empty) => { const rows = (rows0 || []).filter(Boolean); return `<section class="dk2-col"><h2>${title}</h2>${rows.length ? `<ul>${rows.map(([href, verb, line]) => `<li><a href="${href}"><b>${esc(verb)}</b><span>${esc(line)}</span></a></li>`).join('')}</ul>` : `<p class="dk2-empty">${empty}</p>`}</section>`; };
   const desk = () => `<section class="dk2" aria-label="The desk">
 <header class="dk2-line"><span><b>${money(totals.today)}</b><i>today${totals.todayN ? ` · ${totals.todayN}` : ''}</i></span><span><b>${money(totals.month)}</b><i>this month</i></span><span><b>${needRows.length}</b><i>need${needRows.length === 1 ? 's' : ''} you</i></span>${keys.length ? `<a href="/keys" class="dk2-key">${I.key}<i>No. ${keys[0].no}</i></a>` : ''}</header>
 <div class="dk2-cols">${col('Needs you', needRows, 'All clear.')}${col('The work', workRows, '')}${col('Money', moneyRows, '')}</div>
