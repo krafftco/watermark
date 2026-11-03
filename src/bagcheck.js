@@ -78,7 +78,7 @@ async function cargo(file, type) {
     st.on('data', d => {
       size += d.length;
       const s = carry + d.toString('latin1'); // latin1: one byte, one char; the search is byte-exact
-      for (const [re, why, soft] of CARGO) { if (found || (type === 'zip' && /zip/.test(why))) continue; const at = s.search(re); if (at < 0) continue; if (soft && sos > 0 && pos - carry.length + at < sos) continue; found = why; } // a zip is a zip; words in a JPEG's own record are not cargo
+      for (const [re, why, soft] of CARGO) { if (found || (type === 'zip' && /zip/.test(why))) continue; const at = s.search(re); if (at < 0) continue; const where = pos - carry.length + at; if (soft && sos > 0 && where < sos) continue; found = `${why} (at byte ${where.toLocaleString('en-US')}${sos > 0 ? `; the picture begins at ${sos.toLocaleString('en-US')}` : sos === 0 ? '' : type === 'jpeg' ? '; its markers could not be walked' : ''})`; } // a zip is a zip; words in a JPEG's own record are not cargo
       if (type === 'jpeg') { const i = s.lastIndexOf('\xff\xd9'); if (i >= 0) lastEOI = pos - carry.length + i; }
       pos += d.length; carry = s.slice(-16);
     });

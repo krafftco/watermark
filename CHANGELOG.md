@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.31.3 · The refusal says where · 2 November 2026
+- A bag-check refusal for cargo names the byte it was found at and where the picture begins, so a wrongly refused file can be read without the file.
+
 ## 1.31.2 · Words in the record · 2 November 2026
 - The bag check no longer turns a JPEG away for the word 'html' inside its own record (a museum's XMP description, as on Wikimedia Commons); the same words after the picture, or a script anywhere, are still cargo.
 
