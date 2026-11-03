@@ -93,7 +93,11 @@ function siItems(rows) {
 // (LicenseUrl, else LicenseShortName), the title from ObjectName else the file's name, the artist and date from extmetadata.
 // A scan past BIG_PX (the Google Art Project's Starry Night is 712 MP; the house's door takes 400, and a decode that size
 // fills the box) comes in as Wikimedia's own 7680-pixel rendering instead (31 Oct).
-const BIG_PX = +(process.env.COMMONS_BIG_MP || 150) * 1e6;
+const BIG_PX = +(process.env.COMMONS_BIG_MP || 40) * 1e6;
+// The rendering asked of Wikimedia for a scan past BIG_PX (2 Nov, Will: "memory issues with Render"; a 7680-pixel scan
+// decodes to 300 MB raw, and the door, the fingerprint, the dhash and the six display copies each decode it, several at
+// once): 3840, the house's own wall size, unless COMMONS_WIDTH says otherwise. BIG_PX came down from 150 to 40 for the same reason.
+const COMMONS_WIDTH = String(+process.env.COMMONS_WIDTH || 3840);
 // While a feed runs its page keeps itself current (31 Oct, Will: "on the studio tab I cannot press things": the whole
 // page reloaded every four seconds, taking every press and every half-typed field with it). Now only the part that
 // changes is swapped, and never while you are typing in it; it stops once nothing is running.
@@ -118,6 +122,31 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
+  const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
+  const COMMONS_DEPTH = +process.env.COMMONS_DEPTH || 4, COMMONS_CATS = +process.env.COMMONS_CATS || 400;
+  // A category and its subcategories, breadth first; [] when the category is not on Commons at all.
+  async function commonsTree(cat) {
+    const seen = new Set([cat]); const out = [cat]; let layer = [cat];
+    const exists = async c => { const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', titles: c })) u.searchParams.set(k, v); const r = await doFetch(u.href, { headers: { 'User-Agent': UA } }); if (!r.ok) return true; const j = await r.json(); return !Object.values((j.query || {}).pages || {}).some(p => p.missing !== undefined); };
+    if (!(await exists(cat))) return [];
+    for (let d = 0; d < COMMONS_DEPTH && layer.length && out.length < COMMONS_CATS; d++) {
+      const next = [];
+      for (const c of layer) {
+        let cont = null;
+        do {
+          const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', list: 'categorymembers', cmtitle: c, cmtype: 'subcat', cmlimit: '200', ...(cont ? { cmcontinue: cont } : {}) })) u.searchParams.set(k, v);
+          const r = await doFetch(u.href, { headers: { 'User-Agent': UA } }); if (!r.ok) break; const j = await r.json();
+          for (const m of ((j.query || {}).categorymembers || [])) { if (!seen.has(m.title) && out.length < COMMONS_CATS) { seen.add(m.title); out.push(m.title); next.push(m.title); } }
+          cont = (j.continue && j.continue.cmcontinue) || null;
+        } while (cont && out.length < COMMONS_CATS);
+        if (!app.locals.noTimers) await new Promise(x => setTimeout(x, 300));
+      }
+      layer = next;
+    }
+    return out;
+  }
+  // The tree as the Studio sees it (so a category can be checked from the house before it is lined up).
+  app.get('/studio/feeds/commons', studioOnly, async (req, res) => { try { res.json({ cats: await commonsTree(String(req.query.cat || '').replace(/_/g, ' ')) }); } catch (e) { res.status(500).json({ error: e.message }); } });
   const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)'], ['catalogue', 'An artist’s catalogue (Wikidata; from the hall)'], ['loc', 'Library of Congress books (a loc.gov collection or search address; the PDF and its text per item)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
@@ -156,14 +185,21 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     if (kind === 'commons') {
       // Wikimedia Commons: a category's files with their extmetadata (the licence per file), paged by gcmcontinue.
       const cat = decodeURIComponent((String(job.url).match(/(Category:[^?#&]+)/) || [])[1] || '').replace(/_/g, ' '); if (!cat) throw new Error('a category address (commons.wikimedia.org/wiki/Category:…)');
-      let cont = job.cursor || null, n = 0;
-      while (n < LIM) {
-        const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: cat, gcmtype: 'file', gcmlimit: '50', prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiurlwidth: '7680', iiextmetadatafilter: 'ObjectName|ImageDescription|Artist|DateTimeOriginal|LicenseShortName|LicenseUrl|Credit|Permission|Categories' })) u.searchParams.set(k, v); if (cont) u.searchParams.set('gcmcontinue', cont);
-        const r = await doFetch(u.href, { headers: { 'User-Agent': 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)' } }); if (!r.ok) throw new Error(`commons ${r.status}`); const j = await r.json();
-        const items = commonsItems(j); n += items.length; cont = (j.continue && j.continue.gcmcontinue) || null;
-        yield { items, cursor: cont }; if (!cont) return;
-        await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT));
+      // The whole tree (2 Nov, Will: "all his notebooks"; the Codex Atlanticus keeps its pages in subcategories): the
+      // category and every subcategory under it, COMMONS_DEPTH deep and COMMONS_CATS wide at most. The cursor is 'index of
+      // the category in the walk|the page continue', so a restart carries on where it was.
+      const cats = await commonsTree(cat); if (!cats.length) throw new Error(`no such category on Commons: ${cat}`);
+      let [ci, cont] = String(job.cursor || '0|').split('|'); ci = +ci || 0; cont = cont || null; let n = 0;
+      for (; ci < cats.length && n < LIM; ci++, cont = null) {
+        while (n < LIM) {
+  const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: cats[ci], gcmtype: 'file', gcmlimit: '50', prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata', iiurlwidth: COMMONS_WIDTH, iiextmetadatafilter: 'ObjectName|ImageDescription|Artist|DateTimeOriginal|LicenseShortName|LicenseUrl|Credit|Permission|Categories' })) u.searchParams.set(k, v); if (cont) u.searchParams.set('gcmcontinue', cont);
+  const r = await doFetch(u.href, { headers: { 'User-Agent': UA } }); if (!r.ok) throw new Error(`commons ${r.status}`); const j = await r.json();
+          const items = commonsItems(j); n += items.length; cont = (j.continue && j.continue.gcmcontinue) || null;
+          yield { items, cursor: cont ? `${ci}|${cont}` : `${ci + 1}|` }; if (!cont) break;
+          await new Promise(x => setTimeout(x, app.locals.noTimers ? 0 : PAGE_WAIT));
+        }
       }
+      return;
       return;
     }
     if (kind === 'si') {

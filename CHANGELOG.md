@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.32 · The whole tree, and lighter scans · 2 November 2026
+- A Wikimedia Commons feed walks the category and every subcategory under it (four deep, four hundred wide), so a codex's pages come in with the codex; a category that is not on Commons says so.
+- Scans from Commons come in at 3,840 pixels past 40 megapixels (was 7,680 past 150): a decode a fifth the size, several times over, for each arrival. The vault keeps the master it is given; the rendering is the master for these.
+- Studio: /studio/feeds/commons?cat= shows a category's tree before it is lined up.
+
 ## 1.31.5 · The picture alone · 2 November 2026
 - A JPEG with a web page's words after its end (an old gallery's wrapper, as on forty of Van Gogh's files on Commons) is taken with the page cut off, as the door always said it would; a script, an archive or a program anywhere is still refused.
 
