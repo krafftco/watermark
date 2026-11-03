@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.33.5 · The tidy leaves the pages · 3 November 2026
+- Apply can leave every group with a page or folio in it as it is, for a person to look at.
+
 ## 1.33.4 · The tidy, stricter · 3 November 2026
 - Pages, and drawings on paper by their look, join only when practically the same file; the same painting needs .94; a frame needs a real margin; an annotation in another script counts against a copy.
 

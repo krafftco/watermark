@@ -138,11 +138,13 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
   const planOf = a => { const j = jobs.get(a.id); if (j && j.plan) return j.plan; try { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(`tidy_plan_${a.id}`); return r ? JSON.parse(r.v) : null; } catch (e) { return null; } };
   function after(a) { try { if (app.locals.art) { app.locals.art.wall(a); app.locals.art.uncache(a.slug); } } catch (e) { /* the page follows within the minute */ } try { if (app.locals.findIndexDirty) app.locals.findIndexDirty(); } catch (e) { /* */ } }
   // The hand: off view, named, reversible.
-  function apply(a, p = planOf(a)) {
+  // `opts.pages === false`: a group whose kept copy or any repeat is a page or folio by its title is left as it is (3 Nov:
+  // a printed facsimile's near-blank pages read as one to the eye; a person looks at those).
+  function apply(a, p = planOf(a), opts = {}) {
     if (!p) return 0; let n = 0; const now = new Date().toISOString();
     const hide = db.prepare("UPDATE works SET status='hidden', status_before='held', keep_back=1, tidy=?, tidy_at=? WHERE slug=? AND artist_id=? AND status='held' AND tidy IS NULL");
     const run = db.transaction(() => {
-      for (const g of p.groups) for (const o of g.others) if (hide.run(o.why, now, o.slug, a.id).changes) { n++; try { ledger.append(db, 'work.tidied', o.slug, { artist: a.slug, why: o.why }); } catch (e) { /* */ } }
+      for (const g of p.groups) { if (opts.pages === false && [g.keep, ...g.others].some(o => PAGE.test(o.title || ''))) continue; for (const o of g.others) if (hide.run(o.why, now, o.slug, a.id).changes) { n++; try { ledger.append(db, 'work.tidied', o.slug, { artist: a.slug, why: o.why }); } catch (e) { /* */ } } }
       for (const b of p.bad) if (hide.run(`a bad file: ${b.why}`, now, b.slug, a.id).changes) { n++; try { ledger.append(db, 'work.tidied', b.slug, { artist: a.slug, why: b.why }); } catch (e) { /* */ } }
     }); run();
     try { db.prepare('DELETE FROM settings WHERE k=?').run(`tidy_plan_${a.id}`); } catch (e) { /* */ } jobs.delete(a.id);
@@ -164,7 +166,7 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
 ${j && j.on ? `<p class="tyd-live" data-tyd-live>Looking… ${j.done} of ${j.n} read.</p><script>setTimeout(()=>location.reload(),4000)</script>` : `<form method="post" action="/studio/art/${esc(a.slug)}/tidy/plan" class="ax-f"><button class="buy-btn">${p ? 'Look again' : 'Look at the set'}</button> <span class="note">reads every file on view; a few minutes for a thousand</span></form>`}
 ${j && j.error ? `<p class="tyd-err">The look stopped: ${esc(j.error)}</p>` : ''}
 ${p && !(j && j.on) ? `<h2>${p.repeats} repeats in ${p.groups.length} groups · ${p.bad.length} bad files · of ${p.n} looked at${p.at ? ` · ${esc(V.date ? V.date(p.at) : p.at)}` : ''}</h2>
-${p.repeats || p.bad.length ? `<form method="post" action="/studio/art/${esc(a.slug)}/tidy/apply" class="ax-f tyd-apply"><button class="buy-btn">Take ${p.repeats + p.bad.length} off view</button> <span class="note">the best copy of each group stays; the rest and the bad files go off view, named</span></form>` : '<p class="note">Nothing to take off: the set is tight.</p>'}
+${p.repeats || p.bad.length ? `<form method="post" action="/studio/art/${esc(a.slug)}/tidy/apply" class="ax-f tyd-apply"><label class="ax-ck"><input type="checkbox" name="pages" value="0" checked> Leave pages and folios as they are (a person looks at those)</label> <button class="buy-btn">Take ${p.repeats + p.bad.length} off view</button> <span class="note">the best copy of each group stays; the rest and the bad files go off view, named</span></form>` : '<p class="note">Nothing to take off: the set is tight.</p>'}
 ${p.groups.map(g => `<div class="tyd-g"><div class="tyd-keep">${th(g.keep, 'tyd-best')}</div><div class="tyd-rest">${g.others.map(o => th(o)).join('')}</div></div>`).join('')}
 ${p.bad.length ? `<h3>Bad files</h3><div class="tyd-bad">${p.bad.map(b => th({ ...b, bad: b.why })).join('')}</div>` : ''}` : ''}
 ${gone.length ? `<h2>Off view by the tidy · ${gone.length}</h2><form method="post" action="/studio/art/${esc(a.slug)}/tidy/undo" class="ax-f"><button class="btn">Put them all back</button></form><div class="tyd-gone">${gone.slice(0, 400).map(w => `<a href="/studio/works/${esc(w.slug)}" title="${esc(w.tidy)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div>` : ''}</section>`;
@@ -177,7 +179,7 @@ ${gone.length ? `<h2>Off view by the tidy · ${gone.length}</h2><form method="po
     if (req.body && req.body.json) return res.json({ ok: true });
     res.redirect(`/studio/art/${a.slug}/tidy`);
   });
-  app.post('/studio/art/:slug/tidy/apply', studioOnly, (req, res) => { const a = artist(req.params.slug); if (!a) return res.sendStatus(404); const n = apply(a); if (req.body && req.body.json) return res.json({ ok: true, n }); res.redirect(`/studio/art/${a.slug}/tidy?ok=${encodeURIComponent(`${n} taken off view.`)}`); });
+  app.post('/studio/art/:slug/tidy/apply', studioOnly, (req, res) => { const a = artist(req.params.slug); if (!a) return res.sendStatus(404); const n = apply(a, undefined, { pages: !(req.body && (req.body.pages === '0' || req.body.pages === 0)) ? undefined : false }); if (req.body && req.body.json) return res.json({ ok: true, n }); res.redirect(`/studio/art/${a.slug}/tidy?ok=${encodeURIComponent(`${n} taken off view.`)}`); });
   app.post('/studio/art/:slug/tidy/undo', studioOnly, (req, res) => { const a = artist(req.params.slug); if (!a) return res.sendStatus(404); const n = undo(a); if (req.body && req.body.json) return res.json({ ok: true, n }); res.redirect(`/studio/art/${a.slug}/tidy?ok=${encodeURIComponent(`${n} put back.`)}`); });
   app.locals.tidy = { plan, planOf, apply, undo, badOf, jobs, state: a => { const j = jobs.get(a.id); return j ? { on: j.on, n: j.n, done: j.done, error: j.error } : null; } };
   return app.locals.tidy;
