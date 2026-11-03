@@ -9,6 +9,8 @@ const { mountCloser } = require('../src/closer');
   const db = new Database(':memory:');
   db.exec("CREATE TABLE works (id INTEGER PRIMARY KEY, maker_id INTEGER, slug TEXT, title TEXT, place TEXT, taken_at TEXT, camera TEXT, lens TEXT, caption TEXT, keywords TEXT, status TEXT, curated INTEGER DEFAULT 0, stars INTEGER DEFAULT 0)");
   db.prepare("INSERT INTO works (maker_id, slug, title, place, taken_at, camera, status) VALUES (1,'dome','The Dome of the Pantheon','Rome, Italy','2024-05-01','Leica Q3','held')").run();
+  db.prepare("UPDATE works SET curated=1 WHERE slug='dome'").run(); // the background writes only for curated and starred work (3 Nov)
+  db.prepare("INSERT INTO works (maker_id, slug, title, place, taken_at, camera, status, stars) VALUES (1,'plain','A plain frame','Rome, Italy','2024-05-01','Leica Q3','held',2)").run();
   let sent = null;
   const STUDY = { model: 'claude-test', content: [
     { type: 'server_tool_use', name: 'web_search' },
@@ -25,6 +27,7 @@ const { mountCloser } = require('../src/closer');
   mountCloser(app, { db, C: {}, studioOnly: (q, r, n) => n(), isStudio: () => studio, makerOf: () => null, imageOf: async () => Buffer.from('jpeg'),
     ledger: { append: (d, t, s) => ledgerLog.push(t) }, V, fetchImpl });
   assert.strictEqual(await app.locals.closerFill(), 2, 'one guide written, then its study');
+  assert.ok(!db.prepare("SELECT closer FROM works WHERE slug='plain'").get().closer, 'a two-star work waits until someone asks');
   assert.ok(researched.tools && researched.tools[0].name === 'web_search', 'the study is researched on the web');
   assert.ok(studied.tools && studied.tools[0].name === 'write_study' && /Hadrian/.test(studied.messages[0].content[1].text), 'then written through the tool, from the notes');
   { const c0 = app.locals.closerOf(db.prepare('SELECT * FROM works').get()); const st = c0.study;

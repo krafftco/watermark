@@ -147,18 +147,22 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
 
   // Quietly fill in every held photograph that has no guide yet, one at a time.
   let running = false;
+  const GUIDE_STARS = Number(process.env.GUIDE_STARS || 4); // 'starred': four stars and up
   async function fill(limit = Infinity) {
     if (running || !on()) return 0; running = true; let n = 0;
     try {
-      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NULL ORDER BY id").all()) {
+      // Ids first, a row at a time (3 Nov: `SELECT *` of six thousand works across the Postgres bridge froze the house).
+      for (const { id } of db.prepare("SELECT id FROM works WHERE status='held' AND closer IS NULL AND (curated=1 OR stars>=?) ORDER BY curated DESC, stars DESC, id").all(GUIDE_STARS)) {
         if (n >= limit) break;
+        const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
         try { if (await write(w)) n++; } catch (e) { console.error('[closer]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; }
         await new Promise(r => setTimeout(r, 1500));
       }
       // Then the studies, best work first, paced (each runs several web searches on the house's key).
-      let studies = 0; const PER = Math.max(0, parseInt(process.env.STUDY_PER_RUN || '40', 10));
-      for (const w of db.prepare("SELECT * FROM works WHERE status='held' AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyMissed\":%' ORDER BY curated DESC, stars DESC, id").all()) {
+      let studies = 0; const PER = Math.max(0, parseInt(process.env.STUDY_PER_RUN || '10', 10));
+      for (const { id } of db.prepare("SELECT id FROM works WHERE status='held' AND curated=1 AND closer IS NOT NULL AND closer NOT LIKE '%\"study\":%' AND closer NOT LIKE '%\"studyMissed\":%' ORDER BY curated DESC, stars DESC, id").all()) {
         if (n >= limit) break;
+        const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
         if (studies++ >= PER) break;
         try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyMissed: new Date().toISOString() }); }
         await new Promise(r => setTimeout(r, 4000));
@@ -167,7 +171,11 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     return n;
   }
   app.locals.closerFill = fill;
-  if (on() && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('closer fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
+  // In the background only for curated and starred work (Will, 3 Nov: "only for curated and starred work"; the fill had
+  // been writing a guide for every work in the house, around the clock, on the house's key); studies for curated work
+  // only, STUDY_PER_RUN (10) a run. Every other work's guide is written when the maker or the house asks for it.
+  // CLOSER_FILL=0 stops the background writing altogether.
+  if (on() && process.env.CLOSER_FILL !== '0' && process.env.NODE_ENV !== 'test' && ROLE.chores) { app.locals.governor.boot('closer fill', () => fill()); setInterval(() => fill().catch(() => {}), 30 * 60000).unref(); }
 
   // What the public page shows: the text, and whether the maker has read it.
   app.locals.closerOf = w => { const c = read(w); return c && c.state !== 'hidden' ? c : null; };

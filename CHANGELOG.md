@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.33.6 · Guides where they count · 3 November 2026
+- Al writes guides in the background only for curated and four-star work, and studies only for curated work, ten a run; every other guide is written when the maker or the house asks. The list is read a row at a time, so it never holds the house.
+
 ## 1.33.5 · The tidy leaves the pages · 3 November 2026
 - Apply can leave every group with a page or folio in it as it is, for a person to look at.
 
