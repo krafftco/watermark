@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.31.5 · The picture alone · 2 November 2026
+- A JPEG with a web page's words after its end (an old gallery's wrapper, as on forty of Van Gogh's files on Commons) is taken with the page cut off, as the door always said it would; a script, an archive or a program anywhere is still refused.
+
 ## 1.31.4 · The peek · 2 November 2026
 - Studio: /studio/feeds/peek?url= reads a file the way the door does (type, where the picture begins and ends, the bytes around any cargo, the verdict), so a wrongly refused file can be understood from the house.
 

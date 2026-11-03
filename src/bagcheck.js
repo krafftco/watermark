@@ -73,18 +73,18 @@ function sosOf(file) {
 async function cargo(file, type) {
   const sos = type === 'jpeg' ? sosOf(file) : -1;
   return new Promise((resolve) => {
-    let carry = '', found = null, size = 0, lastEOI = -1, pos = 0;
+    let carry = '', found = null, foundAt = -1, foundSoft = false, size = 0, lastEOI = -1, pos = 0;
     const st = fs.createReadStream(file, { highWaterMark: 1 << 20 });
     st.on('data', d => {
       size += d.length;
       const s = carry + d.toString('latin1'); // latin1: one byte, one char; the search is byte-exact
-      for (const [re, why, soft] of CARGO) { if (found || (type === 'zip' && /zip/.test(why))) continue; const at = s.search(re); if (at < 0) continue; const where = pos - carry.length + at; if (soft && sos > 0 && where < sos) continue; found = `${why} (at byte ${where.toLocaleString('en-US')}${sos > 0 ? `; the picture begins at ${sos.toLocaleString('en-US')}` : sos === 0 ? '' : type === 'jpeg' ? '; its markers could not be walked' : ''})`; } // a zip is a zip; words in a JPEG's own record are not cargo
+      for (const [re, why, soft] of CARGO) { if (found || (type === 'zip' && /zip/.test(why))) continue; const at = s.search(re); if (at < 0) continue; const where = pos - carry.length + at; if (soft && sos > 0 && where < sos) continue; foundAt = where; foundSoft = !!soft; found = `${why} (at byte ${where.toLocaleString('en-US')}${sos > 0 ? `; the picture begins at ${sos.toLocaleString('en-US')}` : sos === 0 ? '' : type === 'jpeg' ? '; its markers could not be walked' : ''})`; } // a zip is a zip; words in a JPEG's own record are not cargo
       if (type === 'jpeg') { const i = s.lastIndexOf('\xff\xd9'); if (i >= 0) lastEOI = pos - carry.length + i; }
       pos += d.length; carry = s.slice(-16);
     });
     st.on('end', () => {
       const trailing = type === 'jpeg' && lastEOI >= 0 && size - lastEOI - 2 > TRAIL ? Math.round((size - lastEOI) / 1024) : 0;
-      resolve({ found, size, trailing });
+      resolve({ found, foundAt, foundSoft, lastEOI, size, trailing });
     });
     st.on('error', () => resolve({ found: 'it could not be read', size }));
   });
@@ -104,7 +104,13 @@ async function check(file, { expect = 'image', name = '', where = '', who = '', 
   // A DNG (26 Oct, the raw door): a TIFF whose main image is the sensor's data. The house reads the preview inside
   // (src/raw.js), never the raw data; one without a full-size preview is turned away with the way to make one.
   if (type === 'tiff' && expect === 'image') { const raw = require('./raw'); if (raw.isDng(file)) { const u = raw.unwrap(file, { min: 1600, to: `${file}.preview.jpg` }); if (!u.jpeg) return verdict(false, 'dng', raw.NO_PREVIEW); try { await sharp(u.jpeg, { failOn: 'error', limitInputPixels: MAX_PIXELS }).resize(96, 96, { fit: 'inside' }).raw().toBuffer(); } catch (e) { return verdict(false, 'dng', 'The preview inside the DNG does not decode whole.'); } return verdict(true, 'dng', null); } }
-  const c = await cargo(file, type);
+  let c = await cargo(file, type);
+  // A page's words after the picture's end, and nothing else (2 Nov: forty of Van Gogh's paintings on Commons carry a
+  // 571-byte XHTML stub after the EOI, the wrapper of some old web gallery): the house takes the picture alone, as it says,
+  // and cuts the rest off. A script, PHP, a zip or a program anywhere is still refused; a page before the picture's end too.
+  if (c.found && c.foundSoft && type === 'jpeg' && c.lastEOI > 0 && c.foundAt > c.lastEOI && !c.trailing) {
+    try { fs.truncateSync(file, c.lastEOI + 2); c = await cargo(file, type); } catch (e) { /* the refusal stands */ }
+  }
   if (c.found) return verdict(false, type, `The file carries ${c.found}. The house takes the picture alone.`);
   if (IMAGE[type]) {
     let meta; try { meta = await sharp(file, { failOn: 'error', limitInputPixels: MAX_PIXELS }).metadata(); } catch (e) { return verdict(false, type, 'The picture does not open as a picture.'); }

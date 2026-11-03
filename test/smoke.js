@@ -1499,7 +1499,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       const seg = Buffer.concat([Buffer.from([0xff, 0xe1]), Buffer.from([(xmp.length + 2) >> 8, (xmp.length + 2) & 255]), xmp]);
       const withXmp = Buffer.concat([good.slice(0, 2), seg, good.slice(2)]);
       v = await BC.check(put('xmp.jpg', withXmp)); assert.ok(v.ok, 'a web page\'s words inside the JPEG\'s own record come in: ' + v.reason);
-      v = await BC.check(put('tail.jpg', Buffer.concat([good, Buffer.from('<html><body>x</body></html>')]))); assert.ok(!v.ok && /web page/.test(v.reason), 'the same words after the picture are cargo: ' + v.reason);
+      { const tf = put('tail.jpg', Buffer.concat([good, Buffer.from('<!DOCTYPE html><html><head><title>Untitled</title></head><body></body></html>')])); v = await BC.check(tf); assert.ok(v.ok && fs.statSync(tf).size === good.length, 'a page\'s words after the picture are cut off and the picture taken alone: ' + v.reason);
+        const tf2 = put('tailscript.jpg', Buffer.concat([good, Buffer.from('<html><script>x</script></html>')])); v = await BC.check(tf2); assert.ok(!v.ok && /script/.test(v.reason), 'a script after the picture is still refused'); }
       v = await BC.check(put('xmpscript.jpg', Buffer.concat([good.slice(0, 2), Buffer.from([0xff, 0xe1, 0, 30]), Buffer.from('<script>alert(1)</script>xxxx'), good.slice(2)]))); assert.ok(!v.ok && /script/.test(v.reason), 'a script in the record is still cargo'); }
     v = await BC.check(put('voice.jpg', good), { expect: 'audio' }); assert.ok(!v.ok && /recording/.test(v.reason), 'a picture at the voice door is turned away');
     v = await BC.check(put('zip.wmark', Buffer.concat([Buffer.from('PK\x05\x06'), Buffer.alloc(20)])), { expect: 'proof' }); assert.ok(v.ok && v.type === 'zip', 'a .wmark at /verify comes in');
@@ -1609,7 +1610,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       const fx = fs.readFileSync(path.join(__dirname, 'fixture.jpg')); const poly = Buffer.concat([fx, Buffer.from('<html><body>a page after the picture</body></html>')]);
       const p3 = app.locals.__fetch; app.locals.__fetch = async (u) => (/peek-me/.test(String(u)) ? { ok: true, status: 200, url: String(u), headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => poly } : p3 ? p3(u) : fetch(u));
       r = await req(port, 'GET', '/studio/feeds/peek?url=https://example.org/peek-me.jpg', { cookie: ck }); const pk = JSON.parse(r.body);
-      assert.ok(pk.type === 'jpeg' && pk.sos > 0 && pk.finds.some(f => /web page/.test(f.why) && f.at > pk.lastEOI && /a page after/.test(f.around)) && pk.verdict && !pk.verdict.ok, 'the peek: ' + r.body.slice(0, 300));
+      assert.ok(pk.type === 'jpeg' && pk.sos > 0 && pk.finds.some(f => /web page/.test(f.why) && f.at > pk.lastEOI && /a page after/.test(f.around)) && pk.verdict && pk.verdict.ok, 'the peek (the page after the picture is cut off, the picture taken): ' + r.body.slice(0, 300));
       r = await req(port, 'GET', '/studio/feeds/peek?url=https://example.org/peek-me.jpg'); assert.ok(r.status !== 200, 'the peek is the Studio\'s');
       app.locals.__fetch = p3; }
     { // The line (2 Nov): line up the Met; the house takes it a hundred at a time, one run at a time, and keeps going.
