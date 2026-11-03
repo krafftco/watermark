@@ -1494,6 +1494,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     v = await BC.check(put('cargo.jpg', Buffer.concat([good, Buffer.alloc(100 * 1024, 7)]))); assert.ok(!v.ok && /appended/.test(v.reason), 'cargo after the picture is turned away: ' + v.reason);
     v = await BC.check(put('cut.jpg', good.slice(0, Math.floor(good.length / 2)))); assert.ok(!v.ok && /damaged|cut short|does not open/.test(v.reason), 'a truncated picture is turned away: ' + v.reason);
     v = await BC.check(put('script.jpg', Buffer.concat([good.slice(0, 4000), Buffer.from('<script>x</script>'), good.slice(4000)]))); assert.ok(!v.ok && /script/.test(v.reason), 'a script in the bytes is turned away');
+    // Words in the file's own record are not cargo (2 Nov, Commons): '<html' inside an XMP segment comes in; the same words after the picture, or a script anywhere, do not.
+    { const xmp = Buffer.from('http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><dc:description>A note from the museum with &lt;b&gt; and <html> inside it</dc:description></rdf:RDF></x:xmpmeta>', 'latin1');
+      const seg = Buffer.concat([Buffer.from([0xff, 0xe1]), Buffer.from([(xmp.length + 2) >> 8, (xmp.length + 2) & 255]), xmp]);
+      const withXmp = Buffer.concat([good.slice(0, 2), seg, good.slice(2)]);
+      v = await BC.check(put('xmp.jpg', withXmp)); assert.ok(v.ok, 'a web page\'s words inside the JPEG\'s own record come in: ' + v.reason);
+      v = await BC.check(put('tail.jpg', Buffer.concat([good, Buffer.from('<html><body>x</body></html>')]))); assert.ok(!v.ok && /web page/.test(v.reason), 'the same words after the picture are cargo: ' + v.reason);
+      v = await BC.check(put('xmpscript.jpg', Buffer.concat([good.slice(0, 2), Buffer.from([0xff, 0xe1, 0, 30]), Buffer.from('<script>alert(1)</script>xxxx'), good.slice(2)]))); assert.ok(!v.ok && /script/.test(v.reason), 'a script in the record is still cargo'); }
     v = await BC.check(put('voice.jpg', good), { expect: 'audio' }); assert.ok(!v.ok && /recording/.test(v.reason), 'a picture at the voice door is turned away');
     v = await BC.check(put('zip.wmark', Buffer.concat([Buffer.from('PK\x05\x06'), Buffer.alloc(20)])), { expect: 'proof' }); assert.ok(v.ok && v.type === 'zip', 'a .wmark at /verify comes in');
     // Through the door itself: the Studio's vault refuses a page named .jpg with a plain answer, and the refusal is kept.

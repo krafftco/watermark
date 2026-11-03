@@ -59,15 +59,26 @@ const say = t => NAMES[t] || `a ${t.toUpperCase()}`;
 
 // The body: nothing hidden. Read in chunks; look for a zip inside, a page or a script, a second program header.
 // (A zip's header is matched with its version bytes too, so a run of pixels is never mistaken for one: six bytes, not four.)
-const CARGO = [[/PK\x03\x04[\x0a\x14\x2d\x33\x3f]\x00/, 'a zip archive inside it'], [/<script[\s>]/i, 'a script inside it'], [/<\?php/, 'PHP inside it'], [/<!DOCTYPE html/i, 'a web page inside it'], [/<html[\s>]/i, 'a web page inside it'], [/<iframe[\s>]/i, 'an embedded page inside it'], [/javascript:/i, 'a script inside it']];
+const CARGO = [[/PK\x03\x04[\x0a\x14\x2d\x33\x3f]\x00/, 'a zip archive inside it'], [/<script[\s>]/i, 'a script inside it'], [/<\?php/, 'PHP inside it'], [/<!DOCTYPE html/i, 'a web page inside it', 'words'], [/<html[\s>]/i, 'a web page inside it', 'words'], [/<iframe[\s>]/i, 'an embedded page inside it'], [/javascript:/i, 'a script inside it']];
+// Where a JPEG's picture data begins (the SOS marker): everything before it is the file's own record (EXIF, XMP, IPTC).
+// Words inside that record ('<html' in a museum's XMP description, as on Wikimedia Commons; 2 Nov: twenty-three of Van
+// Gogh's paintings were turned away for it) are data a browser never runs; a script or a page after the picture is cargo.
+function sosOf(file) {
+  let fd; try { fd = fs.openSync(file, 'r'); const buf = Buffer.alloc(4 << 20); const n = fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd);
+    if (n < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return -1;
+    let i = 2; while (i + 4 <= n) { if (buf[i] !== 0xff) return -1; const m = buf[i + 1]; if (m === 0xda) return i; if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { i += 2; continue; } const len = buf.readUInt16BE(i + 2); if (len < 2) return -1; i += 2 + len; }
+    return -1;
+  } catch (e) { try { if (fd != null) fs.closeSync(fd); } catch (e2) { /* */ } return -1; }
+}
 async function cargo(file, type) {
+  const sos = type === 'jpeg' ? sosOf(file) : -1;
   return new Promise((resolve) => {
     let carry = '', found = null, size = 0, lastEOI = -1, pos = 0;
     const st = fs.createReadStream(file, { highWaterMark: 1 << 20 });
     st.on('data', d => {
       size += d.length;
       const s = carry + d.toString('latin1'); // latin1: one byte, one char; the search is byte-exact
-      for (const [re, why] of CARGO) { if (!found && !(type === 'zip' && /zip/.test(why)) && re.test(s)) found = why; } // a zip is a zip
+      for (const [re, why, soft] of CARGO) { if (found || (type === 'zip' && /zip/.test(why))) continue; const at = s.search(re); if (at < 0) continue; if (soft && sos > 0 && pos - carry.length + at < sos) continue; found = why; } // a zip is a zip; words in a JPEG's own record are not cargo
       if (type === 'jpeg') { const i = s.lastIndexOf('\xff\xd9'); if (i >= 0) lastEOI = pos - carry.length + i; }
       pos += d.length; carry = s.slice(-16);
     });
