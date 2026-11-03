@@ -19,6 +19,7 @@ function mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf, mayHang, K
         if (m && mayHang && !mayHang(m)) { refused++; why = `your museum's walls are full (${app.locals.museums ? app.locals.museums.MUSEUM_WALL : 36} on view): take one down first`; continue; }
         if (!['hidden', 'held'].includes(w.status)) { refused++; why = `off view (${w.status})`; continue; }
         if (w.keep_back) { refused++; why = 'kept back by you (let them go at Hang your best)'; continue; }
+        { const g = app.locals.companies && app.locals.companies.gate(w); if (g) { refused++; why = g; continue; } }
         db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);
         ledger.append(db, 'work.published', w.slug, { maker: who, attested: 'rights and releases', batch: true }); done++;
       } else if (act === 'hide') {

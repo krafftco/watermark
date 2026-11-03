@@ -4999,3 +4999,16 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .tyd .tyd-best{width:150px}.tyd .tyd-best img{width:150px;height:112px;border:2px solid #c9a24a}
 .tyd .tyd-rest .tyd-w img{opacity:.75}.tyd .tyd-apply{margin:10px 0 18px}.tyd .tyd-live{font-style:italic}.tyd .tyd-err{color:#a33}
 .tyd .tyd-gone{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}.tyd .tyd-gone img{width:56px;height:42px;object-fit:cover;opacity:.6}
+/* Companies (3 Nov): the company's own museum, in rooms. */
+.cpy{background:#0b0a09;color:#efe9df;padding:28px 0 40px}.cpy-room{max-width:1400px;margin:0 auto;padding:26px 24px 10px}
+.cpy-h{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;border-bottom:1px solid rgba(239,233,223,.14);padding-bottom:10px;margin-bottom:16px}
+.cpy-h h2{font:400 34px/1.05 var(--disp);margin:0;color:#efe9df;text-transform:none;letter-spacing:0}.cpy-h p{margin:0;color:#b8afa2;font:15px/1.5 var(--read)}.cpy-h p span{color:#d9bc7c;margin-left:6px}
+.cpy-row{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:10px}
+.cpy-t{flex:0 0 auto;scroll-snap-align:start;color:inherit;text-decoration:none;width:calc(min(420px,70vw) * var(--r));max-width:86vw}
+.cpy-f{display:block;aspect-ratio:var(--r);overflow:hidden;background:#151311}.cpy-f img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .6s}.cpy-t:hover img{transform:scale(1.02)}
+.cpy-c{display:block;padding:8px 2px 0}.cpy-c b{display:block;font:400 17px/1.25 var(--disp)}.cpy-c small{color:#9d9487;font-size:13px}
+.cpy-dec h3{font:400 22px/1 var(--disp);color:#d9bc7c;margin:18px 0 10px}.cpy-more a{color:#d9bc7c}
+.cpy-ix{max-width:1180px;margin:0 auto;padding:40px 24px}.cpy-cos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:22px;margin:28px 0}
+.cpy-co{color:inherit;text-decoration:none}.cpy-co .cpy-f{aspect-ratio:1.5}.cpy-co b{display:block;font:400 22px/1.2 var(--disp);margin-top:8px}.cpy-co small{color:#77706a}
+.cpy-list{list-style:none;padding:0}.cpy-list li{padding:6px 0;border-bottom:1px solid var(--ln)}.cpy-list small{color:#77706a;margin-left:8px}
+@media (max-width:760px){.cpy-h h2{font-size:26px}.cpy-room{padding:20px 16px 6px}}

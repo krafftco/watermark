@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.34.0 · Companies are makers too · 3 November 2026
+- A company is a maker of kind 'company' (Studio → Accounts). Its page is its own museum, in rooms: The products, The making, The machines, The people, From the archive, The collection; then its history by decade.
+- A new kind of work, Design: a product or an object, credited 'Designed by Dieter Rams for Braun'.
+- Others' art kept by a company, and portraits of its people, hang only with the company's word (the right to show it; the person's yes). Others' art is never sold or licensed from a company's page.
+- The company's desk (/account/company) and its team. /companies: the index and the offer, by letter.
+
 ## 1.33.6 · Guides where they count · 3 November 2026
 - Al writes guides in the background only for curated and four-star work, and studies only for curated work, ten a run; every other guide is written when the maker or the house asks. The list is read a row at a time, so it never holds the house.
 

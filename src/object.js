@@ -12,19 +12,21 @@
 //   paid and its insured value (private), where it is, its condition, provenance, and a link to a Watermark work when
 //   the piece is a held work's physical edition (the maker and the deed come along). /yours/cabinet/book is the
 //   catalogue as a registrar keeps it; /yours/cabinet.csv takes it out whole. Nothing of it is told to anyone.
-const KINDS = { photograph: 'Photograph', painting: 'Painting', drawing: 'Drawing', print: 'Print', sculpture: 'Sculpture', textile: 'Textile', mixed: 'Mixed media', film: 'Film', other: 'Work' };
+const KINDS = { photograph: 'Photograph', painting: 'Painting', drawing: 'Drawing', print: 'Print', sculpture: 'Sculpture', textile: 'Textile', mixed: 'Mixed media', film: 'Film', design: 'Design', other: 'Work' };
 const kindOf = w => (w && KINDS[w.kind] ? w.kind : 'photograph');
 const kindWord = w => KINDS[kindOf(w)];
 const an = word => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 // 'Photograph by Will Fullerton' / 'Painting by …' / 'Work by …'
-const by = (w, name) => `${kindWord(w)} by ${name}`;
+// A design (3 Nov): a product or an object a company made, credited to its designer: 'Designed by Dieter Rams for Braun'.
+const designBy = (w, name) => (w && w.designer ? `Designed by ${w.designer} for ${name}` : `Designed by ${name}`);
+const by = (w, name) => (kindOf(w) === 'design' ? designBy(w, name) : `${kindWord(w)} by ${name}`);
 // 'A photograph by …' / 'A painting by …' / 'A work by …'
-const aBy = (w, name) => { const k = kindWord(w).toLowerCase(); return `${an(k) === 'an' ? 'An' : 'A'} ${k} by ${name}`; };
+const aBy = (w, name) => { if (kindOf(w) === 'design') return designBy(w, name); const k = kindWord(w).toLowerCase(); return `${an(k) === 'an' ? 'An' : 'A'} ${k} by ${name}`; };
 const physical = w => kindOf(w) !== 'photograph' && kindOf(w) !== 'film';
 
 function mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf, mk }) {
   const { esc, tidy } = V;
-  for (const [c, t] of [['kind', "TEXT NOT NULL DEFAULT 'photograph'"], ['obj_dims', 'TEXT'], ['obj_edition', 'TEXT'], ['obj_made', 'TEXT'], ['obj_signed', 'TEXT'], ['obj_condition', 'TEXT'], ['obj_located', 'TEXT'], ['obj_note', 'TEXT']]) if (!db.prepare(`SELECT 1 FROM pragma_table_info('works') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['kind', "TEXT NOT NULL DEFAULT 'photograph'"], ['obj_dims', 'TEXT'], ['obj_edition', 'TEXT'], ['obj_made', 'TEXT'], ['obj_signed', 'TEXT'], ['obj_condition', 'TEXT'], ['obj_located', 'TEXT'], ['obj_note', 'TEXT'], ['designer', 'TEXT']]) if (!db.prepare(`SELECT 1 FROM pragma_table_info('works') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   // The cabinet's columns, added once the cabinet exists (it is mounted after this module).
   const cabinetCols = () => { if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cabinet'").get()) return false; for (const [c, t] of [['acquired', 'TEXT'], ['from_whom', 'TEXT'], ['paid_cents', 'INTEGER'], ['value_cents', 'INTEGER'], ['located', 'TEXT'], ['condition', 'TEXT'], ['provenance', 'TEXT'], ['work_id', 'INTEGER'], ['accession', 'TEXT']]) if (!db.prepare(`SELECT 1 FROM pragma_table_info('cabinet') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE cabinet ADD COLUMN ${c} ${t}`); return true; };
   setImmediate(cabinetCols);
@@ -33,8 +35,8 @@ function mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf, mk }) 
   // The object record on a work (the maker's, or the house's).
   const setObject = (w, b) => {
     const kind = KINDS[b.kind] ? b.kind : kindOf(w);
-    db.prepare('UPDATE works SET kind=?, medium=COALESCE(?, medium), obj_dims=?, obj_edition=?, obj_made=?, obj_signed=?, obj_condition=?, obj_located=?, obj_note=? WHERE id=?')
-      .run(kind, t(b.medium, 120), t(b.dims, 80), t(b.edition, 60), t(b.made, 200), t(b.signed, 120), t(b.condition, 200), t(b.located, 200), t(b.note, 600), w.id);
+    db.prepare('UPDATE works SET kind=?, medium=COALESCE(?, medium), obj_dims=?, obj_edition=?, obj_made=?, obj_signed=?, obj_condition=?, obj_located=?, obj_note=?, designer=? WHERE id=?')
+      .run(kind, t(b.medium, 120), t(b.dims, 80), t(b.edition, 60), t(b.made, 200), t(b.signed, 120), t(b.condition, 200), t(b.located, 200), t(b.note, 600), b.designer === undefined ? (w.designer || null) : t(b.designer, 120), w.id);
     ledger.append(db, 'work.object', w.slug, { kind, medium: t(b.medium, 120) || undefined, dims: t(b.dims, 80) || undefined, edition: t(b.edition, 60) || undefined });
     if (app.locals.findIndexDirty) app.locals.findIndexDirty();
   };
@@ -49,10 +51,11 @@ function mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf, mk }) 
   });
   const block = (w, action) => `<section class="ob-set"><h2>The object</h2><p class="note">What kind of work this is. For a painting, a drawing, a sculpture or any physical piece, the file the house holds is the photograph of record, and the object has a record of its own: it is what a museum's registrar would write on the card. Where it is, and your note, are seen by you and the house alone.</p>
 <form method="post" action="${action}" class="ob-f"><label>Kind<select name="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}"${kindOf(w) === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+<label>Designed by<input name="designer" maxlength="120" value="${esc(w.designer || '')}" placeholder="for a design: Dieter Rams · Jony Ive and the design team"></label>
 <label>Medium<input name="medium" maxlength="120" value="${esc(w.medium || '')}" placeholder="oil on linen · gelatin silver print · bronze"></label>
 <label>Dimensions<input name="dims" maxlength="80" value="${esc(w.obj_dims || '')}" placeholder="61 × 46 cm · 24 × 18 in · h 40 cm"></label>
 <label>Edition<input name="edition" maxlength="60" value="${esc(w.obj_edition || '')}" placeholder="unique · 3 of 25 · artist's proof"></label>
-<label>Made<input name="made" maxlength="200" value="${esc(w.obj_made || '')}" placeholder="where and how"></label>
+<label>Made<input name="made" maxlength="200" value="${esc(w.obj_made || '')}" placeholder="the year, where and how: 1959, Kronberg"></label>
 <label>Signed<input name="signed" maxlength="120" value="${esc(w.obj_signed || '')}" placeholder="signed and dated lower right"></label>
 <label>Condition<input name="condition" maxlength="200" value="${esc(w.obj_condition || '')}" placeholder="excellent · a small loss at the lower left corner"></label>
 <label>Where it is (private)<input name="located" maxlength="200" value="${esc(w.obj_located || '')}" placeholder="the studio · on loan to …"></label>

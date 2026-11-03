@@ -45,7 +45,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
     const email = String(req.body.email || '').trim().slice(0, 160) || null;
     let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
-    const kind = ['estate', 'institution', 'gallery'].includes(req.body.kind) ? req.body.kind : 'maker';
+    const kind = ['estate', 'institution', 'gallery', 'company'].includes(req.body.kind) ? req.body.kind : 'maker';
     const id = db.prepare('INSERT INTO makers (handle,name,email,house,invite_token,kind) VALUES (?,?,?,?,?,?)').run(handle, name, email, String(req.body.house || '').trim().slice(0, 120) || null, nanoid(32), kind).lastInsertRowid;
     const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)');
     DEFAULT_USES.forEach(u => ins.run(id, ...u));
@@ -268,6 +268,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     if (w.status === 'held') { db.prepare("UPDATE works SET status='hidden' WHERE id=?").run(w.id); return res.redirect('/account#w-' + w.slug); }
     if ((req.body || {}).attest !== '1') return res.redirect('/account?need=attest#w-' + w.slug);
     if (m.standing === 'held') return res.redirect('/account?need=held#w-' + w.slug);
+    if (app.locals.companies && app.locals.companies.gate(w)) return res.redirect(`/account/works/${encodeURIComponent(w.slug)}?ok=company-word`); // a company's word first: the right to show others' art, a person's yes (3 Nov)
     if (w.keep_back) return res.redirect('/account?need=kept#w-' + w.slug); // kept back by the maker (29 Oct): let it go at /account/hang first
     if (app.locals.mayHang && !app.locals.mayHang(m)) return res.redirect('/account?need=wall#w-' + w.slug);
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id);

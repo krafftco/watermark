@@ -18,7 +18,7 @@ function mountInstitutions(app, { db, V, C, mail, ledger, isStudio, makerOf, buy
   db.exec(`CREATE TABLE IF NOT EXISTS institution_staff (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, email TEXT NOT NULL, name TEXT, role TEXT NOT NULL DEFAULT 'curator', token TEXT NOT NULL UNIQUE,
     buyer_id INTEGER, status TEXT NOT NULL DEFAULT 'invited', invited_at TEXT NOT NULL DEFAULT (datetime('now')), joined_at TEXT, ended_at TEXT)`);
   const cookieOpts = { httpOnly: true, sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 90 };
-  const inst = handle => db.prepare("SELECT * FROM makers WHERE handle=? AND kind='institution'").get(String(handle));
+  const inst = handle => db.prepare("SELECT * FROM makers WHERE handle=? AND kind IN ('institution','company')").get(String(handle));
   // The institutions a signed-in person works for.
   const staffOf = b => (b ? db.prepare("SELECT m.*, s.role AS staff_role, s.name AS staff_name FROM institution_staff s JOIN makers m ON m.id=s.maker_id WHERE s.status='on' AND (s.buyer_id=? OR lower(s.email)=lower(?)) ORDER BY m.name").all(b.id, b.email || '-') : []);
   // The institution a request acts for, if the person has chosen one they work for: consulted by makerOf.
@@ -30,7 +30,7 @@ function mountInstitutions(app, { db, V, C, mail, ledger, isStudio, makerOf, buy
   const mayManage = (req, m) => { if (isStudio(req)) return true; const me = makerOf(req); return !!(me && me.id === m.id); };
   // The team's desk: /account/staff (the institution signed in, or the Studio as it).
   app.get('/account/staff', (req, res) => {
-    const m = makerOf(req); if (!m) return res.sendStatus(401); if (m.kind !== 'institution') return res.redirect('/account');
+    const m = makerOf(req); if (!m) return res.sendStatus(401); if (!['institution', 'company'].includes(m.kind)) return res.redirect('/account');
     const rows = db.prepare("SELECT * FROM institution_staff WHERE maker_id=? AND status!='ended' ORDER BY role, name").all(m.id);
     res.send(V.layout({ title: 'The team · Watermark', path: '/account/staff', studio: true, body: `<section class="studio-wrap tm"><p class="k">${esc(m.name)}</p><h1>The team.</h1>
 <p class="lede">Everyone who works the desk for ${esc(m.name)}: invited by letter, signed in as themselves, acting for the institution. Take a seat back any time.${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}</p>
@@ -40,7 +40,7 @@ ${rows.length ? `<table class="tbl tm-t"><tr><th>Name</th><th>Role</th><th>Email
 <p class="note">What a seat opens: the studio and the vault, the rights desk, the curators’ keys, the collection’s records, getting paid. Roles are shown beside each name; finer doors by role come with the first museum’s wishes.</p></section>` }));
   });
   app.post('/account/staff', (req, res) => {
-    const m = makerOf(req); if (!m || m.kind !== 'institution') return res.sendStatus(401);
+    const m = makerOf(req); if (!m || !['institution', 'company'].includes(m.kind)) return res.sendStatus(401);
     const b = req.body || {}, name = String(b.name || '').trim().slice(0, 120), email = String(b.email || '').trim().toLowerCase().slice(0, 160), role = ROLES[b.role] ? b.role : 'curator';
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect('/account/staff?ok=' + encodeURIComponent('A name and an email, please.'));
     const token = crypto.randomBytes(24).toString('base64url');
@@ -50,7 +50,7 @@ ${rows.length ? `<table class="tbl tm-t"><tr><th>Name</th><th>Role</th><th>Email
     res.redirect('/account/staff?ok=' + encodeURIComponent(`${name} invited.`));
   });
   app.post('/account/staff/:id/end', (req, res) => {
-    const m = makerOf(req); if (!m || m.kind !== 'institution') return res.sendStatus(401);
+    const m = makerOf(req); if (!m || !['institution', 'company'].includes(m.kind)) return res.sendStatus(401);
     db.prepare("UPDATE institution_staff SET status='ended', ended_at=datetime('now') WHERE id=? AND maker_id=?").run(+req.params.id, m.id);
     try { ledger.append(db, 'staff.ended', m.handle, {}); } catch (e) { /* */ }
     res.redirect('/account/staff?ok=' + encodeURIComponent('The seat is taken back.'));
