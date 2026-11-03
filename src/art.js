@@ -203,14 +203,19 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const H = app.locals.hangs; if (!H || !H.houseBuyer || !ws.length) return null; const hb = H.houseBuyer(); if (!hb) return null;
     const slug = `art-${a.slug}`.slice(0, 90); let h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(slug);
     if (!h) { db.prepare('INSERT INTO hangs (buyer_id, slug, title, line, public) VALUES (?,?,?,?,1)').run(hb.id, slug, a.name, 'The work, in the order it was made.'); h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(slug); }
-    const have = new Map(db.prepare('SELECT work_id, pos FROM hang_works WHERE hang_id=?').all(h.id).map(r => [r.work_id, r.pos]));
-    ws.slice(0, 1000).forEach((w, i) => { if (!have.has(w.id)) db.prepare('INSERT INTO hang_works (hang_id, work_id, pos) VALUES (?,?,?)').run(h.id, w.id, i); else if (have.get(w.id) !== i) db.prepare('UPDATE hang_works SET pos=? WHERE hang_id=? AND work_id=?').run(i, h.id, w.id); });
+    // Only when the order changed, and then in a few statements, never one a work (2 Nov: a thousand UPDATEs over the
+    // Postgres bridge on every visit was the ten seconds Vincent's page took while his catalogue came in).
+    const want = ws.slice(0, 1000).map(w => w.id);
+    const have = db.prepare('SELECT work_id FROM hang_works WHERE hang_id=? ORDER BY pos, work_id').all(h.id).map(r => r.work_id);
+    if (have.length === want.length && have.every((id, i) => id === want[i])) return h;
+    db.prepare('DELETE FROM hang_works WHERE hang_id=?').run(h.id);
+    for (let i = 0; i < want.length; i += 200) { const part = want.slice(i, i + 200); db.prepare(`INSERT INTO hang_works (hang_id, work_id, pos) VALUES ${part.map(() => '(?,?,?)').join(',')}`).run(...part.flatMap((id, j) => [h.id, id, i + j])); }
     return h;
   }
   const pageCache = new Map();
   app.get('/art/:slug', (req, res, next) => {
     const a = bySlug(req.params.slug); if (!a) return next();
-    const studio = isStudio(req); const hit = pageCache.get(a.slug); if (!studio && hit && Date.now() - hit.at < 60e3) return res.send(hit.html);
+    const studio = isStudio(req); const ck = `${a.slug}|${studio ? 's' : 'p'}`; const hit = pageCache.get(ck); if (hit && Date.now() - hit.at < 60e3) return res.send(hit.html);
     const OB = require('./object'); const ws = chronology(a); const r = rights(a, ws[0] || null); const h = wallOf(a, ws);
     const photographers = [...new Map(ws.filter(w => w.handle !== 'the-public-domain').map(w => [w.handle, w.maker_name])).entries()];
     const kinds = [...new Set(ws.map(w => OB.kindWord(w).toLowerCase() + 's'))];
@@ -224,7 +229,7 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const body = AP.render({ a, ws, ghosts, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
     const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
-    if (!studio) pageCache.set(a.slug, { at: Date.now(), html });
+    pageCache.set(ck, { at: Date.now(), html });
     res.send(html);
   });
 
@@ -363,7 +368,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   }
   if (!app.locals.noTimers && ROLE.chores) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
 
-  app.locals.art = { wall: a => wallOf(a, chronology(a)), uncache: slug => pageCache.delete(slug), verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
+  app.locals.art = { wall: a => wallOf(a, chronology(a)), uncache: slug => { pageCache.delete(`${slug}|s`); pageCache.delete(`${slug}|p`); }, verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
 }
 
 module.exports = { mountArt, rights, slugify, sortName, MOVEMENTS, PD_YEARS };

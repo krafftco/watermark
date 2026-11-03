@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.31 · The artist's page, fast, and into Wander · 2 November 2026
+- An artist's page no longer rewrites their wall on every visit (a thousand statements over the database bridge: the ten seconds Vincent's page took); it is kept a minute for everyone, the Studio included.
+- A tap on any picture on an artist's page opens Wander at that work, inside the artist's own walk; the title opens the record.
+- /healthz says the process's memory and the heap's limit.
+
 ## 1.30.2 · The door's code · 2 November 2026
 - Signed in already, the Studio door's sign-in now asks for a fresh code instead of saying "Good to see you" and sending you round again.
 - The older sign-in page that answered first and dropped where you were going is gone.
