@@ -55,17 +55,19 @@ function quick(A, B) { const asp = B.w / B.h; const [gw, gh] = grid(asp); return
 // first pass over every older work, so a crop is never lost before the full look sees it.
 function score(A, B, coarse) { return Math.max(within(A, B, coarse), within(B, A, coarse)); }
 // One direction: how well Y is found inside X (X the whole, Y the crop); 1 is the same picture. (The tidy, 2 Nov.)
-function within(X, Y, coarse) {
-  let best = -1; const n = coarse ? 16 : G;
+function within(X, Y, coarse) { return withinAt(X, Y, coarse)[0]; }
+// The same, with the scale at which Y was found in X (1: the whole of X; .7: Y is seven tenths of X across).
+function withinAt(X, Y, coarse) {
+  let best = -1, at = 1; const n = coarse ? 16 : G;
   const scales = coarse ? [1, 0.85, 0.72] : [1, 0.94, 0.88, 0.82, 0.76, 0.7];
   {
     const asp = Y.w / Y.h; const [gw, gh] = grid(asp, n); const y = sample(Y, asp, 1, 0.5, 0.5, gw, gh);
     for (const s of scales) {
       const steps = s === 1 ? [0.5] : coarse ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1];
-      for (const fx of steps) for (const fy of steps) { const v = ncc(sample(X, asp, s, fx, fy, gw, gh), y); if (v > best) best = v; }
+      for (const fx of steps) for (const fy of steps) { const v = ncc(sample(X, asp, s, fx, fy, gw, gh), y); if (v > best) { best = v; at = s; } }
     }
   }
-  return best;
+  return [best, at];
 }
 
 function mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly }) {
@@ -230,4 +232,4 @@ ${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
   return { scan, soon, join, undo, waiting, score, quick, greyOf };
 }
 
-module.exports = { mountPairs, score, within, quick, greyOf, ncc, sample };
+module.exports = { mountPairs, score, within, withinAt, quick, greyOf, ncc, sample };
