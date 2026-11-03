@@ -604,6 +604,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.set('Cache-Control', 'no-store').send(out.html.replace('<body style="', `<body data-subject="${V.esc(out.subject)}" style="`));
   });
   // Every maker and estate has their own account and dashboard.
+  app.locals.registerWork = (...a) => registerWork(...a); // the one door for a record (tests and the tidy)
   app.locals.accounts = require('./accounts').mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAULT_USES, V, registerWork: (...a) => registerWork(...a), upload: () => upload, ledger, mail });
   app.locals.steps = require('./steps').mountSteps(app, { db, V, base: C.base, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./firstweek').mountFirstWeek(app, { db, C, mail, ledger, steps: app.locals.steps }); // the first week (26 Oct): the vault first, seven mornings, who is stuck where, the first sale
@@ -2321,6 +2322,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./safety').mountSafety(app, { db, V, ledger, studioOnly, originalPath }); // child safety: held out of every room at once, decided by a person (29 Oct)
   app.locals.hangBest = require('./hangbest').mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // hang your best (29 Oct)
   app.locals.pairs = require('./pairs').mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly });
+  require('./tidy').mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs: require('./pairs'), governor: app.locals.governor }); // the tidy of an artist's set: repeats and bad files off view (2 Nov)
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's
   // small copy when it is on disk, else its original.

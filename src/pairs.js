@@ -53,10 +53,12 @@ const grid = (aspect, n = G) => (aspect >= 1 ? [n, Math.max(6, Math.round(n / as
 function quick(A, B) { const asp = B.w / B.h; const [gw, gh] = grid(asp); return ncc(sample(A, asp, 1, 0.5, 0.5, gw, gh), sample(B, asp, 1, 0.5, 0.5, gw, gh)); }
 // The full look: either picture may be a crop of the other. The coarse look (a 16 grid, fewer crops) is the cheap
 // first pass over every older work, so a crop is never lost before the full look sees it.
-function score(A, B, coarse) {
+function score(A, B, coarse) { return Math.max(within(A, B, coarse), within(B, A, coarse)); }
+// One direction: how well Y is found inside X (X the whole, Y the crop); 1 is the same picture. (The tidy, 2 Nov.)
+function within(X, Y, coarse) {
   let best = -1; const n = coarse ? 16 : G;
   const scales = coarse ? [1, 0.85, 0.72] : [1, 0.94, 0.88, 0.82, 0.76, 0.7];
-  for (const [X, Y] of [[A, B], [B, A]]) {
+  {
     const asp = Y.w / Y.h; const [gw, gh] = grid(asp, n); const y = sample(Y, asp, 1, 0.5, 0.5, gw, gh);
     for (const s of scales) {
       const steps = s === 1 ? [0.5] : coarse ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1];
@@ -228,4 +230,4 @@ ${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
   return { scan, soon, join, undo, waiting, score, quick, greyOf };
 }
 
-module.exports = { mountPairs, score, quick, greyOf, ncc };
+module.exports = { mountPairs, score, within, quick, greyOf, ncc };

@@ -4989,3 +4989,13 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .bl-running{border-color:#b08d3c;background:#fbf8f1}
 .bl-done{opacity:.7}
 .bl-failed{border-color:#a33}
+
+/* The tidy (2 Nov): an artist's set, the repeats grouped, the best copy first. */
+.tyd .tyd-g{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.tyd .tyd-keep{flex:0 0 150px}.tyd .tyd-rest,.tyd .tyd-bad{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 auto}
+.tyd .tyd-w{display:block;width:110px;color:inherit;text-decoration:none;font-size:11px;line-height:1.3}
+.tyd .tyd-w img{display:block;width:110px;height:84px;object-fit:contain;background:#222;border:1px solid var(--line)}
+.tyd .tyd-w span{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tyd .tyd-w small{display:block;opacity:.65}
+.tyd .tyd-best{width:150px}.tyd .tyd-best img{width:150px;height:112px;border:2px solid #c9a24a}
+.tyd .tyd-rest .tyd-w img{opacity:.75}.tyd .tyd-apply{margin:10px 0 18px}.tyd .tyd-live{font-style:italic}.tyd .tyd-err{color:#a33}
+.tyd .tyd-gone{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}.tyd .tyd-gone img{width:56px;height:42px;object-fit:cover;opacity:.6}
