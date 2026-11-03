@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.33.1 · The tidy at scale · 3 November 2026
+- The tidy over thousands: each work's catalogue row, fingerprint and a 144-number signature read once, never inside the pairs; seven million pairs shortlisted in about a second; the loop yields to visitors every fifteen milliseconds, so the look never holds the house.
+
 ## 1.33 · The tidy · 3 November 2026
 - An artist's set, tidied: Studio → The art → an artist → The tidy reads every file on view (pixels, shape, colour, flatness, its name), finds the repeats by fingerprint and the pairs' look softened for scans, groups them, and keeps the best copy of each (not bad, in the catalogue, the whole over its details, colour over grey, the most pixels, the sharpest); the rest and the bad files (too small, a strip, blank, a detail or a copy by its title) go off view, named on the record, reversible with one press. Nothing is deleted. Two works the catalogue knows apart are never one.
 

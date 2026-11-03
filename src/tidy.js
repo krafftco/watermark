@@ -20,6 +20,7 @@ const HASH = Number(process.env.TIDY_HASH || 12);           // dhash bits apart 
 const SAME = Number(process.env.TIDY_SAME || 0.9);          // the pairs' look: one picture
 const COARSE = Number(process.env.TIDY_COARSE || 0.8);      // the cheap look before the full one
 const BLUR = Number(process.env.TIDY_BLUR || 2);
+const SIG = Number(process.env.TIDY_SIG || 0.7);         // the 144-number signature: anything under is not looked at again
 const NOT_WHOLE = /\b(detail|details|detalle|détail|crop|cropped|infrared|infra-red|x-ray|xray|radiograph|reflectogra\w*|ultraviolet|uv\b|before (the )?restoration|during restoration|copy after|after leonardo|replica|engraving|facsimile|reproduction|poster|stamp|coin|banknote|comparison|montage|collage|diagram|annotated|overlay|mirror(ed)?|flipped|inverted|rotated|thumbnail|screenshot|sketch of the|tracing|outline|verso detail)\b/i;
 
 function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs, governor }) {
@@ -70,10 +71,21 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
       const holds = new Map(); // id → how many others it contains as a crop (the whole over its details)
       const parent = new Map(ws.map(w => [w.id, w.id])); const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
       const union = (x, y) => { x = find(x); y = find(y); if (x !== y) parent.set(y, x); };
+      // Everything a pair needs is read once per work, never inside the pairs (3,725 Leonardos are seven million pairs):
+      // the catalogue row, the fingerprint as two numbers, and a signature of 144 (the centre of the picture on a 12 grid,
+      // normalised), whose dot product shortlists in a few operations. The loop yields to visitors every few thousand pairs.
+      const cat = new Map(ws.map(w => [w.id, catRow(w)]));
+      const hs = new Map(ws.map(w => [w.id, /^[0-9a-f]{16}$/i.test(w.dhash || '') ? [parseInt(w.dhash.slice(0, 8), 16) >>> 0, parseInt(w.dhash.slice(8), 16) >>> 0] : null]));
+      const pop = x => { x -= (x >>> 1) & 0x55555555; x = (x & 0x33333333) + ((x >>> 2) & 0x33333333); return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24; };
+      const sig = new Map(); for (const w of ws) { const r = R.get(w.id); if (!r) continue; const v = pairs.sample(r.grey, 1, 1, 0.5, 0.5, 12, 12); let m = 0; for (const x of v) m += x; m /= v.length; let n2 = 0; for (let i = 0; i < v.length; i++) { v[i] -= m; n2 += v[i] * v[i]; } n2 = Math.sqrt(n2) || 1; for (let i = 0; i < v.length; i++) v[i] /= n2; sig.set(w.id, v); }
+      const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+      let tick = 0, lastYield = Date.now();
       for (let i = 0; i < ws.length; i++) for (let k = i + 1; k < ws.length; k++) {
+        if (++tick % 200 === 0 && Date.now() - lastYield > 15) { await new Promise(r => setImmediate(r)); lastYield = Date.now(); } // never more than a few milliseconds away from a visitor
         const A = ws[i], B = ws[k]; const ra = R.get(A.id), rb = R.get(B.id); if (!ra || !rb) continue;
-        const ca = catRow(A), cb = catRow(B); if (ca && cb && ca.id !== cb.id) continue; // two works the catalogue knows apart are never one (a series, a pair of panels)
-        const close = hamming(A.dhash, B.dhash) <= HASH;
+        const ca = cat.get(A.id), cb = cat.get(B.id); if (ca && cb && ca.id !== cb.id) continue; // two works the catalogue knows apart are never one (a series, a pair of panels)
+        const ha = hs.get(A.id), hb = hs.get(B.id); const close = ha && hb && (pop(ha[0] ^ hb[0]) + pop(ha[1] ^ hb[1])) <= HASH;
+        if (!close && dot(sig.get(A.id), sig.get(B.id)) < SIG) continue;
         if (!close && pairs.quick(ra.grey, rb.grey) < COARSE) continue;
         if (pairs.score(ra.grey, rb.grey, true) < COARSE) continue;
         const ab = pairs.within(ra.grey, rb.grey), ba = pairs.within(rb.grey, ra.grey); if (Math.max(ab, ba) < SAME) continue;
@@ -82,14 +94,14 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
         if (!whole) { if (ab > ba + 0.03) holds.set(A.id, (holds.get(A.id) || 0) + 1); else if (ba > ab + 0.03) holds.set(B.id, (holds.get(B.id) || 0) + 1); }
       }
       const groups = new Map(); for (const w of ws) { const r = find(w.id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(w); }
-      const rank = (w, colour) => { const r = R.get(w.id) || {}; let s = 0; if (!bad.has(w.id)) s += 100; if (inCatalogue(w)) s += 30; s += 25 * (holds.get(w.id) || 0); if (colour && r.sat > 0.08) s += 20; if (w.curated) s += 10; s += Math.log2(Math.max(1, (w.width || 0) * (w.height || 0)) / 1e5) * 4; s += Math.min(8, (r.sharp || 0) * 4); return s; };
+      const rank = (w, colour) => { const r = R.get(w.id) || {}; let s = 0; if (!bad.has(w.id)) s += 100; if (cat.get(w.id)) s += 30; s += 25 * (holds.get(w.id) || 0); if (colour && r.sat > 0.08) s += 20; if (w.curated) s += 10; s += Math.log2(Math.max(1, (w.width || 0) * (w.height || 0)) / 1e5) * 4; s += Math.min(8, (r.sharp || 0) * 4); return s; };
       const out = { groups: [], bad: [], n: ws.length, at: new Date().toISOString() };
       for (const g of groups.values()) {
         if (g.length < 2) continue;
         const colour = g.some(w => (R.get(w.id) || {}).sat > 0.08);
         g.sort((x, y) => rank(y, colour) - rank(x, colour));
         const keep = g[0]; const bk = bad.get(keep.id); if (bk) bad.delete(keep.id); // the best of a group stands even when small: it is the only copy
-        out.groups.push({ keep: { slug: keep.slug, title: keep.title, w: keep.width, h: keep.height, cat: inCatalogue(keep), bad: bk || null }, others: g.slice(1).map(w => ({ slug: w.slug, title: w.title, w: w.width, h: w.height, why: `a repeat of ${keep.slug}` })) });
+        out.groups.push({ keep: { slug: keep.slug, title: keep.title, w: keep.width, h: keep.height, cat: !!cat.get(keep.id), bad: bk || null }, others: g.slice(1).map(w => ({ slug: w.slug, title: w.title, w: w.width, h: w.height, why: `a repeat of ${keep.slug}` })) });
         for (const w of g.slice(1)) bad.delete(w.id);
       }
       for (const [id, why] of bad) { const w = ws.find(x => x.id === id); out.bad.push({ slug: w.slug, title: w.title, w: w.width, h: w.height, why }); }

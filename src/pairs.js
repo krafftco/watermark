@@ -230,4 +230,4 @@ ${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
   return { scan, soon, join, undo, waiting, score, quick, greyOf };
 }
 
-module.exports = { mountPairs, score, within, quick, greyOf, ncc };
+module.exports = { mountPairs, score, within, quick, greyOf, ncc, sample };
