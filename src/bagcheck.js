@@ -160,4 +160,4 @@ ${repeat.length ? `<h2>Kept bringing the wrong thing today</h2><ul>${repeat.map(
   app.locals.bagcheck = { check: (file, opts) => check(file, opts, db, ledger), gate, throwIfBad, sniff };
   return app.locals.bagcheck;
 }
-module.exports = { mountBagcheck, check, sniff, EXPECT };
+module.exports = { mountBagcheck, check, sniff, EXPECT, sosOf, CARGO };

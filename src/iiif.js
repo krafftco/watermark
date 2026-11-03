@@ -248,7 +248,7 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
 <section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
   });
 
-  app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch, demoDesk };
+  app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch, demoDesk, fetchPicture };
   return app.locals.iiif;
 }
 module.exports = { mountIIIF, parseManifest, parseMet, rightsKey };

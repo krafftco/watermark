@@ -324,6 +324,19 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}${req.query.err ?
     try { const f = req.file ? req.file.path : null; if (f && /\.(txt|list)$/i.test(req.file.originalname || '') && (req.body.kind === 'auto' || !req.body.kind)) req.body.kind = 'books'; const id = enqueue(req.body || {}, f); res.redirect(`/studio/feeds/${id}?ok=` + encodeURIComponent('The feed is coming in, one work at a time; this page follows it.')); }
     catch (e) { if (req.file) { try { fs.unlinkSync(req.file.path); } catch (x) { /* */ } } res.redirect('/studio/feeds?err=' + encodeURIComponent(e.message)); }
   });
+  // Peek at a file the way the door sees it (2 Nov: forty of Van Gogh's paintings refused for 'a web page inside it' and no way to look at the bytes from here): the type, where the picture begins and ends, and the bytes around any cargo found.
+  app.get('/studio/feeds/peek', studioOnly, async (req, res) => {
+    const url = String(req.query.url || ''); if (!/^https?:\/\//.test(url)) return res.status(400).json({ error: 'url' });
+    try {
+      const r = await I.fetchPicture(url); const buf = Buffer.from(await r.arrayBuffer()); const tmp = path.join(require('os').tmpdir(), `peek-${Date.now()}.bin`); fs.writeFileSync(tmp, buf);
+      const BC = require('./bagcheck'); const type = BC.sniff(buf.slice(0, 64)); const sos = BC.sosOf(tmp); const s = buf.toString('latin1'); const lastEOI = s.lastIndexOf('\xff\xd9');
+      const finds = []; for (const [re, why] of BC.CARGO) { const at = s.search(re); if (at >= 0) finds.push({ why, at, around: s.slice(Math.max(0, at - 120), at + 120).replace(/[^\x20-\x7e]/g, '.') }); }
+      const head = s.slice(0, 64).replace(/[^\x20-\x7e]/g, '.');
+      let verdict = null; try { verdict = await BC.check(tmp, { expect: 'image' }); } catch (e) { verdict = { error: e.message }; }
+      fs.unlinkSync(tmp);
+      res.json({ status: r.status, finalUrl: r.url || null, contentType: r.headers && r.headers.get ? r.headers.get('content-type') : null, length: buf.length, type, sos, lastEOI, trailing: lastEOI >= 0 ? buf.length - lastEOI - 2 : null, head, finds, verdict });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
   app.get('/studio/feeds/:id', studioOnly, (req, res) => {
     const r = db.prepare('SELECT f.*, m.name AS maker, m.handle FROM feeds f JOIN makers m ON m.id=f.maker_id WHERE f.id=?').get(+req.params.id); if (!r) return res.sendStatus(404);
     const live = r.status === 'running' || r.status === 'queued'; const missed = missesOf(r);

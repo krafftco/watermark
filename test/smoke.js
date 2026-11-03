@@ -1605,6 +1605,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       for (let i = 0; i < 100 && db.prepare('SELECT status FROM feeds WHERE id=?').get(bj.feed).status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
       const hv = db.prepare("SELECT * FROM works WHERE source_url='https://www.metmuseum.org/art/collection/search/777'").get(); assert.ok(hv && hv.title === 'The Harvesters' && hv.open === 'cc0' && hv.status === 'held' && hv.kind === 'painting', 'in, as chosen: ' + JSON.stringify(hv && { t: hv.title, o: hv.open, s: hv.status, k: hv.kind }));
       app.locals.__fetch = p2; }
+    { // Peek at a file as the door sees it (2 Nov): the structure, the cargo's bytes.
+      const fx = fs.readFileSync(path.join(__dirname, 'fixture.jpg')); const poly = Buffer.concat([fx, Buffer.from('<html><body>a page after the picture</body></html>')]);
+      const p3 = app.locals.__fetch; app.locals.__fetch = async (u) => (/peek-me/.test(String(u)) ? { ok: true, status: 200, url: String(u), headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => poly } : p3 ? p3(u) : fetch(u));
+      r = await req(port, 'GET', '/studio/feeds/peek?url=https://example.org/peek-me.jpg', { cookie: ck }); const pk = JSON.parse(r.body);
+      assert.ok(pk.type === 'jpeg' && pk.sos > 0 && pk.finds.some(f => /web page/.test(f.why) && f.at > pk.lastEOI && /a page after/.test(f.around)) && pk.verdict && !pk.verdict.ok, 'the peek: ' + r.body.slice(0, 300));
+      r = await req(port, 'GET', '/studio/feeds/peek?url=https://example.org/peek-me.jpg'); assert.ok(r.status !== 200, 'the peek is the Studio\'s');
+      app.locals.__fetch = p3; }
     { // The line (2 Nov): line up the Met; the house takes it a hundred at a time, one run at a time, and keeps going.
       r = await req(port, 'GET', '/studio/line'); assert.ok(r.status !== 200, 'the line is the Studio\'s');
       r = await req(port, 'GET', '/studio/line', { cookie: ck }); assert.ok(r.status === 200 && /The line\./.test(r.body) && /European Paintings/.test(r.body), 'the line');
