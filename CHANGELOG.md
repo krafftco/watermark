@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.33.4 · The tidy, stricter · 3 November 2026
+- Pages, and drawings on paper by their look, join only when practically the same file; the same painting needs .94; a frame needs a real margin; an annotation in another script counts against a copy.
+
 ## 1.33.3 · The tidy reads like a registrar · 3 November 2026
 - No chains: every repeat must match the kept copy itself. Folios and pages of a codex join only when all but identical. A small part found in another is its detail (the whole stands); a picture inside a frame or a book page loses to the clean scan, larger or not. Analytic and reconstructed images are bad files by their names.
 

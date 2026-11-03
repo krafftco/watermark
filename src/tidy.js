@@ -17,18 +17,19 @@ const MIN_MP = Number(process.env.TIDY_MIN_MP || 0.4);     // under this, a web 
 const MIN_SIDE = Number(process.env.TIDY_MIN_SIDE || 500);
 const STRIP = Number(process.env.TIDY_STRIP || 4);          // longer than this against its width: a strip
 const HASH = Number(process.env.TIDY_HASH || 12);           // dhash bits apart to be looked at
-const SAME = Number(process.env.TIDY_SAME || 0.9);          // the pairs' look: one picture
+const SAME = Number(process.env.TIDY_SAME || 0.94);          // the pairs' look: one picture
 const COARSE = Number(process.env.TIDY_COARSE || 0.8);      // the cheap look before the full one
 const BLUR = Number(process.env.TIDY_BLUR || 2);
 const SIG = Number(process.env.TIDY_SIG || 0.7);
 const SETTLE_EVERY = Number(process.env.TIDY_SETTLE_EVERY || 25);         // the 144-number signature: anything under is not looked at again
-const NOT_WHOLE = /\b(history of painting|preface|bearbeitet|mystery|solution|analysis|analyse|hypothes\w*|reconstruction|enhanced|colori[sz]ed|detail|details|detalle|détail|crop|cropped|infrared|infra-red|x-ray|xray|radiograph|reflectogra\w*|ultraviolet|uv\b|before (the )?restoration|during restoration|copy after|after leonardo|replica|engraving|facsimile|reproduction|poster|stamp|coin|banknote|comparison|montage|collage|diagram|annotated|overlay|mirror(ed)?|flipped|inverted|rotated|thumbnail|screenshot|sketch of the|tracing|outline|verso detail)\b/i;
+const NOT_WHOLE = /(μυστήρι|λύση|προδότ|πιθαν)|\b(history of painting|preface|bearbeitet|mystery|solution|analysis|analyse|hypothes\w*|reconstruction|enhanced|colori[sz]ed|detail|details|detalle|détail|crop|cropped|infrared|infra-red|x-ray|xray|radiograph|reflectogra\w*|ultraviolet|uv\b|before (the )?restoration|during restoration|copy after|after leonardo|replica|engraving|facsimile|reproduction|poster|stamp|coin|banknote|comparison|montage|collage|diagram|annotated|overlay|mirror(ed)?|flipped|inverted|rotated|thumbnail|screenshot|sketch of the|tracing|outline|verso detail)\b/i;
 
 // A folio, a manuscript page, a page of a book: alike to the eye when softened (paper and ink), each its own work.
 // These join only when all but identical (TIDY_PAGE_HASH, TIDY_PAGE_SAME), never by a chain.
 const PAGE = /\b(codex|codice|manuscri\w*|folio|fol\.|carnet|notebook|taccuin\w*|recto|verso|page|feuillet)\b|\b\d{1,4}\s?[rv]\b|\d{3}[RV]-\d+/i;
-const PAGE_HASH = Number(process.env.TIDY_PAGE_HASH || 6);
-const PAGE_SAME = Number(process.env.TIDY_PAGE_SAME || 0.97);
+const PAGE_HASH = Number(process.env.TIDY_PAGE_HASH || 2);
+const PAGE_SAME = Number(process.env.TIDY_PAGE_SAME || 0.99);
+const MARGIN_AT = Number(process.env.TIDY_MARGIN_AT || 0.9);  // a frame or a page: the picture found at or under this scale inside the other
 const DETAIL_AT = Number(process.env.TIDY_DETAIL_AT || 0.8); // found at or under this scale inside another: a detail of it
 function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs, governor }) {
   const { esc } = V;
@@ -78,7 +79,8 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
       const holds = new Map(); // id → how many others it contains as a small part (the whole over its details)
       const margin = new Set(); // ids that carry a frame or a page around the picture
       const link = new Map();   // 'a:b' → how alike, for the check against the kept copy
-      const isPage = w => PAGE.test(`${w.title || ''}`);
+      // A page or a drawing on paper (by its title, or by its look: little colour, little contrast) joins only when it is practically the same file.
+      const isPage = w => PAGE.test(`${w.title || ''}`) || (() => { const r = R.get(w.id); return !!(r && r.sat < 0.1 && r.std < 45); })();
       const parent = new Map(ws.map(w => [w.id, w.id])); const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
       const union = (x, y) => { x = find(x); y = find(y); if (x !== y) parent.set(y, x); };
       // Everything a pair needs is read once per work, never inside the pairs (3,725 Leonardos are seven million pairs):
@@ -110,11 +112,11 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
         // tighter one is the painting itself and the larger carries a margin (the clean scan stands).
         if (ab >= ba && sab <= DETAIL_AT) holds.set(A.id, (holds.get(A.id) || 0) + 1);
         else if (ba > ab && sba <= DETAIL_AT) holds.set(B.id, (holds.get(B.id) || 0) + 1);
-        else if (ab >= SAME && sab < 0.97 && quick < SAME) margin.add(A.id);
-        else if (ba >= SAME && sba < 0.97 && quick < SAME) margin.add(B.id);
+        else if (ab >= SAME && sab <= MARGIN_AT && quick < SAME) margin.add(A.id);
+        else if (ba >= SAME && sba <= MARGIN_AT && quick < SAME) margin.add(B.id);
       }
       const groups = new Map(); for (const w of ws) { const r = find(w.id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(w); }
-      const rank = (w, colour) => { const r = R.get(w.id) || {}; let s = 0; if (!bad.has(w.id)) s += 100; if (cat.get(w.id)) s += 30; s += holds.get(w.id) ? 25 : 0; if (margin.has(w.id)) s -= 40; if (colour && r.sat > 0.08) s += 20; if (w.curated) s += 10; s += Math.log2(Math.max(1, (w.width || 0) * (w.height || 0)) / 1e5) * 4; s += Math.min(8, (r.sharp || 0) * 4); return s; };
+      const rank = (w, colour) => { const r = R.get(w.id) || {}; let s = 0; if (!bad.has(w.id)) s += 100; if (cat.get(w.id)) s += 30; s += holds.get(w.id) ? 25 : 0; if (margin.has(w.id)) s -= 20; if (/[\u0370-\u03ff\u0400-\u04ff\u0590-\u06ff\u3040-\u9fff]/.test(w.title || '')) s -= 15; /* an annotation in another script: the clean copy first */ if (colour && r.sat > 0.08) s += 20; if (w.curated) s += 10; s += Math.log2(Math.max(1, (w.width || 0) * (w.height || 0)) / 1e5) * 4; s += Math.min(8, (r.sharp || 0) * 4); return s; };
       const out = { groups: [], bad: [], n: ws.length, at: new Date().toISOString() };
       for (const g of groups.values()) {
         if (g.length < 2) continue;
