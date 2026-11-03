@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.33.2 · The tidy reads quickly · 3 November 2026
+- The look asks the governor every 25 thumbnails, not every one.
+
 ## 1.33.1 · The tidy at scale · 3 November 2026
 - The tidy over thousands: each work's catalogue row, fingerprint and a 144-number signature read once, never inside the pairs; seven million pairs shortlisted in about a second; the loop yields to visitors every fifteen milliseconds, so the look never holds the house.
 

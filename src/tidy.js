@@ -20,7 +20,8 @@ const HASH = Number(process.env.TIDY_HASH || 12);           // dhash bits apart 
 const SAME = Number(process.env.TIDY_SAME || 0.9);          // the pairs' look: one picture
 const COARSE = Number(process.env.TIDY_COARSE || 0.8);      // the cheap look before the full one
 const BLUR = Number(process.env.TIDY_BLUR || 2);
-const SIG = Number(process.env.TIDY_SIG || 0.7);         // the 144-number signature: anything under is not looked at again
+const SIG = Number(process.env.TIDY_SIG || 0.7);
+const SETTLE_EVERY = Number(process.env.TIDY_SETTLE_EVERY || 25);         // the 144-number signature: anything under is not looked at again
 const NOT_WHOLE = /\b(detail|details|detalle|détail|crop|cropped|infrared|infra-red|x-ray|xray|radiograph|reflectogra\w*|ultraviolet|uv\b|before (the )?restoration|during restoration|copy after|after leonardo|replica|engraving|facsimile|reproduction|poster|stamp|coin|banknote|comparison|montage|collage|diagram|annotated|overlay|mirror(ed)?|flipped|inverted|rotated|thumbnail|screenshot|sketch of the|tracing|outline|verso detail)\b/i;
 
 function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs, governor }) {
@@ -65,7 +66,7 @@ function mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly
     const j = { on: true, at: new Date().toISOString(), n: 0, done: 0, plan: null, error: null }; jobs.set(a.id, j);
     try {
       const ws = onView(a); j.n = ws.length; const R = new Map();
-      for (const w of ws) { try { R.set(w.id, await read(w)); } catch (e) { R.set(w.id, null); if (process.env.TIDY_DEBUG) console.error('[tidy] read', w.slug, e.message); } j.done++; if (governor && governor.settle) await governor.settle('tidy'); }
+      for (const w of ws) { try { R.set(w.id, await read(w)); } catch (e) { R.set(w.id, null); if (process.env.TIDY_DEBUG) console.error('[tidy] read', w.slug, e.message); } j.done++; if (governor && governor.settle && j.done % SETTLE_EVERY === 0) await governor.settle('tidy'); else await new Promise(r => setImmediate(r)); } // a thumbnail is light: the governor is asked every few, not every one (3 Nov: at every one, my own polling read as visitors and 3,725 would have taken three hours)
       const bad = new Map(); for (const w of ws) { const b = badOf(w, R.get(w.id)); if (b) bad.set(w.id, b); }
       // Repeats: the fingerprint names the candidates, the pairs' look decides; a union of what is one picture.
       const holds = new Map(); // id → how many others it contains as a crop (the whole over its details)
