@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.31.1 · The page, light · 2 November 2026
+- The artist's page reads only the columns it shows: every book's whole text and every work's guide had come over the database bridge on each visit.
+
 ## 1.31 · The artist's page, fast, and into Wander · 2 November 2026
 - An artist's page no longer rewrites their wall on every visit (a thousand statements over the database bridge: the ten seconds Vincent's page took); it is kept a minute for everyone, the Studio included.
 - A tap on any picture on an artist's page opens Wander at that work, inside the artist's own walk; the title opens the record.

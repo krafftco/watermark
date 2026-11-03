@@ -195,7 +195,8 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
   const keeps0 = w => { const m = /(?:Credit line|Credit|Museum|Collection|Repository|Institution): ([^·\n]+)/i.exec(w.caption || '') || /(Van Gogh Museum|Kröller-Müller Museum|Museum of Modern Art|Metropolitan Museum of Art|National Gallery[^.;,·]*|Art Institute of Chicago|Musée d'Orsay|Musée de l'Orangerie|Musée Marmottan[^.;,·]*|Rijksmuseum|Louvre|Uffizi|Royal Collection|British Museum|Biblioteca Ambrosiana|Hermitage|Courtauld[^.;,·]*|Getty[^.;,·]*|Cleveland Museum of Art|Philadelphia Museum of Art|Museum of Fine Arts[^.;,·]*)/i.exec(w.caption || ''); return m ? m[1].trim().slice(0, 80) : null; };
   const keeps = w => { const k = keeps0(w); return k && !/google|cultural institute|zoom level|wikimedia|commons|home page|\bimage\b|^[\w-]{8,}\b/i.test(k) ? k : ''; };
   function chronology(a) {
-    return db.prepare("SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND w.status='held' AND COALESCE(w.zone,'all')!='mature'").all(a.id)
+    // The columns the page reads, never w.* (the guides, studies and attributions of a thousand works came over the bridge on every visit, 2 Nov).
+    return db.prepare("SELECT w.id, w.slug, w.title, w.caption, w.taken_at, w.kind, w.medium, w.curated, w.stars, w.width, w.height, w.source_url, w.place, w.zone, w.maker_id, w.artist_id, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND w.status='held' AND COALESCE(w.zone,'all')!='mature'").all(a.id)
       .map(w => ({ ...w, y: AP.madeIn(w, a), keeps: keeps(w) })).sort((x, y) => (x.y || 99999) - (y.y || 99999) || x.id - y.id);
   }
   // The wall Wander walks for an artist: the house's, public, in the order made.

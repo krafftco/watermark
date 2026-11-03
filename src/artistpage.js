@@ -83,7 +83,8 @@ ${a.sources || a.wiki ? `<p class="apl-src">Read further: ${[a.wiki, ...String(a
 // Their own words: books on the shelf whose author is this artist (every part of the name present, either order).
 function writingsOf(db, a) {
   const parts = norm(a.name).split(' ').filter(p => p.length > 2 && !['van', 'von', 'der', 'den', 'del', 'della'].includes(p)); if (!parts.length) return [];
-  return db.prepare("SELECT * FROM texts WHERE public=1 AND author IS NOT NULL AND kind IN ('book','essay','document','journal','letters') ORDER BY id").all().filter(t => { const n = norm(t.author); return parts.every(p => n.includes(p)); });
+  // Never the bodies: every public book's text came over the bridge on each visit (2 Nov, the ten seconds).
+  return db.prepare("SELECT t.id, t.slug, t.title, t.author, t.kind, t.year, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.public=1 AND t.author IS NOT NULL AND t.kind IN ('book','essay','document','journal','letters') ORDER BY t.id").all().filter(t => { const n = norm(t.author); return parts.every(p => n.includes(p)); });
 }
 
 module.exports = { render, writingsOf, madeIn, periodsOf, chapters };
