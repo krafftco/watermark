@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.32.1 · The artist's own hand · 2 November 2026
+- Walking a Commons tree, the house leaves out the subcategories that are not the artist's own work: derivatives, replicas, stamps, coins, statues, street art.
+
 ## 1.32 · The whole tree, and lighter scans · 2 November 2026
 - A Wikimedia Commons feed walks the category and every subcategory under it (four deep, four hundred wide), so a codex's pages come in with the codex; a category that is not on Commons says so.
 - Scans from Commons come in at 3,840 pixels past 40 megapixels (was 7,680 past 150): a decode a fifth the size, several times over, for each arrival. The vault keeps the master it is given; the rendering is the master for these.

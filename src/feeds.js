@@ -124,6 +124,8 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
   const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
   const COMMONS_DEPTH = +process.env.COMMONS_DEPTH || 4, COMMONS_CATS = +process.env.COMMONS_CATS || 400;
+  // Subcategories that are not the artist's own hand (a tree under an artist carries copies, stamps, coins and street art after the work): left out.
+  const NOT_THEIRS = /derivative|replica|copies|copy after|after leonardo|reproduction|stamps|coins|banknotes|memorial|monument|statue|sculptures of|street art|graffiti|logos?\b|tattoo|merchandise|in popular culture|parod|museums? (?:of|dedicated)|exhibitions? (?:of|about)/i;
   // A category and its subcategories, breadth first; [] when the category is not on Commons at all.
   async function commonsTree(cat) {
     const seen = new Set([cat]); const out = [cat]; let layer = [cat];
@@ -136,7 +138,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
         do {
           const u = new URL('https://commons.wikimedia.org/w/api.php'); for (const [k, v] of Object.entries({ action: 'query', format: 'json', list: 'categorymembers', cmtitle: c, cmtype: 'subcat', cmlimit: '200', ...(cont ? { cmcontinue: cont } : {}) })) u.searchParams.set(k, v);
           const r = await doFetch(u.href, { headers: { 'User-Agent': UA } }); if (!r.ok) break; const j = await r.json();
-          for (const m of ((j.query || {}).categorymembers || [])) { if (!seen.has(m.title) && out.length < COMMONS_CATS) { seen.add(m.title); out.push(m.title); next.push(m.title); } }
+          for (const m of ((j.query || {}).categorymembers || [])) { if (NOT_THEIRS.test(m.title)) continue; if (!seen.has(m.title) && out.length < COMMONS_CATS) { seen.add(m.title); out.push(m.title); next.push(m.title); } }
           cont = (j.continue && j.continue.cmcontinue) || null;
         } while (cont && out.length < COMMONS_CATS);
         if (!app.locals.noTimers) await new Promise(x => setTimeout(x, 300));
