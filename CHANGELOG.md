@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.37.0 · The way back · 3 November 2026
+- Back on every page but the front door and Wander, in the browser and in the installed app: a chevron top left, as on Instagram.
+- The trail: the arrow beside Back (or a long press on it) lists the last places you have been, so you can go back several at once.
+- In the installed app, a swipe in from the left edge goes back, with an arrow that follows your thumb.
+- The full-screen rooms (the reader, the easel, an album, a trip, a contact sheet, Draw) carry a floating Back in the app.
+
 ## 1.36.0 · The sitting, and the loan desk · 3 November 2026
 - The sitting: every artist may answer the same ten questions (what they look at, who taught them to see, what it is like to live with their work, who should not), record two minutes in their own voice, and show their studio. It stands on their page as Meet them, in their own words; nothing is written for them.
 - Living with it: a collector who has lived with a piece for a month may say what that is like, on the artist's page, for others deciding.

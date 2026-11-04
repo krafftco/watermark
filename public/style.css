@@ -2304,10 +2304,32 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
     .vr-top,.wv-top{padding-top:calc(14px + env(safe-area-inset-top))}
     .hs-card,.ps-card{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
     footer.ft{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
-    .nv-back{display:inline-flex}
   }
 }
-.nv-back{display:none;align-items:center;gap:6px;color:var(--mut);font-size:11px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;padding:6px 8px 6px 0;cursor:pointer}.nv-back .ic{width:18px;height:18px}.nv-back[hidden]{display:none}
+.nv-bk{position:relative;display:inline-flex;align-items:center;flex:none}
+.nv-back{display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-size:11px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;padding:8px 4px 8px 0;min-height:40px;cursor:pointer;-webkit-touch-callout:none;user-select:none}.nv-back .ic{width:18px;height:18px}.nv-back:hover{color:var(--ink)}
+.nv-trail{display:inline-flex;align-items:center;justify-content:center;width:28px;height:40px;margin:0 6px 0 -6px;color:var(--mut);background:none;border:0;padding:0;cursor:pointer}.nv-trail .ic{width:16px;height:16px}.nv-trail:hover,.nv-trail[aria-expanded="true"]{color:var(--ink)}
+.nv-back[hidden],.nv-trail[hidden]{display:none}
+.nv-bk .nv-back,.nv-bk .nv-trail,.nv-bk .nv-back:hover,.nv-bk .nv-trail:hover{background:none;border:0;border-radius:8px;-webkit-tap-highlight-color:transparent}
+.nv-bk .nv-back .nv-chev{width:24px;height:24px}.nv-bk .nv-back{min-width:40px;color:var(--ink)}
+.nv-bk .nv-back:active{transform:translateX(-2px)}
+.nv-float{display:none}
+.bks{position:fixed;left:0;width:44px;height:44px;border-radius:50%;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(11,10,9,.55);color:#f3efe7;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transform:translateX(-44px);transition:background .15s,opacity .25s,transform .25s;pointer-events:none}.bks svg{width:22px;height:22px}.bks.on{background:#c9a24a;color:#0b0a09}
+html.wm-app .nv-float{display:block;position:fixed;left:12px;top:calc(10px + env(safe-area-inset-top));z-index:70}
+html.wm-app .nv-float .nv-bk{background:rgba(11,10,9,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:999px;padding:0 4px 0 12px}
+html.wm-app .nv-float .nv-back,html.wm-app .nv-float .nv-trail{color:#f3efe7}
+html.wm-app .nv-float .nv-back span{display:none}
+html.wm-app .nv-float .bkt{position:fixed;left:12px;right:12px;top:calc(60px + env(safe-area-inset-top))}
+html.wm-app.in-stay .nv-float{display:none}
+.bkt{position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:240px;max-width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:var(--bg,#f6f5f2);border:1px solid var(--ln);border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.14);padding:6px}
+.bkt[hidden]{display:none}
+.bkt-h{margin:6px 10px 4px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.bkt a{display:flex;gap:10px;align-items:baseline;padding:9px 10px;border-radius:6px;color:var(--ink);text-decoration:none;font-size:14px;line-height:1.3}
+.bkt a:hover,.bkt a:focus{background:rgba(0,0,0,.05)}
+.bkt-n{flex:none;width:16px;font-size:11px;color:var(--mut);text-align:right}
+.bkt-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bkt-home{border-top:1px solid var(--ln);margin-top:4px;color:var(--mut)!important;font-size:13px!important}
+@media (max-width:700px){.nv-back span{display:none}.nv-back{padding-right:2px}.nv-trail{width:24px;margin-right:2px}.nv-bk .bkt{position:fixed;left:12px;right:12px;top:calc(56px + env(safe-area-inset-top));max-width:none}}
 @media (max-width:700px){@media (display-mode:standalone){.vr-deck,.wv-deck{bottom:calc(14px + env(safe-area-inset-bottom))}.wv-plate{bottom:calc(72px + env(safe-area-inset-bottom))}}}
 
 /* The switch on a phone (Will, 17 Oct): Studio | Gallery on its own line under the desk row, and on the gallery. */
