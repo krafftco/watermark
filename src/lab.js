@@ -60,7 +60,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
   const isLab = shop => !!(shop && shop.lab);
 
   const jobOf = id => db.prepare('SELECT j.*, s.lab, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.id=?').get(id);
-  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.place, w.taken_at, w.id AS work_id2, w.original_file, mk.name AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE o.id=?').get(id);
+  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.place, w.taken_at, w.id AS work_id2, w.original_file, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
 
   // The address, read into the lab's fields. US only for now (the proof's rule).
   function recipient(o) {

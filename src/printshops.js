@@ -36,7 +36,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
 
   const shopOf = makerId => db.prepare('SELECT s.*, m.name, m.handle, m.email FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.maker_id=?').get(makerId);
   const shopById = id => db.prepare('SELECT s.*, m.name, m.handle, m.email FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.id=?').get(id);
-  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.width, w.height, w.id AS work_id2, w.maker_id AS work_maker, mk.name AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE o.id=?').get(id);
+  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.width, w.height, w.id AS work_id2, w.maker_id AS work_maker, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
   const jobOf = id => db.prepare('SELECT j.*, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.id=?').get(id);
   const liveJob = orderId => db.prepare("SELECT j.*, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.order_id=? AND j.status NOT IN ('declined') ORDER BY j.id DESC LIMIT 1").get(orderId);
   const stateOf = addr => { const m = String(addr || '').match(/\b([A-Z]{2})\b\s+\d{5}/); return m ? m[1] : null; };
@@ -126,7 +126,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
 
   app.get('/account/printing', (req, res) => {
     const x = asShop(req, res); if (!x) return; const { s } = x;
-    const jobs = db.prepare("SELECT j.*, o.kind, o.size, o.paper, o.framed, o.frame, o.pickup, o.address, o.ship_name, o.at AS asked_at, l.ref, w.slug, w.title, mk.name AS maker_name FROM print_jobs j JOIN print_orders o ON o.id=j.order_id JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE j.shop_id=? ORDER BY CASE j.status WHEN 'offered' THEN 0 WHEN 'accepted' THEN 1 WHEN 'printing' THEN 2 WHEN 'shipped' THEN 3 ELSE 4 END, j.id DESC").all(s.id);
+    const jobs = db.prepare("SELECT j.*, o.kind, o.size, o.paper, o.framed, o.frame, o.pickup, o.address, o.ship_name, o.at AS asked_at, l.ref, w.slug, w.title, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_jobs j JOIN print_orders o ON o.id=j.order_id JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE j.shop_id=? ORDER BY CASE j.status WHEN 'offered' THEN 0 WHEN 'accepted' THEN 1 WHEN 'printing' THEN 2 WHEN 'shipped' THEN 3 ELSE 4 END, j.id DESC").all(s.id);
     const by = k => jobs.filter(j => j.status === k);
     const E = earned(s.maker_id);
     const row = j => `<a class="pj-row" href="/account/printing/${j.id}"><img src="/img/${esc(j.slug)}/thumb" alt="" width="56" height="42"><span><b>${esc(j.title)}</b> · ${esc(j.maker_name)}<br><small>${j.kind === 'proof' ? 'The proof, 5 × 7' : esc(j.size || '')}${j.paper ? ` · ${esc(j.paper)}` : ''}${j.framed || j.frame ? ' · framed' : ''}${j.pickup ? ' · for the show' : ''} · ${money(j.cents)} to you</small></span><em>${STEPS[j.status]}</em></a>`;

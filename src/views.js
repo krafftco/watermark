@@ -496,7 +496,7 @@ const voice = v => `<div class="vo">${v.audio ? `<button type="button" class="vo
 <div class="vo-t"><small>${esc(VKIND[v.kind] || '')}${v.seconds ? ` &middot; ${mmss(v.seconds)}` : ''}</small><b>${esc(v.speaker || '')}${v.role ? `<span>, ${esc(v.role)}</span>` : ''}</b>
 ${v.body ? (v.audio ? `<details><summary>Read it</summary><p>${esc(v.body)}</p></details>` : `<p class="vo-note">${esc(v.body)}</p>`) : ''}</div></div>`;
 
-function work({ seen = '', prints = '', objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, spoken = '', edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null }) {
+function work({ seen = '', prints = '', objectLabel = '', zoneLabel = '', bench = '', walk = null, hang = '', open = null, thanks = null, stood = null, wander = false, office = null, mkt = null, shield = null, w, maker, uses, base, rules, pay = null, held = { n: 0, shown: [] }, ed = null, patron = null, story = null, voices = [], closer = null, spoken = '', edit = false, mine = [], up = null, ap = null, note = null, canModerate = false, me = null, by = null }) {
   // What this visitor already holds is not offered to them again; everything else still is.
   const owns = new Set(mine.map(m => m.key)); if (mine.some(m => m.kind !== 'print')) owns.add('social');
   const allUses = uses; uses = uses.filter(u => !owns.has(u.key));
@@ -532,8 +532,9 @@ function work({ seen = '', prints = '', objectLabel = '', zoneLabel = '', bench 
     : held.n ? `${held.shown.length ? `Collected by ${named}.` : 'In private collections.'}${trade}`
     : 'The first collector will be No.&nbsp;1.';
   return layout({
-    title: `${title} · ${maker.name} · Watermark`,
-    desc: `${title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; collect it at the source.`,
+    // An open museum work is named by its artist on the card a link unfurls into, never 'The public domain' (4 Nov).
+    title: `${title} · ${by || maker.name} · Watermark`,
+    desc: by ? `${title}, by ${by}${w.place ? `, ${w.place}` : ''}. Open to everyone on Watermark.` : `${title}, a photograph by ${maker.name}${w.place ? `, ${w.place}` : ''}. Held on Watermark; collect it at the source.`,
     path: `/m/${makerSlug(maker)}/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article', mark: markOf(maker),
     // Google Images shows a "Licensable" badge when an image carries these fields.
     jsonld: { '@context': 'https://schema.org', '@type': 'ImageObject', name: title, caption: w.caption || undefined, contentUrl: `${BASE()}/img/${w.slug}/screen`, thumbnailUrl: `${BASE()}/img/${w.slug}/thumb`,
@@ -1217,6 +1218,7 @@ function setThanks({ items, name }) {
 
 function thanks({ lic, w, maker, use, theirs = null }) {
   const done = lic.status === 'active';
+  let OPR = null; try { const r0 = lic.rights ? JSON.parse(lic.rights) : null; OPR = r0 && r0.print && r0.print.open ? r0.print : null; } catch (e) { OPR = null; } // a print of an open work (4 Nov)
   // A personal piece (Will, 23 Oct: "instant gratification, like you've just received that Instax postcard"): the
   // photograph develops on an instant-film tile, the wave in its corner and the number in pencil; whose money went
   // where, in one line each; then the acts: save it, your gallery, wander on. The papers and the proof beneath.
@@ -1244,11 +1246,11 @@ ${kept ? `<ul class="yx-money"><li><b>A gift</b> from ${esc(first)}: ${esc(lic.i
 <div class="yours-t">
 <p class="k">${esc(lic.ref)}</p>
 <h1>${done ? 'It&rsquo;s yours. Thank you.' : 'Payment received. Preparing your file.'}</h1>${done && lic.collector_no ? `<p class="yc-big">Collector No. ${lic.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}, <em>${esc(tidy(w.title))}</em>. <a href="/yours">It hangs in your gallery.</a></p>` : ''}
-<p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(maker.name)}. ${use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
+<p class="lede">${done ? `<em>${esc(w.title)}</em> by ${esc(OPR ? OPR.by : maker.name)}. ${OPR ? `A print, ${esc(OPR.label)} in, in archival pigment on Hahnemühle Photo Rag${OPR.framed ? ', framed by hand' : ''}, yours to keep. It is on its way to you${OPR.framed ? ' in about three weeks' : ' within the week'}.` : use.kind === 'print' ? 'A signed archival print, yours to keep. It ships within the week.' : `Licensed ${esc(use.name.toLowerCase())}${lic.ends_at ? ` until ${date(lic.ends_at)}` : ''}.`} ${lic.licensee_email ? `A copy of everything is on its way to ${esc(lic.licensee_email)}.` : ''}` : 'This takes a few seconds.'}</p>
 ${done ? `<div class="yours-a">${lic.download_token ? `<a class="buy-btn" href="/d/${esc(lic.download_token)}">Download the full file</a>` : ''}
 <a class="yours-l" href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a><a class="yours-l" href="/c/${esc(lic.ref)}?k=${esc(lic.download_token || '')}">License page</a><a class="yours-l" href="/verify?ref=${esc(lic.ref)}">Verify</a></div>
-<p class="note">The file carries its license inside it: maker, collector, reference and term. ${esc(maker.name)} has been paid.</p>
-${lic.collector_no ? `<p class="yours-proof"><span class="k">The proof</span> Hold it in your hand: a 5 × 7 print from the house’s print room, on Hahnemühle Photo Rag, your number in pencil, posted. <a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">Ask for the proof →</a></p>` : ''}` : ''}
+<p class="note">${OPR ? `The painting is in the public domain; the file is free to everyone, and the print is yours.${OPR.give_cents ? ` ${money(OPR.give_cents)} of it goes back to the museum that keeps the original.` : ''}` : `The file carries its license inside it: maker, collector, reference and term. ${esc(maker.name)} has been paid.`}</p>
+${lic.collector_no && !OPR ? `<p class="yours-proof"><span class="k">The proof</span> Hold it in your hand: a 5 × 7 print from the house’s print room, on Hahnemühle Photo Rag, your number in pencil, posted. <a href="/yours/p/${esc(lic.ref)}?k=${esc(lic.download_token || '')}#print">Ask for the proof →</a></p>` : ''}` : ''}
 </div></section>`
   });
 }

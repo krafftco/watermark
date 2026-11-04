@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.44.0 · Live with the masters · 4 November 2026
+- A public-domain painting can be printed and sent to your door: five sizes from 5 × 7 at $25 to 20 × 30, on Hahnemühle Photo Rag, framed by hand if you like. The file stays free for everyone; the print is the object.
+- 'Print it' in Wander and on the work page, wherever the file is large enough to print well.
+- A tenth of every print goes back to the museum that keeps the original.
+- A shared link to an open work now names its artist, not 'The public domain'.
+
 ## 1.43.1 · The easel for Study · 4 November 2026
 - Al's figure is put away everywhere until he is properly drawn: the door, the guide, Find, the signs, the kids' corner and the easel.
 - Study carries an easel (redrawn: the canvas on its ledge, three legs) in Wander, the work page and the viewer.

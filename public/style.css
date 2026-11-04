@@ -5216,3 +5216,4 @@ body:has(.yu) .rm-bar{display:none}
 .est-ask{margin:24px 0}.est-ask summary{cursor:pointer;font-weight:500}
 .est-3{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin:40px 0}.est-3 h2{font:400 24px/1.2 var(--serif,Georgia,serif);text-transform:none;letter-spacing:0;margin:0 0 8px}
 @media (max-width:760px){.est-3{grid-template-columns:1fr;gap:20px}}
+.st-print{text-decoration:none;color:inherit}
