@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.41.1 · The old masters, open · 4 November 2026
+
+- An artist brought in by name alone now takes their dates from the catalogue, so Rembrandt, Titian, Raphael and the other old masters are read as public domain instead of being stopped.
+- Artists whose names carry accents or hyphens (Dürer, Manet, Corot, Ingres) are found through Wikidata's own search.
+
 ## 1.41.0 · Yours, in your order · 4 November 2026
 
 - On You, Collected in your order: drag a piece to move it (a press on its grip on a phone). The order is kept everywhere: your gallery, Wander, the walk.

@@ -10,6 +10,7 @@
 // domain only; a living artist's work is listed, never copied.
 const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
 const SPARQL = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql';
+const WD_API = process.env.WIKIDATA_API || 'https://www.wikidata.org/w/api.php';
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const qidOf = s => (String(s || '').match(/\bQ\d+\b/) || [])[0] || null;
 // The medium as a museum label says it (Will, 2 Nov: "this needs to say oil on canvas"): Wikidata gives the materials one
@@ -52,14 +53,34 @@ function mountCatalogue(app, { db, V, C, ledger, studioOnly }) {
   // The artist's Wikidata item: the one set by hand, else a person with this English name who made art, the best known first.
   async function findQid(a) {
     if (a.qid) return a.qid;
-    const name = String(a.name).replace(/"/g, '');
-    const rows = await sparql(`SELECT ?p ?born (COUNT(?w) AS ?n) WHERE { ?p wdt:P31 wd:Q5; rdfs:label "${name}"@en. OPTIONAL { ?p wdt:P569 ?born } OPTIONAL { ?w wdt:P170 ?p } } GROUP BY ?p ?born ORDER BY DESC(?n) LIMIT 5`);
+    const name = String(a.name).replace(/"/g, '').trim();
+    // Wikidata's own search first (fast, forgives accents and hyphens), then a light question: which of these is a person, and who made the most.
+    let cands = [];
+    for (const q of [name, name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')]) {
+      try {
+        const r = await doFetch(`${WD_API}?action=wbsearchentities&format=json&language=en&type=item&limit=10&search=${encodeURIComponent(q)}`, { headers: { 'User-Agent': UA } });
+        if (r.ok) { const j = await r.json(); for (const x of (j.search || [])) if (x.id && !cands.includes(x.id)) cands.push(x.id); }
+      } catch (e) { /* the search may be down; the label question below still asks */ }
+      if (cands.length) break;
+    }
+    let rows = [];
+    if (cands.length) rows = await sparql(`SELECT ?p ?born (COUNT(?w) AS ?n) WHERE { VALUES ?p { ${cands.map(c => 'wd:' + c).join(' ')} } ?p wdt:P31 wd:Q5. OPTIONAL { ?p wdt:P569 ?born } OPTIONAL { ?w wdt:P170 ?p } } GROUP BY ?p ?born ORDER BY DESC(?n) LIMIT 5`);
+    if (!rows.length) rows = await sparql(`SELECT ?p ?born (COUNT(?w) AS ?n) WHERE { ?p wdt:P31 wd:Q5; rdfs:label "${name}"@en. OPTIONAL { ?p wdt:P569 ?born } OPTIONAL { ?w wdt:P170 ?p } } GROUP BY ?p ?born ORDER BY DESC(?n) LIMIT 5`);
     const pick = rows.find(r => !a.born || !r.born || +String(r.born.value).slice(0, 4) === +a.born || +String(r.born.value).slice(0, 4) === +a.born - 1) || rows[0];
     return pick ? qidOf(pick.p.value) : null;
+  }
+  // The artist's own dates from the item, kept when the house has none (so the public-domain rule has something to read).
+  async function lifeOf(a, qid) {
+    if (a.born && a.died) return;
+    const r = (await sparql(`SELECT ?born ?died WHERE { OPTIONAL { wd:${qid} wdt:P569 ?born } OPTIONAL { wd:${qid} wdt:P570 ?died } } LIMIT 1`))[0];
+    const y = v => { const m = v && String(v.value).match(/^(-?\d{1,4})-/); return m ? +m[1] : null; };
+    const born = a.born || (r && y(r.born)), died = a.died || (r && y(r.died));
+    if (born !== a.born || died !== a.died) { db.prepare('UPDATE artists SET born=?, died=? WHERE id=?').run(born || null, died || null, a.id); a.born = born; a.died = died; }
   }
   // Every work Wikidata knows by the artist, a row each (several values for one work are folded into the first).
   async function read(a, { qid } = {}) {
     qid = qidOf(qid) || await findQid(a); if (!qid) throw new Error(`no Wikidata item for ${a.name}`);
+    try { await lifeOf(a, qid); } catch (e) { console.error('[catalogue] life', e.message); }
     const rows = await sparql(`SELECT ?w ?wLabel ?date ?end ?image ?coll ?collLabel ?described ?inv ?medLabel ?typeLabel ?locLabel ?h ?wd ?article WHERE {
   ?w wdt:P170 wd:${qid} .
   OPTIONAL { ?w wdt:P571 ?date } OPTIONAL { ?w wdt:P582 ?end } OPTIONAL { ?w wdt:P18 ?image } OPTIONAL { ?w wdt:P195 ?coll } OPTIONAL { ?w wdt:P217 ?inv }
