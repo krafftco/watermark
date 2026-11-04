@@ -557,6 +557,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   };
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, isStudio, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
+  require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
   app.locals.noTimers = !!cfg.noTimers; app.locals.mailLog = mail.log;
@@ -644,7 +645,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const ap = app.locals.applauseBrief ? app.locals.applauseBrief(w, null) : null;
       const ag = app.locals.audioGuides ? app.locals.audioGuides.first(w) : null;
       const e = can ? edition(w) : null;
-      base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: art ? art.name : m.name, makerSlug: V.makerSlug(m), artist: art ? { name: art.name, href: `/art/${art.slug}` } : null, width: w.width, height: w.height,
+      base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: art ? art.name : m.name, makerSlug: V.makerSlug(m), artist: art ? { name: art.name, href: `/art/${art.slug}` } : null, life: art ? (app.locals.lifeline.dateWords(art) ? { years: app.locals.lifeline.dateWords(art) } : null) : app.locals.lifeline.text(m), width: w.width, height: w.height,
         img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'),
         price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null, printOpen: !can && app.locals.openPrints && app.locals.openPrints.can(w) ? { url: `/w/${w.slug}?from=wander#print`, from: V.money(app.locals.openPrints.sizes(w)[0].cents) } : null,
         hat: ap ? { n: ap.n, mine: false } : null, bravo: ap && ap.bravo ? { mine: false } : null, sheet: app.locals.sheets ? (() => { try { return app.locals.sheets.of(w); } catch (e) { return null; } })() : null } };

@@ -98,6 +98,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     // Elsewhere: writing, film, music, a shop; label and address, up to six.
     const links = []; for (let i = 0; i < 6; i++) { const L = t((b.link_label || [])[i], 40), U = t((b.link_url || [])[i], 300); if (L && U && /^https?:\/\//i.test(U)) links.push({ label: L, url: U }); }
     db.prepare('UPDATE makers SET links=? WHERE id=?').run(JSON.stringify(links), m.id);
+    { const yb = parseInt(b.born, 10); const now = new Date().getFullYear(); db.prepare('UPDATE makers SET born=?, born_show=? WHERE id=?').run(yb > 1900 && yb <= now - 13 ? yb : null, b.born_show === '1' ? 1 : 0, m.id); if (app.locals.lifeline) app.locals.lifeline.forget(m.id); }
     db.prepare('UPDATE makers SET name=?, house=?, place=?, bio=?, site=?, instagram=? WHERE id=?').run(name, t(b.house, 120), t(b.place, 120), t(b.bio, 700), site && /^https?:\/\//i.test(site) ? site : site ? 'https://' + site.replace(/^\/+/, '') : null, ig ? ig.replace(/^@/, '').replace(/[^A-Za-z0-9._]/g, '') : null, m.id);
     if (req.file) {
       try {

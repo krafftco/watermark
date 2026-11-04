@@ -41,6 +41,7 @@ ${saved ? '<p class="ok">Saved.</p>' : ''}
 <label>Name<input name="name" value="${esc(m.name)}" required></label>
 <label>Studio or house<input name="house" value="${esc(m.house || '')}"></label>
 <label>Where you work<input name="place" value="${esc(m.place || '')}" placeholder="New York"></label>
+<label>The year you were born <small>shown beside your name only if you choose, the way a museum label reads (b. 1991)</small><input name="born" inputmode="numeric" maxlength="4" value="${esc(m.born || '')}" style="max-width:8em"></label><label class="cr-att"><input type="checkbox" name="born_show" value="1"${m.born_show ? ' checked' : ''}> Show it beside my name</label>
 <label>About you <small>a few lines, in your words</small><textarea name="bio" rows="5" maxlength="700">${esc(m.bio || '')}</textarea></label>
 <label>Website<input name="site" value="${esc(m.site || '')}" placeholder="yourname.com"></label>
 <label>Instagram<input name="instagram" value="${esc(m.instagram || '')}" placeholder="@yourname"></label>

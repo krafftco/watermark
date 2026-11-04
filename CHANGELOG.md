@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.47.0 · Real people · 4 November 2026
+- Beside every maker's name, the museum's way: (b. 1991) when they choose to show it, else 'making since 2014'; the dead with their dates, (1836–1910).
+- A gold dot, at work, when they put up something new in the last month.
+- Verified: a real email, a real face and a name checked for payouts.
+- On the maker's page, the work page and Wander's plate. Never a count.
+
 ## 1.46.0 · Frames within the frame · 4 November 2026
 - Frame any part of a work you love: move a frame over the picture, size it by its corners, keep it with a line of your own. It gets its own page and address, cut from the original.
 - The framer's name stays on it. On a public-domain work, anyone can save the detail whole and credited, better than a screenshot, or have it printed; the framer earns a tenth when it sells.

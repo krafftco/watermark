@@ -1,0 +1,32 @@
+// The line beside a name (4 Nov): the year when the maker shows it, else making since; at work; Verified.
+process.env.NODE_ENV = 'test';
+const assert = require('assert'); const fs = require('fs'); const path = require('path'); const os = require('os'); const sharp = require('sharp');
+const { createApp } = require('../src/app');
+(async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-lfl-'));
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 'lfl', noTimers: true, vaultNow: true });
+  const { db } = app.locals; const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
+  const jar = {}; const go = (p, o = {}) => fetch(base + p, { redirect: 'manual', ...o, headers: { origin: base, cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '), ...(o.headers || {}) } }).then(r => { for (const c of r.headers.getSetCookie ? r.headers.getSetCookie() : []) { const [kv] = c.split(';'); const i = kv.indexOf('='); jar[kv.slice(0, i)] = kv.slice(i + 1); } return r; });
+  const form = (p, body) => go(p, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body).toString() });
+  await form('/studio/login', { password: 'pw' }); await form('/studio/accounts', { name: 'Ada Lindqvist', invite: '0' });
+  const m = db.prepare("SELECT * FROM makers WHERE name='Ada Lindqvist'").get();
+  const f = path.join(dir, 'a.jpg'); fs.writeFileSync(f, await sharp(path.join(__dirname, 'fixture.jpg')).resize(1200).jpeg().toBuffer());
+  const w = await app.locals.registerWork({ file: f, title: 'Wet Stone', makerId: m.id, originalName: 'a.jpg' });
+  db.prepare("UPDATE works SET status='held', taken_at='2014-06-01 10:00:00' WHERE slug=?").run(w.slug);
+  let t = await (await go(`/m/${m.handle}`)).text();
+  assert.ok(t.includes('making since 2014') && t.includes('at work') && !t.includes('Verified'), 'since and at work, not yet verified');
+  await go(`/account?maker=${m.handle}`);
+  let r = await go('/account/profile', { method: 'POST', body: (() => { const fd = new FormData(); fd.append('name', 'Ada Lindqvist'); fd.append('born', '1991'); fd.append('born_show', '1'); return fd; })() });
+  assert.ok([302, 303].includes(r.status), 'profile kept: ' + r.status);
+  db.prepare("UPDATE makers SET email='ada@example.com', portrait='p.jpg' WHERE id=?").run(m.id);
+  db.prepare("INSERT INTO settings (k, v) VALUES (?, '1')").run(`bank_told_${m.id}_acct_1`);
+  app.locals.lifeline.forget(m.id);
+  t = await (await go(`/m/${m.handle}`)).text(); assert.ok(t.includes('(b. 1991)') && t.includes('Verified'), 'the year shown by choice, and Verified');
+  t = await (await go(`/w/${w.slug}`)).text(); assert.ok(t.includes('(b. 1991)'), 'beside the name on the work');
+  const j = await (await go(`/api/stroll?n=3`)).json(); const it = (j.items || j).find(x => x.slug === w.slug);
+  assert.ok(it && it.life && it.life.years === 'b. 1991' && it.life.atWork && it.life.verified, 'Wander carries it: ' + JSON.stringify(it && it.life));
+  db.prepare("UPDATE makers SET born_show=0 WHERE id=?").run(m.id); app.locals.lifeline.forget(m.id);
+  t = await (await go(`/m/${m.handle}`)).text(); assert.ok(!t.includes('(b. 1991)') && t.includes('making since 2014'), 'hidden when the maker says so');
+  assert.equal(app.locals.lifeline.dateWords({ born: 1836, died: 1910 }), '1836–1910'); assert.equal(app.locals.lifeline.dateWords({ born: 1950 }), 'b. 1950');
+  srv.close(); console.log('lifeline: all hold'); process.exit(0);
+})().catch(e => { console.error(e); process.exit(1); });

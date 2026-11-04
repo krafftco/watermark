@@ -5262,3 +5262,13 @@ body:has(.yu) .rm-bar{display:none}
 .dtl-grid-l{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .dtl-room{max-width:1180px;margin:0 auto;padding:40px 16px 64px}.dtl-most{font-size:13px;opacity:.8}
 @media (max-width:760px){.dtl{grid-template-columns:1fr;gap:20px}.dtl-f{padding:8px}}
+/* The line beside a name (4 Nov): dates the museum's way, at work, Verified */
+.lfl{display:inline-flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-left:6px;font-size:.78em;font-weight:400;letter-spacing:0;vertical-align:baseline}
+.lfl-y{opacity:.62}
+.lfl-w,.st-life .lfl-w{display:inline-flex;align-items:center;gap:5px;font-weight:400;opacity:.8}
+.lfl-w:before{content:"";width:6px;height:6px;border-radius:50%;background:#c9a24a;box-shadow:0 0 6px rgba(201,162,74,.7)}
+.lfl-v,.st-life .lfl-v{display:inline-flex;align-items:center;gap:4px;font-weight:400;opacity:.8}
+.lfl-v:before{content:"";width:11px;height:11px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 0a6 6 0 1 0 0 12A6 6 0 0 0 6 0zm2.8 4.2L5.2 8 3.4 6.2l.7-.7 1.1 1.1 2.9-3.1z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 0a6 6 0 1 0 0 12A6 6 0 0 0 6 0zm2.8 4.2L5.2 8 3.4 6.2l.7-.7 1.1 1.1 2.9-3.1z'/%3E%3C/svg%3E") center/contain no-repeat}
+.mh-life{margin:-4px 0 10px;font-size:15px}.mh-life .lfl{margin-left:0;font-size:1em}
+.st-life{display:flex;flex-wrap:wrap;gap:3px 10px;align-items:center;font-size:11.5px;opacity:.85;margin:2px 0 4px}
+.st-life i{font-style:normal;opacity:.75}
