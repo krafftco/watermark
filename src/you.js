@@ -7,6 +7,7 @@
 // private, live with it, keep the record, pass it on). The older rooms (?tab=files, cabinet, market, settings…)
 // answer as before; this is the front of them.
 
+const I = require('./icons');
 const KINDS = [['collected', 'Collected'], ['reading', 'Reading'], ['walls', 'Walls'], ['albums', 'Albums'], ['work', 'My work']];
 
 function mountYou({ db, V, app }) {
@@ -18,7 +19,7 @@ function mountYou({ db, V, app }) {
   // Everything this person has, as tiles of one shape: { k, href, img, title, line, round }.
   function library(b, m, col, hand) {
     const out = { collected: [], reading: [], walls: [], albums: [], work: [] };
-    for (const i of col.items) out.collected.push({ href: i.ref ? `/yours/p/${i.ref}` : `/w/${i.slug}`, img: `/img/${i.slug}/screen`, slug: i.slug, title: i.title, at: i.starts_at, maker: i.maker, line: `${i.collector_no ? `No. ${i.collector_no}${i.edition_size ? ` of ${i.edition_size}` : ''} · ` : ''}${i.maker}${i.status === 'expired' ? ' · ended' : ''}`,
+    for (const i of col.items) out.collected.push({ id: i.id, ref: i.ref || null, numbered: !!i.collector_no, active: i.status === 'active', href: i.ref ? `/yours/p/${i.ref}` : `/w/${i.slug}`, img: `/img/${i.slug}/screen`, slug: i.slug, title: i.title, at: i.starts_at, maker: i.maker, line: `${i.collector_no ? `No. ${i.collector_no}${i.edition_size ? ` of ${i.edition_size}` : ''} · ` : ''}${i.maker}${i.status === 'expired' ? ' · ended' : ''}`,
       menu: i.ref && i.status === 'active' ? [['Open it', `/yours/p/${i.ref}`], ['Print it', `/yours/p/${i.ref}#print`], ['Print on Instax', `/yours/p/${i.ref}/instax?film=mini`, 'download'], ['As a background', `/w/${i.slug}#backgrounds`], ['On your TV', '/frame'], ['Wander from here', `/wander?in=mine&at=${i.slug}`], ['The papers', `/c/${i.ref}`], ['Pass it on', '/yours?tab=files#send']] : null });
     for (const r of q(`SELECT r.status, r.chapter, r.chapters, r.pct, t.slug, t.title, t.author FROM reading_list r JOIN texts t ON t.id=r.text_id WHERE r.buyer_id=? AND t.public=1 ORDER BY CASE r.status WHEN 'reading' THEN 0 WHEN 'want' THEN 1 ELSE 2 END, r.updated_at DESC LIMIT 200`, b.id))
       out.reading.push({ href: `/read/${r.slug}`, img: `/binding/${r.slug}.svg`, book: true, title: r.title, line: r.status === 'reading' ? (r.chapters ? `Chapter ${r.chapter + 1} of ${r.chapters}` : 'Reading') : r.status === 'want' ? 'Want to read' : 'Read', pct: r.status === 'reading' ? r.pct : null });
@@ -52,10 +53,18 @@ function mountYou({ db, V, app }) {
     return rows.slice(0, 4);
   }
 
-  const tile = t => `<div class="yu-tw" data-q="${esc(`${t.title} ${t.line || ''}`.toLowerCase())}"><a class="yu-t${t.book ? ' yu-bk' : ''}" href="${esc(t.href)}"><span class="yu-im">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" draggable="false">` : `<i>${esc(t.plain || '')}</i>`}${t.pct != null ? `<b class="yu-pct" style="width:${Math.max(4, Math.min(100, t.pct))}%"></b>` : ''}</span><span class="yu-ti">${esc(t.title)}</span><span class="yu-li">${esc(t.line || '')}</span></a>${t.menu ? `<details class="yu-mn"><summary aria-label="What you can do with it">⋯</summary><div>${t.menu.map(([l, h, dl]) => `<a href="${esc(h)}"${dl ? ' download' : ''}>${l}</a>`).join('')}</div></details>` : ''}</div>`;
+  const tile = (t, arr) => `<div class="yu-tw"${arr && t.ref ? ` data-arrange-item="${esc(t.ref)}" draggable="true"` : ''} data-q="${esc(`${t.title} ${t.line || ''}`.toLowerCase())}"><a class="yu-t${t.book ? ' yu-bk' : ''}" href="${esc(t.href)}"><span class="yu-im">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" draggable="false">` : `<i>${esc(t.plain || '')}</i>`}${t.pct != null ? `<b class="yu-pct" style="width:${Math.max(4, Math.min(100, t.pct))}%"></b>` : ''}</span><span class="yu-ti">${esc(t.title)}</span><span class="yu-li">${esc(t.line || '')}</span>${t.val ? `<span class="yu-val${t.val.up ? ' yu-up' : ''}">${t.val.text}</span>` : ''}</a>${arr && t.ref ? `<button type="button" class="yu-grip" data-arrange-grip aria-label="Drag to move it">${I.grip}</button>` : ''}${t.menu ? `<details class="yu-mn"><summary aria-label="What you can do with it">⋯</summary><div>${t.menu.map(([l, h, dl]) => `<a href="${esc(h)}"${dl ? ' download' : ''}>${l}</a>`).join('')}</div></details>` : ''}</div>`;
 
-  function page({ b, req, col, hand, m, isMaker, isHouse }) {
+  function page({ b, req, col, hand, m, isMaker, isHouse, pf }) {
     const lib = library(b, m, col, hand);
+    // What each numbered piece is worth since you bought it: what you paid, and the house's price now (the last
+    // trade, else the issue price on the ladder). Said only for numbered pieces, and 'now' only when it moved.
+    const pr = new Map(((pf && pf.rows) || []).map(r => [r.id, r]));
+    for (const t of lib.collected) {
+      const r = pr.get(t.id); if (!r || !t.numbered || !r.cost) continue;
+      const moved = r.value !== r.cost, pct = Math.round((r.value - r.cost) / r.cost * 100);
+      t.val = { up: r.value > r.cost, text: moved ? `Paid ${esc(money(r.cost))} · now ${esc(money(r.value))} <i>${pct > 0 ? '+' : ''}${pct}%</i>` : `Paid ${esc(money(r.cost))}` };
+    }
     const counts = Object.fromEntries(KINDS.map(([k]) => [k, lib[k].length]));
     const total = Object.values(counts).reduce((a, n) => a + n, 0);
     const k = KINDS.some(([x]) => x === req.query.k) ? req.query.k : 'all';
@@ -69,10 +78,10 @@ function mountYou({ db, V, app }) {
     const section = ([x, label]) => {
       const list = lib[x]; if (!list.length) return '';
       const more = list.length > 8;
-      return `<section class="yu-sec"><header><h2>${label}</h2>${more ? `<a href="/yours?k=${x}">All ${list.length}</a>` : ''}</header><div class="yu-row">${list.slice(0, 8).map(tile).join('')}</div></section>`;
+      return `<section class="yu-sec"><header><h2>${label}</h2>${more ? `<a href="/yours?k=${x}">All ${list.length}</a>` : ''}</header><div class="yu-row">${list.slice(0, 8).map(t => tile(t)).join('')}</div></section>`;
     };
     const acts = x => ({
-      collected: `<a href="/wander?in=mine">Wander them</a><a href="/yours?tab=gallery">Arrange and show</a><a href="/yours?tab=files">Papers and licences</a>${b.public ? `<a href="/g/${esc(b.code)}">Your public gallery</a>` : ''}`,
+      collected: `<a href="/wander?in=mine">Wander them</a><a href="/yours?tab=gallery">Show it</a><a href="/yours?tab=files">Papers and licences</a>${b.public ? `<a href="/g/${esc(b.code)}">Your public gallery</a>` : ''}`,
       reading: `<a href="/yours/reading">Your reading</a><a href="/library">The Library</a>`,
       walls: `<a href="/yours?tab=hangs">Make a wall</a>`,
       albums: '',
@@ -86,13 +95,14 @@ function mountYou({ db, V, app }) {
     const going = lib.reading.find(t => t.pct != null);
     const sort = ['new', 'maker'].includes(req.query.sort) ? req.query.sort : 'yours';
     const list = k === 'collected' && sort !== 'yours' ? [...lib.collected].sort((a, z) => sort === 'new' ? String(z.at || '').localeCompare(String(a.at || '')) : String(a.maker || '').localeCompare(String(z.maker || ''))) : lib[k] || [];
+    const arrange = k === 'collected' && sort === 'yours' && lib.collected.filter(t => t.ref).length > 1;
     const pills = `${isMaker ? '<a href="/account">Studio</a>' : ''}${isHouse ? '<a href="/studio">The house</a>' : ''}<a href="/yours?tab=settings">Settings</a>`;
     const body = `<section class="yu">
 ${heroT ? `<header class="yu-hero"><a class="yu-hi" href="${esc(heroT.href)}"><img src="${esc(heroT.img.replace('/screen', '/large'))}" alt="${esc(heroT.title)}" draggable="false"></a><div class="yu-ht"><p class="k">You</p><h1>${esc(name || 'Yours')}</h1>${stat ? `<p class="yu-st">${esc(stat)}</p>` : ''}${facts.length ? `<p class="yu-f">${facts.join(' · ')}</p>` : ''}<nav class="yu-hn">${pills}</nav></div><p class="yu-hc">${esc(heroT.title)} · ${esc(heroT.line || '')}</p></header>`
   : `<header class="yu-h"><div><p class="k">You</p><h1>${esc(name || 'Yours')}</h1>${facts.length ? `<p class="yu-f">${facts.join(' · ')}</p>` : ''}</div><nav class="yu-hn">${pills}</nav></header>`}
 ${nw.length || going ? `<div class="yu-now">${going && k === 'all' ? `<a class="yu-go" href="${esc(going.href)}"><img src="${esc(going.img)}" alt="" loading="lazy"><span><i>Pick up where you left off</i><b>${esc(going.title)}</b><em>${esc(going.line)}</em><s><u style="width:${Math.max(4, going.pct)}%"></u></s></span></a>` : ''}${nw.length ? `<ul class="yu-new">${nw.map(n => `<li><a href="${esc(n.href)}"><span>${esc(n.text)}</span>${n.when ? `<i>${esc(n.when)}</i>` : ''}</a></li>`).join('')}${nw.length >= 3 ? '<li class="yu-all"><a href="/notices">Every notice</a></li>' : ''}</ul>` : ''}</div>` : ''}
 ${total ? `<div class="yu-bar"><nav class="yu-chips" aria-label="What you have">${chips.map(([x, l, n]) => `<a href="${x === 'all' ? '/yours' : `/yours?k=${x}`}"${x === k ? ' aria-current="page"' : ''}>${l}${x === 'all' ? '' : ` <i>${n}</i>`}</a>`).join('')}</nav>${total > 6 ? '<input class="yu-q" type="search" placeholder="Find in yours" aria-label="Find in yours" data-yu-q autocomplete="off">' : ''}</div>
-${k === 'all' ? KINDS.map(section).join('') : `<div class="yu-acts">${acts(k)}${k === 'collected' && lib.collected.length > 1 ? `<span class="yu-sort">${[['yours', 'Your order'], ['new', 'Newest'], ['maker', 'By maker']].map(([v, l]) => `<a href="/yours?k=collected${v === 'yours' ? '' : `&sort=${v}`}"${v === sort ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</span>` : ''}</div><div class="yu-grid">${list.map(tile).join('')}</div>`}
+${k === 'all' ? KINDS.map(section).join('') : `<div class="yu-acts">${acts(k)}${k === 'collected' && lib.collected.length > 1 ? `<span class="yu-sort">${[['yours', 'Your order'], ['new', 'Newest'], ['maker', 'By maker']].map(([v, l]) => `<a href="/yours?k=collected${v === 'yours' ? '' : `&sort=${v}`}"${v === sort ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</span>` : ''}${arrange ? '<span class="yu-hint">Drag to arrange; it is kept in this order everywhere</span>' : ''}</div>${arrange ? `<div class="yu-grid" data-arrange-items="/yours/order">${list.map(t => tile(t, true)).join('')}</div><script src="/static/arrange.js?v=${V.VER}" defer></script>` : `<div class="yu-grid">${list.map(t => tile(t)).join('')}</div>`}`}
 <p class="yu-none" data-yu-none hidden>Nothing of yours by that word.</p>`
   : `<div class="yu-empty"><p>Nothing here yet. What you collect, read, hang and are given will be kept here, with its papers.</p><div class="yc-next"><a href="/wander" data-nv-wander><b>Look around</b><span>Wander the collection, one work at a time.</span></a><a href="${isMaker ? '/account' : '/join'}"><b>${isMaker ? 'Your studio' : 'Make things?'}</b><span>${isMaker ? 'Your work, your page, your prices.' : 'Open your museum: put your work in, keep it, hang the best.'}</span></a></div></div>`}
 <nav class="yu-more" aria-label="Everything else"><a href="/yours?tab=files">Papers and licences</a><a href="/yours?tab=cabinet">Your cabinet</a><a href="/yours?tab=market">The market</a><a href="/yours/following">Following</a><a href="/yours/looking">Your looking</a><a href="/notices">Notices</a><a href="/yours/devices">Your devices</a><a href="/yours?tab=settings">Settings</a></nav>

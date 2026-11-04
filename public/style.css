@@ -5177,6 +5177,11 @@ body:has(.yu) .rm-bar{display:none}
 @media (pointer:coarse){.yu-mn summary{opacity:1}}
 .yu-mn>div{position:absolute;right:0;top:36px;min-width:190px;background:var(--bg);border:1px solid var(--ln);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.14);padding:6px;display:grid}
 .yu-mn>div a{padding:9px 12px;border-radius:6px;font-size:14px;color:var(--ink);text-decoration:none}.yu-mn>div a:hover{background:var(--soft)}
+.yu-val{display:block;font-size:12px;color:var(--mu);margin-top:2px;font-variant-numeric:tabular-nums}.yu-val i{font-style:normal}.yu-up i{color:#5b7a3a}
+.yu-hint{flex-basis:100%;font-size:12px;color:var(--mu)}
+.yu-grip{position:absolute;top:8px;left:8px;z-index:2;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.88);color:var(--ink);cursor:grab;display:grid;place-items:center;opacity:0;transition:opacity .2s;touch-action:none}.yu-grip svg{width:16px;height:16px}.yu-tw:hover .yu-grip,.yu-grip:focus-visible{opacity:1}
+.yu-grid[data-arrange-items] .yu-tw{cursor:grab}.yu-tw.arr-lift{opacity:.45}
+@media (pointer:coarse){.yu-grip{opacity:.9}}
 .yu-sort{margin-left:auto;display:flex;gap:12px}.yu-sort a{color:var(--mu);text-decoration:none}.yu-sort a[aria-current]{color:var(--ink);text-decoration:underline}
 .yu-none{color:var(--mu);font-size:14px}
 @media (max-width:760px){.yu-hero{grid-template-columns:1fr;margin:0 -16px 20px;min-height:0}.yu-hi{padding:26px 22px 8px}.yu-hi img{max-height:46vh}.yu-ht{padding:10px 22px 34px}.yu-hc{left:22px;bottom:10px}.yu-now{grid-template-columns:1fr}.yu-bar{flex-direction:column;align-items:stretch}.yu-q{flex:none}.yu-sort{margin-left:0}}

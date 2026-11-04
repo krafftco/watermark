@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.41.0 · Yours, in your order · 4 November 2026
+
+- On You, Collected in your order: drag a piece to move it (a press on its grip on a phone). The order is kept everywhere: your gallery, Wander, the walk.
+- Every numbered piece says what you paid, and what it is worth now when the house's price has moved.
+
 ## 1.40.0 · You, the second version · 4 November 2026
 - Your first piece hangs large at the top, on the dark, with your name and a line: how many works, by how many makers, collecting since when.
 - Pick up where you left off: the book you are in, with how far you are.
