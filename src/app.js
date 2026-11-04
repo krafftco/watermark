@@ -1210,6 +1210,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./closer').mountCloser(app, { db, C, studioOnly, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V,
     imageOf: async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen')) });
   const voices = require('./voices').mountVoices(app, { db, C, store, isStudio, makerOf: app.locals.accounts.makerOf, mk, ledger, V });
+  require('./estate').mountEstate(app, { db, V, C, mail, ledger, isStudio, studioOnly, makerOf: app.locals.accounts.makerOf, images, originalPath, cache, bagcheck: app.locals.bagcheck }); // the estate (4 Nov): the catalogue as one object, the keys handed on, the whole sold by letter
   require('./sitting').mountSitting(app, { db, V, C, store, images, isStudio, ledger, makerOf: app.locals.accounts.makerOf, buyerOf: req => buyerOf(req) }); // the artist's sitting: ten questions, their voice, the studio, living with it (3 Nov)
   require('./loans').mountLoans(app, { db, V, C, store, isStudio, ledger, makerOf: app.locals.accounts.makerOf }); // the loan desk between museums (3 Nov)
   require('./speech').mountSpeech(app, { db, C, store, closerOf: w => app.locals.closerOf(w) });

@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.43.0 · The estate · 4 November 2026
+- Your estate (/account/estate): the catalogue of everything you have made, as one book (PDF), the records as a spreadsheet, and every master byte for byte in one download.
+- Name up to three people to keep it after you. Nothing passes while you live: the person you named asks with the papers, you are written to first with a one-tap stop, nothing opens for thirty days, and the house reads the papers before granting the keys.
+- Selling the whole catalogue with its copyrights is by letter: the house prepares the record, counsel the assignment.
+- /estate explains it to anyone; it comes up in Find.
+
 ## 1.42.0 · The quiet house · 4 November 2026
 - Three doors in front: Wander, keep your work, own a piece. The tab bar on a phone is Wander · Find · You; the header says Keep your work; the footer is four short columns.
 - Every other room is under the paint, never gone: at its own address, found by name in Find ("library", "listening", "keys"), and listed on Every room (/everything).
