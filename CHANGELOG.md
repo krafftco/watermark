@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.45.0 · A cause you choose · 4 November 2026
+- A tenth of every print of a public-domain painting goes to a cause the buyer chooses: the museum that keeps the original, a cause the house lists, or one of their own, named in their words.
+- The house gives it from its own side, pays it by hand, and says each gift on the register.
+- The books carry every gift until it is given.
+
 ## 1.44.0 · Live with the masters · 4 November 2026
 - A public-domain painting can be printed and sent to your door: five sizes from 5 × 7 at $25 to 20 × 30, on Hahnemühle Photo Rag, framed by hand if you like. The file stays free for everyone; the print is the object.
 - 'Print it' in Wander and on the work page, wherever the file is large enough to print well.

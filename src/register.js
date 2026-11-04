@@ -70,6 +70,7 @@ function mountRegister(app, { db, V, ledger }) {
       case 'client.founding': case 'client.paid': return { ...k, kind: 'collect', text: e.type === 'client.founding' ? `${d.name ? esc(d.name) : 'A company'} became the house&rsquo;s founding licensee: the first company to license work on Watermark.` : `${d.name ? esc(d.name) : 'A company'} licensed ${d.n || ''} photograph${d.n === 1 ? '' : 's'} for its site for the year.` };
       case 'commission.made': case 'commission.approved': { const mk = d.maker && db.prepare('SELECT name, handle FROM makers WHERE handle=?').get(d.maker); const who = mk ? `<a href="/m/${esc(mk.handle)}">${esc(mk.name)}</a>` : 'An artist'; return { ...k, kind: 'collect', text: e.type === 'commission.made' ? `${who} was commissioned by a brand.` : `A brand approved the work ${who} made for it.` }; }
       case 'printer.invited': return { ...k, kind: 'patron', text: `${esc(d.shop || t)}${d.city ? `, ${esc(d.city)}` : ''} now prints for the house.` };
+      case 'gift.given': return { ...k, kind: 'patron', text: `The house gave ${d.amount != null ? '$' + (d.amount / 100).toLocaleString('en-US', { minimumFractionDigits: d.amount % 100 ? 2 : 0 }) : 'a gift'} to ${esc(d.to || 'a cause')}, from ${d.prints === 1 ? 'a print' : (d.prints || 'the') + ' prints'} of open works chosen by the people who bought them.` };
       case 'print.sold': return { ...k, kind: 'collect', work: w, text: d.open ? `A print of ${T(w)}${d.by ? ', by ' + esc(d.by) : ''}, ${d.edition ? esc(d.edition) + ' in, ' : ''}went home to someone's wall.` : `A print of ${T(w)}${by(w)}, ${d.edition ? esc(d.edition) + ' in, ' : ''}No. ${d.no} of ${d.of}, was acquired${d.show ? ' at the show' : ''}.` };
       case 'seal.created': return { ...k, work: w, text: `A sealed copy of ${T(w)} was made.` };
       case 'editions.set': return { ...k, text: 'Edition sizes were set across the collection.' };
@@ -117,7 +118,7 @@ function mountRegister(app, { db, V, ledger }) {
     applause: { name: 'Applause', types: ['work.bravo', 'work.applauded', 'gallery.signed', 'house.signed', 'tip.given', 'work.voice'] },
     collected: { name: 'Collected & licensed', types: ['license.granted', 'license.checkout', 'license.requested', 'license.quoted', 'license.declined', 'file.delivered', 'print.recorded', 'print.sold', 'print.delivered', 'commission.made', 'commission.approved', 'seal.created', 'client.founding', 'client.paid'] },
     trades: { name: 'Trades', types: ['license.transferred', 'market.offered', 'market.withdrawn', 'market.bid', 'market.offer', 'market.accepted', 'market.traded', 'swap.offered', 'swap.declined', 'swap.traded', 'payout.sent'] },
-    patrons: { name: 'Patrons', types: ['friend.joined', 'friend.gave', 'keeping.begun', 'keeping.moved', 'printer.invited'] },
+    patrons: { name: 'Patrons', types: ['gift.given', 'friend.joined', 'friend.gave', 'keeping.begun', 'keeping.moved', 'printer.invited'] },
     office: { name: 'Copyright Office', types: ['copyright.prepared', 'copyright.filed', 'copyright.registered'] },
     anchors: { name: 'Anchored', types: ['register.anchored.bitcoin'] },
   };

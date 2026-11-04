@@ -5217,3 +5217,13 @@ body:has(.yu) .rm-bar{display:none}
 .est-3{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin:40px 0}.est-3 h2{font:400 24px/1.2 var(--serif,Georgia,serif);text-transform:none;letter-spacing:0;margin:0 0 8px}
 @media (max-width:760px){.est-3{grid-template-columns:1fr;gap:20px}}
 .st-print{text-decoration:none;color:inherit}
+/* The gifts: a tenth to a cause the buyer chooses (4 Nov) */
+.gv{border:1px solid var(--line,#ddd5c8);border-radius:10px;padding:14px 16px 10px;margin:14px 0 6px}
+.gv legend{font:500 14px/1.3 var(--serif,Georgia,serif);padding:0 6px}
+.gv-o{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer}
+.gv-o input[type=radio]{margin-top:3px}
+.gv-o span{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.gv-o b{font-weight:500}.gv-o i{font-style:normal;font-size:12.5px;opacity:.7}
+.gv-own input[name=give_name]{margin-top:6px;padding:7px 9px;border:1px solid var(--line,#ddd5c8);border-radius:6px;font:inherit;width:100%;max-width:340px;background:transparent;color:inherit}
+.gv-fine{font-size:12px;opacity:.65;margin:8px 0 0}
+.gv-sug pre{white-space:pre-wrap;font-size:12px}

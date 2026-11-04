@@ -67,6 +67,10 @@ function mountBooks(app, { db, V, studioOnly }) {
     if (table('print_orders') && has('print_orders', 'cents')) for (const o of safe(() => db.prepare("SELECT * FROM print_orders WHERE paid=1 AND cents > 0 AND kind IN ('proof','ask') AND at >= ? AND at < ? ORDER BY at").all(a, b))) {
       out.push([o.at, 'print', 'print', `print:${o.id}`, o.stripe_session || '', dollars(o.cents), dollars(o.cents), '', '', '0.00', o.ship_name || o.email || '', '', `${o.kind} · ${o.size || ''}`]);
     }
+    // Gifts: the tenth of a print of an open work, owed to the cause the buyer chose (a liability until given).
+    if (table('gifts')) for (const g of safe(() => db.prepare("SELECT g.*, l.ref FROM gifts g LEFT JOIN licenses l ON l.id=g.license_id WHERE g.at >= ? AND g.at < ? ORDER BY g.at").all(a, b))) {
+      out.push([g.at, 'gift', 'liability', g.ref || `gift:${g.id}`, '', '0.00', dollars(-g.cents), `gift:${g.to_kind}`, g.to_name, dollars(g.cents), '', '', `${g.status}${g.given_at ? ' ' + String(g.given_at).slice(0, 10) : ''}${g.note ? ' · ' + g.note : ''}`]);
+    }
     // The Bookshop: a copy sold; the seller's side is owed out.
     if (table('copy_orders')) for (const o of safe(() => db.prepare("SELECT o.*, c.seller_kind, c.seller_id FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE o.paid=1 AND o.paid_at >= ? AND o.paid_at < ? ORDER BY o.paid_at").all(a, b))) {
       const owed = o.seller_kind === 'house' ? 0 : Math.max(0, o.cents - o.house_cents);
