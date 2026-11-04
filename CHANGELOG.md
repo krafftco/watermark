@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.35.0 · Look, and the price record · 3 November 2026
+- The menu's first word is Look (it replaces Collect): Look · Read · Listen · Make · Yours. Look opens one page with every collection in the house, the Met first, then the masters, the living makers, companies and Wander.
+- The Met, open to everyone (/met): the Met's open-access works a room at a time, by kind and by century, with a search inside it and Wander. Said plainly: not the Met's own site.
+- Wander's top bar carries Look around, so nobody is stuck on a picture with no way into the house.
+- The price record: every work's page shows what it sold for on Watermark and every resale, from the register; the house's index at /prices and each maker's at /prices/<maker>. Working licence fees are counted, never priced in public. Never an appraisal. A maker may keep it private.
+
 ## 1.34.0 · Companies are makers too · 3 November 2026
 - A company is a maker of kind 'company' (Studio → Accounts). Its page is its own museum, in rooms: The products, The making, The machines, The people, From the archive, The collection; then its history by decade.
 - A new kind of work, Design: a product or an object, credited 'Designed by Dieter Rams for Braun'.
