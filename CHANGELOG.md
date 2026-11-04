@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.43.1 · The easel for Study · 4 November 2026
+- Al's figure is put away everywhere until he is properly drawn: the door, the guide, Find, the signs, the kids' corner and the easel.
+- Study carries an easel (redrawn: the canvas on its ledge, three legs) in Wander, the work page and the viewer.
+
 ## 1.43.0 · The estate · 4 November 2026
 - Your estate (/account/estate): the catalogue of everything you have made, as one book (PDF), the records as a spreadsheet, and every master byte for byte in one download.
 - Name up to three people to keep it after you. Nothing passes while you live: the person you named asks with the papers, you are written to first with a one-tap stop, nothing opens for thirty days, and the house reads the papers before granting the keys.

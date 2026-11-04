@@ -20,7 +20,7 @@ const I = {
   // Al (Will, 24 Oct: "make it Al, the AI, instead of Wilhelm, a little Einstein"; the 20 Oct brief: Einsteiny, zany,
   // curious, your pal, the nutty professor): hair up and out in every direction, round glasses, a moustache, a bow tie.
   // An original figure in a few lines, never a likeness. He reads the guide, finds things, and keeps the signs.
-  wilhelm: `<svg class="ic ic-wil" viewBox="2 2 44 46" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20c-2-6-6-8-10-7M19 16c-2-6-4-9-8-10M23 14c0-6-1-9-3-11M27 14c1-6 3-8 5-10M31 16c3-5 6-7 10-6M33 20c3-4 7-5 11-3"/><path d="M15 21c-3 1-5 3-6 6M33 21c3 1 5 3 6 6"/><path d="M16 21c0 9 3 14 8 14s8-5 8-14"/><circle cx="20.5" cy="25" r="3"/><circle cx="27.5" cy="25" r="3"/><path d="M23.5 25h1M17.5 24.5l-2-1M30.5 24.5l2-1"/><path d="M19.5 31c2-2 3.5-1.5 4.5-.5 1-1 2.5-1.5 4.5.5"/><path d="M21.5 33.5c1.5 1 3.5 1 5 0"/><path d="M24 35v4"/><path d="M19.5 39l4.5 2 4.5-2v4l-4.5-2-4.5 2z"/><path d="M19 42c-4 1-6 3-7 5M29 42c4 1 6 3 7 5"/></svg>`,
+  wilhelm: '', // Al's figure is put away until he is drawn properly (4 Nov)
   dial: wrap('<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>'),
   print: wrap('<rect x="5" y="3.5" width="14" height="17"/><rect x="7.6" y="6.2" width="8.8" height="7.4"/><path d="M7.6 16.6h5.2"/>'),
   facing: wrap('<path d="M12 5.5c-2-1.3-4.6-1.6-8-1.4v14.4c3.4-.2 6 .1 8 1.4 2-1.3 4.6-1.6 8-1.4V4.1c-3.4-.2-6 .1-8 1.4z"/><path d="M12 5.5v14.4"/><path d="M6.3 8.2h3.2M6.3 11h3.2M6.3 13.8h3.2M14.5 8.2h3.2M14.5 11h3.2M14.5 13.8h3.2"/>'), // an open book, two pages, lines on each: facing pages
@@ -63,7 +63,7 @@ const I = {
   // Arrange: the drag handle.
   grip: wrap('<circle cx="9" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.1" fill="currentColor" stroke="none"/>'),
   // An easel: a canvas on three legs, to study a work (2 Nov).
-  easel: wrap('<rect x="6" y="3.5" width="12" height="9.5" rx=".6"/><path d="M12 13v7.5M9.2 13l-3 7.5M14.8 13l3 7.5M12 2v1.5M8.5 16.5h7"/>'),
+  easel: wrap('<path d="M12 2.5v2.5M8.6 15.5 5.8 21.5M15.4 15.5l2.8 6M12 15.5v5"/><rect x="6.5" y="5" width="11" height="8.5" rx=".6"/><path d="M5 15.5h14"/><path d="m8.6 11.3 2.2-2.4 1.7 1.6 1.2-1 1.7 1.8"/>'), // an easel: the canvas on its ledge, three legs
   // A pencil: draw it.
   pencil: wrap('<path d="M4.6 19.4l1.2-4.6L15.6 5a1.8 1.8 0 0 1 2.6 0l.8.8a1.8 1.8 0 0 1 0 2.6l-9.8 9.8z"/><path d="M13.8 6.8l3.4 3.4M5.8 14.8l3.4 3.4"/>'),
   plus: wrap('<path d="M12 5v14M5 12h14"/>'),

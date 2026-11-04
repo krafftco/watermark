@@ -3278,7 +3278,7 @@ html.fd-on{overflow:hidden}
 .hg-std h2{margin-top:26px}
 
 /* Wilhelm at the door (20 Oct): three doors by who you are, the rest by name. */
-.gc-wil{display:grid;grid-template-columns:72px 1fr;gap:22px;align-items:start}
+.gc-wil{display:block}
 .gc-wil>svg{width:72px;height:auto;color:#d9bc7c;margin-top:6px}
 .gc-doors{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:44px 0 0}
 .gc-door{display:grid;grid-template-rows:auto auto 1fr auto;position:relative;color:inherit;text-decoration:none;background:#15120f;border:1px solid rgba(217,188,124,.22);padding:0 0 18px;overflow:hidden;transition:border-color .4s,transform .6s cubic-bezier(.16,1,.3,1)}
@@ -3294,7 +3294,7 @@ html.fd-on{overflow:hidden}
 .gc-ways b{font:400 18px/1.2 var(--serif,Georgia,serif);color:#f6f1e7}.gc-ways i{font-style:normal;font-size:12.5px;color:#a69d8f}
 .gc-ways a:hover b{color:#d9bc7c}
 @media (max-width:980px){.gc-ways{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:760px){.gc{padding:64px 0 72px}.gc-wil{grid-template-columns:48px 1fr;gap:14px}.gc-wil>svg{width:48px}.gc-doors{grid-template-columns:1fr;gap:12px;margin-top:28px}.gc-door img,.gc-door>span:first-child{height:150px}.gc-ways{grid-template-columns:1fr 1fr;margin-top:28px}}
+@media (max-width:760px){.gc{padding:64px 0 72px}.gc-doors{grid-template-columns:1fr;gap:12px;margin-top:28px}.gc-door img,.gc-door>span:first-child{height:150px}.gc-ways{grid-template-columns:1fr 1fr;margin-top:28px}}
 
 /* The restoration room (20 Oct). */
 .cv{max-width:1100px;margin:0 auto;padding:24px 20px}

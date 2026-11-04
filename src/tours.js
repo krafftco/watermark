@@ -93,7 +93,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
 <section class="tw-stage"><div class="tw-welcome"><p class="k">A tour</p><h1>${esc(h.title)}.</h1><p class="tw-guide">${esc(g.name || 'A guide')}${g.statement ? ` · ${esc(g.statement)}` : ''}</p>${h.line ? `<p class="lede">${esc(h.line)}</p>` : ''}<p class="tw-count">${works.length} stop${works.length === 1 ? '' : 's'} · ${Object.keys(vm).length ? 'in the guide’s own voice' : 'in the guide’s words'}</p><button type="button" class="buy-btn tw-begin">Begin</button></div><img class="tw-im" alt="" hidden><div class="tw-plate"><b></b><span></span><p class="tw-note"></p></div></section>
 <footer class="tw-deck"><button type="button" class="tw-prev" aria-label="Back">${I.back}</button><button type="button" class="tw-play" aria-label="Play or pause">${I.play}${I.pause}</button><button type="button" class="tw-next" aria-label="Next">${I.next}</button></footer>
 <audio class="tw-audio" preload="auto"></audio>
-<template data-ic="wilhelm">${I.wilhelm}</template></main><script src="/static/tour.js?v=${esc(V.VER)}" defer></script>` }));
+</main><script src="/static/tour.js?v=${esc(V.VER)}" defer></script>` }));
   });
   // The guides of the house: everyone whose wall carries their voice.
   app.get('/guides', (req, res) => {
