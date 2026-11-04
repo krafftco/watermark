@@ -18,6 +18,9 @@ const { createApp } = require('../src/app');
   let t = await get('/library'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/look"[^>]*>Look<\/a>/.test(t), 'Look is the first word of the nav');
   assert.ok(!/>Collect<\/a><a href="\/makers"/.test(t), 'Collect is no longer a menu word');
   t = await get('/wander'); assert.ok(t.includes('class="st-look" href="/look"') && t.includes('Look around'), 'Wander carries Look around');
+  // The tab bar: five, on public pages and in Wander, never on a desk.
+  t = await get('/look'); assert.ok(/<nav class="tb"[^>]*>(?:(?!<\/nav>).)*Wander(?:(?!<\/nav>).)*aria-current="page">(?:(?!<\/nav>).)*Look<\/span>/s.test(t) && /data-tb-you/.test(t) && t.includes('<span>Read</span>') && t.includes('<span>Find</span>'), 'the tab bar, Look lit');
+  t = await get('/wander'); assert.ok(t.includes('class="tb"') && t.includes('data-find-open="stroll"'), 'the tab bar in Wander');
   // The hub and the Met's room.
   t = await get('/look'); assert.ok(t.includes('Where would you like to look?') && t.indexOf('href="/met"') > -1 && t.indexOf('href="/met"') < t.indexOf('href="/collection"'), 'the Met first on /look');
   t = await get('/met'); assert.ok(t.includes('The Met, open to everyone.') && t.includes('id="painting"') && t.includes('id="print"') && t.includes('Wheat Field with Cypresses') && t.includes('The 19th century') && t.includes('not the Met’s own site'), 'the Met a room at a time: ' + t.length);

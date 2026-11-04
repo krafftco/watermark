@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.38.0 · The tab bar · 3 November 2026
+- On a phone held upright, five tabs at the foot of every public page and in Wander: Wander · Look · Find · Read · You.
+- The phone's header is now Back · Watermark · Share; the verbs and Find live in the tabs.
+- Wander keeps its picture clear of the bar; the bar fades when the wall goes still and leaves while you zoom or sit.
+- The Listening Room's player sits above the bar.
+
 ## 1.37.1 · Share every page · 3 November 2026
 - Share beside Find on every public page: the phone's own share sheet, or the link copied on a computer. Not on private rooms.
 - The full-screen rooms carry Share beside Back in the app.

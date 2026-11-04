@@ -53,6 +53,8 @@ const I = {
   // Keys and the eye.
   key: wrap('<circle cx="8" cy="12" r="3.6"/><path d="M11.6 12H20m-2.6 0v3M15 12v2.2"/>'),
   // A glass: find.
+  look: wrap('<rect x="3.5" y="5" width="17" height="14" rx="1"/><path d="m6.5 16 4-4.5 3 3 2-2 2.5 3.5"/><circle cx="15.6" cy="9.2" r="1.3"/>'), // a picture on the wall (the tab bar's Look)
+  you: wrap('<circle cx="12" cy="8.6" r="3.6"/><path d="M4.8 20c.9-3.8 3.7-5.8 7.2-5.8s6.3 2 7.2 5.8"/>'),
   find: wrap('<circle cx="10.6" cy="10.6" r="6"/><path d="m15 15 5.4 5.4"/>'),
   eye: wrap('<path d="M2.6 12c2.4-4 5.6-6 9.4-6s7 2 9.4 6c-2.4 4-5.6 6-9.4 6s-7-2-9.4-6z"/><circle cx="12" cy="12" r="2.8"/>'),
   // Put in, take out.

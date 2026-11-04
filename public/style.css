@@ -5082,3 +5082,26 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
 .lnk-ag{margin:18px 0;padding:14px 18px;background:#f7f4ee;border:1px solid var(--ln)}.lnk-ag summary{cursor:pointer;font-weight:600}.lnk-ag summary small{font-weight:400;color:#77706a;margin-left:8px}.lnk-ag p{font:15px/1.6 var(--read)}
 .lnk-reps{padding-left:18px}.lnk-reps li{margin:10px 0}.lnk-reps img{max-width:320px;display:block;margin-top:6px}
 @media (max-width:760px){.lnk-f{grid-template-columns:1fr}}
+/* The tab bar (3 Nov): Wander · Look · Find · Read · You, on a phone held upright. */
+.tb{display:none}
+@media (max-width:760px) and (pointer:coarse){
+  .tb{position:fixed;left:0;right:0;bottom:0;z-index:60;display:grid;grid-template-columns:repeat(5,1fr);align-items:stretch;padding:0 4px env(safe-area-inset-bottom);background:rgba(246,245,242,.94);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);border-top:1px solid var(--ln);transition:opacity .35s,transform .35s}
+  .tb>a,.tb>button{justify-self:stretch;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:54px;padding:0;margin:0;border:0;border-radius:0;background:none;color:var(--mut);font:500 10px/1 var(--sans);letter-spacing:.04em;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .tb>a:hover,.tb>button:hover{background:none;color:var(--ink)}
+  .tb .ic{width:23px;height:23px}.tb .ic-wave{width:30px;height:9px;margin:7px 0 7px}
+  .tb>[aria-current]{color:var(--ink)}.tb>[aria-current] span{font-weight:600}
+  .tb>a:active,.tb>button:active{transform:scale(.94)}
+  html.dk .tb,body:has(main.lr-room) .tb{background:rgba(11,10,9,.72);border-top-color:rgba(255,255,255,.08)}
+  html.dk .tb>a,html.dk .tb>button,body:has(main.lr-room) .tb>a,body:has(main.lr-room) .tb>button{color:rgba(243,239,231,.6)}html.dk .tb>[aria-current],body:has(main.lr-room) .tb>[aria-current]{color:#f3efe7}
+  body:has(.tb) header.top .brand{margin-left:auto;margin-right:auto}
+  body:has(.tb){padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+  html.dk body:has(.tb){padding-bottom:0}
+  header.top:has(~ .tb) .nv-verbs,body:has(.tb) header.top .nv-verbs,body:has(.tb) header.top .nv-find,body:has(.tb) header.top .nv-w{display:none}
+  body:has(.tb) .vtog{bottom:calc(68px + env(safe-area-inset-bottom))}
+  body:has(.tb) main.st .st-plate,body:has(.tb) main.st .st-rail{bottom:calc(70px + env(safe-area-inset-bottom))}
+  body:has(.tb) main.st .st-im{padding-bottom:56px}
+  body:has(main.st.st-still) .tb{opacity:.15}
+  body:has(.tb) main.st .st-look,body:has(.tb) main.st .st-top [data-find-open]{display:none}
+  body:has(.tb) .lr-bar2{bottom:calc(56px + env(safe-area-inset-bottom));padding-bottom:8px}
+  body:has(main.st.st-zoom) .tb,body:has(main.st.st-holding) .tb,body:has(main.st.st-sitting) .tb,body:has(.wv.lit) .tb,html.in-stay .tb{opacity:0;pointer-events:none;transform:translateY(100%)}
+}
