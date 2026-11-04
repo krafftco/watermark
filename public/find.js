@@ -42,7 +42,10 @@
       list.innerHTML = h; foot.innerHTML = (IC.wilhelm || '') + '<span>' + (PHONE ? 'What are you looking for? Type, or tap a way in.' : 'What are you looking for? Enter opens the first. ↑ ↓ choose.') + '</span>'; return;
     }
     var out = '';
+    var doorRows = function () { (d.doors || []).forEach(function (r) { out += wayRow(r, 'A room of the house'); rows.push(r); }); };
+    if (d.doorsFirst) doorRows();
     if (d.works && d.works.length) { out += d.works.map(workRow).join(''); rows = rows.concat(d.works); }
+    if (!d.doorsFirst) doorRows();
     (d.makers || []).forEach(function (m) { out += wayRow(m, 'Maker'); rows.push(m); });
     (d.places || []).forEach(function (p) { out += wayRow(p, 'Place'); rows.push(p); });
     (d.rooms || []).forEach(function (r) { out += wayRow(r, 'Room'); rows.push(r); });

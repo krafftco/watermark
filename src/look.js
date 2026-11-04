@@ -37,7 +37,7 @@ function mountLook(app, { db, V }) {
       const cent = {}; for (const w of all) { const y = yearOf(w); const c = century(y); if (!c) continue; (cent[c] = cent[c] || { y: Math.floor(y / 100), list: [] }).list.push(w); }
       const cents = Object.entries(cent).sort((a, b) => a[1].y - b[1].y);
       const row = (id, name, list, more) => `<section class="met-row" id="${esc(id)}"><header><h2>${esc(name)}</h2><span>${list.length.toLocaleString('en-US')}</span>${more ? `<a href="${more}">Wander them</a>` : ''}</header><div class="met-strip">${list.slice(0, 18).map(tile).join('')}</div></section>`;
-      body = `<section class="met-hero">${hero ? `<img src="/img/${esc(hero.slug)}/large" alt="${esc(tidy(hero.title))}" fetchpriority="high">` : ''}<div class="met-ht"><p class="k">The Metropolitan Museum of Art · open access</p><h1>The Met, open to everyone.</h1>
+      body = `<section class="met-hero">${hero ? `<img src="/img/${esc(hero.slug)}/large" alt="${esc(tidy(hero.title))}" fetchpriority="high">` : ''}<div class="met-ht"><p class="k">Shown on Watermark · CC0</p><h1>Open access works from The Metropolitan Museum of Art.</h1>
 <p>The Met gives a great part of its collection to the public, free for anyone to see and use. ${n.toLocaleString('en-US')} of those works are here so far, more every day.</p>
 <p class="met-acts"><a class="buy-btn" href="/wander?maker=${esc(wslug)}">Wander the collection</a><a class="met-alt" href="#kinds">Browse by room</a></p></div></section>
 <section class="met-body">${search('')}
@@ -46,7 +46,7 @@ ${byKind.map(([k, name, l]) => row(k, name, l, null)).join('')}
 ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([c, o]) => row('c' + o.y, c, o.list, null)).join('')}` : ''}
 <p class="note met-note">These are works from The Metropolitan Museum of Art’s Open Access program, released into the public domain (CC0), shown on Watermark and credited to the Met and to each artist. This is not the Met’s own site and has no connection with the museum; for visits, exhibitions and the full collection, go to <a href="https://www.metmuseum.org" rel="noopener">metmuseum.org</a>.</p></section>`;
     }
-    const html = V.layout({ title: q ? `“${q}” in the Met’s open access · Watermark` : 'The Met, open to everyone · Watermark', path: '/look', desc: 'The Metropolitan Museum of Art’s open-access works, to look at a room at a time, on Watermark.', body: `<div class="met">${body}</div>` });
+    const html = V.layout({ title: q ? `“${q}” in the Met’s open access · Watermark` : 'Open access works from The Metropolitan Museum of Art · Watermark', path: '/look', desc: 'The Metropolitan Museum of Art’s open-access works, to look at a room at a time, on Watermark.', body: `<div class="met">${body}</div>` });
     if (!q) cache = { at: Date.now(), key: 'room', html };
     res.send(html);
   });

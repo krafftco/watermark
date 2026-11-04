@@ -175,8 +175,8 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     let reading = 0; try { reading = b ? db.prepare("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'").get(b.id).n : 0; } catch (e) { reading = 0; }
     const verbs = `<nav class="sd-verbs" aria-label="The house">${[
       ...(() => { const F = app.locals.museums; const n = F && F.meOf(req) ? F.followed(req).length : 0; return [n ? ['/wander?in=following', 'Look', `Following · ${n}`, I.wave || ''] : ['/wander', 'Look', 'Wander everything', I.wave || '']]; })(),
-      [reading ? '/yours/reading' : '/wander?in=shelf', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'Wander the shelf', I.facing || I.page || ''],
-      ['/listening', 'Listen', 'The Listening Room', I.play || ''],
+      ...(require('./views').isQuiet() ? [] : [[reading ? '/yours/reading' : '/wander?in=shelf', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'Wander the shelf', I.facing || I.page || ''],
+      ['/listening', 'Listen', 'The Listening Room', I.play || '']]),
       ['/collection', 'Collect', 'The collection', I.collect || ''],
       [m ? '/account' : '/makers', 'Make', m ? 'Your studio' : 'For those who make', I.pencil || I.plus || '']
     ].map(([h, v, l, ic]) => `<a href="${h}"><span class="sd-vi">${ic}</span><b>${v}</b><i>${esc(l)}</i></a>`).join('')}</nav>`;

@@ -15,15 +15,23 @@ const { createApp } = require('../src/app');
   const wheat = await put('Wheat Field with Cypresses', met.id, { kind: 'painting' }); db.prepare("UPDATE works SET taken_at='1889-06-01' WHERE slug=?").run(wheat);
   await put('The Great Wave', met.id, { kind: 'print' });
   // The nav and Wander.
-  let t = await get('/library'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/look"[^>]*>Look<\/a>/.test(t), 'Look is the first word of the nav');
+  // The quiet house (4 Nov): Keep your work in the nav, Wander · Find · You at the foot; every room in Find and on /everything.
+  const V = require('../src/views'); assert.ok(V.isQuiet(), 'quiet by default');
+  let t = await get('/library'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/makers"[^>]*>Keep your work<\/a>/.test(t) && /class="tb tb-3"/.test(t) && !/<span>Read<\/span>/.test(t.slice(t.indexOf('class="tb tb-3"'))), 'the quiet nav and tab bar');
+  t = await get('/everything'); assert.ok(t.includes('Every room.') && t.includes('href="/listening"') && t.includes('href="/keys"') && t.includes('href="/met"'), '/everything lists the rooms');
+  let fj = await fetch(base + '/api/find?q=listening').then(r => r.json()); assert.ok(fj.doors && fj.doors.some(d => d.href === '/listening') && fj.doorsFirst, 'Find finds a room by name');
+  t = await get('/find?q=keys'); assert.ok(t.includes('In the house') && t.includes('href="/keys"'), 'the /find page shows the rooms');
+  V.setQuiet(false);
+  t = await get('/print'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/look"[^>]*>Look<\/a>/.test(t), 'Look is the first word of the nav');
   assert.ok(!/>Collect<\/a><a href="\/makers"/.test(t), 'Collect is no longer a menu word');
   t = await get('/wander'); assert.ok(t.includes('class="st-look" href="/look"') && t.includes('Look around'), 'Wander carries Look around');
   // The tab bar: five, on public pages and in Wander, never on a desk.
   t = await get('/look'); assert.ok(/<nav class="tb"[^>]*>(?:(?!<\/nav>).)*Wander(?:(?!<\/nav>).)*aria-current="page">(?:(?!<\/nav>).)*Look<\/span>/s.test(t) && /data-tb-you/.test(t) && t.includes('<span>Read</span>') && t.includes('<span>Find</span>'), 'the tab bar, Look lit');
   t = await get('/wander'); assert.ok(t.includes('class="tb"') && t.includes('data-find-open="stroll"'), 'the tab bar in Wander');
+  V.setQuiet(true); t = await get('/wander?q=wheat'); assert.ok(/class="tb tb-3"/.test(t) && t.includes('data-find-open="stroll"'), 'the quiet tab bar in Wander');
   // The hub and the Met's room.
   t = await get('/look'); assert.ok(t.includes('Where would you like to look?') && t.indexOf('href="/met"') > -1 && t.indexOf('href="/met"') < t.indexOf('href="/collection"'), 'the Met first on /look');
-  t = await get('/met'); assert.ok(t.includes('The Met, open to everyone.') && t.includes('id="painting"') && t.includes('id="print"') && t.includes('Wheat Field with Cypresses') && t.includes('The 19th century') && t.includes('not the Met’s own site'), 'the Met a room at a time: ' + t.length);
+  t = await get('/met'); assert.ok(t.includes('Open access works from The Metropolitan Museum of Art.') && t.includes('id="painting"') && t.includes('id="print"') && t.includes('Wheat Field with Cypresses') && t.includes('The 19th century') && t.includes('not the Met’s own site'), 'the Met a room at a time: ' + t.length);
   t = await get('/met?q=cypress'); assert.ok(t.includes('Wheat Field with Cypresses') && !t.includes('The Great Wave'), 'search inside the Met');
   // The price record.
   const house = db.prepare("SELECT m.* FROM makers m JOIN uses u ON u.maker_id=m.id AND u.key='social' ORDER BY m.id LIMIT 1").get();

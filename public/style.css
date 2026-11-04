@@ -5189,3 +5189,17 @@ body:has(.yu) .rm-bar{display:none}
 @media (max-width:760px){.yu-hero{margin:-18px -16px 20px;border-radius:0}}
 @media (max-width:760px){.yu-hi img{max-height:34vh}.yu-ht h1{font-size:40px;margin:4px 0 8px}.yu-st{font-size:16px}
 .yu-mn[open]{z-index:80}.yu-mn>div{position:fixed;left:12px;right:12px;top:auto;bottom:calc(72px + env(safe-area-inset-bottom));min-width:0;border-radius:14px;box-shadow:0 -10px 40px rgba(0,0,0,.25)}.yu-mn>div a{padding:13px 14px;font-size:16px}}
+/* The quiet house (4 Nov): three fields in front, Wander · Find · You at the foot, every room on /everything */
+.wh-5.wh-q{grid-template-columns:repeat(3,1fr);gap:40px}
+@media (max-width:760px){.wh-5.wh-q{grid-template-columns:1fr;gap:26px}}
+@media (max-width:760px) and (pointer:coarse){.tb.tb-3{grid-template-columns:repeat(3,1fr)}}
+.evr{max-width:1100px;margin:0 auto;padding:72px clamp(16px,4vw,56px) 96px}
+.evr h1{font:400 clamp(36px,4.4vw,60px)/1.04 var(--serif,Georgia,serif);margin:6px 0 14px;text-transform:none}
+.evr-l{max-width:58ch;color:var(--mut);font:400 16px/1.6 var(--sans);margin:0 0 28px}
+.evr-q{width:100%;max-width:420px;font:400 16px/1.2 var(--sans);padding:12px 14px;border:1px solid var(--line,#ddd);border-radius:10px;background:transparent;color:inherit;margin:0 0 36px}
+.evr-g{margin:0 0 40px}.evr-g h2{font:500 11.5px/1 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--mut);margin:0 0 14px}
+.evr-rs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0 28px}
+.evr-rs a{display:flex;flex-direction:column;gap:3px;padding:12px 0;border-top:1px solid var(--line,rgba(0,0,0,.1));color:inherit;text-decoration:none;min-width:0}
+.evr-rs a b{font:400 19px/1.2 var(--serif,Georgia,serif)}.evr-rs a span{font:400 13.5px/1.4 var(--sans);color:var(--mut)}
+.evr-rs a:hover b{text-decoration:underline;text-underline-offset:3px}
+.evr [hidden]{display:none!important}

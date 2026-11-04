@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.42.0 · The quiet house · 4 November 2026
+- Three doors in front: Wander, keep your work, own a piece. The tab bar on a phone is Wander · Find · You; the header says Keep your work; the footer is four short columns.
+- Every other room is under the paint, never gone: at its own address, found by name in Find ("library", "listening", "keys"), and listed on Every room (/everything).
+- One switch on Studio → Launch puts every room back on the menus.
+- The Met's room reads "Open access works from The Metropolitan Museum of Art."
+- The Library's lede shows its link instead of its code.
+
 ## 1.41.1 · The old masters, open · 4 November 2026
 
 - An artist brought in by name alone now takes their dates from the catalogue, so Rembrandt, Titian, Raphael and the other old masters are read as public domain instead of being stopped.

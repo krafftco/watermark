@@ -61,6 +61,16 @@ function mountBeta(app, { db, V, mail, studioOnly, C, ledger }) {
     try { if (ledger) ledger.append(db, on ? 'house.closed' : 'house.opened', 'house', {}); } catch (e) { /* */ }
     res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'Closed for the moment: every write from the street is refused with the sign until this is turned off.' : 'Open again.'));
   });
-  return { launched, showing, open: () => db.prepare('SELECT COUNT(*) n FROM feedback WHERE done=0').get().n };
+  // The quiet house (4 Nov): the three fields in front, every other room under the paint (views.js QUIET). On by default.
+  const quiet = () => { try { const r = db.prepare("SELECT v FROM settings WHERE k='quiet'").get(); return !(r && r.v === '0'); } catch (e) { return true; } };
+  V.setQuiet(quiet());
+  if (!app.locals.noTimers) setInterval(() => V.setQuiet(quiet()), 30000).unref();
+  app.post('/studio/quiet', studioOnly, (req, res) => {
+    const on = String((req.body || {}).on) === '1';
+    db.prepare("INSERT INTO settings (k, v) VALUES ('quiet', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(on ? '1' : '0'); V.setQuiet(on);
+    res.redirect('/studio/launch?ok=' + encodeURIComponent(on ? 'The quiet house: three doors in front; every other room in Find and on /everything.' : 'Every room is back on the menus.'));
+  });
+  app.get('/everything', (req, res) => res.send(V.everything()));
+  return { launched, showing, quiet, open: () => db.prepare('SELECT COUNT(*) n FROM feedback WHERE done=0').get().n };
 }
 module.exports = { mountBeta };
