@@ -22,7 +22,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
-  ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
+  ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card', 'look'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
 
   // An album (31 Oct, Will: "view photos in deliveries in Wander, and download from Wander; make the Instax option
   // there"): with the album's own address, every screen carries Save (the 2,400-pixel copy, to Photos on a phone) and
@@ -83,6 +83,7 @@
       + '<a class="st-b st-study" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Study it: the work large on the easel, with values, notan, squint, a grid and a timer.">' + (ic.easel || '') + '<span>Study</span></a>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
       + '<div class="st-more" data-st-morebox hidden>'
+      + (w.slug && String(w.slug).indexOf(':') < 0 ? '<a class="st-b" href="/w/' + esc(w.slug) + '/frame" title="Frame a detail: the part you love, kept with its own address">' + (ic.look || ic.page || '') + '<span>Frame</span></a>' : '')
       + (w.sheet ? '<a class="st-b" data-st-sheet href="' + esc(w.sheet.href) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="The contact sheet: every frame around this one, as it was shot.">' + (ic.page || '') + '<span>Contact sheet</span></a>' : '')
       + '<a class="st-b" data-st-record href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the record under the picture; the guide, the papers, the prices, the provenance.">' + (ic.page || '') + '<span>Watermark</span></a>'
       + (w.guide ? '<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">' + ic.guide + '<span>Look closer</span></button>' : '')

@@ -980,6 +980,29 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
       r = await req(port, 'GET', '/ledger'); assert.ok(/The house gave \$4\.50 to The Salvation Army, Dallas/.test(r.body.toString()), 'the gift told on the register');
       r = await req(port, 'POST', '/studio/gifts/causes', { cookie: ck, body: { causes: 'Feeding America | https://www.feedingamerica.org | Food banks across the country' } });
       r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('value="cause:feeding-america"'), 'a listed cause on the form'); }
+    // Frames within the frame: a signed-in collector frames the woman and child; the detail has its own address, a picture cut from the original, a Save, a print of its own; the framer earns when it sells.
+    { const fb = db.prepare("INSERT INTO buyers (customer, email, name, code, public) VALUES ('', 'framer@example.com', 'Ada Framer', 'FRAMR1', 1)").run(); const fbid = Number(fb.lastInsertRowid);
+      r = await req(port, 'GET', `/w/${w.slug}/frame`); assert.ok(r.status === 200 && r.body.toString().includes('Keep this frame') && r.body.toString().includes('framer.js'), 'the framer');
+      r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes(`/w/${w.slug}/frame`), 'Frame on the work page');
+      const fck = app.locals.buyerCookie ? app.locals.buyerCookie(fbid) : null;
+      const frameReq = async (body, cookie) => req(port, 'POST', `/w/${w.slug}/frame`, { body, ...(cookie ? { cookie } : {}) });
+      r = await frameReq({ x: '0.6', y: '0.2', w: '0.3', h: '0.6', line: 'She has been waiting a long time.' }); assert.equal(r.status, 303, 'kept: ' + r.status);
+      const loc = r.headers.location; assert.ok(/\/w\/[^/]+\/d\/1$/.test(loc), loc);
+      db.prepare('UPDATE work_details SET by_buyer=? WHERE work_id=? AND n=1').run(fbid, w.id);
+      r = await req(port, 'GET', loc); const dp = r.body.toString();
+      assert.ok(dp.includes('A detail of') && dp.includes('She has been waiting a long time.') && dp.includes('Framed by <a href="/g/FRAMR1">Ada Framer</a>') && dp.includes('/save') && dp.includes('name="detail" value="1"'), 'the detail page');
+      r = await req(port, 'GET', `/img/${w.slug}/detail/1`); assert.equal(r.status, 200); { const md = await require('sharp')(r.body).metadata(); assert.ok(md.height > md.width, 'a tall cut from a wide picture: ' + md.width + 'x' + md.height); }
+      r = await req(port, 'GET', `${loc}/save`); assert.ok(r.status === 200 && /attachment/.test(r.headers['content-disposition'] || ''), 'Save it, whole and named');
+      r = await frameReq({ x: '0', y: '0', w: '1', h: '1' }); assert.equal(r.status, 302, 'the whole is not a detail');
+      r = await req(port, 'POST', `/w/${w.slug}/openprint`, { body: { size: '8x10', detail: '1', give_to: 'museum' } }); assert.equal(r.status, 303);
+      const ds = sessions[r.headers.location.split('/').pop()]; assert.ok(/A detail of/.test(ds.line_items[0].price_data.product_data.name), 'the detail by name at checkout');
+      Object.assign(ds, { payment_status: 'paid', amount_total: 4500, customer_details: { email: 'b2@example.com', name: 'B Two', address: { line1: '2 Shore Rd', city: 'Oyster Bay', state: 'NY', postal_code: '11771', country: 'US' } } });
+      { const pl = JSON.stringify({ id: 'evt_detailprint', type: 'checkout.session.completed', data: { object: ds } }); const sg = require('stripe')('sk_test_dummy').webhooks.generateTestHeaderString({ payload: pl, secret: 'whsec_test' }); r = await req(port, 'POST', '/stripe/webhook', { body: pl, headers: { 'content-type': 'application/json', 'stripe-signature': sg } }); assert.equal(r.status, 200); }
+      const dl = db.prepare('SELECT * FROM licenses WHERE ref=?').get(ds.metadata.ref); assert.equal(dl.status, 'active'); assert.equal(JSON.parse(dl.rights).print.detail.n, 1, 'the frame on the licence');
+      assert.equal(db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND kind='curation'").get(fbid).s, 450, 'the framer earns a tenth');
+      const po = db.prepare("SELECT o.*, l.rights AS lic_rights FROM print_orders o JOIN licenses l ON l.id=o.license_id WHERE o.license_id=?").get(dl.id);
+      const pf = await app.locals.printFile(w, po); const pm = await require('sharp')(pf).metadata(); assert.ok(pm.height > pm.width && pm.width < w.width, 'the print is made from the cut');
+      r = await req(port, 'GET', '/details'); assert.ok(r.body.toString().includes('Frames within the frame') && r.body.toString().includes(`/w/${w.slug}/d/1`), 'the room of frames'); }
     db.prepare("UPDATE works SET open='cc-by-nc' WHERE id=?").run(w.id); r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!r.body.toString().includes('/openprint'), 'never for a non-commercial work');
     db.prepare('UPDATE works SET open=?, width=?, height=?, artist_id=? WHERE id=?').run(was.open, was.width, was.height, was.artist_id, w.id); }
   console.log('ok: prints of open works');

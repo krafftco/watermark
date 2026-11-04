@@ -36,7 +36,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
 
   const shopOf = makerId => db.prepare('SELECT s.*, m.name, m.handle, m.email FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.maker_id=?').get(makerId);
   const shopById = id => db.prepare('SELECT s.*, m.name, m.handle, m.email FROM print_shops s JOIN makers m ON m.id=s.maker_id WHERE s.id=?').get(id);
-  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.width, w.height, w.id AS work_id2, w.maker_id AS work_maker, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
+  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.rights AS lic_rights, l.collector_no, l.licensee_name, w.slug, w.title, w.width, w.height, w.id AS work_id2, w.maker_id AS work_maker, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
   const jobOf = id => db.prepare('SELECT j.*, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.id=?').get(id);
   const liveJob = orderId => db.prepare("SELECT j.*, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.order_id=? AND j.status NOT IN ('declined') ORDER BY j.id DESC LIMIT 1").get(orderId);
   const stateOf = addr => { const m = String(addr || '').match(/\b([A-Z]{2})\b\s+\d{5}/); return m ? m[1] : null; };
@@ -166,7 +166,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     if (j.status === 'offered' || j.status === 'declined') return res.sendStatus(403);
     if (j.downloads >= 3 && !isStudio(req)) return res.status(410).send(V.layout({ title: 'The file · Watermark', body: '<section class="narrow"><h1>Three takes, used.</h1><p class="lede">Write to the house if the file was lost on the way.</p></section>' }));
     const o = orderOf(j.order_id); const w = db.prepare('SELECT * FROM works WHERE id=?').get(o.work_id2);
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.sendStatus(503); }
     db.prepare('UPDATE print_jobs SET downloads=downloads+1 WHERE id=?').run(j.id);
     try { ledger.append(db, 'print.file', o.ref, { job: j.id, hidden: true }); } catch (e) { /* */ }
     const ext = path.extname(w.original_file || file).toLowerCase() || '.jpg';

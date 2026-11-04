@@ -60,7 +60,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
   const isLab = shop => !!(shop && shop.lab);
 
   const jobOf = id => db.prepare('SELECT j.*, s.lab, s.maker_id AS shop_maker FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE j.id=?').get(id);
-  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.collector_no, l.licensee_name, w.slug, w.title, w.place, w.taken_at, w.id AS work_id2, w.original_file, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
+  const orderOf = id => db.prepare('SELECT o.*, l.ref, l.rights AS lic_rights, l.collector_no, l.licensee_name, w.slug, w.title, w.place, w.taken_at, w.id AS work_id2, w.original_file, COALESCE(CASE WHEN mk.kind<>\'maker\' THEN ar.name END, mk.name) AS maker_name FROM print_orders o JOIN licenses l ON l.id=o.license_id JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id LEFT JOIN artists ar ON ar.id=w.artist_id WHERE o.id=?').get(id);
 
   // The address, read into the lab's fields. US only for now (the proof's rule).
   function recipient(o) {
@@ -157,7 +157,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const a = db.prepare("SELECT * FROM lab_assets WHERE token=? AND expires > datetime('now')").get(String(req.params.token)); if (!a || a.takes >= 5) return res.sendStatus(404);
     const j = jobOf(a.job_id); if (!j || j.status === 'declined') return res.sendStatus(404);
     const o = orderOf(j.order_id); const w = db.prepare('SELECT * FROM works WHERE id=?').get(o.work_id2);
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.sendStatus(503); }
     db.prepare('UPDATE lab_assets SET takes=takes+1 WHERE token=?').run(a.token); db.prepare('UPDATE print_jobs SET downloads=downloads+1 WHERE id=?').run(j.id);
     try { ledger.append(db, 'print.file', o.ref, { job: j.id, by: 'lab', hidden: true }); } catch (e) { /* */ }
     const ext = path.extname(w.original_file || file).toLowerCase() || '.jpg'; const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.tif': 'image/tiff', '.tiff': 'image/tiff' }[ext] || 'application/octet-stream';
