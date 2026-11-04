@@ -163,7 +163,7 @@ ${prints.length ? `<ul class="kp-pr">${prints.map(p => `<li><b>${esc(p.size || '
 <a href="/frame" class="kp-tile">${I.full}<b>On your television</b><span>A screen at home is a wall. Choose your gallery as the set; it changes slowly through the evening.</span></a>
 <button type="button" class="kp-tile hg-open" data-hang-open="${esc(w.slug)}">${I.hang}<b>Hang it on a wall</b><span>Put it beside others you love, in an order you choose, with a line of your own. Show the wall, or keep it.</span></button>
 ${file ? `<a href="${file}" class="kp-tile" download>${I.in || I.plus}<b>On your phone</b><span>Save it to Photos; set it as your lock screen. It is yours to keep.</span></a>` : ''}
-<a href="/w/${esc(w.slug)}#closer" class="kp-tile">${I.guide}<b>Look closer</b><span>The wall text and the study: what to look for, the place and its story, the artists it speaks to.</span></a>
+${app.locals.sitting ? app.locals.sitting.livingCard(l, b) : ''}<a href="/w/${esc(w.slug)}#closer" class="kp-tile">${I.guide}<b>Look closer</b><span>The wall text and the study: what to look for, the place and its story, the artists it speaks to.</span></a>
 </div></section>
 
 <section class="kp-s kp-papers"><p class="k">The papers</p><h2>What you hold, and the proof of it.</h2><ul class="kp-pp">

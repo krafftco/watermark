@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.36.0 · The sitting, and the loan desk · 3 November 2026
+- The sitting: every artist may answer the same ten questions (what they look at, who taught them to see, what it is like to live with their work, who should not), record two minutes in their own voice, and show their studio. It stands on their page as Meet them, in their own words; nothing is written for them.
+- Living with it: a collector who has lived with a piece for a month may say what that is like, on the artist's page, for others deciding.
+- The loan desk: a museum asks another for a work for a show; the lender agrees with its terms (cover, value, courier, credit) or declines; the agreement is set out and fingerprinted; a condition report with a photograph at every handover; and when the work is home the loan is written into its exhibition history and on the register.
+
 ## 1.35.0 · Look, and the price record · 3 November 2026
 - The menu's first word is Look (it replaces Collect): Look · Read · Listen · Make · Yours. Look opens one page with every collection in the house, the Met first, then the masters, the living makers, companies and Wander.
 - The Met, open to everyone (/met): the Met's open-access works a room at a time, by kind and by century, with a search inside it and Wander. Said plainly: not the Met's own site.

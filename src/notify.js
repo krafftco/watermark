@@ -32,6 +32,7 @@ const KINDS = {
   daily: { who: 'both', label: 'The work of the day, each morning at nine', on: true },
   import: { who: 'maker', label: 'An import into your vault is finished', on: true },
   follow: { who: 'both', label: 'Someone follows you', on: true },
+  loan: { who: 'maker', label: 'A museum asks to borrow your work, or a loan moves on', on: true },
 };
 
 function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl }) {
