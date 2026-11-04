@@ -2108,6 +2108,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./hangs').mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket: app.locals.pocket, mk, isStudio, houseMaker: () => db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id) });
   require('./tours').mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio });
   require('./notebook').mountNotebook(app, { db, C, V, store, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, ledger }); // notes, voice, and Kept: /yours/kept, /account/held // a guide's voice on a wall: /tour/:slug, /guides
+  require('./gallerist').mountGallerist(app, { db, V, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // notes in plain words: what stands between a work and those who want it
   require('./keys').mountKeys(app, { db, V, C, ledger, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // The Keys: the club; every maker, collector and curator holds keys
   require('./bench').mountBench(app, { db, V, C, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, mk, notify: app.locals.notify }); // the benches under works and walls: the talk, one door from the wall
   app.locals.noTimers = !!cfg.noTimers;

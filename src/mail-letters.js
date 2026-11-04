@@ -179,6 +179,7 @@ function friday(c) {
     c.img ? mount({ img: c.img, href: c.workUrl, title: c.title, year: c.year, maker: c.maker, no: c.no ? `No.&nbsp;${c.no}` : '', of: c.of }) : '',
     rows ? `<tr><td style="padding:26px 48px 0" class="wm-pad"><p style="margin:0 0 6px;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">Sold this week &middot; ${c.sold}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table></td></tr>` : '',
     `<tr><td style="padding:26px 48px 0" class="wm-pad"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font:14px/1.6 ${BODY};color:#3c3933"><tr><td>Cleared, out today</td><td align="right"><b style="color:${INK}">${esc(money(c.cleared))}</b></td></tr><tr><td>Still clearing (inside seven days)</td><td align="right">${esc(money(c.clearing))}</td></tr><tr><td>Earned, all time</td><td align="right">${esc(money(c.earned))}</td></tr>${c.stood ? `<tr><td>Stood before your work this week</td><td align="right">${c.stood}</td></tr>` : ''}</table></td></tr>`,
+    c.gallerist ? `<tr><td style="padding:30px 48px 0" class="wm-pad"><p style="margin:0 0 8px;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">From your gallerist</p><p style="margin:0 0 12px;font:italic 17px/1.55 ${BODY};color:#2c2925">${esc(c.gallerist.text)}</p><p style="margin:0"><a href="${esc(c.gallerist.url)}" style="font:13px/1 ${SANS};color:#7a6330">${esc(c.gallerist.act)} &rarr;</a></p></td></tr>` : '',
     button('Your statement', c.statementUrl),
     close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for making work worth keeping.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
   ].join('') });
@@ -187,6 +188,7 @@ function friday(c) {
     c.cleared > 0 ? `${money(c.cleared)} goes to your bank today: every Friday, every dollar that has cleared.` : c.sold ? `Nothing has cleared yet; what sold this week goes out next Friday.` : `Nothing sold this week.`,
     (c.sales || []).map(x => `${clean(x.title)} · ${x.how} · ${money(x.cents)}`).join('\n'),
     `Cleared, out today: ${money(c.cleared)}\nStill clearing: ${money(c.clearing)}\nEarned, all time: ${money(c.earned)}`,
+    c.gallerist ? `From your gallerist: ${c.gallerist.text}\n${c.gallerist.act}: ${c.gallerist.url}` : '',
     `Your statement: ${c.statementUrl}`,
     'Thank you for making work worth keeping.\nThe house',
   ].filter(Boolean).join('\n\n');

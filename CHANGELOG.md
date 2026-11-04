@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.49.0 · Your gallerist · 4 November 2026
+- A maker's own gallerist: notes in plain words on what stands between a work and the people who want it. The picture kept back that people find anyway; the work that stops people with no print to buy; the file too small to hang at 24 inches; the portrait waiting on one signature; the work that holds people but isn't in front. One act on each.
+- Never what to make; never a name. A work speaks only once three people have stood before it.
+- The first note rides in the Friday letter.
+
 ## 1.48.0 · The notebook · 4 November 2026
 - Note on every work (the work page's acts and Wander's More): write a line, or press Say it and talk; your voice is kept and, where the browser can, your words are written as you speak. Or bring a finished recording. Yours alone unless you share it.
 - Kept: everything you have done before a work in one place, with how long you looked and how often you came back; sorted by lately, longest looked, most returned to, or maker; found by a word.

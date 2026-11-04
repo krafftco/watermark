@@ -186,7 +186,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     return { base: C.base, money, date, on: ON(), maker: m.name, cleared: st.cleared, clearing: st.clearing, earned: st.earned, sold: sales.length, stood,
       sales: sales.map(r => ({ title: r.title, how: how(r), cents: mk(r) })),
       img: top ? `${C.base}/img/${encodeURIComponent(top.slug)}/screen?f=jpg` : null, workUrl: top ? `${C.base}/w/${encodeURIComponent(top.slug)}` : null, title: top ? top.title : '', year: top ? top.year : '', no: top ? top.collector_no : null,
-      statementUrl: `${C.base}/account/payouts` };
+      statementUrl: `${C.base}/account/payouts`, gallerist: (() => { try { const g = app.locals.gallerist && app.locals.gallerist.first(m); return g ? { ...g, url: C.base + (g.href.startsWith('/') ? g.href : '/account/gallerist') } : null; } catch (e) { return null; } })() };
   }
   async function fridayLetters({ force = false } = {}) {
     if (!force && (nyDay() !== 'Fri' || nyHour() < 9)) return { ok: false, why: 'notfriday' };
@@ -194,7 +194,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(key, new Date().toISOString());
     let n = 0;
     for (const m of db.prepare("SELECT * FROM makers WHERE email IS NOT NULL AND email<>'' AND COALESCE(friday_letter,1)=1").all()) {
-      const c = letterFor(m); if (!c.sold && !c.cleared && !c.stood) continue;
+      const c = letterFor(m); if (!c.sold && !c.cleared && !c.stood && !c.gallerist) continue;
       try { const L = require('./mail-letters').friday(c); await mail.send({ to: m.email, subject: L.subject, text: L.text, html: L.html }); n++; } catch (e) { console.error('[friday letter]', m.handle, e.message); }
     }
     return { ok: true, sent: n };
