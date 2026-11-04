@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.48.0 · The notebook · 4 November 2026
+- Note on every work (the work page's acts and Wander's More): write a line, or press Say it and talk; your voice is kept and, where the browser can, your words are written as you speak. Or bring a finished recording. Yours alone unless you share it.
+- Kept: everything you have done before a work in one place, with how long you looked and how often you came back; sorted by lately, longest looked, most returned to, or maker; found by a word.
+- What held people: a maker's or a museum's own works by how long people stood and came back, counted and never named, shown only from three people.
+- The microphone is allowed on the house's own pages (it had been refused everywhere, recorders included).
+
 ## 1.47.0 · Real people · 4 November 2026
 - Beside every maker's name, the museum's way: (b. 1991) when they choose to show it, else 'making since 2014'; the dead with their dates, (1836–1910).
 - A gold dot, at work, when they put up something new in the last month.
