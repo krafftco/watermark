@@ -44,7 +44,9 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     if (maker) setMaker(res, maker);
     if (app.locals.claimStood) app.locals.claimStood(res, req, fresh);
     const first = ((maker && maker.name) || fresh.name || '').split(' ')[0];
-    res.cookie('wm_hi', first || '·', { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 60 * 1000 });
+    const ago = x => { if (!x) return 1e12; const d = x instanceof Date ? x : new Date(String(x).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(x)) ? '' : 'Z')); return Date.now() - d.getTime(); };
+    const isNew = ago(fresh.created_at) < 6e5 || (maker && ago(maker.joined_at) < 6e5); // 3 Nov: a first visit is welcomed, not welcomed back
+    res.cookie('wm_hi', (isNew ? '+' : '') + (first || '·'), { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 60 * 1000 });
     ledger.append(db, 'signin.email', `buyer-${fresh.id}`, { maker: !!maker });
     if (app.locals.devices) app.locals.devices.seen(req, res, { buyer: fresh, maker, how }); // your devices (27 Oct): remembered, and a letter when new
     if (app.locals.studioFactor) { try { app.locals.studioFactor(req, res, email, 'code'); } catch (e) { console.error('[door]', e.message); } } // a named person's first factor at the Studio door

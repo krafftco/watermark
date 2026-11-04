@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.38.1 · The first minutes · 3 November 2026
+- You, for a newcomer: one way in (Sign in or begin), then Look around and Make things; the studio switch only for makers.
+- For those who make: Open your museum, everywhere; the old 'small group first' application is gone; How it starts in three steps.
+- Wander on a phone: the tab bar is the way out; the edge tabs and a bare × leave.
+- The work page on a phone: Collect on the first screen; a stranger sees one line about backgrounds, not eight empty screens.
+- A first sign-in is welcomed, not welcomed back. The vault keeps everything; nothing shows until hung.
+- Sign out moves into All rooms on a phone; notices no longer break words.
+
 ## 1.38.0 · The tab bar · 3 November 2026
 - On a phone held upright, five tabs at the foot of every public page and in Wander: Wander · Look · Find · Read · You.
 - The phone's header is now Back · Watermark · Share; the verbs and Find live in the tabs.

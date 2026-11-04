@@ -111,7 +111,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', tj.download); assert.equal(r.status, 404, 'undone file stops working');
   // collectors: numbered, hung in their own collection, private until they open it
   assert.ok(dj.no >= 1 && tj.no >= 1, 'collector numbers: ' + dj.no + ',' + tj.no);
-  r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Start your gallery'), 'a new visitor is invited to start');
+  r = await req(port, 'GET', '/yours'); assert.ok(r.body.toString().includes('Sign in or begin'), 'a new visitor is invited to start');
   r = await req(port, 'GET', '/yours', { cookie: bck }); let yb = r.body.toString();
   assert.ok(yb.includes(`No.&nbsp;${dj.no}`) && yb.includes('The gallery'), 'it hangs, numbered');
   r = await req(port, 'GET', '/yours?tab=files', { cookie: bck }); assert.ok(r.body.toString().includes('id="files"') && r.body.toString().includes(`No. ${dj.no}`), 'the files room');
@@ -3038,7 +3038,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(r.body.toString().includes('data-passkey="maker-save"'), 'and save one from their room');
   r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' }, cookie: mck }); assert.ok(JSON.parse(r.body).challenge, 'maker passkey options');
   r = await req(port, 'POST', '/auth/maker/register/options', { body: '{}', headers: { 'content-type': 'application/json' } }); assert.equal(r.status, 401, 'only for a maker');
-  r = await req(port, 'GET', '/makers'); assert.ok(r.body.toString().includes('Sign in to your room'));
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.toString().includes('Already a maker? Sign in'));
   // ledger intact, and tamper is detected
   const ledger = require('../src/ledger');
   // Trades in kind: Set Fan holds two numbered pieces; the ladder's No. 2 belongs to a second collector; they swap.
