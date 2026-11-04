@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.39.0 · You · 4 November 2026
+- You is one library of everything that is yours: Collected, Reading, Walls, Albums and My work, filtered by chips; each opens its own room.
+- One line says who you are here (name, email, key, pocket) with Studio and Settings beside it.
+- A short band shows only what is new or needs you: notices, a print on its way.
+- The older rooms (papers, cabinet, market, settings) answer as before, linked at the foot. The word is You everywhere.
+
 ## 1.38.1 · The first minutes · 3 November 2026
 - You, for a newcomer: one way in (Sign in or begin), then Look around and Make things; the studio switch only for makers.
 - For those who make: Open your museum, everywhere; the old 'small group first' application is gone; How it starts in three steps.
