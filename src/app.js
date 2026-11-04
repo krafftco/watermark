@@ -1157,7 +1157,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let isMaker = !!app.locals.accounts.makerOf(req);
     if (!isMaker && b) { const mm = db.prepare("SELECT * FROM makers WHERE (buyer_id=? OR (email IS NOT NULL AND email<>'' AND email=?)) AND COALESCE(standing,'open')='open' ORDER BY buyer_id=? DESC LIMIT 1").get(b.id, b.email || '', b.id); if (mm) { app.locals.accounts.setMaker(res, mm); isMaker = true; } }
     // You (3 Nov): the front of Yours for anyone signed in or holding something; the older rooms answer by ?tab=.
-    if (b && (b.email || col.items.length) && app.locals.you && Object.keys(req.query).every(x => x === 'k')) {
+    if (b && (b.email || col.items.length) && app.locals.you && Object.keys(req.query).every(x => x === 'k' || x === 'sort')) {
       const mm = app.locals.accounts.makerOf(req) || db.prepare("SELECT * FROM makers WHERE (buyer_id=? OR (email IS NOT NULL AND email<>'' AND email=?)) ORDER BY buyer_id=? DESC LIMIT 1").get(b.id, b.email || '', b.id) || null;
       return res.send(app.locals.you.page({ b, req, col, hand: [], m: isMaker ? mm : null, isMaker, isHouse: isStudio(req) }));
     }

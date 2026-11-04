@@ -18,7 +18,8 @@ function mountYou({ db, V, app }) {
   // Everything this person has, as tiles of one shape: { k, href, img, title, line, round }.
   function library(b, m, col, hand) {
     const out = { collected: [], reading: [], walls: [], albums: [], work: [] };
-    for (const i of col.items) out.collected.push({ href: i.ref ? `/yours/p/${i.ref}` : `/w/${i.slug}`, img: `/img/${i.slug}/screen`, title: i.title, line: `${i.collector_no ? `No. ${i.collector_no}${i.edition_size ? ` of ${i.edition_size}` : ''} · ` : ''}${i.maker}${i.status === 'expired' ? ' · ended' : ''}` });
+    for (const i of col.items) out.collected.push({ href: i.ref ? `/yours/p/${i.ref}` : `/w/${i.slug}`, img: `/img/${i.slug}/screen`, slug: i.slug, title: i.title, at: i.starts_at, maker: i.maker, line: `${i.collector_no ? `No. ${i.collector_no}${i.edition_size ? ` of ${i.edition_size}` : ''} · ` : ''}${i.maker}${i.status === 'expired' ? ' · ended' : ''}`,
+      menu: i.ref && i.status === 'active' ? [['Open it', `/yours/p/${i.ref}`], ['Print it', `/yours/p/${i.ref}#print`], ['Print on Instax', `/yours/p/${i.ref}/instax?film=mini`, 'download'], ['As a background', `/w/${i.slug}#backgrounds`], ['On your TV', '/frame'], ['Wander from here', `/wander?in=mine&at=${i.slug}`], ['The papers', `/c/${i.ref}`], ['Pass it on', '/yours?tab=files#send']] : null });
     for (const r of q(`SELECT r.status, r.chapter, r.chapters, r.pct, t.slug, t.title, t.author FROM reading_list r JOIN texts t ON t.id=r.text_id WHERE r.buyer_id=? AND t.public=1 ORDER BY CASE r.status WHEN 'reading' THEN 0 WHEN 'want' THEN 1 ELSE 2 END, r.updated_at DESC LIMIT 200`, b.id))
       out.reading.push({ href: `/read/${r.slug}`, img: `/binding/${r.slug}.svg`, book: true, title: r.title, line: r.status === 'reading' ? (r.chapters ? `Chapter ${r.chapter + 1} of ${r.chapters}` : 'Reading') : r.status === 'want' ? 'Want to read' : 'Read', pct: r.status === 'reading' ? r.pct : null });
     const cp = one('SELECT COUNT(*) n FROM commonplace WHERE buyer_id=?', b.id);
@@ -51,7 +52,7 @@ function mountYou({ db, V, app }) {
     return rows.slice(0, 4);
   }
 
-  const tile = t => `<a class="yu-t${t.book ? ' yu-bk' : ''}" href="${esc(t.href)}"><span class="yu-im">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" draggable="false">` : `<i>${esc(t.plain || '')}</i>`}${t.pct != null ? `<b class="yu-pct" style="width:${Math.max(4, Math.min(100, t.pct))}%"></b>` : ''}</span><span class="yu-ti">${esc(t.title)}</span><span class="yu-li">${esc(t.line || '')}</span></a>`;
+  const tile = t => `<div class="yu-tw" data-q="${esc(`${t.title} ${t.line || ''}`.toLowerCase())}"><a class="yu-t${t.book ? ' yu-bk' : ''}" href="${esc(t.href)}"><span class="yu-im">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" draggable="false">` : `<i>${esc(t.plain || '')}</i>`}${t.pct != null ? `<b class="yu-pct" style="width:${Math.max(4, Math.min(100, t.pct))}%"></b>` : ''}</span><span class="yu-ti">${esc(t.title)}</span><span class="yu-li">${esc(t.line || '')}</span></a>${t.menu ? `<details class="yu-mn"><summary aria-label="What you can do with it">⋯</summary><div>${t.menu.map(([l, h, dl]) => `<a href="${esc(h)}"${dl ? ' download' : ''}>${l}</a>`).join('')}</div></details>` : ''}</div>`;
 
   function page({ b, req, col, hand, m, isMaker, isHouse }) {
     const lib = library(b, m, col, hand);
@@ -77,15 +78,25 @@ function mountYou({ db, V, app }) {
       albums: '',
       work: `<a href="/account">Your studio</a><a href="/account/table">The Library</a><a href="/account/upload">Add work</a>`,
     }[x] || '');
+    // The piece you put first (your order) or, for a maker with nothing collected, their best work, large.
+    const heroT = k === 'all' ? (lib.collected[0] || lib.work.find(t => !t.book) || null) : null;
+    const since = col.items.reduce((a, i) => (i.starts_at && (!a || i.starts_at < a) ? i.starts_at : a), null);
+    const sinceS = since ? new Date(String(since).replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    const stat = [col.items.length ? `${col.items.length} work${col.items.length === 1 ? '' : 's'} by ${col.makers} maker${col.makers === 1 ? '' : 's'}` : null, sinceS ? `collecting since ${sinceS}` : null, counts.reading ? `${counts.reading} on your shelf` : null].filter(Boolean).join(' · ');
+    const going = lib.reading.find(t => t.pct != null);
+    const sort = ['new', 'maker'].includes(req.query.sort) ? req.query.sort : 'yours';
+    const list = k === 'collected' && sort !== 'yours' ? [...lib.collected].sort((a, z) => sort === 'new' ? String(z.at || '').localeCompare(String(a.at || '')) : String(a.maker || '').localeCompare(String(z.maker || ''))) : lib[k] || [];
+    const pills = `${isMaker ? '<a href="/account">Studio</a>' : ''}${isHouse ? '<a href="/studio">The house</a>' : ''}<a href="/yours?tab=settings">Settings</a>`;
     const body = `<section class="yu">
-<header class="yu-h"><div><p class="k">You</p><h1>${esc(name || 'Yours')}</h1>${facts.length ? `<p class="yu-f">${facts.join(' · ')}</p>` : ''}</div>
-<nav class="yu-hn">${isMaker ? '<a href="/account">Studio</a>' : ''}${isHouse ? '<a href="/studio">The house</a>' : ''}<a href="/yours?tab=settings">Settings</a></nav></header>
-${nw.length ? `<ul class="yu-new">${nw.map(n => `<li><a href="${esc(n.href)}"><span>${esc(n.text)}</span>${n.when ? `<i>${esc(n.when)}</i>` : ''}</a></li>`).join('')}${nw.length >= 3 ? '<li class="yu-all"><a href="/notices">Every notice</a></li>' : ''}</ul>` : ''}
-${total ? `<nav class="yu-chips" aria-label="What you have">${chips.map(([x, l, n]) => `<a href="${x === 'all' ? '/yours' : `/yours?k=${x}`}"${x === k ? ' aria-current="page"' : ''}>${l}${x === 'all' ? '' : ` <i>${n}</i>`}</a>`).join('')}</nav>
-${k === 'all' ? KINDS.map(section).join('') : `<div class="yu-acts">${acts(k)}</div><div class="yu-grid">${lib[k].map(tile).join('')}</div>`}`
+${heroT ? `<header class="yu-hero"><a class="yu-hi" href="${esc(heroT.href)}"><img src="${esc(heroT.img.replace('/screen', '/large'))}" alt="${esc(heroT.title)}" draggable="false"></a><div class="yu-ht"><p class="k">You</p><h1>${esc(name || 'Yours')}</h1>${stat ? `<p class="yu-st">${esc(stat)}</p>` : ''}${facts.length ? `<p class="yu-f">${facts.join(' · ')}</p>` : ''}<nav class="yu-hn">${pills}</nav></div><p class="yu-hc">${esc(heroT.title)} · ${esc(heroT.line || '')}</p></header>`
+  : `<header class="yu-h"><div><p class="k">You</p><h1>${esc(name || 'Yours')}</h1>${facts.length ? `<p class="yu-f">${facts.join(' · ')}</p>` : ''}</div><nav class="yu-hn">${pills}</nav></header>`}
+${nw.length || going ? `<div class="yu-now">${going && k === 'all' ? `<a class="yu-go" href="${esc(going.href)}"><img src="${esc(going.img)}" alt="" loading="lazy"><span><i>Pick up where you left off</i><b>${esc(going.title)}</b><em>${esc(going.line)}</em><s><u style="width:${Math.max(4, going.pct)}%"></u></s></span></a>` : ''}${nw.length ? `<ul class="yu-new">${nw.map(n => `<li><a href="${esc(n.href)}"><span>${esc(n.text)}</span>${n.when ? `<i>${esc(n.when)}</i>` : ''}</a></li>`).join('')}${nw.length >= 3 ? '<li class="yu-all"><a href="/notices">Every notice</a></li>' : ''}</ul>` : ''}</div>` : ''}
+${total ? `<div class="yu-bar"><nav class="yu-chips" aria-label="What you have">${chips.map(([x, l, n]) => `<a href="${x === 'all' ? '/yours' : `/yours?k=${x}`}"${x === k ? ' aria-current="page"' : ''}>${l}${x === 'all' ? '' : ` <i>${n}</i>`}</a>`).join('')}</nav>${total > 6 ? '<input class="yu-q" type="search" placeholder="Find in yours" aria-label="Find in yours" data-yu-q autocomplete="off">' : ''}</div>
+${k === 'all' ? KINDS.map(section).join('') : `<div class="yu-acts">${acts(k)}${k === 'collected' && lib.collected.length > 1 ? `<span class="yu-sort">${[['yours', 'Your order'], ['new', 'Newest'], ['maker', 'By maker']].map(([v, l]) => `<a href="/yours?k=collected${v === 'yours' ? '' : `&sort=${v}`}"${v === sort ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</span>` : ''}</div><div class="yu-grid">${list.map(tile).join('')}</div>`}
+<p class="yu-none" data-yu-none hidden>Nothing of yours by that word.</p>`
   : `<div class="yu-empty"><p>Nothing here yet. What you collect, read, hang and are given will be kept here, with its papers.</p><div class="yc-next"><a href="/wander" data-nv-wander><b>Look around</b><span>Wander the collection, one work at a time.</span></a><a href="${isMaker ? '/account' : '/join'}"><b>${isMaker ? 'Your studio' : 'Make things?'}</b><span>${isMaker ? 'Your work, your page, your prices.' : 'Open your museum: put your work in, keep it, hang the best.'}</span></a></div></div>`}
 <nav class="yu-more" aria-label="Everything else"><a href="/yours?tab=files">Papers and licences</a><a href="/yours?tab=cabinet">Your cabinet</a><a href="/yours?tab=market">The market</a><a href="/yours/following">Following</a><a href="/yours/looking">Your looking</a><a href="/notices">Notices</a><a href="/yours/devices">Your devices</a><a href="/yours?tab=settings">Settings</a></nav>
-</section>`;
+</section><script>(function(){var q=document.querySelector('[data-yu-q]');if(q)q.addEventListener('input',function(){var v=q.value.trim().toLowerCase(),any=false;document.querySelectorAll('.yu-tw').forEach(function(t){var on=!v||t.getAttribute('data-q').indexOf(v)>=0;t.hidden=!on;if(on)any=true});document.querySelectorAll('.yu-sec').forEach(function(s){s.hidden=!!v&&!s.querySelector('.yu-tw:not([hidden])')});document.querySelector('[data-yu-none]').hidden=any});document.addEventListener('click',function(e){document.querySelectorAll('.yu-mn[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})})})()</script>`;
     return V.layout({ title: `${name ? `${name} · ` : ''}You · Watermark`, path: '/yours', body });
   }
 

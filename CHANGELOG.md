@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.40.0 · You, the second version · 4 November 2026
+- Your first piece hangs large at the top, on the dark, with your name and a line: how many works, by how many makers, collecting since when.
+- Pick up where you left off: the book you are in, with how far you are.
+- Every piece sits on a mount, whole, never cropped; a ⋯ on each opens what you can do with it (print, Instax, background, TV, Wander, papers, pass it on), a sheet on a phone.
+- Find in yours, and Collected sorted by your order, newest or maker.
+
 ## 1.39.0 · You · 4 November 2026
 - You is one library of everything that is yours: Collected, Reading, Walls, Albums and My work, filtered by chips; each opens its own room.
 - One line says who you are here (name, email, key, pocket) with Studio and Settings beside it.
