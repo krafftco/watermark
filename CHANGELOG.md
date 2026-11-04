@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.37.1 · Share every page · 3 November 2026
+- Share beside Find on every public page: the phone's own share sheet, or the link copied on a computer. Not on private rooms.
+- The full-screen rooms carry Share beside Back in the app.
+
 ## 1.37.0 · The way back · 3 November 2026
 - Back on every page but the front door and Wander, in the browser and in the installed app: a chevron top left, as on Instagram.
 - The trail: the arrow beside Back (or a long press on it) lists the last places you have been, so you can go back several at once.
