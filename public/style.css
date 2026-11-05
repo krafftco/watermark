@@ -5424,3 +5424,6 @@ body:has(.yu) .rm-bar{display:none}
 .crk-w p{margin:0}.crk-w small{color:var(--muted,#777)}
 .crk-sum{margin:4px 0;font-size:14px}.crk-ok a{color:#4f7a52}.crk-no a{color:#a33}
 .crk-stop-t,.crk-chk-t{display:block;font-size:13px;margin:2px 0 0 26px}.crk-stop-t{color:#a33}.crk-chk-t{color:#8a6418}
+.apl-ov{color:#c9a24a!important}
+.rgy-onview{color:#8a6418}
+.rgy-wall-0{position:absolute;display:block;border:1px solid rgba(40,30,20,.55);background:rgba(255,255,255,.35);box-shadow:0 2px 8px rgba(0,0,0,.12)}

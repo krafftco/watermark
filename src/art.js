@@ -58,7 +58,12 @@ function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, 
   function ensure(name, extra = {}) {
     name = String(name || '').replace(/\s+/g, ' ').trim(); if (!name || /^(unknown|anonymous|various|unidentified)/i.test(name)) return null;
     const n = norm(name), ns = norm(sortName(name));
-    let a = db.prepare('SELECT * FROM artists').all().find(x => norm(x.name) === n || norm(x.sort_name) === n || norm(x.name) === ns || norm(x.sort_name) === ns);
+    // An index by name, rebuilt only when the hall grows (5 Nov: MoMA's thousands of artists made a scan of every
+    // artist on each call too slow for a feed).
+    const cnt = db.prepare('SELECT COUNT(*) n, MAX(id) m FROM artists').get(); const key = `${cnt.n}|${cnt.m}`;
+    if (!ensure.idx || ensure.idx.key !== key) { const map = new Map(); for (const x of db.prepare('SELECT id, name, sort_name FROM artists').all()) for (const k of [norm(x.name), norm(x.sort_name)]) if (k && !map.has(k)) map.set(k, x.id); ensure.idx = { key, map }; }
+    const hit = ensure.idx.map.get(n) || ensure.idx.map.get(ns);
+    let a = hit ? byId(hit) : null;
     if (!a) {
       let slug = slugify(name); let i = 2; while (db.prepare('SELECT 1 FROM artists WHERE slug=?').get(slug)) slug = `${slugify(name)}-${i++}`;
       db.prepare('INSERT INTO artists (slug, name, sort_name, born, died, nationality, movement) VALUES (?,?,?,?,?,?,?)').run(slug, name, sortName(name), extra.born || null, extra.died || null, extra.nationality || null, extra.movement || null);
@@ -224,11 +229,11 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     const museums = KP.length ? KP.map(k => ({ html: `<a href="/art/visit/${esc(k.qid)}">${esc(k.name)}</a>${k.city ? `, ${esc(k.city)}` : ''} <small>${k.n}</small>` })) : [...new Set(ws.map(w => w.keeps).filter(Boolean))].slice(0, 12);
     const claimLine = a.claim_status === 'claimed' ? `This page is kept with ${esc(a.claimed_name || 'the artist’s representative')}.${a.terms ? ` ${esc(a.terms)}` : ''}` : `Are you ${esc(a.name)}, the estate, a foundation or the gallery that represents the work? The page is yours to keep: the life in your words, the dates, and what may be collected. <a href="/art/${esc(a.slug)}/claim">Write to the house</a>.`;
     let binding = null; try { binding = require('./binding'); } catch (e) { /* */ }
-    const CAT = app.locals.catalogue; const cat = CAT ? CAT.of(a, ws) : [];
+    const CAT = app.locals.catalogue; const cat = CAT ? CAT.of(a, ws, { limit: whole ? 4000 : 1200 }) : []; const knownN = CAT && CAT.count ? (CAT.count(a).n || cat.length) : cat.length;
     for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
-    const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki }));
+    const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki, url: c.object_url, onView: c.on_view }));
     const show = app.locals.shows ? app.locals.shows.forPage(a) : null;
-    const body = AP.render({ a, ws, ghosts, show, whole, known: cat.length, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const body = AP.render({ a, ws, ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
     const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     pageCache.set(ck, { at: Date.now(), html });

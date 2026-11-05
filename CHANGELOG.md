@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.56.0 · MoMA, the record · 5 November 2026
+- The Museum of Modern Art's open collection data (CC0) comes into the house: 160,928 works and 15,999 artists, read again each month. Records only; no MoMA image is taken.
+- MoMA's artists join the hall (five works or more there, or a Wikidata identifier), with their dates, nationality, Wikidata and Getty identifiers; an artist the house knows is matched, never doubled.
+- Every work joins its artist's catalogue as a known work, "At MoMA", with the gallery it hangs in when on view.
+- Every work gets a record in the registry: accession, credit line, date acquired, department, classification, measured size; the credit line is provenance's last line; one register entry a batch.
+- The registry's record gains structure for every holder: classification, credit line, date acquired, department, where it hangs, measured centimetres and identifiers. A record with no picture still shows the work to scale on a wall.
+- A great collection's page (See it in person) opens with what is on view and a dozen by each of its sixty most-held artists; a very large artist's page is sampled evenly across the years.
+
 ## 1.55.0 · Before filing · 5 November 2026
 - Every copyright group is read against the Office's rules before it is filed: work by work, what stops it, what to check, what the record already proves (Studio → Copyright → a group).
 - The packet: the group application's fields, the title list and the deposit's names, with the checks beside each photograph, as JSON for the Office's coming registration system.

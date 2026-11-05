@@ -162,18 +162,37 @@ function mountCatalogue(app, { db, V, C, ledger, studioOnly }) {
   });
   app.get('/art/visit/:qid', (req, res) => {
     const k = keeper(qidOf(req.params.qid)); if (!k) return res.sendStatus(404);
-    const rows = db.prepare('SELECT c.*, a.name AS artist, a.slug AS artist_slug FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.collection_qid=? ORDER BY a.name, COALESCE(c.year, 99999), c.title').all(k.qid);
+    // A great collection (MoMA's 150,000) is told in parts, never in one page: what is on view now, then each artist's
+    // first dozen with the way to the rest (5 Nov: the whole list was 33 MB).
+    const total = db.prepare('SELECT COUNT(*) n FROM catalogue WHERE collection_qid=?').get(k.qid).n, BIG = total > 600;
+    const SEL = 'SELECT c.id, c.title, c.year, c.medium, c.image, c.object_url, c.on_view, a.name AS artist, a.slug AS artist_slug FROM catalogue c JOIN artists a ON a.id=c.artist_id';
+    const tops = BIG ? db.prepare('SELECT a.id, a.slug, a.name, COUNT(*) n FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.collection_qid=? GROUP BY a.id, a.slug, a.name ORDER BY COUNT(*) DESC LIMIT 60').all(k.qid) : [];
+    const counts = new Map(tops.map(t => [t.slug, t.n]));
+    const rows = BIG ? tops.flatMap(t => db.prepare(`${SEL} WHERE c.collection_qid=? AND c.artist_id=? ORDER BY (c.on_view IS NULL), COALESCE(c.year, 99999), c.title LIMIT 12`).all(k.qid, t.id)).sort((x, y) => x.artist.localeCompare(y.artist))
+      : db.prepare(`${SEL} WHERE c.collection_qid=? ORDER BY a.name, COALESCE(c.year, 99999), c.title`).all(k.qid);
+    const onView = BIG ? db.prepare(`${SEL} WHERE c.collection_qid=? AND c.on_view IS NOT NULL ORDER BY c.on_view, a.name LIMIT 120`).all(k.qid) : [];
     const held = new Map(); for (const w of db.prepare("SELECT w.slug, w.source_url, w.width, w.height, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.source_url LIKE 'https://commons.wikimedia.org/%'").all()) held.set(ukey(w.source_url).replace(/^.*\/wiki\/File:/, '').replace(/_/g, ' '), w);
     const by = new Map(); rows.forEach(r => { if (!by.has(r.artist_slug)) by.set(r.artist_slug, { name: r.artist, list: [] }); by.get(r.artist_slug).list.push(r); });
     const where = [k.city, k.country].filter(Boolean).join(', ');
     const tile = r => { const w = r.image ? held.get(r.image) : null; return w ? `<a class="ipv-w" href="/m/${esc(w.handle)}/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(r.title)}" loading="lazy"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}><span><b>${esc(r.title)}</b>${r.year ? ` · ${r.year}` : ''}</span></a>` : `<div class="ipv-w ipv-g"><b>${esc(r.title)}</b>${r.year ? `<span>${r.year}</span>` : ''}${r.medium ? `<i>${esc(r.medium)}</i>` : ''}${r.object_url ? `<a href="${esc(r.object_url)}" rel="noopener" target="_blank">The museum’s page</a>` : ''}</div>`; };
-    res.send(V.layout({ title: `${k.name} · See it in person · Watermark`, path: `/art/visit/${k.qid}`, desc: `${rows.length} works in the hall are kept at ${k.name}${where ? `, ${where}` : ''}.`, body: `<main class="ipv"><header class="ipv-h"><p class="k"><a href="/art/visit">See it in person</a>${where ? ` · ${esc(where)}` : ''}</p><h1>${esc(k.name)}</h1><p class="ipv-l">${rows.length} work${rows.length === 1 ? '' : 's'} from the hall ${rows.length === 1 ? 'is' : 'are'} kept here. Works travel and rest in storage: check with them before you go.</p><p class="ipv-a">${k.site ? `<a class="buy-btn" href="${esc(k.site)}" rel="noopener" target="_blank">Plan a visit</a>` : ''}${k.lat != null ? ` <a href="https://www.openstreetmap.org/?mlat=${k.lat}&mlon=${k.lon}#map=16/${k.lat}/${k.lon}" rel="noopener" target="_blank">On the map</a>` : ''}</p></header>
-${[...by.entries()].map(([slug, g]) => `<section class="ipv-art"><h2><a href="/art/${esc(slug)}">${esc(g.name)}</a> <small>${g.list.length}</small></h2><div class="ipv-grid">${g.list.map(tile).join('')}</div></section>`).join('')}
-<p class="ipv-n">Where each work is kept comes from Wikidata, the open record the world’s museums share. The house has no connection with ${esc(k.name)}.</p></main>` }));
+    res.send(V.layout({ title: `${k.name} · See it in person · Watermark`, path: `/art/visit/${k.qid}`, desc: `${total} works in the hall are kept at ${k.name}${where ? `, ${where}` : ''}.`, body: `<main class="ipv"><header class="ipv-h"><p class="k"><a href="/art/visit">See it in person</a>${where ? ` · ${esc(where)}` : ''}</p><h1>${esc(k.name)}</h1><p class="ipv-l">${total.toLocaleString()} work${total === 1 ? '' : 's'} from the hall ${total === 1 ? 'is' : 'are'} kept here. Works travel and rest in storage: check with them before you go.</p><p class="ipv-a">${k.site ? `<a class="buy-btn" href="${esc(k.site)}" rel="noopener" target="_blank">Plan a visit</a>` : ''}${k.lat != null ? ` <a href="https://www.openstreetmap.org/?mlat=${k.lat}&mlon=${k.lon}#map=16/${k.lat}/${k.lon}" rel="noopener" target="_blank">On the map</a>` : ''}</p></header>
+${onView.length ? `<section class="ipv-art"><h2>On view now <small>${onView.length}${onView.length === 120 ? '+' : ''}</small></h2><div class="ipv-grid">${onView.map(r => tile(r).replace('</b>', `</b><em>${esc(r.artist)} · ${esc(r.on_view)}</em>`)).join('')}</div></section>` : ''}
+${BIG ? `<p class="ipv-l">${total.toLocaleString()} works in all. The sixty artists with the most works here, a dozen each; every artist's page has the rest.</p>` : ''}
+${[...by.entries()].map(([slug, g]) => `<section class="ipv-art"><h2><a href="/art/${esc(slug)}">${esc(g.name)}</a> <small>${(counts.get(slug) || g.list.length).toLocaleString()}</small></h2><div class="ipv-grid">${g.list.map(tile).join('')}</div>${counts.get(slug) > g.list.length ? `<p><a href="/art/${esc(slug)}">All ${counts.get(slug).toLocaleString()} →</a></p>` : ''}</section>`).join('')}
+<p class="ipv-n">Where each work is kept comes from Wikidata, the open record the world’s museums share, and from the museums' own open data. The house has no connection with ${esc(k.name)}.</p></main>` }));
   });
   // The rows, each matched to a held work when the house has it (by the photograph's own address, else the title).
-  function of(a, held = []) {
-    const rows = db.prepare('SELECT * FROM catalogue WHERE artist_id=? ORDER BY COALESCE(year, 99999), title').all(a.id);
+  function of(a, held = [], { limit = 0 } = {}) {
+    // An archive of sixteen thousand (Mies at MoMA) is sampled evenly across the years for the page, never cut at a year.
+    let rows;
+    const n = limit ? db.prepare('SELECT COUNT(*) n FROM catalogue WHERE artist_id=?').get(a.id).n : 0;
+    if (limit && n > limit) {
+      const ids = db.prepare('SELECT id, on_view FROM catalogue WHERE artist_id=? ORDER BY COALESCE(year, 99999), title').all(a.id);
+      const step = ids.length / limit, pick = new Set(ids.filter(r => r.on_view).map(r => r.id)); for (let i = 0; pick.size < limit && i < ids.length; i += step) pick.add(ids[Math.floor(i)].id);
+      const list = [...pick]; rows = [];
+      for (let i = 0; i < list.length; i += 500) rows.push(...db.prepare(`SELECT * FROM catalogue WHERE id IN (${list.slice(i, i + 500).map(() => '?').join(',')})`).all(...list.slice(i, i + 500)));
+      rows.sort((x, y) => (x.year || 99999) - (y.year || 99999) || String(x.title).localeCompare(String(y.title)));
+    } else rows = db.prepare('SELECT * FROM catalogue WHERE artist_id=? ORDER BY COALESCE(year, 99999), title').all(a.id);
     const bySrc = new Map(held.filter(w => w.source_url).map(w => [ukey(w.source_url), w])); const byTitle = new Map(); held.forEach(w => { const k = norm(w.title); if (k && !byTitle.has(k)) byTitle.set(k, w); });
     const used = new Set();
     return rows.map(r => { let w = r.image ? bySrc.get(ukey(commonsId(r.image))) : null; if (!w) { const t = byTitle.get(norm(r.title)); if (t && !used.has(t.id)) w = t; } if (w) used.add(w.id); return { ...r, work: w || null }; });

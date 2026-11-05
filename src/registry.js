@@ -167,13 +167,13 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
   }
   // The work drawn to scale on a wall above a sofa (210 cm), as a buyer would stand before it at home.
   function wallOf(o, ph) {
-    const c = cmOf(o.dims); if (!c || c.h > 1200 || c.w > 1200) return '';
+    let c = null; try { const m = o.cm ? JSON.parse(o.cm) : null; if (m && m.h && m.w) c = { h: m.h, w: m.w }; } catch (e) { /* */ } c = c || cmOf(o.dims); if (!c || c.h > 1200 || c.w > 1200) return '';
     const SOFA = 210, SOFA_H = 82, EYE = 152;
     const W = Math.max(340, c.w * 1.6 + 40), floorTop = Math.max(c.h / 2 + EYE + 30, 240);
     const H = floorTop; const bottom = Math.max(EYE - c.h / 2, SOFA_H + 18);
     const pct = (v, of) => (v / of * 100).toFixed(3);
     const ft = cm => { const i = Math.round(cm / 2.54); return `${Math.floor(i / 12)} ft ${i % 12} in`; };
-    return `<div class="rgy-wall" style="aspect-ratio:${W.toFixed(1)}/${H.toFixed(1)}"><img class="rgy-wall-w" src="${esc(ph)}" alt="" loading="lazy" style="width:${pct(c.w, W)}%;height:${pct(c.h, H)}%;left:${pct((W - c.w) / 2, W)}%;bottom:${pct(bottom, H)}%"><span class="rgy-wall-s" style="width:${pct(SOFA, W)}%;height:${pct(SOFA_H, H)}%;left:${pct((W - SOFA) / 2, W)}%"></span></div>
+    return `<div class="rgy-wall" style="aspect-ratio:${W.toFixed(1)}/${H.toFixed(1)}">${ph ? `<img class="rgy-wall-w" src="${esc(ph)}" alt="" loading="lazy" style="width:${pct(c.w, W)}%;height:${pct(c.h, H)}%;left:${pct((W - c.w) / 2, W)}%;bottom:${pct(bottom, H)}%">` : `<span class="rgy-wall-w rgy-wall-0" style="width:${pct(c.w, W)}%;height:${pct(c.h, H)}%;left:${pct((W - c.w) / 2, W)}%;bottom:${pct(bottom, H)}%"></span>`}<span class="rgy-wall-s" style="width:${pct(SOFA, W)}%;height:${pct(SOFA_H, H)}%;left:${pct((W - SOFA) / 2, W)}%"></span></div>
 <p class="note">Drawn to scale from the dimensions on the record: ${Math.round(c.h)} × ${Math.round(c.w)} cm (${ft(c.h)} × ${ft(c.w)}), hung at eye level above a sofa ${SOFA} cm wide.</p>`;
   }
   // Before and after, among the artist's public records (the lot's own neighbours).
@@ -198,7 +198,7 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
     const life = a && (a.born || a.died) ? `(${a.born && a.died ? `${a.born}–${a.died}` : a.born ? `b. ${a.born}` : `d. ${a.died}`})` : '';
     const artistLine = o.artist ? `<p class="rgy-art">${a ? `<a href="/art/${esc(a.slug)}">${esc(o.artist)}</a>` : esc(o.artist)}${life ? ` <span>${esc(life)}</span>` : ''}</p>` : '';
     const madeLine = o.made ? (/^\d{3,4}$/.test(String(o.made).trim()) ? `Made in ${esc(o.made)}` : `Made ${esc(o.made)}`) : '';
-    const tomb = [o.marks ? esc(o.marks) : '', o.medium ? esc(o.medium) : '', o.dims ? esc(o.dims) : '', madeLine].filter(Boolean).map(x => `<span>${x}</span>`).join('');
+    const tomb = [o.classification ? esc(o.classification) : '', o.marks ? esc(o.marks) : '', o.medium ? esc(o.medium) : '', o.dims ? esc(o.dims) : '', madeLine].filter(Boolean).map(x => `<span>${x}</span>`).join('');
     const exh = rest.filter(e => e.kind === 'exhibited').sort((x, y) => (x.year_from || 9999) - (y.year_from || 9999));
     const lit = rest.filter(e => e.kind === 'published').sort((x, y) => (x.year_from || 9999) - (y.year_from || 9999));
     const cond = rest.filter(e => e.kind === 'condition');
@@ -232,7 +232,7 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
     const views = (ph ? [{ src: ph, big: zoom, line: 'The work' }] : []).concat(viewsOf(o).map(v => ({ id: v.id, src: `/registry/o/${o.id}/view/${v.id}${k}`, big: `/registry/o/${o.id}/view/${v.id}${k}`, line: v.line || 'Another view' })));
     const nav = navOf(o, r);
     const kept = keptBy();
-    const scale = ph ? wallOf(o, ph) : '';
+    const scale = wallOf(o, ph);
     return `${nav}<article class="rgy-lot" data-rgy-lot>
 <div class="rgy-lot-p">${ph ? `<figure class="rgy-ph"><button type="button" class="rgy-zbtn" data-rgy-zoom="${esc(zoom)}" title="Look closely"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}" data-rgy-main></button></figure>
 ${views.length > 1 ? `<div class="rgy-views">${views.map((v, i) => `<button type="button" class="${i ? '' : 'on'}" data-rgy-view="${esc(v.src)}" data-rgy-big="${esc(v.big)}" title="${esc(v.line)}"><img src="${esc(v.src)}" alt="" loading="lazy"><span>${esc(v.line)}</span></button>`).join('')}</div>` : ''}
@@ -600,6 +600,8 @@ ${studioKnown()}${studioOffers()}
   function holdLine(o) {
     return `<p class="rgy-meta rgy-hold">${o.holder ? `In the collection of <b>${esc(o.holder)}</b>` : 'Where it is kept is not recorded'}${o.accession ? ` · ${esc(o.accession)}` : ''}</p>`
       + `<p class="rgy-meta">${[o.source_url ? `<a href="${esc(o.source_url)}" rel="noopener">The holder’s own record</a>` : '', o.qid ? `<a href="https://www.wikidata.org/wiki/${esc(o.qid)}" rel="noopener">Wikidata</a>` : ''].filter(Boolean).join(' · ')}</p>`
+      + (o.credit_line ? `<p class="rgy-meta rgy-credit">${esc(o.credit_line)}${o.acquired_on ? ` · acquired ${esc(o.acquired_on)}` : ''}${o.department ? ` · ${esc(o.department)}` : ''}</p>` : '')
+      + (o.on_view ? `<p class="rgy-meta rgy-onview">On view now: ${esc(o.on_view)}</p>` : '')
       + (!o.photo && !o.work_id ? '<p class="rgy-meta">Known to exist; no open photograph in the house yet.</p>' : '');
   }
   function knownBlock(o, r, rd, n) {
