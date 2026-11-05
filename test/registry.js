@@ -129,5 +129,13 @@ const { createApp } = require('../src/app');
   t = await (await go(stranger, `/r/${mno}`)).text(); assert.ok(t.includes('Orenstein') && t.includes('Added by Bea Moss, accepted by the house'), 'it stands, in their name');
   assert.ok((await multi(stranger, `/registry/o/${mo.id}/offer`, { kind: 'note', party: 'x', source: 'y', name: 'z' })).headers.get('location').startsWith('/signin'), 'a stranger is asked to sign in');
   t = await (await go(stranger, '/registry?q=Bruegel')).text(); assert.ok(t.includes('The Harvesters') && t.includes('The Gloomy Day'), 'found by word');
+
+  // never asked to be registered: a museum's work, the public domain, another artist's
+  const CS = app.locals.copyrightState;
+  assert.equal(CS(db.prepare('SELECT * FROM works WHERE id=?').get(mw.id)).state, 'held', 'a museum’s work is the museum’s to register');
+  db.prepare("UPDATE works SET open='pd' WHERE id=?").run(mw.id);
+  const pdw = db.prepare('SELECT * FROM works WHERE id=?').get(mw.id); assert.equal(CS(pdw).state, 'open'); assert.ok(/public domain/.test(CS(pdw).line));
+  assert.equal(app.locals.copyrightRegistrable(pdw), false);
+  t = await (await go(studio, `/account/copyright?maker=${mus.handle}`)).text(); assert.ok(!t.includes('The Harvesters'), 'not offered for registration');
   srv.close(); console.log('registry: all hold'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

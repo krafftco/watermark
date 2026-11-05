@@ -17,7 +17,7 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
 
   // Photographs not yet in any group, sorted into the groups the Office accepts.
   function proposals() {
-    const rows = db.prepare("SELECT id, slug, title, status, created_at, taken_at FROM works WHERE maker_id=? AND copyright_group IS NULL AND (copyright_reg IS NULL OR copyright_reg='') ORDER BY created_at, id").all(maker.id);
+    const rows = db.prepare("SELECT id, slug, title, status, created_at, taken_at, open, artist_id, maker_id FROM works WHERE maker_id=? AND status IN ('held','hidden') AND copyright_group IS NULL AND (copyright_reg IS NULL OR copyright_reg='') ORDER BY created_at, id").all(maker.id).filter(w => registrable(w));
     const out = [];
     const byYear = {};
     for (const w of rows) {
@@ -85,14 +85,33 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
   });
   // Where a photograph stands with the Office, in one line, for the work page and the Shield.
   // Copyright exists from the moment the photograph is made; registration is the public record of it.
+  // What is not the house's (or the maker's) to register: the public domain, an open licence's holder, another
+  // artist's work, a museum's collection. These are told plainly and never asked to be registered (5 Nov).
+  const LIC = { 'cc-by': 'CC BY', 'cc-by-sa': 'CC BY-SA', 'cc-by-nc': 'CC BY-NC' };
+  const makerOf = id => db.prepare('SELECT id, name, kind, handle FROM makers WHERE id=?').get(id) || {};
+  function notOurs(w) {
+    if (w.open === 'pd') return { state: 'open', line: 'In the public domain: there is no copyright in it to register, and a faithful photograph of it adds none.' };
+    if (w.open === 'cc0') return { state: 'open', line: 'Dedicated to the public domain (CC0) by its holder: there is nothing to register.' };
+    if (w.open && LIC[w.open]) return { state: 'open', line: `Shared by its holder under ${LIC[w.open]}; any registration is the holder’s, not the house’s.` };
+    const m = makerOf(w.maker_id);
+    if (w.artist_id) {
+      const a = db.prepare('SELECT * FROM artists WHERE id=?').get(w.artist_id); let r = null; try { r = a && app.locals.art && app.locals.art.rights ? app.locals.art.rights(a, w) : null; } catch (e) { r = null; }
+      if (r && r.state === 'pd') return { state: 'open', line: `${a.name}’s work is in the public domain: there is no copyright in it to register.` };
+      if (a) return { state: 'artist', line: `The work is ${a.name}’s; its copyright, and any registration, are the artist’s or their estate’s.` };
+    }
+    if (m.kind === 'institution' || m.handle === 'the-public-domain') return { state: 'held', line: `Held in the collection of ${m.name}; any registration is the holder’s.` };
+    return null;
+  }
+  const registrable = w => !notOurs(w);
   function stateOf(w) {
+    if (!w.copyright_reg) { const x = notOurs(w); if (x) return x; }
     if (w.copyright_reg) return { state: 'registered', reg: w.copyright_reg, line: `Registered with the U.S. Copyright Office, ${w.copyright_reg}.` };
     const g = w.copyright_group ? db.prepare('SELECT * FROM copyright_groups WHERE id=?').get(w.copyright_group) : null;
     if (g && g.status === 'filed') return { state: 'filed', sr: g.sr, line: `Filed with the U.S. Copyright Office${g.filed_at ? ` on ${new Date(g.filed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}; registration pending${g.sr ? ` (service request ${g.sr})` : ''}.` };
     if (g) return { state: 'prepared', line: `Prepared for registration with the U.S. Copyright Office${g.title ? `, in the group ${g.title.replace(/^.*?: /, '')}` : ''}.` };
     return { state: 'none', line: 'Copyright held by the maker from the moment it was made; not yet registered with the U.S. Copyright Office.' };
   }
-  app.locals.copyrightState = stateOf;
+  app.locals.copyrightState = stateOf; app.locals.copyrightRegistrable = registrable;
   // The public account of the bridge, for the Office and for anyone who asks how it works.
   app.get('/copyright', (req, res) => {
     const n = { registered: db.prepare("SELECT COUNT(*) n FROM works WHERE copyright_reg IS NOT NULL AND copyright_reg!=''").get().n,

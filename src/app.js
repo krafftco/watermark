@@ -1966,9 +1966,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       { n: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active' AND ends_at IS NOT NULL AND ends_at <= ?").get(new Date(Date.now() + 60 * 864e5).toISOString()).n, label: ' licenses ending within 60 days', href: '/studio/activity' },
       { n: n("SELECT COUNT(*) n FROM sightings WHERE status='new'"), label: ' sightings of your work to look at', href: '/studio/sightings' },
       { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
-      { n: all.filter(w => !w.copyright_reg && !w.copyright_group).length, label: ' photographs not yet registered with the U.S. Copyright Office', href: '/studio/copyright' },
-      { n: all.filter(w => !w.edition_size && w.status === 'held').length, label: ' public photographs not yet numbered as editions', href: '/studio/editions' },
-      { n: all.filter(w => w.status === 'held' && !meets(w, 'campaign')).length, label: ' public photographs held below full resolution: upload their masters', href: '/studio/masters#need' },
+      { n: all.filter(w => w.maker_id === maker.id && ['held', 'hidden'].includes(w.status) && !w.copyright_reg && !w.copyright_group && (!app.locals.copyrightRegistrable || app.locals.copyrightRegistrable(w))).length, label: ' photographs of the house not yet registered with the U.S. Copyright Office', href: '/studio/copyright' },
+      { n: all.filter(w => w.maker_id === maker.id && !w.open && !w.edition_size && w.status === 'held').length, label: ' public photographs of the house not yet numbered as editions', href: '/studio/editions' },
+      { n: all.filter(w => w.maker_id === maker.id && !w.open && w.status === 'held' && !meets(w, 'campaign')).length, label: ' public photographs of the house held below full resolution: upload their masters', href: '/studio/masters#need' },
     ];
     const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
     const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();

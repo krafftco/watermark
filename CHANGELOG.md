@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.52.1 · Not ours to register · 5 November 2026
+- Works in the public domain, works shared under an open licence, another artist's work and a museum's collection are no longer counted as 'not yet registered' or offered for registration. Each says plainly why: there is no copyright to register, or the registration is the holder's or the artist's.
+- The house desk counts only the house's own photographs for registration, editions and masters.
+
 ## 1.52.0 · What is known · 5 November 2026
 - Every museum work the house holds can have a registry record of a public collection: what it is, who holds it (from the museum's own record: the credit line, the year it came in, the museum's attribution), and its ownership history and shows from Wikidata, each line naming its source. The record is the house's, never the museum's, and nothing on it is for sale.
 - Works known to exist from an artist's catalogue get records too, waiting for a photograph and for what is not yet known.
