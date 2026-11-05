@@ -74,7 +74,10 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
   const job = { on: false, step: null, artists: 0, works: 0, linked: 0, made: 0, catalogued: 0, recorded: 0, at: null, error: null };
   const GOV = () => app.locals.governor;
   const lane = (label, fn) => (GOV() && GOV().turn ? GOV().turn(label, fn) : fn());
-  const breathe = async () => { if (GOV() && GOV().settle) await GOV().settle('moma'); else await new Promise(r => setImmediate(r)); };
+  // A breath between batches: short, and longer only while memory is high (5 Nov: the visitors' gate held each batch a
+  // minute on the live house, ten hours for the whole record; a batch is a few hundred rows, gone in a moment).
+  const breathe = async () => { if (app.locals.noTimers) return new Promise(r => setImmediate(r)); await new Promise(r => setTimeout(r, 150));
+    for (let i = 0; i < 20 && process.memoryUsage().rss / 1048576 > (+process.env.GOV_MEM_MB || 1600); i++) await new Promise(r => setTimeout(r, 1500)); };
 
   async function fetchTo(name) {
     const base = app.locals.moma.base || BASE();

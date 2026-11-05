@@ -14,7 +14,7 @@ function boxMb() {
 
 function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math.round(boxMb() * 0.4) : 380), busyN = +process.env.GOV_BUSY || 6, pauseMs = +process.env.GOV_PAUSE_MS || 600, bootQuietS = +process.env.BOOT_QUIET_S || 180, bootGapS = +process.env.BOOT_GAP_S || 15 } = {}) {
   const hits = []; // visitor requests (pages and API) in the last ten seconds
-  const STATIC = /^\/(static|img|sw\.js|favicon|apple-touch|app\/|vendor|portrait|healthz)/;
+  const STATIC = /^\/(static|img|sw\.js|favicon|apple-touch|app\/|vendor|portrait|healthz|api\/here)|\/stood$/; // beacons are not people waiting
   app.use((req, res, next) => { if (!STATIC.test(req.path)) { const now = Date.now(); hits.push(now); while (hits.length && hits[0] < now - 10000) hits.shift(); } next(); });
   const rssMb = () => Math.round(process.memoryUsage().rss / 1048576);
   const pressure = () => rssMb() > memMb;

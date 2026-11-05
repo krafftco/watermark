@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.58.1 · MoMA at speed · 5 November 2026
+- The MoMA read breathes briefly between batches and waits only on memory, not on visitors; on the live house the visitors' gate had held every batch a minute (ten hours for the whole record).
+- The governor no longer counts beacons (the page's "here" and "stood") as visitors waiting.
+
 ## 1.58.0 · The private desk · 5 November 2026
 - A collector tells the house what they are looking for; an owner, what they would consider selling (a work on their registry, or described). Only the house reads either.
 - The desk finds the matches (artist, medium, years, size, price) and the house proposes an introduction with the price book's view beside it; each side sees the other only as described, never by name, until both say yes; then one letter introduces them.
