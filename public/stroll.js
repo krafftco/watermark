@@ -79,7 +79,7 @@
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
       + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '" title="Bravo: it floored me. Three a month.">' + (ic.bravo || '') + '<span>Bravo</span></button>'
       + '<button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">' + ic.hang + '<span>Save</span></button>'
-      + '<button type="button" class="st-b" data-st-share title="Send it to someone.">' + ic.share + '<span>Share</span></button>'
+      + '<button type="button" class="st-b" data-st-share title="Give a flower: send this to someone; it opens for them like a present.">' + ic.share + '<span>Flower</span></button>'
       + '<a class="st-b st-study" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Study it: the work large on the easel, with values, notan, squint, a grid and a timer.">' + (ic.easel || '') + '<span>Study</span></a>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
       + '<div class="st-more" data-st-morebox hidden>'
@@ -265,9 +265,11 @@
       else if (navigator.clipboard) navigator.clipboard.writeText(bu).then(function () { say('Link copied. It opens on the book.'); });
       return;
     }
-    var url = location.origin + '/m/' + w.makerSlug + '/' + w.slug, text = w.title + (w.artist ? ', by ' : ', a photograph by ') + w.maker + ' on Watermark';
-    if (navigator.share) navigator.share({ title: w.title, text: text, url: url }).catch(function () {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('Link copied.'); });
+    // A flower (5 Nov): the link opens on the picture alone, in the dark, with 'X found this for you.'
+    var me = root.getAttribute('data-me') || '';
+    var url = location.origin + '/flower/' + w.slug + (me ? '?from=' + encodeURIComponent(me) : ''), text = 'I found something for you: ' + w.title + (w.artist ? ', by ' : ', a photograph by ') + w.maker + '.';
+    if (navigator.share) navigator.share({ title: w.title, text: text, url: url }).then(function () { say('Given. It opens for them like a present.'); }).catch(function () {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('The link is copied. It opens for them like a present.'); });
   }
   scroller.addEventListener('click', function (e) {
     var it = e.target.closest('.st-i'); if (!it) return; var w = items[it.getAttribute('data-slug')]; if (!w) return;
@@ -601,6 +603,15 @@
     if (arrivals.length >= 15 && !told) { try { sessionStorage.setItem('wm_stay', '1'); } catch (e) {} hold(); }
   }
   // The newcomer's nudge (23 Oct, for a phone handed over in a gallery): once per device, if the first photograph is
+  // The flower opens (5 Nov): the dark, the picture alone coming up slowly, the line, and only then the house.
+  (function () {
+    if (!root.hasAttribute('data-gift')) return; var fl = root.querySelector('[data-st-flower]');
+    var open = function () { root.classList.remove('st-gifting'); if (fl) fl.classList.add('st-fl-off'); try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} };
+    setTimeout(function () { if (fl) fl.classList.add('st-fl-on'); }, 1800);
+    var t = setTimeout(open, 7200);
+    var early = function () { clearTimeout(t); open(); };
+    scroller.addEventListener('scroll', early, { once: true, passive: true }); root.addEventListener('pointerdown', early, { once: true });
+  })();
   // still on screen four seconds in and this phone has never swiped here, one line and a chevron, 'Swipe up for the
   // next'; the first scroll takes it away and the phone remembers.
   (function () {
@@ -608,7 +619,7 @@
     if (swiped) return; var nd = root.querySelector('[data-st-swipe]'); if (!nd) return;
     var away = function () { try { localStorage.setItem('wm_swiped', '1'); } catch (e) {} clearTimeout(t); nd.classList.remove('on'); setTimeout(function () { nd.hidden = true; }, 700); scroller.removeEventListener('scroll', away); };
     scroller.addEventListener('scroll', away, { passive: true });
-    var t = setTimeout(function () { if (scroller.scrollTop > 10) return away(); nd.hidden = false; requestAnimationFrame(function () { nd.classList.add('on'); }); setTimeout(away, 9000); }, 4000);
+    var t = setTimeout(function () { if (scroller.scrollTop > 10) return away(); nd.hidden = false; requestAnimationFrame(function () { nd.classList.add('on'); }); setTimeout(away, 9000); }, root.hasAttribute('data-gift') ? 8200 : 4000);
   })();
   function hold() {
     var st = root.querySelector('[data-st-stay]'); if (!st) return; st.hidden = false; requestAnimationFrame(function () { st.classList.add('on'); });

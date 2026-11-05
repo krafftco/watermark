@@ -42,6 +42,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
 
   let r = await req(port, 'GET', '/house'); assert.equal(r.status, 200); assert.ok(r.body.includes('Test Dome'));
   // The front door is Wander (26 Oct): `/` opens on the picture; /house is the page about the house.
+  // A flower (5 Nov): a work sent opens alone, in the dark, as a present; the card is the picture; then Wander from there.
+  r = await req(port, 'GET', `/flower/${w.slug}?from=Amy`); assert.equal(r.status, 200); { const fb = r.body.toString(); assert.ok(/class="st st-gift st-gifting"/.test(fb) && /data-gift="1"/.test(fb) && fb.includes('Amy found this for you.') && /og:image" content="[^"]*\/img\/[^"]+\/large\?f=jpg/.test(fb) && /og:url" content="[^"]*\/flower\//.test(fb) && fb.includes('<title>Test Dome ·'), 'the flower opens: ' + fb.match(/<title>[^<]*/)[0]); }
+  r = await req(port, 'GET', `/flower/${w.slug}?from=<b>x`); assert.ok(r.body.toString().includes('Someone found this for you.'), 'a name that is not a name is no name');
+  r = await req(port, 'GET', '/flower/nothing-here'); assert.equal(r.status, 404);
+  r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(new RegExp(`data-send-url="[^"]*/flower/${w.slug}"`).test(r.body.toString()) && r.body.toString().includes('Give a flower'), 'the work page gives a flower');
   r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(/data-stroll data-front="1"/.test(r.body) && /class="st-i"/.test(r.body) && /data-st-hello/.test(r.body) && /href="\/house"/.test(r.body) && /Where great work is kept/.test(r.body), 'the front door is Wander');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Watermark Shield') && r.body.toString().includes('Held by Watermark for'), 'the shield');
   r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200); assert.equal(r.headers['content-type'], 'image/jpeg');
