@@ -207,11 +207,12 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
     }
   }
 
-  async function sync({ registry = true, source = true } = {}) {
+  const setRun = v => { try { if (v) db.prepare("INSERT INTO settings (k, v) VALUES ('moma_run', ?) ON CONFLICT (k) DO UPDATE SET v=excluded.v").run(v); else db.prepare("DELETE FROM settings WHERE k='moma_run'").run(); } catch (e) { /* */ } };
+  async function sync({ registry = true, source = true, only = null } = {}) {
     if (job.on) return job; Object.assign(job, { on: true, step: null, artists: 0, works: 0, linked: 0, made: 0, catalogued: 0, recorded: 0, at: new Date().toISOString(), error: null });
     try {
-      if (source) await readSource();
-      linkArtists(); await catalogue(); if (registry) await record();
+      if (only === 'registry') { setRun('registry'); await record(); setRun(null); }
+      else { if (source) await readSource(); linkArtists(); await catalogue(); if (registry) { setRun('registry'); await record(); setRun(null); } }
       db.prepare("INSERT INTO settings (k, v) VALUES ('moma_at', ?) ON CONFLICT (k) DO UPDATE SET v=excluded.v").run(new Date().toISOString());
       try { ledger.append(db, 'collection.recorded', 'moma', { holder: HOLDER, works: job.works, artists: job.linked, catalogued: job.catalogued, recorded: job.recorded }); } catch (e) { /* */ }
       try { if (app.locals.findIndexDirty) app.locals.findIndexDirty(); } catch (e) { /* */ }
@@ -233,16 +234,20 @@ ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
 <div class="hd-held"><span><b>${n.works.toLocaleString()}</b> works</span><span><b>${n.artists.toLocaleString()}</b> artists (${n.hall.toLocaleString()} in the hall)</span><span><b>${n.catalogue.toLocaleString()}</b> in the catalogues</span><span><b>${n.registry.toLocaleString()}</b> in the registry</span><span><b>${n.onView.toLocaleString()}</b> on view now</span></div>
 <p class="note">${job.on ? `Working: ${esc(job.step || '')} · ${job.works.toLocaleString()} works read · ${job.catalogued.toLocaleString()} catalogued · ${job.recorded.toLocaleString()} recorded. This page refreshes itself.` : n.at ? `Last read ${esc(n.at.slice(0, 16).replace('T', ' '))} UTC; read again each month by itself.` : 'Not yet read.'}${job.error ? ` <b>Last error:</b> ${esc(job.error)}` : ''}</p>
 <form method="post" action="/studio/moma/sync" class="form inline"><button${job.on ? ' disabled' : ''}>Read MoMA's collection, and record it all</button></form>
-<form method="post" action="/studio/moma/sync" class="form inline"><input type="hidden" name="registry" value="0"><button class="link"${job.on ? ' disabled' : ''}>Read it into the hall and the catalogues only</button></form>
+${n.catalogue > n.registry ? `<form method="post" action="/studio/moma/sync" class="form inline"><input type="hidden" name="only" value="registry"><button${job.on ? ' disabled' : ''}>Finish the registry (${(n.catalogue - n.registry).toLocaleString('en-US')} to record; no re-read)</button></form>` : ''}<form method="post" action="/studio/moma/sync" class="form inline"><input type="hidden" name="registry" value="0"><button class="link"${job.on ? ' disabled' : ''}>Read it into the hall and the catalogues only</button></form>
 ${top.length ? `<section class="hd-list"><div class="hd-h"><h2>The most collected</h2></div><p>${top.map(t => t.slug ? `<a href="/art/${esc(t.slug)}">${esc(t.name)}</a> ${t.works.toLocaleString()}` : `${esc(t.name)} ${t.works.toLocaleString()}`).join(' · ')}</p></section>` : ''}
 <p class="note">Source: <a href="${SOURCE}" rel="noopener">MoMA's collection data</a>, CC0. The house says MoMA is the holder and links its own record; it is not connected with MoMA. One heavy job at a time: not while another feed or import runs.</p>
 ${job.on ? '<script>setTimeout(()=>location.reload(),8000)</script>' : ''}</section>` }));
   });
   app.post('/studio/moma/sync', studioOnly, (req, res) => {
     if (job.on) return res.redirect('/studio/moma');
-    sync({ registry: String((req.body || {}).registry) !== '0' }).catch(() => {});
+    const only = (req.body || {}).only === 'registry' ? 'registry' : null;
+    sync({ registry: String((req.body || {}).registry) !== '0', only }).catch(() => {});
     res.redirect('/studio/moma?ok=' + encodeURIComponent('Reading MoMA’s collection in the background.'));
   });
+  // A registry run cut short by a restart carries on by itself, once the house is quiet (5 Nov: three restarts in a
+  // morning each stopped it).
+  if (!app.locals.noTimers) { const G = GOV(); const go = () => { try { const ROLE = require('./role'); if (ROLE.chores && !job.on && (db.prepare("SELECT v FROM settings WHERE k='moma_run'").get() || {}).v === 'registry') sync({ only: 'registry' }).catch(() => {}); } catch (e) { /* */ } }; if (G && G.boot) G.boot('moma resume', async () => go(), 0); else setTimeout(go, 240e3).unref(); }
   // Read again each month (MoMA updates the record "on a regular basis"), once it has been read once.
   if (!app.locals.noTimers) { const t = setInterval(() => { try { const ROLE = require('./role'); if (!ROLE.chores || job.on) return; const at = counts().at; if (at && Date.now() - Date.parse(at) > 30 * 864e5 && (!GOV() || !GOV().chores || GOV().chores())) sync().catch(() => {}); } catch (e) { /* */ } }, 6 * 3600e3); t.unref(); }
 

@@ -10,6 +10,7 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - Tell me that morning: one letter on the day, for everyone entering or one artist.
 - The morning: the register says each artist's work entered the public domain; the house gets a letter of what to bring in.
 - An artist's rights line now says the day their work enters the public domain.
+- MoMA: 'Finish the registry' records what is left without reading MoMA again, and a registry run cut short by a restart carries on by itself once the house is quiet.
 - The house's United States line follows the year (work first published in 1930 or before, in 2026), no longer fixed at 1928.
 
 ## 1.58.1 · MoMA at speed · 5 November 2026
