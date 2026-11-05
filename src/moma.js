@@ -68,7 +68,7 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
   // The registry's record gains MoMA's structure: what kind of object, the credit line, the date acquired, the department,
   // where it hangs, the measured size in centimetres (h, w, d, diameter, length, weight, duration) and every identifier.
   for (const [c, ty] of [['classification', 'TEXT'], ['credit_line', 'TEXT'], ['acquired_on', 'TEXT'], ['department', 'TEXT'], ['on_view', 'TEXT'], ['cm', 'TEXT'], ['ids', 'TEXT']]) col('objects', c, ty);
-  db.exec('CREATE INDEX IF NOT EXISTS objects_artist ON objects(artist_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS objects_artist ON objects(artist_id)'); db.exec('CREATE INDEX IF NOT EXISTS catalogue_qid ON catalogue(qid)');
 
   const dir = () => path.join(C.dataDir, 'moma');
   const job = { on: false, step: null, artists: 0, works: 0, linked: 0, made: 0, catalogued: 0, recorded: 0, at: null, error: null };
@@ -176,7 +176,10 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
     const OC = ['owner', 'title', 'artist', 'artist_id', 'made', 'made_year', 'medium', 'dims', 'catalogue_id', 'public', 'record_kind', 'holder', 'accession', 'source_url', 'classification', 'credit_line', 'acquired_on', 'department', 'on_view', 'cm', 'ids'];
     let left = max;
     while (left > 0) {
-      const cs = db.prepare("SELECT c.id, c.artist_id, c.qid, a.name aname, a.qid aqid, a.ulan FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.qid LIKE 'moma:%' AND NOT EXISTS (SELECT 1 FROM objects o WHERE o.catalogue_id=c.id) ORDER BY c.id LIMIT ?").all(Math.min(BATCH, left));
+      const t0 = Date.now();
+      const cs = db.prepare("SELECT c.id, c.artist_id, c.qid, a.name aname, a.qid aqid, a.ulan FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.qid >= 'moma:' AND c.qid < 'moma;' AND c.id > ? AND NOT EXISTS (SELECT 1 FROM objects o WHERE o.catalogue_id=c.id) ORDER BY c.id LIMIT ?").all(job.after || 0, Math.min(BATCH, left));
+      if (cs.length) job.after = cs[cs.length - 1].id; // the cursor: never the same rows twice, and the question never walks the whole table again
+      if (Date.now() - t0 > 5000) console.log(`[moma] the registry's question took ${Math.round((Date.now() - t0) / 1000)} s (after ${job.after})`);
       if (!cs.length) break; left -= cs.length;
       const mw = new Map(db.prepare(`SELECT * FROM moma_works WHERE oid IN (${cs.map(() => '?').join(',')})`).all(...cs.map(c => Number(c.qid.slice(5)))).map(w => [w.oid, w]));
       // One record a work: a joint work is recorded once, under its first artist the hall keeps.
@@ -209,7 +212,7 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
 
   const setRun = v => { try { if (v) db.prepare("INSERT INTO settings (k, v) VALUES ('moma_run', ?) ON CONFLICT (k) DO UPDATE SET v=excluded.v").run(v); else db.prepare("DELETE FROM settings WHERE k='moma_run'").run(); } catch (e) { /* */ } };
   async function sync({ registry = true, source = true, only = null } = {}) {
-    if (job.on) return job; Object.assign(job, { on: true, step: null, artists: 0, works: 0, linked: 0, made: 0, catalogued: 0, recorded: 0, at: new Date().toISOString(), error: null });
+    if (job.on) return job; Object.assign(job, { on: true, step: null, after: 0, artists: 0, works: 0, linked: 0, made: 0, catalogued: 0, recorded: 0, at: new Date().toISOString(), error: null });
     try {
       if (only === 'registry') { setRun('registry'); await record(); setRun(null); }
       else { if (source) await readSource(); linkArtists(); await catalogue(); if (registry) { setRun('registry'); await record(); setRun(null); } }
@@ -249,7 +252,7 @@ ${job.on ? '<script>setTimeout(()=>location.reload(),8000)</script>' : ''}</sect
   });
   // A registry run cut short by a restart carries on by itself, once the house is quiet (5 Nov: three restarts in a
   // morning each stopped it).
-  if (!app.locals.noTimers) { const G = GOV(); const go = () => { try { const ROLE = require('./role'); if (ROLE.chores && !job.on && (db.prepare("SELECT v FROM settings WHERE k='moma_run'").get() || {}).v === 'registry') sync({ only: 'registry' }).catch(() => {}); } catch (e) { /* */ } }; if (G && G.boot) G.boot('moma resume', async () => go(), 0); else setTimeout(go, 240e3).unref(); setInterval(go, 60e3).unref(); }
+  if (!app.locals.noTimers) { const G = GOV(); const go = () => { try { const ROLE = require('./role'); if (ROLE.chores && !job.on && (db.prepare("SELECT v FROM settings WHERE k='moma_run'").get() || {}).v === 'registry') { console.log('[moma] resuming the registry'); sync({ only: 'registry' }).catch(e => console.error('[moma]', e.message)); } } catch (e) { /* */ } }; if (G && G.boot) G.boot('moma resume', async () => go(), 0); else setTimeout(go, 240e3).unref(); setInterval(go, 60e3).unref(); }
   // Read again each month (MoMA updates the record "on a regular basis"), once it has been read once.
   if (!app.locals.noTimers) { const t = setInterval(() => { try { const ROLE = require('./role'); if (!ROLE.chores || job.on) return; const at = counts().at; if (at && Date.now() - Date.parse(at) > 30 * 864e5 && (!GOV() || !GOV().chores || GOV().chores())) sync().catch(() => {}); } catch (e) { /* */ } }, 6 * 3600e3); t.unref(); }
 
