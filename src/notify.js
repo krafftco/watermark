@@ -35,6 +35,7 @@ const KINDS = {
   desk: { who: 'both', label: 'The private desk has an introduction for you', on: true },
   registry: { who: 'both', label: 'A custodian attests a work of yours, or a title is offered or passes on the registry', on: true },
   loan: { who: 'maker', label: 'A museum asks to borrow your work, or a loan moves on', on: true },
+  found: { who: 'both', label: 'Someone you sent a work to sends one back', on: true },
 };
 
 function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl }) {

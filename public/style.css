@@ -5479,3 +5479,14 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .st-fl-line{margin:0 0 8px;font:300 clamp(20px,2.6vw,30px)/1.3 var(--read);color:#f2efe9;text-shadow:0 1px 14px rgba(0,0,0,.7);text-wrap:balance}
 .st-fl-sub{margin:0;font:400 11px/1.5 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:#d9bc7c;text-shadow:0 1px 10px rgba(0,0,0,.7)}.st-fl-sub b{font-weight:500;color:#f2efe9}
 @media (prefers-reduced-motion:reduce){.st-gift .st-i:first-child .st-im{animation:none}}
+/* Send (5 Nov): one small sheet: the picture, a line of your own, Send. */
+.snd{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;background:rgba(11,10,9,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.snd[hidden]{display:none}
+.snd-c{position:relative;width:min(100%,460px);margin:0 auto;padding:22px 22px calc(22px + env(safe-area-inset-bottom));background:#f6f3ee;color:#1a1814;border-radius:16px 16px 0 0;box-shadow:0 -18px 50px rgba(0,0,0,.35);display:grid;gap:10px}
+@media (min-width:761px){.snd{align-items:center}.snd-c{border-radius:14px}}
+.snd-x{position:absolute;top:8px;right:12px;background:none;border:0;font-size:26px;line-height:1;color:#6e685f;cursor:pointer}
+.snd-im{width:100%;max-height:34vh;object-fit:contain;background:#0b0a09;border-radius:6px}
+.snd-k{margin:4px 0 0;font:500 10.5px/1.4 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:#8a6d2a}.snd-t{margin:0;font:400 18px/1.3 var(--read)}.snd-t b{font-weight:400}
+.snd-l{display:grid;gap:4px;font-size:12px;color:#6e685f}.snd-l textarea,.snd-l input{font:400 16px/1.4 var(--read);padding:10px 12px;border:1px solid #d9d3c9;border-radius:8px;background:#fff;color:#1a1814;resize:none}.snd-l[hidden]{display:none}
+.snd-go{margin-top:4px;padding:14px 18px;border:0;border-radius:999px;background:#1a1814;color:#f6f3ee;font:500 15px/1 var(--sans);letter-spacing:.04em;cursor:pointer}.snd-go:disabled{opacity:.6}
+.snd-f{margin:0;font-size:12px;color:#8a847a;text-align:center}.snd-u{width:100%;margin-top:6px;padding:8px;font:12px ui-monospace,Menlo,monospace;border:1px solid #d9d3c9;border-radius:6px}
+.st-fl-note{margin:0 auto 12px;max-width:min(88vw,560px);font:italic 300 clamp(20px,2.8vw,32px)/1.35 var(--read);color:#f2efe9;text-shadow:0 1px 14px rgba(0,0,0,.75);text-wrap:balance}

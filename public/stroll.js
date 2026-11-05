@@ -79,7 +79,7 @@
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
       + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '" title="Bravo: it floored me. Three a month.">' + (ic.bravo || '') + '<span>Bravo</span></button>'
       + '<button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">' + ic.hang + '<span>Save</span></button>'
-      + '<button type="button" class="st-b" data-st-share title="Give a flower: send this to someone; it opens for them like a present.">' + ic.share + '<span>Flower</span></button>'
+      + '<button type="button" class="st-b" data-st-share title="Send it to someone. It opens for them on its own, with your name and a line from you.">' + ic.share + '<span>Send</span></button>'
       + '<a class="st-b st-study" data-st-easel href="/easel/' + esc(w.slug) + '?back=' + encodeURIComponent('/wander?at=' + w.slug) + '" title="Study it: the work large on the easel, with values, notan, squint, a grid and a timer.">' + (ic.easel || '') + '<span>Study</span></a>'
       + '<button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">' + (ic.more || '') + '<span>More</span></button>'
       + '<div class="st-more" data-st-morebox hidden>'
@@ -265,11 +265,8 @@
       else if (navigator.clipboard) navigator.clipboard.writeText(bu).then(function () { say('Link copied. It opens on the book.'); });
       return;
     }
-    // A flower (5 Nov): the link opens on the picture alone, in the dark, with 'X found this for you.'
-    var me = root.getAttribute('data-me') || '';
-    var url = location.origin + '/flower/' + w.slug + (me ? '?from=' + encodeURIComponent(me) : ''), text = 'I found something for you: ' + w.title + (w.artist ? ', by ' : ', a photograph by ') + w.maker + '.';
-    if (navigator.share) navigator.share({ title: w.title, text: text, url: url }).then(function () { say('Given. It opens for them like a present.'); }).catch(function () {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('The link is copied. It opens for them like a present.'); });
+    // Sent (5 Nov): the sheet takes a line, the link opens for them on the picture alone with your name.
+    if (window.WMSend) return window.WMSend.open({ slug: w.slug, title: w.title, by: w.maker, img: w.img });
   }
   scroller.addEventListener('click', function (e) {
     var it = e.target.closest('.st-i'); if (!it) return; var w = items[it.getAttribute('data-slug')]; if (!w) return;
@@ -603,7 +600,8 @@
     if (arrivals.length >= 15 && !told) { try { sessionStorage.setItem('wm_stay', '1'); } catch (e) {} hold(); }
   }
   // The newcomer's nudge (23 Oct, for a phone handed over in a gallery): once per device, if the first photograph is
-  // The flower opens (5 Nov): the dark, the picture alone coming up slowly, the line, and only then the house.
+  // A sent work opens (5 Nov): the dark, the picture alone coming up slowly, the line, and only then the house.
+  try { if (root.hasAttribute('data-gift') && root.getAttribute('data-found')) sessionStorage.setItem('wm_found', JSON.stringify({ t: root.getAttribute('data-found'), from: root.getAttribute('data-from') || '' })); } catch (e) {}
   (function () {
     if (!root.hasAttribute('data-gift')) return; var fl = root.querySelector('[data-st-flower]');
     var open = function () { root.classList.remove('st-gifting'); if (fl) fl.classList.add('st-fl-off'); try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} };

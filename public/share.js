@@ -8,9 +8,8 @@
   function share(el) {
     var url = el.getAttribute('data-send-url') || meta('og:url') || location.href, title = el.getAttribute('data-send-title') || meta('og:title') || document.title, text = el.getAttribute('data-send-text') || meta('og:description') || '';
     if (/^\//.test(url)) url = location.origin + url;
-    var flower = /\/flower\//.test(url); // a work sent as a flower (5 Nov): the giver is told it went
-    if (navigator.share) navigator.share({ title: title, text: text, url: url }).then(function () { if (flower) say('Given. It opens for them like a present.'); }).catch(function () {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say(flower ? 'The link is copied. It opens for them like a present.' : 'Link copied.'); }, function () { say(url); });
+    if (navigator.share) navigator.share({ title: title, text: text, url: url }).catch(function () {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { say('Link copied.'); }, function () { say(url); });
     else say(url);
   }
   document.addEventListener('click', function (e) { var el = e.target.closest('[data-send]'); if (!el) return; e.preventDefault(); share(el); });

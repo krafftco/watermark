@@ -5,11 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.65.0 · Give a flower · 5 November 2026
+## 1.65.0 · Send · 5 November 2026
 
-- Sharing a work is giving a flower. The link opens on the picture alone, in the dark, coming up slowly, with one line: "Amy found this for you." Then the house comes in around it and they can wander on, look closer, collect.
-- The card a link unfurls into is the picture itself, at full size, titled with the work and its maker.
-- The giver is told it went: "Given. It opens for them like a present."
+- Send a work to someone. It opens for them on its own: the dark, the picture coming up slowly, "Amy found this for you." and your line if you wrote one, then the house around it.
+- One small sheet to send: the picture, "Say something, if you like", Send. The link is short; your words are not in it.
+- The one who receives it can send one back, and only then is the sender told. Nothing is followed or counted.
 
 ## 1.64.0 · Pieces together · 5 November 2026
 
