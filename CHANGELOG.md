@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.64.0 · Pieces together · 5 November 2026
+
+- Choose pieces on /pieces and make them yours in one payment: two together 5% off, three or more 10% off (drafts); each its own licence, number and order, one parcel.
+- Discover, walked on the live house: On view leaves the artists' catalogue walls out; In time by century before 1800; Just arrived one hand at a time; the Library leads with the house's editions and the canon.
+
 ## 1.63.0 · The piece · 5 November 2026
 
 - The piece: one house object for any work in the public domain, at one price ($70, a draft): a museum-quality print mounted on a rigid board, no glass, a magnet on the back, boxed with its card and its Watermark number. First choice on every open work's page; the shop at /pieces, by artist; a way in from Discover.

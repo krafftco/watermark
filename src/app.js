@@ -1433,7 +1433,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   function grantSet(setRef, s) {
     const all = db.prepare("SELECT ref FROM licenses WHERE set_ref=?").all(setRef);
-    for (const x of all) { fillBuyer(x.ref, s); grant(x.ref, { paid: true }); }
+    for (const x of all) { fillBuyer(x.ref, s); grant(x.ref, { paid: true, session: s }); } // the session carries the address a print needs (5 Nov, pieces together)
   }
   // Paid but not yet granted (18 Oct: a $5 Collect paid in place went through at Stripe, but the page's call and the
   // webhook both missed it, during a restart). The house asks Stripe itself: every few minutes, every license still
