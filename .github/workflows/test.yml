@@ -51,7 +51,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils tesseract-ocr curl gnupg > /dev/null
           # postgresql.org drops connections now and then (5 Nov, twice in ten minutes): try, then the keyserver.
           for i in 1 2 3 4 5; do curl -fsSL --retry 3 --retry-all-errors https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /tmp/pgdg.asc && break; sleep 8; done
-          [ -s /tmp/pgdg.asc ] || gpg --keyserver keyserver.ubuntu.com --recv-keys B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 && gpg --export --armor B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 > /tmp/pgdg.asc || true
+          if [ ! -s /tmp/pgdg.asc ]; then gpg --keyserver keyserver.ubuntu.com --recv-keys B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 && gpg --export --armor B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 > /tmp/pgdg.asc; fi
           sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg < /tmp/pgdg.asc
           echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16 > /dev/null
