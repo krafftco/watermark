@@ -181,7 +181,42 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
       [m ? '/account' : '/makers', 'Make', m ? 'Your studio' : 'For those who make', I.pencil || I.plus || '']
     ].map(([h, v, l, ic]) => `<a href="${h}"><span class="sd-vi">${ic}</span><b>${v}</b><i>${esc(l)}</i></a>`).join('')}</nav>`;
     yours = yours.replace(/<\/header>/, '</header>' + verbs);
-    res.json({ keys, yours });
+    // Who made it (Will, 5 Nov): the swipe left opens the person behind the picture, as TikTok trained everyone to
+    // expect; their face first, so it is plainly someone, then their work, Follow, and the way into all of it.
+    let who = '';
+    if (w) {
+      const A = app.locals.art; const LL = app.locals.lifeline;
+      const art = w.artist_id && A ? db.prepare('SELECT * FROM artists WHERE id=?').get(w.artist_id) : null;
+      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
+      const strip = (ws, key) => ws.length ? `<div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${esc(key)}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div>` : '';
+      const first = t => { const p = String(t || '').split(/\n{2,}/)[0].trim(); return p.length > 280 ? p.slice(0, 277).replace(/\s\S*$/, '') + '…' : p; };
+      if (art && isInst) {
+        const ws = db.prepare("SELECT slug, title FROM works WHERE artist_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id LIMIT 9").all(art.id, w.slug);
+        const n = db.prepare("SELECT COUNT(*) n FROM works WHERE artist_id=? AND status='held'").get(art.id).n;
+        const dates = LL ? LL.dateWords(art) : null;
+        const face = ws[0] ? `/img/${ws[0].slug}/thumb` : `/img/${w.slug}/thumb`;
+        who = `<header class="whp-h"><img class="whp-face whp-face-w" src="${esc(face)}" alt=""><div><p class="k">The artist</p><h3>${esc(art.name)}</h3><p class="whp-l">${[dates, art.nationality, art.movement].filter(Boolean).map(esc).join(' · ')}</p></div></header>
+${art.bio ? `<p class="whp-bio">${esc(first(art.bio))}</p>` : ''}
+<p class="whp-n">${n} work${n === 1 ? '' : 's'} in the house</p>${strip(ws, 'artist:' + art.slug)}
+<div class="whp-acts"><a class="whp-go" href="/wander/art/${esc(art.slug)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/art/${esc(art.slug)}">Their page ${I.next}</a></div>
+${isInst ? `<p class="whp-by">Photographed for the house by ${esc(w.maker_name)}.</p>` : ''}`;
+      } else {
+        const mk = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+        const slugM = V.makerSlug(mk);
+        const ws = db.prepare("SELECT slug, title FROM works WHERE maker_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id DESC LIMIT 9").all(mk.id, w.slug);
+        const n = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(mk.id).n;
+        const lt = LL ? LL.text(mk) : null;
+        const line = lt ? [lt.years, lt.atWork ? 'at work' : null, lt.verified ? 'Verified' : null].filter(Boolean).join(' · ') : (mk.place || '');
+        const fol = app.locals.museums && !isInst ? app.locals.museums.button('maker:' + mk.id) : '';
+        const face = mk.portrait ? `/portrait/${esc(mk.handle)}` : `/img/${esc(w.slug)}/thumb`;
+        who = `<header class="whp-h"><img class="whp-face${mk.portrait ? '' : ' whp-face-w'}" src="${face}" alt=""><div><p class="k">${isInst ? 'The collection' : 'The maker'}</p><h3>${esc(mk.name)}</h3>${line ? `<p class="whp-l">${esc(line)}</p>` : ''}</div></header>
+${mk.bio ? `<p class="whp-bio">${esc(first(mk.bio))}</p>` : ''}
+<p class="whp-n">${n} work${n === 1 ? '' : 's'} on view</p>${strip(ws, 'maker:' + mk.handle)}
+<div class="whp-acts">${fol}<a class="whp-go" href="/wander?maker=${esc(slugM)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/m/${esc(slugM)}">Their page ${I.next}</a></div>`;
+      }
+      who += `<p class="whp-x">Swipe right to go back to the picture.</p>`;
+    }
+    res.json({ keys, yours, who });
   });
 
   // The old address: one word, Wander (Will, 21 Oct). Links in the wild and the app's cache still say /stroll.
@@ -312,8 +347,8 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.guide}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 ${gift ? `<div class="st-flower" data-st-flower>${gift.note ? `<p class="st-fl-note">“${esc(gift.note)}”</p>` : ''}<p class="st-fl-line">${esc(giftLine)}</p><p class="st-fl-sub">${items[0] ? `<b>${esc(V.tidy(items[0].title))}</b> · ${esc(items[0].maker)}` : ''}</p></div>` : ''}${front ? `<div class="st-hello" data-st-hello><p>Keep what you make. Own a piece of what others make.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
-<button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Yours: your gallery and your wallet">${I.collect}<span>Yours</span></button><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="The Keys">${BUNCH}<span>The Keys</span></button>
-<aside class="st-side st-side-l" data-st-side="yours" aria-label="Yours"><div class="sdr" data-sd-body></div></aside><aside class="st-side st-side-r" data-st-side="keys" aria-label="The Keys"><div class="sdr" data-sd-body></div></aside><div class="st-shade" data-st-shade hidden></div>
+<button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="Who made it">${I.you || I.look}<span>Who made it</span></button>
+<aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="Who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
 <template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>

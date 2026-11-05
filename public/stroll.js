@@ -334,7 +334,7 @@
   function paintAs() { root.querySelectorAll('[data-sd-as]').forEach(function (p) { p.hidden = p.getAttribute('data-sd-as') !== sideAs; }); root.querySelectorAll('[data-sd-switch]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-sd-switch') === sideAs ? 'true' : 'false'); }); }
   function sideFill(slug) {
     if (sideFor === slug) return; sideFor = slug;
-    var go = function (d) { sideL.querySelector('[data-sd-body]').innerHTML = d.yours || ''; sideR.querySelector('[data-sd-body]').innerHTML = d.keys || ''; paintAs(); };
+    var go = function (d) { sideR.querySelector('[data-sd-body]').innerHTML = d.who || ''; if (window.WMFollow && WMFollow.paint) WMFollow.paint(sideR); };
     if (sideCache[slug]) return go(sideCache[slug]);
     fetch('/stroll/side/' + encodeURIComponent(slug), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { sideCache[slug] = d; if (sideFor === slug) go(d); }).catch(function () {});
   }
@@ -376,7 +376,7 @@
       Z.px = (a.clientX + b.clientX) / 2; Z.py = (a.clientY + b.clientY) / 2; Z.on = true; Z.pan = null; root.classList.add('st-zoom'); sx0 = null; e.preventDefault(); return;
     }
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY, stuck: 0 }; Z.d0 = 0; sx0 = null; e.preventDefault(); return; }
-    if (e.touches.length !== 1 || e.target.closest('button, a, input')) { sx0 = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('button, input, .st-rail')) { sx0 = null; return; }
     if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null; sT0 = Date.now(); sTop0 = scroller.scrollTop; sMoved = false;
   }, { passive: false });
@@ -390,7 +390,7 @@
     if (held) { e.preventDefault(); return; }
     if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
     if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } }
+      if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : null; if (sEl) { sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } } }
     if (sLock === 'y' && OWN) { e.preventDefault(); sMoved = true; if (!sManual) { sManual = true; scroller.style.scrollSnapType = 'none'; } scroller.scrollTop = sTop0 - dy; return; }
     if (sLock !== 'x' || !sEl) return;
     e.preventDefault();
@@ -480,9 +480,9 @@
   // Arrow keys, a sideways trackpad scroll, and a swipe all move the same way.
   function move(dir) {
     var w = items[cur]; if (w) sideFill(w.slug);
-    if (!sideOpen) return sideShow(dir > 0 ? 'keys' : 'yours');
-    if ((sideOpen === 'keys' && dir < 0) || (sideOpen === 'yours' && dir > 0)) return sideHide();
-    var other = sideOpen === 'keys' ? 'yours' : 'keys'; sideHide(); setTimeout(function () { sideShow(other); }, 180);
+    // Who made it (Will, 5 Nov): left opens the person behind the picture; right, or Esc, puts them away.
+    if (!sideOpen) { if (dir > 0) sideShow('keys'); return; }
+    if (dir < 0) sideHide();
   }
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;

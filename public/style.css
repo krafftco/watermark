@@ -5512,3 +5512,27 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .snd-go{margin-top:4px;padding:14px 18px;border:0;border-radius:999px;background:#1a1814;color:#f6f3ee;font:500 15px/1 var(--sans);letter-spacing:.04em;cursor:pointer}.snd-go:disabled{opacity:.6}
 .snd-f{margin:0;font-size:12px;color:#8a847a;text-align:center}.snd-u{width:100%;margin-top:6px;padding:8px;font:12px ui-monospace,Menlo,monospace;border:1px solid #d9d3c9;border-radius:6px}
 .st-fl-note{margin:0 auto 12px;max-width:min(88vw,560px);font:italic 300 clamp(20px,2.8vw,32px)/1.35 var(--read);color:#f2efe9;text-shadow:0 1px 14px rgba(0,0,0,.75);text-wrap:balance}
+/* Who made it (5 Nov): the swipe left in Wander opens the person behind the picture; their face first. */
+.st-side-r.st-who{border-left:0;background:#12110e}
+.st-tab-r{color:rgba(243,239,231,.6)}
+.st-who .sdr{padding:calc(28px + env(safe-area-inset-top)) 22px calc(32px + env(safe-area-inset-bottom))}
+.whp-h{display:flex;gap:16px;align-items:center;margin:0 0 18px}
+.whp-face{width:84px;height:84px;border-radius:50%;object-fit:cover;flex:0 0 84px;background:#222;border:1px solid rgba(255,255,255,.12)}
+.whp-face-w{border-radius:10px}
+.whp-h .k{margin:0 0 4px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.whp-h h3{margin:0;font:400 28px/1.1 var(--disp,Georgia),serif;color:#f3efe7}
+.whp-l{margin:6px 0 0;font:400 13px/1.4 var(--sans);color:rgba(239,234,224,.6)}
+.whp-bio{margin:0 0 18px;font:400 15px/1.55 var(--disp,Georgia),serif;color:rgba(239,234,224,.82)}
+.whp-n{margin:0 0 8px;font:500 10px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.whp-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0 0 20px}
+.whp-strip a{display:block;aspect-ratio:1;overflow:hidden;background:#1d1b17}
+.whp-strip img{width:100%;height:100%;object-fit:cover;display:block}
+.whp-acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.whp-acts .fo-b{background:#f3efe7;color:#12110e;border:0;border-radius:999px;padding:10px 18px;font:600 13px/1 var(--sans);cursor:pointer}
+.whp-acts .fo-b[aria-pressed="true"]{background:none;color:#f3efe7;border:1px solid rgba(243,239,231,.4)}
+.whp-go{display:inline-flex;gap:8px;align-items:center;padding:10px 16px;border:1px solid rgba(243,239,231,.35);border-radius:999px;color:#f3efe7;text-decoration:none;font:500 13px/1 var(--sans)}
+.whp-go .ic-wave{width:22px;height:7px}
+.whp-pg{color:rgba(239,234,224,.7);font:500 13px/1 var(--sans);text-decoration:none;display:inline-flex;gap:4px;align-items:center}
+.whp-pg .ic{width:14px;height:14px}
+.whp-by{margin:18px 0 0;font:italic 400 13px/1.4 var(--disp,Georgia),serif;color:rgba(239,234,224,.55)}
+.whp-x{margin:26px 0 0;font:400 11px/1.4 var(--sans);color:rgba(239,234,224,.35);letter-spacing:.04em}

@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.66.0 · Who made it · 5 November 2026
+
+- In Wander a swipe left opens the person behind the picture: their face, their line, a few of their works, Follow, Wander their work, their page. A museum's work opens the artist.
+- A swipe right, or Esc, puts them away. The Yours and Keys drawers are retired from Wander; the tab bar's You is the way to yours.
+- A sideways swipe can start anywhere on the picture, the plate included.
+
 ## 1.65.2 · Wander on the Duo · 5 November 2026
 
 - In Wander the tab bar is a shade, not a band, so the system's inset below it no longer reads as a dead strip; the picture keeps clear of the bar and the inset.
