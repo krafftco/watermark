@@ -177,7 +177,7 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
     let left = max;
     while (left > 0) {
       const t0 = Date.now();
-      const cs = db.prepare("SELECT c.id, c.artist_id, c.qid, a.name aname, a.qid aqid, a.ulan FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.qid >= 'moma:' AND c.qid < 'moma;' AND c.id > ? AND NOT EXISTS (SELECT 1 FROM objects o WHERE o.catalogue_id=c.id) ORDER BY c.id LIMIT ?").all(job.after || 0, Math.min(BATCH, left));
+      const cs = db.prepare("SELECT c.id, c.artist_id, c.qid, a.name aname, a.qid aqid, a.ulan FROM catalogue c JOIN artists a ON a.id=c.artist_id WHERE c.qid LIKE 'moma:%' AND c.id > ? AND NOT EXISTS (SELECT 1 FROM objects o WHERE o.catalogue_id=c.id) ORDER BY c.id LIMIT ?").all(job.after || 0, Math.min(BATCH, left));
       if (cs.length) job.after = cs[cs.length - 1].id; // the cursor: never the same rows twice, and the question never walks the whole table again
       if (Date.now() - t0 > 5000) console.log(`[moma] the registry's question took ${Math.round((Date.now() - t0) / 1000)} s (after ${job.after})`);
       if (!cs.length) break; left -= cs.length;
