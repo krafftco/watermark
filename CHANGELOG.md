@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.59.1 · Ready for the worker · 5 November 2026
+- The display-copy warm-up reads ids, not every work's whole record, so a restart no longer holds the house still for its first minutes.
+- On a split house, 'Finish the registry' is left for the worker, which looks each minute.
+
 ## 1.59.0 · Public Domain Day · 5 November 2026
 - /public-domain: who enters on 1 January (the artists who died seventy years before; in the United States, work first published ninety-five years before), who entered last January, the years ahead.
 - Tell me that morning: one letter on the day, for everyone entering or one artist.

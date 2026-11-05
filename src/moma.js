@@ -242,12 +242,14 @@ ${job.on ? '<script>setTimeout(()=>location.reload(),8000)</script>' : ''}</sect
   app.post('/studio/moma/sync', studioOnly, (req, res) => {
     if (job.on) return res.redirect('/studio/moma');
     const only = (req.body || {}).only === 'registry' ? 'registry' : null;
+    // On a split house the web does no chores: the press is left for the worker, which looks each minute.
+    if (only && !require('./role').chores) { setRun('registry'); return res.redirect('/studio/moma?ok=' + encodeURIComponent('The worker will finish the registry within a minute.')); }
     sync({ registry: String((req.body || {}).registry) !== '0', only }).catch(() => {});
     res.redirect('/studio/moma?ok=' + encodeURIComponent('Reading MoMA’s collection in the background.'));
   });
   // A registry run cut short by a restart carries on by itself, once the house is quiet (5 Nov: three restarts in a
   // morning each stopped it).
-  if (!app.locals.noTimers) { const G = GOV(); const go = () => { try { const ROLE = require('./role'); if (ROLE.chores && !job.on && (db.prepare("SELECT v FROM settings WHERE k='moma_run'").get() || {}).v === 'registry') sync({ only: 'registry' }).catch(() => {}); } catch (e) { /* */ } }; if (G && G.boot) G.boot('moma resume', async () => go(), 0); else setTimeout(go, 240e3).unref(); }
+  if (!app.locals.noTimers) { const G = GOV(); const go = () => { try { const ROLE = require('./role'); if (ROLE.chores && !job.on && (db.prepare("SELECT v FROM settings WHERE k='moma_run'").get() || {}).v === 'registry') sync({ only: 'registry' }).catch(() => {}); } catch (e) { /* */ } }; if (G && G.boot) G.boot('moma resume', async () => go(), 0); else setTimeout(go, 240e3).unref(); setInterval(go, 60e3).unref(); }
   // Read again each month (MoMA updates the record "on a regular basis"), once it has been read once.
   if (!app.locals.noTimers) { const t = setInterval(() => { try { const ROLE = require('./role'); if (!ROLE.chores || job.on) return; const at = counts().at; if (at && Date.now() - Date.parse(at) > 30 * 864e5 && (!GOV() || !GOV().chores || GOV().chores())) sync().catch(() => {}); } catch (e) { /* */ } }, 6 * 3600e3); t.unref(); }
 

@@ -2606,9 +2606,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   async function warmAll() {
     if (warming) return 0; warming = true; let n = 0;
     try {
-      const all = db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') ORDER BY status='held' DESC, curated DESC, stars DESC, id DESC").all();
+      // Ids and the little each pass reads, never SELECT * (5 Nov: 17,533 rows with their guides and readings across the
+      // Postgres bridge held the event loop, and the health check, long enough for Render to restart the house).
+      const all = db.prepare("SELECT id, slug, status, keep_back FROM works WHERE status IN ('held','hidden') ORDER BY CASE WHEN status='held' THEN 0 ELSE 1 END, curated DESC, stars DESC, id DESC").all();
       for (const pass of [{ sizes: THUMB, rows: all }, { sizes: undefined, rows: all.filter(w => w.status === 'held' && !w.keep_back) }]) {
-        for (const w of pass.rows) { if (images.warmed(cache, w.slug, pass.sizes)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); return n; } try { await images.warm(await originalPath(w), cache, w.slug, pass.sizes); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); }
+        for (const w of pass.rows) { if (images.warmed(cache, w.slug, pass.sizes)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); return n; } try { const full = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); if (!full) continue; await images.warm(await originalPath(full), cache, w.slug, pass.sizes); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); }
       }
     } finally { warming = false; }
     return n;
