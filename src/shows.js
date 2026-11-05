@@ -10,6 +10,7 @@ function mountShows(app, { db, V, isStudio, ledger }) {
   const AP = require('./artistpage');
   const N = +(process.env.SHOW_N || 24);
   const ready = (() => { let done = false; return () => { if (done) return; if (!db.prepare("SELECT 1 FROM pragma_table_info('hangs') WHERE name='artist_id'").get()) db.exec('ALTER TABLE hangs ADD COLUMN artist_id INTEGER'); done = true; }; })();
+  try { ready(); } catch (e) { /* hangs not yet made: the first use makes the column */ }
   const A = () => app.locals.art;
   const words = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'];
   const numWord = n => n <= 20 ? words[n] : n === 24 ? 'Twenty-four' : n === 30 ? 'Thirty' : n === 36 ? 'Thirty-six' : String(n);

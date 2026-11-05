@@ -67,7 +67,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <table class="tbl"><thead><tr><th>Account</th><th>Kind</th><th>Works</th><th>Status</th><th>Sign-in link</th><th>Their doors</th></tr></thead><tbody>${rows}</tbody></table>
 <h2>Invite a maker or an estate</h2>
 <form method="post" action="/studio/accounts" class="form inline-form"><label>Name<input name="name" required placeholder="Greg Williams"></label><label>Email<input name="email" type="email" placeholder="Optional"></label><label>Studio or estate<input name="house" placeholder="Optional"></label>
-<label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option><option value="institution">Institution: a museum, a library, an archive</option><option value="company">Company: its archive, its products and its collection</option><option value="gallery">Gallery: represents photographers, mounts shows</option></select></label><button>Create the account</button></form></section>${intros}` });
+<label>Kind<select name="kind"><option value="maker">Maker</option><option value="estate">Estate</option><option value="institution">Institution: a museum, a library, an archive</option><option value="company">Company: its archive, its products and its collection</option><option value="custodian">Custodian: a freeport, an art store, a registrar who holds works for owners</option><option value="gallery">Gallery: represents photographers, mounts shows</option></select></label><button>Create the account</button></form></section>${intros}` });
 }
 
 const I = require('./icons');

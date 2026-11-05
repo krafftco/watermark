@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.51.0 · The registry · 5 November 2026
+- A physical work has a record of its own: what it is, how the owner came to own it, its provenance, who holds it and in what state, experts' opinions, shows, books and searches, with the papers. Every entry is fingerprinted and laid on the house's signed register, never edited, only set right by a later one.
+- Custodians (a freeport, an art store, a registrar) have their own accounts and desk, and attest receipt, condition and release in their own name.
+- Ready for the desk: the record reads what a private sale, a lender or an insurer will ask (title papers, provenance with 1933 to 1945 accounted for, a custodian's attestation and a condition report within the year, an expert's opinion, a clear stolen-art search).
+- Private by default; the owner may publish the object (never the owner, the place, the price or the papers) or give a reader a link. The record as a PDF dossier.
+- Title passes by two hands: the owner offers, the new owner accepts, the record and the custodian's care go with the work. No money moves on the registry.
+
 ## 1.50.0 · The show · 5 November 2026
 - An artist's catalogue is everything in the house, in the order made; a show is a choice from it: twenty-four works by default, the best of each period in proportion to its share of the life, every period represented, no title twice, hung in the order made.
 - The house proposes a show on Studio → The art → an artist; a person titles it and opens it. While it is open, the artist's page leads with the show and Wander walks it; Wander everything walks the whole catalogue.
