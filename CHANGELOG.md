@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.61.0 · The house without a disk · 5 November 2026
+- Every file the house keeps is in the vault and comes back from it when the box is new: display copies live in the bucket (`renditions/`), portraits, claim evidence and estate papers are put there on arrival, and every room that serves a kept file fetches the vault's copy when the disk has none.
+- Two reads that only looked as if they fell back to the vault (releases, signed releases) and one that skipped the vault's seal (registry papers) are repaired.
+- test/diskless.js wipes every folder but the database and serves it all again.
+- The commonplace smoke test no longer depends on how many whole passages two small books hold.
+
 ## 1.60.0 · The deploy window · 5 November 2026
 - The house runs on two machines: the website serves people, the worker does every chore.
 - One promotion a day, 6:30 New York, by a scheduled job: `main` moves to `next` when the tests are green and the house is not being shown. docs/OPERATIONS.md says the week.

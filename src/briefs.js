@@ -187,7 +187,7 @@ ${b.status === 'done' ? `<p>The licence: ${esc(said(b))}, from ${esc(String(b.ap
     const f = db.prepare('SELECT * FROM brief_files WHERE id=? AND brief_id=?').get(+req.params.id, b.id); if (!f) return res.sendStatus(404);
     res.set('Cache-Control', 'private, no-store').set('X-Robots-Tag', 'noindex');
     try {
-      const p = f.work_id ? await originalPath(db.prepare('SELECT * FROM works WHERE id=?').get(f.work_id)) : path.join(DIR, f.file);
+      const p = f.work_id ? await originalPath(db.prepare('SELECT * FROM works WHERE id=?').get(f.work_id)) : (app.locals.files ? await app.locals.files.local(path.join(DIR, f.file), 'briefs/' + f.file) : path.join(DIR, f.file)); if (!p) return res.sendStatus(404);
       if (b.status === 'done') res.attachment(f.name || path.basename(p)); else res.set('Content-Disposition', 'inline');
       res.type(f.mime || 'application/octet-stream').sendFile(p);
     } catch (e) { res.sendStatus(404); }
@@ -264,7 +264,7 @@ ${files.length ? `<h2>Delivered</h2><ul class="brf-files">${files.map(f => `<li 
       const kind = v.type === 'mp4' || v.type === 'webm' ? 'video' : v.type === 'pdf' ? 'other' : 'image';
       const mime = { mp4: /\.mov$/i.test(f.originalname) ? 'video/quicktime' : 'video/mp4', webm: 'video/webm', pdf: 'application/pdf', jpeg: 'image/jpeg', png: 'image/png', tiff: 'image/tiff', webp: 'image/webp' }[v.type] || f.mimetype;
       db.prepare('INSERT INTO brief_files (brief_id, file, name, mime, bytes, sha256, kind) VALUES (?,?,?,?,?,?,?)').run(b.id, name, String(f.originalname || name).slice(0, 160), mime, f.size, h, kind); n++;
-      if (store && store.put) store.put('briefs/' + name, path.join(DIR, name), mime).catch(e => console.error('[briefs] vault', e.message));
+      if (store && store.put) await store.put('briefs/' + name, path.join(DIR, name), mime).catch(e => console.error('[briefs] vault', e.message));
     }
     if (!n) return back(refused.length ? `Nothing delivered. ${refused.join('; ')}` : 'Choose works or files to deliver.');
     db.prepare("UPDATE briefs SET status='delivered', delivered_at=datetime('now'), change_note=NULL WHERE id=?").run(b.id);

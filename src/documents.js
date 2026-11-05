@@ -194,10 +194,10 @@ function mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, up
   function queue(src, meta) { q.push({ src, meta }); job.of++; setTimeout(pump, app.locals.noTimers ? 0 : 200); }
 
   // The original file.
-  app.get('/read/:slug/original.pdf', (req, res) => {
+  app.get('/read/:slug/original.pdf', async (req, res) => {
     const t = db.prepare("SELECT slug, title, public, status, doc FROM texts WHERE slug=?").get(String(req.params.slug)); const d = docOf(t);
     if (!t || t.status !== 'held' || (!t.public && !isStudio(req)) || !d || !d.pdf) return res.sendStatus(404);
-    const f = path.join(originals, d.pdf); if (!fs.existsSync(f)) return res.sendStatus(404);
+    const f = app.locals.files ? await app.locals.files.local(path.join(originals, d.pdf), `documents/${d.pdf}`) : path.join(originals, d.pdf); if (!f || !fs.existsSync(f)) return res.sendStatus(404);
     res.set('Cache-Control', 'public, max-age=86400'); res.type('pdf'); res.set('Content-Disposition', `inline; filename="${encodeURIComponent(t.title)}.pdf"`); fs.createReadStream(f).pipe(res);
   });
 

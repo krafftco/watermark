@@ -188,15 +188,42 @@ function pick(accept) { return /image\/webp/.test(accept || '') ? 'webp' : 'jpg'
 // A rendition already made is served as it is: the original is fetched (from the vault, when the disk's copy has
 // been trimmed) only when the copy must be made (31 Oct: every /img asked for the original first, so a thumbnail of a
 // trimmed 60 MP master waited seconds for a download it never needed).
+// The display copies live in the bucket (5 Nov, so the website needs no disk: a deploy is then zero-downtime). The
+// local cache is only a cache: a copy missing here is fetched from the bucket (`renditions/<file>`) before it is made
+// again, and a copy made here is put to the bucket in the background. `setRenditionStore(store.plain)` turns it on;
+// without it (tests, a local vault) the disk is the only copy as before.
+let rstore = null; const putting = new Map();
+function setRenditionStore(s) { rstore = s || null; }
+const rkey = f => 'renditions/' + path.basename(f);
+async function fromBucket(f) {
+  if (!rstore || fs.existsSync(f)) return fs.existsSync(f);
+  try { const buf = await rstore.get(rkey(f)); if (!buf || !buf.length) return false; fs.mkdirSync(path.dirname(f), { recursive: true }); const tmp = `${f}.${process.pid}.${Date.now()}.tmp`; fs.writeFileSync(tmp, buf); try { fs.renameSync(tmp, f); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* there */ } } return true; } catch (e) { return false; }
+}
+function toBucket(f, fmt) {
+  if (!rstore || putting.has(f)) return;
+  const p = rstore.put(rkey(f), f, FORMATS[fmt] ? FORMATS[fmt][1] : 'image/jpeg').catch(e => console.error('[renditions] put', path.basename(f), e.message)).finally(() => putting.delete(f));
+  putting.set(f, p);
+}
 async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg') {
-  const f = fileOf(cacheDir, slug, size, FORMATS[fmt] ? fmt : 'jpg');
+  fmt = FORMATS[fmt] ? fmt : 'jpg';
+  const f = fileOf(cacheDir, slug, size, fmt);
   if (fs.existsSync(f)) return f;
-  return derivative(await getOriginal(), cacheDir, slug, size, fmt);
+  if (await fromBucket(f)) return f;
+  const out = await derivative(await getOriginal(), cacheDir, slug, size, fmt);
+  toBucket(out, fmt);
+  return out;
+}
+// Every copy of a work out of the bucket too (a new master, the restoration room's rebuild).
+async function dropBucket(cacheDir, slug) {
+  if (!rstore) return;
+  for (const size of Object.keys(SIZES)) for (const fmt of Object.keys(FORMATS)) { try { await rstore.del(rkey(fileOf(cacheDir, slug, size, fmt))); } catch (e) { /* not there */ } }
 }
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
 async function warm(original, cacheDir, slug, sizes = WARM) {
-  for (const size of sizes) for (const fmt of Object.keys(FORMATS)) await derivative(original, cacheDir, slug, size, fmt);
+  for (const size of sizes) for (const fmt of Object.keys(FORMATS)) { const f = fileOf(cacheDir, slug, size, fmt); if (fs.existsSync(f) || await fromBucket(f)) continue; toBucket(await derivative(original, cacheDir, slug, size, fmt), fmt); }
 }
+// Wait for every copy on its way to the bucket (tests, and before a process leaves).
+const settled = () => Promise.all([...putting.values()]);
 const warmed = (cacheDir, slug, sizes = WARM) => sizes.every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
 
 // A visual fingerprint (difference hash, 64 bits): the same frame at any size or quality hashes alike,
@@ -219,4 +246,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed };
+module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket };

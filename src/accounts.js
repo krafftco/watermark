@@ -82,6 +82,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
 
   // ---------- the maker's profile: who they are, on their page ----------
   const portraits = require('path').join(C.dataDir, 'portraits'); fs.mkdirSync(portraits, { recursive: true });
+  const keepFile = (f, k, b, t) => (app.locals.files ? app.locals.files.keep(f, k, b, t) : Promise.resolve(f)); const localFile = (f, k) => (app.locals.files ? app.locals.files.local(f, k) : Promise.resolve(fs.existsSync(f) ? f : null)); // the disk and the vault (5 Nov)
   app.get('/account/profile', (req, res) => { const m = makerOf(req); if (!m) return res.status(401).send(A.signedOut()); res.send(A.profile({ m, intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.mine('maker', m.id), used: app.locals.introductions.yearUsed(m).c, limit: app.locals.introductions.MAKER_INTROS_A_YEAR, base: C.base, action: '/account/introductions' }) : '', saved: req.query.ok || null, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle })); });
   app.post('/account/profile', (req, res, next) => upload().fields([{ name: 'portrait', maxCount: 1 }, { name: 'file', maxCount: 1 }])(req, res, next), (req, res, next) => app.locals.bagcheck.gate('image')(req, res, next), async (req, res) => {
     req.file = (req.files && ((req.files.portrait || [])[0] || (req.files.file || [])[0])) || null;
@@ -105,6 +106,7 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
         const sharp = require('sharp'); const out = `${m.handle}-${Date.now()}.jpg`;
         await sharp(req.file.path).rotate().resize(720, 720, { fit: 'cover', position: 'attention' }).jpeg({ quality: 86 }).toFile(require('path').join(portraits, out));
         await sharp(req.file.path).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 88, chromaSubsampling: '4:4:4' }).toFile(require('path').join(portraits, out.replace(/\.jpg$/, '-tall.jpg'))); // the whole portrait, its own shape (20 Oct)
+        for (const n of [out, out.replace(/\.jpg$/, '-tall.jpg')]) await keepFile(require('path').join(portraits, n), 'portraits/' + n, null, 'image/jpeg'); // and in the vault (5 Nov)
         if (m.portrait && fs.existsSync(require('path').join(portraits, m.portrait))) fs.unlinkSync(require('path').join(portraits, m.portrait));
         db.prepare('UPDATE makers SET portrait=? WHERE id=?').run(out, m.id);
       } catch (e) { /* not an image: ignored */ }
@@ -118,18 +120,21 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   app.locals.seedPortrait = async () => {
     try {
       const src = require('path').join(__dirname, '..', 'public', 'house', 'portrait.jpg'); if (!fs.existsSync(src)) return;
-      const house = db.prepare('SELECT * FROM makers WHERE handle=?').get(C.maker.handle); if (!house || (house.portrait && fs.existsSync(require('path').join(portraits, house.portrait)))) return;
+      const house = db.prepare('SELECT * FROM makers WHERE handle=?').get(C.maker.handle); if (!house || (house.portrait && await localFile(require('path').join(portraits, house.portrait), 'portraits/' + house.portrait))) return;
       const sharp = require('sharp'); const out = `${house.handle}-house.jpg`;
       await sharp(src).rotate().resize(720, 720, { fit: 'cover', position: 'attention' }).jpeg({ quality: 86 }).toFile(require('path').join(portraits, out));
       await sharp(src).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 88, chromaSubsampling: '4:4:4' }).toFile(require('path').join(portraits, out.replace(/\.jpg$/, '-tall.jpg')));
+      for (const n of [out, out.replace(/\.jpg$/, '-tall.jpg')]) await keepFile(require('path').join(portraits, n), 'portraits/' + n, null, 'image/jpeg');
       db.prepare('UPDATE makers SET portrait=? WHERE id=?').run(out, house.id); console.log('[portrait] the house\'s portrait is set');
     } catch (e) { console.error('[portrait]', e.message); }
   };
   setTimeout(() => app.locals.seedPortrait(), 3000).unref();
-  app.get('/portrait/:handle', (req, res) => {
+  app.get('/portrait/:handle', async (req, res) => {
     const m = db.prepare('SELECT portrait FROM makers WHERE handle=?').get(String(req.params.handle)); if (!m || !m.portrait) return res.sendStatus(404);
-    const tall = req.query.tall === '1' ? require('path').join(portraits, m.portrait.replace(/\.jpg$/, '-tall.jpg')) : null;
-    res.set('Cache-Control', 'public, max-age=3600').sendFile(tall && fs.existsSync(tall) ? tall : require('path').join(portraits, m.portrait));
+    const tn = m.portrait.replace(/\.jpg$/, '-tall.jpg');
+    const tall = req.query.tall === '1' ? await localFile(require('path').join(portraits, tn), 'portraits/' + tn) : null;
+    const f = tall || await localFile(require('path').join(portraits, m.portrait), 'portraits/' + m.portrait); if (!f) return res.sendStatus(404);
+    res.set('Cache-Control', 'public, max-age=3600').sendFile(f);
   });
 
   // The Studio may hold a maker (their public works go private) or release them.

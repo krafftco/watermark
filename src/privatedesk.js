@@ -159,11 +159,11 @@ ${intros.length ? `<section class="hd-list"><div class="hd-h"><h2>For you</h2></
     res.redirect('/studio/desk?ok=' + encodeURIComponent(`Recorded: ${money(p)}, the fee ${money(fee)}.`));
   });
   // The offered work's photograph, to the matched collector only, and only when its owner chose to show it.
-  app.get('/desk/photo/:token', (req, res) => {
+  app.get('/desk/photo/:token', async (req, res) => {
     const b = buyerOf(req); const i = db.prepare("SELECT * FROM desk_intros WHERE token=? AND status IN ('proposed','introduced','sold')").get(String(req.params.token)); if (!b || !i) return res.sendStatus(404);
     const w = db.prepare('SELECT * FROM desk_wants WHERE id=?').get(i.want_id), o = db.prepare('SELECT * FROM desk_offers WHERE id=?').get(i.offer_id);
     if (!w || !o || w.buyer_id !== b.id || !o.show_photo || !o.object_id) return res.sendStatus(404);
-    const ob = db.prepare('SELECT photo FROM objects WHERE id=?').get(o.object_id); const f = ob && ob.photo ? require('path').join(C.dataDir, ob.photo) : null;
+    const ob = db.prepare('SELECT photo FROM objects WHERE id=?').get(o.object_id); const f = ob && ob.photo ? (app.locals.files ? await app.locals.files.local(require('path').join(C.dataDir, ob.photo), ob.photo) : require('path').join(C.dataDir, ob.photo)) : null;
     if (!f || !require('fs').existsSync(f)) return res.sendStatus(404); res.set('Cache-Control', 'private, no-store').type('image/jpeg').sendFile(f);
   });
   // The public door: what the desk is.

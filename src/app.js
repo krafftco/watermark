@@ -179,6 +179,7 @@ function createApp(cfg = {}) {
   const originals = path.join(C.dataDir, 'originals'); // a cache when the vault is S3
   ledger.setKey(cfg.signingSeed || process.env.REGISTER_SEED || process.env.VAULT_KEY || cfg.secret); ledger.ensureSig(db);
   const store = cfg.store || createStore({ bucket: cfg.bucket !== undefined ? cfg.bucket : process.env.S3_BUCKET, region: process.env.AWS_REGION, endpoint: process.env.S3_ENDPOINT, vaultKey: cfg.vaultKey !== undefined ? cfg.vaultKey : process.env.VAULT_KEY, localRoot: path.join(C.dataDir, 'vault') });
+  if (store.plain && (store.kind === 's3' || cfg.renditionsInStore)) images.setRenditionStore(store.plain); // the display copies live in the bucket; the disk is only a cache (5 Nov)
   // The original, from the local cache or, if this server is new, from the vault.
   // The local copy of an original is a cache when the vault is S3: kept under ORIGINALS_CACHE_GB (3) by dropping the
   // copies least recently used, so sixty-megapixel masters never fill the disk (20 Oct: a 10 GB disk, 50 GB of masters
@@ -232,6 +233,7 @@ function createApp(cfg = {}) {
     const buf = await store.get('originals/' + w.original_file);
     if (!buf) throw new Error('Original missing from the vault: ' + w.original_file);
     trimOriginals(p);
+    fs.mkdirSync(originals, { recursive: true }); // the folder itself may be new (5 Nov: a box without a disk starts empty)
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`; fs.writeFileSync(tmp, buf); try { fs.renameSync(tmp, p); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } } return p; // atomic: a second reader never sees a half-written original
   }
   // Database backups: a consistent copy of SQLite, written to the vault.
@@ -512,6 +514,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (/^\/(api|stripe)\//.test(req.path) || /json/.test(req.get('accept') || '') || req.query.json) return res.status(503).json({ ok: false, error: 'Closed for the moment: the house is being moved. Try again in a few minutes.' });
     res.status(503).send(V.sign({ code: 503, detail: 'The house is being moved for a few minutes; nothing can be collected, signed or written until it is open again. Everything you can read is here.' }));
   });
+  const FILES = require('./files').mountFiles(app, { store }); // every kept file on the disk and in the vault, fetched back when the disk is new (5 Nov)
   const GOV = require('./governor').mountGovernor(app); // the house's chores take turns and yield to visitors (27 Oct)
   // ROLE is required at the top of createApp (28 Oct: a reference here before its declaration killed the live deploy of 62e4361 on an S3 vault; the tests run on a local vault and never reached it).
   // The worker's heartbeat: a settings row the web's /healthz reads, so a missing worker is seen from the street.
@@ -2218,6 +2221,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
           camera=COALESCE(?, camera), lens=COALESCE(?, lens), taken_at=COALESCE(?, taken_at) WHERE id=?`)
           .run(name, info.sha256, info.width, info.height, h, info.camera, info.lens, info.taken_at, w.id);
         for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) for (const c of [path.join(cache, `${w.slug}-${sz}.${f}`), images.fileOf(cache, w.slug, sz, f)]) { if (fs.existsSync(c)) fs.unlinkSync(c); }
+        await images.dropBucket(cache, w.slug); // and out of the bucket (5 Nov)
         const old = path.join(originals, w.original_file); if (w.original_file !== name && fs.existsSync(old)) fs.unlinkSync(old);
         const cred = await CR.inspect(dest); db.prepare('UPDATE works SET credentials=? WHERE id=?').run(cred ? JSON.stringify(cred) : null, w.id);
         // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once

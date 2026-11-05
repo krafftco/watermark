@@ -45,6 +45,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     if (db.prepare("SELECT COUNT(*) n FROM disputes WHERE email=? AND at > datetime('now','-1 day')").get(email).n >= 3) return res.redirect(`/w/${w.slug}/claim?err=many`);
     const id = db.prepare('INSERT INTO disputes (work_id, kind, name, email, company, body, links, file, oath, ip) VALUES (?,?,?,?,?,?,?,?,1,?)')
       .run(w.id, kind, name, email, String(b.company || '').trim().slice(0, 160) || null, body, String(b.links || '').trim().slice(0, 2000) || null, req.file ? req.file.filename : null, req.ip || null).lastInsertRowid;
+    if (req.file && app.locals.files) { try { await app.locals.files.keep(path.join(dir, req.file.filename), 'claims/' + req.file.filename, null, req.file.mimetype); } catch (e) { /* the disk still has it */ } } // and in the vault (5 Nov)
     refresh(w);
     const d = full(id), maker = mk(w);
     ledger.append(db, 'dispute.opened', w.slug, { claim: caseNo(d), kind });
@@ -71,7 +72,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
   // The Studio decides.
   app.get('/studio/claims', (req, res) => { if (!isStudio(req)) return res.redirect('/studio'); res.send(claimsDesk({ rows: db.prepare('SELECT d.*, w.slug, w.title FROM disputes d JOIN works w ON w.id=d.work_id ORDER BY CASE d.status WHEN \'answered\' THEN 0 WHEN \'open\' THEN 1 ELSE 2 END, d.id DESC').all(), base: '/studio/claims', studio: true })); });
   app.get('/studio/claims/:id', (req, res) => { if (!isStudio(req)) return res.redirect('/studio'); const d = full(req.params.id); if (!d) return res.sendStatus(404); res.send(claimPage({ d, packet: packet(d), base: '/studio/claims', studio: true, ok: req.query.ok || null })); });
-  app.get('/studio/claims/:id/file', (req, res) => { if (!isStudio(req)) return res.redirect('/studio'); const d = full(req.params.id); if (!d || !d.file) return res.sendStatus(404); res.sendFile(path.join(dir, path.basename(d.file))); });
+  app.get('/studio/claims/:id/file', async (req, res) => { if (!isStudio(req)) return res.redirect('/studio'); const d = full(req.params.id); if (!d || !d.file) return res.sendStatus(404); const n = path.basename(d.file); const f = app.locals.files ? await app.locals.files.local(path.join(dir, n), 'claims/' + n) : path.join(dir, n); if (!f) return res.sendStatus(404); res.sendFile(f); });
   app.post('/studio/claims/:id/decide', async (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio');
     const d = full(req.params.id); if (!d || !['open', 'answered'].includes(d.status)) return res.sendStatus(404);

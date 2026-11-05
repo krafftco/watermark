@@ -28,7 +28,9 @@ const KINDS = {
 const HOW = ['purchase', 'gift', 'bequest', 'by descent', 'auction', 'commission', 'from the artist', 'exchange', 'unknown'];
 const YEAR = 365.25 * 864e5;
 
-function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, buyerOf }) {
+function mountRegistry(app, {
+ db, V, C, mail, ledger, store, isStudio, makerOf, buyerOf }) {
+  const LF = (f, k) => (app.locals.files ? app.locals.files.local(f, k) : Promise.resolve(require('fs').existsSync(f) ? f : null)); // the disk, else the vault (5 Nov)
   const { esc, tidy } = V;
   db.exec(`CREATE TABLE IF NOT EXISTS objects (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, title TEXT NOT NULL, artist TEXT, artist_id INTEGER, made TEXT, made_year INTEGER,
       medium TEXT, dims TEXT, marks TEXT, description TEXT, photo TEXT, work_id INTEGER, cabinet_id INTEGER, custodian_id INTEGER, public INTEGER NOT NULL DEFAULT 0, token TEXT,
@@ -337,7 +339,7 @@ ${cab.length ? `<form method="post" action="/yours/registry" class="rgy-new rgy-
     if (b.cabinet) {
       const bb = buyerOf(req); const c = bb && db.prepare('SELECT * FROM cabinet WHERE id=? AND buyer_id=?').get(+b.cabinet, bb.id); if (!c) return res.redirect('/yours/registry');
       const o = create(`b:${bb.id}`, { title: c.title, artist: c.artist, made: c.year, medium: c.medium, dims: c.dims, description: c.note }, { cabinet_id: c.id, work_id: c.work_id || null });
-      const src = c.file ? path.join(C.dataDir, 'cabinet', path.basename(c.file)) : null; if (src && fs.existsSync(src)) { const tmp = path.join(C.dataDir, 'incoming', `cab-${c.id}-${Date.now()}`); fs.copyFileSync(src, tmp); await setPhoto(o, { path: tmp }); }
+      const src = c.file ? await LF(path.join(C.dataDir, 'cabinet', path.basename(c.file)), 'cabinet/' + path.basename(c.file)) : null; if (src) { const tmp = path.join(C.dataDir, 'incoming', `cab-${c.id}-${Date.now()}`); fs.copyFileSync(src, tmp); await setPhoto(o, { path: tmp }); }
       if (c.acquired || c.from_whom || c.paid_cents != null) add(o, { kind: 'acquired', on_date: ymd(c.acquired), party: c.from_whom || null, price_cents: c.paid_cents == null ? null : c.paid_cents, by_kind: 'owner', public: 0, body: 'From the cabinet.' });
       if (c.provenance) add(o, { kind: 'note', body: `Provenance as written in the cabinet: ${c.provenance}`, by_kind: 'owner', public: 0 });
       if (c.condition) add(o, { kind: 'condition', result: c.condition, by_kind: 'owner', party: 'The owner', public: 0 });
@@ -353,16 +355,16 @@ ${cab.length ? `<form method="post" action="/yours/registry" class="rgy-new rgy-
     const ok = req.query.ok ? `<p class="ok">${esc({ made: 'Recorded. Now add what is known: how you came to own it, where it has been, who holds it.', entered: 'Entered, fingerprinted and on the register.', custodian: 'The custodian is named and told; their attestations will appear here.', nocust: 'No custodian by that handle. Write to the house and we open their door.', shared: 'Saved.', offered: 'Offered. The title passes when they accept.', saved: 'Saved.' }[req.query.ok] || req.query.ok)}</p>` : '';
     res.set('Cache-Control', 'private, no-store').set('X-Robots-Tag', 'noindex').send(shell(tidy(o.title), `${r === 'owner' ? '<p class="k"><a href="/yours/registry">Your registry</a></p>' : ''}${ok}${record(o, r)}`, '/yours/registry'));
   });
-  app.get('/registry/o/:id/photo', (req, res) => {
+  app.get('/registry/o/:id/photo', async (req, res) => {
     const o = obj(req.params.id); if (!o || !o.photo) return res.sendStatus(404); const r = role(req, o); if (!r) return res.sendStatus(404);
-    const f = path.join(C.dataDir, o.photo); if (!fs.existsSync(f)) return res.sendStatus(404);
+    const f = await LF(path.join(C.dataDir, o.photo), o.photo); if (!f) return res.sendStatus(404);
     res.set('Cache-Control', r === 'public' ? 'public, max-age=3600' : 'private, no-store').type('image/jpeg').sendFile(f);
   });
   app.get('/registry/o/:id/file/:eid', async (req, res) => {
     const o = obj(req.params.id); if (!o) return res.sendStatus(404); const r = role(req, o); if (!r || r === 'public') return res.sendStatus(404);
     const e = db.prepare('SELECT * FROM object_events WHERE id=? AND object_id=?').get(+req.params.eid, o.id); if (!e || !e.file || !sees(r, e, o)) return res.sendStatus(404);
     const f = path.join(C.dataDir, e.file);
-    if (!fs.existsSync(f)) { try { await store.download(e.file, f); } catch (x) { return res.sendStatus(404); } }
+    if (!(await LF(f, e.file))) return res.sendStatus(404);
     res.set('Cache-Control', 'private, no-store').type(e.mime || 'application/octet-stream').sendFile(f);
   });
   const ownerOnly = (req, res) => { const o = obj(req.params.id); if (!o) { res.sendStatus(404); return null; } const r = role(req, o); if (r !== 'owner' && r !== 'house') { res.sendStatus(403); return null; } return { o, r }; };
@@ -487,7 +489,7 @@ ${list.length ? list.map(o => { const l = last(o); return `<article class="rgy-c
   });
 
   // The dossier: the record as a document for an insurer, a lender, a buyer's adviser.
-  app.get('/registry/o/:id/dossier.pdf', (req, res) => {
+  app.get('/registry/o/:id/dossier.pdf', async (req, res) => {
     const o = obj(req.params.id); if (!o) return res.sendStatus(404); const r = role(req, o); if (!r) return deny(req, res);
     const PDF = require('pdfkit'); const doc = new PDF({ size: 'LETTER', margin: 64, info: { Title: `${tidy(o.title)} · ${no(o)}` } });
     res.set('Cache-Control', 'private, no-store').type('application/pdf').set('Content-Disposition', `inline; filename="${noPath(o)}.pdf"`); doc.pipe(res);
@@ -495,7 +497,7 @@ ${list.length ? list.map(o => { const l = last(o); return `<article class="rgy-c
     doc.fillColor('#111').font('Times-Bold').fontSize(22).text(tidy(o.title)); doc.font('Times-Italic').fontSize(13).text([o.artist, o.made].filter(Boolean).join(', ')).moveDown(.3);
     doc.font('Times-Roman').fontSize(11).text([o.medium, o.dims].filter(Boolean).join(' · ')); if (o.marks) doc.text(`Marks and inscriptions: ${o.marks}`); if (o.description) doc.moveDown(.4).text(o.description);
     if (o.record_kind === 'collection') doc.moveDown(.4).fillColor('#444').text(`${o.holder ? `In the collection of ${o.holder}` : 'Where it is kept is not recorded'}${o.accession ? `, ${o.accession}` : ''}`).fillColor('#111'); else if (r !== 'public') doc.moveDown(.4).fillColor('#444').text(`Owner: ${nameOf(o.owner)}`).fillColor('#111');
-    const ph = o.photo ? path.join(C.dataDir, o.photo) : null; if (ph && fs.existsSync(ph)) { try { doc.moveDown(.6).image(ph, { fit: [484, 300], align: 'center' }); } catch (e) { /* */ } }
+    const ph = o.photo ? await LF(path.join(C.dataDir, o.photo), o.photo) : null; if (ph) { try { doc.moveDown(.6).image(ph, { fit: [484, 300], align: 'center' }); } catch (e) { /* */ } }
     const ev = standing(events(o)).filter(e => sees(r, e, o));
     const sec = (h, list) => { if (!list.length) return; doc.moveDown(1).font('Times-Bold').fontSize(13).text(h).moveDown(.3); for (const e of list) { doc.font('Times-Bold').fontSize(10.5).text(`${dateWord(e) || '—'}   ${(KINDS[e.kind] || [e.kind])[0]}`, { continued: false }); doc.font('Times-Roman').fontSize(10.5).text([e.party, e.how, e.result, e.body].filter(Boolean).join(' · ')); doc.fontSize(8.5).fillColor('#666').text(`${({ owner: 'Entered by the owner', custodian: `Attested by ${e.by_name || 'the custodian'}`, expert: `Signed by ${e.by_name}`, house: `Entered by the house${e.by_name ? `, ${e.by_name}` : ''}`, contributor: `Added by ${e.by_name || 'a contributor'}, accepted by the house` })[e.by_kind] || ''}${e.source ? ` · Source: ${e.source}` : ''}${e.file_sha ? ` · paper ${e.file_sha.slice(0, 16)}` : ''} · entry ${e.sha.slice(0, 16)}${e.seq ? ` · register No. ${e.seq}` : ''}`).fillColor('#111').moveDown(.5); } };
     sec('Provenance', ev.filter(e => ['provenance', 'acquired', 'transfer'].includes(e.kind)).sort((a, b) => (a.year_from || yr(a.on_date) || 9999) - (b.year_from || yr(b.on_date) || 9999)));

@@ -82,12 +82,13 @@ ${ds.length ? `<div class="dwm-grid">${ds.map(d => `<a class="dwm-card" href="/d
     res.send(V.layout({ title: 'Your drawings · Watermark', path: '/draw', body }));
   });
   app.get('/draw/d/:id', (req, res) => { const o = who(req); const d = mine(o, req.params.id); if (!d) return o ? res.redirect('/draw/mine') : res.redirect(`/signin?next=${encodeURIComponent(req.originalUrl)}`); const ref = d.ref_slug ? db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(d.ref_slug) : null; sheet(req, res, { d, ref }); });
-  app.get('/draw/d/:id/file', (req, res) => { const d = mine(who(req), req.params.id); if (!d) return res.sendStatus(404); res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('Content-Disposition', `attachment; filename="${(tidy(d.title) || 'drawing').replace(/[^\w .-]+/g, '')}.wmd"`); res.type('application/json').sendFile(files(d).wmd); });
-  app.get('/draw/d/:id/png', (req, res) => { const d = mine(who(req), req.params.id); if (!d) return res.sendStatus(404); res.setHeader('Cache-Control', 'private, no-store'); res.type('image/png').sendFile(files(d).png); });
+  const LF = async (f, k) => (app.locals.files ? app.locals.files.local(f, k) : (fs.existsSync(f) ? f : null)); // the disk, else the vault (5 Nov)
+  app.get('/draw/d/:id/file', async (req, res) => { const d = mine(who(req), req.params.id); if (!d) return res.sendStatus(404); const f = await LF(files(d).wmd, `drawings/${d.id}.wmd`); if (!f) return res.sendStatus(404); res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('Content-Disposition', `attachment; filename="${(tidy(d.title) || 'drawing').replace(/[^\w .-]+/g, '')}.wmd"`); res.type('application/json').sendFile(f); });
+  app.get('/draw/d/:id/png', async (req, res) => { const d = mine(who(req), req.params.id); if (!d) return res.sendStatus(404); const f = await LF(files(d).png, `drawings/${d.id}.png`); if (!f) return res.sendStatus(404); res.setHeader('Cache-Control', 'private, no-store'); res.type('image/png').sendFile(f); });
   // Keep: the house's file (every layer) and the flattened PNG, under the owner's name.
   // The drawing arrives as its own type, so the house's 64 KB body limits for forms and JSON do not apply to it.
   const bodyOf = require('express').json({ type: 'application/x-watermark-drawing+json', limit: MAX_WMD + 4 * 1024 * 1024 });
-  app.post('/draw/save', bodyOf, (req, res) => {
+  app.post('/draw/save', bodyOf, async (req, res) => {
     const o = who(req); if (!o) return res.status(401).json({ error: 'Sign in to keep a drawing.' });
     const b = req.body || {}; const wmd = String(b.wmd || ''); if (!wmd || wmd.length > MAX_WMD) return res.status(400).json({ error: wmd ? 'The drawing is too large to keep here; take it out as a file.' : 'Nothing to keep.' });
     let j; try { j = JSON.parse(wmd); } catch (e) { return res.status(400).json({ error: 'Not a drawing.' }); }
@@ -98,7 +99,7 @@ ${ds.length ? `<div class="dwm-grid">${ds.map(d => `<a class="dwm-card" href="/d
     if (d) db.prepare("UPDATE drawings SET title=?, width=?, height=?, layers=?, bytes=?, sha256=?, updated_at=datetime('now') WHERE id=?").run(title, j.w, j.h, j.layers.length, wmd.length, crypto.createHash('sha256').update(png).digest('hex'), d.id);
     else { const id = db.prepare('INSERT INTO drawings (owner, title, ref_slug, width, height, layers, bytes, sha256) VALUES (?,?,?,?,?,?,?,?)').run(o.key, title, j.ref ? String(j.ref).slice(0, 80) : null, j.w, j.h, j.layers.length, wmd.length, crypto.createHash('sha256').update(png).digest('hex')).lastInsertRowid; d = db.prepare('SELECT * FROM drawings WHERE id=?').get(id); }
     const f = files(d); fs.writeFileSync(f.wmd, wmd); fs.writeFileSync(f.png, png);
-    if (store && store.kind === 's3') { Promise.all([store.put(`drawings/${d.id}.wmd`, f.wmd, 'application/json'), store.put(`drawings/${d.id}.png`, f.png, 'image/png')]).catch(e => console.warn('[draw] vault', e.message)); }
+    if (store && store.put) { try { await Promise.all([store.put(`drawings/${d.id}.wmd`, f.wmd, 'application/json'), store.put(`drawings/${d.id}.png`, f.png, 'image/png')]); } catch (e) { console.warn('[draw] vault', e.message); } } // awaited (5 Nov): the vault's copy is the one that lasts
     res.json({ ok: true, id: d.id, href: `/draw/d/${d.id}` });
   });
   app.post('/draw/d/:id/remove', (req, res) => {
@@ -110,7 +111,7 @@ ${ds.length ? `<div class="dwm-grid">${ds.map(d => `<a class="dwm-card" href="/d
   app.post('/draw/d/:id/vault', async (req, res) => {
     const o = who(req); const d = mine(o, req.params.id); if (!d || !o.m) return res.sendStatus(d ? 403 : 404);
     if (d.work_id) { const w = db.prepare('SELECT slug FROM works WHERE id=?').get(d.work_id); if (w) return res.redirect(`/account/works/${w.slug}`); }
-    const f = files(d); const tmp = path.join(C.dataDir, 'incoming', `draw-${d.id}-${Date.now()}.png`); fs.mkdirSync(path.dirname(tmp), { recursive: true }); fs.copyFileSync(f.png, tmp);
+    const f = files(d); const png = await LF(f.png, `drawings/${d.id}.png`); if (!png) return res.sendStatus(404); const tmp = path.join(C.dataDir, 'incoming', `draw-${d.id}-${Date.now()}.png`); fs.mkdirSync(path.dirname(tmp), { recursive: true }); fs.copyFileSync(png, tmp);
     try {
       const w = await registerWork({ file: tmp, title: d.title, caption: d.ref_slug ? `Drawn from ${d.ref_slug} on Watermark.` : null, originalName: `${d.title}.png`, makerId: o.m.id, kind: 'drawing' });
       db.prepare("UPDATE works SET status='hidden', credit=COALESCE(credit, ?) WHERE id=?").run(o.m.name, w.id); // kept back until the maker publishes it

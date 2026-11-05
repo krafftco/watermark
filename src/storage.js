@@ -130,6 +130,8 @@ function createStore(cfg) {
     list: prefix => raw.list(prefix),
     del: key => raw.del(key),
     size: key => raw.size(key),
+    // In the open (5 Nov): display copies go to the bucket unsealed, since they are public pictures and an edge may one day read them straight from the bucket.
+    plain: { put: (key, body, type) => raw.put(key, Buffer.isBuffer(body) ? body : fs.readFileSync(body), type), get: key => raw.get(key), size: key => raw.size(key), del: key => raw.del(key) },
     multipart: raw.multipart || null, download: raw.download || null, ensureCors: raw.ensureCors || null, lock: raw.lock || null, retainAll: raw.retainAll || null,
     // A known object proves the key is the right one before anything is written with it.
     async checkKey() {

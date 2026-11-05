@@ -149,6 +149,7 @@ ${hs.length < MAX_HEIRS ? `<form method="post" action="/account/estate/heirs" cl
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(h.maker_id);
     const dest = path.join(dir, `${h.id}-${crypto.randomBytes(6).toString('hex')}${path.extname(req.file.originalname || '') || '.pdf'}`);
     await fs.promises.rename(req.file.path, dest).catch(async () => { await fs.promises.copyFile(req.file.path, dest); fs.unlink(req.file.path, () => {}); });
+    if (app.locals.files) { try { await app.locals.files.keep(dest, 'estate/' + path.basename(dest), null, req.file.mimetype); } catch (e) { /* the disk still has it */ } } // and in the vault (5 Nov)
     db.prepare("UPDATE estate_heirs SET status='asked', asked_at=datetime('now'), proof=?, proof_name=?, ask_note=? WHERE id=?").run(dest, String(req.file.originalname || '').slice(0, 120), String((req.body || {}).note || '').slice(0, 1200), h.id);
     try { ledger.append(db, 'estate.asked', m.handle, { role: h.role }); } catch (e) { /* */ }
     if (m.email) mail.send({ to: m.email, subject: 'Someone has asked for the keys to your studio', text: `${first(m.name)},\n\n${h.name}, whom you named ${h.role === 'executor' ? 'executor' : 'an heir'} of your work on Watermark, has asked for the keys to your studio, with papers saying you have died.\n\nIf you are reading this, stop it with one tap:\n\n${C.base}/estate/stop/${h.stop_token}\n\nNothing opens for ${WAIT()} days, and not before the house has read the papers.\n\nWatermark` }).catch(() => {});
@@ -178,9 +179,9 @@ ${hs.length < MAX_HEIRS ? `<form method="post" action="/account/estate/heirs" cl
     res.send(V.layout({ title: 'Estates · Studio', path: '/studio/estate', studio: true, body: `<section class="studio-wrap est"><p class="k">The house</p><h1>Estates.</h1><p class="lede">${named} people named by makers. A request for the keys waits ${WAIT()} days and the house’s look at the papers; the maker is written to first with a way to stop it.${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}</p>
 ${rows.length ? rows.map(h => { const d = h.asked_at ? Math.floor(daysSince(h.asked_at)) : 0, ready = d >= WAIT(); return `<article class="est-r"><h3>${esc(h.name)} <i>${esc(h.relation || ROLES[h.role] || h.role)}</i> → ${esc(h.maker_name)}</h3><p>${esc(h.email)} · asked ${esc(date(h.asked_at))} · ${h.status === 'asked' ? (ready ? 'the wait is over' : `${WAIT() - d} days left`) : esc(h.status)}${h.word ? ` · ${esc(h.word)}` : ''}</p>${h.ask_note ? `<blockquote>${esc(h.ask_note)}</blockquote>` : ''}${h.proof ? `<p><a href="/studio/estate/${h.id}/proof">The papers (${esc(h.proof_name || 'file')})</a></p>` : ''}${h.status === 'asked' ? `<form method="post" action="/studio/estate/${h.id}" class="est-f"><input name="word" maxlength="200" placeholder="A word (kept)"><button class="buy-btn" name="do" value="grant"${ready ? '' : ' disabled title="The wait is not over"'}>Grant the keys</button><button class="link" name="do" value="decline">Refuse</button></form>` : ''}</article>`; }).join('') : '<p>No requests.</p>'}</section>` }));
   });
-  app.get('/studio/estate/:id/proof', studioOnly, (req, res) => {
-    const h = db.prepare('SELECT * FROM estate_heirs WHERE id=?').get(+req.params.id); if (!h || !h.proof || !fs.existsSync(h.proof)) return res.sendStatus(404);
-    res.set('Cache-Control', 'private, no-store'); res.sendFile(h.proof);
+  app.get('/studio/estate/:id/proof', studioOnly, async (req, res) => {
+    const h = db.prepare('SELECT * FROM estate_heirs WHERE id=?').get(+req.params.id); if (!h || !h.proof) return res.sendStatus(404);
+    res.set('Cache-Control', 'private, no-store'); const f = app.locals.files ? await app.locals.files.local(h.proof, 'estate/' + path.basename(h.proof)) : h.proof; if (!f) return res.sendStatus(404); res.sendFile(f);
   });
   app.post('/studio/estate/:id', studioOnly, (req, res) => {
     const h = db.prepare("SELECT * FROM estate_heirs WHERE id=? AND status='asked'").get(+req.params.id); if (!h) return res.redirect('/studio/estate');

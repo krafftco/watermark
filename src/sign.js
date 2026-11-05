@@ -96,7 +96,7 @@ ${kind === 'property' ? '<label><span>The property (what and where)</span><input
   // The signer's own copy, by the link in their letter.
   app.get('/release/r/:token', async (req, res) => {
     const x = db.prepare('SELECT * FROM work_releases WHERE token=? AND file IS NOT NULL').get(String(req.params.token)); if (!x) return res.sendStatus(404);
-    const p = path.join(dir, path.basename(x.file)); if (!fs.existsSync(p) && store && store.get) { try { await store.get('releases/' + x.file, p); } catch (e) { return res.sendStatus(404); } }
+    const p = app.locals.files ? await app.locals.files.local(path.join(dir, path.basename(x.file)), 'releases/' + path.basename(x.file)) : path.join(dir, path.basename(x.file)); if (!p) return res.sendStatus(404);
     res.set({ 'Cache-Control': 'private, no-store', 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="release-${x.id}.pdf"` }); res.sendFile(p);
   });
 
