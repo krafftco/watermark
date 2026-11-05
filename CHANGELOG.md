@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.59.0 · Public Domain Day · 5 November 2026
+- /public-domain: who enters on 1 January (the artists who died seventy years before; in the United States, work first published ninety-five years before), who entered last January, the years ahead.
+- Tell me that morning: one letter on the day, for everyone entering or one artist.
+- The morning: the register says each artist's work entered the public domain; the house gets a letter of what to bring in.
+- An artist's rights line now says the day their work enters the public domain.
+- The house's United States line follows the year (work first published in 1930 or before, in 2026), no longer fixed at 1928.
+
 ## 1.58.1 · MoMA at speed · 5 November 2026
 - The MoMA read breathes briefly between batches and waits only on memory, not on visitors; on the live house the visitors' gate had held every batch a minute (ten hours for the whole record).
 - The governor no longer counts beacons (the page's "here" and "stood") as visitors waiting.

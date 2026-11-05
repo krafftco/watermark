@@ -1,0 +1,31 @@
+// Public Domain Day (5 Nov): who enters this January, a word to be told, and the morning itself.
+process.env.NODE_ENV = 'test';
+const assert = require('assert'); const fs = require('fs'); const path = require('path'); const os = require('os');
+const { createApp } = require('../src/app');
+(async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-pdd-'));
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 'pdd', noTimers: true, vaultNow: true });
+  const { db } = app.locals; const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
+  const get = p => fetch(base + p, { redirect: 'manual' }).then(r => r.text());
+  const P = app.locals.pdDay; const j = P.nextDay(); const y = j - 1;
+  const A = app.locals.art;
+  const a1 = A.ensure('Ada Painter', { born: 1890, died: P.diedFor(j) });
+  const a2 = A.ensure('Bo Sculptor', { born: 1880, died: P.diedFor(y) });
+  const a3 = A.ensure('Cy Later', { born: 1900, died: P.diedFor(j + 2) });
+  assert.strictEqual(A.rights(db.prepare('SELECT * FROM artists WHERE id=?').get(a1.id)).state, 'reserved', 'not yet');
+  assert.ok(A.rights(db.prepare('SELECT * FROM artists WHERE id=?').get(a1.id)).why.includes(`January 1, ${j}`), 'the why names the day');
+  assert.strictEqual(A.rights(db.prepare('SELECT * FROM artists WHERE id=?').get(a2.id)).state, 'pd', 'entered last January');
+  let t = await get('/public-domain');
+  assert.ok(t.includes(`January 1, ${j}.`) && t.includes('Ada Painter') && t.includes('Bo Sculptor') && t.includes('Cy Later') && t.includes(`first published in ${j - 96}`), 'the page');
+  assert.ok(t.indexOf('Ada Painter') < t.indexOf(`Entered on January 1, ${y}`) && t.indexOf('Bo Sculptor') > t.indexOf(`Entered on January 1, ${y}`), 'this January and last');
+  let r = await fetch(base + '/public-domain/tell', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: base }, body: `email=reader@example.com&artist=${a1.id}` });
+  assert.strictEqual(r.status, 303); assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pd_watch').get().n, 1, 'told kept');
+  await fetch(base + '/public-domain/tell', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: base }, body: 'email=reader@example.com&artist=' + a1.id });
+  assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pd_watch').get().n, 1, 'never twice');
+  const m = await P.morning(j, { force: true });
+  assert.strictEqual(m.artists, 1); assert.strictEqual(m.told, 1, 'the watcher told');
+  assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='artist.entered' AND subject=?").get(a1.slug), 'on the register');
+  assert.ok((await P.morning(j)).already, 'once a year');
+  t = await get('/ledger'); assert.ok(t.includes('entered the public domain today'), 'the register tells it');
+  srv.close(); console.log('pd day ok'); process.exit(0);
+})().catch(e => { console.error(e); process.exit(1); });
