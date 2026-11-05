@@ -108,7 +108,7 @@ function mountRows(app, { db, V, C }) {
     return `<div class="rws rws-mk" data-rws>${rows.map(r => `${r.mast || ''}<section class="rw"${r.id ? ` id="${r.id}"` : ''} data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.line ? `<span class="rw-l">${esc(r.line)}</span>` : ''}${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header>${r.sort || ''}<div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`;
   }
   const html = (req, data) => { const rows = rowsFor(req, data); return `<div class="rws" data-rws>${rows.map(row).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`; };
-  app.locals.rows = { rowsFor, html, maker, SORTS };
+  app.locals.rows = { rowsFor, html, maker, SORTS, row, tile, cloth };
   return app.locals.rows;
 }
 module.exports = { mountRows };

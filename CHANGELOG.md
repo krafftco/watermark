@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.62.0 · Discover · 5 November 2026
+
+- Discover (/look): one search that finds everything in the house (works, the artists of the hall, living makers, books, records, films, places, museums, movements, mediums, years, the rooms), the ways in, then walls chosen for discovery: the collections, on view, longest stood before, entering the public domain this January, just arrived, the artists, movements, in time, mediums, places, museums, the Library, the Listening Room, the Screening Room. Every tile is a record and a way into Wander at that work in that set.
+- Find knows an artist (and forgives a slip), a year, a decade, a century, a movement, a medium, a museum and a film; the artist leads when the word is their name.
+- Wander walks a year, a decade, a place, a movement, a medium, an artist, what arrived, the public domain, living makers and what held people longest (`?in=`), and a word finds an artist, a movement or a year.
+
 ## 1.61.0 · The house without a disk · 5 November 2026
 - Every file the house keeps is in the vault and comes back from it when the box is new: display copies live in the bucket (`renditions/`), portraits, claim evidence and estate papers are put there on arrival, and every room that serves a kept file fetches the vault's copy when the disk has none.
 - Two reads that only looked as if they fell back to the vault (releases, signed releases) and one that skipped the vault's seal (registry papers) are repaired.

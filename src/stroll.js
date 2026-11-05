@@ -17,7 +17,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : ''); if (not.length) { where += ` AND w.slug NOT IN (${not.map(() => '?').join(',')})`; params.push(...not); }
-    if (q) { const like = `%${q.replace(/[%_]/g, '')}%`; where += ' AND (w.title LIKE ? OR w.place LIKE ? OR w.keywords LIKE ? OR m.name LIKE ?)'; params.push(like, like, like, like); }
+    if (q) { const like = `%${q.replace(/[%_]/g, '')}%`; where += " AND (w.title LIKE ? OR w.place LIKE ? OR w.keywords LIKE ? OR m.name LIKE ? OR w.taken_at LIKE ? OR EXISTS (SELECT 1 FROM artists a WHERE a.id=w.artist_id AND (a.name LIKE ? OR a.movement LIKE ?)))"; params.push(like, like, like, like, `${q.replace(/[%_]/g, '')}%`, like, like); } // a word, a maker, an artist, a movement or a year (5 Nov)
     const mk = makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
     // The open wander draws from a pool kept a minute (28 Oct, for an audience): the held works with their weights, picked
     // at random here rather than sorted by the database for every page; a word, a maker or the adult rooms open still ask.
@@ -203,7 +203,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     return wander(req, res, { key: `hang:${h.slug}`, as: { label: a.name, href: `/art/${a.slug}` }, share: { url: `/art/${a.slug}`, image: `/art/${a.slug}/card.png`, title: a.name, text: `${a.name}${a.born || a.died ? ` (${a.born || ''}–${a.died || ''})` : ''}: the life and the work, in the order it was made.` } });
   }));
   // A set worth sending: public walls, a maker's work, a series, the collection; never a private room or an album.
-  const SHAREABLE = k => /^(hang|maker|series):[\w-]+$/.test(k) || k === 'collection';
+  const SHAREABLE = k => /^(hang|maker|series|year|decade|place|movement|kind|artist):[^\s]+$/.test(k) || /^(collection|arrived|open|stood|living)$/.test(k);
   function wander(req, res, { front = false, key: keyIn = null, share = null, as = null }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);

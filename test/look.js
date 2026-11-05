@@ -30,7 +30,26 @@ const { createApp } = require('../src/app');
   t = await get('/wander'); assert.ok(t.includes('class="tb"') && t.includes('data-find-open="stroll"'), 'the tab bar in Wander');
   V.setQuiet(true); t = await get('/wander?q=wheat'); assert.ok(/class="tb tb-3"/.test(t) && t.includes('data-find-open="stroll"'), 'the quiet tab bar in Wander');
   // The hub and the Met's room.
-  t = await get('/look'); assert.ok(t.includes('Where would you like to look?') && t.indexOf('href="/met"') > -1 && t.indexOf('href="/met"') < t.indexOf('href="/collection"'), 'the Met first on /look');
+  // Discover (5 Nov): one search that finds everything, the ways in, the walls; the Met still first among the collections.
+  const vg = app.locals.art.ensure('Vincent van Gogh', { born: 1853, died: 1890, movement: 'Post-Impressionism' }); db.prepare('UPDATE works SET artist_id=? WHERE slug=?').run(vg.id, wheat);
+  app.locals.findIndexDirty();
+  t = await get('/look'); assert.ok(t.includes('What would you like to see?') && t.includes('class="dsc-ways"') && t.includes('href="#time"') && t.includes('href="/wander?in=arrived"') && t.indexOf('href="/met"') > -1 && t.indexOf('href="/met"') < t.indexOf('href="/collection"'), 'Discover: the search, the ways in, the Met first');
+  assert.ok(t.includes('id="artists"') && t.includes('Vincent van Gogh') && t.includes('1853–1890') && t.includes('id="time"') && t.includes('The 1880s') && t.includes('/wander?in=decade:1880') && t.includes('id="mediums"') && t.includes('/wander?in=kind:painting') && t.includes('id="arrived"') && t.includes(`/wander?in=arrived&amp;at=${wheat}`), 'the walls: artists, in time, mediums, just arrived');
+  fj = await fetch(base + '/api/find?q=van%20gogh').then(r => r.json()); assert.ok(fj.artists && fj.artists[0] && fj.artists[0].href === '/art/' + vg.slug && fj.artistsFirst && fj.artists[0].n === 1, 'Find finds an artist of the hall, first');
+  fj = await fetch(base + '/api/find?q=vna%20gogh').then(r => r.json()); assert.ok(fj.artists && fj.artists[0] && fj.artists[0].href === '/art/' + vg.slug, 'a slip of the fingers forgiven');
+  fj = await fetch(base + '/api/find?q=1889').then(r => r.json()); assert.ok(fj.times && fj.times[0] && fj.times[0].href === '/wander?in=year:1889' && fj.times[0].n === 1 && fj.works[0].slug === wheat, 'a year is a time and its works');
+  fj = await fetch(base + '/api/find?q=1880s').then(r => r.json()); assert.ok(fj.times[0] && fj.times[0].href === '/wander?in=decade:1880', 'a decade');
+  fj = await fetch(base + '/api/find?q=19th%20century').then(r => r.json()); assert.ok(fj.times[0] && fj.times[0].name === 'The 1880s', 'a century opens to its decades');
+  fj = await fetch(base + '/api/find?q=post-impressionism').then(r => r.json()); assert.ok(fj.movements && fj.movements[0] && fj.movements[0].href.includes('movement=Post-Impressionism'), 'a movement');
+  fj = await fetch(base + '/api/find?q=paintings').then(r => r.json()); assert.ok(fj.kinds && fj.kinds[0] && fj.kinds[0].href === '/wander?in=kind:painting', 'a medium');
+  fj = await fetch(base + '/api/find?q=museum').then(r => r.json()); assert.ok(fj.museums && fj.museums[0] && fj.museums[0].n === 2, 'a museum');
+  fj = await fetch(base + '/api/find').then(r => r.json()); assert.ok(fj.before.artists[0].name === 'Vincent van Gogh' && fj.before.decades[0].name === '1880s' && fj.before.kinds.length === 2, 'the ways in before typing');
+  t = await get('/find?q=van%20gogh'); assert.ok(t.includes('Artists of the hall') && t.includes('href="/art/' + vg.slug + '"') && !t.includes('Nothing by that word'), 'the /find page finds the artist');
+  for (const set of ['year:1889', 'decade:1880', 'kind:painting', 'movement:Post-Impressionism', 'artist:' + vg.slug, 'arrived', 'living', 'stood', 'open', 'place:' + encodeURIComponent('Paris')]) { const r = await fetch(base + '/wander?in=' + set + '&at=' + wheat, { redirect: 'manual' }); assert.ok(r.status === 200 || r.status === 302, 'Wander in ' + set + ': ' + r.status); }
+  t = await get('/wander?in=year:1889'); assert.ok(t.includes('The year 1889') && t.includes(wheat), 'Wander walks a year');
+  t = await get('/wander?q=gogh'); assert.ok(t.includes(wheat), 'Wander by a word finds the artist');
+  let rr = await fetch(base + '/look?q=wheat', { redirect: 'manual' }); assert.strictEqual(rr.status, 302); assert.ok(rr.headers.get('location').startsWith('/find?q=wheat'), '/look?q goes to Find');
+  rr = await fetch(base + '/look?time=1880s', { redirect: 'manual' }); assert.ok(rr.headers.get('location') === '/wander?in=decade:1880', '/look?time opens the decade');
   t = await get('/met'); assert.ok(t.includes('Open access works from The Metropolitan Museum of Art.') && t.includes('id="painting"') && t.includes('id="print"') && t.includes('Wheat Field with Cypresses') && t.includes('The 19th century') && t.includes('not the Met’s own site'), 'the Met a room at a time: ' + t.length);
   t = await get('/met?q=cypress'); assert.ok(t.includes('Wheat Field with Cypresses') && !t.includes('The Great Wave'), 'search inside the Met');
   // The price record.

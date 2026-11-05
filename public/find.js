@@ -10,7 +10,7 @@
   function build() {
     if (ov) return;
     ov = document.createElement('div'); ov.className = 'fd'; ov.hidden = true; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Find');
-    ov.innerHTML = '<div class="fd-card"><form class="fd-f" action="/find" method="get"><span class="fd-ic">' + (IC.find || '') + '</span><input type="search" name="q" placeholder="A title, a place, a maker, a year, a word" aria-label="Find" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="fd-x" aria-label="Close">' + (IC.close || '×') + '</button></form><div class="fd-list" role="listbox"></div><p class="fd-foot"></p></div>';
+    ov.innerHTML = '<div class="fd-card"><form class="fd-f" action="/find" method="get"><span class="fd-ic">' + (IC.find || '') + '</span><input type="search" name="q" placeholder="A work, an artist, a book, a place, a year, a word" aria-label="Find" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="fd-x" aria-label="Close">' + (IC.close || '×') + '</button></form><div class="fd-list" role="listbox"></div><p class="fd-foot"></p></div>';
     document.body.appendChild(ov);
     inp = ov.querySelector('input'); list = ov.querySelector('.fd-list'); foot = ov.querySelector('.fd-foot');
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
@@ -26,7 +26,7 @@
   function go() {
     var as = list.querySelectorAll('a'); var q = inp.value.trim();
     if (sel >= 0 && as[sel]) { location.href = as[sel].href; return; }
-    if (rows.length && rows[0].kind === 'work' && as[0]) { location.href = as[0].href; return; }
+    if (rows.length && (rows[0].kind === 'work' || rows[0].kind === 'artist') && as[0]) { location.href = as[0].href; return; }
     if (q) location.href = '/wander?q=' + encodeURIComponent(q);
   }
   function workRow(w) { return '<a class="fd-w" href="' + esc(hrefOf(w)) + '" role="option"><img src="' + esc(w.img) + '" alt="" loading="lazy"><span><b>' + esc(w.title) + '</b><small>' + esc(w.maker) + (w.place ? ' · ' + esc(w.place) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
@@ -38,20 +38,28 @@
       var b = d.before || {}; var h = '';
       if (b.lately && b.lately.length) { h += '<p class="fd-k">Where you stood lately</p>' + b.lately.map(workRow).join(''); rows = rows.concat(b.lately); }
       if (b.yours && b.yours.length) { h += '<p class="fd-k">Yours</p>' + b.yours.map(workRow).join(''); rows = rows.concat(b.yours); }
-      h += chips('Places', b.places) + chips('Makers', b.makers) + chips('Rooms', b.rooms);
+      h += chips('Artists of the hall', b.artists) + chips('Movements', b.movements) + chips('Mediums', b.kinds) + chips('In time', b.decades) + chips('Museums', b.museums) + chips('Places', b.places) + chips('Makers', b.makers) + chips('Rooms', b.rooms);
       list.innerHTML = h; foot.innerHTML = '<span>' + (PHONE ? 'What are you looking for? Type, or tap a way in.' : 'What are you looking for? Enter opens the first. ↑ ↓ choose.') + '</span>'; return;
     }
     var out = '';
     var doorRows = function () { (d.doors || []).forEach(function (r) { out += wayRow(r, 'A room of the house'); rows.push(r); }); };
+    var artistRows = function () { (d.artists || []).forEach(function (a) { out += wayRow(a, 'An artist of the hall'); rows.push(a); }); };
     if (d.doorsFirst) doorRows();
+    if (d.artistsFirst) artistRows();
     if (d.works && d.works.length) { out += d.works.map(workRow).join(''); rows = rows.concat(d.works); }
     if (!d.doorsFirst) doorRows();
+    if (!d.artistsFirst) artistRows();
+    (d.times || []).forEach(function (x) { out += wayRow(x, 'In time'); rows.push(x); });
+    (d.museums || []).forEach(function (x) { out += wayRow(x, 'A museum'); rows.push(x); });
+    (d.movements || []).forEach(function (x) { out += wayRow(x, 'A movement'); rows.push(x); });
+    (d.kinds || []).forEach(function (x) { out += wayRow(x, 'A medium'); rows.push(x); });
     (d.makers || []).forEach(function (m) { out += wayRow(m, 'Maker'); rows.push(m); });
     (d.places || []).forEach(function (p) { out += wayRow(p, 'Place'); rows.push(p); });
     (d.rooms || []).forEach(function (r) { out += wayRow(r, 'Room'); rows.push(r); });
     (d.hangs || []).forEach(function (w) { out += wayRow(w, 'A wall'); rows.push(w); });
     (d.books || []).forEach(function (b) { out += wayRow(b, 'A book'); rows.push(b); });
     (d.records || []).forEach(function (b) { out += wayRow(b, 'A record'); rows.push(b); });
+    (d.films || []).forEach(function (b) { out += wayRow(b, 'A film'); rows.push(b); });
     if (!out) out = '<p class="fd-none">' + '<span>Nothing by that word yet. Try a place, a maker, a book or a record.</span></p>';
     else if (d.works && d.works.length) out += '<a class="fd-all" href="/wander?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
     list.innerHTML = out; foot.innerHTML = d.works && d.works.length ? '<span>' + (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') + '</span>' : '';
