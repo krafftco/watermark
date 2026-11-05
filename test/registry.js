@@ -137,5 +137,20 @@ const { createApp } = require('../src/app');
   const pdw = db.prepare('SELECT * FROM works WHERE id=?').get(mw.id); assert.equal(CS(pdw).state, 'open'); assert.ok(/public domain/.test(CS(pdw).line));
   assert.equal(app.locals.copyrightRegistrable(pdw), false);
   t = await (await go(studio, `/account/copyright?maker=${mus.handle}`)).text(); assert.ok(!t.includes('The Harvesters'), 'not offered for registration');
+  // the lot page (1.54): the size read to scale, the line it is introduced by, more views, the zoom, the catalogue's phrasing
+  assert.deepEqual(R.cmOf('43.2 × 36.2 cm'), { h: 43.2, w: 36.2 });
+  const inch = R.cmOf('17 × 14 ¼ in. (43.2 × 36.2 cm.)'); assert.ok(Math.abs(inch.h - 43.2) < .01 && Math.abs(inch.w - 36.2) < .01, 'the cm in brackets wins');
+  const only = R.cmOf('24 x 18 1/2 in.'); assert.ok(Math.abs(only.w - 46.99) < .01, 'inches with a fraction');
+  assert.equal(R.cmOf('a small panel'), null);
+  r = await form(studio, `/registry/o/${o.id}/from`, { from_line: 'From a private collection, Dallas' }); assert.equal(r.status, 302);
+  r = await multi(studio, `/registry/o/${o.id}/view`, { line: 'Verso, with a dealer’s label' }, { buf: jpg, type: 'image/jpeg', name: 'v.jpg' }); assert.equal(r.status, 302);
+  const vw = db.prepare('SELECT * FROM object_views WHERE object_id=?').get(o.id); assert.ok(vw && vw.line.startsWith('Verso'));
+  t = await (await go(studio, `/registry/o/${o.id}`)).text();
+  assert.ok(t.includes('From a private collection, Dallas') && t.includes('data-rgy-view') && t.includes('Verso, with a dealer') && t.includes('data-rgy-zm') && t.includes('id="wall"') && t.includes('Drawn to scale'), 'the lot page: the line, the views, the zoom, the wall');
+  assert.ok(t.includes('(acquired from the above'), 'provenance read as a catalogue writes it');
+  assert.equal((await go({}, `/registry/o/${o.id}/view/${vw.id}`)).status, db.prepare('SELECT public FROM objects WHERE id=?').get(o.id).public ? 200 : 404);
+  r = await form(studio, `/registry/o/${o.id}/view/${vw.id}/remove`, {}); assert.ok(!db.prepare('SELECT 1 FROM object_views WHERE id=?').get(vw.id), 'a view taken off');
+  assert.equal((await form({}, `/registry/o/${o.id}/from`, { from_line: 'x' })).status >= 300, true);
+
   srv.close(); console.log('registry: all hold'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.54.0 · The lot page, second pass · 5 November 2026
+
+- From Christie's own lot page, read in the browser: the line a work is introduced by ('Property from a private collection, New York'), more views (verso, signature, labels) with the photograph of record, Look closely (a zoom with pinch, wheel and drag), On a wall, to scale (the work drawn above a sofa from its dimensions), Before and Next among the artist's records, a slim bar that follows you down the page, and 'Kept by' with a person to write to.
+- Provenance now reads as a catalogue writes it: '(acquired from the above, 1955)', 'Acquired from the above by the present owner.'
+
 ## 1.53.0 · The lot page · 5 November 2026
 
 - A registry record reads like a great sale room's lot page: the picture large and steady beside the catalogue entry (the artist in capitals with dates, the title in italic, marks, medium, size, when made), the facts at a glance, Share, the dossier, Ask the house.

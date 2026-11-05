@@ -38,10 +38,11 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
       corrects INTEGER, sha TEXT, seq INTEGER, at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS object_transfers (id INTEGER PRIMARY KEY, object_id INTEGER NOT NULL, from_owner TEXT NOT NULL, email TEXT NOT NULL, token TEXT UNIQUE NOT NULL, note TEXT,
       status TEXT NOT NULL DEFAULT 'offered', at TEXT NOT NULL DEFAULT (datetime('now')), taken_at TEXT)`);
-  for (const [c, ty] of [['record_kind', "TEXT NOT NULL DEFAULT 'private'"], ['holder', 'TEXT'], ['accession', 'TEXT'], ['source_url', 'TEXT'], ['qid', 'TEXT'], ['catalogue_id', 'INTEGER']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('objects') WHERE name=?").get(c)) db.exec(`ALTER TABLE objects ADD COLUMN ${c} ${ty}`);
+  for (const [c, ty] of [['record_kind', "TEXT NOT NULL DEFAULT 'private'"], ['holder', 'TEXT'], ['accession', 'TEXT'], ['source_url', 'TEXT'], ['qid', 'TEXT'], ['catalogue_id', 'INTEGER'], ['from_line', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('objects') WHERE name=?").get(c)) db.exec(`ALTER TABLE objects ADD COLUMN ${c} ${ty}`);
   db.exec(`CREATE TABLE IF NOT EXISTS object_offers (id INTEGER PRIMARY KEY, object_id INTEGER NOT NULL, who TEXT NOT NULL, name TEXT, email TEXT, kind TEXT NOT NULL, on_date TEXT, year_from INTEGER, year_to INTEGER,
       party TEXT, how TEXT, result TEXT, body TEXT, source TEXT NOT NULL, file TEXT, mime TEXT, file_sha TEXT, status TEXT NOT NULL DEFAULT 'waiting', word TEXT, at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE INDEX IF NOT EXISTS objects_work ON objects(work_id); CREATE INDEX IF NOT EXISTS objects_cat ON objects(catalogue_id)`);
+  db.exec(`CREATE TABLE IF NOT EXISTS object_views (id INTEGER PRIMARY KEY, object_id INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0, file TEXT NOT NULL, line TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
   const dir = path.join(C.dataDir, 'registry'); fs.mkdirSync(dir, { recursive: true });
   const up = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
   const bag = kind => (req, res, next) => (req.file && app.locals.bagcheck ? app.locals.bagcheck.gate(kind)(req, res, next) : next());
@@ -150,6 +151,47 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
   // catalogue's own sections in their order: provenance as a catalogue note (each line with its source behind it),
   // exhibited, literature, about the work, condition, then more by the same hand. No estimate and no price, ever.
   const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const I = (() => { try { return require('./icons'); } catch (e) { return {}; } })();
+  const viewsOf = o => db.prepare('SELECT * FROM object_views WHERE object_id=? ORDER BY n, id').all(o.id);
+  // The size as written, read into centimetres (height × width): '43.2 × 36.2 cm', '17 × 14 ¼ in.', '61 x 50 cm'.
+  const FR = { '¼': .25, '½': .5, '¾': .75, '⅛': .125, '⅜': .375, '⅝': .625, '⅞': .875, '⅓': 1 / 3, '⅔': 2 / 3 };
+  const num = s => { s = String(s).trim(); let v = 0; const m = /^(\d+(?:\.\d+)?)?\s*([¼½¾⅛⅜⅝⅞⅓⅔])?(?:\s+(\d+)\/(\d+))?$/.exec(s); if (!m) return NaN; if (m[1]) v += +m[1]; if (m[2]) v += FR[m[2]]; if (m[3]) v += m[3] / m[4]; return v || NaN; };
+  function cmOf(dims) {
+    const d = String(dims || '').replace(/,/g, '.');
+    const pair = '([\\d.]+(?:\\s*[¼½¾⅛⅜⅝⅞⅓⅔])?(?:\\s+\\d+/\\d+)?)\\s*[x×]\\s*([\\d.]+(?:\\s*[¼½¾⅛⅜⅝⅞⅓⅔])?(?:\\s+\\d+/\\d+)?)';
+    let m = new RegExp(pair + '\\s*(?:x\\s*[\\d.]+\\s*)?cm', 'i').exec(d);
+    if (m) { const h = num(m[1]), w = num(m[2]); if (h > 0 && w > 0) return { h, w }; }
+    m = new RegExp(pair + '\\s*(?:x\\s*[\\d.]+\\s*)?(?:in\\b|in\\.|inches|")', 'i').exec(d);
+    if (m) { const h = num(m[1]) * 2.54, w = num(m[2]) * 2.54; if (h > 0 && w > 0) return { h, w }; }
+    return null;
+  }
+  // The work drawn to scale on a wall above a sofa (210 cm), as a buyer would stand before it at home.
+  function wallOf(o, ph) {
+    const c = cmOf(o.dims); if (!c || c.h > 1200 || c.w > 1200) return '';
+    const SOFA = 210, SOFA_H = 82, EYE = 152;
+    const W = Math.max(340, c.w * 1.6 + 40), floorTop = Math.max(c.h / 2 + EYE + 30, 240);
+    const H = floorTop; const bottom = Math.max(EYE - c.h / 2, SOFA_H + 18);
+    const pct = (v, of) => (v / of * 100).toFixed(3);
+    const ft = cm => { const i = Math.round(cm / 2.54); return `${Math.floor(i / 12)} ft ${i % 12} in`; };
+    return `<div class="rgy-wall" style="aspect-ratio:${W.toFixed(1)}/${H.toFixed(1)}"><img class="rgy-wall-w" src="${esc(ph)}" alt="" loading="lazy" style="width:${pct(c.w, W)}%;height:${pct(c.h, H)}%;left:${pct((W - c.w) / 2, W)}%;bottom:${pct(bottom, H)}%"><span class="rgy-wall-s" style="width:${pct(SOFA, W)}%;height:${pct(SOFA_H, H)}%;left:${pct((W - SOFA) / 2, W)}%"></span></div>
+<p class="note">Drawn to scale from the dimensions on the record: ${Math.round(c.h)} × ${Math.round(c.w)} cm (${ft(c.h)} × ${ft(c.w)}), hung at eye level above a sofa ${SOFA} cm wide.</p>`;
+  }
+  // Before and after, among the artist's public records (the lot's own neighbours).
+  function navOf(o, r) {
+    if (!o.public || !o.artist_id) return '';
+    const list = db.prepare("SELECT id, title, made_year FROM objects WHERE artist_id=? AND public=1 AND status='recorded' ORDER BY made_year, id").all(o.artist_id);
+    if (list.length < 2) return '';
+    const i = list.findIndex(x => x.id === o.id); if (i < 0) return '';
+    const go = x => { const ob = obj(x.id); return ob ? `/r/${noPath(ob)}` : '#'; };
+    const pv = list[(i - 1 + list.length) % list.length], nx = list[(i + 1) % list.length];
+    return `<nav class="rgy-nav"><a href="${esc(go(pv))}" title="${esc(tidy(pv.title))}">‹ Before</a><span>${i + 1} of ${list.length}${o.artist ? ` by ${esc(o.artist)}` : ''}</span><a href="${esc(go(nx))}" title="${esc(tidy(nx.title))}">Next ›</a></nav>`;
+  }
+  // The person who answers for the record: the house's director, in the director's own name (a draft).
+  function keptBy() {
+    const D = app.locals.director; const m = D && D.house ? D.house() : null; if (!m) return null;
+    return ask => `<div class="rgy-kept"><p class="k">Kept by</p><div>${m.portrait ? `<img src="/portrait/${esc(m.handle)}" alt="">` : ''}<span><b>${esc(m.name)}</b><small>${esc(D.TITLE)}, the registry</small><a href="${esc(ask)}">${esc(HOUSE)}</a></span></div></div>`;
+  }
+  const ZOOM_JS = `<script>(()=>{const lot=document.querySelector('[data-rgy-lot]');if(!lot)return;const dlg=document.querySelector('[data-rgy-zm]'),st=dlg&&dlg.querySelector('[data-rgy-zm-st]'),im=dlg&&dlg.querySelector('[data-rgy-zm-img]');let s=1,x=0,y=0;const P=new Map();let d0=0,s0=1;const ap=()=>{im.style.transform='translate('+x+'px,'+y+'px) scale('+s+')'};const clamp=()=>{s=Math.max(1,Math.min(8,s));if(s===1){x=0;y=0}};const open=src=>{if(!dlg)return;s=1;x=0;y=0;ap();im.src=src;dlg.showModal()};document.addEventListener('click',e=>{const z=e.target.closest('[data-rgy-zoom]');if(z){e.preventDefault();open(z.dataset.rgyZoom)}const v=e.target.closest('[data-rgy-view]');if(v){const m=lot.querySelector('[data-rgy-main]');m.src=v.dataset.rgyView;m.closest('[data-rgy-zoom]').dataset.rgyZoom=v.dataset.rgyBig;lot.querySelectorAll('[data-rgy-view]').forEach(b=>b.classList.toggle('on',b===v))}if(e.target.closest('[data-rgy-zm-close]'))dlg.close();if(e.target.closest('[data-rgy-zm-in]')){s*=1.6;clamp();ap()}if(e.target.closest('[data-rgy-zm-out]')){s/=1.6;clamp();ap()}});if(!st)return;st.addEventListener('wheel',e=>{e.preventDefault();const r=st.getBoundingClientRect(),cx=e.clientX-r.left-r.width/2,cy=e.clientY-r.top-r.height/2,k=Math.exp(-e.deltaY*0.0022),ns=Math.max(1,Math.min(8,s*k));x=cx-(cx-x)*ns/s;y=cy-(cy-y)*ns/s;s=ns;clamp();ap()},{passive:false});st.addEventListener('dblclick',e=>{const r=st.getBoundingClientRect(),cx=e.clientX-r.left-r.width/2,cy=e.clientY-r.top-r.height/2;if(s>1){s=1;x=0;y=0}else{x=-cx*1.5;y=-cy*1.5;s=2.5}ap()});st.addEventListener('pointerdown',e=>{st.setPointerCapture(e.pointerId);P.set(e.pointerId,{x:e.clientX,y:e.clientY});if(P.size===2){const [a,b]=[...P.values()];d0=Math.hypot(a.x-b.x,a.y-b.y);s0=s}});st.addEventListener('pointermove',e=>{const p=P.get(e.pointerId);if(!p)return;if(P.size===2){P.set(e.pointerId,{x:e.clientX,y:e.clientY});const [a,b]=[...P.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(d0){s=s0*d/d0;clamp();ap()}return}if(s>1){x+=e.clientX-p.x;y+=e.clientY-p.y;ap()}P.set(e.pointerId,{x:e.clientX,y:e.clientY})});const end=e=>{P.delete(e.pointerId);if(P.size<2)d0=0};st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end);dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});const mini=document.querySelector('[data-rgy-mini]'),head=lot.querySelector('h1');if(mini&&head&&'IntersectionObserver' in window)new IntersectionObserver(es=>{mini.hidden=es[0].isIntersecting||es[0].boundingClientRect.top>0}).observe(head)})();</script>`;
   function lot(o, r, { ev, prov, rest, ph, rd, n, cust }) {
     const a = o.artist_id ? db.prepare('SELECT slug, name, born, died, nationality FROM artists WHERE id=?').get(o.artist_id) : null;
     const w = o.work_id ? db.prepare('SELECT slug, title, caption FROM works WHERE id=?').get(o.work_id) : null;
@@ -170,25 +212,47 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
     const ask = `mailto:${HOUSE}?subject=${encodeURIComponent(`${no(o)} · ${tidy(o.title)}`)}`;
     // Provenance as the catalogue sets it: one line a hand, oldest first, "; " between what is said of each.
     const noteLine = e => [e.party ? esc(e.party) : (e.kind === 'acquired' ? 'The present owner' : ''), e.place && r !== 'public' ? esc(e.place) : '', dateWord(e), e.how && e.how !== 'unknown' ? (/^(by|from|at|in) /i.test(e.how) ? esc(e.how) : e.kind === 'acquired' || e.kind === 'transfer' ? `acquired by ${esc(e.how)}` : `by ${esc(e.how)}`) : ''].filter(Boolean).join(', ');
-    const note = prov.map(noteLine).filter(Boolean);
+    const FROM = /^(purchase|auction|exchange|gift|bequest)$/;
+    const note = prov.map((e, i) => {
+      const prev = i > 0;
+      if (e.kind === 'acquired' && !e.party && prev) return `Acquired from the above by the present owner${e.on_date ? `, ${esc(day(e.on_date))}` : ''}.`;
+      if (prev && e.how && FROM.test(e.how) && e.party) {
+        const when = e.on_date ? `, ${esc(day(e.on_date))}` : e.year_from ? `, ${e.year_from}` : '';
+        const tail = e.year_to && e.year_to !== e.year_from ? `; until ${e.year_to}` : '';
+        return `${esc(e.party)}${e.place && r !== 'public' ? `, ${esc(e.place)}` : ''} (acquired from the above${e.how === 'auction' ? ' at auction' : e.how === 'gift' ? ' as a gift' : e.how === 'bequest' ? ' by bequest' : e.how === 'exchange' ? ' by exchange' : ''}${when}${tail}).`;
+      }
+      const l = noteLine(e); return l ? `${l}.` : '';
+    }).filter(Boolean);
     const plain = e => [e.party ? esc(e.party) : '', e.year_from && e.year_to && e.year_to !== e.year_from ? `${e.year_from}–${e.year_to}` : (e.year_from || e.year_to || (e.on_date ? day(e.on_date) : '')), e.body ? esc(e.body) : ''].filter(x => x !== '' && x != null).join(', ');
     const sec = (id, title, inner) => `<section class="rgy-sec rgy-ls" id="${id}"><h2>${title}</h2>${inner}</section>`;
     const tabs = [['provenance', 'Provenance'], exh.length && ['exhibited', 'Exhibited'], lit.length && ['literature', 'Literature'], (o.description || (w && w.caption)) && ['about', 'About the work'], cond.length && ['condition', 'Condition'], other.length && ['record', 'The record']].filter(Boolean);
     const more = o.artist_id ? db.prepare("SELECT * FROM objects WHERE artist_id=? AND id<>? AND public=1 AND status='recorded' ORDER BY (photo IS NULL AND work_id IS NULL), made_year, id LIMIT 8").all(o.artist_id, o.id) : [];
-    return `<article class="rgy-lot">
-<div class="rgy-lot-p">${ph ? `<figure class="rgy-ph"><a href="${esc(zoom)}" target="_blank" rel="noopener" title="See it larger"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}"></a></figure><p class="rgy-zoom"><a href="${esc(zoom)}" target="_blank" rel="noopener">See it larger</a>${big ? ` · <a href="${big}">On the wall at Watermark</a>` : ''}</p>` : '<figure class="rgy-ph rgy-ph0"><span>Known to exist; no photograph on the record yet.</span></figure>'}</div>
+    // More views of the object (verso, signature, labels), each to look at closely; the first is the photograph of record.
+    const k = r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : '';
+    const views = (ph ? [{ src: ph, big: zoom, line: 'The work' }] : []).concat(viewsOf(o).map(v => ({ id: v.id, src: `/registry/o/${o.id}/view/${v.id}${k}`, big: `/registry/o/${o.id}/view/${v.id}${k}`, line: v.line || 'Another view' })));
+    const nav = navOf(o, r);
+    const kept = keptBy();
+    const scale = ph ? wallOf(o, ph) : '';
+    return `${nav}<article class="rgy-lot" data-rgy-lot>
+<div class="rgy-lot-p">${ph ? `<figure class="rgy-ph"><button type="button" class="rgy-zbtn" data-rgy-zoom="${esc(zoom)}" title="Look closely"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}" data-rgy-main></button></figure>
+${views.length > 1 ? `<div class="rgy-views">${views.map((v, i) => `<button type="button" class="${i ? '' : 'on'}" data-rgy-view="${esc(v.src)}" data-rgy-big="${esc(v.big)}" title="${esc(v.line)}"><img src="${esc(v.src)}" alt="" loading="lazy"><span>${esc(v.line)}</span></button>`).join('')}</div>` : ''}
+<p class="rgy-zoom"><button type="button" class="rgy-zl" data-rgy-zoom="${esc(zoom)}">${I.look || ''}Look closely</button>${scale ? `<a class="rgy-zl" href="#wall">${I.hang || ''}On a wall, to scale</a>` : ''}${big ? `<a class="rgy-zl" href="${big}">${I.wave || ''}At Watermark</a>` : ''}</p>` : '<figure class="rgy-ph rgy-ph0"><span>Known to exist; no photograph on the record yet.</span></figure>'}</div>
 <div class="rgy-lot-t"><p class="k">The registry · <span class="rgy-no">${esc(no(o))}</span></p>
-${artistLine}<h1>${esc(tidy(o.title))}</h1>
+${o.from_line ? `<p class="rgy-from">${esc(o.from_line)}</p>` : ''}${artistLine}<h1>${esc(tidy(o.title))}</h1>
 ${tomb ? `<p class="rgy-tomb">${tomb}</p>` : ''}
 ${holder}
 ${glance.length ? `<dl class="rgy-gl">${glance.map(([k, v, h]) => `<div><dt><a href="${h}">${esc(k)}</a></dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
 <p class="rgy-acts">${o.public ? `<button type="button" class="rgy-act rgy-share" data-send data-send-title="${esc(tidy(o.title))}" data-send-url="${esc(pubUrl)}">Share</button>` : ''}<a class="rgy-act" href="/registry/o/${o.id}/dossier.pdf${r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : ''}">The dossier</a><a class="rgy-act" href="${esc(ask)}">Ask the house about this work</a></p>
-<p class="rgy-fine">The registry keeps what owners, custodians, museums and experts enter and says who entered each line. It does not appraise, authenticate or guarantee title, and nothing here is for sale.</p></div></article>
+<p class="rgy-fine">The registry keeps what owners, custodians, museums and experts enter and says who entered each line. It does not appraise, authenticate or guarantee title, and nothing here is for sale.</p>${kept ? kept(ask) : ''}</div></article>
+<div class="rgy-mini" data-rgy-mini hidden><div><b>${esc(tidy(o.title))}</b><span>${esc(o.artist || '')}</span></div><a class="rgy-act" href="${esc(ask)}">Ask the house</a></div>
+<dialog class="rgy-zm" data-rgy-zm><div class="rgy-zm-st" data-rgy-zm-st><img alt="${esc(tidy(o.title))}" data-rgy-zm-img draggable="false"></div><p class="rgy-zm-bar"><span>${esc(tidy(o.title))}${o.artist ? ` · ${esc(o.artist)}` : ''}</span><button type="button" data-rgy-zm-in aria-label="Closer">+</button><button type="button" data-rgy-zm-out aria-label="Further">−</button><button type="button" data-rgy-zm-close>Close</button></p></dialog>
+${ZOOM_JS}
 ${tabs.length > 1 ? `<nav class="rgy-tabs">${tabs.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>` : ''}
 ${sec('provenance', 'Provenance', note.length ? `<div class="rgy-note">${note.map(x => `<p>${x}</p>`).join('')}</div><details class="rgy-each"${r === 'owner' || r === 'house' ? ' open' : ''}><summary>Each line, with who entered it and its source</summary><ol class="rgy-l">${prov.map(e => entry(o, e, r)).join('')}</ol></details>` : '<p class="note">Nothing entered yet.</p>')}
 ${exh.length ? sec('exhibited', 'Exhibited', `<div class="rgy-note">${exh.map(e => `<p>${plain(e)}</p>`).join('')}</div><details class="rgy-each"><summary>With their sources</summary><ol class="rgy-l">${exh.map(e => entry(o, e, r)).join('')}</ol></details>`) : ''}
 ${lit.length ? sec('literature', 'Literature', `<div class="rgy-note">${lit.map(e => `<p>${plain(e)}</p>`).join('')}</div><details class="rgy-each"><summary>With their sources</summary><ol class="rgy-l">${lit.map(e => entry(o, e, r)).join('')}</ol></details>`) : ''}
 ${o.description || (w && w.caption) ? sec('about', 'About the work', `<div class="rgy-essay">${String(o.description || w.caption).split(/\n{2,}/).slice(0, 6).map(p => `<p>${esc(p)}</p>`).join('')}</div>${w ? `<p><a href="${big}#closer">Look closer</a></p>` : ''}`) : ''}
+${scale ? sec('wall', 'On a wall, to scale', scale) : ''}
 ${cond.length ? sec('condition', 'Condition', `<ol class="rgy-l">${cond.map(e => entry(o, e, r)).join('')}</ol>`) : ''}
 ${other.length ? sec('record', 'The record', `<ol class="rgy-l">${other.map(e => entry(o, e, r)).join('')}</ol>`) : ''}
 ${more.length ? sec('more', `More by ${esc(o.artist || 'the same hand')}`, `<div class="rgy-g">${more.map(x => { const p2 = photoOf(x, 'public'); return `<a class="rgy-c" href="/r/${noPath(x)}">${p2 ? `<img src="${esc(p2)}" alt="" loading="lazy">` : '<span class="rgy-blank"></span>'}<b>${esc(tidy(x.title))}</b><small>${esc(x.made || '')}</small></a>`; }).join('')}</div>${a ? `<p><a href="/art/${esc(a.slug)}">Everything by ${esc(a.name)} in the house</a></p>` : ''}`) : ''}`;
@@ -208,6 +272,8 @@ ${f('search', `<label>The register searched<input name="party" maxlength="200" r
 ${f('note', '', true)}
 <details class="rgy-add"><summary>The custodian <span>Who holds it; they attest receipt and condition themselves</span></summary><form method="post" action="/registry/o/${o.id}/custodian"><label>The custodian’s handle on Watermark<input name="handle" maxlength="80" placeholder="e.g. a freeport or art store with a custodian account"></label><button class="buy-btn">Name them</button><small>A custodian not yet on Watermark: write to the house and we open their door.</small></form></details>
 <details class="rgy-add"><summary>Describe it again <span>Title, date, medium, dimensions, the photograph of record</span></summary><form method="post" action="/registry/o/${o.id}/edit" enctype="multipart/form-data">${describe(o)}<button class="buy-btn">Save</button><small>The description can be set right; the history cannot.</small></form></details>
+<details class="rgy-add"><summary>More views <span>The back, the signature, the labels, the frame</span></summary><form method="post" action="/registry/o/${o.id}/view" enctype="multipart/form-data"><label>The photograph<input type="file" name="file" accept="image/*" required></label><label>What it shows<input name="line" maxlength="80" placeholder="Verso; Signature, lower right; Dealer’s label on the stretcher"></label><button class="buy-btn">Add the view</button></form>${(() => { const vs = viewsOf(o); return vs.length ? `<ul class="rgy-vl">${vs.map(v => `<li><img src="/registry/o/${o.id}/view/${v.id}" alt=""><span>${esc(v.line || 'Another view')}</span><form method="post" action="/registry/o/${o.id}/view/${v.id}/remove"><button>Take it off</button></form></li>`).join('')}</ul>` : ''; })()}</details>
+<details class="rgy-add"><summary>How it is introduced <span>${o.from_line ? esc(o.from_line) : 'A line above the artist, as a sale room writes it'}</span></summary><form method="post" action="/registry/o/${o.id}/from"><label>The line<input name="from_line" maxlength="120" value="${esc(o.from_line || '')}" placeholder="From a private collection, Dallas"></label><button class="buy-btn">Save</button><small>It never names you unless you write your name.</small></form></details>
 <details class="rgy-add"><summary>Who can see it <span>${o.public ? 'The object is public; the owner and place never are' : 'Private'}</span></summary><form method="post" action="/registry/o/${o.id}/share"><label class="rgy-ck"><input type="checkbox" name="public" value="1"${o.public ? ' checked' : ''}> Show the object on the public registry (what it is, its provenance, its shows and books; never the owner, the place, the price or the papers)</label><button class="buy-btn">Save</button></form>
 ${o.token ? `<p class="note">A reader’s link (an insurer, a scholar, a buyer you are speaking with) shows the whole record and the papers: <input readonly value="${esc(`${C.base}/registry/o/${o.id}?k=${o.token}`)}" onfocus="this.select()"></p>` : ''}<form method="post" action="/registry/o/${o.id}/share"><input type="hidden" name="link" value="1"><button>${o.token ? 'A new link (the old one stops working)' : 'Make a reader’s link'}</button></form></details>
 <details class="rgy-add"><summary>Pass the title <span>To a new owner, by both your hands</span></summary>${xfer ? `<p class="note">Offered to ${esc(xfer.email)} on ${esc(day(xfer.at))}. <form method="post" action="/registry/o/${o.id}/transfer"><input type="hidden" name="cancel" value="1"><button>Take it back</button></form></p>` : `<form method="post" action="/registry/o/${o.id}/transfer"><label>Their email<input name="email" type="email" required></label><label>A word<input name="note" maxlength="300"></label><label class="rgy-ck"><input type="checkbox" name="attest" value="1" required> The work is theirs by an agreement made between us; the registry records the change of title, nothing more</label><button class="buy-btn">Offer the title</button></form><p class="note">No money moves here and the house judges no sale. The record, the papers and the custodian’s care go with it once they accept.</p>`}</details></section>`;
@@ -314,6 +380,37 @@ ${cab.length ? `<form method="post" action="/yours/registry" class="rgy-new rgy-
     await setPhoto(o, req.file);
     try { ledger.append(db, 'object.described', `object-${o.id}`, {}); } catch (e) { /* */ }
     res.redirect(`/registry/o/${o.id}?ok=saved`);
+  });
+  app.post('/registry/o/:id/from', (req, res) => {
+    const x = ownerOnly(req, res); if (!x) return; const { o } = x;
+    db.prepare("UPDATE objects SET from_line=?, updated_at=datetime('now') WHERE id=?").run(t((req.body || {}).from_line, 120), o.id);
+    res.redirect(`/registry/o/${o.id}?ok=saved`);
+  });
+  app.post('/registry/o/:id/view', up.single('file'), bag('image'), async (req, res) => {
+    const x = ownerOnly(req, res); if (!x) { if (req.file) fs.unlink(req.file.path, () => {}); return; } const { o } = x;
+    if (!req.file) return res.redirect(`/registry/o/${o.id}`);
+    if (viewsOf(o).length >= 12) { fs.unlink(req.file.path, () => {}); return res.redirect(`/registry/o/${o.id}?ok=${encodeURIComponent('Twelve views is the most a record keeps.')}`); }
+    const key = `registry/${o.id}/view-${crypto.randomBytes(5).toString('hex')}.jpg`; const local = path.join(C.dataDir, key); fs.mkdirSync(path.dirname(local), { recursive: true });
+    try {
+      await require('sharp')(req.file.path).rotate().resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 92 }).toFile(local);
+      const n = (db.prepare('SELECT MAX(n) m FROM object_views WHERE object_id=?').get(o.id) || {}).m || 0;
+      db.prepare('INSERT INTO object_views (object_id, n, file, line) VALUES (?,?,?,?)').run(o.id, n + 1, key, t((req.body || {}).line, 80));
+      try { await store.put(key, local, 'image/jpeg'); } catch (e) { /* */ }
+    } catch (e) { /* not a picture */ }
+    fs.unlink(req.file.path, () => {});
+    res.redirect(`/registry/o/${o.id}?ok=saved`);
+  });
+  app.post('/registry/o/:id/view/:vid/remove', (req, res) => {
+    const x = ownerOnly(req, res); if (!x) return; const { o } = x;
+    db.prepare('DELETE FROM object_views WHERE id=? AND object_id=?').run(+req.params.vid, o.id);
+    res.redirect(`/registry/o/${o.id}?ok=saved`);
+  });
+  app.get('/registry/o/:id/view/:vid', async (req, res) => {
+    const o = obj(req.params.id); if (!o) return res.sendStatus(404); const r = role(req, o); if (!r) return res.sendStatus(404);
+    const v = db.prepare('SELECT * FROM object_views WHERE id=? AND object_id=?').get(+req.params.vid, o.id); if (!v) return res.sendStatus(404);
+    const f = path.join(C.dataDir, v.file);
+    if (!fs.existsSync(f)) { try { const buf = await store.get(v.file); if (!buf) return res.sendStatus(404); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, buf); } catch (e) { return res.sendStatus(404); } }
+    res.set('Cache-Control', r === 'public' ? 'public, max-age=3600' : 'private, no-store').type('image/jpeg').sendFile(f);
   });
   app.post('/registry/o/:id/share', (req, res) => {
     const x = ownerOnly(req, res); if (!x) return; const { o } = x;
@@ -554,7 +651,7 @@ ${studioKnown()}${studioOffers()}
   }
   const line = w => { const o = w && db.prepare("SELECT * FROM objects WHERE work_id=? AND public=1 AND status='recorded' LIMIT 1").get(w.id); return o ? `<p class="rgy-line">On the registry: <a href="/r/${noPath(o)}">${esc(no(o))}</a>, what is known of it and where it is kept.</p>` : ''; };
 
-  const api = { no, byNo, ready, add, create, events, standing, KINDS, recordWork, recordKnown, history, addHistory, collections, job, line };
+  const api = { cmOf, no, byNo, ready, add, create, events, standing, KINDS, recordWork, recordKnown, history, addHistory, collections, job, line };
 
   app.locals.registry = api;
   return api;
