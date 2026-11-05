@@ -5105,6 +5105,28 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
   body:has(.tb) .lr-bar2{bottom:calc(56px + env(safe-area-inset-bottom));padding-bottom:8px}
   body:has(main.st.st-zoom) .tb,body:has(main.st.st-holding) .tb,body:has(main.st.st-sitting) .tb,body:has(.wv.lit) .tb,html.in-stay .tb{opacity:0;pointer-events:none;transform:translateY(100%)}
 }
+/* The Duo and the wide phones (5 Nov, Will: "our sizing isn't very good on the Duo app"). In Wander the bar is a
+   shade, not a band, so the system's own inset below it never reads as a dead black strip; the picture keeps clear of
+   the bar and the inset; on a short screen the rail is compact so it does not cover the picture's side. */
+@media (max-width:760px) and (pointer:coarse){
+  body:has(main.st) .tb{background:linear-gradient(rgba(11,10,9,0),rgba(11,10,9,.55) 45%,rgba(11,10,9,.7));border-top:0;-webkit-backdrop-filter:none;backdrop-filter:none}
+  body:has(.tb) main.st .st-im{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
+}
+@media (pointer:coarse) and (max-height:820px) and (min-aspect-ratio:3/5){
+  main.st .st-rail{gap:6px}
+  main.st .st-rail .st-b .ic{width:22px;height:22px}
+  main.st .st-rail .st-b span{font-size:9px}
+  main.st .st-buy{padding:6px 8px}
+  main.st .st-plate .st-t{font-size:clamp(22px,6vw,30px)}
+}
+/* The Duo opened flat: two screens and a hinge. The picture keeps to the left screen, whole; the plate and the
+   acts stand on the right one, so nothing is cut by the hinge. */
+@media (horizontal-viewport-segments:2){
+  main.st .st-im{padding:0;width:env(viewport-segment-width 0 0,50vw);right:auto;object-position:center}
+  main.st .st-plate{left:calc(env(viewport-segment-left 1 0,50vw) + 24px);right:96px;max-width:none}
+  main.st .st-top{padding-left:calc(env(viewport-segment-left 1 0,50vw) + 14px)}
+  main.st .st-tog{max-width:none}
+}
 /* You, empty (3 Nov): one way in, then two doors. */
 .yc-you{max-width:640px}.yc-you h1{font-size:clamp(34px,7vw,56px)}
 .yc-next{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:30px 0 8px}

@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.65.2 · Wander on the Duo · 5 November 2026
+
+- In Wander the tab bar is a shade, not a band, so the system's inset below it no longer reads as a dead strip; the picture keeps clear of the bar and the inset.
+- On short wide screens (the Duo, folds) the rail is compact, so it covers less of the picture.
+- The Duo opened flat: the picture keeps to the left screen, the plate and the acts to the right, nothing cut by the hinge.
+
 ## 1.65.1 · Send, repaired · 5 November 2026
 
 - A sent link opened a work other than the one sent; it opens the one sent.
