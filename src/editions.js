@@ -36,7 +36,7 @@ function mountEditions(app, X) {
   db.exec(`CREATE TABLE IF NOT EXISTS print_editions (id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL, label TEXT NOT NULL, long_in REAL, paper TEXT, edition_n INTEGER NOT NULL DEFAULT 12,
     price_cents INTEGER NOT NULL, framed_cents INTEGER, active INTEGER NOT NULL DEFAULT 1, sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec('CREATE INDEX IF NOT EXISTS print_editions_work ON print_editions (work_id, sort)');
-  for (const col of ['edition_id', 'edition_no', 'framed', 'pickup', 'show_id', 'work_id']) if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} INTEGER`);
+  for (const col of ['edition_id', 'edition_no', 'framed', 'pickup', 'show_id', 'work_id', 'mounted']) if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} INTEGER`);
   const tidy = t => String(t || '').replace(/[.\s]+$/, '');
   const rowsOf = w => db.prepare('SELECT * FROM print_editions WHERE work_id=? AND active=1 ORDER BY sort, id').all(w.id);
   const allOf = w => db.prepare('SELECT * FROM print_editions WHERE work_id=? ORDER BY sort, id').all(w.id);
@@ -119,49 +119,80 @@ ${show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" chec
     { k: '16x20', label: '16 × 20', long_in: 20, cents: 12500, framed: 25000 },
     { k: '20x30', label: '20 × 30', long_in: 30, cents: 19500, framed: 35000 },
   ];
+  // The piece (Will, 5 Nov, after Anclude: "take the concept, make it our own"): one house object for any open work at
+  // one price: a print mounted on a rigid board, no glass, a magnet on the back, so it stands on a shelf, leans on a
+  // desk or hangs on a nail; boxed with its card; the Watermark number on the back. PIECE_CENTS a draft.
+  const PIECE = { k: 'piece', label: 'The piece', long_in: +(process.env.PIECE_LONG_IN || 12), cents: +(process.env.PIECE_CENTS || 7000), mounted: 1 };
   const OPEN_OK = ['pd', 'cc0', 'cc-by', 'cc-by-sa'];
   const PPI = +(process.env.OPEN_PRINT_PPI || 150);
   const GIVE = () => Math.max(0, Math.min(50, +(process.env.OPEN_GIVE_PCT == null ? 10 : process.env.OPEN_GIVE_PCT)));
   const artistOf = w => { try { return w.artist_id ? db.prepare('SELECT name, slug FROM artists WHERE id=?').get(w.artist_id) : null; } catch (e) { return null; } };
-  const openSizes = (w, d = null) => { const L = d ? Math.max((w.width || 0) * d.w, (w.height || 0) * d.h) : Math.max(w.width || 0, w.height || 0); return OPEN_SIZES.filter(z => L >= z.long_in * PPI); };
+  const longOf = (w, d = null) => (d ? Math.max((w.width || 0) * d.w, (w.height || 0) * d.h) : Math.max(w.width || 0, w.height || 0));
+  const openSizes = (w, d = null) => { const L = longOf(w, d); return OPEN_SIZES.filter(z => L >= z.long_in * PPI); };
+  const canPiece = (w, d = null) => longOf(w, d) >= PIECE.long_in * PPI;
   const canPrintOpen = (w, d = null) => !!(stripe && w && w.status === 'held' && OPEN_OK.includes(w.open) && w.zone !== 'mature' && openSizes(w, d).length);
   function openBlock(w, d = null) {
     if (!canPrintOpen(w, d)) return '';
-    const sizes = openSizes(w, d); const a = artistOf(w); const by = a ? a.name : mk(w).name; const give = GIVE();
-    return `<section class="pe opp" id="print"><p class="k">Live with it</p><h2>Have it on your wall.</h2>
+    const sizes = openSizes(w, d); const a = artistOf(w); const by = a ? a.name : mk(w).name; const give = GIVE(); const piece = canPiece(w, d);
+    const dim = d ? { width: (w.width || 0) * d.w, height: (w.height || 0) * d.h } : w;
+    return `<section class="pe opp" id="print"><p class="k">Live with it</p><h2>${piece ? 'Have it in the room.' : 'Have it on your wall.'}</h2>
 <p class="pe-lede">${d ? 'This detail of ' : ''}${esc(tidy(w.title))}, by ${esc(by)}, printed for you in archival pigment on Hahnemühle Photo Rag, a cotton paper made to last, and sent to your door. The file stays free for everyone; this is the object.</p>
 <form method="post" action="/w/${esc(w.slug)}/openprint" class="pe-f" data-pe>${d ? `<input type="hidden" name="detail" value="${d.n}">` : ''}
-<div class="pe-sizes">${sizes.map((z, i) => `<label class="pe-s"><input type="radio" name="size" value="${z.k}"${i === 0 ? ' checked' : ''} data-price="${z.cents}" data-framed="${z.framed - z.cents}"><span class="pe-l"><b>${esc(z.label)} in</b><i>${esc(sizeOf(d ? { width: (w.width || 0) * d.w, height: (w.height || 0) * d.h } : w, z))}, on a white border</i></span><span class="pe-p">${money(z.cents)}</span></label>`).join('')}</div>
-<div class="pe-opts"><label class="pe-o"><input type="checkbox" name="framed" value="1"><span>Framed by hand, museum glass<i data-pe-framed></i></span></label><p class="pe-ship">Unframed in about a week, framed in about three, to the address you give at payment. United States for now.</p></div>
-<button class="buy-btn pe-go"><span>Print it</span><em data-pe-total>${money(sizes[0].cents)}</em></button>
+${piece ? `<label class="pe-s pe-piece"><input type="radio" name="size" value="piece" checked data-price="${PIECE.cents}" data-framed="0" data-piece="1"><span class="pe-l"><b>The piece</b><i>${esc(sizeOf(dim, PIECE))}, mounted on a board; no glass; a magnet on the back. Stands on a shelf, leans on a desk, hangs on a nail. Boxed with its card and its number.</i></span><span class="pe-p">${money(PIECE.cents)}</span></label><p class="pe-or">Or on paper, to frame yourself</p>` : ''}
+<div class="pe-sizes">${sizes.map((z, i) => `<label class="pe-s"><input type="radio" name="size" value="${z.k}"${i === 0 && !piece ? ' checked' : ''} data-price="${z.cents}" data-framed="${z.framed - z.cents}"><span class="pe-l"><b>${esc(z.label)} in</b><i>${esc(sizeOf(dim, z))}, on a white border</i></span><span class="pe-p">${money(z.cents)}</span></label>`).join('')}</div>
+<div class="pe-opts"><label class="pe-o" data-pe-frameopt><input type="checkbox" name="framed" value="1"><span>Framed by hand, museum glass<i data-pe-framed></i></span></label><p class="pe-ship">The piece and unframed prints in about a week, framed in about three, to the address you give at payment. United States for now.</p></div>
+<button class="buy-btn pe-go"><span data-pe-verb>${piece ? 'Make it mine' : 'Print it'}</span><em data-pe-total>${money(piece ? PIECE.cents : sizes[0].cents)}</em></button>
 ${give && app.locals.gifts ? app.locals.gifts.field(w, give) : ''}<p class="pe-fine">The painting is in the public domain${w.open !== 'pd' && w.open !== 'cc0' ? ' and shared under an open licence, credited on the papers' : ''}; Watermark is not connected with the museum that keeps it.</p></form>
-<script>(function(){var f=document.querySelector('form[action$="/openprint"]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');function up(){var e=f.querySelector('input[name=size]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]');if(fr)fr.textContent='+$'+(x/100).toLocaleString('en-US');if(c&&c.checked)p+=x;t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script></section>`;
+<script>(function(){var f=document.querySelector('form[action$="/openprint"]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');var fo=f.querySelector('[data-pe-frameopt]'),vb=f.querySelector('[data-pe-verb]');function up(){var e=f.querySelector('input[name=size]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]'),pc=e.dataset.piece==='1';if(fo)fo.hidden=pc;if(vb)vb.textContent=pc?'Make it mine':'Print it';if(fr)fr.textContent='+$'+(x/100).toLocaleString('en-US');if(c&&c.checked&&!pc)p+=x;t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script></section>`;
   }
-  app.locals.openPrints = { block: openBlock, can: canPrintOpen, sizes: openSizes, OPEN_SIZES };
+  app.locals.openPrints = { block: openBlock, can: canPrintOpen, sizes: openSizes, OPEN_SIZES, PIECE, canPiece };
+  // The pieces (5 Nov): the shop. Every open work the house can make a piece of, the best first, by artist; each
+  // standing as the object on a shelf. One price. Linked from Discover and the papers; cached a minute.
+  let pcache = { at: 0, html: '' };
+  app.get('/pieces', (req, res) => {
+    if (!stripe) return res.redirect('/look');
+    const a = String(req.query.artist || '').slice(0, 80);
+    if (!a && Date.now() - pcache.at < 60000) return res.send(pcache.html);
+    const rows = db.prepare(`SELECT w.slug, w.title, w.width, w.height, w.taken_at, w.curated, w.stars, ar.name AS artist, ar.slug AS aslug, ar.born, ar.died FROM works w LEFT JOIN artists ar ON ar.id=w.artist_id WHERE w.status='held' AND COALESCE(w.zone,'all')!='mature' AND w.open IN ('pd','cc0','cc-by','cc-by-sa') AND MAX(w.width, w.height) >= ? ${a ? 'AND ar.slug=?' : ''} ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT 600`).all(...(a ? [PIECE.long_in * PPI, a] : [PIECE.long_in * PPI]));
+    const by = new Map(); for (const w of rows) { const k = w.aslug || '_'; if (!by.has(k)) by.set(k, { name: w.artist || 'The house', slug: w.aslug, dates: w.born && w.died ? `${w.born}–${w.died}` : '', list: [] }); by.get(k).list.push(w); }
+    const groups = [...by.values()].sort((x, y) => y.list.length - x.list.length);
+    const tile = w => `<a class="pcs-t" href="/w/${esc(w.slug)}#print"><span class="pcs-b" style="--r:${w.width && w.height ? (w.width / w.height).toFixed(3) : 1.3}"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" draggable="false"></span><b>${esc(tidy(w.title))}</b><small>${esc(w.artist || '')}${w.taken_at ? ` · ${esc(String(w.taken_at).slice(0, 4))}` : ''}</small></a>`;
+    const hero = rows[0];
+    const body = `<section class="pcs">
+<header class="pcs-h">${hero ? `<div class="pcs-hero"><span class="pcs-b pcs-big" style="--r:${hero.width && hero.height ? (hero.width / hero.height).toFixed(3) : 1.3}"><img src="/img/${esc(hero.slug)}/large" alt="" fetchpriority="high"></span></div>` : ''}<div class="pcs-ht"><p class="k">The pieces</p><h1>${a && groups[0] ? `${esc(groups[0].name)}, as pieces.` : 'A masterpiece, on your shelf.'}</h1>
+<p class="lede">A piece is a museum-quality print of a work in the public domain, mounted on a rigid board: no glass, no frame, a magnet on the back. Stand it on a shelf, lean it on a desk, hang it on a nail, hold it. Each comes boxed with its card and carries its Watermark number on the back, so the object itself opens its record. ${money(PIECE.cents)}, sent to your door.</p>
+<p class="pcs-facts">${rows.length.toLocaleString('en-US')} works${!a ? ` · ${groups.filter(g => g.slug).length} artist${groups.filter(g => g.slug).length === 1 ? '' : 's'}` : ''} · pigment on Hahnemühle Photo Rag · ${esc(String(PIECE.long_in))} inches on the long side · a tenth of each to the museum that keeps the original</p>${a ? '<p><a href="/pieces">Every piece</a></p>' : ''}</div></header>
+${groups.map(g => `<section class="pcs-g"><header class="rw-h"><h2>${g.slug ? `<a href="/art/${esc(g.slug)}">${esc(g.name)}</a>` : esc(g.name)}</h2>${g.dates ? `<span class="rw-l">${esc(g.dates)}</span>` : ''}${g.list.length > 12 && !a && g.slug ? `<a href="/pieces?artist=${esc(g.slug)}">All ${g.list.length}</a>` : ''}</header><div class="pcs-grid">${(a ? g.list : g.list.slice(0, 12)).map(tile).join('')}</div></section>`).join('')}
+<p class="note pcs-note">Every piece is of a work in the public domain or shared under an open licence; the file is free to everyone, the object is what is made. Watermark is not connected with the museums that keep the originals; a tenth of each piece is given to them. The works of living makers are collected, not pieced.</p></section>`;
+    const html = V.layout({ title: `The pieces · Watermark`, path: '/pieces', desc: 'A masterpiece on your shelf: museum-quality prints of public-domain works, mounted on a board, no glass, a magnet on the back, the Watermark number behind.', body });
+    if (!a) pcache = { at: Date.now(), html };
+    res.send(html);
+  });
   app.post('/w/:slug/openprint', async (req, res) => {
     const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404);
     if (!canPrintOpen(w)) return res.redirect(`/w/${w.slug}`);
     const det = req.body.detail && app.locals.details ? app.locals.details.get(w, req.body.detail) : null; const back = det ? `/w/${w.slug}/d/${det.n}` : `/w/${w.slug}`;
     if (det && !canPrintOpen(w, det)) return res.redirect(back);
-    const z = openSizes(w, det).find(x => x.k === String(req.body.size || '')); if (!z) return res.redirect(`${back}#print`);
+    const isPiece = String(req.body.size || '') === 'piece' && canPiece(w, det);
+    const z = isPiece ? PIECE : openSizes(w, det).find(x => x.k === String(req.body.size || '')); if (!z) return res.redirect(`${back}#print`);
     const n = (slow.get(req.ip) || 0) + 1; slow.set(req.ip, n); if (n > 20) return res.sendStatus(429);
-    const m = mk(w); const a = artistOf(w); const by = a ? a.name : m.name; const framed = req.body.framed === '1' ? 1 : 0;
+    const m = mk(w); const a = artistOf(w); const by = a ? a.name : m.name; const framed = !isPiece && req.body.framed === '1' ? 1 : 0;
     const price = framed ? z.framed : z.cents; const give = Math.round(price * GIVE() / 100);
     const u = printUse(m); const rules = R.parse(w.rules);
     const t = K.terms({ use: u, add: [], extras: [], never: rules.never, base: price, transfer: true });
     t.price = price; t.maker = 0; t.house = price; t.open = w.open; t.transferable = true;
     const giveTo = give && app.locals.gifts ? app.locals.gifts.choose(req.body, w) : null;
-    t.print = { open: true, label: z.label, size: sizeOf(det ? { width: (w.width || 0) * det.w, height: (w.height || 0) * det.h } : w, z), detail: det ? { n: det.n, x: det.x, y: det.y, w: det.w, h: det.h } : undefined, paper: 'Hahnemühle Photo Rag', framed, pickup: 0, by, give_cents: give, give_to: giveTo };
+    t.print = { open: true, label: z.label, size: sizeOf(det ? { width: (w.width || 0) * det.w, height: (w.height || 0) * det.h } : w, z), detail: det ? { n: det.n, x: det.x, y: det.y, w: det.w, h: det.h } : undefined, paper: 'Hahnemühle Photo Rag', framed, mounted: isPiece ? 1 : 0, pickup: 0, by, give_cents: give, give_to: giveTo };
     const ref = nextRef();
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
-      .run(ref, w.id, u.id, 'Collector', '', `A print${det ? ` of a detail (No. ${det.n})` : ''}: ${z.label} in on Hahnemühle Photo Rag${framed ? ', framed' : ''}`, price, null, JSON.stringify(t));
+      .run(ref, w.id, u.id, 'Collector', '', isPiece ? `The piece${det ? ` of a detail (No. ${det.n})` : ''}: a print mounted on a board, ${sizeOf(det ? { width: (w.width || 0) * det.w, height: (w.height || 0) * det.h } : w, z)}` : `A print${det ? ` of a detail (No. ${det.n})` : ''}: ${z.label} in on Hahnemühle Photo Rag${framed ? ', framed' : ''}`, price, null, JSON.stringify(t));
     db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(price, ref);
     const b = buyerOf(req); if (b) db.prepare('UPDATE licenses SET buyer_id=?, licensee_name=?, licensee_email=? WHERE ref=?').run(b.id, b.name || 'Collector', b.email || '', ref);
     ledger.append(db, 'license.checkout', ref, { work: w.slug, use: 'print', open: true, size: z.label });
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment', submit_type: 'pay', ...(b && b.customer ? { customer: b.customer } : b && b.email ? { customer_email: b.email } : {}),
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `${det ? 'A detail of ' : ''}${tidy(w.title)}, by ${by}: a print, ${z.label} in`, description: `Archival pigment print on Hahnemühle Photo Rag${framed ? ', framed by hand' : ''}. Sent to your door. Watermark ${ref}.` } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: isPiece ? `${det ? 'A detail of ' : ''}${tidy(w.title)}, by ${by}: the piece` : `${det ? 'A detail of ' : ''}${tidy(w.title)}, by ${by}: a print, ${z.label} in`, description: isPiece ? `An archival pigment print mounted on a board, no glass, a magnet on the back; boxed with its card and its number. Sent to your door. Watermark ${ref}.` : `Archival pigment print on Hahnemühle Photo Rag${framed ? ', framed by hand' : ''}. Sent to your door. Watermark ${ref}.` } } }],
         shipping_address_collection: { allowed_countries: ['US'] }, phone_number_collection: { enabled: true },
         metadata: { ref, print: '1' }, payment_intent_data: { metadata: { ref } },
         custom_text: { submit: { message: `By paying you accept the terms of the house (${C.base}/terms) and the prints agreement (${C.base}/legal/prints).` } },
@@ -183,12 +214,12 @@ ${give && app.locals.gifts ? app.locals.gifts.field(w, give) : ''}<p class="pe-f
     const address = p.pickup ? null : [a.line1, a.line2, [a.city, a.state, a.postal_code].filter(Boolean).join(' '), a.country].filter(Boolean).join('\n') || null;
     const email = (s && s.customer_details && s.customer_details.email) || l.licensee_email || null; const name = sd.name || (s && s.customer_details && s.customer_details.name) || l.licensee_name || null;
     const phone = s && s.customer_details && s.customer_details.phone ? s.customer_details.phone : null;
-    db.prepare("INSERT INTO print_orders (license_id, buyer_id, kind, size, paper, email, ship_name, address, cents, paid, status, edition_id, edition_no, framed, pickup, show_id, work_id, note) VALUES (?,?,?,?,?,?,?,?,?,1,'asked',?,?,?,?,?,?,?)")
-      .run(l.id, l.buyer_id || null, p.open ? 'open' : 'edition', `${p.label} in (${p.size})`, p.paper || null, email, name, address, l.price_cents, p.edition || null, no, p.framed ? 1 : 0, p.pickup ? 1 : 0, p.show || null, w.id, [phone ? `Phone ${phone}` : null, p.pickup ? 'Taken home from the show' : null, p.open ? `An open work, by ${p.by}${p.detail ? `; a detail (No. ${p.detail.n}), cut from the original` : ''}` : null, p.give_cents ? `A gift of ${money(p.give_cents)} to ${p.give_to ? p.give_to.name : 'the museum that keeps the original'}` : null].filter(Boolean).join(' · ') || null);
+    db.prepare("INSERT INTO print_orders (license_id, buyer_id, kind, size, paper, email, ship_name, address, cents, paid, status, edition_id, edition_no, framed, pickup, show_id, work_id, mounted, note) VALUES (?,?,?,?,?,?,?,?,?,1,'asked',?,?,?,?,?,?,?,?)")
+      .run(l.id, l.buyer_id || null, p.open ? 'open' : 'edition', p.mounted ? `The piece (${p.size})` : `${p.label} in (${p.size})`, p.paper || null, email, name, address, l.price_cents, p.edition || null, no, p.framed ? 1 : 0, p.pickup ? 1 : 0, p.show || null, w.id, p.mounted ? 1 : 0, [phone ? `Phone ${phone}` : null, p.pickup ? 'Taken home from the show' : null, p.open ? `An open work, by ${p.by}${p.detail ? `; a detail (No. ${p.detail.n}), cut from the original` : ''}` : null, p.mounted ? 'The piece: mounted on a board, a magnet on the back, boxed with its card; the number on the back' : null, p.give_cents ? `A gift of ${money(p.give_cents)} to ${p.give_to ? p.give_to.name : 'the museum that keeps the original'}` : null].filter(Boolean).join(' · ') || null);
     t.print.no = no; db.prepare('UPDATE licenses SET rights=? WHERE id=?').run(JSON.stringify(t), l.id);
     if (p.open && p.detail && app.locals.details) { try { app.locals.details.reward(l, w, p.detail.n); } catch (e) { console.error('[details]', e.message); } }
     if (p.open && p.give_cents && app.locals.gifts) { try { app.locals.gifts.record(l, w, p.give_cents, p.give_to || app.locals.gifts.choose({}, w)); } catch (e) { console.error('[gifts]', e.message); } }
-    if (p.open) { ledger.append(db, 'print.sold', w.slug, { maker: m.handle, edition: p.label, open: true, by: p.by, framed: !!p.framed, amount: l.price_cents, give: p.give_cents || 0 }); return; }
+    if (p.open) { ledger.append(db, 'print.sold', w.slug, { maker: m.handle, edition: p.label, open: true, piece: !!p.mounted, by: p.by, framed: !!p.framed, amount: l.price_cents, give: p.give_cents || 0 }); return; }
     ledger.append(db, 'print.sold', w.slug, { maker: m.handle, edition: p.label, no, of: p.edition_n, framed: !!p.framed, show: p.show || undefined, amount: l.price_cents });
     const nf = notify || app.locals.notify; if (nf && m) { try { nf.tell({ maker_id: m.id, kind: 'sold', href: `/account/works/${w.slug}`, title: `A print of ${tidy(w.title)} was acquired`, body: `${p.label} in, No. ${no} of ${p.edition_n}${p.framed ? ', framed' : ''}${p.pickup ? ', taken from the show' : ''} · ${money(l.price_cents)}` }); } catch (e) { /* quiet */ } }
   }

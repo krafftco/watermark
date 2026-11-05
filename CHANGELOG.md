@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.63.0 · The piece · 5 November 2026
+
+- The piece: one house object for any work in the public domain, at one price ($70, a draft): a museum-quality print mounted on a rigid board, no glass, a magnet on the back, boxed with its card and its Watermark number. First choice on every open work's page; the shop at /pieces, by artist; a way in from Discover.
+- Every print ticket now carries the label for the back: the Watermark number as a QR and in words, so the object itself opens its record.
+- Print shops say whether they mount; the piece goes to a room that mounts, never to the lab.
+
 ## 1.62.0 · Discover · 5 November 2026
 
 - Discover (/look): one search that finds everything in the house (works, the artists of the hall, living makers, books, records, films, places, museums, movements, mediums, years, the rooms), the ways in, then walls chosen for discovery: the collections, on view, longest stood before, entering the public domain this January, just arrived, the artists, movements, in time, mediums, places, museums, the Library, the Listening Room, the Screening Room. Every tile is a record and a way into Wander at that work in that set.
