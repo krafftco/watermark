@@ -3013,6 +3013,13 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', '/studio/copyright/prepare', { cookie: ck, body: { key: ckey } });
   const cg = db.prepare('SELECT id FROM copyright_groups ORDER BY id DESC').get().id;
   r = await req(port, 'GET', `/studio/copyright/${cg}/titles.csv`, { cookie: ck }); assert.ok(r.body.toString().startsWith('"Title","File name"'), 'title list');
+  r = await req(port, 'GET', `/studio/copyright/${cg}`, { cookie: ck }); assert.ok(r.status === 200 && /Each photograph/.test(r.body) && /On the record/.test(r.body), 'before filing: the group read against the rules');
+  r = await req(port, 'GET', `/studio/copyright/${cg}/packet.json`, { cookie: ck }); { const pk = JSON.parse(r.body.toString());
+    assert.ok(pk.format === 'watermark.copyright-packet/1' && /^GR(PPH|UPH)$/.test(pk.application.type) && pk.photographs.length >= 1 && pk.photographs[0].file_name.endsWith('.jpg') && Array.isArray(pk.photographs[0].checks) && pk.application.fee_usd === 55, 'the packet in the shape of the group application');
+    const pw = db.prepare('SELECT * FROM works WHERE copyright_group=? LIMIT 1').get(cg); const wrong = pk.application.type === 'GRPPH' ? 'GRUPH' : 'GRPPH';
+    assert.ok(app.locals.copyrightChecks({ ...pw, kind: 'painting' }).some(c => c.level === 'stop'), 'a painting stops a photographs group');
+    assert.ok(app.locals.copyrightChecks({ ...pw, credentials: JSON.stringify({ chain: [{ x: 'trainedAlgorithmicMedia' }] }) }).some(c => c.level === 'stop' && /AI/.test(c.line)), 'generative AI is told and stops the group'); void wrong; }
+  r = await req(port, 'GET', `/studio/copyright/${cg}/packet.json`); assert.ok(r.status !== 200 || !/watermark.copyright-packet/.test(r.body), 'a stranger is refused the packet');
   r = await req(port, 'POST', `/studio/copyright/${cg}`, { cookie: ck, body: { act: 'filed', sr: '1-1234567890' } });
   r = await req(port, 'POST', `/studio/copyright/${cg}`, { cookie: ck, body: { act: 'registered', reg: 'VA 2-412-118' } });
   const rw = db.prepare("SELECT slug FROM works WHERE copyright_group=? AND status='held' LIMIT 1").get(cg);

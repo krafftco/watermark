@@ -288,7 +288,8 @@ function copyright({ proposals, groups, reg, fee, notice }) {
   const st = { prepared: 'Prepared', filed: 'Filed', registered: 'Registered' };
   const g = x => `<div class="cr-g"><div class="cr-h"><b>${esc(x.title || '')}</b><span class="cr-s cr-${esc(x.status)}">${st[x.status] || x.status}</span></div>
 <p class="cr-m">${x.n} photograph${x.n === 1 ? "" : "s"} &middot; ${x.kind === 'GRPPH' ? 'Group of published photographs' : 'Group of unpublished photographs'} &middot; ${money(fee)} filing fee${x.sr ? ` &middot; Service request ${esc(x.sr)}` : ''}${x.reg ? ` &middot; <b>${esc(x.reg)}</b>` : ''}</p>
-<div class="cr-a"><a href="/studio/copyright/${x.id}/titles.csv">Title list (CSV)</a><a href="/studio/copyright/${x.id}/deposit.zip">Deposit copies (ZIP)</a><a href="https://eco.copyright.gov/" rel="noopener" target="_blank">Open eCO &rarr;</a></div>
+${x.status === 'prepared' && x.stops != null ? `<p class="crk-sum ${x.ready ? 'crk-ok' : 'crk-no'}"><a href="/studio/copyright/${x.id}">${x.ready ? `Ready to file${x.to_check ? ` · ${x.to_check} to check` : ''}` : `${x.stops} to fix before filing${x.to_check ? ` · ${x.to_check} to check` : ''}`} &rarr;</a></p>` : ''}
+<div class="cr-a"><a href="/studio/copyright/${x.id}">Before filing</a><a href="/studio/copyright/${x.id}/packet.json">The packet (JSON)</a><a href="/studio/copyright/${x.id}/titles.csv">Title list (CSV)</a><a href="/studio/copyright/${x.id}/deposit.zip">Deposit copies (ZIP)</a><a href="https://eco.copyright.gov/" rel="noopener" target="_blank">Open eCO &rarr;</a></div>
 ${x.status === 'prepared' ? `<form method="post" action="/studio/copyright/${x.id}" class="cr-f"><input type="hidden" name="act" value="filed"><input name="sr" placeholder="Service request number, e.g. 1-1234567890" required><button>Mark as filed</button></form><form method="post" action="/studio/copyright/${x.id}" class="inline"><input type="hidden" name="act" value="release"><button class="link">Release these photographs</button></form>` : ''}
 ${x.status === 'filed' ? `<form method="post" action="/studio/copyright/${x.id}" class="cr-f"><input type="hidden" name="act" value="registered"><input name="reg" placeholder="Registration number, e.g. VA 2-412-118" required><button>Mark as registered</button></form>` : ''}</div>`;
   return layout({ studio: true, title: 'Copyright · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/copyright')}
@@ -298,6 +299,21 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}<p class="k">U.S. Copyright O
 <section class="hd-list"><div class="hd-h"><h2>Ready to group</h2></div>${proposals.length ? proposals.map(p => `<form method="post" action="/studio/copyright/prepare" class="cr-p"><input type="hidden" name="key" value="${esc(p.key)}"><span><b>${esc(p.label)}${p.part ? `, part ${p.part}` : ''}</b><small>${p.works.length} photograph${p.works.length === 1 ? "" : "s"} &middot; ${p.kind === 'GRPPH' ? 'group of published photographs' : 'group of unpublished photographs'} &middot; ${money(fee)}</small></span><button>Prepare this group</button></form>`).join('') : '<p class="hd-calm">Every photograph is in a group.</p>'}</section>
 ${groups.length ? `<section class="hd-list"><div class="hd-h"><h2>Groups</h2></div>${groups.map(g).join('')}</section>` : ''}
 <p class="note">Check the publication dates before filing: a photograph first published on Krafft Studios may have an earlier date than the one Watermark holds. Watermark is not a law firm; for anything unusual (work made for hire, joint authors, earlier registrations), ask counsel.</p></section>` });
+}
+
+// One group read against the Office's rules before it is filed (5 Nov).
+function copyrightGroup(r, { fee }) {
+  const { g, m, works, group } = r, pubd = g.kind === 'GRPPH';
+  const W = { stop: 'Fix before filing', check: 'Check', proof: 'On the record' };
+  const line = c => `<li class="crk-${c.level}"><b>${W[c.level]}</b> ${esc(c.line)}</li>`;
+  const sorted = works.slice().sort((a, b) => (b.checks.some(c => c.level === 'stop') - a.checks.some(c => c.level === 'stop')) || (b.checks.filter(c => c.level === 'check').length - a.checks.filter(c => c.level === 'check').length));
+  return layout({ studio: true, title: 'Before filing · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/copyright')}
+<p class="k"><a href="/studio/copyright">U.S. Copyright Office</a> · ${pubd ? 'Group of published photographs' : 'Group of unpublished photographs'}</p><h1>${esc(g.title || 'The group')}</h1>
+<p class="lede">${r.ready ? 'Nothing stops this group. ' : `${r.stops} thing${r.stops === 1 ? '' : 's'} to fix before it is filed. `}${works.length} photograph${works.length === 1 ? '' : 's'} by ${esc(m.name || 'one author')}${pubd && r.earliest ? `, published ${r.earliest === r.latest ? 'on ' + esc(r.earliest) : `between ${esc(r.earliest)} and ${esc(r.latest)}`}` : ''}; one ${money(fee)} fee. Each photograph is read against the Office's rules for a group; what the house's record already proves is said beside it.</p>
+<div class="cr-a"><a href="/studio/copyright/${g.id}/packet.json">The packet (JSON)</a><a href="/studio/copyright/${g.id}/titles.csv">Title list (CSV)</a><a href="/studio/copyright/${g.id}/deposit.zip">Deposit copies (ZIP)</a><a href="https://eco.copyright.gov/" rel="noopener" target="_blank">Open eCO &rarr;</a></div>
+<section class="hd-list"><div class="hd-h"><h2>The group</h2></div><ul class="crk">${group.map(line).join('')}</ul></section>
+<section class="hd-list"><div class="hd-h"><h2>Each photograph</h2></div>${sorted.map(x => `<div class="crk-w"><a href="/w/${esc(x.w.slug)}"><img src="/img/${esc(x.w.slug)}/thumb" alt="" loading="lazy"></a><div><p><b>${esc(x.w.title || '')}</b> <small>${esc(x.w.slug)}.jpg${pubd ? (x.p ? ` · published ${esc(x.p.date)}` : '') : x.w.taken_at ? ` · made ${esc(String(x.w.taken_at).slice(0, 10))}` : ''}</small></p><ul class="crk">${x.checks.map(line).join('')}</ul></div></div>`).join('')}</section>
+<p class="note">The packet carries the group application's fields as the house reads them, the title list and the deposit's names, with every check beside its photograph: ready for the Office's own system now, and for its API when it opens. The house's reading of the Office's published rules, not legal advice; for a work made for hire, joint authors or an earlier registration, ask counsel.</p></section>` });
 }
 
 // Launch: the rails, checked.
@@ -338,4 +354,4 @@ ${failing.length ? `<h2>Failing</h2><table class="tbl"><thead><tr><th>Accession<
 <p class="note">A failing original is restored from the vault's earlier version (versioning is on) and checked again; see docs/VAULT.md.</p></section>` });
 }
 
-module.exports = { fixity, contract, launch, copyright, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };
+module.exports = { fixity, contract, launch, copyright, copyrightGroup, editions, nav, holdings, masters, login, overview, trove, works, licenses, licenseDetail, uses, workTerms, sightings, makers };

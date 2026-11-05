@@ -5412,3 +5412,15 @@ body:has(.yu) .rm-bar{display:none}
 .rgy-wall-s{position:absolute;bottom:0;background:#7b6c5c;border-radius:10px 10px 4px 4px;box-shadow:inset 0 10px 0 rgba(255,255,255,.08)}
 .rgy-vl{list-style:none;padding:0;margin:10px 0;display:grid;gap:8px}.rgy-vl li{display:flex;align-items:center;gap:10px}.rgy-vl img{width:56px;height:42px;object-fit:cover}.rgy-vl span{flex:1}
 @media (max-width:760px){.rgy-lot{grid-template-columns:1fr}.rgy-lot-p{position:static}.rgy-tabs{top:0}}
+/* Before filing (copyright groups) */
+.crk{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px;font-size:14px}
+.crk li{padding-left:12px;border-left:2px solid var(--line,#ddd)}
+.crk li b{font-weight:600;margin-right:6px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.crk-stop{border-left-color:#a33!important}.crk-stop b{color:#a33}
+.crk-check{border-left-color:#b8862b!important}.crk-check b{color:#8a6418}
+.crk-proof{border-left-color:#4f7a52!important;color:var(--muted,#666)}.crk-proof b{color:#4f7a52}
+.crk-w{display:grid;grid-template-columns:56px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line,#eee)}
+.crk-w img{width:56px;height:42px;object-fit:cover;display:block}
+.crk-w p{margin:0}.crk-w small{color:var(--muted,#777)}
+.crk-sum{margin:4px 0;font-size:14px}.crk-ok a{color:#4f7a52}.crk-no a{color:#a33}
+.crk-stop-t,.crk-chk-t{display:block;font-size:13px;margin:2px 0 0 26px}.crk-stop-t{color:#a33}.crk-chk-t{color:#8a6418}

@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.55.0 · Before filing · 5 November 2026
+- Every copyright group is read against the Office's rules before it is filed: work by work, what stops it, what to check, what the record already proves (Studio → Copyright → a group).
+- The packet: the group application's fields, the title list and the deposit's names, with the checks beside each photograph, as JSON for the Office's coming registration system.
+- Publication dates from the record: the first paid copy, else the day the work went on view; the title list and the groups use them.
+- A maker's own registration page leaves unticked what cannot go in a group, and says why.
+
 ## 1.54.0 · The lot page, second pass · 5 November 2026
 
 - From Christie's own lot page, read in the browser: the line a work is introduced by ('Property from a private collection, New York'), more views (verso, signature, labels) with the photograph of record, Look closely (a zoom with pinch, wheel and drag), On a wall, to scale (the work drawn above a sofa from its dimensions), Before and Next among the artist's records, a slim bar that follows you down the page, and 'Kept by' with a person to write to.
