@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.60.0 · The deploy window · 5 November 2026
+- The house runs on two machines: the website serves people, the worker does every chore.
+- One promotion a day, 6:30 New York, by a scheduled job: `main` moves to `next` when the tests are green and the house is not being shown. docs/OPERATIONS.md says the week.
+- The worker holds its chores past 85% of its memory and restarts itself after two minutes there.
+- The hits are kept thirty days, not ninety, so the nightly backup is a third the size.
+- /healthz says whether the house is being shown.
+
 ## 1.59.1 · Ready for the worker · 5 November 2026
 - The display-copy warm-up reads ids, not every work's whole record, so a restart no longer holds the house still for its first minutes.
 - On a split house, 'Finish the registry' is left for the worker, which looks each minute.

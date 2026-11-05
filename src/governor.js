@@ -54,13 +54,27 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
     const at = Math.max(ms, bootQuietS * 1000 + boots.length * bootGapS * 1000); boots.push(label);
     setTimeout(() => { if (!chores() && !always) { if (ROLE.chores) console.log(`[governor] ${label} skipped: chores held`); return; } bootChain = bootChain.then(async () => { booting = label; try { await fn(); } catch (e) { console.error(`[${label}]`, e && e.message || e); } finally { booting = null; } await settle(label); }); }, at).unref();
   }
-  const state = () => ({ rss: rssMb(), limit: memMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
+  const state = () => ({ rss: rssMb(), limit: memMb, hard: hardMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
   // The showing (27 Oct): while the house is being shown (Studio → Launch → 'Showing'), every chore holds too, so a demo never meets a feed.
   let shown = false;
   const chores = () => process.env.CHORES !== '0' && !shown && ROLE.chores && !(app.locals.readonly && app.locals.readonly()); // and never while the house is closed for a move // a web process on a split house runs none of the house's chores
   const hold = on => { shown = !!on; };
-  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores, hold, showing: () => shown };
+  // The hard line (5 Nov, the worker on its own 2 GB box: a Commons feed decoding several big files at once can pass the
+  // box's limit and be killed mid-write by the kernel): on a worker, past GOV_MEM_HARD_MB (85% of the box, else 1700 MB)
+  // the chores hold at once and, when the memory stays there two minutes, the process leaves cleanly (exit 1) so Render
+  // brings it back fresh with its queues resumed from the database. Never on the web, which serves people.
+  const hardMb = +process.env.GOV_MEM_HARD_MB || (boxMb() ? Math.round(boxMb() * 0.85) : 1700);
+  let hardSince = 0, hardHeld = false;
+  if (ROLE.worker && !quiet()) setInterval(() => {
+    const r = rssMb();
+    if (r < hardMb) { if (hardHeld) { hardHeld = false; console.log(`[governor] memory back under the line (${r} MB)`); } hardSince = 0; return; }
+    if (!hardSince) { hardSince = Date.now(); hardHeld = true; console.error(`[governor] memory over the hard line: ${r} MB of ${hardMb}; chores hold`); }
+    if (Date.now() - hardSince > 120e3) { console.error(`[governor] memory stayed over the line two minutes (${r} MB); the worker restarts itself`); setTimeout(() => process.exit(1), 500); }
+  }, 10e3).unref();
+  const choresBase = chores;
+  const choresHard = () => choresBase() && !hardHeld;
+  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores: choresHard, hold, showing: () => shown, hardMb };
   return app.locals.governor;
 }
 

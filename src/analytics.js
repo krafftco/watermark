@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const KEEP_DAYS = +(process.env.HITS_KEEP_DAYS || 90);
+const KEEP_DAYS = +(process.env.HITS_KEEP_DAYS || 30); // 30 days (5 Nov: 90 made the nightly dump 150 MB)
 const BOT = /bot|crawl|spider|slurp|facebookexternalhit|preview|headless|python-requests|curl\/|wget|go-http-client|okhttp|monitor|uptime|render\/|pingdom|betterstack/i;
 const SKIP = /^\/(static|healthz|sw\.js|favicon|\.well-known|vendor|app\/)/;
 
