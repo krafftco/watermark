@@ -14,6 +14,12 @@ const app = createApp();
 app.locals.store.checkKey()
   .then(state => {
     console.log(`Vault: ${app.locals.store.kind}, ${state === 'off' ? 'provider encryption only (set VAULT_KEY to seal with Watermark\'s own key)' : 'sealed with Watermark\'s own key'}`);
-    app.listen(port, () => console.log(`Watermark listening on ${port}`));
+    const server = app.listen(port, () => console.log(`Watermark listening on ${port}`));
+    // Idle connections outlive the proxies in front (5 Nov: a 502 from the edge in 150 ms, one request in thirty-five,
+    // the house up and well): Node closes an idle keep-alive connection after five seconds by default, and the proxy
+    // in front may reuse it at that moment and get a reset. The house now holds idle connections longer than any proxy
+    // in front of it, so the proxy always closes first.
+    server.keepAliveTimeout = Number(process.env.KEEPALIVE_MS || 65000);
+    server.headersTimeout = server.keepAliveTimeout + 1000;
   })
   .catch(e => { console.error(e.message); process.exit(1); });

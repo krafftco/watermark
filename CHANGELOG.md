@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.68.2 · The connection held · 5 November 2026
+
+- The house holds idle connections longer than the proxies in front of it, so a page no longer fails now and then with a brief error from the edge.
+
 ## 1.68.1 · The swipe from the edge · 5 November 2026
 
 - Wander: a swipe left opens who made it wherever it starts, the rail included; a thumb starts there. A swipe up from the rail moves on too. A tap still presses the button.
