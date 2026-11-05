@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.68.0 · Post it · 5 November 2026
+- Every work on view becomes an Instagram post (4:5) or story (9:16) in one tap from Send: the picture whole, its title, who made it, and the maker's link.
+- Every maker has a link for their bio: /@handle, made for a phone, opening on their work.
+- A new room in the studio, Instagram: the link to copy and every work ready to post.
+
 ## 1.67.0 · The standard · 5 November 2026
 
 - Studio → Bringing in → The standard: every picture on the house's shelves (the public domain and the museums' open access) is measured for size, sharpness and its edges, then looked at by Al; what falls short of the Frick's standard comes off the wall, named and reversible, never deleted.

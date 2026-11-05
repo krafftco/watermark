@@ -665,6 +665,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.wanderJSON = wanderJSON;
   require('./eye').mountEye(app, { db, V });
   require('./stroll').mountStroll(app, { db, V, wanderJSON, I: require('./icons') });
+  require('./postit').mountPostIt(app, { db, V, images, cache, originalPath });
   // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
   // reason to come back in the morning and something to talk about. /today opens it.
   function todays() {

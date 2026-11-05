@@ -14,11 +14,14 @@
     el.innerHTML = '<div class="snd-c"><button type="button" class="snd-x" aria-label="Close">×</button><img class="snd-im" alt=""><p class="snd-k" data-snd-k>Send it to someone</p><p class="snd-t" data-snd-t></p>'
       + '<label class="snd-l"><span>Say something, if you like</span><textarea maxlength="160" rows="2" data-snd-note placeholder="This made me think of you."></textarea></label>'
       + '<label class="snd-l snd-nm" data-snd-nmw hidden><span>Your first name</span><input maxlength="24" data-snd-name autocomplete="given-name"></label>'
-      + '<button type="button" class="snd-go" data-snd-go>Send</button><p class="snd-f">It opens for them on its own, in the dark, with your name. Nothing is followed.</p></div>';
+      + '<button type="button" class="snd-go" data-snd-go>Send</button><p class="snd-f">It opens for them on its own, in the dark, with your name. Nothing is followed.</p>'
+      + '<div class="snd-ig"><span>Or post it</span><button type="button" data-snd-ig="post">Post</button><button type="button" data-snd-ig="story">Story</button></div>'
+      + '<p class="snd-igf" data-snd-igf hidden></p></div>';
     document.body.appendChild(el);
     el.addEventListener('click', function (e) { if (e.target === el || e.target.closest('.snd-x')) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && el && !el.hidden) close(); });
     el.querySelector('[data-snd-go]').addEventListener('click', go);
+    [].forEach.call(el.querySelectorAll('[data-snd-ig]'), function (b) { b.addEventListener('click', function () { post(b.getAttribute('data-snd-ig')); }); });
     return el;
   }
   var made = null; // the link, made the moment the sheet opens, so Send can open the share sheet inside the tap
@@ -29,8 +32,27 @@
     el.querySelector('[data-snd-t]').innerHTML = '<b>' + esc(cur.title || '') + '</b>' + (cur.by ? ' · ' + esc(cur.by) : '');
     el.querySelector('[data-snd-k]').textContent = f && f.from ? 'Send one back to ' + f.from : 'Send it to someone';
     el.querySelector('[data-snd-nmw]').hidden = !!me; el.querySelector('[data-snd-note]').value = '';
+    el.querySelector('[data-snd-igf]').hidden = true; fetchCards();
     el.hidden = false; document.documentElement.classList.add('snd-on'); setTimeout(function () { el.querySelector('[data-snd-note]').focus({ preventScroll: true }); }, 60);
   }
+  // Post it (5 Nov): the card made by the house (the picture whole, its title, who made it, the address), handed to
+  // the share sheet so Instagram takes it in one tap; the work's own link is copied first for a story's link sticker.
+  var cards = {};
+  function fetchCards() { cards = {}; ['post', 'story'].forEach(function (k) { cards[k] = fetch('/w/' + encodeURIComponent(cur.slug) + '/' + k + '.jpg', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) { cards[k + 'B'] = b; return b; }).catch(function () { return null; }); }); }
+  function workLink() { return location.origin + '/w/' + encodeURIComponent(cur.slug) + '?from=ig'; }
+  function post(k) {
+    var link = workLink(), note = el.querySelector('[data-snd-igf]');
+    try { if (navigator.clipboard) navigator.clipboard.writeText(link); } catch (e) {}
+    var name = (cur.title || 'Watermark').replace(/[^\w .,'-]+/g, ' ').trim() + ' (' + k + ').jpg';
+    var said = function () { note.hidden = false; note.textContent = k === 'story' ? 'The link is copied: add it to your story as a link sticker, so people can find the work.' : 'The link is copied: paste it in your caption or bio, so people can find the work.'; };
+    var b = cards[k + 'B'];
+    if (b && window.File && navigator.canShare) {
+      var f = new File([b], name, { type: 'image/jpeg' });
+      if (navigator.canShare({ files: [f] })) { navigator.share({ files: [f] }).then(said).catch(function (e) { if (!e || e.name !== 'AbortError') dl(k); }); said(); return; }
+    }
+    dl(k); said();
+  }
+  function dl(k) { var a = document.createElement('a'); a.href = '/w/' + encodeURIComponent(cur.slug) + '/' + k + '.jpg?dl=1'; a.setAttribute('download', ''); document.body.appendChild(a); a.click(); a.remove(); }
   function close() { if (!el) return; el.hidden = true; document.documentElement.classList.remove('snd-on'); }
   function go() {
     var btn = el.querySelector('[data-snd-go]'); if (btn.disabled) return;
