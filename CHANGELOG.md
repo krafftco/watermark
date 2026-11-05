@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.58.0 · The private desk · 5 November 2026
+- A collector tells the house what they are looking for; an owner, what they would consider selling (a work on their registry, or described). Only the house reads either.
+- The desk finds the matches (artist, medium, years, size, price) and the house proposes an introduction with the price book's view beside it; each side sees the other only as described, never by name, until both say yes; then one letter introduces them.
+- The fee is stated before anyone answers (5% of the price, from the seller, only if a sale follows; a draft) and recorded when the sale is reported. When the house is on either side, both are told first. The desk never reads the rest of an owner's registry.
+
 ## 1.57.0 · The Work Master and the price book · 5 November 2026
 - The Work Master: one Watermark number for every work of art, with MoMA's, the Met's, Wikidata's, the holder's accession and the house's own joined to it; who holds it and since when, the line of owners with their sources, what may lawfully be done with it, what it has traded for in the house; signed by the house's register key (/master; /api/v1/master/resolve, /api/v1/master/:number, /api/v1/master?q=, POST /api/v1/master/verify).
 - The price book (Studio only): auction results kept by hand, from a spreadsheet or a licensed feed; prices to dollars and today's dollars; for any lot, what it should sell for (the artist's own model, or the nearest comparables), how sure, the sales it rests on, the ceiling to bid under the buyer's premium, and whether a price is above, at or below market. Never shown publicly; never an appraisal.
