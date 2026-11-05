@@ -376,7 +376,7 @@
       Z.px = (a.clientX + b.clientX) / 2; Z.py = (a.clientY + b.clientY) / 2; Z.on = true; Z.pan = null; root.classList.add('st-zoom'); sx0 = null; e.preventDefault(); return;
     }
     if (Z.on && e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY, stuck: 0 }; Z.d0 = 0; sx0 = null; e.preventDefault(); return; }
-    if (e.touches.length !== 1 || e.target.closest('button, input, .st-rail')) { sx0 = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('input, textarea, select, .st-more')) { sx0 = null; return; }
     if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null; sT0 = Date.now(); sTop0 = scroller.scrollTop; sMoved = false;
   }, { passive: false });

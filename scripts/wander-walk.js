@@ -120,6 +120,18 @@ async function walk(name, opts, phone) {
     });
     ok(8, doors.keys || /on|open/.test(doors.rk), name, `a swipe left did not open the Keys (${doors.rk})`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    // The thumb starts a swipe left at the right edge, on the rail (5 Nov: "left swipe doesn't work"): it must open too.
+    const fromRail = await p.evaluate(async () => {
+      const sc = document.querySelector('.st-scroll'); const btn = [...document.querySelectorAll('.st-rail button')].find(b => { const r = b.getBoundingClientRect(); return r.width && r.top > 0 && r.bottom < innerHeight; });
+      if (!btn) return 'no rail'; const r = btn.getBoundingClientRect(), x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+      const T = (x, y) => new Touch({ identifier: 9, target: btn, clientX: x, clientY: y });
+      const fire = (type, ts, ct) => btn.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: ts, changedTouches: ct || ts, targetTouches: ts }));
+      fire('touchstart', [T(x0, y0)]); for (let k = 1; k <= 10; k++) { fire('touchmove', [T(x0 - k * 22, y0 + k)]); await new Promise(r => setTimeout(r, 12)); }
+      fire('touchend', [], [T(x0 - 220, y0 + 10)]); await new Promise(r => setTimeout(r, 600));
+      return document.querySelector('main.st').classList.contains('st-side-on') ? 'open' : 'shut';
+    });
+    ok(8, fromRail === 'open', name, `a swipe left that starts on the rail did not open who made it (${fromRail})`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
   } else {
     await p.keyboard.press('ArrowRight'); await p.waitForTimeout(600);
     const d1 = await p.evaluate(() => { const r = document.querySelector('.st-side-r'); return r ? r.className : ''; });
@@ -127,10 +139,10 @@ async function walk(name, opts, phone) {
     await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(500);
     const d2 = await p.evaluate(() => { const r = document.querySelector('.st-side-r'); return r ? r.className : ''; });
     ok(8, !/\bon\b|open/.test(d2), name, `← did not close the Keys (${d2})`);
+    // One door since 5 Nov (who made it, on the right): ← from the picture opens nothing and stays in Wander.
     await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(500);
-    const d3 = await p.evaluate(() => { const l = document.querySelector('.st-side-l'); return l ? l.className : ''; });
-    ok(8, /on|open/.test(d3), name, `← again did not open Yours (${d3})`);
-    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    const d3 = await p.evaluate(() => ({ open: document.querySelector('main.st').classList.contains('st-side-on'), here: !!document.querySelector('.st-scroll') }));
+    ok(8, !d3.open && d3.here, name, `← from the picture should open nothing (${JSON.stringify(d3)})`);
     const sc0 = await p.evaluate(() => document.querySelector('.st-scroll').scrollTop);
     await p.keyboard.press('ArrowDown'); await p.waitForTimeout(900);
     const sc1 = await p.evaluate(() => ({ t: document.querySelector('.st-scroll').scrollTop, h: document.querySelector('.st-scroll').clientHeight }));

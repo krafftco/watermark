@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.68.1 · The swipe from the edge · 5 November 2026
+
+- Wander: a swipe left opens who made it wherever it starts, the rail included; a thumb starts there. A swipe up from the rail moves on too. A tap still presses the button.
+
 ## 1.68.0 · Post it · 5 November 2026
 - Every work on view becomes an Instagram post (4:5) or story (9:16) in one tap from Send: the picture whole, its title, who made it, and the maker's link.
 - Every maker has a link for their bio: /@handle, made for a phone, opening on their work.
