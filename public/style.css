@@ -5368,3 +5368,7 @@ body:has(.yu) .rm-bar{display:none}
 .rgy-cu form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .rgy-foot{margin-top:40px;font-size:13px;color:var(--mute,#6d675e)}
 @media (max-width:760px){.rgy-h{grid-template-columns:1fr}.rgy-e{grid-template-columns:1fr;gap:2px}}
+.rgy-q{display:flex;gap:8px;margin:18px 0 6px;max-width:640px}.rgy-q input{flex:1}
+.rgy-hold b{font-weight:500;color:var(--ink,#1a1714)}
+.rgy-fr{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}
+.rgy-line{margin:14px 0;font-size:14px;color:var(--mute,#6d675e)}

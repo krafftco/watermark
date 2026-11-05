@@ -88,5 +88,46 @@ const { createApp } = require('../src/app');
   assert.ok(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='object.event'").get().n >= 9);
   t = await (await go(stranger, '/ledger')).text(); assert.ok(!t.includes('object.event') && !t.includes('A Woman Reading'));
   t = await (await go(studio, '/studio/registry')).text(); assert.ok(t.includes(no));
+
+  // What is known: a museum work the house holds becomes a record of a public collection, its history from Wikidata
+  await form(studio, '/studio/accounts', { name: 'A museum desk (demonstration)', kind: 'institution', invite: '0' });
+  const mus = db.prepare("SELECT * FROM makers WHERE kind='institution' ORDER BY id DESC").get();
+  const mf = path.join(dir, 'met.jpg'); fs.writeFileSync(mf, await sharp({ create: { width: 1400, height: 1000, channels: 3, background: { r: 60, g: 80, b: 110 } } }).jpeg().toBuffer());
+  const mw = await app.locals.registerWork({ file: mf, title: 'The Harvesters', makerId: mus.id, originalName: 'met.jpg', source_url: 'https://www.metmuseum.org/art/collection/search/435809',
+    caption: 'Pieter Bruegel the Elder, 1565 · Artist: Pieter Bruegel the Elder · Date: 1565 · Medium: Oil on wood · Dimensions: Overall 119 x 162 cm · Credit line: Rogers Fund, 1919 · Department: European Paintings' });
+  db.prepare("UPDATE works SET status='held' WHERE id=?").run(mw.id);
+  const asked = [];
+  app.locals.iiif.doFetch = async u => { asked.push(String(u)); return { ok: true, status: 200, json: async () => ({ results: { bindings: [
+    { item: { value: 'http://www.wikidata.org/entity/Q1218577' }, mid: { value: '435809' }, owner: { value: 'x' }, ownerLabel: { value: 'Niclaes Jongelinck' }, start: { value: '1565-01-01T00:00:00Z' }, end: { value: '1594-01-01T00:00:00Z' } },
+    { item: { value: 'http://www.wikidata.org/entity/Q1218577' }, mid: { value: '435809' }, owner: { value: 'y' }, ownerLabel: { value: 'Habsburg family' }, start: { value: '1594-01-01T00:00:00Z' }, exhLabel: { value: 'Bruegel: The Hand of the Master' } },
+  ] } }) }; };
+  const job = await app.locals.registry.collections({ scope: 'held', n: 50 });
+  assert.equal(job.done, 1, 'one museum work recorded: ' + JSON.stringify(job)); assert.ok(job.history >= 3, 'two owners and a show from Wikidata');
+  assert.ok(asked[0].includes('P3634') && asked[0].includes('435809'), 'asked Wikidata by the Met object id');
+  const mo = db.prepare('SELECT * FROM objects WHERE work_id=?').get(mw.id);
+  assert.ok(mo.record_kind === 'collection' && mo.holder === 'The Metropolitan Museum of Art' && mo.public === 1 && mo.qid === 'Q1218577' && mo.medium === 'Oil on wood');
+  const mno = app.locals.registry.no(mo).replace(/\s+/g, '').slice(2);
+  t = await (await go(stranger, `/r/${mno}`)).text();
+  assert.ok(t.includes('In the collection of <b>The Metropolitan Museum of Art</b>') && t.includes('Niclaes Jongelinck') && t.includes('1565–1594') && t.includes('Rogers Fund, 1919') && t.includes('Catalogued as Pieter Bruegel the Elder') && t.includes('from the Met’s open-access record') && t.includes('from Wikidata') && t.includes('What is known') && t.includes('Know more?'), 'the public record of a public collection');
+  assert.ok(!t.includes('Ready for the desk') && !t.includes('Pass the title'), 'nothing of a sale');
+  t = await (await go(stranger, `/m/${mus.handle}/${mw.slug}`)).text(); assert.ok(t.includes(`/r/${mno}`), 'the work page says it is on the registry');
+  assert.equal((await app.locals.registry.collections({ scope: 'held', n: 50 })).done, 0, 'never twice');
+  // a known work with no photograph, from an artist's catalogue
+  const art = app.locals.art.ensure('Pieter Bruegel the Elder', { born: 1525, died: 1569 });
+  db.prepare("INSERT INTO catalogue (artist_id, qid, title, year, medium, collection, inventory) VALUES (?,?,?,?,?,?,?)").run(art.id, 'Q999001', 'The Gloomy Day', 1565, 'Oil on wood', 'Kunsthistorisches Museum', 'GG 1837');
+  app.locals.iiif.doFetch = async () => ({ ok: true, status: 200, json: async () => ({ results: { bindings: [] } }) });
+  assert.equal((await app.locals.registry.collections({ scope: 'known', n: 50 })).done, 1);
+  const ko = db.prepare("SELECT * FROM objects WHERE qid='Q999001'").get(); t = await (await go(stranger, `/registry/o/${ko.id}`)).text();
+  assert.ok(t.includes('Kunsthistorisches Museum') && t.includes('Known to exist; no open photograph in the house yet.'), 'a known work waits for its photograph');
+  // anyone signed in may add a line with its source; it stands when the house reads it
+  r = await multi(bea, `/registry/o/${mo.id}/offer`, { kind: 'published', party: 'Orenstein, Pieter Bruegel the Elder: Drawings and Prints, 2001, p. 44', source: 'The book itself', name: 'Bea Moss' });
+  assert.ok(decodeURIComponent(r.headers.get('location')).includes('Thank you'));
+  const off = db.prepare("SELECT * FROM object_offers WHERE status='waiting'").get(); assert.ok(off);
+  t = await (await go(stranger, `/r/${mno}`)).text(); assert.ok(!t.includes('Orenstein'), 'not before the house reads it');
+  t = await (await go(studio, '/studio/registry')).text(); assert.ok(t.includes('Lines offered') && t.includes('Orenstein'));
+  await form(studio, `/studio/registry/offers/${off.id}`, { do: 'accept' });
+  t = await (await go(stranger, `/r/${mno}`)).text(); assert.ok(t.includes('Orenstein') && t.includes('Added by Bea Moss, accepted by the house'), 'it stands, in their name');
+  assert.ok((await multi(stranger, `/registry/o/${mo.id}/offer`, { kind: 'note', party: 'x', source: 'y', name: 'z' })).headers.get('location').startsWith('/signin'), 'a stranger is asked to sign in');
+  t = await (await go(stranger, '/registry?q=Bruegel')).text(); assert.ok(t.includes('The Harvesters') && t.includes('The Gloomy Day'), 'found by word');
   srv.close(); console.log('registry: all hold'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

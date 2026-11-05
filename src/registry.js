@@ -38,6 +38,10 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
       corrects INTEGER, sha TEXT, seq INTEGER, at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS object_transfers (id INTEGER PRIMARY KEY, object_id INTEGER NOT NULL, from_owner TEXT NOT NULL, email TEXT NOT NULL, token TEXT UNIQUE NOT NULL, note TEXT,
       status TEXT NOT NULL DEFAULT 'offered', at TEXT NOT NULL DEFAULT (datetime('now')), taken_at TEXT)`);
+  for (const [c, ty] of [['record_kind', "TEXT NOT NULL DEFAULT 'private'"], ['holder', 'TEXT'], ['accession', 'TEXT'], ['source_url', 'TEXT'], ['qid', 'TEXT'], ['catalogue_id', 'INTEGER']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('objects') WHERE name=?").get(c)) db.exec(`ALTER TABLE objects ADD COLUMN ${c} ${ty}`);
+  db.exec(`CREATE TABLE IF NOT EXISTS object_offers (id INTEGER PRIMARY KEY, object_id INTEGER NOT NULL, who TEXT NOT NULL, name TEXT, email TEXT, kind TEXT NOT NULL, on_date TEXT, year_from INTEGER, year_to INTEGER,
+      party TEXT, how TEXT, result TEXT, body TEXT, source TEXT NOT NULL, file TEXT, mime TEXT, file_sha TEXT, status TEXT NOT NULL DEFAULT 'waiting', word TEXT, at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE INDEX IF NOT EXISTS objects_work ON objects(work_id); CREATE INDEX IF NOT EXISTS objects_cat ON objects(catalogue_id)`);
   const dir = path.join(C.dataDir, 'registry'); fs.mkdirSync(dir, { recursive: true });
   const up = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
   const bag = kind => (req, res, next) => (req.file && app.locals.bagcheck ? app.locals.bagcheck.gate(kind)(req, res, next) : next());
@@ -58,8 +62,8 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
   // What stands: an entry corrected by a later one gives way to it.
   const standing = ev => { const gone = new Set(ev.filter(e => e.corrects).map(e => e.corrects)); return ev.filter(e => !gone.has(e.id)); };
   const keysOf = req => { const k = []; const b = buyerOf(req); if (b) k.push(`b:${b.id}`); const m = makerOf(req); if (m) k.push(`m:${m.id}`); return k; };
-  const nameOf = key => { const [k, id] = String(key).split(':'); const r = k === 'm' ? db.prepare('SELECT name FROM makers WHERE id=?').get(+id) : db.prepare('SELECT name, email FROM buyers WHERE id=?').get(+id); return (r && (r.name || (r.email ? r.email.split('@')[0] : ''))) || 'the owner'; };
-  const emailOf = key => { const [k, id] = String(key).split(':'); const r = k === 'm' ? db.prepare('SELECT email FROM makers WHERE id=?').get(+id) : db.prepare('SELECT email FROM buyers WHERE id=?').get(+id); return r && r.email; };
+  const nameOf = key => { if (key === 'house') return 'the house'; const [k, id] = String(key).split(':'); const r = k === 'm' ? db.prepare('SELECT name FROM makers WHERE id=?').get(+id) : db.prepare('SELECT name, email FROM buyers WHERE id=?').get(+id); return (r && (r.name || (r.email ? r.email.split('@')[0] : ''))) || 'the owner'; };
+  const emailOf = key => { if (key === 'house') return null; const [k, id] = String(key).split(':'); const r = k === 'm' ? db.prepare('SELECT email FROM makers WHERE id=?').get(+id) : db.prepare('SELECT email FROM buyers WHERE id=?').get(+id); return r && r.email; };
   const custodianOf = req => { const m = makerOf(req); return m && m.kind === 'custodian' ? m : null; };
   const role = (req, o) => {
     if (keysOf(req).includes(o.owner)) return 'owner';
@@ -69,7 +73,7 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
     if (o.public) return 'public';
     return null;
   };
-  const sees = (r, e) => r === 'owner' || r === 'house' || r === 'reader' || (r === 'custodian' && ['custody', 'condition', 'transfer'].includes(e.kind)) || (r === 'public' && e.public && !['acquired', 'custody', 'transfer', 'search'].includes(e.kind));
+  const sees = (r, e, o = {}) => r === 'owner' || r === 'house' || r === 'reader' || (r === 'custodian' && ['custody', 'condition', 'transfer'].includes(e.kind)) || (r === 'public' && e.public && (o.record_kind === 'collection' || !['acquired', 'custody', 'transfer', 'search'].includes(e.kind)));
 
   // Every entry is fingerprinted and laid on the register: the record cannot be quietly rewritten.
   function add(o, e) {
@@ -94,7 +98,7 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
     try { await store.put(key, local, isPdf ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`); } catch (e) { /* the disk keeps it; the vault follows */ }
     return { file: key, mime: isPdf ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`, file_sha: sha };
   }
-  const tell = (key, title, body, href) => { const [k, id] = String(key).split(':'); if (app.locals.notify && app.locals.notify.tell) { try { app.locals.notify.tell({ [k === 'm' ? 'maker_id' : 'buyer_id']: +id, kind: 'registry', title, body, href }); } catch (e) { /* */ } } };
+  const tell = (key, title, body, href) => { if (key === 'house') return; const [k, id] = String(key).split(':'); if (app.locals.notify && app.locals.notify.tell) { try { app.locals.notify.tell({ [k === 'm' ? 'maker_id' : 'buyer_id']: +id, kind: 'registry', title, body, href }); } catch (e) { /* */ } } };
 
   // Ready for the desk: what a private sale (or an insurer, or a lender) would ask of the record, read from it.
   function ready(o, ev = standing(events(o))) {
@@ -103,12 +107,13 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
     const old = (o.made_year || 9999) < 1946;
     const covers = (a, b) => prov.some(p => (p.year_from || 0) <= a && (p.year_to || 9999) >= b) || prov.filter(p => p.year_from && p.year_to).sort((x, y) => x.year_from - y.year_from).reduce((at, p) => (p.year_from <= at + 1 && p.year_to > at ? p.year_to : at), a - 1) >= b;
     const custody = of('custody').filter(e => e.by_kind === 'custodian' && e.result !== 'released');
+    const pub = o.record_kind === 'collection';
     const attributed = o.artist && !/^the owner$/i.test(o.artist);
     return [
-      { k: 'described', ok: !!(o.title && o.made && o.medium && o.dims && (o.photo || o.work_id)), line: 'Described', why: 'Title, date, medium, dimensions and a photograph of record' },
-      { k: 'title', ok: acq.some(e => e.file || e.kind === 'transfer'), line: 'Title to the owner', why: 'How the present owner came to own it, with the paper (a bill of sale, a deed of gift, a probate record)' },
+      { k: 'described', ok: !!(o.title && o.made && o.medium && (o.dims || pub) && (o.photo || o.work_id)), line: 'Described', why: 'Title, date, medium, dimensions and a photograph of record' },
+      { k: 'title', ok: acq.some(e => e.file || e.kind === 'transfer' || (pub && e.source)), line: 'Title to the owner', why: 'How the present owner came to own it, with the paper (a bill of sale, a deed of gift, a probate record)' },
       { k: 'provenance', ok: prov.length > 0 && (!old || covers(1933, 1945)), line: old ? 'Provenance, 1933–1945 accounted for' : 'Provenance', why: old ? 'Who held it from the work’s making to now; the years 1933 to 1945 without a gap, as every serious buyer and museum asks' : 'Who held it before the present owner' },
-      { k: 'custody', ok: custody.some(recent), line: 'Custody attested', why: 'A custodian’s attestation in the last year that it holds the work for this owner' },
+      { k: 'custody', ok: custody.some(recent) || (pub && !!o.holder), line: 'Custody attested', why: 'A custodian’s attestation in the last year that it holds the work for this owner' },
       { k: 'condition', ok: of('condition').some(recent), line: 'Condition reported', why: 'A condition report in the last year, by a custodian or a conservator' },
       { k: 'opinion', ok: !attributed || of('opinion').length > 0, line: 'An expert’s opinion', why: 'For a work given to an artist: a signed opinion by an authority on that artist (a catalogue raisonné, a foundation, a scholar)' },
       { k: 'search', ok: of('search').some(e => e.result === 'clear' && recent(e)), line: 'Searched and clear', why: 'A search of a stolen-art register in the last year, with its certificate' },
@@ -122,12 +127,12 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
   function entry(o, e, r) {
     const [label] = KINDS[e.kind] || [e.kind];
     const bits = [e.party ? `<b>${esc(e.party)}</b>` : '', e.how ? esc(e.how) : '', e.place && (r === 'owner' || r === 'house' || r === 'custodian') ? esc(e.place) : '', e.result ? `<i>${esc(e.result)}</i>` : '', e.price_cents != null && (r === 'owner' || r === 'house') ? `${money(e.price_cents)} <small>(private)</small>` : ''].filter(Boolean).join(' · ');
-    const by = { owner: 'Entered by the owner', custodian: `Attested by ${esc(e.by_name || 'the custodian')}`, expert: `Signed by ${esc(e.by_name || 'the expert')}`, house: 'Entered by the house' }[e.by_kind] || '';
+    const by = { owner: 'Entered by the owner', custodian: `Attested by ${esc(e.by_name || 'the custodian')}`, expert: `Signed by ${esc(e.by_name || 'the expert')}`, house: `Entered by the house${e.by_name ? `, ${esc(e.by_name)}` : ''}`, contributor: `Added by ${esc(e.by_name || 'a contributor')}, accepted by the house` }[e.by_kind] || '';
     const file = e.file && r !== 'public' ? ` · <a href="/registry/o/${o.id}/file/${e.id}${r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : ''}">The paper</a>` : '';
     return `<li class="rgy-e rgy-${esc(e.kind)}"><span class="rgy-d">${esc(dateWord(e))}</span><div><p class="rgy-k">${esc(label)}${e.corrects ? ' <small>(sets right an earlier entry)</small>' : ''}</p>${bits ? `<p>${bits}</p>` : ''}${e.body ? `<p>${esc(e.body)}</p>` : ''}${e.source ? `<p class="rgy-src">Source: ${/^https:\/\//.test(e.source) ? `<a href="${esc(e.source)}" rel="noopener">${esc(e.source)}</a>` : esc(e.source)}</p>` : ''}<p class="rgy-by">${by}${e.at ? ` · ${esc(day(e.at))}` : ''}${e.seq ? ` · on the register, No. ${e.seq}` : ''}${file}</p></div></li>`;
   }
   function record(o, r) {
-    const all = standing(events(o)); const ev = all.filter(e => sees(r, e));
+    const all = standing(events(o)); const ev = all.filter(e => sees(r, e, o));
     const prov = ev.filter(e => ['provenance', 'acquired', 'transfer'].includes(e.kind)).sort((a, b) => (a.year_from || yr(a.on_date) || 9999) - (b.year_from || yr(b.on_date) || 9999) || a.id - b.id);
     const rest = ev.filter(e => !prov.includes(e));
     const ph = photoOf(o, r); const rd = ready(o, all); const n = rd.filter(x => x.ok).length;
@@ -135,11 +140,12 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
     const desk = r === 'owner' || r === 'house';
     return `<header class="rgy-h">${ph ? `<figure class="rgy-ph"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}"></figure>` : ''}<div><p class="k">The registry · <span class="rgy-no">${esc(no(o))}</span></p><h1>${esc(tidy(o.title))}</h1>
 <p class="rgy-by1">${esc([o.artist, o.made].filter(Boolean).join(', '))}</p><p class="rgy-meta">${esc([o.medium, o.dims].filter(Boolean).join(' · '))}</p>${o.marks ? `<p class="rgy-meta">Marks and inscriptions: ${esc(o.marks)}</p>` : ''}${o.description ? `<p>${esc(o.description)}</p>` : ''}
-${r !== 'public' ? `<p class="rgy-meta">${r === 'owner' ? 'Yours' : `Owned by ${esc(nameOf(o.owner))}`}${cust ? ` · held by ${esc(cust.name)}` : ''}</p>` : '<p class="rgy-meta">Owner and place are kept private.</p>'}</div></header>
+${o.record_kind === 'collection' ? holdLine(o) : r !== 'public' ? `<p class="rgy-meta">${r === 'owner' ? 'Yours' : `Owned by ${esc(nameOf(o.owner))}`}${cust ? ` · held by ${esc(cust.name)}` : ''}</p>` : '<p class="rgy-meta">Owner and place are kept private.</p>'}</div></header>
 <section class="rgy-sec"><h2>Provenance</h2>${prov.length ? `<ol class="rgy-l">${prov.map(e => entry(o, e, r)).join('')}</ol>` : '<p class="note">Nothing entered yet.</p>'}</section>
 ${rest.length ? `<section class="rgy-sec"><h2>The record</h2><ol class="rgy-l">${rest.map(e => entry(o, e, r)).join('')}</ol></section>` : ''}
-${r !== 'public' ? `<section class="rgy-sec rgy-ready"><h2>Ready for the desk <small>${n} of ${rd.length}</small></h2><p class="note">What a private sale, a lender or an insurer will ask of this record. Nothing here is offered for sale; it is the record made ready.</p><ul>${rd.map(x => `<li class="${x.ok ? 'rgy-ok' : ''}"><b>${x.ok ? '✓' : '○'} ${esc(x.line)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul></section>` : ''}
-${desk ? deskBlock(o, r) : ''}
+${o.record_kind === 'collection' ? knownBlock(o, r, rd, n) : ''}
+${r !== 'public' && o.record_kind !== 'collection' ? `<section class="rgy-sec rgy-ready"><h2>Ready for the desk <small>${n} of ${rd.length}</small></h2><p class="note">What a private sale, a lender or an insurer will ask of this record. Nothing here is offered for sale; it is the record made ready.</p><ul>${rd.map(x => `<li class="${x.ok ? 'rgy-ok' : ''}"><b>${x.ok ? '✓' : '○'} ${esc(x.line)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul></section>` : ''}
+${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : ''}
 <p class="rgy-foot">Every entry is fingerprinted and laid on the house’s signed register; none is ever edited, only set right by a later one. <a href="/registry/o/${o.id}/dossier.pdf${r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : ''}">The dossier, as a PDF</a>${o.public ? ` · <a href="/r/${noPath(o)}">The public record</a>` : ''}</p>`;
   }
   function deskBlock(o) {
@@ -185,10 +191,14 @@ ${o.token ? `<p class="note">A reader’s link (an insurer, a scholar, a buyer y
 
   // The public door.
   app.get('/registry', (req, res) => {
-    const list = db.prepare("SELECT * FROM objects WHERE public=1 AND status='recorded' ORDER BY updated_at DESC LIMIT 60").all();
+    const q = t(req.query.q, 80);
+    const list = q ? db.prepare("SELECT * FROM objects WHERE public=1 AND status='recorded' AND (title LIKE ? OR artist LIKE ? OR holder LIKE ? OR accession LIKE ?) ORDER BY made_year, id LIMIT 120").all(...Array(4).fill(`%${q}%`))
+      : db.prepare("SELECT * FROM objects WHERE public=1 AND status='recorded' AND record_kind='private' ORDER BY updated_at DESC LIMIT 24").all().concat(db.prepare("SELECT * FROM objects WHERE public=1 AND status='recorded' AND record_kind='collection' AND (photo IS NOT NULL OR work_id IS NOT NULL) ORDER BY updated_at DESC LIMIT 36").all());
+    const counts = db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN work_id IS NULL AND photo IS NULL THEN 1 ELSE 0 END) unseen FROM objects WHERE public=1 AND status='recorded'").get();
     res.send(shell('The registry', `<header class="rgy-hero"><p class="k">The registry</p><h1>The record of a work, kept.</h1><p class="lede">Before a painting changes hands anywhere serious, five questions are asked: what it is, who owns it and how they came to, where it has been, where it is now and in what state, and whether anyone has a claim on it. The registry keeps the answers in one record, with the papers, every entry fingerprinted and laid on the house’s signed register.</p>
 <p><a class="buy-btn" href="/yours/registry">Put a work on the registry</a> <a class="rgy-sub" href="#how">How it works</a></p></header>
-${list.length ? `<section class="rgy-sec"><h2>On the public registry</h2><div class="rgy-g">${list.map(o => { const ph = photoOf(o, 'public'); return `<a class="rgy-c" href="/r/${noPath(o)}">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy">` : '<span class="rgy-blank"></span>'}<b>${esc(tidy(o.title))}</b><small>${esc([o.artist, o.made].filter(Boolean).join(', '))}</small><small class="rgy-no">${esc(no(o))}</small></a>`; }).join('')}</div></section>` : ''}
+<form class="rgy-q" method="get" action="/registry"><input name="q" value="${esc(q || '')}" placeholder="A title, an artist, a museum, an accession number"><button>Find</button></form>${+counts.n ? `<p class="note">${(+counts.n).toLocaleString('en-US')} records on the public registry${+counts.unseen ? `, ${(+counts.unseen).toLocaleString('en-US')} of them works known to exist with no open photograph yet` : ''}.</p>` : ''}
+${list.length ? `<section class="rgy-sec"><h2>${q ? `Found for “${esc(q)}”` : 'On the public registry'}</h2><div class="rgy-g">${list.map(o => { const ph = photoOf(o, 'public'); return `<a class="rgy-c" href="/r/${noPath(o)}">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy">` : '<span class="rgy-blank"></span>'}<b>${esc(tidy(o.title))}</b><small>${esc([o.artist, o.made].filter(Boolean).join(', '))}</small><small class="rgy-no">${esc(no(o))}</small></a>`; }).join('')}</div></section>` : ''}
 <section class="rgy-sec" id="how"><h2>How it works</h2><ol class="rgy-how"><li><b>The owner records it.</b> What it is, a photograph of record, how they came to own it, and what is known of where it has been. Free, and private unless they choose.</li><li><b>The custodian attests.</b> A freeport, an art store or a registrar holding the work says so in its own name: received, in this condition, held for this owner.</li><li><b>Experts sign their own words.</b> An opinion on what it is sits in its author’s name, with the paper.</li><li><b>The record is never rewritten.</b> Each entry is fingerprinted and on the register; a mistake is set right by a later entry, and both stand.</li><li><b>Title passes by two hands.</b> The owner offers, the new owner accepts, and the record goes with the work. No money moves here.</li><li><b>Ready for the desk.</b> The record reads what a private sale, a lender or an insurer will ask, so the work is ready before anyone asks.</li></ol>
 <p class="note">The registry records what owners, custodians and experts enter, and says who entered each line. It does not appraise, authenticate or guarantee title, and it is not a sale.</p></section>`, '/registry'));
   });
@@ -239,7 +249,7 @@ ${cab.length ? `<form method="post" action="/yours/registry" class="rgy-new rgy-
   });
   app.get('/registry/o/:id/file/:eid', async (req, res) => {
     const o = obj(req.params.id); if (!o) return res.sendStatus(404); const r = role(req, o); if (!r || r === 'public') return res.sendStatus(404);
-    const e = db.prepare('SELECT * FROM object_events WHERE id=? AND object_id=?').get(+req.params.eid, o.id); if (!e || !e.file || !sees(r, e)) return res.sendStatus(404);
+    const e = db.prepare('SELECT * FROM object_events WHERE id=? AND object_id=?').get(+req.params.eid, o.id); if (!e || !e.file || !sees(r, e, o)) return res.sendStatus(404);
     const f = path.join(C.dataDir, e.file);
     if (!fs.existsSync(f)) { try { await store.download(e.file, f); } catch (x) { return res.sendStatus(404); } }
     res.set('Cache-Control', 'private, no-store').type(e.mime || 'application/octet-stream').sendFile(f);
@@ -342,10 +352,10 @@ ${list.length ? list.map(o => { const l = last(o); return `<article class="rgy-c
     doc.font('Times-Roman').fontSize(9).fillColor('#666').text(`WATERMARK · THE REGISTRY · ${no(o)}`, { characterSpacing: 1 }).moveDown(1.2);
     doc.fillColor('#111').font('Times-Bold').fontSize(22).text(tidy(o.title)); doc.font('Times-Italic').fontSize(13).text([o.artist, o.made].filter(Boolean).join(', ')).moveDown(.3);
     doc.font('Times-Roman').fontSize(11).text([o.medium, o.dims].filter(Boolean).join(' · ')); if (o.marks) doc.text(`Marks and inscriptions: ${o.marks}`); if (o.description) doc.moveDown(.4).text(o.description);
-    if (r !== 'public') doc.moveDown(.4).fillColor('#444').text(`Owner: ${nameOf(o.owner)}`).fillColor('#111');
+    if (o.record_kind === 'collection') doc.moveDown(.4).fillColor('#444').text(`${o.holder ? `In the collection of ${o.holder}` : 'Where it is kept is not recorded'}${o.accession ? `, ${o.accession}` : ''}`).fillColor('#111'); else if (r !== 'public') doc.moveDown(.4).fillColor('#444').text(`Owner: ${nameOf(o.owner)}`).fillColor('#111');
     const ph = o.photo ? path.join(C.dataDir, o.photo) : null; if (ph && fs.existsSync(ph)) { try { doc.moveDown(.6).image(ph, { fit: [484, 300], align: 'center' }); } catch (e) { /* */ } }
-    const ev = standing(events(o)).filter(e => sees(r, e));
-    const sec = (h, list) => { if (!list.length) return; doc.moveDown(1).font('Times-Bold').fontSize(13).text(h).moveDown(.3); for (const e of list) { doc.font('Times-Bold').fontSize(10.5).text(`${dateWord(e) || '—'}   ${(KINDS[e.kind] || [e.kind])[0]}`, { continued: false }); doc.font('Times-Roman').fontSize(10.5).text([e.party, e.how, e.result, e.body].filter(Boolean).join(' · ')); doc.fontSize(8.5).fillColor('#666').text(`${{ owner: 'Entered by the owner', custodian: `Attested by ${e.by_name || 'the custodian'}`, expert: `Signed by ${e.by_name}`, house: 'Entered by the house' }[e.by_kind] || ''}${e.source ? ` · Source: ${e.source}` : ''}${e.file_sha ? ` · paper ${e.file_sha.slice(0, 16)}` : ''} · entry ${e.sha.slice(0, 16)}${e.seq ? ` · register No. ${e.seq}` : ''}`).fillColor('#111').moveDown(.5); } };
+    const ev = standing(events(o)).filter(e => sees(r, e, o));
+    const sec = (h, list) => { if (!list.length) return; doc.moveDown(1).font('Times-Bold').fontSize(13).text(h).moveDown(.3); for (const e of list) { doc.font('Times-Bold').fontSize(10.5).text(`${dateWord(e) || '—'}   ${(KINDS[e.kind] || [e.kind])[0]}`, { continued: false }); doc.font('Times-Roman').fontSize(10.5).text([e.party, e.how, e.result, e.body].filter(Boolean).join(' · ')); doc.fontSize(8.5).fillColor('#666').text(`${({ owner: 'Entered by the owner', custodian: `Attested by ${e.by_name || 'the custodian'}`, expert: `Signed by ${e.by_name}`, house: `Entered by the house${e.by_name ? `, ${e.by_name}` : ''}`, contributor: `Added by ${e.by_name || 'a contributor'}, accepted by the house` })[e.by_kind] || ''}${e.source ? ` · Source: ${e.source}` : ''}${e.file_sha ? ` · paper ${e.file_sha.slice(0, 16)}` : ''} · entry ${e.sha.slice(0, 16)}${e.seq ? ` · register No. ${e.seq}` : ''}`).fillColor('#111').moveDown(.5); } };
     sec('Provenance', ev.filter(e => ['provenance', 'acquired', 'transfer'].includes(e.kind)).sort((a, b) => (a.year_from || yr(a.on_date) || 9999) - (b.year_from || yr(b.on_date) || 9999)));
     sec('The record', ev.filter(e => !['provenance', 'acquired', 'transfer'].includes(e.kind)));
     if (r !== 'public') { doc.moveDown(1).font('Times-Bold').fontSize(13).text('Ready for the desk').moveDown(.3); for (const x of ready(o)) doc.font('Times-Roman').fontSize(10.5).text(`${x.ok ? '✓' : '○'}  ${x.line}`); }
@@ -359,10 +369,148 @@ ${list.length ? list.map(o => { const l = last(o); return `<article class="rgy-c
     const list = db.prepare('SELECT * FROM objects ORDER BY updated_at DESC LIMIT 200').all();
     const cus = db.prepare("SELECT id, name, handle FROM makers WHERE kind='custodian' ORDER BY name").all();
     res.send(V.layout({ title: 'The registry · Studio · Watermark', path: '/studio/registry', studio: true, body: `<section class="studio-wrap rgy"><p class="k">The registry</p><h1>Every record</h1><p class="note">${list.length} records · ${cus.length} custodians${cus.length ? `: ${cus.map(c => esc(c.name)).join(', ')}` : ''}. A custodian is opened from Accounts with the kind Custodian.</p>
-<table class="tbl"><thead><tr><th>No.</th><th>Work</th><th>Owner</th><th>Custodian</th><th>Ready</th><th>Public</th></tr></thead><tbody>${list.map(o => { const rd = ready(o); const c = o.custodian_id ? cus.find(x => x.id === o.custodian_id) : null; return `<tr><td><a href="/registry/o/${o.id}">${esc(no(o))}</a></td><td>${esc(tidy(o.title))}<br><small>${esc([o.artist, o.made].filter(Boolean).join(', '))}</small></td><td>${esc(nameOf(o.owner))}</td><td>${c ? esc(c.name) : ''}</td><td>${rd.filter(x => x.ok).length}/${rd.length}</td><td>${o.public ? 'Yes' : ''}</td></tr>`; }).join('')}</tbody></table></section>` }));
+${studioKnown()}${studioOffers()}
+<table class="tbl"><thead><tr><th>No.</th><th>Work</th><th>Owner</th><th>Custodian</th><th>Ready</th><th>Public</th></tr></thead><tbody>${list.map(o => { const rd = ready(o); const c = o.custodian_id ? cus.find(x => x.id === o.custodian_id) : null; return `<tr><td><a href="/registry/o/${o.id}">${esc(no(o))}</a></td><td>${esc(tidy(o.title))}<br><small>${esc([o.artist, o.made].filter(Boolean).join(', '))}</small></td><td>${o.record_kind === 'collection' ? esc(o.holder || 'unrecorded') : esc(nameOf(o.owner))}</td><td>${c ? esc(c.name) : ''}</td><td>${rd.filter(x => x.ok).length}/${rd.length}</td><td>${o.public ? 'Yes' : ''}</td></tr>`; }).join('')}</tbody></table></section>` }));
   });
 
-  const api = { no, byNo, ready, add, create, events, standing, KINDS };
+  // ---- What is known: records of public collections, from the house's own works and the open record ----
+  const metaOf = cap => { const m = {}; for (const part of String(cap || '').split(' · ')) { const i = part.indexOf(': '); if (i > 0) m[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 2).trim(); } return m; };
+  const HOLDERS = [[/metmuseum\.org/, 'The Metropolitan Museum of Art', 'the Met'], [/artic\.edu/, 'The Art Institute of Chicago', 'the Art Institute'], [/clevelandart\.org/, 'The Cleveland Museum of Art', 'the Cleveland Museum'], [/si\.edu/, 'The Smithsonian Institution', 'the Smithsonian']];
+  const holderOf = url => { const h = HOLDERS.find(([re]) => re.test(url || '')); return h ? { name: h[1], short: h[2] } : null; };
+  const howOf = credit => (/bequest|bequeathed/i.test(credit) ? 'bequest' : /gift|given|donat/i.test(credit) ? 'gift' : /purchase|fund|acquired/i.test(credit) ? 'purchase' : /exchange/i.test(credit) ? 'exchange' : null);
+  const yearIn = s => { const all = String(s || '').match(/\b(1[5-9]\d\d|20[0-2]\d)\b/g); return all ? +all[all.length - 1] : null; };
+  const metId = url => { const m = /\/(?:objects|search)\/(\d+)/.exec(String(url || '')); return m ? m[1] : null; };
+  const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
+  const SPARQL = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql';
+  const fetchOf = () => (app.locals.iiif && app.locals.iiif.doFetch) || fetch;
+  // The ownership history Wikidata keeps (owned by, with its dates) and the shows (exhibition history), for a batch.
+  async function history({ met = [], qids = [] }) {
+    const out = new Map(); qids = qids.filter(x => /^Q\d+$/.test(x)); met = met.map(x => String(x).replace(/\D/g, '')).filter(Boolean); if (!met.length && !qids.length) return out;
+    const parts = []; if (met.length) parts.push(`{ VALUES ?mid { ${met.map(x => `"${x}"`).join(' ')} } ?item wdt:P3634 ?mid }`); if (qids.length) parts.push(`{ VALUES ?item { ${qids.map(x => `wd:${x}`).join(' ')} } }`);
+    const q = `SELECT ?item ?mid ?owner ?ownerLabel ?start ?end ?exhLabel WHERE { ${parts.join(' UNION ')} OPTIONAL { ?item p:P127 ?st . ?st ps:P127 ?owner . OPTIONAL { ?st pq:P580 ?start } OPTIONAL { ?st pq:P582 ?end } } OPTIONAL { ?item wdt:P608 ?exh } SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } }`;
+    const r = await fetchOf()(`${SPARQL}?format=json&query=${encodeURIComponent(q)}`, { headers: { 'User-Agent': UA, accept: 'application/sparql-results+json' } });
+    if (!r.ok) throw new Error(`wikidata ${r.status}`);
+    const j = await r.json();
+    for (const b of (j.results && j.results.bindings) || []) {
+      const qid = String((b.item && b.item.value) || '').split('/').pop(); const key = b.mid ? `met:${b.mid.value}` : qid;
+      const h = out.get(key) || { qid, owners: new Map(), shows: new Set() }; out.set(key, h); if (b.mid) out.set(qid, h);
+      if (b.owner && b.ownerLabel && !/^Q\d+$/.test(b.ownerLabel.value)) { const k = `${b.ownerLabel.value}|${b.start ? b.start.value.slice(0, 5) : ''}`; if (!h.owners.has(k)) h.owners.set(k, { name: b.ownerLabel.value, from: b.start ? yearIn(b.start.value.slice(0, 5)) : null, to: b.end ? yearIn(b.end.value.slice(0, 5)) : null }); }
+      if (b.exhLabel && !/^Q\d+$/.test(b.exhLabel.value)) h.shows.add(b.exhLabel.value);
+    }
+    return out;
+  }
+  // One record for a work the house holds from a museum: what it is, who holds it, how it came to them, and the
+  // museum's own attribution, each line naming its source. Nothing is invented; what the open record does not say is left open.
+  function recordWork(w) {
+    if (db.prepare('SELECT 1 FROM objects WHERE work_id=?').get(w.id)) return null;
+    const m = metaOf(w.caption); const h = holderOf(w.source_url); const CAT = app.locals.catalogue;
+    const row = CAT && CAT.rowOfWork ? (() => { try { return CAT.rowOfWork(w); } catch (e) { return null; } })() : null;
+    const holder = h ? h.name : row && row.collection ? row.collection : null;
+    const artist = m.artist || (w.artist_id ? (db.prepare('SELECT name FROM artists WHERE id=?').get(w.artist_id) || {}).name : null) || null;
+    const made = m.date || (row && row.year ? String(row.year) : null) || null;
+    const id = db.prepare("INSERT INTO objects (owner, title, artist, artist_id, made, made_year, medium, dims, work_id, catalogue_id, public, record_kind, holder, accession, source_url, qid) VALUES ('house',?,?,?,?,?,?,?,?,?,1,'collection',?,?,?,?)")
+      .run(tidy(w.title), artist, w.artist_id || null, made, yr(made), m.medium || w.medium || (row && row.medium) || null, m.dimensions || (row && row.size) || null, w.id, row ? row.id : null, holder, m['accession number'] || (row && row.inventory) || null, /^https:\/\//.test(w.source_url || '') ? w.source_url : null, row ? row.qid : null).lastInsertRowid;
+    const o = obj(id); const src = h ? `${h.short}’s open-access record` : row ? 'Wikidata' : null;
+    if (holder) add(o, { kind: 'acquired', party: holder, year_from: yearIn(m['credit line']), how: howOf(m['credit line'] || ''), body: m['credit line'] ? `Credit line: ${m['credit line']}` : null, source: o.source_url || (row ? `https://www.wikidata.org/wiki/${row.qid}` : null), by_kind: 'house', by_name: src ? `from ${src}` : null, public: 1 });
+    if (artist && h) add(o, { kind: 'opinion', party: holder, result: `Catalogued as ${artist}`, source: o.source_url, by_kind: 'house', by_name: `from ${h.short}’s open-access record`, public: 1 });
+    try { ledger.append(db, 'object.recorded', `object-${id}`, { no: no(o), from: 'collection' }); } catch (e) { /* */ }
+    return obj(id);
+  }
+  // A work known to exist (an artist's catalogue) that the house holds no photograph of: the record waits for it.
+  function recordKnown(row) {
+    if (db.prepare('SELECT 1 FROM objects WHERE catalogue_id=?').get(row.id)) return null;
+    const a = db.prepare('SELECT name FROM artists WHERE id=?').get(row.artist_id) || {};
+    const id = db.prepare("INSERT INTO objects (owner, title, artist, artist_id, made, made_year, medium, dims, catalogue_id, public, record_kind, holder, accession, qid) VALUES ('house',?,?,?,?,?,?,?,?,1,'collection',?,?,?)")
+      .run(tidy(row.title), a.name || null, row.artist_id, row.year ? String(row.year) : null, row.year || null, row.medium || null, row.size || null, row.id, row.collection || null, row.inventory || null, row.qid).lastInsertRowid;
+    try { ledger.append(db, 'object.recorded', `object-${id}`, { no: no(obj(id)), from: 'catalogue' }); } catch (e) { /* */ }
+    return obj(id);
+  }
+  function addHistory(o, h) {
+    if (!h) return 0; let n = 0; if (h.qid && !o.qid) db.prepare('UPDATE objects SET qid=? WHERE id=?').run(h.qid, o.id);
+    const src = `https://www.wikidata.org/wiki/${h.qid}`; const have = new Set(events(o).map(e => `${e.kind}|${e.party}`));
+    for (const ow of h.owners.values()) { if (o.holder && ow.name === o.holder && !ow.from) continue; if (have.has(`provenance|${ow.name}`)) continue; add(o, { kind: 'provenance', party: ow.name, year_from: ow.from, year_to: ow.to, source: src, by_kind: 'house', by_name: 'from Wikidata', public: 1 }); n++; }
+    for (const sh of h.shows) { if (have.has(`exhibited|${sh}`)) continue; add(o, { kind: 'exhibited', party: sh, source: src, by_kind: 'house', by_name: 'from Wikidata', public: 1 }); n++; }
+    return n;
+  }
+  const job = { on: false, scope: null, done: 0, history: 0, missed: 0, n: 0, at: null, error: null };
+  async function collections({ scope = 'held', n = 500 } = {}) {
+    if (job.on) return job; Object.assign(job, { on: true, scope, done: 0, history: 0, missed: 0, n, at: new Date().toISOString(), error: null });
+    const GOV = app.locals.governor; const lane = fn => (GOV && GOV.turn ? GOV.turn('registry', fn) : fn());
+    try {
+      let left = n, guard = 0;
+      while (left > 0 && guard++ < 1000) {
+        const batch = scope === 'known'
+          ? db.prepare('SELECT * FROM catalogue WHERE id NOT IN (SELECT catalogue_id FROM objects WHERE catalogue_id IS NOT NULL) ORDER BY id LIMIT ?').all(Math.min(40, left))
+          : db.prepare("SELECT w.id, w.slug, w.title, w.caption, w.medium, w.source_url, w.taken_at, w.artist_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND m.kind='institution' AND w.id NOT IN (SELECT work_id FROM objects WHERE work_id IS NOT NULL) ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT ?").all(Math.min(40, left));
+        if (!batch.length) break;
+        const made = (await lane(async () => (scope === 'known' ? batch.map(recordKnown) : batch.map(recordWork)))).filter(Boolean);
+        left -= batch.length; job.done += made.length; if (!made.length) break;
+        const met = made.map(o => metId(o.source_url)).filter(Boolean), qids = made.map(o => o.qid).filter(Boolean);
+        try { const hs = await history({ met, qids }); for (const o of made) { const h = hs.get(`met:${metId(o.source_url)}`) || (o.qid && hs.get(o.qid)); if (h) job.history += addHistory(obj(o.id), h); } } catch (e) { job.missed += made.length; job.error = e.message; }
+        if (GOV && GOV.settle) await GOV.settle('registry');
+      }
+    } catch (e) { job.error = e.message; }
+    job.on = false; job.at = new Date().toISOString();
+    try { ledger.append(db, 'registry.collections', 'registry', { scope, done: job.done, history: job.history }); } catch (e) { /* */ }
+    return job;
+  }
+
+  function holdLine(o) {
+    return `<p class="rgy-meta rgy-hold">${o.holder ? `In the collection of <b>${esc(o.holder)}</b>` : 'Where it is kept is not recorded'}${o.accession ? ` · ${esc(o.accession)}` : ''}</p>`
+      + `<p class="rgy-meta">${[o.source_url ? `<a href="${esc(o.source_url)}" rel="noopener">The holder’s own record</a>` : '', o.qid ? `<a href="https://www.wikidata.org/wiki/${esc(o.qid)}" rel="noopener">Wikidata</a>` : ''].filter(Boolean).join(' · ')}</p>`
+      + (!o.photo && !o.work_id ? '<p class="rgy-meta">Known to exist; no open photograph in the house yet.</p>' : '');
+  }
+  function knownBlock(o, r, rd, n) {
+    return `<section class="rgy-sec rgy-ready"><h2>What is known <small>${n} of ${rd.length}</small></h2><p class="note">A record of a public collection, set from open data with the source on every line. It is not kept by the holder, and nothing here is for sale. What is missing is what the record is waiting for.</p><ul>${rd.map(x => `<li class="${x.ok ? 'rgy-ok' : ''}"><b>${x.ok ? '✓' : '○'} ${esc(x.line)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul></section>${offerForm(o, r)}`;
+  }
+  // What anyone may add: a line of what is known, with its source, read by the house before it stands.
+  function offerForm(o) {
+    return `<details class="rgy-add rgy-offer"><summary>Know more? <span>Add what you know, with its source; the house reads each line before it stands</span></summary><form method="post" action="/registry/o/${o.id}/offer" enctype="multipart/form-data"><label>What it is<select name="kind"><option value="provenance">Provenance: whose hands, when</option><option value="exhibited">A show it hung in</option><option value="published">A book or catalogue it appears in</option><option value="condition">Its condition, or a restoration</option><option value="note">Something else</option></select></label><label>Who, or what<input name="party" maxlength="300" required></label><div class="rgy-row"><label>From (year)<input name="year_from" inputmode="numeric"></label><label>To (year)<input name="year_to" inputmode="numeric"></label></div><label>The source (a book and page, an archive, an address)<input name="source" maxlength="300" required></label><label>A note<textarea name="body" rows="2" maxlength="1500"></textarea></label><label>A paper, if you have one<input type="file" name="file" accept="application/pdf,image/*"></label><label>Your name, as it will stand on the line<input name="name" maxlength="120" required></label><button class="buy-btn">Send it to the house</button></form><p class="note">Are you the holder? The record can be kept in your own name, your registrar’s word in place of ours: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent(`The registry: ${no(o)}`)}">write to the house</a>.</p></details>`;
+  }
+  app.post('/registry/o/:id/offer', up.single('file'), bag('papers'), async (req, res) => {
+    const o = obj(req.params.id); const drop = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+    if (!o || o.record_kind !== 'collection') { drop(); return res.sendStatus(404); }
+    const keys = keysOf(req); if (!keys.length) { drop(); return res.redirect(`/signin?next=${encodeURIComponent(`/registry/o/${o.id}`)}`); }
+    const b = req.body || {}; const source = t(b.source, 300), party = t(b.party, 300), name = t(b.name, 120);
+    if (!source || !party || !name) { drop(); return res.redirect(`/registry/o/${o.id}?ok=${encodeURIComponent('A line needs who or what, a source and your name.')}`); }
+    const recent = db.prepare("SELECT COUNT(*) n FROM object_offers WHERE who=? AND at > datetime('now','-1 day')").get(keys[0]).n;
+    if (recent >= 20) { drop(); return res.redirect(`/registry/o/${o.id}?ok=${encodeURIComponent('That is enough for today; the house is reading what you sent.')}`); }
+    const paper = await keep(o, req.file);
+    const kind = ['provenance', 'exhibited', 'published', 'condition', 'note'].includes(b.kind) ? b.kind : 'note';
+    db.prepare('INSERT INTO object_offers (object_id, who, name, email, kind, year_from, year_to, party, body, source, file, mime, file_sha) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(o.id, keys[0], name, emailOf(keys[0]), kind, yr(b.year_from), yr(b.year_to), party, t(b.body, 1500), source, paper.file || null, paper.mime || null, paper.file_sha || null);
+    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `The registry: a line for ${tidy(o.title)}`, text: `${name} offers a ${kind} line for ${no(o)}: ${party}. Source: ${source}.\n\n${C.base}/studio/registry#offers` }).catch(() => {});
+    res.redirect(`/registry/o/${o.id}?ok=${encodeURIComponent('Thank you. The house reads it against its source; when it stands, it carries your name.')}`);
+  });
+  app.post('/studio/registry/offers/:id', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const x = db.prepare("SELECT * FROM object_offers WHERE id=? AND status='waiting'").get(+req.params.id); if (!x) return res.redirect('/studio/registry#offers');
+    const o = obj(x.object_id); const yes = req.body.do === 'accept';
+    if (yes) { add(o, { kind: x.kind, year_from: x.year_from, year_to: x.year_to, party: x.party, body: x.body, source: x.source, file: x.file, mime: x.mime, file_sha: x.file_sha, by_kind: 'contributor', by_name: x.name, public: 1 }); db.prepare("UPDATE object_offers SET status='accepted' WHERE id=?").run(x.id); }
+    else db.prepare("UPDATE object_offers SET status='declined', word=? WHERE id=?").run(t(req.body.word, 300), x.id);
+    if (x.email) mail.send({ to: x.email, subject: `The registry: ${tidy(o.title)}`, text: yes ? `Your line on ${tidy(o.title)} stands on the registry, in your name. Thank you.\n\n${C.base}/r/${noPath(o)}` : `Thank you for your line on ${tidy(o.title)}. The house could not set it on the record${req.body.word ? `: ${t(req.body.word, 300)}` : ''}.` }).catch(() => {});
+    res.redirect('/studio/registry#offers');
+  });
+  app.post('/studio/registry/collections', (req, res) => {
+    if (!isStudio(req)) return res.redirect('/studio/login');
+    const n = Math.max(1, Math.min(20000, +req.body.n || 500)); const scope = req.body.scope === 'known' ? 'known' : 'held';
+    if (!job.on) collections({ scope, n }).catch(() => {});
+    res.redirect('/studio/registry?ok=running');
+  });
+  function studioKnown() {
+    const held = db.prepare("SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND m.kind='institution' AND w.id NOT IN (SELECT work_id FROM objects WHERE work_id IS NOT NULL)").get().n;
+    let known = 0; try { known = db.prepare('SELECT COUNT(*) n FROM catalogue WHERE id NOT IN (SELECT catalogue_id FROM objects WHERE catalogue_id IS NOT NULL)').get().n; } catch (e) { /* no catalogue yet */ }
+    return `<section class="rgy-sec"><h2>What is known</h2><p class="note">Records of public collections, set from what the house already holds and the open record (the museum’s own data, Wikidata’s ownership history and shows), each line naming its source. ${(+held).toLocaleString('en-US')} museum works without a record; ${(+known).toLocaleString('en-US')} works known from the catalogues without one.</p>${job.on ? `<p class="ok">Running: ${esc(job.scope)}, ${job.done} recorded, ${job.history} lines of history so far.</p>` : job.at ? `<p class="note">Last run (${esc(job.scope)}): ${job.done} recorded, ${job.history} lines of history${job.missed ? `; ${job.missed} without history (${esc(job.error || '')})` : ''}.</p>` : ''}
+<form method="post" action="/studio/registry/collections" class="rgy-fr"><input type="hidden" name="scope" value="held"><label>How many<input name="n" value="500" inputmode="numeric" size="6"></label><button class="buy-btn">Record the museum works the house holds</button></form>
+<form method="post" action="/studio/registry/collections" class="rgy-fr"><input type="hidden" name="scope" value="known"><label>How many<input name="n" value="500" inputmode="numeric" size="6"></label><button>Record the works known from the catalogues</button></form></section>`;
+  }
+  function studioOffers() {
+    const offers = db.prepare("SELECT x.*, o.title FROM object_offers x JOIN objects o ON o.id=x.object_id WHERE x.status='waiting' ORDER BY x.id").all();
+    return `<section class="rgy-sec" id="offers"><h2>Lines offered <small>${offers.length}</small></h2>${offers.length ? offers.map(x => `<div class="rgy-cu"><div><b>${esc(tidy(x.title))}</b> · ${esc(x.kind)}: ${esc(x.party)}${x.year_from || x.year_to ? ` (${x.year_from || ''}–${x.year_to || ''})` : ''}<small>Source: ${esc(x.source)}${x.body ? ` · ${esc(x.body)}` : ''} · from ${esc(x.name)}${x.email ? ` (${esc(x.email)})` : ''}${x.file ? ' · a paper' : ''}</small></div><form method="post" action="/studio/registry/offers/${x.id}"><button name="do" value="accept" class="buy-btn">It stands</button><input name="word" placeholder="A word, if not" maxlength="300"><button name="do" value="decline">Not on the record</button></form></div>`).join('') : '<p class="note">None waiting.</p>'}</section>`;
+  }
+  const line = w => { const o = w && db.prepare("SELECT * FROM objects WHERE work_id=? AND public=1 AND status='recorded' LIMIT 1").get(w.id); return o ? `<p class="rgy-line">On the registry: <a href="/r/${noPath(o)}">${esc(no(o))}</a>, what is known of it and where it is kept.</p>` : ''; };
+
+  const api = { no, byNo, ready, add, create, events, standing, KINDS, recordWork, recordKnown, history, addHistory, collections, job, line };
+
   app.locals.registry = api;
   return api;
 }

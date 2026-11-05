@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.52.0 · What is known · 5 November 2026
+- Every museum work the house holds can have a registry record of a public collection: what it is, who holds it (from the museum's own record: the credit line, the year it came in, the museum's attribution), and its ownership history and shows from Wikidata, each line naming its source. The record is the house's, never the museum's, and nothing on it is for sale.
+- Works known to exist from an artist's catalogue get records too, waiting for a photograph and for what is not yet known.
+- Anyone signed in can add a line with its source (provenance, a show, a book, a restoration); the house reads it before it stands, and it stands in their name.
+- The public registry can be searched by title, artist, museum or accession number, and the work page says when a work is on it.
+
 ## 1.51.0 · The registry · 5 November 2026
 - A physical work has a record of its own: what it is, how the owner came to own it, its provenance, who holds it and in what state, experts' opinions, shows, books and searches, with the papers. Every entry is fingerprinted and laid on the house's signed register, never edited, only set right by a later one.
 - Custodians (a freeport, an art store, a registrar) have their own accounts and desk, and attest receipt, condition and release in their own name.
