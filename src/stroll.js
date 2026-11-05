@@ -215,6 +215,12 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   const okName = n => { const x = String(n || '').trim().split(/\s+/)[0].slice(0, 24); return /^[\p{L}'’.-]{1,24}$/u.test(x) ? x : ''; };
   const okNote = t => String(t || '').replace(/\s+/g, ' ').trim().slice(0, 160).replace(/https?:\/\/\S+/gi, '').trim();
   const sendSlow = new Map();
+  // The only word back to a giver: someone they sent a work to chose to send one in return.
+  function tellBack(back, workId, _u, { from, note, token }) {
+    if (!back || !(back.buyer_id || back.maker_id) || !app.locals.notify) return;
+    const w = db.prepare('SELECT slug, title FROM works WHERE id=?').get(workId); if (!w) return;
+    try { app.locals.notify.tell({ buyer_id: back.buyer_id || null, maker_id: back.buyer_id ? null : back.maker_id, kind: 'found', slug: w.slug, href: `/found/${token}`, title: `${from || 'Someone'} sent you one back`, body: `${V.tidy(w.title)}${note ? ` · “${note}”` : ''}` }); } catch (e) { /* the sending stands */ }
+  }
   app.post('/send', (req, res) => {
     const b = req.body || {}; const w = db.prepare("SELECT id, slug, title, zone FROM works WHERE slug=? AND status='held'").get(String(b.slug || ''));
     if (!w) return res.status(404).json({ error: 'not held' });
@@ -224,24 +230,33 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     const back = b.reply ? db.prepare('SELECT * FROM sendings WHERE token=?').get(String(b.reply).slice(0, 40)) : null;
     const token = require('crypto').randomBytes(9).toString('base64url');
     db.prepare('INSERT INTO sendings (token, work_id, from_name, note, buyer_id, maker_id, reply_to) VALUES (?,?,?,?,?,?,?)').run(token, w.id, from || null, note || null, buyer ? buyer.id : null, mk ? mk.id : null, back ? back.id : null);
-    // The only word back to a giver: someone they sent a work to chose to send one in return.
-    if (back && (back.buyer_id || back.maker_id) && app.locals.notify) { try { app.locals.notify.tell({ buyer_id: back.buyer_id || null, maker_id: back.buyer_id ? null : back.maker_id, kind: 'found', slug: w.slug, href: `/found/${token}`, title: `${from || 'Someone'} sent you one back`, body: `${V.tidy(w.title)}${note ? ` · “${note}”` : ''}` }); } catch (e) { /* the sending stands */ } }
+    if (back) tellBack(back, w.id, null, { from, note, token });
     const url = `${(process.env.BASE_URL || '').replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`}/found/${token}`;
     res.set('Cache-Control', 'no-store').json({ url, title: V.tidy(w.title), text: note ? `${note}` : 'I found something for you.' });
+  });
+  app.post('/send/:token/note', (req, res) => {
+    const s = db.prepare('SELECT * FROM sendings WHERE token=?').get(String(req.params.token).slice(0, 40)); if (!s) return res.sendStatus(404);
+    if (Date.now() - Date.parse(String(s.at).replace(' ', 'T') + 'Z') > 30 * 60e3) return res.sendStatus(409); // only while it is being sent
+    const b = req.body || {}; const note = okNote(b.note), name = okName(b.name);
+    db.prepare('UPDATE sendings SET note=COALESCE(?, note), from_name=COALESCE(?, from_name) WHERE id=?').run(note || null, name || null, s.id);
+    const back = b.reply && !s.reply_to ? db.prepare('SELECT * FROM sendings WHERE token=?').get(String(b.reply).slice(0, 40)) : null;
+    if (back) { db.prepare('UPDATE sendings SET reply_to=? WHERE id=?').run(back.id, s.id); tellBack(back, s.work_id, token => token, { from: name || s.from_name, note: note || s.note, token: s.token }); }
+    res.sendStatus(204);
   });
   const openSent = (req, res, next, s) => {
     const w = db.prepare("SELECT slug, zone FROM works WHERE id=? AND status='held'").get(s.work_id); if (!w) return next();
     if (w.zone === 'mature' && app.locals.zone && !app.locals.zone.open(req)) return res.redirect(`/w/${w.slug}`); // the door first
-    req.query.at = w.slug; res.set('Cache-Control', 'private, no-store');
-    return wander(req, res, { gift: { from: s.from_name || '', note: s.note || '', token: s.token || '' } });
+    res.set('Cache-Control', 'private, no-store'); // (req.query cannot be written in Express 5: the work goes in by hand)
+    return wander(req, res, { at: w.slug, gift: { from: s.from_name || '', note: s.note || '', token: s.token || '' } });
   };
   app.get('/found/:token', (req, res, next) => { const s = db.prepare('SELECT * FROM sendings WHERE token=?').get(String(req.params.token).slice(0, 40)); if (!s) return next(); return openSent(req, res, next, s); });
   // The first links of 5 Nov: /flower/<slug>?from=<name> still opens the same way.
   app.get('/flower/:slug', (req, res, next) => { const w = db.prepare("SELECT id FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return next(); return openSent(req, res, next, { work_id: w.id, from_name: okName(req.query.from) }); });
-  function wander(req, res, { front = false, key: keyIn = null, share = null, as = null, gift = null }) {
+  function wander(req, res, { front = false, key: keyIn = null, share = null, as = null, gift = null, at: atIn = null }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);
-    const at = req.query.at ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.query.at)) : null;
+    const atSlug = atIn || req.query.at;
+    const at = atSlug ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(atSlug)) : null;
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;

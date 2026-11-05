@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.65.1 · Send, repaired · 5 November 2026
+
+- A sent link opened a work other than the one sent; it opens the one sent.
+- Send opens the phone's share sheet at once; the line is laid on the link as you send it.
+
 ## 1.65.0 · Send · 5 November 2026
 
 - Send a work to someone. It opens for them on its own: the dark, the picture coming up slowly, "Amy found this for you." and your line if you wrote one, then the house around it.

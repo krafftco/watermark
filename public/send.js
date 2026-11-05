@@ -21,8 +21,10 @@
     el.querySelector('[data-snd-go]').addEventListener('click', go);
     return el;
   }
+  var made = null; // the link, made the moment the sheet opens, so Send can open the share sheet inside the tap
+  function make() { made = null; var p = fetch('/send', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ slug: cur.slug }).toString() }).then(function (r) { return r.json(); }).then(function (d) { if (d && d.url) made = d; return d; }).catch(function () { return null; }); return p; }
   function open(o) {
-    build(); cur = o || {}; var f = from(), me = (document.querySelector('[data-me]') || {}).getAttribute ? (document.querySelector('[data-me]').getAttribute('data-me') || '') : '';
+    build(); cur = o || {}; make(); var f = from(), me = (document.querySelector('[data-me]') || {}).getAttribute ? (document.querySelector('[data-me]').getAttribute('data-me') || '') : '';
     el.querySelector('.snd-im').src = cur.img || ('/img/' + encodeURIComponent(cur.slug) + '/screen');
     el.querySelector('[data-snd-t]').innerHTML = '<b>' + esc(cur.title || '') + '</b>' + (cur.by ? ' · ' + esc(cur.by) : '');
     el.querySelector('[data-snd-k]').textContent = f && f.from ? 'Send one back to ' + f.from : 'Send it to someone';
@@ -31,19 +33,21 @@
   }
   function close() { if (!el) return; el.hidden = true; document.documentElement.classList.remove('snd-on'); }
   function go() {
-    var btn = el.querySelector('[data-snd-go]'); if (btn.disabled) return; btn.disabled = true; btn.textContent = 'A moment';
-    var f = from(), body = new URLSearchParams({ slug: cur.slug, note: el.querySelector('[data-snd-note]').value || '', name: el.querySelector('[data-snd-name]').value || '' });
-    if (f && f.t) body.set('reply', f.t);
-    fetch('/send', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: body.toString() })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        btn.disabled = false; btn.textContent = 'Send'; if (!d || !d.url) { sayT('It could not be sent just now.'); return; }
-        var done = function () { close(); sayT(f && f.from ? 'Sent back to ' + f.from + '.' : 'Sent. It opens for them on its own.'); try { if (f && f.from) sessionStorage.removeItem('wm_found'); } catch (e) {} };
-        if (navigator.share) navigator.share({ title: d.title, text: d.text, url: d.url }).then(done).catch(function () { showLink(d.url); });
-        else if (navigator.clipboard) navigator.clipboard.writeText(d.url).then(function () { close(); sayT('The link is copied. It opens for them on its own.'); }, function () { showLink(d.url); });
-        else showLink(d.url);
-      })
-      .catch(function () { btn.disabled = false; btn.textContent = 'Send'; sayT('It could not be sent just now.'); });
+    var btn = el.querySelector('[data-snd-go]'); if (btn.disabled) return;
+    var f = from(), note = el.querySelector('[data-snd-note]').value || '', name = el.querySelector('[data-snd-name]').value || '';
+    var finish = function (d) {
+      var body = new URLSearchParams({ note: note, name: name }); if (f && f.t) body.set('reply', f.t);
+      var u = '/send/' + encodeURIComponent(d.url.split('/').pop()) + '/note';
+      if (navigator.sendBeacon) navigator.sendBeacon(u, new Blob([body.toString()], { type: 'application/x-www-form-urlencoded' })); else fetch(u, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: body.toString(), keepalive: true });
+      var text = note ? note : 'I found something for you.';
+      var done = function () { close(); sayT(f && f.from ? 'Sent back to ' + f.from + '.' : 'Sent. It opens for them on its own.'); try { if (f && f.from) sessionStorage.removeItem('wm_found'); } catch (e) {} };
+      if (navigator.share) navigator.share({ title: d.title, text: text, url: d.url }).then(done).catch(function (e) { if (e && e.name === 'AbortError') return; copy(d.url); });
+      else copy(d.url);
+    };
+    var copy = function (u) { if (navigator.clipboard) navigator.clipboard.writeText(u).then(function () { close(); sayT('The link is copied. Paste it to them; it opens on its own.'); }, function () { showLink(u); }); else showLink(u); };
+    if (made) return finish(made); // inside the tap: the share sheet opens at once
+    btn.disabled = true; btn.textContent = 'A moment';
+    make().then(function (d) { btn.disabled = false; btn.textContent = 'Send'; if (!d || !d.url) { sayT('It could not be sent just now.'); return; } finish(d); });
   }
   function showLink(u) { var p = el.querySelector('.snd-f'); p.innerHTML = 'Copy this and send it: <input class="snd-u" readonly value="' + esc(u) + '">'; var i = p.querySelector('input'); i.focus(); i.select(); }
   document.addEventListener('click', function (e) { var b = e.target.closest('[data-wm-send]'); if (!b) return; e.preventDefault(); open({ slug: b.getAttribute('data-wm-send'), title: b.getAttribute('data-send-title') || '', by: b.getAttribute('data-send-by') || '', img: b.getAttribute('data-send-img') || '' }); });
