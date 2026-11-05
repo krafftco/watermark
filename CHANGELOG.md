@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.57.0 · The Work Master and the price book · 5 November 2026
+- The Work Master: one Watermark number for every work of art, with MoMA's, the Met's, Wikidata's, the holder's accession and the house's own joined to it; who holds it and since when, the line of owners with their sources, what may lawfully be done with it, what it has traded for in the house; signed by the house's register key (/master; /api/v1/master/resolve, /api/v1/master/:number, /api/v1/master?q=, POST /api/v1/master/verify).
+- The price book (Studio only): auction results kept by hand, from a spreadsheet or a licensed feed; prices to dollars and today's dollars; for any lot, what it should sell for (the artist's own model, or the nearest comparables), how sure, the sales it rests on, the ceiling to bid under the buyer's premium, and whether a price is above, at or below market. Never shown publicly; never an appraisal.
+
 ## 1.56.0 · MoMA, the record · 5 November 2026
 - The Museum of Modern Art's open collection data (CC0) comes into the house: 160,928 works and 15,999 artists, read again each month. Records only; no MoMA image is taken.
 - MoMA's artists join the hall (five works or more there, or a Wikidata identifier), with their dates, nationality, Wikidata and Getty identifiers; an artist the house knows is matched, never doubled.

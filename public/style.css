@@ -5427,3 +5427,13 @@ body:has(.yu) .rm-bar{display:none}
 .apl-ov{color:#c9a24a!important}
 .rgy-onview{color:#8a6418}
 .rgy-wall-0{position:absolute;display:block;border:1px solid rgba(40,30,20,.55);background:rgba(255,255,255,.35);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+/* The price book (Studio) */
+.pbk-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px 12px;align-items:end}
+.pbk-f button{grid-column:1/-1;justify-self:start}
+.pbk-a{margin:18px 0;padding:18px;border:1px solid var(--line,#ddd)}
+.pbk-r{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:10px 0}
+.pbk-r div{padding:12px;border:1px solid var(--line,#e5e0d8);text-align:center}.pbk-r small{display:block;color:var(--muted,#777);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.pbk-r b{font-size:24px;font-family:var(--serif,Georgia,serif)}.pbk-lk{border-color:#b8862b!important}
+.pbk-c{font-size:16px}.pbk-t td{font-size:13px;vertical-align:top}
+.pbk-v{font-size:12px;padding:1px 6px;border-radius:2px}.pbk-below{background:#e6efe4;color:#2e5a32}.pbk-above{background:#f4e3e1;color:#8a2e25}.pbk-at{background:#efece6;color:#555}
+p.pbk-v{font-size:15px;padding:8px 10px}

@@ -58,5 +58,18 @@ const { csvStream, howOf } = require('../src/moma');
   // a second read changes nothing it should not
   await app.locals.moma.sync(); assert.equal(db.prepare("SELECT COUNT(*) n FROM objects WHERE holder LIKE 'The Museum of Modern Art%' AND status<>'merged'").get().n, 3, 'read again: no record twice');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM catalogue WHERE qid LIKE 'moma:%'").get().n, 4, 'nor a catalogue line twice');
+  // The Work Master: any number in, the signed record out
+  { const pr = await (await go({}, '/api/v1/master/resolve?moma=78386')).json();
+    const S = pr.credentialSubject; assert.ok(S && S.identifiers.moma === '78386' && S.identifiers.accession === '7.1968' && S.identifiers.artist.wikidata === 'Q37571' && S.identifiers.artist.ulan === '500025939', 'the identifiers joined: ' + JSON.stringify(S && S.identifiers));
+    assert.ok(S.ownership.kind === 'institution' && S.ownership.since === '1968-01-01' && /Janis/.test(S.ownership.credit_line) && S.provenance.some(p => p.how === 'exchange' && p.register), 'ownership, since when, the line with its register entry');
+    assert.ok(S.rights.state === 'reserved' && S.rights.may.license === false && S.rights.may.record === true, 'Pollock is under copyright: recorded, never licensed');
+    assert.ok(pr.proof && pr.proof.cryptosuite === 'eddsa-jcs-2022', 'signed');
+    const v = await (await go({}, '/api/v1/master/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(pr) })).json(); assert.ok(v.verified, 'the signature checks');
+    const bad = JSON.parse(JSON.stringify(pr)); bad.credentialSubject.ownership.holder = 'Someone Else';
+    const v2 = await (await go({}, '/api/v1/master/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(bad) })).json(); assert.ok(!v2.verified, 'an altered record fails');
+    const n = pr.credentialSubject.number.replace(/\s+/g, '').slice(2); const byN = await (await go({}, `/api/v1/master/${n}`)).json(); assert.equal(byN.credentialSubject.number, pr.credentialSubject.number, 'by its own number');
+    assert.ok((await (await go({}, '/api/v1/master/resolve?qid=Q5593')).status) === 404, 'an artist’s QID is not a work');
+    const pg = await go({}, '/master?id=moma%2078386'); assert.equal(pg.status, 302, 'the box takes MoMA’s number');
+    const sr = await (await go({}, '/api/v1/master?q=demoiselles')).json(); assert.ok(sr.count === 1 && /^WR/.test(sr.records[0].number), 'a search'); }
   srv.close(); console.log('moma: all hold'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
