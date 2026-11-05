@@ -205,7 +205,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   // A set worth sending: public walls, a maker's work, a series, the collection; never a private room or an album.
   const SHAREABLE = k => /^(hang|maker|series|year|decade|century|place|movement|kind|artist):[^\s]+$/.test(k) || /^(collection|arrived|open|stood|living)$/.test(k);
   // The first name of whoever is signed in, for a flower's card; nothing else of them.
-  const meFirst = req => { try { const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; const m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null; const n = String((b && b.name) || (m && m.name) || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } };
+  const meFirst = req => { try { const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; const m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null; const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } };
   // Sent (Will, 5 Nov: "when someone gets a link they open it and are stunned at the beauty, then can do more"; "here,
   // I found something for you"; "whatever is right for Watermark and Krafft"). A work sent to someone opens alone, in
   // the dark, with the giver's first name and, if they wrote one, their line; then the house. The recipient may send one
