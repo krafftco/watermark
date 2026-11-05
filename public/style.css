@@ -5536,3 +5536,13 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .whp-pg .ic{width:14px;height:14px}
 .whp-by{margin:18px 0 0;font:italic 400 13px/1.4 var(--disp,Georgia),serif;color:rgba(239,234,224,.55)}
 .whp-x{margin:26px 0 0;font:400 11px/1.4 var(--sans);color:rgba(239,234,224,.35);letter-spacing:.04em}
+/* The standard (5 Nov): what falls short of the Frick's comes off the wall. */
+.fk .fk-scope{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}.fk .fk-scope a{padding:6px 12px;border:1px solid var(--ln);border-radius:999px;text-decoration:none;color:var(--ink);font-size:13px}.fk .fk-scope a[aria-current]{background:var(--ink);color:var(--bg)}
+.fk .fk-arts p{line-height:2;font-size:13px}.fk .fk-arts small{color:var(--mut)}
+.fk .fk-line{font-size:15px}.fk .fk-live{font-style:italic}
+.fk .fk-acts{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 20px}.fk .fk-f{display:inline;margin:0}
+.fk .fk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin:12px 0 28px}
+.fk .fk-w{margin:0;font-size:12px}.fk .fk-w img{width:100%;aspect-ratio:1;object-fit:contain;background:#1b1a18;display:block}
+.fk .fk-w figcaption{display:flex;flex-direction:column;gap:2px;padding-top:6px}.fk .fk-w small{color:var(--mut)}.fk .fk-w i{color:#a3392d;font-style:normal}.fk .fk-w em{color:var(--mut)}
+.fk .fk-w form{display:inline;margin:4px 6px 0 0}.fk .fk-k,.fk .fk-d{font-size:12px;padding:4px 10px;border:1px solid var(--ln);background:none;border-radius:999px;cursor:pointer}.fk .fk-d{color:#a3392d}
+.fk .fk-gone{display:flex;flex-wrap:wrap;gap:4px}.fk .fk-gone img{width:56px;height:42px;object-fit:cover;display:block}

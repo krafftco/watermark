@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.67.0 · The standard · 5 November 2026
+
+- Studio → Bringing in → The standard: every picture on the house's shelves (the public domain and the museums' open access) is measured for size, sharpness and its edges, then looked at by Al; what falls short of the Frick's standard comes off the wall, named and reversible, never deleted.
+- Too small comes down whatever Al says; soft files and bad edges (a mat, a scanner bed, a margin) come down or wait for your eye; a person can keep any one ('It hangs').
+- By every shelf, by museum or by artist; read only, or read and take down as it reads; put them all back with one press. A living maker's own work is never touched.
+
 ## 1.66.0 · Who made it · 5 November 2026
 
 - In Wander a swipe left opens the person behind the picture: their face, their line, a few of their works, Follow, Wander their work, their page. A museum's work opens the artist.
