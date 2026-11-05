@@ -222,6 +222,24 @@ async function dropBucket(cacheDir, slug) {
 async function warm(original, cacheDir, slug, sizes = WARM) {
   for (const size of sizes) for (const fmt of Object.keys(FORMATS)) { const f = fileOf(cacheDir, slug, size, fmt); if (fs.existsSync(f) || await fromBucket(f)) continue; toBucket(await derivative(original, cacheDir, slug, size, fmt), fmt); }
 }
+// Once, before the disk comes off: every copy on the disk that the bucket lacks is put there (5 Nov; 17,533 works ×
+// six copies on the live house). HEAD then PUT, a breath between, so the website keeps serving; `state` for /healthz.
+const pushState = { on: false, looked: 0, put: 0, failed: 0, done: false, at: null };
+async function pushAll(cacheDir, { gapMs = 25 } = {}) {
+  if (!rstore || pushState.on) return pushState;
+  Object.assign(pushState, { on: true, looked: 0, put: 0, failed: 0, done: false, at: new Date().toISOString() });
+  try {
+    const names = fs.readdirSync(cacheDir).filter(n => n.includes(GEN + '.') && /\.(jpg|webp)$/.test(n) && !/-veil/.test(n));
+    for (const n of names) {
+      pushState.looked++;
+      try { if (await rstore.size('renditions/' + n)) continue; } catch (e) { /* not there */ }
+      try { await rstore.put('renditions/' + n, path.join(cacheDir, n), n.endsWith('.webp') ? 'image/webp' : 'image/jpeg'); pushState.put++; } catch (e) { pushState.failed++; }
+      await new Promise(r => setTimeout(r, gapMs));
+    }
+    pushState.done = true;
+  } finally { pushState.on = false; }
+  return pushState;
+}
 // Wait for every copy on its way to the bucket (tests, and before a process leaves).
 const settled = () => Promise.all([...putting.values()]);
 const warmed = (cacheDir, slug, sizes = WARM) => sizes.every(size => Object.keys(FORMATS).every(fmt => fs.existsSync(fileOf(cacheDir, slug, size, fmt))));
@@ -246,4 +264,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket };
+module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };

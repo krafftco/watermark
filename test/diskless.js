@@ -65,12 +65,15 @@ const MP = { 'content-type': 'multipart/form-data; boundary=' + boundary };
   const claim = db.prepare('SELECT * FROM disputes ORDER BY id DESC LIMIT 1').get(); assert.ok(claim && claim.file, 'the claim is in with its file: ' + r.status);
   assert.ok(objs['claims/' + claim.file], 'the evidence is in the vault');
   r = await req(port2, 'GET', `/studio/claims/${claim.id}/file`, { cookie: ck }); assert.strictEqual(r.status, 200); const evidence1 = r.body;
+  // The sweep before the disk comes off: a copy on the disk the bucket lacks is put there once.
+  r = await req(port2, 'GET', `/img/${w.slug}/thumb?f=jpg`); assert.strictEqual(r.status, 200); await images.settled();
+  { const f = images.fileOf(path.join(dir, 'cache'), w.slug, 'thumb', 'jpg'); assert.ok(fs.existsSync(f), 'the thumb is on the disk'); delete objs['renditions/' + path.basename(f)]; const st = await images.pushAll(path.join(dir, 'cache'), { gapMs: 0 }); assert.ok(st.done && st.put >= 1 && objs['renditions/' + path.basename(f)], 'the sweep put the copy the bucket lacked: ' + JSON.stringify(st)); }
   // Wipe the disk: every folder but the database and the vault's own staging.
   for (const d of fs.readdirSync(dir)) { if (/\.db/.test(d) || d === 'vault') continue; const p = path.join(dir, d); if (fs.statSync(p).isDirectory()) fs.rmSync(p, { recursive: true, force: true }); }
   assert.ok(!fs.existsSync(path.join(dir, 'cache')) && !fs.existsSync(path.join(dir, 'portraits')) && !fs.existsSync(path.join(dir, 'claims')), 'the folders are gone');
   // Everything comes back.
   r = await req(port2, 'GET', `/img/${w.slug}/screen`, { headers: { accept: 'image/webp' } }); assert.strictEqual(r.status, 200, 'the display copy is served again'); assert.ok(r.body.equals(screen1), 'the same bytes, from the bucket');
-  r = await req(port2, 'GET', `/img/${w.slug}/thumb`); assert.strictEqual(r.status, 200, 'a thumb never put is made again from the vault\'s original');
+  r = await req(port2, 'GET', `/img/${w.slug}/large?f=jpg`); assert.strictEqual(r.status, 200, 'a copy never put is made again from the vault\'s original');
   r = await req(port2, 'GET', '/portrait/ada'); assert.strictEqual(r.status, 200, 'the portrait is served again'); assert.ok(r.body.equals(portrait1), 'byte for byte');
   r = await req(port2, 'GET', '/portrait/ada?tall=1'); assert.strictEqual(r.status, 200, 'the tall portrait too');
   r = await req(port2, 'GET', `/studio/claims/${claim.id}/file`, { cookie: ck }); assert.strictEqual(r.status, 200, 'the evidence is served again'); assert.ok(r.body.equals(evidence1), 'byte for byte');
