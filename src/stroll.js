@@ -196,7 +196,9 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
   // /wander/art/<slug> walks the artist's wall, in the order made, and unfurls as the artist's own card.
   app.get('/wander/art/:slug', brief((req, res) => {
     const A = app.locals.art; const a = A && A.bySlug ? A.bySlug(String(req.params.slug)) : null; if (!a) return res.redirect('/art');
-    const h = A.wall ? A.wall(a) : null; if (!h) return res.redirect(`/art/${a.slug}`);
+    // The show first, when one is open (5 Nov: a tight show, not twelve thousand works); ?all=1 walks everything.
+    const sh = req.query.all === '1' || !app.locals.shows ? null : app.locals.shows.showOf(a);
+    const h = sh || (A.wall ? A.wall(a) : null); if (!h) return res.redirect(`/art/${a.slug}`);
     // What is sent is the artist's own page (Will, 2 Nov): the life, the dates, the work in order; never the wall.
     return wander(req, res, { key: `hang:${h.slug}`, as: { label: a.name, href: `/art/${a.slug}` }, share: { url: `/art/${a.slug}`, image: `/art/${a.slug}/card.png`, title: a.name, text: `${a.name}${a.born || a.died ? ` (${a.born || ''}–${a.died || ''})` : ''}: the life and the work, in the order it was made.` } });
   }));

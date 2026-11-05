@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.50.0 · The show · 5 November 2026
+- An artist's catalogue is everything in the house, in the order made; a show is a choice from it: twenty-four works by default, the best of each period in proportion to its share of the life, every period represented, no title twice, hung in the order made.
+- The house proposes a show on Studio → The art → an artist; a person titles it and opens it. While it is open, the artist's page leads with the show and Wander walks it; Wander everything walks the whole catalogue.
+- With a show open, or past 240 works, each period of the catalogue shows its first twelve with All N beneath.
+
 ## 1.49.0 · Your gallerist · 4 November 2026
 - A maker's own gallerist: notes in plain words on what stands between a work and the people who want it. The picture kept back that people find anyway; the work that stops people with no print to buy; the file too small to hang at 24 inches; the portrait waiting on one signature; the work that holds people but isn't in front. One act on each.
 - Never what to make; never a name. A work speaks only once three people have stood before it.
