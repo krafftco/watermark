@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.53.0 · The lot page · 5 November 2026
+
+- A registry record reads like a great sale room's lot page: the picture large and steady beside the catalogue entry (the artist in capitals with dates, the title in italic, marks, medium, size, when made), the facts at a glance, Share, the dossier, Ask the house.
+- Below, the catalogue's sections in order: Provenance as a catalogue note (each line's source behind it), Exhibited, Literature, About the work, Condition, More by the same hand. No estimate and no price.
+
 ## 1.52.1 · Not ours to register · 5 November 2026
 - Works in the public domain, works shared under an open licence, another artist's work and a museum's collection are no longer counted as 'not yet registered' or offered for registration. Each says plainly why: there is no copyright to register, or the registration is the holder's or the artist's.
 - The house desk counts only the house's own photographs for registration, editions and masters.

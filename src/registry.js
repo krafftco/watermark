@@ -138,15 +138,60 @@ function mountRegistry(app, { db, V, C, mail, ledger, store, isStudio, makerOf, 
     const ph = photoOf(o, r); const rd = ready(o, all); const n = rd.filter(x => x.ok).length;
     const cust = o.custodian_id ? db.prepare('SELECT name, handle FROM makers WHERE id=?').get(o.custodian_id) : null;
     const desk = r === 'owner' || r === 'house';
-    return `<header class="rgy-h">${ph ? `<figure class="rgy-ph"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}"></figure>` : ''}<div><p class="k">The registry · <span class="rgy-no">${esc(no(o))}</span></p><h1>${esc(tidy(o.title))}</h1>
-<p class="rgy-by1">${esc([o.artist, o.made].filter(Boolean).join(', '))}</p><p class="rgy-meta">${esc([o.medium, o.dims].filter(Boolean).join(' · '))}</p>${o.marks ? `<p class="rgy-meta">Marks and inscriptions: ${esc(o.marks)}</p>` : ''}${o.description ? `<p>${esc(o.description)}</p>` : ''}
-${o.record_kind === 'collection' ? holdLine(o) : r !== 'public' ? `<p class="rgy-meta">${r === 'owner' ? 'Yours' : `Owned by ${esc(nameOf(o.owner))}`}${cust ? ` · held by ${esc(cust.name)}` : ''}</p>` : '<p class="rgy-meta">Owner and place are kept private.</p>'}</div></header>
-<section class="rgy-sec"><h2>Provenance</h2>${prov.length ? `<ol class="rgy-l">${prov.map(e => entry(o, e, r)).join('')}</ol>` : '<p class="note">Nothing entered yet.</p>'}</section>
-${rest.length ? `<section class="rgy-sec"><h2>The record</h2><ol class="rgy-l">${rest.map(e => entry(o, e, r)).join('')}</ol></section>` : ''}
+    return lot(o, r, { ev, prov, rest, ph, rd, n, cust }) + `
 ${o.record_kind === 'collection' ? knownBlock(o, r, rd, n) : ''}
-${r !== 'public' && o.record_kind !== 'collection' ? `<section class="rgy-sec rgy-ready"><h2>Ready for the desk <small>${n} of ${rd.length}</small></h2><p class="note">What a private sale, a lender or an insurer will ask of this record. Nothing here is offered for sale; it is the record made ready.</p><ul>${rd.map(x => `<li class="${x.ok ? 'rgy-ok' : ''}"><b>${x.ok ? '✓' : '○'} ${esc(x.line)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul></section>` : ''}
+${r !== 'public' && o.record_kind !== 'collection' ? `<section class="rgy-sec rgy-ready" id="ready"><h2>Ready for the desk <small>${n} of ${rd.length}</small></h2><p class="note">What a private sale, a lender or an insurer will ask of this record. Nothing here is offered for sale; it is the record made ready.</p><ul>${rd.map(x => `<li class="${x.ok ? 'rgy-ok' : ''}"><b>${x.ok ? '✓' : '○'} ${esc(x.line)}</b><span>${esc(x.why)}</span></li>`).join('')}</ul></section>` : ''}
 ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : ''}
 <p class="rgy-foot">Every entry is fingerprinted and laid on the house’s signed register; none is ever edited, only set right by a later one. <a href="/registry/o/${o.id}/dossier.pdf${r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : ''}">The dossier, as a PDF</a>${o.public ? ` · <a href="/r/${noPath(o)}">The public record</a>` : ''}</p>`;
+  }
+  // The record read like a great sale room's lot page (Will, 5 Nov, a Christie's lot: "take what's good"): the picture
+  // large and steady beside the catalogue entry (the artist in capitals with the dates, the title in italic, the marks,
+  // the medium, the size, when it was made), the facts at a glance, one way to ask the house, and below it the
+  // catalogue's own sections in their order: provenance as a catalogue note (each line with its source behind it),
+  // exhibited, literature, about the work, condition, then more by the same hand. No estimate and no price, ever.
+  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  function lot(o, r, { ev, prov, rest, ph, rd, n, cust }) {
+    const a = o.artist_id ? db.prepare('SELECT slug, name, born, died, nationality FROM artists WHERE id=?').get(o.artist_id) : null;
+    const w = o.work_id ? db.prepare('SELECT slug, title, caption FROM works WHERE id=?').get(o.work_id) : null;
+    const life = a && (a.born || a.died) ? `(${a.born && a.died ? `${a.born}–${a.died}` : a.born ? `b. ${a.born}` : `d. ${a.died}`})` : '';
+    const artistLine = o.artist ? `<p class="rgy-art">${a ? `<a href="/art/${esc(a.slug)}">${esc(o.artist)}</a>` : esc(o.artist)}${life ? ` <span>${esc(life)}</span>` : ''}</p>` : '';
+    const madeLine = o.made ? (/^\d{3,4}$/.test(String(o.made).trim()) ? `Made in ${esc(o.made)}` : `Made ${esc(o.made)}`) : '';
+    const tomb = [o.marks ? esc(o.marks) : '', o.medium ? esc(o.medium) : '', o.dims ? esc(o.dims) : '', madeLine].filter(Boolean).map(x => `<span>${x}</span>`).join('');
+    const exh = rest.filter(e => e.kind === 'exhibited').sort((x, y) => (x.year_from || 9999) - (y.year_from || 9999));
+    const lit = rest.filter(e => e.kind === 'published').sort((x, y) => (x.year_from || 9999) - (y.year_from || 9999));
+    const cond = rest.filter(e => e.kind === 'condition');
+    const other = rest.filter(e => !['exhibited', 'published', 'condition'].includes(e.kind));
+    const big = w ? `/w/${esc(w.slug)}` : null;
+    const zoom = w ? `/img/${esc(w.slug)}/wall` : ph;
+    const glance = [[`Provenance`, prov.length ? `${prov.length} ${prov.length === 1 ? 'line' : 'lines'}` : 'not yet known', '#provenance'], exh.length ? ['Exhibited', `${exh.length}`, '#exhibited'] : null, lit.length ? ['Literature', `${lit.length}`, '#literature'] : null,
+      r !== 'public' && o.record_kind !== 'collection' ? ['Ready for the desk', `${n} of ${rd.length}`, '#ready'] : null].filter(Boolean);
+    const holder = o.record_kind === 'collection' ? holdLine(o) : r !== 'public' ? `<p class="rgy-meta">${r === 'owner' ? 'Yours' : `Owned by ${esc(nameOf(o.owner))}`}${cust ? ` · held by ${esc(cust.name)}` : ''}</p>` : '<p class="rgy-meta">Owner and place are kept private.</p>';
+    const pubUrl = `${C.base}/r/${noPath(o)}`;
+    const ask = `mailto:${HOUSE}?subject=${encodeURIComponent(`${no(o)} · ${tidy(o.title)}`)}`;
+    // Provenance as the catalogue sets it: one line a hand, oldest first, "; " between what is said of each.
+    const noteLine = e => [e.party ? esc(e.party) : (e.kind === 'acquired' ? 'The present owner' : ''), e.place && r !== 'public' ? esc(e.place) : '', dateWord(e), e.how && e.how !== 'unknown' ? (/^(by|from|at|in) /i.test(e.how) ? esc(e.how) : e.kind === 'acquired' || e.kind === 'transfer' ? `acquired by ${esc(e.how)}` : `by ${esc(e.how)}`) : ''].filter(Boolean).join(', ');
+    const note = prov.map(noteLine).filter(Boolean);
+    const plain = e => [e.party ? esc(e.party) : '', e.year_from && e.year_to && e.year_to !== e.year_from ? `${e.year_from}–${e.year_to}` : (e.year_from || e.year_to || (e.on_date ? day(e.on_date) : '')), e.body ? esc(e.body) : ''].filter(x => x !== '' && x != null).join(', ');
+    const sec = (id, title, inner) => `<section class="rgy-sec rgy-ls" id="${id}"><h2>${title}</h2>${inner}</section>`;
+    const tabs = [['provenance', 'Provenance'], exh.length && ['exhibited', 'Exhibited'], lit.length && ['literature', 'Literature'], (o.description || (w && w.caption)) && ['about', 'About the work'], cond.length && ['condition', 'Condition'], other.length && ['record', 'The record']].filter(Boolean);
+    const more = o.artist_id ? db.prepare("SELECT * FROM objects WHERE artist_id=? AND id<>? AND public=1 AND status='recorded' ORDER BY (photo IS NULL AND work_id IS NULL), made_year, id LIMIT 8").all(o.artist_id, o.id) : [];
+    return `<article class="rgy-lot">
+<div class="rgy-lot-p">${ph ? `<figure class="rgy-ph"><a href="${esc(zoom)}" target="_blank" rel="noopener" title="See it larger"><img src="${esc(ph)}" alt="${esc(tidy(o.title))}"></a></figure><p class="rgy-zoom"><a href="${esc(zoom)}" target="_blank" rel="noopener">See it larger</a>${big ? ` · <a href="${big}">On the wall at Watermark</a>` : ''}</p>` : '<figure class="rgy-ph rgy-ph0"><span>Known to exist; no photograph on the record yet.</span></figure>'}</div>
+<div class="rgy-lot-t"><p class="k">The registry · <span class="rgy-no">${esc(no(o))}</span></p>
+${artistLine}<h1>${esc(tidy(o.title))}</h1>
+${tomb ? `<p class="rgy-tomb">${tomb}</p>` : ''}
+${holder}
+${glance.length ? `<dl class="rgy-gl">${glance.map(([k, v, h]) => `<div><dt><a href="${h}">${esc(k)}</a></dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+<p class="rgy-acts">${o.public ? `<button type="button" class="rgy-act rgy-share" data-send data-send-title="${esc(tidy(o.title))}" data-send-url="${esc(pubUrl)}">Share</button>` : ''}<a class="rgy-act" href="/registry/o/${o.id}/dossier.pdf${r === 'reader' ? `?k=${encodeURIComponent(o.token)}` : ''}">The dossier</a><a class="rgy-act" href="${esc(ask)}">Ask the house about this work</a></p>
+<p class="rgy-fine">The registry keeps what owners, custodians, museums and experts enter and says who entered each line. It does not appraise, authenticate or guarantee title, and nothing here is for sale.</p></div></article>
+${tabs.length > 1 ? `<nav class="rgy-tabs">${tabs.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>` : ''}
+${sec('provenance', 'Provenance', note.length ? `<div class="rgy-note">${note.map(x => `<p>${x}</p>`).join('')}</div><details class="rgy-each"${r === 'owner' || r === 'house' ? ' open' : ''}><summary>Each line, with who entered it and its source</summary><ol class="rgy-l">${prov.map(e => entry(o, e, r)).join('')}</ol></details>` : '<p class="note">Nothing entered yet.</p>')}
+${exh.length ? sec('exhibited', 'Exhibited', `<div class="rgy-note">${exh.map(e => `<p>${plain(e)}</p>`).join('')}</div><details class="rgy-each"><summary>With their sources</summary><ol class="rgy-l">${exh.map(e => entry(o, e, r)).join('')}</ol></details>`) : ''}
+${lit.length ? sec('literature', 'Literature', `<div class="rgy-note">${lit.map(e => `<p>${plain(e)}</p>`).join('')}</div><details class="rgy-each"><summary>With their sources</summary><ol class="rgy-l">${lit.map(e => entry(o, e, r)).join('')}</ol></details>`) : ''}
+${o.description || (w && w.caption) ? sec('about', 'About the work', `<div class="rgy-essay">${String(o.description || w.caption).split(/\n{2,}/).slice(0, 6).map(p => `<p>${esc(p)}</p>`).join('')}</div>${w ? `<p><a href="${big}#closer">Look closer</a></p>` : ''}`) : ''}
+${cond.length ? sec('condition', 'Condition', `<ol class="rgy-l">${cond.map(e => entry(o, e, r)).join('')}</ol>`) : ''}
+${other.length ? sec('record', 'The record', `<ol class="rgy-l">${other.map(e => entry(o, e, r)).join('')}</ol>`) : ''}
+${more.length ? sec('more', `More by ${esc(o.artist || 'the same hand')}`, `<div class="rgy-g">${more.map(x => { const p2 = photoOf(x, 'public'); return `<a class="rgy-c" href="/r/${noPath(x)}">${p2 ? `<img src="${esc(p2)}" alt="" loading="lazy">` : '<span class="rgy-blank"></span>'}<b>${esc(tidy(x.title))}</b><small>${esc(x.made || '')}</small></a>`; }).join('')}</div>${a ? `<p><a href="/art/${esc(a.slug)}">Everything by ${esc(a.name)} in the house</a></p>` : ''}`) : ''}`;
   }
   function deskBlock(o) {
     const sel = (n, list) => `<select name="${n}">${list.map(v => `<option value="${esc(v)}">${esc(v[0].toUpperCase() + v.slice(1))}</option>`).join('')}</select>`;
