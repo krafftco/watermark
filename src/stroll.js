@@ -203,7 +203,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     return wander(req, res, { key: `hang:${h.slug}`, as: { label: a.name, href: `/art/${a.slug}` }, share: { url: `/art/${a.slug}`, image: `/art/${a.slug}/card.png`, title: a.name, text: `${a.name}${a.born || a.died ? ` (${a.born || ''}–${a.died || ''})` : ''}: the life and the work, in the order it was made.` } });
   }));
   // A set worth sending: public walls, a maker's work, a series, the collection; never a private room or an album.
-  const SHAREABLE = k => /^(hang|maker|series|year|decade|place|movement|kind|artist):[^\s]+$/.test(k) || /^(collection|arrived|open|stood|living)$/.test(k);
+  const SHAREABLE = k => /^(hang|maker|series|year|decade|century|place|movement|kind|artist):[^\s]+$/.test(k) || /^(collection|arrived|open|stood|living)$/.test(k);
   function wander(req, res, { front = false, key: keyIn = null, share = null, as = null }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);

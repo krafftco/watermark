@@ -13,6 +13,7 @@ function mountWalk(app, { db, V, SERIES }) {
   const dec = s => { try { return decodeURIComponent(s); } catch (e) { return s; } };
   const DSC = {
     year: y => (/^-?\d{1,4}$/.test(y) ? { label: `The year ${y}`, href: `/look?time=${y}`, works: db.prepare(`${SEL} WHERE ${SAFE} AND w.taken_at LIKE ? ORDER BY w.taken_at, w.id`).all(`${y}-%`) } : null),
+    century: y => { if (!/^\d{1,4}00$/.test(y)) return null; const c = Math.floor(+y / 100) + 1; const sfx = [11, 12, 13].includes(c % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][c % 10] || 'th'; return { label: `The ${c}${sfx} century`, href: '/look#time', works: db.prepare(`${SEL} WHERE ${SAFE} AND w.taken_at >= ? AND w.taken_at < ? ORDER BY w.taken_at, w.id LIMIT 600`).all(`${String(+y).padStart(4, '0')}-`, `${String(+y + 100).padStart(4, '0')}-`) }; },
     decade: y => (/^\d{3}0$/.test(y) ? { label: `The ${y}s`, href: `/look?time=${y}s`, works: db.prepare(`${SEL} WHERE ${SAFE} AND w.taken_at >= ? AND w.taken_at < ? ORDER BY w.taken_at, w.id`).all(`${y}-`, `${+y + 10}-`) } : null),
     place: p => { const name = dec(p); return { label: name, href: `/look?q=${encodeURIComponent(name)}`, works: db.prepare(`${SEL} WHERE ${SAFE} AND w.place=? ${ORD}`).all(name) }; },
     movement: m => { const name = dec(m); return { label: name, href: `/art?movement=${encodeURIComponent(name)}`, works: db.prepare(`${SEL} JOIN artists a ON a.id=w.artist_id WHERE ${SAFE} AND a.movement=? ORDER BY w.taken_at, w.id`).all(name) }; },
