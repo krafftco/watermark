@@ -46,6 +46,7 @@ const { createApp } = require('../src/app');
   const f = db.prepare('SELECT * FROM feeds WHERE id=?').get(feedId); assert.equal(f.status, 'done', f.note); assert.equal(f.taken, 2, 'two came in: ' + JSON.stringify(f));
   const vw = db.prepare("SELECT * FROM works WHERE source_url LIKE '%art-object-page.1.html'").get(); const vermeer = db.prepare("SELECT * FROM artists WHERE name='Johannes Vermeer'").get();
   assert.ok(vw.maker_id === shelf.id && vw.status === 'held' && vw.open === 'cc0' && vw.artist_id === vermeer.id && vw.taken_at.startsWith('1665'), 'Vermeer on the shelf, linked, open, dated');
+  { const j = await (await go(`/api/v1/works/${vw.slug}`)).json(); assert.equal(j.byline, 'Painting by Johannes Vermeer', 'the API names the artist, not the shelf'); }
   const sw = db.prepare("SELECT * FROM works WHERE source_url LIKE '%art-object-page.2.html'").get(); assert.ok(!sw.artist_id && sw.hand === 'not' && /Workshop/.test(sw.hand_why), 'the workshop piece not on Leonardo’s page: ' + JSON.stringify({ a: sw.artist_id, h: sw.hand }));
   await app.locals.line.tick(); assert.equal(db.prepare("SELECT status FROM lineup WHERE kind='nga'").get().status, 'done', 'the line closes the slice');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE kind='nga'").get().n, 1, 'a short slice ends the classification: nothing more lined up');

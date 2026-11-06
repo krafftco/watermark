@@ -8,6 +8,7 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 ## 1.71.1 · One run at a time · 6 November 2026
 
 - The line finishes a run before the next begins: the next hundred of a collection takes its place in the line instead of going to the back, so all the paintings come in before the sculpture.
+- The open API names the artist of a work kept on a museum's or the public-domain shelf ('Painting by Johannes Vermeer', not 'by The public domain').
 
 ## 1.71.0 · The National Gallery, and whose hand · 6 November 2026
 
