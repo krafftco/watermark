@@ -85,9 +85,12 @@ function mountLineup(app, { db, V, studioOnly }) {
         db.prepare("UPDATE lineup SET status=?, done_at=datetime('now'), note=COALESCE(note,'') || ? WHERE id=?").run(ok ? 'done' : 'failed', f ? ` ${f.taken || 0} in, ${f.skipped || 0} already held, ${f.failed || 0} missed.` : '', run.id);
         const s = specOf(run);
         // Keep going: the next hundred, while the last hundred found anything at all.
-        if (run.kind === 'met' && s.more && f && (f.looked || 0) >= Math.min(s.n, 1)) addMet({ ...s, offset: s.offset + s.n });
+        // The next slice takes the finished one's place in the line, so a run finishes before the next begins (paintings first means all of them).
+        let next = null;
+        if (run.kind === 'met' && s.more && f && (f.looked || 0) >= Math.min(s.n, 1)) next = addMet({ ...s, offset: s.offset + s.n });
         // The Gallery: the next slice while this one was full (a short slice is the end of the classification).
-        if (run.kind === 'nga' && s.more && f && (f.looked || 0) >= s.n) addNga({ ...s, offset: s.offset + s.n });
+        if (run.kind === 'nga' && s.more && f && (f.looked || 0) >= s.n) next = addNga({ ...s, offset: s.offset + s.n });
+        if (next) db.prepare('UPDATE lineup SET pos=? WHERE id=?').run(run.pos, next);
         return;
       }
       if (paused()) return;

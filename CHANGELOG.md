@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.71.1 · One run at a time · 6 November 2026
+
+- The line finishes a run before the next begins: the next hundred of a collection takes its place in the line instead of going to the back, so all the paintings come in before the sculpture.
+
 ## 1.71.0 · The National Gallery, and whose hand · 6 November 2026
 
 - The National Gallery of Art, Washington, comes into the house: every open-access image (CC0), read from the Gallery's own open catalogue, onto the public-domain shelf and credited to the Gallery. Lined up a hundred at a time, paintings first.

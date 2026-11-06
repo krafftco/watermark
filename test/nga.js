@@ -49,6 +49,12 @@ const { createApp } = require('../src/app');
   const sw = db.prepare("SELECT * FROM works WHERE source_url LIKE '%art-object-page.2.html'").get(); assert.ok(!sw.artist_id && sw.hand === 'not' && /Workshop/.test(sw.hand_why), 'the workshop piece not on Leonardo’s page: ' + JSON.stringify({ a: sw.artist_id, h: sw.hand }));
   await app.locals.line.tick(); assert.equal(db.prepare("SELECT status FROM lineup WHERE kind='nga'").get().status, 'done', 'the line closes the slice');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE kind='nga'").get().n, 1, 'a short slice ends the classification: nothing more lined up');
+  { // a full slice lines up the next in its own place, ahead of what was waiting behind it
+    const L = app.locals.line; const a1 = L.addNga({ cls: 'Print', n: 10, more: 1 }); L.addNga({ cls: 'Sculpture', n: 10 }); db.prepare("UPDATE lineup SET status='running' WHERE id=?").run(a1);
+    const fid = db.prepare("INSERT INTO feeds (name, kind, url, maker_id, status, looked) VALUES ('t','nga','https://www.nga.gov/open-access-images',?, 'done', 10)").run(shelf.id).lastInsertRowid; db.prepare('UPDATE lineup SET feed_id=? WHERE id=?').run(fid, a1);
+    await L.tick(); const nx = db.prepare("SELECT label FROM lineup WHERE status='waiting' ORDER BY pos, id LIMIT 1").get(); assert.ok(/Prints · 11–20/.test(nx.label), 'the next slice of prints before the sculpture: ' + nx.label);
+    db.prepare("DELETE FROM lineup WHERE kind='nga' AND status='waiting'").run();
+  }
   r = await form('/studio/line/nga/all', {}); assert.equal(db.prepare("SELECT COUNT(*) n FROM lineup WHERE kind='nga' AND status='waiting'").get().n, N.CLASSES.length, 'all of it, a line for each classification');
 
   // Whose hand: Leonardo's catalogue, two catalogued versions of one subject, a third not in the catalogue, a workshop piece by its words, another file of a catalogued work, a different picture.
