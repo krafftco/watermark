@@ -327,20 +327,20 @@
   // work (/stroll/side/:slug), for whoever is signed in. Replaces the old sideways swipe into the maker's stroll, which
   // looked like nothing had happened (the same picture, a chip).
   var sideL = root.querySelector('[data-st-side="yours"]'), sideR = root.querySelector('[data-st-side="keys"]'), shade = root.querySelector('[data-st-shade]');
-  var sideOpen = null, sideCache = {}, sideFor = null, sideAs = 'collector';
+  var sideOpen = null, sideCache = {}, sideFor = null, sideAs = 'collector', sideTop = 0;
   try { sideAs = localStorage.getItem('wm_side_as') || 'collector'; } catch (e) {}
   function sideW(el) { return el ? el.getBoundingClientRect().width : 0; }
   function sideSet(el, x, anim) { if (!el) return; el.style.transition = anim ? 'transform .42s cubic-bezier(.16,1,.3,1)' : 'none'; el.style.transform = 'translateX(' + x + 'px)'; }
   function paintAs() { root.querySelectorAll('[data-sd-as]').forEach(function (p) { p.hidden = p.getAttribute('data-sd-as') !== sideAs; }); root.querySelectorAll('[data-sd-switch]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-sd-switch') === sideAs ? 'true' : 'false'); }); }
   function sideFill(slug) {
     if (sideFor === slug) return; sideFor = slug;
-    var go = function (d) { sideR.querySelector('[data-sd-body]').innerHTML = d.who || ''; if (window.WMFollow && WMFollow.paint) WMFollow.paint(sideR); };
+    var go = function (d) { sideR.querySelector('[data-sd-body]').innerHTML = d.who || ''; if (sideL) sideL.querySelector('[data-sd-body]').innerHTML = d.like || ''; if (window.WMFollow && WMFollow.paint) WMFollow.paint(sideR); };
     if (sideCache[slug]) return go(sideCache[slug]);
     fetch('/stroll/side/' + encodeURIComponent(slug), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { sideCache[slug] = d; if (sideFor === slug) go(d); }).catch(function () {});
   }
   function sideShow(which, anim) {
     var el = which === 'keys' ? sideR : sideL; if (!el) return;
-    sideOpen = which; root.classList.add('st-side-on'); shade.hidden = false; el.classList.add('on');
+    sideOpen = which; sideTop = scroller.scrollTop; root.classList.add('st-side-on'); shade.hidden = false; el.classList.add('on');
     sideSet(el, 0, anim !== false); clearTimeout(stillT); root.classList.add('st-still');
   }
   function sideHide(anim) {
@@ -394,7 +394,7 @@
     if (held) { e.preventDefault(); return; }
     if (sx0 == null) return; var dx = e.touches[0].clientX - sx0, dy = e.touches[0].clientY - sy0;
     if (!sLock) { if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; sLock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : null; if (sEl) { sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } } }
+      if (sLock === 'x') { var w = items[cur]; if (w) sideFill(w.slug); sEl = dx < 0 ? sideR : sideL; if (sEl) { sBase = sideW(sEl); sEl.classList.add('on'); shade.hidden = false; } } }
     if (sLock === 'y' && OWN) { e.preventDefault(); sMoved = true; if (!sManual) { sManual = true; scroller.style.scrollSnapType = 'none'; } scroller.scrollTop = sTop0 - dy; return; }
     if (sLock !== 'x' || !sEl) return;
     e.preventDefault();
@@ -471,7 +471,8 @@
   // Closing: the shade, Esc, or a swipe back on the door itself.
   shade.addEventListener('click', function () { sideHide(); });
   (function () { var x0 = null; shade.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true }); shade.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) >= 60) move(dx < 0 ? 1 : -1); }, { passive: true }); })();
-  scroller.addEventListener('scroll', function () { if (sideOpen) sideHide(); }, { passive: true });
+  // Only a real move along the wall closes an open door (6 Nov: a pixel of snap settling after the swipe shut it at once).
+  scroller.addEventListener('scroll', function () { if (sideOpen && Math.abs(scroller.scrollTop - sideTop) > 60) sideHide(); }, { passive: true });
   [sideL, sideR].forEach(function (el) {
     if (!el) return; var x0 = null;
     el.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
@@ -485,8 +486,9 @@
   function move(dir) {
     var w = items[cur]; if (w) sideFill(w.slug);
     // Who made it (Will, 5 Nov): left opens the person behind the picture; right, or Esc, puts them away.
-    if (!sideOpen) { if (dir > 0) sideShow('keys'); return; }
-    if (dir < 0) sideHide();
+    // More like this (6 Nov): the finger moving right opens the ways on from here; left, About. Either way back closes.
+    if (!sideOpen) { sideShow(dir > 0 ? 'keys' : 'yours'); return; }
+    if ((sideOpen === 'keys' && dir < 0) || (sideOpen === 'yours' && dir > 0)) sideHide();
   }
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;

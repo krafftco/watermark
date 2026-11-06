@@ -5608,3 +5608,9 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .st-who .sdr{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
 @media (max-width:760px){.st-who .sdr{padding-bottom:calc(48px + env(safe-area-inset-bottom))}}
+/* More like this (6 Nov): the left-hand door. */
+.st-side-l.st-like{background:#12110e}
+.lk-s{margin:0 0 26px}
+.lk-s .k{margin:0 0 6px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.lk-s h3{margin:0 0 10px;font:400 22px/1.15 var(--disp,Georgia),serif;color:#f3efe7}
+.lk-s .whp-strip{grid-template-columns:repeat(4,1fr);margin:0 0 10px}

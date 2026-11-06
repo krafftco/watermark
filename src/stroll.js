@@ -240,7 +240,31 @@ ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. 
 <p class="k wka-who">Who made it</p>`;
       who = about + who + `<p class="whp-x">Swipe right to go back to the picture.</p>`;
     }
-    res.json({ keys, yours, who });
+    // More like this (Will, 6 Nov: one direction did nothing): the finger moving right opens the left-hand door, the
+    // ways on from this picture: the same hand, the same place, the same time, the same movement; each a strip to tap
+    // into and a Wander through the whole set.
+    let like = '';
+    if (w) {
+      const SAFE = "status='held' AND COALESCE(zone,'all')!='mature' AND slug<>?";
+      const rows = (where, ...a) => { try { return db.prepare(`SELECT slug, title FROM works WHERE ${SAFE} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 8`).all(w.slug, ...a); } catch (e) { return []; } };
+      const count = (where, ...a) => { try { return db.prepare(`SELECT COUNT(*) n FROM works WHERE ${SAFE} AND ${where}`).get(w.slug, ...a).n; } catch (e) { return 0; } };
+      const art = w.artist_id ? db.prepare('SELECT id, slug, name, movement FROM artists WHERE id=?').get(w.artist_id) : null;
+      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
+      const yr = String(w.taken_at || '').match(/^(\d{3})\d/);
+      const groups = [];
+      if (art) groups.push(['By the same hand', art.name, 'artist:' + art.slug, 'artist_id=?', art.id]);
+      else if (!isInst) groups.push(['By the same hand', w.maker_name, 'maker:' + w.maker_handle, 'maker_id=?', w.maker_id]);
+      if (w.place) groups.push(['The same place', w.place, 'place:' + w.place, 'place=?', w.place]);
+      if (art && art.movement) groups.push(['The same movement', art.movement, 'movement:' + art.movement, 'artist_id IN (SELECT id FROM artists WHERE movement=?)', art.movement]);
+      if (yr) groups.push(['The same time', `The ${yr[1]}0s`, 'decade:' + yr[1] + '0', 'taken_at >= ? AND taken_at < ?', `${yr[1]}0-`, `${+yr[1] + 1}0-`]);
+      const secs = groups.map(([k, name, key, where, ...a]) => {
+        const ws = rows(where, ...a); if (!ws.length) return '';
+        const n = count(where, ...a);
+        return `<section class="lk-s"><p class="k">${esc(k)}</p><h3>${esc(name)}</h3><div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${encodeURIComponent(key)}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div><a class="sd-go" href="/wander?in=${encodeURIComponent(key)}">Wander ${n > 8 ? `all ${n}` : 'these'} →</a></section>`;
+      }).filter(Boolean);
+      like = `<header class="wka-h"><p class="k">More like this</p><h3>Where to next</h3><p class="wka-by">From ${esc(V.tidy(w.title))}</p></header>${secs.join('') || '<p class="sd-m">Nothing beside it yet. <a href="/look">Look around</a></p>'}<p class="whp-x">Swipe left to go back to the picture.</p>`;
+    }
+    res.json({ keys, yours, who, like });
   });
 
   // The old address: one word, Wander (Will, 21 Oct). Links in the wild and the app's cache still say /stroll.
@@ -371,7 +395,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.guide}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 ${gift ? `<div class="st-flower" data-st-flower>${gift.note ? `<p class="st-fl-note">“${esc(gift.note)}”</p>` : ''}<p class="st-fl-line">${esc(giftLine)}</p><p class="st-fl-sub">${items[0] ? `<b>${esc(V.tidy(items[0].title))}</b> · ${esc(items[0].maker)}` : ''}</p></div>` : ''}${front ? `<div class="st-hello" data-st-hello><p>Keep what you make. Own a piece of what others make.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
-<button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About the work">${I.page || I.look}<span>About</span></button>
+<button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="More like this">${I.look || I.wave}<span>More</span></button><aside class="st-side st-side-l st-who st-like" data-st-side="yours" aria-label="More like this"><div class="sdr" data-sd-body></div></aside><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About the work">${I.page || I.look}<span>About</span></button>
 <aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="About the work and who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
 <template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>

@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.70.0 · Both ways · 6 November 2026
+
+- In Wander, a swipe either way now goes somewhere. Finger to the left: about the work, then who made it. Finger to the right: more like this (the same hand, the same place, the same movement, the same decade), each a strip to tap into and a Wander through the set.
+- An open door no longer shuts by itself when the wall settles a pixel after the swipe.
+
 ## 1.69.1 · About the work · 6 November 2026
 
 - In Wander a swipe left opens the work first: its title, who made it and when, what it is made of, where the original hangs, the guide's opening and what to look for, the full record; then who made it.
