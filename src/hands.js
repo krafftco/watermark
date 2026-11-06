@@ -80,7 +80,14 @@ function mountHands(app, { db, V, ledger, studioOnly, images, cache, originalPat
         let t0 = Date.now();
         for (const w of rest) {
           const gw = G.get(w.id); let best = 0, of = null;
-          if (gw) for (const c of cat) { const gc = G.get(c.id); if (!gc || dot(S.get(w.id), S.get(c.id)) < SIG) continue; const v = Math.max(pairs.within(gc, gw), pairs.within(gw, gc)); if (v > best) { best = v; of = c; } if (Date.now() - t0 > 15) { await new Promise(r => setImmediate(r)); t0 = Date.now(); } }
+          // The cheap look first (the signature against every catalogued work), the full look only on the closest three:
+          // 3,000 files against 150 catalogued works must be minutes, not hours (6 Nov, Leonardo on the live house).
+          if (gw) {
+            const near = cat.map(c => ({ c, d: S.get(c.id) ? dot(S.get(w.id), S.get(c.id)) : -1 })).filter(x => x.d >= SIG).sort((x, y) => y.d - x.d).slice(0, 3);
+            for (const { c } of near) { const gc = G.get(c.id); const v = Math.max(pairs.within(gc, gw, true), pairs.within(gw, gc, true)); if (v > best) { best = v; of = c; } }
+            if (of && best >= VERSION - 0.08) { const gc = G.get(of.id); best = Math.max(best, pairs.within(gc, gw), pairs.within(gw, gc)); }
+            if (Date.now() - t0 > 15) { await new Promise(r => setImmediate(r)); t0 = Date.now(); }
+          }
           if (of && best >= SAME) out.repeats.push(brief(w, { why: `the same picture as ${of.slug}`, of: of.slug, v: +best.toFixed(2) }));
           else if (of && best >= VERSION) out.versions.push(brief(w, { why: `another version of ${of.title || of.slug}, not in the catalogue`, of: of.slug, v: +best.toFixed(2) }));
           else if (!out.attributed.some(x => x.slug === w.slug)) out.unknown.push(brief(w, {}));

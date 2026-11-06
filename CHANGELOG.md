@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.71.2 · Whose hand, in minutes · 6 November 2026
+
+- The look at whose hand compares each file with the three closest catalogued works, not all of them: Leonardo's three thousand files in minutes instead of hours.
+
 ## 1.71.1 · One run at a time · 6 November 2026
 
 - The line finishes a run before the next begins: the next hundred of a collection takes its place in the line instead of going to the back, so all the paintings come in before the sculpture.
