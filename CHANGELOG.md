@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.69.1 · About the work · 6 November 2026
+
+- In Wander a swipe left opens the work first: its title, who made it and when, what it is made of, where the original hangs, the guide's opening and what to look for, the full record; then who made it.
+- The swipe is heard across the whole room, so it opens wherever the finger begins on the picture, the plate or the rail.
+
 ## 1.69.0 · The commission room · 6 November 2026
 
 - A conversation inside every commission, between the artist and the client: messages, photographs, films and PDFs, out of email.

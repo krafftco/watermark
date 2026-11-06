@@ -5587,3 +5587,24 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .cnv-at input{display:block;max-width:100%}
 .cnv-od summary{cursor:pointer;font-weight:500}
 .cnv-od[open]{padding:10px 0}
+/* About the work (6 Nov): the left swipe opens the work first, then who made it. */
+.wka-h{margin:0 0 16px}
+.wka-h .k,.wka-s .k,.wka-who{margin:0 0 6px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.wka-h h3{margin:0;font:400 30px/1.12 var(--disp,Georgia),serif;color:#f3efe7;text-wrap:balance}
+.wka-by{margin:6px 0 0;font:italic 400 16px/1.4 var(--disp,Georgia),serif;color:rgba(239,234,224,.75)}
+.wka-f{margin:0 0 18px;display:grid;gap:6px}
+.wka-f div{display:grid;grid-template-columns:84px 1fr;gap:10px}
+.wka-f dt{font:500 11px/1.5 var(--sans);letter-spacing:.06em;color:rgba(239,234,224,.5)}
+.wka-f dd{margin:0;font:400 14px/1.5 var(--sans);color:rgba(239,234,224,.86);overflow-wrap:anywhere}
+.wka-s{margin:0 0 18px}
+.wka-t{margin:0;font:400 15px/1.6 var(--disp,Georgia),serif;color:rgba(239,234,224,.86)}
+.wka-l{margin:0;padding-left:18px;display:grid;gap:8px;font:400 14px/1.5 var(--sans);color:rgba(239,234,224,.86)}
+.wka-l span{color:rgba(239,234,224,.6)}
+.wka-m{margin:0 0 16px;font:400 13px/1.5 var(--sans);color:rgba(239,234,224,.7)}.wka-m a{color:#e6c875}
+.wka-acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
+.wka-acts .whp-go .ic{width:16px;height:16px}
+.wka-r{margin:0 0 6px;font:400 12px/1.5 var(--sans);color:rgba(239,234,224,.5)}
+.wka-who{margin:30px 0 14px;padding-top:22px;border-top:1px solid rgba(239,234,224,.14)}
+.st-who .sdr{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
+@media (max-width:760px){.st-who .sdr{padding-bottom:calc(48px + env(safe-area-inset-bottom))}}

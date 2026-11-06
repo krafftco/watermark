@@ -368,7 +368,11 @@
   function zHold(moved) { Z.held = Z.s > 1.08; if (moved !== false) Z.at = Date.now(); if (!Z.held) { zEnd(true); return; } Z.on = true; Z.pan = null; root.classList.add('st-zoom'); try { if (!localStorage.getItem('wm_zoom_told')) { localStorage.setItem('wm_zoom_told', '1'); say('Zoomed. One finger moves around; a flick, a double-tap or a pinch back lets go.', 3600); } } catch (e) { /* */ } }
   function zEnd(anim) { Z.s = 1; Z.x = 0; Z.y = 0; zApply(anim !== false); root.classList.remove('st-zoom'); Z.on = false; Z.held = false; Z.pan = null; Z.at = Date.now(); var im = Z.img; setTimeout(function () { if (im && (Z.img !== im || Z.s <= 1.001)) { im.style.transform = ''; im.style.transition = ''; } }, 400); }
   function zTap(it, cx, cy) { var img = zPick(); if (!img) return; if (Z.s > 1.08) { zEnd(true); return; } zOrigin(cx, cy); Z.s = 2.5; Z.x = 0; Z.y = 0; zClamp(); zApply(true); zHold(); }
-  scroller.addEventListener('touchstart', function (e) {
+  // The whole room hears a swipe, not only the scroll (6 Nov: on a phone the left swipe still did nothing when the
+  // finger began on something laid over the picture); the doors, the sheets, the bar and the inputs keep their own.
+  var OFFWALL = '.st-side, .st-shade, .st-sheet, .st-guide, .st-top, .st-tt, .st-install, .st-sitbar, .st-hld, .sty, input, textarea, select, .st-more';
+  root.addEventListener('touchstart', function (e) {
+    if (e.target.closest && e.target.closest(OFFWALL)) { sx0 = null; return; }
     if (e.touches.length === 2) {
       var img = zPick(); if (!img) return;
       var a = e.touches[0], b = e.touches[1]; Z.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1; Z.s0 = Z.s;
@@ -380,7 +384,7 @@
     if (held) { sx0 = null; if (!e.target.closest('.st-hld')) e.preventDefault(); return; }
     sx0 = e.touches[0].clientX; sy0 = e.touches[0].clientY; sLock = null; sEl = null; sT0 = Date.now(); sTop0 = scroller.scrollTop; sMoved = false;
   }, { passive: false });
-  scroller.addEventListener('touchmove', function (e) {
+  root.addEventListener('touchmove', function (e) {
     if (Z.on) {
       e.preventDefault();
       if (e.touches.length >= 2) { var a = e.touches[0], b = e.touches[1], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); Z.s = Math.max(1, Math.min(6, Z.s0 * d / Z.d0)); var cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2; Z.x += cx - Z.px; Z.y += cy - Z.py; Z.px = cx; Z.py = cy; zClamp(); zApply(false); }
@@ -438,8 +442,8 @@
       else if (Z.on && /^Arrow/.test(k)) { e.preventDefault(); e.stopImmediatePropagation(); var d = 80; if (k === 'ArrowLeft') Z.x += d; if (k === 'ArrowRight') Z.x -= d; if (k === 'ArrowUp') Z.y += d; if (k === 'ArrowDown') Z.y -= d; zClamp(); zApply(true); }
     }, true);
   })();
-  scroller.addEventListener('touchcancel', function () { if (Z.on) { Z.d0 = 0; zHold(); } }, { passive: true });
-  scroller.addEventListener('touchend', function (e) {
+  root.addEventListener('touchcancel', function () { sx0 = null; if (Z.on) { Z.d0 = 0; zHold(); } }, { passive: true });
+  root.addEventListener('touchend', function (e) {
     if (Z.on) {
       if (e.touches.length >= 2) return;
       if (e.touches.length === 1) { Z.pan = { x: e.touches[0].clientX - Z.x, y: e.touches[0].clientY - Z.y, t: Date.now(), x0: e.touches[0].clientX, y0: e.touches[0].clientY }; Z.s0 = Z.s; return; }

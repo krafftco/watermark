@@ -214,7 +214,31 @@ ${mk.bio ? `<p class="whp-bio">${esc(first(mk.bio))}</p>` : ''}
 <p class="whp-n">${n} work${n === 1 ? '' : 's'} on view</p>${strip(ws, 'maker:' + mk.handle)}
 <div class="whp-acts">${fol}<a class="whp-go" href="/wander?maker=${esc(slugM)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/m/${esc(slugM)}">Their page ${I.next}</a></div>`;
       }
-      who += `<p class="whp-x">Swipe right to go back to the picture.</p>`;
+    }
+    // About the work (Will, 6 Nov: "it should get you more about the work"): the work first, the person after it.
+    let about = '';
+    if (w) {
+      const A = app.locals.art; const art = A && A.ofWork ? (() => { try { return A.ofWork(w); } catch (e) { return null; } })() : null;
+      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
+      const by = art && isInst ? art.name : w.maker_name;
+      const year = String(w.obj_made || '').match(/\b(1[0-9]{3}|20[0-9]{2})\b/)?.[1] || (w.taken_at || '').slice(0, 4) || '';
+      const c = app.locals.closerOf ? app.locals.closerOf(w) : null;
+      const para = t => { const p = String(t || '').split(/\n{2,}/).map(x => x.trim()).filter(Boolean)[0] || ''; return p.length > 520 ? p.slice(0, 517).replace(/\s\S*$/, '') + '…' : p; };
+      const words = c && c.text ? para(c.text) : para(w.caption);
+      const look = c && c.study && !c.studyHidden && Array.isArray(c.study.look) ? c.study.look.slice(0, 3) : [];
+      let kept = null; try { const CT = app.locals.catalogue; const r = CT && CT.rowOfWork ? CT.rowOfWork(w) : null; if (r && r.collection) { const k = r.collection_qid && CT.keeper ? CT.keeper(r.collection_qid) : null; kept = { name: r.collection, where: [k && k.city, k && k.country].filter(Boolean).join(', '), qid: r.collection_qid }; } } catch (e) { kept = null; }
+      const facts = [['Made', [year, w.place].filter(Boolean).join(' · ')], ['Medium', w.medium], ['Size', w.obj_dims], ['Kept at', kept ? [kept.name, kept.where].filter(Boolean).join(', ') : ''], ['Accession', w.accession]].filter(f => f[1]);
+      const rec = `/m/${esc(V.makerSlug({ handle: w.maker_handle, name: w.maker_name }))}/${esc(w.slug)}?from=wander`;
+      const openW = ['pd', 'cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc'].includes(w.open || '');
+      about = `<header class="wka-h"><p class="k">The work</p><h3>${esc(V.tidy(w.title))}</h3><p class="wka-by">${esc(by)}${year ? `, ${esc(year)}` : ''}</p></header>
+${facts.length ? `<dl class="wka-f">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+${words ? `<section class="wka-s"><p class="k">${c && c.text ? 'Look closer' : 'About it'}</p><p class="wka-t">${esc(words)}</p></section>` : ''}
+${look.length ? `<section class="wka-s"><p class="k">What to look for</p><ol class="wka-l">${look.map(x => `<li><b>${esc(x.what)}</b>${x.why ? ` <span>${esc(x.why)}</span>` : ''}</li>`).join('')}</ol></section>` : ''}
+${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. <a href="/art/visit/${esc(kept.qid)}">See it in person</a></p>` : ''}
+<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>The full record</b></a>${c && c.study && !c.studyHidden ? `<a class="whp-pg" href="${rec.replace('?from=wander', '')}#study">The study ${I.next}</a>` : ''}</div>
+<p class="wka-r">${openW ? 'In the public domain: free for everyone to look at, share and print.' : 'Numbered and on the register. To use it beyond looking, license it on the record.'}</p>
+<p class="k wka-who">Who made it</p>`;
+      who = about + who + `<p class="whp-x">Swipe right to go back to the picture.</p>`;
     }
     res.json({ keys, yours, who });
   });
@@ -347,8 +371,8 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.guide}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 ${gift ? `<div class="st-flower" data-st-flower>${gift.note ? `<p class="st-fl-note">“${esc(gift.note)}”</p>` : ''}<p class="st-fl-line">${esc(giftLine)}</p><p class="st-fl-sub">${items[0] ? `<b>${esc(V.tidy(items[0].title))}</b> · ${esc(items[0].maker)}` : ''}</p></div>` : ''}${front ? `<div class="st-hello" data-st-hello><p>Keep what you make. Own a piece of what others make.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
-<button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="Who made it">${I.you || I.look}<span>Who made it</span></button>
-<aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="Who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
+<button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About the work">${I.page || I.look}<span>About</span></button>
+<aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="About the work and who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
 <template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>
