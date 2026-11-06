@@ -143,6 +143,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
         const open = rk === 'closed' ? null : (rk || job.open || null);
         if (rk === 'closed') db.prepare("UPDATE works SET rights_note=? WHERE id=?").run(String(it.rights || (it.meta.find(x => /^(rights|licen[cs]e)$/i.test(x.label)) || {}).value || '').slice(0, 300), w.id);
         db.prepare("UPDATE works SET status=?, open=COALESCE(?, open), taken_at=COALESCE(?, taken_at), medium=COALESCE(?, medium) WHERE id=?").run(job.show ? 'held' : 'hidden', open, year ? `${year}-01-01` : null, (it.meta.find(x => /^(medium|technique|materials?)$/i.test(x.label)) || {}).value || null, w.id);
+        if (it.hand) { try { db.prepare('UPDATE works SET hand=?, hand_why=? WHERE id=?').run(it.artist ? 'attributed' : 'not', String(it.hand).slice(0, 160), w.id); } catch (e) { /* before the hands pass */ } }
         if (open) { try { ledger.append(db, 'work.opened', w.slug, { licence: open, by: rk ? 'item' : 'iiif' }); } catch (e) { /* */ } }
         return { w };
     } catch (e) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } if (/already held/.test(e.message)) return { skipped: true }; throw e; }

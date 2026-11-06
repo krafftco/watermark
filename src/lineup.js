@@ -33,6 +33,12 @@ function mountLineup(app, { db, V, studioOnly }) {
     const spec = { dept: +s.dept || null, q: String(s.q || '').trim().slice(0, 80) || '*', highlight: !!s.highlight, n: Math.min(Math.max(+s.n || PER, 10), 500), offset: Math.max(0, +s.offset || 0), more: !!s.more };
     return add('met', metLabel(spec), spec);
   }
+  function ngaLabel(s) { const c = (app.locals.nga ? app.locals.nga.CLASSES : []).find(x => x[0] === s.cls); return `The National Gallery of Art · ${c ? c[2] : 'everything open'} · ${s.offset + 1}–${s.offset + s.n}`; }
+  function addNga(s) {
+    const classes = app.locals.nga ? app.locals.nga.CLASSES.map(c => c[0]) : [];
+    const spec = { cls: classes.includes(s.cls) ? s.cls : '', n: Math.min(Math.max(+s.n || PER, 10), 500), offset: Math.max(0, +s.offset || 0), more: !!s.more };
+    return add('nga', ngaLabel(spec), spec);
+  }
   function metUrl(s) {
     const u = new URL('https://collectionapi.metmuseum.org/public/collection/v1.1/search');
     u.searchParams.set('q', s.q || '*'); u.searchParams.set('hasImages', 'true');
@@ -47,6 +53,11 @@ function mountLineup(app, { db, V, studioOnly }) {
       const I = app.locals.iiif; const m = s.maker ? db.prepare('SELECT * FROM makers WHERE handle=?').get(s.maker) : I && I.demoDesk ? I.demoDesk() : null;
       if (!m) throw new Error('no desk for the Met');
       return { feed: F.enqueue({ maker: m.id, url: metUrl(s), kind: 'met', open: 'cc0', show: '1', max: String(s.n), name: item.label }) };
+    }
+    if (item.kind === 'nga') {
+      // The National Gallery of Art (6 Nov): its open access onto the public-domain shelf, a slice at a time.
+      const N = app.locals.nga, A = app.locals.art; if (!N || !A || !A.shelf) throw new Error('the Gallery reader is not mounted');
+      return { feed: F.enqueue({ maker: A.shelf().id, url: N.urlFor({ cls: s.cls || '', offset: s.offset || 0 }), kind: 'nga', open: 'cc0', show: '1', max: String(s.n), name: item.label }) };
     }
     if (item.kind === 'artist') {
       const A = app.locals.art, C = app.locals.catalogue; if (!A || !C) throw new Error('the hall is not mounted');
@@ -75,6 +86,8 @@ function mountLineup(app, { db, V, studioOnly }) {
         const s = specOf(run);
         // Keep going: the next hundred, while the last hundred found anything at all.
         if (run.kind === 'met' && s.more && f && (f.looked || 0) >= Math.min(s.n, 1)) addMet({ ...s, offset: s.offset + s.n });
+        // The Gallery: the next slice while this one was full (a short slice is the end of the classification).
+        if (run.kind === 'nga' && s.more && f && (f.looked || 0) >= s.n) addNga({ ...s, offset: s.offset + s.n });
         return;
       }
       if (paused()) return;
@@ -102,6 +115,9 @@ function mountLineup(app, { db, V, studioOnly }) {
 <p class="bl-state">${paused() ? '<b>The line is paused.</b>' : held ? '<b>Held:</b> the house’s chores are held (being shown, or switched off).' : waiting ? `${waiting} waiting.` : 'Nothing waiting.'} <form method="post" action="/studio/line/pause" class="bl-in"><button>${paused() ? 'Run the line' : 'Pause the line'}</button></form></p>
 <section class="bl-add"><h2>The Met</h2><form method="post" action="/studio/line/met"><label>Department<select name="dept"><option value="">Every department</option>${DEPTS.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('')}</select></label><label>A word (optional)<input name="q" placeholder="e.g. landscape, Vermeer, portrait"></label><label class="bl-ck"><input type="checkbox" name="highlight" value="1" checked> Highlights only</label><label class="bl-ck"><input type="checkbox" name="more" value="1" checked> Keep going, a hundred at a time, until the search runs dry</label><button class="buy-btn">Line it up</button></form>
 <p class="bl-quick"><b>In one press:</b> <form method="post" action="/studio/line/met" class="bl-in"><input type="hidden" name="highlight" value="1"><input type="hidden" name="more" value="1"><button>Every Met highlight</button></form> <form method="post" action="/studio/line/met" class="bl-in"><input type="hidden" name="dept" value="11"><input type="hidden" name="more" value="1"><button>All of European Paintings</button></form> <form method="post" action="/studio/line/met" class="bl-in"><input type="hidden" name="dept" value="6"><input type="hidden" name="highlight" value="1"><input type="hidden" name="more" value="1"><button>Asian Art highlights</button></form></p></section>
+<section class="bl-add"><h2>The National Gallery of Art, Washington</h2><p class="note">Every open-access image is CC0; each work comes onto the public-domain shelf credited ‘${esc(app.locals.nga ? app.locals.nga.CREDIT : '')}’. Workshop pieces and copies come in under their own attribution, never as the master’s.${app.locals.nga && app.locals.nga.job.n ? ` The index holds ${app.locals.nga.job.n.toLocaleString('en-US')} works.` : ''}</p>
+<form method="post" action="/studio/line/nga"><label>Classification<select name="cls">${(app.locals.nga ? app.locals.nga.CLASSES : []).map(c => `<option value="${esc(c[0])}">${esc(c[2])}</option>`).join('')}</select></label><label class="bl-ck"><input type="checkbox" name="more" value="1" checked> Keep going, a hundred at a time, until it runs dry</label><button class="buy-btn">Line it up</button></form>
+<p class="bl-quick"><b>In one press:</b> <form method="post" action="/studio/line/nga/all" class="bl-in"><button>All of it, paintings first</button></form></p></section>
 <section class="bl-add"><h2>An artist’s whole work</h2><form method="post" action="/studio/line/artist"><label>Names, one a line<textarea name="names" rows="3" placeholder="Vincent van Gogh&#10;Leonardo da Vinci"></textarea></label><button class="buy-btn">Line them up</button></form>
 <form method="post" action="/studio/line/masters" class="bl-in"><button>The masters, ${MASTERS.length} of them</button></form> <span class="note">${esc(MASTERS.slice(0, 6).join(' · '))} and more. Each: the page, the catalogue read, every public-domain photograph brought in.</span></section>
 <section><h2>In line</h2>${rows.length ? `<ol class="bl-list">${rows.map(row).join('')}</ol>` : '<p class="note">Nothing yet.</p>'}</section></main>` });
@@ -111,6 +127,12 @@ function mountLineup(app, { db, V, studioOnly }) {
   const back = (res, msg) => res.redirect('/studio/line?ok=' + encodeURIComponent(msg));
   const soon = () => { if (!app.locals.noTimers) setTimeout(tick, 50); };
   app.post('/studio/line/met', studioOnly, (req, res) => { addMet(req.body || {}); soon(); back(res, 'In line: the Met.'); });
+  app.post('/studio/line/nga', studioOnly, (req, res) => { addNga(req.body || {}); soon(); back(res, 'In line: the National Gallery of Art.'); });
+  app.post('/studio/line/nga/all', studioOnly, (req, res) => {
+    const have = new Set(db.prepare("SELECT spec FROM lineup WHERE kind='nga' AND status IN ('waiting','running')").all().map(r => specOf(r).cls));
+    let n = 0; for (const [cls] of (app.locals.nga ? app.locals.nga.CLASSES : [])) if (!have.has(cls)) { addNga({ cls, more: 1 }); n++; }
+    soon(); back(res, n ? `In line: the National Gallery of Art, ${n} classifications, paintings first.` : 'Already in line.');
+  });
   app.post('/studio/line/artist', studioOnly, (req, res) => {
     const names = String((req.body || {}).names || '').split(/\n|;/).map(x => x.trim()).filter(Boolean).slice(0, 100);
     const have = new Set(db.prepare("SELECT spec FROM lineup WHERE kind='artist' AND status IN ('waiting','running')").all().map(r => (specOf(r).name || '').toLowerCase()));
@@ -130,7 +152,7 @@ function mountLineup(app, { db, V, studioOnly }) {
     else if (d === 'again' && r.status === 'failed') db.prepare("UPDATE lineup SET status='waiting', note=NULL, feed_id=NULL, pos=? WHERE id=?").run(nextPos(), r.id);
     soon(); back(res, 'Done.');
   });
-  app.locals.line = { add, addMet, tick, metUrl, MASTERS, DEPTS };
+  app.locals.line = { add, addMet, addNga, tick, metUrl, MASTERS, DEPTS };
   return app.locals.line;
 }
 module.exports = { mountLineup, MASTERS, DEPTS };

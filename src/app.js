@@ -778,7 +778,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger, DEFAULT_USES });
-  { const fUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }); require('./feeds').mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload: fUp }); } // feeds in: the bulk door (27 Oct) // museums: a collection in from a IIIF manifest; the Image API out; /museums
+  require('./nga').mountNga(app, { db, C, ledger }); /* the National Gallery of Art's open access (6 Nov) */ { const fUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }); require('./feeds').mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload: fUp }); } // feeds in: the bulk door (27 Oct) // museums: a collection in from a IIIF manifest; the Image API out; /museums
   require('./scout').mountScout(app, { db, V, studioOnly, isStudio });
   require('./lineup').mountLineup(app, { db, V, studioOnly }); // the line (2 Nov): line up the Met and the masters; the house brings them in one run at a time // the scout (2 Nov): look into a museum's open collection, tick, bring in
   require('./vangogh').mountVanGogh(app, { db, V, studioOnly, isStudio }); // Vincent: a room of what is free for everyone
@@ -2347,7 +2347,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./safety').mountSafety(app, { db, V, ledger, studioOnly, originalPath }); // child safety: held out of every room at once, decided by a person (29 Oct)
   app.locals.hangBest = require('./hangbest').mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // hang your best (29 Oct)
   app.locals.pairs = require('./pairs').mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly });
-  require('./tidy').mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs: require('./pairs'), governor: app.locals.governor }); // the tidy of an artist's set: repeats and bad files off view (2 Nov)
+  require('./hands').mountHands(app, { db, V, ledger, studioOnly, images, cache, originalPath }); /* whose hand (6 Nov): workshop pieces, copies and extra files off a master's wall */ require('./tidy').mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs: require('./pairs'), governor: app.locals.governor }); // the tidy of an artist's set: repeats and bad files off view (2 Nov)
   require('./frick').mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPath }); // the standard: what falls short of the Frick's comes off the wall (5 Nov)
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's

@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.71.0 · The National Gallery, and whose hand · 6 November 2026
+
+- The National Gallery of Art, Washington, comes into the house: every open-access image (CC0), read from the Gallery's own open catalogue, onto the public-domain shelf and credited to the Gallery. Lined up a hundred at a time, paintings first.
+- A workshop piece, a follower's work or a copy comes in under its own attribution, never on the master's page.
+- Whose hand: for every master with a catalogue, the house finds what is not theirs (workshop, followers, copies by the record's own words; another version of a catalogued work that is not itself catalogued; a second file of the same work) and takes it off the master's wall at a press. Nothing is deleted.
+
 ## 1.70.0 · Both ways · 6 November 2026
 
 - In Wander, a swipe either way now goes somewhere. Finger to the left: about the work, then who made it. Finger to the right: more like this (the same hand, the same place, the same movement, the same decade), each a strip to tap into and a Wander through the set.
