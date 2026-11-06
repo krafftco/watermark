@@ -63,4 +63,4 @@ jobs:
           run() { "$@" 2>&1 | tee /tmp/out.txt || { echo "::error title=$1 $2::$(tail -c 1500 /tmp/out.txt | tr '\n' ' ' | tr -d '%')"; exit 1; }; }
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

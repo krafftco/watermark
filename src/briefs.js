@@ -44,6 +44,9 @@ function mountBriefs(app, { db, V, C, ledger, stripe, mail, makerOf, studioOnly,
       status TEXT NOT NULL DEFAULT 'sent', created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS brief_files (id INTEGER PRIMARY KEY, brief_id INTEGER NOT NULL, work_id INTEGER, file TEXT, name TEXT, mime TEXT, bytes INTEGER, sha256 TEXT,
       kind TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  const col = (t, c) => !!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name=?`).get(c);
+  if (!col('briefs', 'kind')) db.exec("ALTER TABLE briefs ADD COLUMN kind TEXT NOT NULL DEFAULT 'brand'"); // brand | personal (a collector's own commission)
+  if (!col('briefs', 'buyer_id')) db.exec('ALTER TABLE briefs ADD COLUMN buyer_id INTEGER');
   const DIR = path.join(C.dataDir, 'briefs'); try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { console.error('[briefs]', e.message); }
   const MAX_MB = Number(process.env.BRIEF_MAX_MB || 4096);
   const APPROVE_DAYS = Number(process.env.BRIEF_APPROVE_DAYS || 14);
@@ -56,7 +59,7 @@ function mountBriefs(app, { db, V, C, ledger, stripe, mail, makerOf, studioOnly,
   const first = n => String(n || '').split(/\s+/)[0];
   const lbl = (list, k) => (list.find(x => x[0] === String(k)) || [k, k])[1];
   const usesOf = b => String(b.uses || '').split(',').filter(Boolean);
-  const said = b => `${usesOf(b).map(k => lbl(USES, k)).join(' and ') || 'For a company'}, ${b.territory === 'world' ? 'worldwide' : 'in the United States'}, ${+b.term ? `for ${+b.term === 12 ? 'a year' : +b.term / 12 + ' years'}` : 'for good'}${b.exclusive ? ', exclusively' : ', not exclusively'}`;
+  const said = b => b.kind === 'personal' ? 'for you to keep, print and hang at home, and to share with credit; not for any company’s use' : `${usesOf(b).map(k => lbl(USES, k)).join(' and ') || 'For a company'}, ${b.territory === 'world' ? 'worldwide' : 'in the United States'}, ${+b.term ? `for ${+b.term === 12 ? 'a year' : +b.term / 12 + ' years'}` : 'for good'}${b.exclusive ? ', exclusively' : ', not exclusively'}`;
   const page = (title, inner, cls = 'brf') => V.layout({ title: `${title} · Watermark`, path: '/brands', body: `<section class="narrow ${cls}">${inner}</section>` });
   const nextRef = () => { const y = new Date().getFullYear(); const n = db.prepare("SELECT COUNT(*) n FROM briefs WHERE ref LIKE ?").get(`BR-${y}-%`).n + 1; return `BR-${y}-${String(n).padStart(4, '0')}`; };
   const sha = f => new Promise((res, rej) => { const h = crypto.createHash('sha256'); fs.createReadStream(f).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); });
@@ -65,16 +68,17 @@ function mountBriefs(app, { db, V, C, ledger, stripe, mail, makerOf, studioOnly,
 
   // ---------- the agreement ----------
   function agreement(b, a, m) {
+    const P = b.kind === 'personal' ? 'Collector' : 'Brand';
     const fee = money(a.fee_cents); const tot = money(FEE.on() ? FEE.total(a.fee_cents) : a.fee_cents);
     return [`COMMISSION AND LICENCE · ${b.ref}`, '',
-      `Between ${m.name} (the Artist), ${b.company} (the Brand), and Watermark, a Krafft company (the House), which holds the money and keeps the record.`, '',
+      `Between ${m.name} (the Artist), ${b.company} (the ${P}), and Watermark, a Krafft company (the House), which holds the money and keeps the record.`, '',
       `1. The work. The Artist makes and delivers: ${b.title}. ${b.body || ''} (${b.n || 1} ${String(b.kinds || 'photographs').split(',').map(k => lbl(KINDS, k).toLowerCase()).join(', ')}${b.due ? `, by ${b.due}` : ''}).`,
-      `2. The fee. ${fee} to the Artist${FEE.on() ? `, and the House's share on top: the Brand pays ${tot}` : ''}. The Brand pays when it chooses the Artist; the House holds it until approval.`,
-      `3. Delivery and approval. The Artist delivers through the House. The Brand approves, or asks once for a change with a reason, within ${APPROVE_DAYS} days of delivery; after that the delivery is approved.`,
-      `4. The licence. On approval the Brand may use what was delivered ${said(b)}, from the day of approval. Every other right stays with the Artist. The Artist keeps the copyright and may show the work as their own, in their portfolio and on Watermark${b.exclusive ? ', but grants no other company a licence to it while this licence runs' : ''}.`,
-      `5. Credit. Where the Brand can, it credits the work "${m.name} / Watermark".`,
-      `6. People and property. The Artist warrants that anyone recognisable in what is delivered has signed a release, and that prominent private property or marks are released or cleared.`,
-      `7. Ending early. If the Brand ends the commission after choosing the Artist and before delivery, ${KILL}% of the fee is the Artist's; the rest is returned.`,
+      `2. The fee. ${fee} to the Artist${FEE.on() ? `, and the House's share on top: the Brand pays ${tot}` : ''}. The ${P} pays when it chooses the Artist; the House holds it until approval.`,
+      `3. Delivery and approval. The Artist delivers through the House. The ${P} approves, or asks once for a change with a reason, within ${APPROVE_DAYS} days of delivery; after that the delivery is approved.`,
+      `4. The licence. On approval the ${P} may use what was delivered ${said(b)}, from the day of approval. Every other right stays with the Artist. The Artist keeps the copyright and may show the work as their own, in their portfolio and on Watermark${b.exclusive ? ', but grants no other company a licence to it while this licence runs' : ''}.`,
+      `5. Credit. Where the ${P} can, it credits the work "${m.name} / Watermark".`,
+      b.kind === 'personal' ? '6. People. The Artist makes no use of anyone recognisable beyond what this commission needs, and asks before showing a likeness of the Collector or their home in public.' : `6. People and property. The Artist warrants that anyone recognisable in what is delivered has signed a release, and that prominent private property or marks are released or cleared.`,
+      `7. Ending early. If the ${P} ends the commission after choosing the Artist and before delivery, ${KILL}% of the fee is the Artist's; the rest is returned.`,
       `8. The money. The Artist is paid by the House on the first Friday after approval clears.`,
       `9. The record. The House keeps this agreement, its fingerprint, every file's fingerprint and the dates.`, '',
       'A draft for counsel. Not yet reviewed.'].join('\n');
@@ -101,16 +105,18 @@ function mountBriefs(app, { db, V, C, ledger, stripe, mail, makerOf, studioOnly,
   });
   app.post('/brands/brief', (req, res) => {
     const x = req.body || {}; const t = (v, n) => String(v || '').replace(/<[^>]*>/g, '').trim().slice(0, n);
-    const email = t(x.email, 160).toLowerCase(); if (!t(x.company, 120) || !t(x.title, 140) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect('/brands?ok=check');
+    const personal = x.kind === 'personal'; if (personal && !t(x.company, 120)) x.company = x.contact;
+    const email = t(x.email, 160).toLowerCase(); if (!t(x.company, 120) || !t(x.title, 140) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect((personal ? '/commission' : '/brands') + '?ok=check' + (x.to ? '&to=' + encodeURIComponent(x.to) : ''));
     const list = v => (Array.isArray(v) ? v : [v]).filter(Boolean).map(String);
     const to = x.to ? db.prepare('SELECT * FROM makers WHERE handle=?').get(String(x.to)) : null;
     const token = crypto.randomBytes(18).toString('base64url'); const ref = nextRef();
     const uses = list(x.uses).filter(k => USES.some(u => u[0] === k)); const kinds = list(x.kinds).filter(k => KINDS.some(u => u[0] === k));
-    db.prepare(`INSERT INTO briefs (ref, token, company, contact, email, title, body, kinds, n, uses, territory, term, exclusive, budget_cents, due, to_maker) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(ref, token, t(x.company, 120), t(x.contact, 80), email, t(x.title, 140), t(x.body, 4000), (kinds.length ? kinds : ['photographs']).join(','), Math.max(1, Math.min(200, +x.n || 1)), (uses.length ? uses : ['commercial']).join(','),
-        x.territory === 'world' ? 'world' : 'us', [0, 12, 24].includes(+x.term) ? +x.term : 12, x.exclusive === '1' ? 1 : 0, +x.budget > 0 ? Math.round(+x.budget * 100) : null, t(x.due, 10) || null, to ? to.id : null);
+    const buyer = app.locals.buyerOf ? app.locals.buyerOf(req) : null;
+    db.prepare(`INSERT INTO briefs (ref, token, company, contact, email, title, body, kinds, n, uses, territory, term, exclusive, budget_cents, due, to_maker, kind, buyer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(ref, token, t(x.company, 120), t(x.contact, 80), email, t(x.title, 140), t(x.body, 4000), (kinds.length ? kinds : ['photographs']).join(','), Math.max(1, Math.min(200, +x.n || 1)), personal ? 'personal' : (uses.length ? uses : ['commercial']).join(','),
+        personal ? 'us' : x.territory === 'world' ? 'world' : 'us', personal ? 0 : [0, 12, 24].includes(+x.term) ? +x.term : 12, !personal && x.exclusive === '1' ? 1 : 0, +x.budget > 0 ? Math.round(+x.budget * 100) : null, t(x.due, 10) || null, to ? to.id : null, personal ? 'personal' : 'brand', buyer ? buyer.id : null);
     send(email, `Your brief, ${ref}`, `Your brief "${t(x.title, 140)}" is with ${to ? to.name : 'the house’s artists'}. Answers come to your desk:\n\n${base}/b/${token}\n\nKeep this letter: the link is your desk.`);
-    if (to) { send(to.email, `A brief for you: ${t(x.title, 140)}`, `${first(to.name)},\n\n${t(x.company, 120)} would like to commission you: ${t(x.title, 140)}.\n\nRead it and answer: ${base}/account/briefs/${ref}`); tell(to, `A brief from ${t(x.company, 120)}`, `/account/briefs/${ref}`); }
+    if (to) { send(to.email, `A brief for you: ${t(x.title, 140)}`, `${first(to.name)},\n\n${t(x.company, 120)} would like to commission you: ${t(x.title, 140)}.\n\nRead it, talk it through with them, and answer: ${base}/account/briefs/${ref}`); tell(to, `A brief from ${t(x.company, 120)}`, `/account/briefs/${ref}`); }
     res.redirect(`/b/${token}?ok=sent`);
   });
 
@@ -129,6 +135,7 @@ ${chosen && b.status !== 'open' ? `<h2>The agreement</h2><pre class="brf-ag">${e
 ${b.status === 'chosen' ? `<form method="post" action="/b/${esc(b.token)}/pay"><button class="buy-btn">Pay ${money(FEE.on() ? FEE.total(chosen.fee_cents) : chosen.fee_cents)} and begin</button> <span class="muted">Held by the house until you approve.</span></form>` : ''}
 ${files.length ? `<h2>Delivered · ${files.length}</h2><ul class="brf-files">${files.map(f => fileRow(b, f)).join('')}</ul>` : ''}
 ${b.status === 'delivered' ? `<form method="post" action="/b/${esc(b.token)}/approve" class="brf-ap"><button class="buy-btn">Approve: the licence starts today</button></form><form method="post" action="/b/${esc(b.token)}/change" class="brf-ap"><label>Or ask for a change<input name="note" maxlength="600" required></label><button class="btn ghost">Ask</button></form><p class="muted">Approved by itself ${APPROVE_DAYS} days after delivery.</p>` : ''}
+${app.locals.commission ? app.locals.commission.client(b, answers) : ''}
 ${b.status === 'done' ? `<p>The licence: ${esc(said(b))}, from ${esc(String(b.approved_at).slice(0, 10))}. Credit: “${esc(chosen ? chosen.name : '')} / Watermark”.</p>` : ''}`);
   }
   app.get('/b/:token', (req, res) => { const b = byToken(req.params.token); if (!b) return res.sendStatus(404); res.set('Cache-Control', 'private, no-store').set('X-Robots-Tag', 'noindex'); res.send(desk(b, req.query.ok)); });
@@ -201,8 +208,8 @@ ${b.status === 'done' ? `<p>The licence: ${esc(said(b))}, from ${esc(String(b.ap
     res.set('Cache-Control', 'private, no-store');
     const open = openFor(m), my = mine(m);
     const row = b => `<li><a href="/account/briefs/${esc(b.ref)}"><b>${esc(b.title)}</b><span>${esc(b.company)} · ${esc(said(b))}${b.budget_cents ? ' · about ' + money(b.budget_cents) : ''}${b.due ? ' · by ' + esc(b.due) : ''}${b.to_maker ? ' · to you' : ''}</span></a></li>`;
-    res.send(V.layout({ title: 'Briefs · Your studio', studio: true, body: `<section class="studio-wrap brf"><p class="k"><a href="/account">Your studio</a></p><h1>Briefs.</h1>
-<p class="lede">Brands asking for work. Answer with a fee and your work; if you are chosen, the money is held before you begin, the agreement is written, and you deliver here: photographs from your vault, reels and films straight.</p>
+    res.send(V.layout({ title: 'Commissions · Your studio', studio: true, body: `<section class="studio-wrap brf"><p class="k"><a href="/account">Your studio</a></p><h1>Commissions.</h1>
+<p class="lede">Collectors and brands asking for work. Talk it through with them inside each one, with sketches and work in progress; agree a fee there or answer with one; if you are chosen, the money is held before you begin, the agreement is written, and you deliver here: photographs from your vault, reels and films straight.</p>
 <h2>Your commissions and answers</h2><ul class="brf-list">${my.map(b => `<li><a href="/account/briefs/${esc(b.ref)}"><b>${esc(b.title)}</b><span>${esc(b.company)} · ${esc({ sent: 'answered', accepted: { commissioned: 'commissioned: deliver', delivered: 'delivered: with the brand', done: 'approved' }[b.status] || 'chosen', declined: 'another was chosen' }[b.my_status] || b.my_status)} · ${money(b.my_fee)}</span></a></li>`).join('') || '<li class="muted">None yet.</li>'}</ul>
 <h2>Open · ${open.length}</h2><ul class="brf-list">${open.map(row).join('') || '<li class="muted">No briefs open just now.</li>'}</ul></section>` }));
   });
@@ -217,7 +224,7 @@ ${b.status === 'done' ? `<p>The licence: ${esc(said(b))}, from ${esc(String(b.ap
     const held = w => CL ? uses.filter(k => CL.blocks(db.prepare('SELECT * FROM works WHERE id=?').get(w.id), k)) : [];
     const files = db.prepare('SELECT * FROM brief_files WHERE brief_id=? ORDER BY id').all(b.id);
     const pick = (name, max, note) => `<div class="brf-pick">${works.map(w => { const h = name === 'works' ? held(w) : []; return `<label class="brf-pw${h.length ? ' brf-held' : ''}" title="${esc(w.title)}${h.length ? ' · waits for a release' : ''}"><input type="checkbox" name="${name}" value="${esc(w.slug)}"${h.length ? ' disabled' : ''}>${tile(w)}${h.length ? '<small>Needs a release</small>' : ''}</label>`; }).join('')}</div>${note || ''}`;
-    res.send(V.layout({ title: `${b.title} · Briefs`, studio: true, body: `<section class="studio-wrap brf"><p class="k"><a href="/account/briefs">Briefs</a> · ${esc(b.ref)}</p><h1>${esc(b.title)}</h1>
+    res.send(V.layout({ title: `${b.title} · Briefs`, studio: true, body: `<section class="studio-wrap brf"><p class="k"><a href="/account/briefs">Commissions</a> · ${esc(b.ref)}${b.kind === 'personal' ? ' · for a collector' : ''}</p><h1>${esc(b.title)}</h1>
 <p class="lede">${esc(b.company)} · ${esc(said(b))}${b.budget_cents ? ` · about ${money(b.budget_cents)}` : ''}${b.due ? ` · by ${esc(b.due)}` : ''}</p>
 ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
 <div class="brf-body">${esc(b.body || '').replace(/\n/g, '<br>')}</div><p class="muted">${b.n || 1} · ${esc(String(b.kinds).split(',').map(k => lbl(KINDS, k)).join(', '))}</p>
@@ -231,7 +238,8 @@ ${['commissioned'].includes(b.status) ? `<h2>Deliver</h2><form method="post" act
 <p>From your vault (a company’s or a campaign’s use needs the release of anyone recognisable; a work marked <i>Needs a release</i> can go once it is in: <a href="/account/release/sign">sign one on the spot</a>)</p>${pick('works', 200)}
 <label>Reels, films and other files<input type="file" name="files" multiple accept="video/mp4,video/quicktime,video/webm,image/*,application/pdf"></label><button class="buy-btn">Deliver</button></form>` : ''}
 ${files.length ? `<h2>Delivered</h2><ul class="brf-files">${files.map(f => `<li class="brf-file"><b>${esc(f.name || '')}</b><small>${f.bytes ? Math.round(f.bytes / 1e5) / 10 + ' MB' : ''} · ${esc(String(f.sha256 || '').slice(0, 12))}</small></li>`).join('')}</ul>` : ''}
-<p class="brf-state">${esc({ commissioned: 'At work: deliver when ready', delivered: 'With the brand to approve', done: 'Approved: your fee clears for Friday' }[b.status] || b.status)}</p>` : ''}</section>` }));
+<p class="brf-state">${esc({ commissioned: 'At work: deliver when ready', delivered: 'With the brand to approve', done: 'Approved: your fee clears for Friday' }[b.status] || b.status)}</p>` : ''}
+${app.locals.commission ? app.locals.commission.artist(b, m) : ''}</section>` }));
   });
   app.post('/account/briefs/:ref/answer', (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);

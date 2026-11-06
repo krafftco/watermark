@@ -5564,3 +5564,26 @@ p.pbk-v{font-size:15px;padding:8px 10px}
 .bbd-u button{padding:12px 20px;border:0;border-radius:999px;background:#1a1814;color:#f6f3ee;font:500 14px/1 var(--sans);cursor:pointer}.bbd-h{font-size:13px;color:#6e685f}
 .bbd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px}
 .bbd-w{display:grid;gap:6px;padding:0;border:0;background:none;text-align:left;cursor:pointer;color:inherit}.bbd-w img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:6px;background:#0b0a09}.bbd-w span{font-size:12.5px;line-height:1.3;color:#4a453e}
+
+/* The commission room (commission.js): the conversation between artist and client. */
+.cnv{margin:28px 0;padding-top:18px;border-top:1px solid #e6e0d4}
+.cnv-l{list-style:none;margin:12px 0;padding:0;display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto}
+.cnv-m{max-width:min(560px,88%);padding:10px 14px;border-radius:14px;background:#f2eee6;color:#1b1916;align-self:flex-start}
+.cnv-me{align-self:flex-end;background:#1b1916;color:#f2eee6}
+.cnv-house{align-self:center;background:transparent;border:1px solid #c9a24a;color:inherit;text-align:center;font-style:italic}
+.cnv-up{border-left:3px solid #c9a24a}
+.cnv-w{font-size:12px;opacity:.65;margin:0 0 4px}
+.cnv-b{margin:0;line-height:1.5;overflow-wrap:anywhere}
+.cnv-fs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cnv-i img{width:140px;height:140px;object-fit:cover;border-radius:8px;display:block}
+.cnv-v{width:min(320px,100%);border-radius:8px;background:#000}
+.cnv-d{text-decoration:underline}
+.cnv-of{margin-top:8px;padding:10px 12px;border-radius:10px;background:rgba(201,162,74,.14);display:grid;gap:4px}
+.cnv-of b{font-size:20px}.cnv-of em{font-size:12px;opacity:.75}.cnv-ok{background:rgba(201,162,74,.32)}.cnv-old{opacity:.55}
+.cnv-e{color:#7a7266;font-style:italic;align-self:stretch;max-width:none}
+.cnv-f{display:grid;gap:10px}
+.cnv-f textarea{width:100%;box-sizing:border-box}
+.cnv-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.cnv-at input{display:block;max-width:100%}
+.cnv-od summary{cursor:pointer;font-weight:500}
+.cnv-od[open]{padding:10px 0}

@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.69.0 · The commission room · 6 November 2026
+
+- A conversation inside every commission, between the artist and the client: messages, photographs, films and PDFs, out of email.
+- Offers from either side (a fee, a date, a line on terms); the other accepts, the agreement is written, and the client pays to begin, held by the house.
+- The artist posts updates on the work with pictures and video once it is paid for.
+- Collectors commission too: /commission (a work made for you, for your own walls), and /yours/commissions lists them. The maker page's Commission leads there; companies still use /brands.
+
 ## 1.68.3 · Fewer letters · 5 November 2026
 
 - The conservation letter to the house goes out at most once a day (CONSERVE_MAIL_HOURS, 24; CONSERVE_MAIL=0 for none). The morning digest counts what is off view; the restoration room lists every work.
