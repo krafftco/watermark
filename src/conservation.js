@@ -63,6 +63,13 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
   const digest = []; let digestTimer = null;
   function sendDigest() {
     digestTimer = null; const rows = digest.splice(0); if (!rows.length) return;
+    // At most one letter a day (Will, 5 Nov: too many of these). The morning digest counts what is off view, and the
+    // restoration room lists every work; CONSERVE_MAIL=0 sends none.
+    if (process.env.CONSERVE_MAIL === '0') return;
+    const DAY = Number(process.env.CONSERVE_MAIL_HOURS || 24) * 3600e3;
+    let last = 0; try { const s = db.prepare("SELECT v FROM settings WHERE k='conserve_mail_at'").get(); last = s ? Number(s.v) || 0 : 0; } catch (e) { /* no settings yet */ }
+    if (Date.now() - last < DAY) return;
+    try { db.prepare("INSERT INTO settings (k, v) VALUES ('conserve_mail_at', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(String(Date.now())); } catch (e) { /* sent anyway */ }
     const house = mk(null);
     mail.send({ to: house.email, subject: rows.length === 1 ? `Off view for conservation: ${rows[0].title}` : `Off view for conservation: ${rows.length} works`,
       text: `${rows.length === 1 ? 'One work' : `${rows.length} works`} failed a condition check twice and left the walls.\n\n${rows.map(r => `${r.title} (${r.slug})\n  ${r.findings.join('\n  ')}`).join('\n\n')}\n\nThe restoration room: ${C.base}/studio/restoration` });

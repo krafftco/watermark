@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.68.3 · Fewer letters · 5 November 2026
+
+- The conservation letter to the house goes out at most once a day (CONSERVE_MAIL_HOURS, 24; CONSERVE_MAIL=0 for none). The morning digest counts what is off view; the restoration room lists every work.
+
 ## 1.68.2 · The connection held · 5 November 2026
 
 - The house holds idle connections longer than the proxies in front of it, so a page no longer fails now and then with a brief error from the edge.
