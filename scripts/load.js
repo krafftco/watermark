@@ -33,7 +33,7 @@ async function house() {
       const wk = await registerWork({ file: f, originalName: `w${i}.jpg`, title: `Load ${i}`, place: ['Paris', 'Florence', 'London'][i % 3] });
       db.prepare("UPDATE works SET status='held', stars=?, curated=? WHERE id=?").run(3 + (i % 3), i % 5 === 0 ? 1 : 0, wk.id);
     }
-    if (db.close) db.close();
+    // the seeding app's connection stays open (its timers run on; closing it under them threw on the runner)
   }
   const port = 3300 + Math.floor(Math.random() * 500);
   const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, NODE_ENV: 'production', DATA_DIR: dir, PORT: String(port), ADMIN_PASSWORD: 'pw', SESSION_SECRET: 's', BASE_URL: `http://127.0.0.1:${port}`, CHORES: '0', NO_SEED: '1', CLOSER_FILL: '0', SPEECH_FILL: '0' }, stdio: ['ignore', 'ignore', 'inherit'] });
