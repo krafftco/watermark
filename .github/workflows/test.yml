@@ -25,6 +25,24 @@ jobs:
       - run: npm test
         env:
           NODE_ENV: test
+  # The load test (7 Nov, docs/STABILITY.md): forty visitors over a seeded house; p95, errors, the stand-in, memory growth.
+  # The runner has two cores, so the page line is looser here than on a Mac (LOAD_P95_MS 2500).
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/load.js
+        env:
+          LOAD_WORKS: '24'
+          LOAD_C: '20'
+          LOAD_S: '25'
+          LOAD_P95_MS: '2500'
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 25
