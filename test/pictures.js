@@ -31,6 +31,18 @@ const sharp = require('sharp'); const images = require('../src/images'); const M
       console.log(`ok: ${name} ${size} ${fmt}: blocks ${b.toFixed(3)}, ${q.toFixed(1)} dB`);
     }
   }
+  // A copy made from a larger copy (7 Nov: the warm and a miss resize the copy above instead of decoding the master
+  // again) must hold the same standard against the master.
+  for (const [name, src] of [['sky', sky], ['scene', fixture]]) {
+    const large = await images.derivative(src, dir, `${name}-c`, 'large', 'jpg');
+    for (const fmt of ['jpg', 'webp']) {
+      const out = await images.derivative(src, dir, `${name}-c`, 'screen', fmt, { source: large });
+      const ref = path.join(dir, `${name}-screen-ref.png`); const b = (await blockiness(out)) - (await blockiness(ref)), q = await psnr(ref, out);
+      const limit = name === 'sky' ? 0.2 : 0.6, qmin = name === 'sky' ? 45 : 38;
+      assert.ok(b < limit && q > qmin, `${name} screen ${fmt} from the large copy: blocks ${b.toFixed(3)}, ${q.toFixed(1)} dB`);
+      console.log(`ok: ${name} screen ${fmt} from the large copy: blocks ${b.toFixed(3)}, ${q.toFixed(1)} dB`);
+    }
+  }
   // The gate must catch the mark: the sky, marked, shows blocks.
   images.setMarker({ key: 'k', payloadFor: () => M.renditionPayload(7) }); const marked = await images.derivative(sky, dir, 'sky-m', 'screen', 'jpg'); images.setMarker(null);
   const bm = (await blockiness(marked)) - (await blockiness(path.join(dir, 'sky-screen-ref.png'))); assert.ok(bm > 0.2, `the gate must see the mark (${bm.toFixed(3)})`); console.log(`ok: the gate sees the mark (blocks ${bm.toFixed(3)})`);

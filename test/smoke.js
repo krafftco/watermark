@@ -1292,7 +1292,9 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(w.id).status, 'held', 'back on the walls by itself once it passes');
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(!/Off view for conservation/.test(r.body));
     r = await req(port, 'GET', '/healthz', { cookie: ck }); assert.ok(JSON.parse(r.body).conservation && JSON.parse(r.body).conservation.checked >= 1);
-    r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');
+    r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); assert.equal(r.status, 200, 'the wall size');
+    if (r.headers['x-stand-in']) { assert.ok(/no-store/.test(r.headers['cache-control']), 'a stand-in is never cached'); for (let i = 0; i < 40 && r.headers['x-stand-in']; i++) { await new Promise(x => setTimeout(x, 250)); r = await req(port, 'GET', `/img/${w.slug}/wall?f=jpg`); } } // (7 Nov) the large copy stands in while the wall is made behind
+    assert.ok(!r.headers['x-stand-in'], 'the wall copy follows'); assert.ok(/max-age=3600, must-revalidate/.test(r.headers['cache-control']), 'honest caching');
   }
   console.log('ok: the restoration room');
   // The physical work (20 Oct): kinds, the object record, its label, the cabinet's registrar card and book.

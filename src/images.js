@@ -108,7 +108,7 @@ async function gamut(original) {
   try { const m = await sharp(original).metadata(); if (m.icc && m.space === 'srgb' && (m.channels || 3) >= 3 && !/sRGB|IEC ?61966/i.test(m.icc.toString('latin1').replace(/\0/g, ''))) g = 'p3'; } catch (e) { /* unreadable: sRGB */ }
   if (gamutCache.size > 4000) gamutCache.clear(); gamutCache.set(k, g); return g;
 }
-async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
+async function derivative(original, cacheDir, slug, size, fmt = 'jpg', { source = null } = {}) {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
   if (!FORMATS[fmt]) fmt = 'jpg';
@@ -116,7 +116,8 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg') {
   const out = fileOf(cacheDir, slug, size, fmt);
   if (!fs.existsSync(out)) {
     const tmp = `${out}.${process.pid}.${Date.now()}.tmp`;
-    let base = sharp(original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
+    // `source` (7 Nov): a larger copy already made, so a 60 MP master is not decoded again for a 600 px thumb
+    let base = sharp(source || original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
     if (marker && size !== 'thumb') {
       const payload = marker.payloadFor(slug);
       if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
@@ -204,14 +205,37 @@ function toBucket(f, fmt) {
   const p = rstore.put(rkey(f), f, FORMATS[fmt] ? FORMATS[fmt][1] : 'image/jpeg').catch(e => console.error('[renditions] put', path.basename(f), e.message)).finally(() => putting.delete(f));
   putting.set(f, p);
 }
-async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg') {
+// The copy wanted, or the quickest honest way to it (7 Nov, the load test: a missing copy made from the master took
+// seconds under load and, with one sharp thread, held every other picture behind it; a WebP miss beside a finished
+// JPEG was the common case). In order: the copy itself (disk, then the bucket); the copy made from a larger copy already
+// on the disk (a resize of a q94 file, never the master decoded again); else the master. With `standIn`, when only a
+// smaller copy exists the smaller one is handed back at once (`standIn: true`, served uncached) and the real copy is
+// made behind, one at a time (`later`), so no visitor ever waits on a 60 MP decode.
+const ORDER = ['thumb', 'screen', 'large', 'wall'];
+const later = { q: [], on: new Set(), running: false };
+function enqueue(fn, key) {
+  if (later.on.has(key)) return; later.on.add(key); later.q.push({ fn, key });
+  if (later.running) return; later.running = true;
+  (async () => { while (later.q.length) { const { fn: f, key: k } = later.q.shift(); try { await f(); } catch (e) { /* the next visitor asks again */ } later.on.delete(k); } later.running = false; })();
+}
+function existingCopy(cacheDir, slug, size, { atLeast = true } = {}) {
+  const i = ORDER.indexOf(size); if (i < 0) return null;
+  const range = atLeast ? ORDER.slice(i + 1) : ORDER.slice(0, i).reverse();
+  for (const z of range) for (const fm of ['jpg', 'webp']) { const f = fileOf(cacheDir, slug, z, fm); if (fs.existsSync(f)) return { file: f, size: z, fmt: fm }; }
+  return null;
+}
+async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg', { standIn = false } = {}) {
   fmt = FORMATS[fmt] ? fmt : 'jpg';
   const f = fileOf(cacheDir, slug, size, fmt);
-  if (fs.existsSync(f)) return f;
-  if (await fromBucket(f)) return f;
-  const out = await derivative(await getOriginal(), cacheDir, slug, size, fmt);
-  toBucket(out, fmt);
-  return out;
+  if (fs.existsSync(f)) return standIn ? { file: f, fmt, standIn: false } : f;
+  if (await fromBucket(f)) return standIn ? { file: f, fmt, standIn: false } : f;
+  const bigger = existingCopy(cacheDir, slug, size);
+  const make = async () => { const out = await derivative(await getOriginal(), cacheDir, slug, size, fmt, { source: bigger ? bigger.file : null }); toBucket(out, fmt); return out; };
+  if (!standIn) return make();
+  if (bigger) return { file: await make(), fmt, standIn: false }; // a resize of a copy: quick enough to wait for
+  const smaller = existingCopy(cacheDir, slug, size, { atLeast: false });
+  if (smaller) { enqueue(make, f); return { file: smaller.file, fmt: smaller.fmt, standIn: true }; }
+  return { file: await make(), fmt, standIn: false };
 }
 // Every copy of a work out of the bucket too (a new master, the restoration room's rebuild).
 async function dropBucket(cacheDir, slug) {
@@ -219,8 +243,11 @@ async function dropBucket(cacheDir, slug) {
   for (const size of Object.keys(SIZES)) for (const fmt of Object.keys(FORMATS)) { try { await rstore.del(rkey(fileOf(cacheDir, slug, size, fmt))); } catch (e) { /* not there */ } }
 }
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
+// Largest first (7 Nov): the master is decoded once for the largest copy and each smaller copy is a resize of the one
+// above it (and WebP of the JPEG beside it), so a 60 MP work costs one big decode, not six.
 async function warm(original, cacheDir, slug, sizes = WARM) {
-  for (const size of sizes) for (const fmt of Object.keys(FORMATS)) { const f = fileOf(cacheDir, slug, size, fmt); if (fs.existsSync(f) || await fromBucket(f)) continue; toBucket(await derivative(original, cacheDir, slug, size, fmt), fmt); }
+  const order = [...sizes].sort((a, b) => ORDER.indexOf(b) - ORDER.indexOf(a));
+  for (const size of order) for (const fmt of ['jpg', 'webp']) { if (!FORMATS[fmt]) continue; const f = fileOf(cacheDir, slug, size, fmt); if (fs.existsSync(f) || await fromBucket(f)) continue; const src = fmt === 'webp' && fs.existsSync(fileOf(cacheDir, slug, size, 'jpg')) ? { file: fileOf(cacheDir, slug, size, 'jpg') } : existingCopy(cacheDir, slug, size); toBucket(await derivative(original, cacheDir, slug, size, fmt, { source: src ? src.file : null }), fmt); }
 }
 // Once, before the disk comes off: every copy on the disk that the bucket lacks is put there (5 Nov; 17,533 works ×
 // six copies on the live house). HEAD then PUT, a breath between, so the website keeps serving; `state` for /healthz.
@@ -264,4 +291,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };
+module.exports = { existingCopy, sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };

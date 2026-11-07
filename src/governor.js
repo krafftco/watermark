@@ -72,9 +72,14 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
     if (!hardSince) { hardSince = Date.now(); hardHeld = true; console.error(`[governor] memory over the hard line: ${r} MB of ${hardMb}; chores hold`); }
     if (Date.now() - hardSince > 120e3) { console.error(`[governor] memory stayed over the line two minutes (${r} MB); the worker restarts itself`); setTimeout(() => process.exit(1), 500); }
   }, 10e3).unref();
+  // The website's own line (7 Nov, the warm had held the web at 3.8 GB for a morning with nothing to say so): past
+  // GOV_WEB_LINE_MB (60% of the box, else 1200 MB) /healthz says `mem.over`, the watch fails and the alarm writes the house.
+  // The website never exits itself: it serves people; a restart is a person's call (and, with the disk off, costs nothing).
+  const webLineMb = +process.env.GOV_WEB_LINE_MB || (boxMb() ? Math.round(boxMb() * 0.6) : 1200);
+  const over = () => rssMb() > webLineMb;
   const choresBase = chores;
   const choresHard = () => choresBase() && !hardHeld;
-  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores: choresHard, hold, showing: () => shown, hardMb };
+  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores: choresHard, hold, showing: () => shown, hardMb, webLineMb, over };
   return app.locals.governor;
 }
 

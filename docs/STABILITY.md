@@ -1,0 +1,62 @@
+# Stability: the freeze, the gates, the rhythm
+
+Will, 7 November 2026: "we need to stabilize this build and we need to make this company secure and have legitimate
+process." This is the process. It is short on purpose; every line is something the house does or a person does on a day.
+
+## What broke this week, and why
+
+| When | What people saw | Cause | Fixed by |
+|---|---|---|---|
+| 5 Nov, 6 pm | one request in thirty-five answered 502 at the edge | Node closed idle connections before the proxy did (keepAliveTimeout 5 s) | 1.68.2: keepAliveTimeout 65 s |
+| 6 Nov, evening → 7 Nov, morning | pages and pictures failing at random; the cold page | the warm (every work's display copies) ran on the website beside visitors; 3.8 GB of 4 GB inside two hours of every restart | 1.71.3: the warm on the worker only |
+| 7 Nov, 9:38 | the cold page for a minute | a deploy (the hotfix above); the service still has a disk, so a deploy restarts it | Will: remove the disk (OPERATIONS.md); deploys are then zero-downtime |
+| 7 Nov, the load test | a missing picture copy took seconds under load and held every other picture behind it (one sharp thread) | a WebP miss beside a finished JPEG; a thumb made from a 60 MP master | 1.72.0: copies made from the copy above; a stand-in served at once |
+
+The pattern: the house grew from 400 works to 20,000 in a week (the Met, MoMA, the Gallery) on settings made for October. Each fault was the website doing a whole-collection job, or a cold job, in front of visitors.
+
+## The rules
+
+1. **Nothing that walks the whole collection runs on the website.** Warms, fills, feeds, reads, plans, tidies: the worker. The website serves people and makes a single copy when asked, from the nearest copy it has.
+2. **A visitor never waits on a master.** A missing copy is answered by the nearest smaller copy at once (uncached) and the real one is made behind. The load test proves it on every promotion.
+3. **One heavy job at a time on the live house**, and none while the showing is on.
+4. **The freeze.** Until the checklist below is green, `next` takes repairs, measurements and the items on this page; no new rooms. A new room waits in a branch.
+5. **`main` moves at the window** (06:30 New York, weekdays, when `test` is green on `next` and the showing is off). A push to `main` outside the window is a hotfix: the promote workflow is dispatched by hand with a reason that names the fault, and the deploy's cold minute is accepted knowingly. Never while people are being shown the house.
+6. **A red test is a stop.** After every push: `gh run list --limit 3`. Nothing is promoted on a red.
+7. **The watch is the pager.** `watch.yml` every ten minutes: the origin, the edge, the worker's heartbeat, the website's memory line, four doors. A failure mails the repository's owner. The morning digest (13 UTC) carries the night; the alarm writes within the hour of anything in `wrongs()`.
+8. **Every fault gets a line in the table above** before its fix is promoted: when, what people saw, the cause, the fix.
+
+## The gates (before a promotion that touches app.js, images.js, stroll.js, the governor, the bridge or the vault)
+
+- `npm test` green on `next` (CI).
+- `node scripts/load.js` holds: forty visitors for forty-five seconds over sixty works of four sizes (one at 6,000 px); p95 of every page under 1.5 s, no errors, the stand-in answering in under 800 ms, memory growth under 300 MB.
+- `node scripts/wander-walk.js` against the test house: all ten hold.
+- `/healthz` on the test house after an hour: `mem.over` false, `faults` 0, `worker.stale` false.
+
+## The lines the house watches itself
+
+- The website: `GOV_WEB_LINE_MB` (60% of the box). Over it, `/healthz` says `mem.over`, the watch fails, the alarm writes. The website never exits itself; a restart is a person's call (free once the disk is off).
+- The worker: `GOV_MEM_HARD_MB` (85% of the box). Over it the chores hold, and after two minutes the worker restarts itself and resumes its queues.
+- The governor: one lane for pressed work, one for the boot chores; every chore yields to visitors; `CHORES=0` is the kill switch; the showing holds every chore.
+
+## The checklist to leave the freeze
+
+- [ ] The disk off the website (Will, Render → watermark → Disk; OPERATIONS.md). Deploys zero-downtime; the cold page gone from deploys.
+- [ ] The worker's warm through the whole collection once (the bucket holds every copy; `/healthz` `renditions.done`).
+- [ ] Seven days of the watch green, no restart that was not a deploy.
+- [ ] The load test in CI against a seeded house on every push to `next` (today it is run by hand).
+- [ ] The staging house exercised by the Wander walk and the load test before each window.
+- [ ] A restore drill passed on the live database's copy this week (Studio → Backups).
+- [ ] Will's security hands from SECURITY.md: 2FA on Render, GitHub, Stripe, Resend, AWS; STUDIO_EMAILS set; the vault's IAM user's old key deleted.
+
+## The rhythm
+
+- **Daily**: the watch (automatic); the digest at 9 am New York read by a person; the house desk's Needs.
+- **Weekdays 06:30**: the window. What is on `next` and green goes to `main`.
+- **Friday**: pay runs at ten; the week's faults table reviewed; the checklist above walked.
+- **Sunday**: the restore drill; the Wander walk and the load test against the test house.
+
+## Who does what
+
+- The house (code): the watch, the digest, the alarm, the lines, the gates in CI, the promotion at the window.
+- Claude, in this repo: repairs on `next`, the load test before a promotion, the fault table, this page.
+- Will: the Render hands (the disk, settings, restarts), the AWS and Stripe consoles, the showing switch, 2FA everywhere, counsel.

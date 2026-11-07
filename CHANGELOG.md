@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.72.0 · The freeze · 7 November 2026
+- Every picture copy is made from the copy above it, never the master decoded again: the warm goes largest first; a WebP is made from its JPEG; a thumb from the screen copy. A 60 MP work costs one decode. The pictures gate proves the copies hold the same standard.
+- A visitor never waits on a master: a missing copy with only a smaller copy made is answered at once by the smaller one (uncached) and the real one follows behind, one at a time.
+- The load test (`npm run load`): forty visitors over sixty works of four sizes; p95, errors, the stand-in, memory growth; a gate before any promotion that touches the pictures or the governor.
+- The website's memory line: past 60% of the box `/healthz` says `mem.over`, the watch fails and the alarm writes the house.
+- docs/STABILITY.md: the week's faults and their causes, the rules, the gates, the checklist to leave the freeze, the rhythm, who does what.
+
 ## 1.71.3 · The website keeps its memory for visitors · 7 November 2026
 - The warm (every work's display copies, made ahead) runs on the worker only; the website held 3.8 GB within two hours making copies of 20,000 works beside the visitors, and pictures stopped coming.
 

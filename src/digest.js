@@ -83,6 +83,7 @@ function mountDigest(app, { db, C, mail, ledger }) {
     if (five > ALARM_5XX) out.push(`${five} server errors in the last hour`);
     const lastFault = F.last && F.last.at && Date.now() - new Date(F.last.at).getTime() < 3600e3 ? F.last : null;
     if (lastFault) out.push(`a ${lastFault.kind} at ${when(lastFault.at)}: ${String(lastFault.message).slice(0, 160)}`);
+    const G = app.locals.governor; if (G && G.over && G.over()) out.push(`the website holds ${Math.round(process.memoryUsage().rss / 1048576)} MB, over its line of ${G.webLineMb} MB: restart the service and look at what grew`);
     if (H.register === false) out.push('the register fails to verify');
     if (H.backup && H.backup.stale) out.push(`the last good backup is stale (${H.backup.last ? when(H.backup.last.at) : 'none'})`);
     if (V.lost && V.lost.length) out.push(`${V.lost.length} original${V.lost.length === 1 ? '' : 's'} not on disk and not in the vault: ${V.lost.slice(0, 5).join(', ')}`);
