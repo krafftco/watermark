@@ -2796,7 +2796,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); }
   console.log('ok: see the watermark');
   // The stroll through one set: from the photograph tapped, in the set's own order, never past its end.
-  { const all = db.prepare("SELECT slug FROM works WHERE status='held'").all().map(r => r.slug);
+  { const all = db.prepare("SELECT slug FROM works w WHERE w.status='held'" + require('../src/wall').sql('w')).all().map(r => r.slug); // the collection holds to the wall standard (7 Nov)
     let r = await req(port, 'GET', '/wander?at=' + all[0] + '&in=collection'); assert.equal(r.status, 200); assert.ok(/st-set/.test(r.body.toString()), 'the set is named up top');
     const got = new Set([all[0]]); let seen = [all[0]], end = false;
     for (let k = 0; k < 20 && !end; k++) { r = await req(port, 'GET', '/api/stroll?n=8&in=collection&seen=' + encodeURIComponent(seen.join(','))); const j = JSON.parse(r.body.toString()); j.items.forEach(w => { assert.ok(!got.has(w.slug), 'never twice: ' + w.slug); got.add(w.slug); seen.push(w.slug); }); end = j.end; }
