@@ -43,6 +43,7 @@ jobs:
           LOAD_C: '20'
           LOAD_S: '25'
           LOAD_P95_MS: '2500'
+          LOAD_GROW_MB: '450'   # the runner's caches fill from cold (sharp, the find index, V8); a leak shows as growth past this, not under it
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 25
