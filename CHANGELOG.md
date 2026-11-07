@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.71.3 · The website keeps its memory for visitors · 7 November 2026
+- The warm (every work's display copies, made ahead) runs on the worker only; the website held 3.8 GB within two hours making copies of 20,000 works beside the visitors, and pictures stopped coming.
+
 ## 1.71.2 · Whose hand, in minutes · 6 November 2026
 
 - The look at whose hand compares each file with the three closest catalogued works, not all of them: Leonardo's three thousand files in minutes instead of hours.
