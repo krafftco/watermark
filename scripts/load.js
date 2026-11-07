@@ -36,7 +36,7 @@ async function house() {
     // the seeding app's connection stays open (its timers run on; closing it under them threw on the runner)
   }
   const port = 3300 + Math.floor(Math.random() * 500);
-  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, NODE_ENV: 'production', DATA_DIR: dir, PORT: String(port), ADMIN_PASSWORD: 'pw', SESSION_SECRET: 's', BASE_URL: `http://127.0.0.1:${port}`, CHORES: '0', NO_SEED: '1', CLOSER_FILL: '0', SPEECH_FILL: '0' }, stdio: ['ignore', 'ignore', 'inherit'] });
+  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, NODE_ENV: 'production', DATA_DIR: dir, PORT: String(port), ADMIN_PASSWORD: 'pw', SESSION_SECRET: 's', BASE_URL: `http://127.0.0.1:${port}`, CHORES: '0', NO_SEED: '1', MALLOC_ARENA_MAX: process.env.MALLOC_ARENA_MAX || '2', CLOSER_FILL: '0', SPEECH_FILL: '0' }, stdio: ['ignore', 'ignore', 'inherit'] });
   const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 60; i++) { try { if ((await fetch(base + '/healthz')).ok) break; } catch (e) { /* not yet */ } await new Promise(r => setTimeout(r, 500)); }
   const j = await (await fetch(base + '/api/v1/works?limit=200')).json();
@@ -50,8 +50,9 @@ async function warm(base, slugs, stats) {
 }
 
 async function memOf(base) {
-  try { const j = await (await fetch(base + '/healthz')).json(); return j.mem && j.mem.rssMB; } catch (e) { return null; }
+  try { const j = await (await fetch(base + '/healthz')).json(); heapLast = j.mem && j.mem.heapMB; return j.mem && j.mem.rssMB; } catch (e) { return null; }
 }
+let heapLast = null;
 
 async function run() {
   const live = process.env.LOAD_BASE;
@@ -80,7 +81,7 @@ async function run() {
     if (r.headers.get('x-stand-in') !== '1' || dt > 800) { console.log('load: FAULT the stand-in did not answer at once'); process.exit(1); }
     await new Promise(r => setTimeout(r, 4000)); const r2 = await fetch(`${base}/img/${s0}/large`); await r2.arrayBuffer(); console.log(`stand-in: the real copy ${r2.headers.get('x-stand-in') ? 'still' : 'now'} in place`); }
   const cold = { t: [], err: 0, bytes: 0 }; if (H) await warm(base, slugs, cold);
-  const m0 = await memOf(base);
+  const m0 = await memOf(base); const h0 = heapLast;
   const until = Date.now() + S * 1000; let n = 0;
   async function visitor(i) {
     while (Date.now() < until) {
@@ -95,7 +96,7 @@ async function run() {
     }
   }
   await Promise.all(Array.from({ length: C }, (_, i) => visitor(i)));
-  const m1 = await memOf(base);
+  const m1 = await memOf(base); const h1 = heapLast;
   const q = (a, p) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
   const faults = [];
   console.log(`load: ${C} visitors for ${S}s over ${slugs.length} works${live ? ' at ' + live : ''}`);
@@ -108,7 +109,7 @@ async function run() {
     if (!/thumb|screen|large/.test(k) && p95 > P95) faults.push(`${k}: p95 ${p95} ms over ${P95}`);
   }
   if (cold.t.length) console.log(`cold pictures (first look, one at a time): n ${cold.t.length}, p50 ${q(cold.t, 0.5)}, p95 ${q(cold.t, 0.95)}, max ${q(cold.t, 1)} ms, err ${cold.err}`);
-  console.log(`memory: ${m0} → ${m1} MB${m0 != null && m1 != null ? ` (${m1 - m0 >= 0 ? '+' : ''}${m1 - m0})` : ''}`);
+  console.log(`memory: rss ${m0} → ${m1} MB${m0 != null && m1 != null ? ` (${m1 - m0 >= 0 ? '+' : ''}${m1 - m0})` : ''}; heap ${h0} → ${h1} MB`);
   if (m0 != null && m1 != null && m1 - m0 > GROW) faults.push(`memory grew ${m1 - m0} MB, over ${GROW}`);
   if (H) H.close();
   if (faults.length) { console.log('load: FAULTS\n  ' + faults.join('\n  ')); process.exit(1); }
