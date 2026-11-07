@@ -29,7 +29,8 @@ function mountMuseums(app, { db, C, V, studioOnly }) {
   const buyerOf = req => (app.locals.buyerOf ? app.locals.buyerOf(req) : null);
 
   // The halls: a fragment for every query that fills the house's own walls.
-  const hallSql = (a = 'w') => ` AND (${a}.hall=1 OR ${a}.maker_id NOT IN (SELECT id FROM makers WHERE door='record'))`;
+  const WALL = require('./wall'); // the wall standard (7 Nov): the open walls show only what can fill a screen
+  const hallSql = (a = 'w') => ` AND (${a}.hall=1 OR ${a}.maker_id NOT IN (SELECT id FROM makers WHERE door='record'))` + WALL.sql(a);
   // A museum's wall: how many more may go on view.
   const onView = m => db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(m.id).n;
   const wallLeft = m => (!m || m.door !== 'record' ? Infinity : Math.max(0, MUSEUM_WALL - onView(m)));

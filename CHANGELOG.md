@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.73.0 · The wall standard · 7 November 2026
+
+- The house's open walls (Wander, today's work, the collection, Discover and its walks by time, place, movement, medium and artist, the Latest row, For you) show only a work whose master can fill a screen: 2,400 pixels on the long side, and no reading by the standard that found it soft, blurred, blank or badly edged. A work under the line stays on its maker's own page and in every set a person chose; the record says why, and the full file puts it up by itself. The house may say otherwise per work.
+- The standard reads living makers' work too (size, sharpness, the edges; never Al, never taken down by the house): a reading of 'down' keeps a work off the open walls only.
+- The line brings in the Art Institute of Chicago and the Cleveland Museum of Art (open access, CC0) a page at a time, each onto a desk under the museum's name, and all of Standard Ebooks in one press.
+- The Screening Room can show a film silent, with the house's quiet music, when the transfer's score is not known to be free.
+
 ## 1.72.0 · The freeze · 7 November 2026
 - Every picture copy is made from the copy above it, never the master decoded again: the warm goes largest first; a WebP is made from its JPEG; a thumb from the screen copy. A 60 MP work costs one decode. The pictures gate proves the copies hold the same standard.
 - A visitor never waits on a master: a missing copy with only a smaller copy made is answered at once by the smaller one (uncached) and the real one follows behind, one at a time.

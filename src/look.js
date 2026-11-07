@@ -60,7 +60,7 @@ ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([
   const esc2 = esc; const img = (slug, size = 'screen') => `/img/${encodeURIComponent(slug)}/${size}`;
   const all = (sql, ...a) => { try { return db.prepare(sql).all(...a); } catch (e) { return []; } };
   const dates = a => (a.born && a.died ? `${a.born}–${a.died}` : a.died ? `d. ${a.died}` : a.born ? `b. ${a.born}` : '');
-  const SAFE = "w.status='held' AND COALESCE(w.zone,'all')!='mature'";
+  const SAFE = "w.status='held' AND COALESCE(w.zone,'all')!='mature'" + require('./wall').sql('w'); // the open walls hold to the wall standard (7 Nov)
   const wt = (w, set) => ({ href: set ? `/wander?in=${set}&at=${encodeURIComponent(w.slug)}` : `/w/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: [w.artist || w.maker, w.year || (w.taken_at || '').slice(0, 4)].filter(Boolean).join(' · '), wide: (w.width || 0) > (w.height || 0) * 1.3 });
   const WSEL = "SELECT w.slug, w.title, w.width, w.height, w.taken_at, m.name AS maker, a.name AS artist FROM works w JOIN makers m ON m.id=w.maker_id LEFT JOIN artists a ON a.id=w.artist_id";
   let dcache = { at: 0, html: '' };

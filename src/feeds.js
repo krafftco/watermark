@@ -149,7 +149,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   }
   // The tree as the Studio sees it (so a category can be checked from the house before it is lined up).
   app.get('/studio/feeds/commons', studioOnly, async (req, res) => { try { res.json({ cats: await commonsTree(String(req.query.cat || '').replace(/_/g, ' ')) }); } catch (e) { res.status(500).json({ error: e.message }); } });
-  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)'], ['catalogue', 'An artist’s catalogue (Wikidata; from the hall)'], ['loc', 'Library of Congress books (a loc.gov collection or search address; the PDF and its text per item)'], ['nga', 'The National Gallery of Art, Washington (open access; a hundred at a time, by classification)']];
+  const KINDS = [['auto', 'Let the house read it'], ['csv', 'A CSV (title, image, source, place, date, medium, description, artist, kind, credit)'], ['oai', 'OAI-PMH (Dublin Core)'], ['iiif', 'A IIIF manifest or collection'], ['met', 'The Met’s open access'], ['books', 'A list of books (Gutenberg numbers, or Title, Author a line)'], ['documents', 'A CSV of documents (title, author, pdf, year, source, terms)'], ['ia', 'Internet Archive texts (a search address, or identifiers a line)'], ['guides', 'A CSV of spoken guides (work, audio, transcript, title, speaker, role, lang, license)'], ['se', 'Standard Ebooks (addresses or repositories a line; or the whole catalogue: https://standardebooks.org/ebooks)'], ['si', 'Smithsonian Open Access (an api.si.edu search; SI_API_KEY in the environment)'], ['commons', 'Wikimedia Commons (a category’s address)'], ['catalogue', 'An artist’s catalogue (Wikidata; from the hall)'], ['loc', 'Library of Congress books (a loc.gov collection or search address; the PDF and its text per item)'], ['nga', 'The National Gallery of Art, Washington (open access; a hundred at a time, by classification)'], ['aic', 'The Art Institute of Chicago (open access; an address with q=, page=)'], ['cma', 'The Cleveland Museum of Art (open access; an address with q=, highlight=1, page=)']];
   function kindOf(job) {
     if (job.kind && job.kind !== 'auto') return job.kind;
     const u = String(job.url || ''); if (job.file) { if (/\.(txt|list)$/i.test(job.file)) return 'books'; try { const h = fs.readFileSync(job.file, 'utf8').split(/\r?\n/)[0] || ''; if (/(^|,)\s*"?pdf"?\s*(,|$)/i.test(h)) return 'documents'; if (/(^|,)\s*"?audio"?\s*(,|$)/i.test(h)) return 'guides'; } catch (e) { /* csv */ } return 'csv'; }
@@ -212,6 +212,19 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
         const want = Math.min(50, LIM - n); const r = await N.items({ cls: sp.cls, offset: sp.offset + at, n: want });
         at += r.items.length; n += r.items.length; yield { items: r.items, cursor: String(at) };
         if (r.items.length < want) return;
+      }
+      return;
+    }
+    if (kind === 'aic' || kind === 'cma') {
+      // The Art Institute of Chicago and the Cleveland Museum of Art (7 Nov): their open APIs through the scout's own
+      // readers (src/scout.js), a page at a time; the address carries the search (q, highlight, onview, page).
+      const S = app.locals.scout; if (!S || !S.READ[kind]) throw new Error('the scout is not mounted');
+      const u = new URL(job.url); const spec = { q: u.searchParams.get('q') || '', highlight: u.searchParams.get('highlight') === '1', onview: u.searchParams.get('onview') === '1' };
+      let page = +job.cursor || +u.searchParams.get('page') || 1, n = 0;
+      while (n < LIM) {
+        const r = await S.READ[kind]({ ...spec, page }); const items = (r.items || []).filter(i => i.open);
+        page++; n += items.length; yield { items, cursor: String(page) };
+        if (!(r.items || []).length) return;
       }
       return;
     }

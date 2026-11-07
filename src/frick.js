@@ -35,12 +35,18 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
 
   // The shelves: works whose maker is an institution or the house's shelf, or any work open to everyone.
   const SHELF = "(w.open IN ('pd','cc0','cc-by','cc-by-sa') OR m.kind IN ('institution') OR m.handle='the-public-domain')";
+  // Living makers (7 Nov, Will: "a certain megapixel, blurriness, or resolution: we got to take it off the wall"): the
+  // house measures a living maker's held work too (size, sharpness, edges; never Al, never taken down by the house); a
+  // reading of 'down' keeps the work off the house's open walls only (wall.js), on its maker's own page as ever.
+  const LIVING = "(w.open IS NULL AND COALESCE(m.kind,'maker') IN ('maker','estate','writer') AND m.handle<>'the-public-domain')";
+  const shelfOf = s => (s && s.living ? LIVING : SHELF);
   function scopeSql(s) {
+    if (s && s.living) return { sql: '', args: [] };
     if (s && s.artist) return { sql: 'AND w.artist_id=?', args: [s.artist] };
     if (s && s.maker) return { sql: 'AND w.maker_id=?', args: [s.maker] };
     return { sql: '', args: [] };
   }
-  const onView = (s, unread) => { const q = scopeSql(s); return db.prepare(`SELECT w.id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND ${SHELF} ${q.sql} ${unread ? 'AND w.frick IS NULL' : ''} ORDER BY w.id`).all(...q.args).map(r => r.id); };
+  const onView = (s, unread) => { const q = scopeSql(s); return db.prepare(`SELECT w.id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND ${shelfOf(s)} ${q.sql} ${unread ? 'AND w.frick IS NULL' : ''} ORDER BY w.id`).all(...q.args).map(r => r.id); };
   const row = id => db.prepare('SELECT id, slug, title, caption, width, height, artist_id, maker_id, original_file, sha256, frick, status FROM works WHERE id=?').get(id);
   const readOf = w => { try { return JSON.parse(w.frick || 'null'); } catch (e) { return null; } };
 
@@ -97,7 +103,7 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
   }
 
   const jobs = new Map(); // scope key → { running, done, total, down, check, hang, failed, at, last, auto }
-  const keyOf = s => s && s.artist ? `a:${s.artist}` : s && s.maker ? `m:${s.maker}` : 'all';
+  const keyOf = s => s && s.living ? 'living' : s && s.artist ? `a:${s.artist}` : s && s.maker ? `m:${s.maker}` : 'all';
   function takeDown(w, why, by = 'frick') {
     const r = db.prepare("UPDATE works SET status='hidden', status_before='held', keep_back=1, tidy=?, tidy_at=? WHERE id=? AND status='held' AND tidy IS NULL").run(`below the standard: ${why}`, new Date().toISOString(), w.id);
     if (r.changes) { try { ledger.append(db, 'work.tidied', w.slug, { by, why }); } catch (e) { /* */ } }
@@ -110,12 +116,13 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
   }
   function run(s = {}, { again = false, auto = false } = {}) {
     const k = keyOf(s); const j0 = jobs.get(k); if (j0 && j0.running) return j0;
+    const living = !!(s && s.living); if (living) auto = false; // the house never takes a living maker's work down
     const ids = onView(s, !again);
     const job = { running: true, done: 0, total: ids.length, down: 0, check: 0, hang: 0, failed: 0, taken: 0, at: Date.now(), last: null, auto, al: alOn() };
     jobs.set(k, job); if (!ids.length) { job.running = false; return job; }
     (async () => {
       // The shelf's middle sharpness, from what is already read and the first files read now.
-      const prior = db.prepare(`SELECT w.frick FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.frick IS NOT NULL AND ${SHELF} LIMIT 4000`).all().map(r => { try { return JSON.parse(r.frick).m.sharpness; } catch (e) { return null; } }).filter(x => x > 0);
+      const prior = db.prepare(`SELECT w.frick FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.frick IS NOT NULL AND ${shelfOf(s)} LIMIT 4000`).all().map(r => { try { return JSON.parse(r.frick).m.sharpness; } catch (e) { return null; } }).filter(x => x > 0);
       const mid = () => { const a = prior.slice().sort((x, y) => x - y); return a.length >= 12 ? a[Math.floor(a.length / 2)] : null; };
       const P = Math.max(1, N('FRICK_PARALLEL') || 3); let i = 0; const downIds = [];
       const one = async () => {
@@ -124,7 +131,7 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
           try {
             const m = await measure(w); prior.push(m.sharpness);
             const hf = houseFaults(m, mid());
-            let al = null; if (alOn() && !hf.some(f => f.hard)) { try { al = await look(w, m, hf); } catch (e) { job.last = e.message; } }
+            let al = null; if (alOn() && !living && !hf.some(f => f.hard)) { try { al = await look(w, m, hf); } catch (e) { job.last = e.message; } }
             const verdict = decide(hf, al);
             const reading = { at: new Date().toISOString(), m, house: hf, al, verdict, by: al ? 'house and Al' : 'house' };
             db.prepare('UPDATE works SET frick=? WHERE id=?').run(JSON.stringify(reading), w.id);
@@ -145,10 +152,11 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
   // The readings that wait for the hand: down (to take off) and check (a person looks), by scope.
   function waiting(s, verdict) {
     const q = scopeSql(s);
-    return db.prepare(`SELECT w.id, w.slug, w.title, w.width, w.height, w.frick FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND w.frick IS NOT NULL AND ${SHELF} ${q.sql} ORDER BY w.id`).all(...q.args)
+    return db.prepare(`SELECT w.id, w.slug, w.title, w.width, w.height, w.frick FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND w.frick IS NOT NULL AND ${shelfOf(s)} ${q.sql} ORDER BY w.id`).all(...q.args)
       .map(w => ({ ...w, r: readOf(w) })).filter(w => w.r && w.r.verdict === verdict);
   }
   function apply(s, slugs) {
+    if (s && s.living) return 0; // a living maker's work is never taken down by the house's rule; a person's hand only
     const list = waiting(s, 'down').filter(w => !slugs || slugs.includes(w.slug)); let n = 0; const ids = [];
     db.transaction(() => { for (const w of list) if (takeDown(w, whyOf(w.r))) { n++; ids.push(w.id); } })();
     after(ids); return n;
@@ -161,11 +169,12 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
   }
   function keep(slug) { // a person says it hangs: read as hang, never asked again unless read again
     const w = db.prepare('SELECT id, frick FROM works WHERE slug=?').get(slug); if (!w) return 0;
-    const r = readOf(w) || {}; r.verdict = 'hang'; r.kept = new Date().toISOString(); db.prepare('UPDATE works SET frick=? WHERE id=?').run(JSON.stringify(r), w.id); return 1;
+    const r = readOf(w) || {}; r.verdict = 'hang'; r.kept = new Date().toISOString(); db.prepare('UPDATE works SET frick=? WHERE id=?').run(JSON.stringify(r), w.id);
+    try { ledger.append(db, 'frick.kept', slug, {}); } catch (e) { /* the open wander's pool is keyed on the register's head */ } return 1;
   }
 
   // The desk.
-  const scopeOf = q => { const a = q.artist ? db.prepare('SELECT id, slug, name FROM artists WHERE slug=?').get(String(q.artist)) : null; const m = !a && q.maker ? db.prepare('SELECT id, handle, name FROM makers WHERE handle=?').get(String(q.maker)) : null; return { s: a ? { artist: a.id } : m ? { maker: m.id } : {}, label: a ? a.name : m ? m.name : 'Every shelf', qs: a ? `artist=${encodeURIComponent(a.slug)}` : m ? `maker=${encodeURIComponent(m.handle)}` : '' }; };
+  const scopeOf = q => { if (q.living) return { s: { living: true }, label: 'Living makers', qs: 'living=1' }; const a = q.artist ? db.prepare('SELECT id, slug, name FROM artists WHERE slug=?').get(String(q.artist)) : null; const m = !a && q.maker ? db.prepare('SELECT id, handle, name FROM makers WHERE handle=?').get(String(q.maker)) : null; return { s: a ? { artist: a.id } : m ? { maker: m.id } : {}, label: a ? a.name : m ? m.name : 'Every shelf', qs: a ? `artist=${encodeURIComponent(a.slug)}` : m ? `maker=${encodeURIComponent(m.handle)}` : '' }; };
   const tile = (w, act) => { const r = w.r || {}; const f = whyOf(r); return `<figure class="fk-w"><a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a><figcaption><b>${esc(w.title || w.slug)}</b><small>${w.width || '?'} × ${w.height || '?'}${r.al ? ` · Al ${r.al.score}` : ''}</small><i>${esc(f)}</i>${r.al && r.al.why ? `<em>${esc(r.al.why)}</em>` : ''}${act || ''}</figcaption></figure>`; };
   app.get('/studio/standard', studioOnly, (req, res) => {
     const sc = scopeOf(req.query); const k = keyOf(sc.s); const j = jobs.get(k);
@@ -180,12 +189,12 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
     const body = `<section class="studio-wrap fk"><p class="k"><a href="/studio">The house</a> · Bringing in</p><h1>The standard</h1>
 <p class="note">The Frick's rule: on the wall, only clean, whole, faithful reproductions. Every picture on the house's shelves (the public domain and the museums' open access) is measured by the house (size, sharpness against the shelf, the edges) and looked at by Al${alOn() ? '' : ' (Al is off: no key, so the house measures alone)'}. What falls short comes off the wall, named; nothing is deleted, and every one can be put back.</p>
 ${req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : ''}
-<nav class="fk-scope"><a href="/studio/standard"${!sc.qs ? ' aria-current="page"' : ''}>Every shelf</a>${insts.map(m => `<a href="/studio/standard?maker=${esc(m.handle)}">${esc(m.name)} · ${m.n}</a>`).join('')}</nav>
+<nav class="fk-scope"><a href="/studio/standard"${!sc.qs ? ' aria-current="page"' : ''}>Every shelf</a><a href="/studio/standard?living=1"${sc.s.living ? ' aria-current="page"' : ''}>Living makers</a>${insts.map(m => `<a href="/studio/standard?maker=${esc(m.handle)}">${esc(m.name)} · ${m.n}</a>`).join('')}</nav>
 <details class="fk-arts"><summary>By artist</summary><p>${artists.map(a => `<a href="/studio/standard?artist=${esc(a.slug)}">${esc(a.name)} <small>${a.n}${a.u ? ` · ${a.u} unread` : ''}</small></a>`).join(' · ')}</p></details>
 <h2>${esc(sc.label)}</h2>
 <p class="fk-line"><b>${onN}</b> on the wall · <b>${onN - unread}</b> read · <b>${down.length}</b> to come down · <b>${check.length}</b> for your eye · <b>${goneN}</b> off the wall by the standard</p>
-${j && j.running ? `<p class="fk-live">Reading… ${j.done} of ${j.total}${j.auto ? ` · ${j.taken} taken down` : ''}${j.failed ? ` · ${j.failed} could not be read` : ''}</p><script>setTimeout(()=>location.reload(),5000)</script>` : `<div class="fk-acts">${unread ? act('run', `Read the ${unread} unread and take down what fails`, 'buy-btn', '<input type="hidden" name="auto" value="1">') + act('run', 'Read only, I will look') : ''}${onN - unread ? act('run', 'Read everything again', 'btn', '<input type="hidden" name="again" value="1">') : ''}</div>${j && j.last ? `<p class="note">Last: ${esc(j.last)}</p>` : ''}`}
-${down.length ? `<h3>To come down · ${down.length}</h3>${act('apply', `Take these ${down.length} off the wall`, 'buy-btn')}<div class="fk-g">${down.slice(0, 300).map(w => tile(w, `<form method="post" action="/studio/standard/keep${sc.qs ? `?${sc.qs}` : ''}"><input type="hidden" name="slug" value="${esc(w.slug)}"><button class="fk-k">It hangs</button></form>`)).join('')}</div>` : ''}
+${sc.s.living ? `<p class="note">A living maker’s work is measured by the house alone (size, sharpness, the edges) and never taken down by it: a reading of ‘down’ keeps the work off the house’s open walls (Wander, today, the collection, Discover; the wall standard asks for ${app.locals.wall ? app.locals.wall.WALL_MIN_PX : 2400} px on the long side too) and leaves it on the maker’s own page. ‘It hangs’ puts it back on the open walls.</p>` : ''}${j && j.running ? `<p class="fk-live">Reading… ${j.done} of ${j.total}${j.auto ? ` · ${j.taken} taken down` : ''}${j.failed ? ` · ${j.failed} could not be read` : ''}</p><script>setTimeout(()=>location.reload(),5000)</script>` : `<div class="fk-acts">${unread ? (sc.s.living ? act('run', `Read the ${unread} unread`, 'buy-btn') : act('run', `Read the ${unread} unread and take down what fails`, 'buy-btn', '<input type="hidden" name="auto" value="1">') + act('run', 'Read only, I will look')) : ''}${onN - unread ? act('run', 'Read everything again', 'btn', '<input type="hidden" name="again" value="1">') : ''}</div>${j && j.last ? `<p class="note">Last: ${esc(j.last)}</p>` : ''}`}
+${down.length ? `<h3>${sc.s.living ? `Off the open walls by the reading · ${down.length}` : `To come down · ${down.length}`}</h3>${sc.s.living ? '' : act('apply', `Take these ${down.length} off the wall`, 'buy-btn')}<div class="fk-g">${down.slice(0, 300).map(w => tile(w, `<form method="post" action="/studio/standard/keep${sc.qs ? `?${sc.qs}` : ''}"><input type="hidden" name="slug" value="${esc(w.slug)}"><button class="fk-k">It hangs</button></form>`)).join('')}</div>` : ''}
 ${check.length ? `<h3>For your eye · ${check.length}</h3><p class="note">The house or Al was not sure. Keep what hangs; take down the rest.</p><div class="fk-g">${check.slice(0, 300).map(w => tile(w, `<form method="post" action="/studio/standard/keep${sc.qs ? `?${sc.qs}` : ''}"><input type="hidden" name="slug" value="${esc(w.slug)}"><button class="fk-k">It hangs</button></form><form method="post" action="/studio/standard/apply${sc.qs ? `?${sc.qs}` : ''}"><input type="hidden" name="slugs" value="${esc(w.slug)}"><input type="hidden" name="check" value="1"><button class="fk-d">Take it down</button></form>`)).join('')}</div>` : ''}
 ${goneN ? `<h3>Off the wall by the standard · ${goneN}</h3>${act('back', 'Put them all back')}<div class="fk-gone">${gone.map(w => `<a href="/studio/works/${esc(w.slug)}" title="${esc(w.title)} · ${esc(String(w.tidy).replace('below the standard: ', ''))}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div>` : ''}
 </section>`;

@@ -3,7 +3,7 @@
 Wander is the app; Watermark powers it (docs/HOUSE.md). This page is the standard Wander is held to: ten sentences that must be true on a phone and on a desk, each one checked by the walk (`node scripts/wander-walk.js`, against a running house; `WALK_BASE` names it, default http://localhost:3081). A change to Wander ships only when the walk prints `wander: all ten hold`.
 
 1. **It opens on a picture.** The first screens are in the HTML; nothing waits for a script before a photograph is on the wall. The page is never wider than the screen.
-2. **The picture is whole and true.** Edge to edge on the dark, never cropped, never shown larger than its pixels allow (a quarter's grace over one image pixel per device pixel).
+2. **The picture is whole and true.** Edge to edge on the dark, never cropped, never shown larger than its pixels allow (a quarter's grace over one image pixel per device pixel). And on the open wander nothing that cannot fill the screen: the wall standard (src/wall.js; Will, 7 Nov: "if it can't meet frame-to-frame, it can't show") keeps a master under WALL_MIN_PX (2,400 on the long side) or read as soft, blurred, blank or badly edged (frick.js) off the house's open walls; it stays on its maker's own page and in any set a person chose.
 3. **One finger moves, two fingers look.** One finger moves one screen on or back and never gets stuck; two fingers zoom and the zoom holds; a double-tap zooms in on the spot; a flick lets a zoom go. The hat is on the rail only.
 4. **Nothing on the wall counts you.** No number on the rail, the plate or the picture; the hat reads Hat, never a count.
 5. **Stillness is honoured.** Six seconds without a movement and the chrome fades to nothing; any touch, wheel or key brings it back.

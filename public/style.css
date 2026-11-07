@@ -5614,3 +5614,5 @@ html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
 .lk-s .k{margin:0 0 6px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
 .lk-s h3{margin:0 0 10px;font:400 22px/1.15 var(--disp,Georgia),serif;color:#f3efe7}
 .lk-s .whp-strip{grid-template-columns:repeat(4,1fr);margin:0 0 10px}
+/* The wall standard (7 Nov): the record's line on the open walls */
+.wl{margin:18px 0}.wl .wl-ok,.wl .wl-no{font-size:15px}.wl .wl-no{color:#8a2d12}.wl p small{display:block;margin-top:4px;font-size:13px;color:var(--mu,#777)}.wl .wl-f{display:flex;gap:8px;align-items:center;margin-top:8px}.wl .wl-f select{padding:6px 8px;border:1px solid var(--ln,#ccc);border-radius:3px}

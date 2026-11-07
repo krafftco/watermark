@@ -1982,6 +1982,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='screening.shown'").get(), 'told on the register');
     r = await req(port, 'GET', '/ledger'); assert.ok(/The Screening Room showed/.test(r.body));
     r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'X', source_url: 'http://insecure.example/x.mp4' } }); assert.ok(/https address/.test(decodeURIComponent(r.headers.location)), 'only the house’s own https sources');
+    { // the score (7 Nov): a film shown silent with the house's quiet music is muted in the room and says so
+      r = await req(port, 'POST', '/studio/screening/film', { cookie: ck, body: { title: 'The Silent One', filmmaker: 'B. Keaton', year: '1924', minutes: '45', source_url: 'https://films.example/silent.mp4', status: 'showing', score: 'house' } });
+      const f = db.prepare("SELECT * FROM films WHERE title='The Silent One'").get(); assert.strictEqual(f.score, 'house', 'the score kept');
+      r = await req(port, 'GET', `/screening/${f.slug}?preview=1`, { cookie: ck }); assert.ok(/<video[^>]* muted/.test(r.body) && /house’s quiet music/.test(r.body) && /"score":"house"/.test(r.body), 'muted, with the house’s music: ' + r.status);
+    }
   }
   { // The first film: Sunrise, seeded with a showing the next evening at nine, New York; never twice.
     app.locals.screeningSeed(); app.locals.screeningSeed();

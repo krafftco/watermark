@@ -8,7 +8,7 @@ const { esc } = require('./views');
 function mountWalk(app, { db, V, SERIES }) {
   const TTL = 60e3, cache = new Map();
   const SEL = 'SELECT w.id, w.slug, w.title, w.width, w.height, w.maker_id FROM works w';
-  const SAFE = "w.status='held' AND COALESCE(w.zone,'all')!='mature'";
+  const SAFE = "w.status='held' AND COALESCE(w.zone,'all')!='mature'" + require('./wall').sql('w'); // the open walls hold to the wall standard (7 Nov)
   const ORD = 'ORDER BY w.curated DESC, w.stars DESC, w.id DESC';
   const dec = s => { try { return decodeURIComponent(s); } catch (e) { return s; } };
   const DSC = {

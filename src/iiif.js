@@ -187,6 +187,18 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
     }
     return m;
   }
+  // A museum's own desk for its open access (7 Nov): the Art Institute and Cleveland, each under its own name, made once.
+  const DESKS = { aic: ['art-institute-of-chicago', 'The Art Institute of Chicago', 'https://www.artic.edu'], cma: ['cleveland-museum-of-art', 'The Cleveland Museum of Art', 'https://www.clevelandart.org'] };
+  function museumDesk(src) {
+    const d = DESKS[src]; if (!d) return demoDesk();
+    let m = db.prepare('SELECT * FROM makers WHERE handle=?').get(d[0]);
+    if (!m) {
+      db.prepare("INSERT INTO makers (handle, name, kind, bio, site, share_pct, joined_at) VALUES (?, ?, 'institution', ?, ?, 85, datetime('now'))").run(d[0], d[1], `The open-access collection of ${d[1]}, brought in through its own public API (CC0). This is the house's reading of what the museum has made free to everyone; it is not the museum's own door, and the house is not connected with the museum.`, d[2]);
+      m = db.prepare('SELECT * FROM makers WHERE handle=?').get(d[0]);
+      const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); DEFAULT_USES.forEach(u => ins.run(m.id, ...u));
+    }
+    return m;
+  }
   app.post('/studio/iiif/demo', studioOnly, (req, res) => {
     const m = demoDesk();
     return enqueue(m.id, { url: 'https://collectionapi.metmuseum.org/public/collection/v1.1/search?isHighlight=true&hasImages=true&q=painting', open: 'cc0', show: '1', max: String(+(req.body || {}).max || 100) }, res);
@@ -249,7 +261,7 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
 <section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
   });
 
-  app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch, demoDesk, fetchPicture };
+  app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch, demoDesk, museumDesk, fetchPicture };
   return app.locals.iiif;
 }
 module.exports = { mountIIIF, parseManifest, parseMet, rightsKey };
