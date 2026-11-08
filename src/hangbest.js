@@ -98,7 +98,7 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
         const art = app.locals.art;
         if (art && art.attribute && process.env.ANTHROPIC_API_KEY) {
           const un = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status='hidden' AND keep_back=0 AND attribution IS NULL AND (stars >= ? OR curated=1) LIMIT 400`).all(m.id, from).filter(w => !place || String(w.place || '').toLowerCase().includes(place.toLowerCase())).slice(0, 40);
-          for (const w of un) { try { await art.attribute(w); } catch (e) { /* stays unread */ } }
+          for (const w of un) { if (app.locals.spend && !app.locals.spend.ok('art.asked')) break; try { await art.attribute(w); } catch (e) { /* stays unread */ } }
         }
         job.plan = await plan(m, from, place);
       } catch (e) { job.error = e.message; console.error('[hang]', e.message); }

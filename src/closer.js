@@ -155,6 +155,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
       for (const { id } of db.prepare("SELECT id FROM works WHERE status='held' AND closer IS NULL AND (curated=1 OR stars>=?) ORDER BY curated DESC, stars DESC, id").all(GUIDE_STARS)) {
         if (n >= limit) break;
         const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
+        if (app.locals.spend && !app.locals.spend.ok('closer')) break;
         try { if (await write(w)) n++; } catch (e) { console.error('[closer]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; }
         await new Promise(r => setTimeout(r, 1500));
       }
@@ -164,6 +165,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
         if (n >= limit) break;
         const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
         if (studies++ >= PER) break;
+        if (app.locals.spend && !app.locals.spend.ok('study')) break;
         try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyMissed: new Date().toISOString() }); }
         await new Promise(r => setTimeout(r, 4000));
       }
@@ -189,8 +191,9 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug)); if (!may(req, w)) return res.sendStatus(403);
     const b = req.body || {}, c = read(w);
     try {
-      if (b.act === 'write') { await write(w); return res.redirect(`/closer/${w.slug}?ok=written`); }
-      if (b.act === 'study') { await study(w); return res.redirect(`/closer/${w.slug}?ok=studied`); }
+      const S = app.locals.spend;
+      if (b.act === 'write') { if (S && !S.ok('closer.asked')) return res.redirect(`/closer/${w.slug}?ok=line`); await write(w); return res.redirect(`/closer/${w.slug}?ok=written`); }
+      if (b.act === 'study') { if (S && !S.ok('study.asked')) return res.redirect(`/closer/${w.slug}?ok=line`); await study(w); return res.redirect(`/closer/${w.slug}?ok=studied`); }
       if (b.act === 'study-hide' && c) { save(w.id, { ...c, studyHidden: true }); return res.redirect(`/closer/${w.slug}?ok=saved`); }
       if (b.act === 'study-show' && c) { save(w.id, { ...c, studyHidden: false }); return res.redirect(`/closer/${w.slug}?ok=saved`); }
       if (!c) return res.redirect(`/closer/${w.slug}`);

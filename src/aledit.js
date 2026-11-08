@@ -64,6 +64,7 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
       const one = async () => {
         while (k < todo.length) {
           const w = todo[k++];
+          if (app.locals.spend && !app.locals.spend.ok('aledit')) { job.last = 'Al has reached the day’s line'; k = todo.length; break; }
           try {
             const g = await grade(w); g.at = new Date().toISOString();
             db.prepare('UPDATE works SET al_grade=? WHERE id=?').run(JSON.stringify(g), w.id);
@@ -78,7 +79,7 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
       job.raised = stars(m.id);
       // Read the best for people, so Hang your best can sort them at once.
       const art = app.locals.art;
-      if (art && art.attribute) for (const w of db.prepare("SELECT * FROM works WHERE maker_id=? AND status='hidden' AND stars>=4 AND attribution IS NULL").all(m.id)) { try { await art.attribute(w); job.read++; } catch (e) { /* stays unread */ } if (G) await G.settle('al edit'); }
+      if (art && art.attribute) for (const w of db.prepare("SELECT * FROM works WHERE maker_id=? AND status='hidden' AND stars>=4 AND attribution IS NULL").all(m.id)) { if (app.locals.spend && !app.locals.spend.ok('art.asked')) break; try { await art.attribute(w); job.read++; } catch (e) { /* stays unread */ } if (G) await G.settle('al edit'); }
       if (app.locals.findIndexDirty) app.locals.findIndexDirty();
       ledger.append(db, 'edit.al', m.handle, { graded: job.done - job.failed, raised: job.raised, retitled: job.retitled });
       job.running = false; job.at = Date.now();

@@ -76,6 +76,7 @@ function mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl = 
     try {
       for (const t of db.prepare("SELECT * FROM texts WHERE status='held' AND public=1 AND jacket IS NULL AND (body IS NOT NULL OR plates IS NOT NULL) ORDER BY CASE kind WHEN 'book' THEN 0 ELSE 1 END, id").all()) {
         if (n >= limit) break;
+        if (app.locals.spend && !app.locals.spend.ok('jacket')) break;
         try { if (await write(t)) n++; else save(t.id, { missed: new Date().toISOString() }); } catch (e) { console.error('[jacket]', t.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; save(t.id, { missed: new Date().toISOString(), why: e.message.slice(0, 120) }); }
         await new Promise(r => setTimeout(r, 4000));
       }
@@ -107,6 +108,7 @@ ${j.sources && j.sources.length ? `<div class="jk-src"><h3>Read further</h3><ul>
     const d = String((req.body || {}).do || 'write'); const j = read(t);
     if (d === 'hide' && j) { save(t.id, { ...j, state: 'hidden' }); return res.redirect(`/library/${t.slug}?ok=jacket-hidden`); }
     if (d === 'show' && j) { save(t.id, { ...j, state: 'shown' }); return res.redirect(`/library/${t.slug}?ok=jacket-shown`); }
+    if (app.locals.spend && !app.locals.spend.ok('jacket.asked')) return res.redirect(`/library/${t.slug}?ok=${encodeURIComponent('Al has reached the day’s line; tomorrow.')}`);
     if (!on()) return res.redirect(`/library/${t.slug}?ok=jacket-off`);
     try { await write(t); res.redirect(`/library/${t.slug}?ok=jacket-written`); } catch (e) { console.error('[jacket]', e.message); res.redirect(`/library/${t.slug}?ok=jacket-failed`); }
   });

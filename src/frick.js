@@ -131,7 +131,7 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
           try {
             const m = await measure(w); prior.push(m.sharpness);
             const hf = houseFaults(m, mid());
-            let al = null; if (alOn() && !living && !hf.some(f => f.hard)) { try { al = await look(w, m, hf); } catch (e) { job.last = e.message; } }
+            let al = null; if (alOn() && !living && !hf.some(f => f.hard) && !(app.locals.spend && !app.locals.spend.ok('frick'))) { try { al = await look(w, m, hf); } catch (e) { job.last = e.message; } }
             const verdict = decide(hf, al);
             const reading = { at: new Date().toISOString(), m, house: hf, al, verdict, by: al ? 'house and Al' : 'house' };
             db.prepare('UPDATE works SET frick=? WHERE id=?').run(JSON.stringify(reading), w.id);

@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.74.0 · The meter on Al · 8 November 2026
+
+- Every call the house makes to its AI on its own key is counted by the day and by module, and stops at a line: 400 a day for what the house does by itself in the background (reading arrivals, guides, studies, jackets, translations, For you), 1,500 for what a person pressed (the standard's look, Al's edit). AL_FILLS=0 stops every background job. The day's count is on /healthz and in the morning digest.
+- The background reading of arrivals now looks only at living makers' work; a museum's or the shelf's carries its artist in the record and is read by the standard. Reading twenty thousand museum works had been most of the bill.
+
 ## 1.73.0 · The wall standard · 7 November 2026
 
 - The house's open walls (Wander, today's work, the collection, Discover and its walks by time, place, movement, medium and artist, the Latest row, For you) show only a work whose master can fill a screen: 2,400 pixels on the long side, and no reading by the standard that found it soft, blurred, blank or badly edged. A work under the line stays on its maker's own page and in every set a person chose; the record says why, and the full file puts it up by itself. The house may say otherwise per work.

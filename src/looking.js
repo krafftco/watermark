@@ -52,6 +52,7 @@ function mountLooking(app, { db, C, buyerOf, mail, fetchImpl = (...a) => fetch(.
     return { picks: [...near, ...far], taste };
   }
   async function byClaude(b, v, cands, taste, k = 8) {
+    if (app.locals.spend && !app.locals.spend.ok('foryou')) throw new Error('the day’s line');
     const held = taste.slice(0, 10).map(t => `${t.place || 'no place'}; ${String(t.keywords || '').slice(0, 80)}; ${Math.round(t.seconds || 0)}s`).join('\n');
     const list = cands.map(c => `${c.id}: "${tidy(c.title)}" by ${c.maker}${c.place ? `, ${c.place}` : ''}${c.keywords ? ` [${String(c.keywords).slice(0, 80)}]` : ''}`).join('\n');
     const r = await fetchImpl('https://api.anthropic.com/v1/messages', { method: 'POST', signal: AbortSignal.timeout(30000),

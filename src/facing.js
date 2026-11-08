@@ -68,6 +68,7 @@ function mountFacing(app, { db, ledger, fetchImpl }) {
       while (i < paras.length) {
         let j = i, chars = 0; while (j < paras.length && j - i < CHUNK_PARAS && chars < CHUNK_CHARS) { chars += paras[j].length; j++; }
         const slice = paras.slice(i, j);
+        if (app.locals.spend && !app.locals.spend.ok('facing')) throw new Error('Al has reached the day’s line; the facing page waits for tomorrow');
         const r = await ask(slice, lang, from); model = r.model;
         for (let k = 0; k < slice.length; k++) out[i + k] = slice[k] === '* * *' ? '* * *' : r.out[k];
         i = j;

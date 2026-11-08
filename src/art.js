@@ -166,7 +166,7 @@ ${on() && !a ? `<form method="post" action="${action}" class="ax-f"><input type=
     const d = String(req.body.do || '');
     if (d === 'clear') { unlink(w); return res.redirect(`${back}?ok=artist#artist`); }
     if (d === 'set') { const a = link(w, String(req.body.name || ''), { movement: String(req.body.movement || '').trim() || null }); if (a && app.locals.findIndexDirty) app.locals.findIndexDirty(); return res.redirect(`${back}?ok=${a ? 'artist' : 'noname'}#artist`); }
-    if (d === 'ask') { try { await attribute(w); } catch (e) { console.error('[art]', e.message); } return res.redirect(`${back}?ok=asked#artist`); }
+    if (d === 'ask') { const S = app.locals.spend; if (S && !S.ok('art.asked')) return res.redirect(`${back}?ok=${encodeURIComponent('Al has reached the day’s line; tomorrow.')}`); try { await attribute(w); } catch (e) { console.error('[art]', e.message); } return res.redirect(`${back}?ok=asked#artist`); }
     if (d === 'dismiss') { const s = attributionOf(w); if (s) { s.dismissed = true; s.dismissed_at = new Date().toISOString(); db.prepare('UPDATE works SET attribution=? WHERE id=?').run(JSON.stringify(s), w.id); try { ledger.append(db, 'artist.dismissed', w.slug, { said: s.artist }); } catch (e) { /* */ } } return res.redirect(`${back}?ok=artist#artist`); }
     if (d === 'override' && /^\/studio\//.test(back)) { const v = ['open', 'closed'].includes(req.body.value) ? req.body.value : null; db.prepare('UPDATE works SET art_override=? WHERE id=?').run(v, w.id); try { ledger.append(db, 'artist.overridden', w.slug, { to: v }); } catch (e) { /* */ } return res.redirect(`${back}?ok=artist#artist`); }
     res.redirect(`${back}#artist`);
@@ -370,8 +370,10 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   async function fill(n = +(process.env.ART_PER_RUN || 30)) {
     if (!on() || !imageOf || filling) return 0; filling = true; let did = 0;
     try {
-      const rows = db.prepare("SELECT * FROM works WHERE status IN ('held','hidden') AND attribution IS NULL AND artist_id IS NULL ORDER BY id DESC LIMIT ?").all(n);
-      for (const w of rows) { try { await attribute(w); did++; } catch (e) { console.error('[art] fill', w.slug, e.message); db.prepare('UPDATE works SET attribution=? WHERE id=?').run(JSON.stringify({ art: false, missed: true, at: new Date().toISOString() }), w.id); } }
+      // Living makers' arrivals only (8 Nov): a museum's or the shelf's work carries its artist in the record and is read by the standard; reading it here was most of the house's bill.
+      const rows = db.prepare("SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status IN ('held','hidden') AND w.attribution IS NULL AND w.artist_id IS NULL AND w.hand IS NULL AND w.open IS NULL AND COALESCE(m.kind,'maker') IN ('maker','estate') AND m.handle<>'the-public-domain' ORDER BY w.id DESC LIMIT ?").all(n);
+      const S = app.locals.spend;
+      for (const w of rows) { if (S && !S.ok('art')) break; try { await attribute(w); did++; } catch (e) { console.error('[art] fill', w.slug, e.message); db.prepare('UPDATE works SET attribution=? WHERE id=?').run(JSON.stringify({ art: false, missed: true, at: new Date().toISOString() }), w.id); } }
     } finally { filling = false; }
     return did;
   }
