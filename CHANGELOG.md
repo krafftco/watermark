@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.75.0 · The copies · 8 November 2026
+- The website never opens a master. A missing display copy is made from a copy (the other format, a larger size, from the disk or the bucket) or answered with the nearest smaller copy, else the wall's dark, and asked of the worker by a ticket (`render_asks`).
+- The worker makes each work's set (thumb, screen, large; JPEG and WebP) on arrival and on a ticket, puts it in the bucket and marks the work (`works.copies_at`).
+- A backfill reads the bucket for every work's copies; once done, the open walls show only work whose copies are made (the gate), so no visitor's look is ever a first look.
+- Pictures are kept a day at the edge (s-maxage) and served stale while revalidated for a week; a new master still clears the edge by itself.
+- The warm asks the bucket by HEAD, not by download, and makes smaller copies from larger ones.
+
 ## 1.74.0 · The meter on Al · 8 November 2026
 
 - Every call the house makes to its AI on its own key is counted by the day and by module, and stops at a line: 400 a day for what the house does by itself in the background (reading arrivals, guides, studies, jackets, translations, For you), 1,500 for what a person pressed (the standard's look, Al's edit). AL_FILLS=0 stops every background job. The day's count is on /healthz and in the morning digest.

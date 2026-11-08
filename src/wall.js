@@ -16,15 +16,19 @@
 // Under test the floor is 800 (the fixtures are 1,200 px); WALL_MIN_PX in the environment overrides either way.
 const WALL_MIN_PX = Math.max(400, Number(process.env.WALL_MIN_PX || (process.env.NODE_ENV === 'test' ? 800 : 2400)));
 
+// The gate (8 Nov, copies.js): once the backfill has read every work, an open wall shows only work whose display copies
+// are made (`works.copies_at`), so no visitor's look is ever a first look. Set live by copies.js; read at each call.
+let gateOn = false; const setGate = on => { gateOn = !!on; }; const gate = () => gateOn;
 function sql(a = 'w') {
   // MAX(a,b) is two-arg here (greatest on Postgres by the dialect); frick is JSON with no spaces ("verdict":"down").
-  return ` AND (${a}.wall='on' OR (COALESCE(${a}.wall,'')<>'off' AND MAX(COALESCE(${a}.width,0),COALESCE(${a}.height,0))>=${WALL_MIN_PX} AND COALESCE(${a}.frick,'') NOT LIKE '%"verdict":"down"%'))`;
+  return (gateOn ? ` AND ${a}.copies_at IS NOT NULL` : '') + ` AND (${a}.wall='on' OR (COALESCE(${a}.wall,'')<>'off' AND MAX(COALESCE(${a}.width,0),COALESCE(${a}.height,0))>=${WALL_MIN_PX} AND COALESCE(${a}.frick,'') NOT LIKE '%"verdict":"down"%'))`;
 }
 // The same rule read for one work: { ok, why }.
 function holds(w) {
   if (!w) return { ok: false, why: 'no work' };
   if (w.wall === 'on') return { ok: true, why: 'the house says it hangs' };
   if (w.wall === 'off') return { ok: false, why: 'the house keeps it off the open walls' };
+  if (gateOn && !w.copies_at) return { ok: false, why: 'its display copies are not yet made; the worker makes them and it goes up by itself' };
   const long = Math.max(w.width || 0, w.height || 0);
   if (long < WALL_MIN_PX) return { ok: false, why: `${long || 'an unknown number of'} px on the long side; the open walls need ${WALL_MIN_PX}` };
   let r = null; try { r = w.frick ? JSON.parse(w.frick) : null; } catch (e) { /* no reading */ }
@@ -53,7 +57,7 @@ function mountWall(app, { db, V, studioOnly, ledger }) {
   });
   // How many held works the standard keeps off the open walls, for the desk.
   const counts = () => db.prepare(`SELECT COUNT(*) n, SUM(CASE WHEN 1=1${sql('w')} THEN 1 ELSE 0 END) ok FROM works w WHERE w.status='held'`).get();
-  app.locals.wall = { WALL_MIN_PX, sql, holds, block, counts };
+  app.locals.wall = { WALL_MIN_PX, sql, holds, block, counts, gate, setGate };
   return app.locals.wall;
 }
-module.exports = { mountWall, sql, holds, WALL_MIN_PX };
+module.exports = { mountWall, sql, holds, WALL_MIN_PX, setGate, gate };

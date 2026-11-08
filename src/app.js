@@ -786,6 +786,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./institutions').mountInstitutions(app, { db, V, C, mail, ledger, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), buyerOf: req => buyerOf(req), admit: (req, res, email) => (app.locals.admit ? app.locals.admit(req, res, email) : null), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // museums: the team (staff acting for the institution), the museum strip
   require('./companies').mountCompanies(app, { db, V, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // companies as makers: products, the making, the machines, the people, the archive (3 Nov)
   require('./wall').mountWall(app, { db, V, studioOnly, ledger }); // the wall standard (7 Nov): edge to edge or not on the open walls
+  require('./copies').mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, ledger }); // the copies (8 Nov): the website never opens a master
   require('./look').mountLook(app, { db, V }); // Look: every collection in one place, and the Met's open access a room at a time (3 Nov)
   require('./prices').mountPrices(app, { db, V, ledger, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the price record, from the register (3 Nov)
   require('./rights').mountRights(app, { db, V, C, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), notify: app.locals.notify && app.locals.notify.tell ? app.locals.notify.tell : null }); // the rights desk: one door per institution (/rights/:slug), answered from /account/rights
@@ -863,9 +864,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (inPrivate && !app.locals.deliveries.mayView(req, w) && !(app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })())) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); }
     try {
       let fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
-      const got = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, fmt, { standIn: true });
+      const CP = app.locals.copies;
+      const got = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, fmt, { standIn: true, noMaster: CP && CP.noMaster(), onMiss: CP ? CP.ask : null });
+      if (got.making) { res.set({ 'Cache-Control': 'no-store', 'X-Making': '1', 'Access-Control-Allow-Origin': '*' }); return res.type('image/svg+xml').send(CP.placeholder); } // (8 Nov) nothing made yet: the wall's dark, and a ticket for the worker
       const file = got.file; if (got.standIn) { fmt = got.fmt; res.set('X-Stand-In', '1'); }
-      res.set('Cache-Control', w.keep_back || inPrivate || got.standIn ? 'private, no-store' : 'public, max-age=3600, must-revalidate'); // (20 Oct) a copy is rechecked within the hour, never served stale for days
+      res.set('Cache-Control', w.keep_back || inPrivate || got.standIn ? 'private, no-store' : 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'); // (8 Nov) an hour in the browser, a day at the edge; a new master invalidates the edge by itself (edge.work)
       res.set('Vary', 'Accept');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -2586,8 +2589,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // the house, and never by a visitor's first look; kept-back work is warmed too, since the maker's Library shows it.
   const warmQ = []; let warmBusy = false;
   function warmSoon(slug) {
-    if (cfg.noTimers || !slug) return; warmQ.push(slug); if (warmBusy) return; warmBusy = true;
-    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (images.warmed(cache, s) || diskLow()) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { const o = await originalPath(w); await images.warm(o, cache, s, THUMB); if (w.status === 'held' && !w.keep_back) await images.warm(o, cache, s); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
+    if (cfg.noTimers || !slug) return;
+    if (app.locals.copies && app.locals.copies.noMaster()) return app.locals.copies.ask(slug); // (8 Nov) the website never opens a master: a ticket for the worker
+    warmQ.push(slug); if (warmBusy) return; warmBusy = true;
+    (async () => { try { while (warmQ.length) { const s = warmQ.shift(); if (diskLow()) continue; const w = db.prepare('SELECT * FROM works WHERE slug=?').get(s); if (!w) continue; try { await app.locals.copies.make(w); } catch (e) { console.error('[warm]', s, e.message); } } } finally { warmBusy = false; } })();
   }
   app.locals.warmSoon = warmSoon;
   // The disk kept clear (29 Oct): old generations of renditions swept at start and hourly; the originals cache trimmed
@@ -2618,9 +2623,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     try {
       // Ids and the little each pass reads, never SELECT * (5 Nov: 17,533 rows with their guides and readings across the
       // Postgres bridge held the event loop, and the health check, long enough for Render to restart the house).
-      const all = db.prepare("SELECT id, slug, status, keep_back FROM works WHERE status IN ('held','hidden') ORDER BY CASE WHEN status='held' THEN 0 ELSE 1 END, curated DESC, stars DESC, id DESC").all();
+      const all = db.prepare("SELECT id, slug, status, keep_back, copies_at FROM works WHERE status IN ('held','hidden') ORDER BY CASE WHEN status='held' THEN 0 ELSE 1 END, curated DESC, stars DESC, id DESC").all();
       for (const pass of [{ sizes: THUMB, rows: all }, { sizes: undefined, rows: all.filter(w => w.status === 'held' && !w.keep_back) }]) {
-        for (const w of pass.rows) { if (images.warmed(cache, w.slug, pass.sizes)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); return n; } try { const full = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); if (!full) continue; await images.warm(await originalPath(full), cache, w.slug, pass.sizes); n++; } catch (e) { /* missing original: the route will say so */ } await new Promise(r => setTimeout(r, 150)); }
+        for (const w of pass.rows) { if (pass.sizes === undefined && w.copies_at) continue; if (images.warmed(cache, w.slug, pass.sizes)) continue; if (diskLow()) { console.log('[warm] the disk is low; waiting'); return n; } try { const full = db.prepare('SELECT * FROM works WHERE id=?').get(w.id); if (!full) continue; const done = await images.warm(() => originalPath(full), cache, w.slug, pass.sizes); if (pass.sizes === undefined && done) db.prepare('UPDATE works SET copies_at=? WHERE id=?').run(new Date().toISOString().replace('T', ' ').slice(0, 19), w.id); n++; } catch (e) { /* missing original: the route will say so */ } if (app.locals.copies) await app.locals.copies.drain(5); await new Promise(r => setTimeout(r, 150)); }
       }
     } finally { warming = false; }
     return n;
@@ -2668,7 +2673,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const unvaulted = db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works = db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n;
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.

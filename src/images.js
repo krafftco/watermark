@@ -122,9 +122,12 @@ async function derivative(original, cacheDir, slug, size, fmt = 'jpg', { source 
       const payload = marker.payloadFor(slug);
       if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
     }
-    const g = await gamut(original);
+    // The gamut and the rights are read from the source copy when one is used (8 Nov): a house copy carries the master's
+    // profile and its copyright line, so the master itself is never fetched or opened to make a smaller copy.
+    const ref = source || original;
+    const g = await gamut(ref);
     if (fmt === 'webp') await base.withIccProfile(g).webp({ quality: Q.webp[size], effort: 4 }).toFile(tmp);
-    else await base.withIccProfile(g).withExif({ IFD0: (rt => ({ Copyright: rt.copyright, ...(rt.artist ? { Artist: rt.artist } : {}) }))(await rightsOf(original, slug)) }).jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).toFile(tmp);
+    else await base.withIccProfile(g).withExif({ IFD0: (rt => ({ Copyright: rt.copyright, ...(rt.artist ? { Artist: rt.artist } : {}) }))(await rightsOf(ref, slug)) }).jpeg({ quality: Q.jpg[size], mozjpeg: true, chromaSubsampling: size === 'thumb' ? '4:2:0' : '4:4:4' }).toFile(tmp);
     try { fs.renameSync(tmp, out); } catch (e) { try { fs.unlinkSync(tmp); } catch (e2) { /* already there */ } }
   }
   return out;
@@ -224,16 +227,35 @@ function existingCopy(cacheDir, slug, size, { atLeast = true } = {}) {
   for (const z of range) for (const fm of ['jpg', 'webp']) { const f = fileOf(cacheDir, slug, z, fm); if (fs.existsSync(f)) return { file: f, size: z, fmt: fm }; }
   return null;
 }
-async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg', { standIn = false } = {}) {
+// A copy never made from a master on the website (8 Nov, the house at 2.3 GB and load 11 with 55,000 works and the
+// museum arrivals' copies unmade: every first look decoded a 6,000-pixel master beside the visitors). With `noMaster`
+// (the website of a split house) the order is: the copy (disk, then the bucket); the same size in the other format
+// (a re-encode); a larger copy on the disk, else fetched from the bucket (a resize); a smaller copy handed back as a
+// stand-in; else nothing (`making: true`) and `onMiss` asks the worker for it. The master is opened only on a house
+// that is its own worker (tests, a local house). Resizes on the request path take turns, RESIZE_LANES (2) at a time.
+const RESIZE_LANES = Math.max(1, +(process.env.RESIZE_LANES || 2));
+let resizing = 0; const resizeQ = [];
+const lane = async fn => { if (resizing >= RESIZE_LANES) await new Promise(r => resizeQ.push(r)); resizing++; try { return await fn(); } finally { resizing--; const n = resizeQ.shift(); if (n) n(); } };
+const other = fmt => (fmt === 'webp' ? 'jpg' : 'webp');
+async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg', { standIn = false, noMaster = false, onMiss = null } = {}) {
   fmt = FORMATS[fmt] ? fmt : 'jpg';
   const f = fileOf(cacheDir, slug, size, fmt);
-  if (fs.existsSync(f)) return standIn ? { file: f, fmt, standIn: false } : f;
-  if (await fromBucket(f)) return standIn ? { file: f, fmt, standIn: false } : f;
-  const bigger = existingCopy(cacheDir, slug, size);
-  const make = async () => { const out = await derivative(await getOriginal(), cacheDir, slug, size, fmt, { source: bigger ? bigger.file : null }); toBucket(out, fmt); return out; };
-  if (!standIn) return make();
-  if (bigger) return { file: await make(), fmt, standIn: false }; // a resize of a copy: quick enough to wait for
+  const done = file => (standIn || noMaster ? { file, fmt, standIn: false } : file);
+  if (fs.existsSync(f)) return done(f);
+  if (await fromBucket(f)) return done(f);
+  // The same size in the other format: a re-encode of a finished copy, never the master.
+  const sib = fileOf(cacheDir, slug, size, other(fmt));
+  if (fs.existsSync(sib) || await fromBucket(sib)) return done(await lane(async () => { const out = await derivative(null, cacheDir, slug, size, fmt, { source: sib }); toBucket(out, fmt); return out; }));
+  let bigger = existingCopy(cacheDir, slug, size);
+  if (!bigger && (noMaster || standIn)) { // the nearest larger copy from the bucket (one small download, not a master)
+    const i = ORDER.indexOf(size);
+    for (const z of ORDER.slice(i + 1)) { for (const fm of ['jpg', 'webp']) { const b = fileOf(cacheDir, slug, z, fm); if (await fromBucket(b)) { bigger = { file: b, size: z, fmt: fm }; break; } } if (bigger) break; }
+  }
+  if (bigger) return done(await lane(async () => { const out = await derivative(null, cacheDir, slug, size, fmt, { source: bigger.file }); toBucket(out, fmt); return out; }));
+  const make = async () => { const out = await derivative(await getOriginal(), cacheDir, slug, size, fmt); toBucket(out, fmt); return out; };
+  if (!standIn && !noMaster) return make();
   const smaller = existingCopy(cacheDir, slug, size, { atLeast: false });
+  if (noMaster) { if (onMiss) { try { onMiss(slug, size); } catch (e) { /* asked */ } } return smaller ? { file: smaller.file, fmt: smaller.fmt, standIn: true } : { file: null, fmt, standIn: true, making: true }; }
   if (smaller) { enqueue(make, f); return { file: smaller.file, fmt: smaller.fmt, standIn: true }; }
   return { file: await make(), fmt, standIn: false };
 }
@@ -245,9 +267,20 @@ async function dropBucket(cacheDir, slug) {
 // Make every size in both formats ahead of the first visitor (one work at a time, in the background).
 // Largest first (7 Nov): the master is decoded once for the largest copy and each smaller copy is a resize of the one
 // above it (and WebP of the JPEG beside it), so a 60 MP work costs one big decode, not six.
+// Whether a copy exists, on the disk or in the bucket (a HEAD, never a download).
+async function hasCopy(f) { if (fs.existsSync(f)) return true; if (!rstore) return false; try { return (await rstore.size(rkey(f))) > 0; } catch (e) { return false; } }
+// Every copy of a work, on the disk or in the bucket: true when the whole set is there.
+async function has(cacheDir, slug, sizes = WARM, fmts = Object.keys(FORMATS)) { for (const z of sizes) for (const fm of fmts) if (!(await hasCopy(fileOf(cacheDir, slug, z, fm)))) return false; return true; }
 async function warm(original, cacheDir, slug, sizes = WARM) {
   const order = [...sizes].sort((a, b) => ORDER.indexOf(b) - ORDER.indexOf(a));
-  for (const size of order) for (const fmt of ['jpg', 'webp']) { if (!FORMATS[fmt]) continue; const f = fileOf(cacheDir, slug, size, fmt); if (fs.existsSync(f) || await fromBucket(f)) continue; const src = fmt === 'webp' && fs.existsSync(fileOf(cacheDir, slug, size, 'jpg')) ? { file: fileOf(cacheDir, slug, size, 'jpg') } : existingCopy(cacheDir, slug, size); toBucket(await derivative(original, cacheDir, slug, size, fmt, { source: src ? src.file : null }), fmt); }
+  for (const size of order) for (const fmt of ['jpg', 'webp']) {
+    if (!FORMATS[fmt]) continue; const f = fileOf(cacheDir, slug, size, fmt);
+    if (await hasCopy(f)) continue; // (8 Nov) a HEAD, not six downloads a work, when the copies are in the bucket already
+    let src = fmt === 'webp' && fs.existsSync(fileOf(cacheDir, slug, size, 'jpg')) ? { file: fileOf(cacheDir, slug, size, 'jpg') } : existingCopy(cacheDir, slug, size);
+    if (!src) { const i = ORDER.indexOf(size); for (const z of ORDER.slice(i + 1)) { const b = fileOf(cacheDir, slug, z, 'jpg'); if (await fromBucket(b)) { src = { file: b }; break; } } }
+    toBucket(await derivative(src ? null : (typeof original === 'function' ? await original() : original), cacheDir, slug, size, fmt, { source: src ? src.file : null }), fmt);
+  }
+  return has(cacheDir, slug, sizes);
 }
 // Once, before the disk comes off: every copy on the disk that the bucket lacks is put there (5 Nov; 17,533 works ×
 // six copies on the live house). HEAD then PUT, a breath between, so the website keeps serving; `state` for /healthz.
@@ -291,4 +324,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { existingCopy, sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };
+module.exports = { has, hasCopy, existingCopy, sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };

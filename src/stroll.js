@@ -23,7 +23,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // at random here rather than sorted by the database for every page; a word, a maker or the adult rooms open still ask.
     let rows;
     if (!q && !mk) {
-      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); const pk = sql + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0); let pool = POOL.get(pk); // any entry on the register (a work published, held back) makes the pool new
+      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); const pk = sql + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) + '#' + (app.locals.copies ? app.locals.copies.gen() : 0); let pool = POOL.get(pk); // any entry on the register (a work published, held back) makes the pool new
       if (!pool || Date.now() - pool.at > 60e3) { pool = { at: Date.now(), rows: db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${sql}`).all() }; POOL.set(pk, pool); if (POOL.size > 20) POOL.delete(POOL.keys().next().value); }
       const notSet = new Set(not); const cands = pool.rows.filter(r => !notSet.has(r.slug)).map(r => ({ r, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) }));
       cands.sort((x, y) => y.k - x.k); rows = cands.slice(0, n).map(x => x.r);
