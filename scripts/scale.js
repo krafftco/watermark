@@ -48,7 +48,7 @@ async function main() {
       const cols = Object.keys(db.prepare('SELECT * FROM works ORDER BY id LIMIT 1').get()).filter(k => !['id','slug','maker_id','title','place','taken_at','stars','curated','accession'].includes(k));
       const per = Math.ceil(N / SEED);
       const t = Date.now();
-      db.exec("INSERT INTO works (slug, maker_id, title, place, taken_at, stars, curated, " + cols.join(', ') + ") SELECT w.slug || '-' || g, " + m0 + " + (g % " + MK + "), 'Work ' || g || ' of ' || w.title, (ARRAY['Paris','Florence','London','New York','Kyoto','Lisbon','Rome','Vienna','Dallas','Boston','Milan','Venice'])[1 + (g % 12)], (1900 + (g % 125)) || '-06-15 12:00:00', (g % 6), CASE WHEN g % 40 = 0 THEN 1 ELSE 0 END, " + cols.map(k => 'w.' + k).join(', ') + " FROM works w, generate_series(1, " + per + ") g WHERE w.slug LIKE 'scale-%'");
+      db.exec("INSERT INTO works (slug, maker_id, title, place, taken_at, stars, curated, accession, " + cols.join(', ') + ") SELECT w.slug || '-' || g, " + m0 + " + (g % " + MK + "), 'Work ' || g || ' of ' || w.title, (ARRAY['Paris','Florence','London','New York','Kyoto','Lisbon','Rome','Vienna','Dallas','Boston','Milan','Venice'])[1 + (g % 12)], (1900 + (g % 125)) || '-06-15 12:00:00', (g % 6), CASE WHEN g % 40 = 0 THEN 1 ELSE 0 END, 'S.' || w.id || '.' || g, " + cols.map(k => 'w.' + k).join(', ') + " FROM works w, generate_series(1, " + per + ") g WHERE w.slug LIKE 'scale-%'");
       require('./src/indexes').ensure(db);
       db.exec('ANALYZE');
       const n = db.prepare('SELECT COUNT(*) n FROM works').get().n;
