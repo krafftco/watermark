@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.78.0 · The indexes · 9 November 2026
+
+- The database now keeps indexes for the questions the house asks most (a maker's works, what is on view, a work's licences and standing), so they no longer read every row.
+- A scale test: a house of 500,000 works with 200 visitors, run before releases.
+
 ## 1.77.7 · Five more rooms, light · 9 November 2026
 
 - A maker's page, the public API's lists, the trade search and trips read only the columns a list needs, with a ceiling; the few works shown are read whole. The artists list and Discover's rows are kept five minutes.
