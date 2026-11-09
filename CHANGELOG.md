@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.5 · Four pauses, gone · 9 November 2026
+- Four things the website did for itself that made everyone wait a second or five: checking the whole register at each start and each hour, re-reading every work for a known visitor's next page of Wander, rebuilding the search list each minute, and re-reading a large archive's contact sheets every three minutes. Each now does the small thing, or keeps what it read for longer.
+
 ## 1.77.4 · Wander, light · 9 November 2026
 - Wander no longer reads the whole collection to choose what to show next. It keeps a small list of what is on the walls and reads only the handful it shows. This was the slowness of the 9th: with the collection grown to fifty thousand works, each visit had been reading all of it.
 

@@ -61,9 +61,21 @@ function verifyAll(db) {
   }
   return { ok: true, checked: n, head: prev };
 }
+// (9 Nov) The website never walks the whole chain: five seconds of every visitor's time at each start and each hour
+// (`SELECT * FROM ledger ORDER BY seq`, on /healthz). It checks the last TAIL entries link to one another and takes
+// the count from the database; the whole walk is the worker's, hourly, and the register page's ?check=full.
+const TAIL = 400; const LIGHT = () => String(process.env.ROLE || '').toLowerCase() === 'web' && process.env.LEDGER_FULL !== '1';
+function verifyTail(db) {
+  const rows = db.prepare('SELECT * FROM ledger ORDER BY seq DESC LIMIT ?').all(TAIL).reverse();
+  const total = Number((db.prepare('SELECT COUNT(*) n FROM ledger').get() || {}).n || 0);
+  if (!rows.length) return { ok: true, checked: 0, head: GENESIS, tail: true };
+  let prev = rows.length === total ? GENESIS : rows[0].prev_hash;
+  for (const e of rows) { if (e.prev_hash !== prev || digest(e) !== e.hash) return { ok: false, broken_at: e.seq, checked: total, tail: true }; prev = e.hash; }
+  return { ok: true, checked: total, head: prev, tail: true };
+}
 function verify(db) {
   const h = heads.get(db);
-  if (!h || Date.now() - h.at > 60 * 60 * 1000 || !h.ok) { const r = verifyAll(db); heads.set(db, { ...r, at: Date.now(), seq: r.checked }); return r; }
+  if (!h || Date.now() - h.at > 60 * 60 * 1000 || !h.ok) { const r = LIGHT() ? verifyTail(db) : verifyAll(db); heads.set(db, { ...r, at: Date.now(), seq: r.checked }); return r; }
   let prev = h.head, n = h.checked;
   for (const e of db.prepare('SELECT * FROM ledger WHERE seq>? ORDER BY seq').iterate(h.seq)) {
     if (e.prev_hash !== prev || digest(e) !== e.hash) { const r = { ok: false, broken_at: e.seq, checked: n }; heads.set(db, { ...r, at: Date.now(), seq: n, head: prev }); return r; }
@@ -72,4 +84,4 @@ function verify(db) {
   const r = { ok: true, checked: n, head: prev }; heads.set(db, { ...r, at: Date.now(), seq: n }); return r;
 }
 
-module.exports = { append, verify, verifyAll, digest, setKey, publicKey, sign, signBytes, checkSig, ensureSig };
+module.exports = { append, verify, verifyAll, verifyTail, digest, setKey, publicKey, sign, signBytes, checkSig, ensureSig };

@@ -38,7 +38,7 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
   const RUNS = new Map(); let HOUSE = { at: 0, sheets: [] };
   const COLS = 'id, slug, title, status, keep_back, flag, stars, curated, width, height, taken_at, place, attribution, zone, al_grade, sheet_open, sheet_pick, maker_id';
   function runsOf(makerId) {
-    const k = RUNS.get(makerId); if (k && Date.now() - k.at < 180e3) return k;
+    const k = RUNS.get(makerId); if (k && Date.now() - k.at < (process.env.NODE_ENV === 'test' ? 180e3 : 1800e3)) return k; // (9 Nov) half an hour: 1.6 s to rebuild for a large archive, and it ran every three minutes
     const rows = db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND taken_at IS NOT NULL AND taken_at<>'' AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0`).all(makerId)
       .map(w => ({ ...w, t: time(w.taken_at) })).filter(w => w.t).sort((a, b) => (a.t - b.t) || (a.id - b.id));
     const runs = []; let cur = [];

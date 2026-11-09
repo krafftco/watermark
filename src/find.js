@@ -14,7 +14,7 @@ function mountFind(app, { db, V, I }) {
   const sim = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; for (const x of a) if (b.has(x)) n++; return n / Math.sqrt(a.size * b.size); };
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
   function build() {
-    if (Date.now() - index.at < 60e3) return index;
+    if (Date.now() - index.at < (process.env.NODE_ENV === 'test' ? 60e3 : Number(process.env.FIND_KEEP_S || 300) * 1000)) return index; // (9 Nov) five minutes: the build reads every held work (2.7 s at 60,000)
     const works = db.prepare(`SELECT w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, w.kind, m.name AS maker, m.handle, m.id AS maker_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'`).all()
       .map(w => { const year = (w.taken_at || '').slice(0, 4); const fields = { title: norm(tidy(w.title)), place: norm(w.place), maker: norm(w.maker), kw: norm(w.keywords), cap: norm(w.caption).slice(0, 300), year, acc: norm(w.accession) }; return { ...w, year, title: tidy(w.title), makerSlug: V.makerSlug({ name: w.maker, handle: w.handle }), f: fields, g: grams(`${fields.title} ${fields.place} ${fields.maker}`) }; });
     const makers = []; const seenM = new Set(); for (const w of works) if (!seenM.has(w.maker_id)) { seenM.add(w.maker_id); makers.push({ name: w.maker, slug: w.makerSlug, n: works.filter(x => x.maker_id === w.maker_id).length, nm: norm(w.maker), cover: w.slug }); }
