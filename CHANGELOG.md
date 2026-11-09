@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.2 · The collection page, light · 9 November 2026
+- The collection page, the makers' page and the search list beneath them no longer read every work in the house each time they are opened; they take the best twelve hundred, lightly, and keep the list for two minutes. This was what stopped the website on the afternoon of the 9th.
+
 ## 1.77.1 · The pace · 9 November 2026
 - New work comes in only as fast as the scribes can make it ready: nothing new starts while more than five hundred works wait for their copies. The Studio's scribes page now counts the worker's own copy-making too.
 

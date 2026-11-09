@@ -710,7 +710,24 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return handler(req, res);
   };
   app.locals.minute = minute;
-  app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: q.publicWorks.all(), uses: q.uses.all(maker.id), sent: req.query.sent }))));
+  // (9 Nov) The halls' list for the collection page, /makers and the search index: never `SELECT *` of every held
+  // work (59,000 rows with guides and readings took six seconds and 800 MB a request, and three in a row brought
+  // the website down). The best COLLECTION_MAX by the maker's own grade, without the heavy columns, kept two minutes.
+  const HEAVY = new Set(['closer', 'attribution', 'frick', 'al_grade', 'tidy', 'hand_why', 'zone_note', 'rights_note', 'object', 'credentials', 'exif', 'said']);
+  const COLLECTION_MAX = Number(process.env.COLLECTION_MAX || 1200);
+  const HALL_KEEP_MS = process.env.NODE_ENV === 'test' ? 0 : 120e3; // tests add work and read the page at once
+  let hallKept = null, leanCols = null;
+  function hallList() {
+    if (hallKept && Date.now() - hallKept.at < HALL_KEEP_MS) return hallKept;
+    if (!leanCols || leanCols === 'id') leanCols = Object.keys(db.prepare('SELECT * FROM works ORDER BY id LIMIT 1').get() || { id: 1 }).filter(n => !HEAVY.has(n)).join(', ');
+    const where = `status='held'${app.locals.museums ? app.locals.museums.hallSql('works') : ''}`;
+    const total = db.prepare(`SELECT COUNT(*) n FROM works WHERE ${where}`).get().n;
+    const works = db.prepare(`SELECT ${leanCols} FROM works WHERE ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT ${COLLECTION_MAX}`).all();
+    hallKept = { at: Date.now(), total, works };
+    return hallKept;
+  }
+  app.locals.hallList = hallList;
+  app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: hallList().works, uses: q.uses.all(maker.id), sent: req.query.sent }))));
   app.get(['/', '/house', '/collection'], minute((req, res) => {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
     const rooms = db.prepare('SELECT id, slug, title FROM collections WHERE public=1 ORDER BY sort DESC, id DESC').all(); // newest stories first
@@ -721,7 +738,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     rooms.forEach(r => { r.ids = ids.all(r.id).map(x => x.id); const m = String(r.title || '').match(/^[^:]{3,40}:\s*(.+)$/); if (m) r.title = ROOM_AS[m[1].toLowerCase()] || m[1].replace(/^The /, ''); });
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
-    const works = RG.byRegard(db, db.prepare(`SELECT * FROM works WHERE status='held'${app.locals.museums ? app.locals.museums.hallSql('works') : ''} ORDER BY id`).all())
+    const hall = hallList();
+    const works = RG.byRegard(db, hall.works)
       .map(w => w.maker_id !== maker.id && !w.share_cents ? { ...w, share_cents: socialOf[w.maker_id] || null } : w)
       .map(w => ({ ...w, maker: makers[w.maker_id] || maker }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none yet */ }
@@ -733,7 +751,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       try { collectors = db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n; } catch (e) { collectors = 0; }
       try { const c = works[0]; const u = c ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
     }
-    res.send(V.collection({ front, rowsHtml, maker, works, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
+    res.send(V.collection({ front, rowsHtml, maker, works, total: hall.total, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
   }));
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
@@ -744,7 +762,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const tag = `"${crypto.createHash('sha1').update([stamp.m, stamp.i, stamp.n, last].join(':')).digest('hex').slice(0, 16)}"`;
     res.set('ETag', tag).set('Cache-Control', 'public, max-age=300');
     if (req.headers['if-none-match'] === tag) return res.status(304).end();
-    const works = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id").all().map(w => ({ ...w, maker: makers[w.maker_id] || maker, share_cents: w.maker_id !== maker.id && !w.share_cents ? socialOf[w.maker_id] || null : w.share_cents }));
+    const works = hallList().works.map(w => ({ ...w, maker: makers[w.maker_id] || maker, share_cents: w.maker_id !== maker.id && !w.share_cents ? socialOf[w.maker_id] || null : w.share_cents }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none */ }
     const rooms = db.prepare('SELECT c.slug, cw.work_id FROM collections c JOIN collection_works cw ON cw.collection_id=c.id WHERE c.public=1').all();
     const roomOf = {}; rooms.forEach(r => { (roomOf[r.work_id] = roomOf[r.work_id] || []).push(r.slug); });

@@ -61,3 +61,5 @@ The pattern: the house grew from 400 works to 20,000 in a week (the Met, MoMA, t
 - The house (code): the watch, the digest, the alarm, the lines, the gates in CI, the promotion at the window.
 - Claude, in this repo: repairs on `next`, the load test before a promotion, the fault table, this page.
 - Will: the Render hands (the disk, settings, restarts), the AWS and Stripe consoles, the showing switch, 2FA everywhere, counsel.
+
+- 9 Nov, 15:14 ET: the website over its memory line and restarted twice. Cause: /collection, /house, /makers and /api/index.json read `SELECT * FROM works` for every hall work (48,000 rows with guides and readings; 5–6 s on the bridge and ~800 MB of heap a request; three in twenty seconds). Fix (1.77.2): `hallList()` in app.js, the best COLLECTION_MAX (1200) without the heavy columns, kept two minutes; the page takes the true total apart. Rule restated: no page reads the whole collection.

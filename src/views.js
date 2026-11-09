@@ -320,7 +320,7 @@ ${bare ? '' : footer(path)}${bare || studio ? '' : APP}
 
 // One row of the collection's search index: the small shape collection.js searches and lays out.
 const indexRow = (w, m, { voiced = false, rooms = [] } = {}) => ({ v: voiced ? 1 : 0, cp: (w.caption || '').slice(0, 240), mk: m.name, ms: makerSlug(m), kk: isKrafft(m) ? 1 : 0, s: w.slug, t: tidy(w.title), p: w.place || '', a: w.accession || '', c: w.camera || '', d: w.taken_at ? String(w.taken_at).slice(0, 10) : '', r: +((w.width && w.height ? w.width / w.height : 1.5).toFixed(3)), w: w.width, h: w.height, k: w.keywords || '', m: rooms, $: w.share_cents || null, x: /"social":false/.test(w.rules || '') ? 1 : 0 });
-function collection({ front = false, maker, works, rooms = [], share = null, pay = null, lately = [], today = null, hangs = [], shows = [], collections = [], rowsHtml = null, collectors = 0, collectCents = null }) {
+function collection({ front = false, maker, works, total: totalAll = 0, rooms = [], share = null, pay = null, lately = [], today = null, hangs = [], shows = [], collections = [], rowsHtml = null, collectors = 0, collectCents = null }) {
   const mOf = w => w.maker || maker;
   // The collection is an archive you can walk: rooms as galleries, an index to search, and every
   // photograph a click from filling the screen.
@@ -343,7 +343,7 @@ function collection({ front = false, maker, works, rooms = [], share = null, pay
   const restByMaker = []; rest.forEach(w => { const m = mOf(w); let g = restByMaker.find(x => x[0].id === m.id); if (!g) restByMaker.push(g = [m, []]); g[1].push(w); });
   restByMaker.sort((a, b) => (a[0].id === maker.id ? -1 : b[0].id === maker.id ? 1 : 0));
   const makerList = []; works.forEach(w => { const m = mOf(w); if (!makerList.find(x => x.id === m.id)) makerList.push(m); });
-  const total = works.length;
+  const total = Math.max(totalAll || 0, works.length);
   // The cover: a jewel if one is marked, else a large landscape frame.
   const wide = w => (w.width || 0) >= 1800 && w.width > w.height * 1.3;
   const cover = works.find(w => w.curated && wide(w)) || works.filter(wide).find(w => /florence|paris|como|zurich/i.test(w.place || '')) || works.find(wide) || null;
