@@ -21,5 +21,7 @@ app.locals.store.checkKey()
     // in front of it, so the proxy always closes first.
     server.keepAliveTimeout = Number(process.env.KEEPALIVE_MS || 65000);
     server.headersTimeout = server.keepAliveTimeout + 1000;
+    // The watchdog (9 Nov): a website that stops answering restarts itself instead of waiting for a person.
+    try { require('./src/watchdog').start({ port, governor: app.locals.governor, role: require('./src/role') }); } catch (e) { console.error('[watchdog]', e.message); }
   })
   .catch(e => { console.error(e.message); process.exit(1); });

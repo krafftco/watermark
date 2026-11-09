@@ -10,7 +10,20 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const D = require('./dialect');
 
-const STATUS = 0, LENGTH = 1, WAIT_MS = 120000;
+const STATUS = 0, LENGTH = 1;
+// (9 Nov, the stall) Every question waits on the main thread, so one slow answer holds every visitor behind it. The
+// website gives a question DB_WAIT_MS (20 s) at most; the worker keeps two minutes for its long chores. Any question that
+// holds the line over DB_SLOW_MS (500) is logged [pg slow] and kept (the worst twenty) for /healthz `pgSlow`.
+const WAIT_MS = +process.env.DB_WAIT_MS || (process.env.ROLE === 'web' ? 20000 : 120000);
+const SLOW_MS = +process.env.DB_SLOW_MS || 500;
+const slow = []; // {ms, sql, at, n}
+function noteSlow(ms, sql) {
+  const key = String(sql || '').replace(/\s+/g, ' ').slice(0, 200);
+  const was = slow.find(x => x.sql === key);
+  if (was) { was.n++; was.ms = Math.max(was.ms, ms); was.at = new Date().toISOString(); } else slow.push({ ms, sql: key, at: new Date().toISOString(), n: 1 });
+  slow.sort((a, b) => b.ms - a.ms); slow.length = Math.min(slow.length, 20);
+  console.error(`[pg slow] ${ms} ms: ${key}`);
+}
 
 function open(url) {
   let worker, sab, ctl, data;
@@ -32,7 +45,11 @@ function open(url) {
   function call(msg) {
     if (closed) throw new Error('database closed');
     Atomics.store(ctl, STATUS, 0);
+    const t0 = Date.now();
     worker.postMessage(msg);
+    try { return wait(msg); } finally { const ms = Date.now() - t0; if (ms > SLOW_MS) noteSlow(ms, msg.sql); }
+  }
+  function wait(msg) {
     for (;;) {
       const r = Atomics.wait(ctl, STATUS, 0, WAIT_MS);
       if (r === 'timed-out') { console.error('[pg] no answer in ' + WAIT_MS / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); throw new Error('database: no answer in ' + WAIT_MS / 1000 + ' s'); }
@@ -122,4 +139,4 @@ function splitStatements(sql) {
   return out.map(s => s.trim()).filter(s => s && !/^(--.*\n?)+$/.test(s));
 }
 
-module.exports = { open, splitStatements };
+module.exports = { open, splitStatements, slow: () => slow.slice() };

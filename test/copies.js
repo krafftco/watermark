@@ -24,12 +24,17 @@ const { createApp } = require('../src/app');
   // 2. The worker drains: the set is made, the work marked, the ticket gone.
   assert.equal(await CP.drain(), 1); assert.ok(db.prepare('SELECT copies_at FROM works WHERE id=?').get(a.id).copies_at, 'marked'); assert.ok(!db.prepare('SELECT 1 FROM render_asks WHERE slug=?').get(a.slug));
   r = await fetch(`${base}/img/${a.slug}/screen`); assert.equal(r.status, 200); assert.ok(!r.headers.get('x-making')); assert.ok(/s-maxage=86400/.test(r.headers.get('cache-control')), r.headers.get('cache-control'));
-  // 3. A copy from a copy: the large JPEG exists, the WebP thumb is wanted: made from it, never the master (the master is moved away first).
+  // 3. (9 Nov, the stall) The website does no picture work: the large copy exists, the WebP thumb is wanted: the nearest finished file is handed back as a stand-in, a ticket written, nothing decoded (the master is moved away first).
   const orig = fs.readdirSync(path.join(dir, 'originals')).filter(n => n.includes(b.slug)); assert.ok(orig.length);
   await CP.make(b); for (const n of orig) fs.renameSync(path.join(dir, 'originals', n), path.join(dir, 'originals', n + '.away'));
   for (const f of fs.readdirSync(cache)) if (f.startsWith(b.slug + '-') && /thumb|screen/.test(f)) fs.unlinkSync(path.join(cache, f));
-  r = await fetch(`${base}/img/${b.slug}/thumb`, { headers: { accept: 'image/webp' } }); assert.equal(r.status, 200); assert.equal(r.headers.get('content-type'), 'image/webp'); assert.ok(!r.headers.get('x-making') && !r.headers.get('x-stand-in'), 'a resize of the large copy');
-  const m = await sharp(Buffer.from(await r.arrayBuffer())).metadata(); assert.ok(m.width <= 640 && m.format === 'webp', JSON.stringify(m));
+  r = await fetch(`${base}/img/${b.slug}/thumb`, { headers: { accept: 'image/webp' } }); assert.equal(r.status, 200); assert.ok(r.headers.get('x-stand-in'), 'a stand-in, not a resize'); assert.ok(/private, no-store/.test(r.headers.get('cache-control')), 'never cached at the edge');
+  assert.ok(!fs.existsSync(images.fileOf(cache, b.slug, 'thumb', 'webp')) && !fs.existsSync(images.fileOf(cache, b.slug, 'thumb', 'jpg')), 'nothing made on the website');
+  assert.ok(db.prepare('SELECT 1 FROM render_asks WHERE slug=?').get(b.slug), 'the worker asked');
+  const m = await sharp(Buffer.from(await r.arrayBuffer())).metadata(); assert.ok(m.width > 640, 'the larger finished copy, as it is: ' + JSON.stringify(m));
+  for (const n of orig) fs.renameSync(path.join(dir, 'originals', n + '.away'), path.join(dir, 'originals', n));
+  await CP.drain(); r = await fetch(`${base}/img/${b.slug}/thumb`, { headers: { accept: 'image/webp' } }); assert.equal(r.headers.get('content-type'), 'image/webp'); assert.ok(!r.headers.get('x-stand-in'), 'the worker made it');
+  for (const n of orig) fs.renameSync(path.join(dir, 'originals', n), path.join(dir, 'originals', n + '.away'));
   for (const n of orig) fs.renameSync(path.join(dir, 'originals', n + '.away'), path.join(dir, 'originals', n));
   // 4. The gate: before the backfill every work the standard allows is on the open walls; after, only work with its copies.
   const c = await put(await sharp(fx).modulate({ brightness: 1.3 }).jpeg().toBuffer(), 'Fresh');

@@ -243,6 +243,17 @@ async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg', { st
   const done = file => (standIn || noMaster ? { file, fmt, standIn: false } : file);
   if (fs.existsSync(f)) return done(f);
   if (await fromBucket(f)) return done(f);
+  // (9 Nov, the stall) The website of a split house does no picture work at all: no re-encode, no resize. It hands
+  // back the nearest finished file as it is (a smaller one first, else a larger one; the other format only when it
+  // is a JPEG, which every browser takes), asks the worker for the real copy, and else answers the wall's dark.
+  if (noMaster) {
+    if (onMiss) { try { onMiss(slug, size); } catch (e) { /* asked */ } }
+    const near = existingCopy(cacheDir, slug, size, { atLeast: false }) || existingCopy(cacheDir, slug, size);
+    if (near && (near.fmt === fmt || near.fmt === 'jpg')) return { file: near.file, fmt: near.fmt, standIn: true };
+    const sibJ = fileOf(cacheDir, slug, size, 'jpg');
+    if (fmt !== 'jpg' && (fs.existsSync(sibJ) || await fromBucket(sibJ))) return { file: sibJ, fmt: 'jpg', standIn: true };
+    return { file: null, fmt, standIn: true, making: true };
+  }
   // The same size in the other format: a re-encode of a finished copy, never the master.
   const sib = fileOf(cacheDir, slug, size, other(fmt));
   if (fs.existsSync(sib) || await fromBucket(sib)) return done(await lane(async () => { const out = await derivative(null, cacheDir, slug, size, fmt, { source: sib }); toBucket(out, fmt); return out; }));

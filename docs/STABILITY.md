@@ -11,6 +11,7 @@ process." This is the process. It is short on purpose; every line is something t
 | 6 Nov, evening → 7 Nov, morning | pages and pictures failing at random; the cold page | the warm (every work's display copies) ran on the website beside visitors; 3.8 GB of 4 GB inside two hours of every restart | 1.71.3: the warm on the worker only |
 | 7 Nov, 9:38 | the cold page for a minute | a deploy (the hotfix above); the service still has a disk, so a deploy restarts it | Will: remove the disk (OPERATIONS.md); deploys are then zero-downtime |
 | 7 Nov, the load test | a missing picture copy took seconds under load and held every other picture behind it (one sharp thread) | a WebP miss beside a finished JPEG; a thumb made from a 60 MP master | 1.72.0: copies made from the copy above; a stand-in served at once |
+| 8 Nov, 9:50 pm and 9 Nov, 11:38 am | the website alive and logging but answering no one (Render's 'service unavailable') until Will pressed Restart | picture work on the website (re-encodes and resizes in native memory, 1.5 GB with a 300 MB heap) and every database question waiting on the main thread (up to 120 s each) | 1.76.1: the website does no picture work (the nearest finished file or the dark, and a ticket); a website question waits 20 s at most; slow questions logged; the watchdog restarts a website that stops answering |
 
 The pattern: the house grew from 400 works to 20,000 in a week (the Met, MoMA, the Gallery) on settings made for October. Each fault was the website doing a whole-collection job, or a cold job, in front of visitors.
 
