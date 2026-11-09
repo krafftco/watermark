@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.0 · The scribes · 9 November 2026
+- A new kind of machine whose only job is to make every work's display copies, best work first, as many side by side as the house runs; the Studio sees how many are ready, how many are left and when it will be done. Imports hold meanwhile, so the collection already here is made whole before anything new comes in.
+
 ## 1.76.1 · The watchdog · 9 November 2026
 - The website no longer stops answering while it stays alive: it does no picture work of its own (a copy not yet made is answered by the nearest finished one, or the wall's dark, and the worker is asked), a slow database question can hold it for twenty seconds at most, and a watchdog restarts it within a minute if it ever stops answering.
 

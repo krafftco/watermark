@@ -1996,7 +1996,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const so = app.locals.standingOrders ? app.locals.standingOrders.summary() : null;
       const BZ = app.locals.business(); const again = BZ.againText, firstSale = BZ.firstSaleText;
       desk = {
-        line: [[String(ST.week), `collected by strangers this week · ${ST.last} last week`], [V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : [])],
+        line: [[String(ST.week), `collected by strangers this week · ${ST.last} last week`], [V.money(D ? D.sales.today.c : 0), 'today' + (D && D.sales.today.n ? ' · ' + D.sales.today.n : '')], [V.money(D ? D.sales.month.c : t.month), 'this month'], [String(D ? D.stood.today : 0), 'stood today'], [String(t.collectors), 'collectors'], ...(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing() ? [['Being shown', 'chores hold · no deploy']] : []), ...(() => { try { const p = app.locals.copies && app.locals.copies.progress(); return p && p.left ? [[p.left.toLocaleString('en-US'), `works still to copy · ${p.scribes ? p.perMin + ' a minute' : 'no scribe at work'}`]] : []; } catch (e) { return []; } })()],
         needs: [
           N.requests ? ['/studio/licenses', 'Answer', `${N.requests} license request${N.requests === 1 ? '' : 's'}`] : null,
           N.applications ? ['/studio/makers', 'Decide', `${N.applications} maker${N.applications === 1 ? '' : 's'} asking to join`] : null,

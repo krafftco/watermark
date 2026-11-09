@@ -10,7 +10,7 @@ const { Worker } = require('worker_threads');
 
 function start({ port, governor, role }) {
   if (process.env.WATCHDOG === '0' || process.env.NODE_ENV === 'test') return null;
-  if (role && role.chores && !role.web) return null; // the worker has its own hard line
+  if (role && !role.web) return null; // the worker and the scribes have their own hard line
   const every = 1000 * (+process.env.WATCHDOG_EVERY_S || 15);
   const timeout = 1000 * (+process.env.WATCHDOG_TIMEOUT_S || 8);
   const misses = +process.env.WATCHDOG_MISSES || 3;

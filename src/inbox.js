@@ -97,7 +97,7 @@ function mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch }) {
     return { taken, skipped, failed, looked: n };
   }
   let busy = false;
-  async function sweep() { if (busy) return; busy = true; try { for (const ib of db.prepare("SELECT * FROM inboxes WHERE status='active'").all()) { try { await look(ib); } catch (e) { console.error('[inbox]', ib.id, e.message); } } } finally { busy = false; } }
+  async function sweep() { if (busy) return; try { const h = db.prepare("SELECT v FROM settings WHERE k='imports_held'").get(); if (h && h.v === '1') return; } catch (e) { /* */ } busy = true; try { for (const ib of db.prepare("SELECT * FROM inboxes WHERE status='active'").all()) { try { await look(ib); } catch (e) { console.error('[inbox]', ib.id, e.message); } } } finally { busy = false; } }
   if (!app.locals.noTimers && process.env.NODE_ENV !== 'test' && ROLE.chores) { const t = setInterval(() => sweep().catch(() => {}), EVERY_MIN * 60 * 1000); if (t.unref) t.unref(); const t0 = setTimeout(() => sweep().catch(() => {}), 70 * 1000); if (t0.unref) t0.unref(); }
 
   // The desk.

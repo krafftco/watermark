@@ -66,7 +66,7 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   // brings it back fresh with its queues resumed from the database. Never on the web, which serves people.
   const hardMb = +process.env.GOV_MEM_HARD_MB || (boxMb() ? Math.round(boxMb() * 0.85) : 1700);
   let hardSince = 0, hardHeld = false;
-  if (ROLE.worker && !quiet()) setInterval(() => {
+  if ((ROLE.worker || ROLE.scribe) && !quiet()) setInterval(() => {
     const r = rssMb();
     if (r < hardMb) { if (hardHeld) { hardHeld = false; console.log(`[governor] memory back under the line (${r} MB)`); } hardSince = 0; return; }
     if (!hardSince) { hardSince = Date.now(); hardHeld = true; console.error(`[governor] memory over the hard line: ${r} MB of ${hardMb}; chores hold`); }
@@ -79,7 +79,7 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   const over = () => rssMb() > webLineMb;
   const choresBase = chores;
   const choresHard = () => choresBase() && !hardHeld;
-  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores: choresHard, hold, showing: () => shown, hardMb, webLineMb, over };
+  app.locals.governor = { settle, turn, boot, pressure, busy, state, sleep, chores: choresHard, hold, showing: () => shown, overHard: () => hardHeld, hardMb, webLineMb, over };
   return app.locals.governor;
 }
 

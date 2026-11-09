@@ -5617,3 +5617,11 @@ html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
 /* The wall standard (7 Nov): the record's line on the open walls */
 .wl{margin:18px 0}.wl .wl-ok,.wl .wl-no{font-size:15px}.wl .wl-no{color:#8a2d12}.wl p small{display:block;margin-top:4px;font-size:13px;color:var(--mu,#777)}.wl .wl-f{display:flex;gap:8px;align-items:center;margin-top:8px}.wl .wl-f select{padding:6px 8px;border:1px solid var(--ln,#ccc);border-radius:3px}
 .mh-none{font-family:var(--serif,Georgia,serif);font-style:italic;font-size:1.15rem;color:var(--mute,#6b655e);margin:8px 0 24px}
+/* The scribes (9 Nov) */
+.scb{max-width:860px;margin:0 auto;padding:32px 20px 80px}
+.scb-n{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0 12px}
+.scb-n span{display:flex;flex-direction:column}.scb-n b{font-family:var(--serif,Georgia,serif);font-size:1.7rem;font-weight:400}.scb-n i{font-style:normal;font-size:.8rem;color:var(--mute,#6b655e)}
+.scb-bar{height:6px;background:rgba(127,127,127,.18);border-radius:3px;overflow:hidden;margin:0 0 18px}.scb-bar i{display:block;height:100%;background:#c9a24a}
+.scb-l{list-style:none;padding:0}.scb-r{padding:10px 0;border-top:1px solid rgba(127,127,127,.2)}.scb-r small{display:block;color:var(--mute,#6b655e)}.scb-off{opacity:.55}
+.scb-note{color:var(--mute,#6b655e)}
+@media (max-width:600px){.scb-n{grid-template-columns:repeat(2,1fr)}}
