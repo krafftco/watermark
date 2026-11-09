@@ -675,17 +675,21 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./postit').mountPostIt(app, { db, V, images, cache, originalPath });
   // Today's photograph: one a day, the same for everyone, chosen from the best by the date, so there is a
   // reason to come back in the morning and something to talk about. /today opens it.
+  // The pool is ids alone (the best on the open walls can be a hundred thousand works); the one chosen is read by id.
+  app.locals.shared.register('todays', { ms: 3600e3, build: () => {
+    const H = app.locals.museums ? app.locals.museums.hallSql('works') : '';
+    const ids = db.prepare(`SELECT id FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4)${H} ORDER BY id`).all().map(r => r.id);
+    return ids.length >= 7 ? ids : db.prepare(`SELECT id FROM works WHERE status='held'${H} ORDER BY id`).all().map(r => r.id);
+  } });
   function todays() {
     const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const H = app.locals.museums ? app.locals.museums.hallSql('works') : '';
-    // (9 Nov) the pool is every best work on the open walls: asked once an hour, not once a page.
-    const pool = app.locals.kept('todays:pool', 3600e3, () => { const rows = db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4)${H} ORDER BY id`).all();
-      return rows.length >= 7 ? rows : db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held'${H} ORDER BY id`).all(); });
+    const pool = app.locals.shared.get('todays'); // (9 Nov) every best work on the open walls: built ahead by the worker, an hour at a time
     if (!pool.length) return null;
     const h = crypto.createHash('sha1').update('today:' + day).digest(); const i = h.readUInt32BE(0) % pool.length;
-    const w = db.prepare('SELECT * FROM works WHERE id=?').get(pool[i].id) || pool[i]; const m = mk(w) || {};
+    const w = db.prepare('SELECT * FROM works WHERE id=?').get(pool[i]); if (!w) return null; const m = mk(w) || {};
     let line = null; try { const c = w.closer ? JSON.parse(w.closer) : null; if (c && c.text) line = String(c.text).split(/(?<=[.!?])\s/)[0].slice(0, 180); } catch (e) { /* no guide */ }
-    return { ...pool[i], day, maker: m.name || null, makerSlug: m.handle ? V.makerSlug(m) : null, line, year: w.taken_at ? String(w.taken_at).slice(0, 4) : null };
+    return { id: w.id, slug: w.slug, title: w.title, place: w.place, width: w.width, height: w.height, day, maker: m.name || null, makerSlug: m.handle ? V.makerSlug(m) : null, line, year: w.taken_at ? String(w.taken_at).slice(0, 4) : null };
   }
   app.locals.todays = todays;
   app.get('/today', (req, res) => { const t = todays(); res.redirect(t ? `/w/${t.slug}?today=1` : '/collection'); });
@@ -1261,7 +1265,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./own').mountOwn(app, { db, V, C, ledger, stripe, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly, registerWork }); // you already own it: the deed, /own, the open door, the Office one tap, said simply
   require('./committee').mountCommittee(app, { db, V, C, ledger, mail, studioOnly, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) }); // the committees: the Front Door (who hangs) and the Walls (what stays)
   // Titles set in title case, once, for what is already held (the maker's wording kept in title_given).
-  try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
+  if (ROLE.chores) try { const n = require('./titles').retitle(db); if (n) console.log('[titles] set in title case:', n); } catch (e) { console.error('[titles]', e.message); }
   // Look closer: a guide written by AI on every photograph, which the maker can correct, approve or hide.
   require('./closer').mountCloser(app, { db, C, studioOnly, isStudio, makerOf: app.locals.accounts.makerOf, ledger, V,
     imageOf: async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen')) });

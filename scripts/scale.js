@@ -62,9 +62,16 @@ async function main() {
     })().catch(e => { console.error(e); process.exit(1); });`, env);
   const seed = JSON.parse(out.split('@@').pop());
   console.log(`scale: a house of ${seed.n.toLocaleString()} works by ${MK} makers (seeded in ${Math.round((Date.now() - t0) / 1000)} s; the rows multiplied in ${seed.cloneMs} ms)`);
+  // 1b. The worker's part (shared.js): what it builds ahead for the website, built once here as it would have been.
+  if (process.env.SCALE_WORKER !== '0') { const t1 = Date.now(); const o = node(`
+    const { createApp } = require('./src/app');
+    const app = createApp({ dataDir: process.env.DATA_DIR, base: 'http://localhost', adminPassword: 'pw', secret: 's', noTimers: true });
+    const built = []; for (let i = 0; i < 20; i++) { const k = app.locals.shared.round(); if (!k) break; built.push(k); }
+    console.log('@@' + built.join(', ')); process.exit(0);
+  `, { ...env, ROLE: 'worker' }); console.log(`scale: the worker built ahead: ${o.split('@@').pop().trim()} (${Date.now() - t1} ms)`); }
   // 2. The website, as on Render: ROLE=web, its own process.
   const port = 3900 + Math.floor(Math.random() * 90);
-  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, ...env, ROLE: 'web', PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, ...env, ROLE: 'web', PORT: String(port), LOOP_LAG: '300' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; child.stdout.on('data', d => { log += d; }); child.stderr.on('data', d => { log += d; });
   const base = `http://127.0.0.1:${port}`;
   let up = false; for (let i = 0; i < 120; i++) { try { if ((await fetch(base + '/healthz')).ok) { up = true; break; } } catch (e) { /* not yet */ } await new Promise(r => setTimeout(r, 500)); }
@@ -116,6 +123,7 @@ async function main() {
   for (const l of slow) { const m = l.match(/\[pg slow\] (\d+) ms: (.*)/); if (m) { const k = m[2].slice(0, 150); bySql[k] = bySql[k] || { n: 0, max: 0, sum: 0 }; bySql[k].n++; bySql[k].sum += +m[1]; bySql[k].max = Math.max(bySql[k].max, +m[1]); } }
   const worst = Object.entries(bySql).sort((a, b) => b[1].sum - a[1].sum).slice(0, 18);
   if (worst.length) { console.log(`slow questions (${slow.length} over the line), the worst:`); for (const [k, v] of worst) console.log(`  ${String(v.sum).padStart(7)} ms in all · ${String(v.max).padStart(5)} worst × ${String(v.n).padStart(4)}  ${k}`); }
+  { const L = log.split('\n'); const lag = []; L.forEach((l, i) => { if (/^\[lag\]/.test(l)) lag.push(`  ${l}   after: ${(L.slice(Math.max(0, i - 3), i).filter(x => !/^\[lag\]/.test(x)).pop() || '').slice(0, 170)}`); }); if (lag.length) console.log(`the loop was held ${lag.length} times over 300 ms:\n` + lag.slice(0, 30).join('\n')); }
   child.kill();
   if (faults.length) { console.log('scale: FAULTS\n  ' + faults.join('\n  ')); process.exit(1); }
   console.log('scale: holds'); process.exit(0);

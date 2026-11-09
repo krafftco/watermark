@@ -25,3 +25,6 @@ app.locals.store.checkKey()
     try { require('./src/watchdog').start({ port, governor: app.locals.governor, role: require('./src/role') }); } catch (e) { console.error('[watchdog]', e.message); }
   })
   .catch(e => { console.error(e.message); process.exit(1); });
+
+// (9 Nov) LOOP_LAG=<ms>: say when the event loop was held longer than that, for the scale test to read beside the slow questions.
+if (process.env.LOOP_LAG) { const over = Number(process.env.LOOP_LAG) || 300; let last = Date.now(); setInterval(() => { const now = Date.now(), d = now - last - 100; last = now; if (d > over) console.log('[lag]', d, 'ms'); }, 100).unref(); }

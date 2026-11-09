@@ -9,7 +9,7 @@ let cache = { at: 0, map: new Map() };
 function compute(db) {
   const m = new Map();
   const add = (id, v) => m.set(id, (m.get(id) || 0) + v);
-  for (const w of db.prepare('SELECT id, stars, curated FROM works').all()) add(w.id, (w.stars || 0) * 3 + (w.curated ? 4 : 0));
+  for (const w of db.prepare('SELECT id, stars, curated FROM works WHERE stars>0 OR curated=1').all() /* (9 Nov) only the graded: an ungraded work adds nothing, and the rest was every row of the house each five minutes */) add(w.id, (w.stars || 0) * 3 + (w.curated ? 4 : 0));
   const safe = (sql, f) => { try { for (const r of db.prepare(sql).all()) f(r); } catch (e) { /* table not yet */ } };
   safe('SELECT work_id id, COUNT(*) n FROM applause GROUP BY work_id', r => add(r.id, Math.min(20, r.n)));
   safe('SELECT work_id id, COUNT(*) n FROM bravos GROUP BY work_id', r => add(r.id, Math.min(40, r.n * 5))); // a bravo is five hats

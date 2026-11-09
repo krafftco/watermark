@@ -10,6 +10,7 @@ const LIST = [
   ['works_place_best', 'works (status, place, curated, stars, id)'],
   ['works_artist_best', 'works (artist_id, status, curated, stars, id)'],
   ['works_taken_status', 'works (status, taken_at)'],
+  ['works_status_created', 'works (status, created_at DESC, id DESC)'], // the Latest row: the newest on view
   ['works_status_best', 'works (status, curated, stars, id)'],
   ['works_sha256', 'works (sha256)'],
   ['works_source', 'works (source_url)'],
