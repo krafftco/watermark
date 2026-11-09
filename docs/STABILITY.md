@@ -65,3 +65,15 @@ The pattern: the house grew from 400 works to 20,000 in a week (the Met, MoMA, t
 - 9 Nov, 15:14 ET: the website over its memory line and restarted twice. Cause: /collection, /house, /makers and /api/index.json read `SELECT * FROM works` for every hall work (48,000 rows with guides and readings; 5–6 s on the bridge and ~800 MB of heap a request; three in twenty seconds). Fix (1.77.2): `hallList()` in app.js, the best COLLECTION_MAX (1200) without the heavy columns, kept two minutes; the page takes the true total apart. Rule restated: no page reads the whole collection.
 
 - 9 Nov, 15:58 ET: Wander's first byte at 14 s through the edge, then 502/503 and a watchdog restart. Cause: the open wander's pool was `SELECT w.*` of every work on the open walls (50,000 whole rows, ~800 MB, six seconds on the bridge), keyed on the register's head and the copies made, twenty pools kept; with scribes making eighty copies a minute every request rebuilt it. Fix (1.77.4): the pool is id, slug, curated, stars, kept two minutes by the clock (WANDER_POOL_S), four pools at most; the screens shown are read by id. The load test must run at the live collection's size.
+
+## The scale plan (Will, 9 Nov: "we are only going to get bigger")
+
+Every fault of 9 Nov was one pattern: a page or a timer on the website reading the whole collection. Fine at 5,000 works, painful at 60,000. The plan, tracked as tasks "Scale 1/5 … 5/5" in Notion (Operations → Tasks, project Watermark):
+
+1. Sweep every visitor path and every website timer for whole-collection reads; each gets a LIMIT, named columns, or moves to the worker. Done when an hour of the live web log shows no `[pg slow]` line.
+2. The load test builds a house at the live size (100,000 works, then a million) with page-time budgets, in CI on next.
+3. A slow-question budget the house enforces: CI fails on one in the load test; the live list rides in the morning digest.
+4. Indexes, and Postgres choosing and sorting instead of the house reading everything.
+5. Public pages cached at the edge; via-house arrivals off one machine's disk; a second website instance.
+
+Rule for every new room from here: say how it behaves at a million works before it ships.
