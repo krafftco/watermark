@@ -2725,6 +2725,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (wantsSign(req) || (req.accepts('html') && !req.xhr && !/^\/(api|img|cab)/.test(req.path))) return res.status(code).send(V.sign({ code, cover: coverFor(), detail: code === 413 ? 'The file is larger than the vault takes in one piece.' : null }));
     res.status(code).json({ ok: false, code });
   });
+  require('./indexes').mount(app, { db }); // (9 Nov) the house's indexes, made by the chores process once every table is there
   return app;
 }
 
