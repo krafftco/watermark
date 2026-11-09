@@ -19,7 +19,7 @@ const node = (code, env) => execFileSync(process.execPath, ['-e', code], { cwd: 
 
 async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-scale-'));
-  const env = { DATABASE_URL: URL_, DATA_DIR: dir, NODE_ENV: 'production', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 's', BASE_URL: 'http://localhost', NO_SEED: '1', CHORES: '0', WATCHDOG: '0', SCALE_N: String(N), SCALE_MK: String(MK), SCALE_SEED: String(SEED) };
+  const env = { DATABASE_URL: URL_, DATA_DIR: dir, NODE_ENV: 'production', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 's', BASE_URL: 'http://localhost', NO_SEED: '1', CHORES: '0', WATCHDOG: '0', DB_SLOW_MS: process.env.SCALE_SLOW_MS || '500', SCALE_N: String(N), SCALE_MK: String(MK), SCALE_SEED: String(SEED) };
   // 1. An empty database, a house, a few real works with their copies, then the rows multiplied.
   const t0 = Date.now();
   const out = node(`
@@ -107,9 +107,9 @@ async function main() {
   console.log(`scale: ${total} answers, ${Math.round(total / S)} a second; memory rss ${m0.rssMB} → ${m1.rssMB} MB (peak ${peak}), heap ${m0.heapMB} → ${m1.heapMB} MB`);
   if (peak > RSS) faults.push(`memory peaked at ${peak} MB, over ${RSS}`);
   const slow = (log.match(/\[pg slow\][^\n]*/g) || []); const bySql = {};
-  for (const l of slow) { const m = l.match(/\[pg slow\] (\d+) ms: (.*)/); if (m) { const k = m[2].slice(0, 150); bySql[k] = bySql[k] || { n: 0, max: 0 }; bySql[k].n++; bySql[k].max = Math.max(bySql[k].max, +m[1]); } }
-  const worst = Object.entries(bySql).sort((a, b) => b[1].max * b[1].n - a[1].max * a[1].n).slice(0, 15);
-  if (worst.length) { console.log(`slow questions (${slow.length} over the line), the worst:`); for (const [k, v] of worst) console.log(`  ${String(v.max).padStart(6)} ms × ${String(v.n).padStart(3)}  ${k}`); }
+  for (const l of slow) { const m = l.match(/\[pg slow\] (\d+) ms: (.*)/); if (m) { const k = m[2].slice(0, 150); bySql[k] = bySql[k] || { n: 0, max: 0, sum: 0 }; bySql[k].n++; bySql[k].sum += +m[1]; bySql[k].max = Math.max(bySql[k].max, +m[1]); } }
+  const worst = Object.entries(bySql).sort((a, b) => b[1].sum - a[1].sum).slice(0, 18);
+  if (worst.length) { console.log(`slow questions (${slow.length} over the line), the worst:`); for (const [k, v] of worst) console.log(`  ${String(v.sum).padStart(7)} ms in all · ${String(v.max).padStart(5)} worst × ${String(v.n).padStart(4)}  ${k}`); }
   child.kill();
   if (faults.length) { console.log('scale: FAULTS\n  ' + faults.join('\n  ')); process.exit(1); }
   console.log('scale: holds'); process.exit(0);

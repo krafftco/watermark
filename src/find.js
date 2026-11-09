@@ -13,12 +13,37 @@ function mountFind(app, { db, V, I }) {
   const near = (a, b) => { if (a === b) return true; const la = a.length, lb = b.length; if (Math.abs(la - lb) > 2) return false; const max = Math.max(la, lb) >= 7 ? 2 : 1; const d = []; for (let i = 0; i <= la; i++) { d[i] = [i]; for (let j = 1; j <= lb; j++) d[i][j] = i === 0 ? j : 0; } for (let i = 1; i <= la; i++) for (let j = 1; j <= lb; j++) { const c = a[i - 1] === b[j - 1] ? 0 : 1; d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c); if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1); } return d[la][lb] <= max; };
   const sim = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; for (const x of a) if (b.has(x)) n++; return n / Math.sqrt(a.size * b.size); };
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
+  const shape = w => { const year = (w.taken_at || '').slice(0, 4); const fields = { title: norm(tidy(w.title)), place: norm(w.place), maker: norm(w.maker), kw: norm(w.keywords), cap: norm(w.caption).slice(0, 300), year, acc: norm(w.accession) }; return { ...w, year, title: tidy(w.title), makerSlug: V.makerSlug({ name: w.maker, handle: w.handle }), f: fields, g: grams(`${fields.title} ${fields.place} ${fields.maker}`) }; };
+  const FIND_DB_OVER = Number(process.env.FIND_DB_OVER || 20000);
+  const isBig = () => { if (process.env.FIND_DB === '1') return true; if (process.env.FIND_DB === '0') return false; try { return db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n > FIND_DB_OVER; } catch (e) { return false; } };
+  // What a search reads of a work, as the database holds it; the index `works_find` (indexes.js) is on these words.
+  const WORDS = "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,'') || ' ' || coalesce(w.accession,'') || ' ' || coalesce(substr(w.taken_at,1,4),''))";
+  const COLS = 'w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, w.kind, m.name AS maker, m.handle, m.id AS maker_id';
+  const like = t => '%' + String(t).replace(/[%_\\]/g, ' ') + '%';
+  // The candidates of a search: every word in the work's own words or its maker's name; the best first, a ceiling.
+  function candidates(toks, open) {
+    if (!toks.length) return [];
+    const mk = index.makers || []; const args = []; const conds = toks.map(t => { const ids = mk.filter(m => m.nm.split(' ').some(x => x.startsWith(t)) || (t.length >= 4 && m.nm.includes(t))).slice(0, 40).map(m => m.id).filter(Boolean); const lit = String(t).replace(/[^a-z0-9]/g, ''); return `(${WORDS} LIKE '%${lit}%'${ids.length ? ` OR w.maker_id IN (${ids.join(',')})` : ''})`; });
+    try { return db.prepare(`SELECT ${COLS} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'${open ? '' : " AND COALESCE(w.zone,'all')<>'mature'"} AND ${conds.join(' AND ')} ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${Number(process.env.FIND_CANDIDATES || 400)}`).all(...args).map(shape); } catch (e) { console.error('[find]', e.message); return []; }
+  }
+  // A slip of the fingers at scale: the nearest words by trigram (Postgres); a small house keeps its own way.
+  function nearCandidates(nq, open) {
+    if (db.kind !== 'postgres') return [];
+    try { return db.prepare(`SELECT ${COLS} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'${open ? '' : " AND COALESCE(w.zone,'all')<>'mature'"} AND ? <% ${WORDS} ORDER BY ? <<-> ${WORDS} LIMIT 60`).all(nq, nq).map(shape); } catch (e) { console.error('[find near]', e.message); return []; }
+  }
+  const bySlugs = slugs => { if (!slugs.length) return []; const rows = db.prepare(`SELECT ${COLS} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.slug IN (${slugs.map(() => '?').join(',')})`).all(...slugs).map(shape); const by = new Map(rows.map(r => [r.slug, r])); return slugs.map(x => by.get(x)).filter(Boolean); };
   function build() {
     if (Date.now() - index.at < (process.env.NODE_ENV === 'test' ? 60e3 : Number(process.env.FIND_KEEP_S || 300) * 1000)) return index; // (9 Nov) five minutes: the build reads every held work (2.7 s at 60,000)
-    const works = db.prepare(`SELECT w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, w.kind, m.name AS maker, m.handle, m.id AS maker_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'`).all()
-      .map(w => { const year = (w.taken_at || '').slice(0, 4); const fields = { title: norm(tidy(w.title)), place: norm(w.place), maker: norm(w.maker), kw: norm(w.keywords), cap: norm(w.caption).slice(0, 300), year, acc: norm(w.accession) }; return { ...w, year, title: tidy(w.title), makerSlug: V.makerSlug({ name: w.maker, handle: w.handle }), f: fields, g: grams(`${fields.title} ${fields.place} ${fields.maker}`) }; });
-    const makers = []; const seenM = new Set(); for (const w of works) if (!seenM.has(w.maker_id)) { seenM.add(w.maker_id); makers.push({ name: w.maker, slug: w.makerSlug, n: works.filter(x => x.maker_id === w.maker_id).length, nm: norm(w.maker), cover: w.slug }); }
+    // (9 Nov, the scale test: at 500,000 works this list was over a gigabyte in the website's memory and four seconds to
+    // read.) Past FIND_DB_OVER works on view the works stay in the database: a search asks it for candidates (the trigram
+    // index `works_find`), and the counts by maker, place, medium and year are asked as counts.
+    const big = isBig();
+    const works = (big ? [] : db.prepare(`SELECT w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, w.kind, m.name AS maker, m.handle, m.id AS maker_id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'`).all())
+      .map(shape);
+    const makers = []; const seenM = new Set(); for (const w of works) if (!seenM.has(w.maker_id)) { seenM.add(w.maker_id); makers.push({ id: w.maker_id, name: w.maker, slug: w.makerSlug, n: works.filter(x => x.maker_id === w.maker_id).length, nm: norm(w.maker), cover: w.slug }); }
+    if (big) { try { for (const r of db.prepare("SELECT m.id, m.name, m.handle, COUNT(*) n, MIN(w.slug) cover FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' GROUP BY m.id, m.name, m.handle ORDER BY n DESC LIMIT 5000").all()) makers.push({ id: r.id, name: r.name, slug: V.makerSlug({ name: r.name, handle: r.handle }), n: Number(r.n), nm: norm(r.name), cover: r.cover }); } catch (e) { console.error('[find makers]', e.message); } }
     const pc = new Map(); for (const w of works) if (w.place) { const k = w.place; const e = pc.get(k) || { name: k, n: 0, nm: norm(k), cover: w.slug }; e.n++; if (w.curated) e.cover = w.slug; pc.set(k, e); }
+    if (big) { try { for (const r of db.prepare("SELECT w.place AS name, COUNT(*) n, MIN(CASE WHEN COALESCE(w.zone,'all')='mature' THEN NULL ELSE w.slug END) cover FROM works w WHERE w.status='held' AND w.place IS NOT NULL AND w.place<>'' GROUP BY w.place ORDER BY n DESC LIMIT 3000").all()) pc.set(r.name, { name: r.name, n: Number(r.n), nm: norm(r.name), cover: r.cover }); } catch (e) { console.error('[find places]', e.message); } }
     const places = [...pc.values()].sort((a, b) => b.n - a.n);
     let rooms = []; try { rooms = db.prepare("SELECT c.slug, c.title, COUNT(cw.work_id) n, (SELECT w2.slug FROM collection_works x JOIN works w2 ON w2.id=x.work_id WHERE x.collection_id=c.id AND w2.status='held' ORDER BY w2.curated DESC, x.sort LIMIT 1) cover FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held' WHERE c.public=1 GROUP BY c.id ORDER BY n DESC").all().map(r => ({ ...r, title: tidy(r.title), nm: norm(r.title) })); } catch (e) { rooms = []; }
     let hangs = []; try { hangs = (app.locals.hangs ? app.locals.hangs.publicHangs() : []).map(h => ({ title: h.title, href: app.locals.hangs.href(h), n: h.n, curator: h.curator, nm: norm(h.title) })); } catch (e) { hangs = []; }
@@ -31,10 +56,11 @@ function mountFind(app, { db, V, I }) {
     let museums = []; try { museums = db.prepare("SELECT m.handle, m.name, m.place, m.portrait, COUNT(*) n, (SELECT w.slug FROM works w WHERE w.maker_id=m.id AND w.status='held' AND COALESCE(w.zone,'all')!='mature' ORDER BY w.curated DESC, w.stars DESC, w.id LIMIT 1) cover FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE m.kind='institution' AND m.handle<>'the-public-domain' GROUP BY m.id ORDER BY n DESC").all().map(m => ({ name: m.name, place: m.place, n: m.n, href: `/m/${V.makerSlug(m)}`, stroll: `/wander?maker=${encodeURIComponent(V.makerSlug(m))}`, img: m.cover ? `/img/${m.cover}/thumb` : null, nm: norm(`${m.name} ${m.place || ''}`) })); } catch (e) { museums = []; }
     try { const kp = db.prepare("SELECT k.qid, k.name, k.city, k.country, COUNT(*) n FROM keepers k JOIN catalogue c ON c.collection_qid=k.qid GROUP BY k.qid ORDER BY n DESC LIMIT 400").all(); const have = new Set(museums.map(m => m.nm)); for (const k of kp) { const nm = norm(`${k.name} ${k.city || ''} ${k.country || ''}`); if (have.has(norm(k.name))) continue; museums.push({ name: k.name, place: [k.city, k.country].filter(Boolean).join(', '), n: k.n, known: true, href: `/art/visit/${encodeURIComponent(k.qid)}`, stroll: null, img: null, nm }); } } catch (e) { /* no catalogue */ }
     const movements = []; { const mc = new Map(); for (const a of artists) if (a.movement && a.n) { const e = mc.get(a.movement) || { name: a.movement, artists: 0, n: 0, cover: a.cover }; e.artists++; e.n += a.n; if (!e.cover) e.cover = a.cover; mc.set(a.movement, e); } for (const e of mc.values()) movements.push({ ...e, nm: norm(e.name), href: `/art?movement=${encodeURIComponent(e.name)}`, stroll: `/wander?in=movement:${encodeURIComponent(e.name)}`, img: e.cover ? `/img/${e.cover}/thumb` : null }); movements.sort((a, b) => b.n - a.n); }
-    const kinds = []; try { const K = require('./object').KINDS; const kc = new Map(); for (const w of works) { const k = w.kind || 'photograph'; const e = kc.get(k) || { k, n: 0, cover: w.slug }; e.n++; if (w.curated && w.zone !== 'mature') e.cover = w.slug; kc.set(k, e); } for (const e of kc.values()) if (K[e.k]) kinds.push({ name: `${K[e.k]}s`, k: e.k, n: e.n, nm: norm(K[e.k] + 's'), href: `/wander?in=kind:${e.k}`, stroll: `/wander?in=kind:${e.k}`, img: `/img/${e.cover}/thumb` }); kinds.sort((a, b) => b.n - a.n); } catch (e) { /* kinds are a nicety */ }
+    const kinds = []; try { const K = require('./object').KINDS; const kc = new Map(); if (big) for (const r of db.prepare("SELECT COALESCE(w.kind,'photograph') AS k, COUNT(*) n, MIN(CASE WHEN COALESCE(w.zone,'all')='mature' THEN NULL ELSE w.slug END) cover FROM works w WHERE w.status='held' GROUP BY COALESCE(w.kind,'photograph')").all()) kc.set(r.k, { k: r.k, n: Number(r.n), cover: r.cover }); for (const w of works) { const k = w.kind || 'photograph'; const e = kc.get(k) || { k, n: 0, cover: w.slug }; e.n++; if (w.curated && w.zone !== 'mature') e.cover = w.slug; kc.set(k, e); } for (const e of kc.values()) if (K[e.k]) kinds.push({ name: `${K[e.k]}s`, k: e.k, n: e.n, nm: norm(K[e.k] + 's'), href: `/wander?in=kind:${e.k}`, stroll: `/wander?in=kind:${e.k}`, img: `/img/${e.cover}/thumb` }); kinds.sort((a, b) => b.n - a.n); } catch (e) { /* kinds are a nicety */ }
     let films = []; try { films = db.prepare("SELECT slug, title, filmmaker, year, poster_slug, poster_url FROM films WHERE status='showing' ORDER BY id DESC").all().map(f => ({ name: f.title, by: [f.filmmaker, f.year].filter(Boolean).join(', '), href: `/screening/${f.slug}`, img: f.poster_slug ? `/img/${f.poster_slug}/thumb` : f.poster_url || null, nm: norm(`${f.title} ${f.filmmaker || ''} ${f.year || ''}`) })); } catch (e) { films = []; }
     const years = new Map(); for (const w of works) { const y = parseInt(w.year, 10); if (!y) continue; const e = years.get(y) || { y, n: 0, cover: w.slug }; e.n++; if (w.curated && w.zone !== 'mature') e.cover = w.slug; years.set(y, e); }
-    index = { at: Date.now(), works, makers, places, rooms, hangs, books, records, artists, museums, movements, kinds, films, years };
+    if (big) { try { for (const r of db.prepare("SELECT substr(w.taken_at,1,4) AS y, COUNT(*) n, MIN(CASE WHEN COALESCE(w.zone,'all')='mature' THEN NULL ELSE w.slug END) cover FROM works w WHERE w.status='held' AND w.taken_at IS NOT NULL GROUP BY substr(w.taken_at,1,4)").all()) { const y = parseInt(r.y, 10); if (y) years.set(y, { y, n: Number(r.n), cover: r.cover }); } } catch (e) { console.error('[find years]', e.message); } }
+    index = { at: Date.now(), big, works, makers, places, rooms, hangs, books, records, artists, museums, movements, kinds, films, years };
     return index;
   }
   app.locals.findIndexDirty = () => { index.at = 0; };
@@ -44,8 +70,10 @@ function mountFind(app, { db, V, I }) {
   function search(q, n = 12, req = null) {
     const ix0 = build(); const ix = req && app.locals.zone && !app.locals.zone.open(req) ? { ...ix0, works: ix0.works.filter(w => w.zone !== 'mature') } : ix0; const nq = norm(q); if (!nq) return { works: [], makers: [], places: [], rooms: [], hangs: [] };
     const toks = nq.split(' ').filter(Boolean); const t0 = toks[0] || '';
+    const open = !(req && app.locals.zone && !app.locals.zone.open(req));
+    const pool = ix0.big ? (app.locals.kept || ((k, ms, f) => f()))('find|' + (open ? 1 : 0) + '|' + toks.join(' '), 120e3, () => candidates(toks, open)) : ix.works;
     const scored = [];
-    for (const w of ix.works) {
+    for (const w of pool) {
       let s = 0, all = true;
       for (const t of toks) {
         let ts = 0;
@@ -60,9 +88,10 @@ function mountFind(app, { db, V, I }) {
     let works = scored.sort((a, b) => b[0] - a[0]).map(x => x[1]);
     if (!works.length && nq.length >= 4) { // a typo forgiven: a near word in the title, place or maker, else the nearest by trigram
       const words = w => `${w.f.title} ${w.f.place} ${w.f.maker}`.split(' ').filter(x => x.length >= 3);
-      const byWord = ix.works.filter(w => toks.every(t => t.length < 4 || words(w).some(x => near(t, x))));
+      const pool2 = ix0.big ? nearCandidates(nq, open) : ix.works;
+      const byWord = pool2.filter(w => toks.every(t => t.length < 4 || words(w).some(x => near(t, x))));
       if (byWord.length) works = byWord.sort((a, b) => (b.curated - a.curated) || ((b.stars || 0) - (a.stars || 0)));
-      else { const g = grams(nq); works = ix.works.map(w => [sim(g, w.g), w]).filter(x => x[0] > 0.28).sort((a, b) => b[0] - a[0]).map(x => x[1]); }
+      else { const g = grams(nq); works = pool2.map(w => [sim(g, w.g), w]).filter(x => x[0] > 0.28).sort((a, b) => b[0] - a[0]).map(x => x[1]); }
     }
     const starts = (nm, t) => nm === t || nm.split(' ').some(x => x.startsWith(t)) || nm.includes(t);
     let makers = ix.makers.filter(m => toks.every(t => starts(m.nm, t))).slice(0, 4);
@@ -75,7 +104,7 @@ function mountFind(app, { db, V, I }) {
     let artists = (ix.artists || []).filter(a => toks.every(t => inWords(a.nm, t)));
     if (!artists.length && nq.length >= 4) { const g = grams(nq); artists = (ix.artists || []).filter(a => a.nn.split(' ').some(x => toks.some(t => t.length >= 4 && near(t, x))) || sim(g, a.g) > 0.45); }
     artists.sort((a, b) => (b.nn.startsWith(nq) - a.nn.startsWith(nq)) || (b.n - a.n) || (b.known - a.known)); artists = artists.slice(0, 5);
-    const artistsFirst = !!(artists[0] && (() => { const ws = artists[0].nn.split(' '); return toks.every(t => ws.includes(t)) || (toks.length === 1 && t0.length >= 4 && ws.some(x => x.startsWith(t0) && artists[0].nn.length - t0.length < 12 && !(ix.works || []).some(w => w.f.title.split(' ').includes(t0)))); })());
+    const artistsFirst = !!(artists[0] && (() => { const ws = artists[0].nn.split(' '); return toks.every(t => ws.includes(t)) || (toks.length === 1 && t0.length >= 4 && ws.some(x => x.startsWith(t0) && artists[0].nn.length - t0.length < 12 && !(pool || []).some(w => w.f.title.split(' ').includes(t0)))); })());
     const museums = (ix.museums || []).filter(m => toks.every(t => inWords(m.nm, t))).slice(0, 4);
     const movements = (ix.movements || []).filter(m => toks.every(t => inWords(m.nm, t))).slice(0, 4);
     const kinds = (ix.kinds || []).filter(k => toks.every(t => inWords(k.nm, t))).slice(0, 3);
@@ -98,8 +127,8 @@ function mountFind(app, { db, V, I }) {
   function before(req) {
     const ix = build(); const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null; const v = String((req.cookies && req.cookies.wm_v) || '').slice(0, 16);
     let lately = [], yours = [];
-    try { if (b || v) { const rows = db.prepare(`SELECT w.slug FROM stood s JOIN works w ON w.id=s.work_id AND w.status='held' WHERE ${b ? '(s.buyer_id=? OR s.viewer=?)' : 's.viewer=?'} ORDER BY s.at DESC LIMIT 8`).all(...(b ? [b.id, v] : [v])); lately = rows.map(r => ix.works.find(w => w.slug === r.slug)).filter(Boolean).map(row); } } catch (e) { lately = []; }
-    try { if (b) { const rows = db.prepare(`SELECT w.slug FROM licenses l JOIN works w ON w.id=l.work_id AND w.status='held' WHERE l.buyer_id=? AND l.status='active' GROUP BY w.slug ORDER BY MAX(l.starts_at) DESC LIMIT 8`).all(b.id); yours = rows.map(r => ix.works.find(w => w.slug === r.slug)).filter(Boolean).map(row); } } catch (e) { yours = []; }
+    try { if (b || v) { const rows = db.prepare(`SELECT w.slug FROM stood s JOIN works w ON w.id=s.work_id AND w.status='held' WHERE ${b ? '(s.buyer_id=? OR s.viewer=?)' : 's.viewer=?'} ORDER BY s.at DESC LIMIT 8`).all(...(b ? [b.id, v] : [v])); lately = (ix.big ? bySlugs(rows.map(r => r.slug)) : rows.map(r => ix.works.find(w => w.slug === r.slug)).filter(Boolean)).map(row); } } catch (e) { lately = []; }
+    try { if (b) { const rows = db.prepare(`SELECT w.slug FROM licenses l JOIN works w ON w.id=l.work_id AND w.status='held' WHERE l.buyer_id=? AND l.status='active' GROUP BY w.slug ORDER BY MAX(l.starts_at) DESC LIMIT 8`).all(b.id); yours = (ix.big ? bySlugs(rows.map(r => r.slug)) : rows.map(r => ix.works.find(w => w.slug === r.slug)).filter(Boolean)).map(row); } } catch (e) { yours = []; }
     const latelySet = new Set(lately.map(x => x.slug)); yours = yours.filter(x => !latelySet.has(x.slug));
     const decades = []; { const d = new Map(); for (const [y, e] of (ix.years || new Map())) { const k = Math.floor(y / 10) * 10; const x = d.get(k) || { y: k, n: 0 }; x.n += e.n; d.set(k, x); } decades.push(...[...d.values()].sort((a, b) => a.y - b.y).map(x => ({ name: `${x.y}s`, n: x.n, href: `/wander?in=decade:${x.y}` }))); }
     return { lately, yours, artists: (ix.artists || []).filter(a => a.n).slice(0, 10).map(a => ({ name: a.name, n: a.n, href: `/art/${a.slug}` })), movements: (ix.movements || []).slice(0, 8).map(m => ({ name: m.name, n: m.n, href: m.href })), kinds: (ix.kinds || []).slice(0, 8).map(k => ({ name: k.name, n: k.n, href: k.href })), decades: decades.slice(0, 16), museums: (ix.museums || []).filter(m => !m.known).slice(0, 6).map(m => ({ name: m.name, n: m.n, href: m.href })), places: ix.places.slice(0, 14).map(p => ({ name: p.name, n: p.n, href: `/wander?q=${encodeURIComponent(p.name)}` })), makers: ix.makers.slice(0, 8).map(m => ({ name: m.name, n: m.n, href: `/wander?maker=${encodeURIComponent(m.slug)}` })), rooms: ix.rooms.slice(0, 8).map(r => ({ name: r.title, n: r.n, href: `/wander?in=series:${encodeURIComponent(r.slug)}` })) };
@@ -110,7 +139,7 @@ function mountFind(app, { db, V, I }) {
     if (!q) return res.json({ q: '', before: before(req) });
     res.json({ q, ...search(q, Math.max(1, Math.min(24, parseInt(req.query.n, 10) || 12)), req) });
   });
-  app.locals.find = { search, before, index: build };
+  app.locals.find = { search, before, index: build, WORDS };
   // The page: the same search, for a typed address or no script.
   app.get('/find', (req, res) => {
     const q = String(req.query.q || '').trim().slice(0, 80); const r = q ? search(q, 48, req) : null; const bf = q ? null : before(req);

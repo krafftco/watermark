@@ -12,29 +12,38 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   const PAGE = 8;
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
   // little chance in it, and when there is a word, only what matches it (place, title, maker, keywords).
-  const makerBy = key => { if (!key) return null; const all = db.prepare('SELECT * FROM makers').all(); return all.find(m => m.handle === key) || all.find(m => V.makerSlug(m) === key) || null; };
+  // (9 Nov) By handle first, one row; a page slug that is not the handle is found in a light list kept a minute.
+  let mkList = { at: 0, rows: [] };
+  const makerBy = key => { if (!key) return null; const h = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(key)); if (h) return h;
+    if (Date.now() - mkList.at > (process.env.NODE_ENV === 'test' ? 0 : 60e3)) mkList = { at: Date.now(), rows: db.prepare('SELECT id, name, handle FROM makers').all() };
+    const m = mkList.rows.find(x => V.makerSlug(x) === key); return m ? db.prepare('SELECT * FROM makers WHERE id=?').get(m.id) : null; };
+  const POOL_MAX = Number(process.env.WANDER_POOL_MAX || 20000);
   const POOL = new Map(); const POOL_MS = process.env.NODE_ENV === 'test' ? 0 : Number(process.env.WANDER_POOL_S || 120) * 1000; app.locals.wanderPoolDirty = () => POOL.clear();
   function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
-    let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : ''); if (not.length) { where += ` AND w.slug NOT IN (${not.map(() => '?').join(',')})`; params.push(...not); }
-    if (q) { const like = `%${q.replace(/[%_]/g, '')}%`; where += " AND (w.title LIKE ? OR w.place LIKE ? OR w.keywords LIKE ? OR m.name LIKE ? OR w.taken_at LIKE ? OR EXISTS (SELECT 1 FROM artists a WHERE a.id=w.artist_id AND (a.name LIKE ? OR a.movement LIKE ?)))"; params.push(like, like, like, like, `${q.replace(/[%_]/g, '')}%`, like, like); } // a word, a maker, an artist, a movement or a year (5 Nov)
+    let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : '');
+    // A word (5 Nov: a place, a title, a maker, an artist, a movement or a year). (9 Nov) Asked of the work's own words
+    // under the search index, and of the makers and artists by their ids: seven LIKEs across every row took 1.7 s at
+    // 500,000 works.
+    if (q) { const t = q.replace(/[%_]/g, ''); const like = `%${t}%`; const W = app.locals.find && app.locals.find.WORDS ? app.locals.find.WORDS : "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,''))";
+      let mids = [], aids = []; try { mids = db.prepare('SELECT id FROM makers WHERE name LIKE ? LIMIT 60').all(like).map(x => Number(x.id)); } catch (e) { mids = []; } try { aids = db.prepare('SELECT id FROM artists WHERE name LIKE ? OR movement LIKE ? LIMIT 300').all(like, like).map(x => Number(x.id)); } catch (e) { aids = []; }
+      const lit = t.toLowerCase().replace(/[^\p{L}\p{N} .,&-]/gu, ' ').trim(); // set into the question itself (no quote, no wildcard can remain), so the planner sees the word: a parameter gave a common word a blind plan
+      where += ` AND (${W} LIKE '%${lit}%'${mids.length ? ` OR w.maker_id IN (${mids.join(',')})` : ''}${aids.length ? ` OR w.artist_id IN (${aids.join(',')})` : ''})`; }
     const mk = makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
-    // The open wander draws from a pool kept a minute (28 Oct, for an audience): the held works with their weights, picked
-    // at random here rather than sorted by the database for every page; a word, a maker or the adult rooms open still ask.
-    let rows;
-    if (!q && !mk) {
-      // (9 Nov) The pool is light and kept by the clock alone: id, slug and the two weights for every work on the open
-      // walls, two minutes. It had been `SELECT w.*` of the whole hall (50,000 rows with their guides, ~800 MB and six
-      // seconds on the bridge), remade on any register entry or any copy made, twenty pools kept: with the scribes
-      // making eighty copies a minute every Wander request rebuilt it, and the website fell over.
-      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); let pool = POOL.get(sql);
-      if (!pool || Date.now() - pool.at > POOL_MS) { pool = { at: Date.now(), rows: db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${sql}`).all() }; POOL.set(sql, pool); if (POOL.size > 4) POOL.delete(POOL.keys().next().value); }
-      const notSet = new Set(not); const cands = []; for (const r of pool.rows) if (!notSet.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
-      cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
-      const full = ids.length ? db.prepare(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`).all(...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
-      rows = ids.map(i => byId.get(Number(i))).filter(Boolean);
+    // The pool (28 Oct; light since 9 Nov): id, slug and the two weights, kept two minutes, for the open wander and now
+    // for a word or a maker too. Never more than POOL_MAX rows: past that the open wander takes every Kth work, a
+    // different slice each time the pool is remade, so the whole collection comes round and the website holds a
+    // fixed amount whatever the collection's size.
+    const key = where + '|' + JSON.stringify(params); let pool = POOL.get(key);
+    if (!pool || Date.now() - pool.at > POOL_MS) {
+      let slice = '';
+      if (!q && !mk) { let total = 0; try { total = Number(db.prepare(`SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}`).get(...params).n); } catch (e) { total = 0; } const K = Math.ceil(total / POOL_MAX); if (K > 1) slice = ` AND (w.id % ${K}) = ${Math.floor(Math.random() * K)}`; }
+      pool = { at: Date.now(), rows: db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}${slice} LIMIT ${POOL_MAX}`).all(...params) }; POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value);
     }
-    else rows = db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY (CASE WHEN w.curated=1 THEN 4 WHEN w.stars>=4 THEN 3 WHEN w.stars>=3 THEN 1.5 ELSE 1 END) * (0.5 + RANDOM() / 18446744073709551616.0 + 0.5) DESC LIMIT ?`).all(...params, n);
+    const notSet0 = new Set(not); const cands = []; for (const r of pool.rows) if (!notSet0.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
+    cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
+    const full = ids.length ? db.prepare(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`).all(...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
+    const rows = ids.map(i => byId.get(Number(i))).filter(Boolean);
     // For you: when the house knows what held this visitor, a few of the eye's picks are set among the rest.
     let picks = [];
     if (!q && !mk && app.locals.looking && app.locals.buyerOf) {
@@ -251,9 +260,11 @@ ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. 
     // into and a Wander through the whole set.
     let like = '';
     if (w) {
-      const SAFE = "status='held' AND COALESCE(zone,'all')!='mature' AND slug<>?";
-      const rows = (where, ...a) => { try { return db.prepare(`SELECT slug, title FROM works WHERE ${SAFE} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 8`).all(w.slug, ...a); } catch (e) { return []; } };
-      const count = (where, ...a) => { try { return db.prepare(`SELECT COUNT(*) n FROM works WHERE ${SAFE} AND ${where}`).get(w.slug, ...a).n; } catch (e) { return 0; } };
+      // (9 Nov) The strip and its count are the same for every picture of a place, a hand or a decade: kept ten minutes
+      // by the group, this picture taken out of the strip here.
+      const kept = app.locals.kept || ((k, ms, f) => f()); const SAFE0 = "status='held' AND COALESCE(zone,'all')!='mature'";
+      const rows = (where, ...a) => { try { return kept('like-r|' + where + '|' + a.join('|'), 600e3, () => db.prepare(`SELECT slug, title FROM works WHERE ${SAFE0} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 9`).all(...a)).filter(x => x.slug !== w.slug).slice(0, 8); } catch (e) { return []; } };
+      const count = (where, ...a) => { try { return Math.max(0, Number(kept('like-n|' + where + '|' + a.join('|'), 600e3, () => db.prepare(`SELECT COUNT(*) n FROM works WHERE ${SAFE0} AND ${where}`).get(...a).n)) - 1); } catch (e) { return 0; } };
       const art = w.artist_id ? db.prepare('SELECT id, slug, name, movement FROM artists WHERE id=?').get(w.artist_id) : null;
       const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
       const yr = String(w.taken_at || '').match(/^(\d{3})\d/);

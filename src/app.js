@@ -421,6 +421,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
+  // Kept answers (9 Nov, the scale test: the website's time went to the same counts and lists asked again by every
+  // visitor). `kept(key, ms, fn)`: fn's answer held ms; nothing is kept under test, where pages are read the moment
+  // after a change.
+  { const K = new Map(); const off = process.env.NODE_ENV === 'test' || cfg.noKeep;
+    app.locals.kept = (key, ms, fn) => { if (off) return fn(); const h = K.get(key); const now = Date.now(); if (h && now - h.at < ms) return h.v; const v = fn(); K.set(key, { at: now, v }); if (K.size > 4000) { let n = 0; for (const k of K.keys()) { K.delete(k); if (++n >= 800) break; } } return v; }; }
   app.set('trust proxy', Number(process.env.TRUST_PROXY || 1)); // 1 on Render alone; 2 with CloudFront in front (25 Oct), else every visitor reads as the edge
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
@@ -707,10 +712,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const minute = (handler, ttl = 60e3) => (req, res) => {
     const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.wm_b && !c.wm_staff && !c.wm_as && !c.wm_trade && !c.wm_hi && !c.wm_gg && !c.wm_g && (!c.wm_zone || c.wm_zone === 'all') && !req.tenant;
     if (!anon) return handler(req, res);
-    const key = req.originalUrl + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) + '#' + (c.wm_tz || ''), hit = pageCache.get(key); // the visitor's zone shapes the clock's rooms // any entry on the register makes the page new
+    // (9 Nov) By the clock alone outside tests: with imports and visitors writing to the register all day the head moved every few seconds and the page was never kept.
+    const key = req.originalUrl + '#' + (process.env.NODE_ENV === 'test' ? (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) : '') + '#' + (c.wm_tz || ''), hit = pageCache.get(key); // the visitor's zone shapes the clock's rooms // any entry on the register makes the page new
     if (hit && Date.now() - hit.at < ttl) { res.set('Cache-Control', 'public, max-age=' + Math.max(5, Math.round(ttl / 2000))); return res.send(hit.body); }
     const send = res.send.bind(res);
-    res.send = body => { if (res.statusCode === 200 && typeof body === 'string') { pageCache.set(key, { at: Date.now(), body }); if (pageCache.size > 40) pageCache.delete(pageCache.keys().next().value); } return send(body); };
+    res.send = body => { if (res.statusCode === 200 && typeof body === 'string') { pageCache.set(key, { at: Date.now(), body }); if (pageCache.size > 400) pageCache.delete(pageCache.keys().next().value); } return send(body); };
     return handler(req, res);
   };
   app.locals.minute = minute;
@@ -766,7 +772,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/api/index.json', (req, res) => {
     const socialOf = {}; for (const u of db.prepare("SELECT maker_id, price_cents FROM uses WHERE key='social'").all()) socialOf[u.maker_id] = u.price_cents;
     const makers = Object.fromEntries(db.prepare('SELECT * FROM makers').all().map(m => [m.id, m]));
-    const stamp = db.prepare("SELECT MAX(created_at) m, MAX(id) i, COUNT(*) n FROM works WHERE status='held'").get(); const last = db.prepare('SELECT MAX(seq) s FROM ledger').get().s;
+    const stamp = app.locals.kept('index-stamp', 60e3, () => db.prepare("SELECT MAX(created_at) m, MAX(id) i, COUNT(*) n FROM works WHERE status='held'").get()); const last = app.locals.kept('index-last', 60e3, () => db.prepare('SELECT MAX(seq) s FROM ledger').get().s);
     const tag = `"${crypto.createHash('sha1').update([stamp.m, stamp.i, stamp.n, last].join(':')).digest('hex').slice(0, 16)}"`;
     res.set('ETag', tag).set('Cache-Control', 'public, max-age=300');
     if (req.headers['if-none-match'] === tag) return res.status(304).end();
@@ -2699,7 +2705,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const key = process.env.HEALTH_KEY || process.env.DESK_KEY || '';
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
-    const unvaulted = db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works = db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n;
+    const { unvaulted, works } = app.locals.kept('healthz-counts', 30e3, () => ({ unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works: db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n }));
     const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);

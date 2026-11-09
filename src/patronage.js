@@ -24,7 +24,8 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
   const credits = m => db.prepare("SELECT name FROM patrons WHERE maker_id=? AND status IN ('active','ending') AND public=1 AND name IS NOT NULL AND level IN ('patron','benefactor','medici') ORDER BY CASE level WHEN 'medici' THEN 0 WHEN 'benefactor' THEN 1 ELSE 2 END, started_at").all(m.id).map(p => p.name);
   const of = b => (b ? db.prepare("SELECT p.*, m.name AS maker_name FROM patrons p JOIN makers m ON m.id=p.maker_id WHERE p.buyer_id=? AND p.status IN ('active','ending') ORDER BY p.started_at").all(b.id) : []);
 
-  app.get('/m/:slug', async (req, res) => {
+  // (9 Nov) A stranger's copy is kept a minute (app.js `minute`): the page reads up to 2,400 of the maker's works.
+  const makerPageH = async (req, res) => {
     const m = makerBySlug(req.params.slug); if (!m) return res.sendStatus(404);
     if (app.locals.walk) app.locals.walk.set(res, `maker:${m.handle}`);
     const RG = require('./regard');
@@ -50,7 +51,8 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
     } catch (e) { console.error('[maker rows]', e.message); rowsHtml = null; }
     if (m.kind === 'company' && app.locals.companies) rowsHtml = app.locals.companies.page(m) || rowsHtml; // a company's page is its rooms
     res.send(V.makerPage({ rowsHtml, follow: app.locals.museums ? app.locals.museums.button('maker:' + m.id) : '', press: app.locals.press ? app.locals.press.block(m) : '', museum: (app.locals.institutions ? app.locals.institutions.museumStrip(m) : '') + (app.locals.companies ? app.locals.companies.strip(m) : '') + (app.locals.sitting ? app.locals.sitting.section(m, req) : ''), keys: app.locals.keys ? app.locals.keys.ofMaker(m) : [], rep: (() => { const G = app.locals.galleries; if (!G) return null; if (m.kind === 'gallery') { const b = G.galleryBuyer(m); return { artists: G.artists(m).filter(a => a.status === 'on'), shows: G.shows(m).filter(h => h.public).map(h => ({ ...h, href: `/g/${b.code}/hang/${h.slug}` })) }; } const r = G.galleryOf(m.id); return r ? { by: { name: r.gallery, handle: r.gallery_handle } } : null; })(), edit: require('./regard').standing(db, m.id), introduced: app.locals.introductions ? app.locals.introductions.whoIntroduced(m.introduced_by) : null, m, slug: slugOf(m), works, collectors, patrons: count(m), wall: wall(m), series, levels: LEVELS, once: ONCE, open: open(m), mine: of(buyerOf(req)).filter(p => p.maker_id === m.id), stories, lines, applause: ap, years, collects }));
-  });
+  };
+  app.get('/m/:slug', (req, res, next) => { try { const m0 = makerBySlug(req.params.slug); if (m0 && app.locals.walk) app.locals.walk.set(res, `maker:${m0.handle}`); } catch (e) { /* the walk is a nicety */ } return (app.locals.minute && !req.query.ok ? app.locals.minute(makerPageH) : makerPageH)(req, res, next); });
 
   app.post('/m/:slug/patron', async (req, res) => {
     const m = makerBySlug(req.params.slug); if (!open(m)) return res.redirect(`/m/${req.params.slug}`);

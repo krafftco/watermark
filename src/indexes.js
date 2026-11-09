@@ -6,7 +6,10 @@
 // the first build on a large house never holds a visitor.
 const ROLE = require('./role');
 const LIST = [
-  ['works_maker_status', 'works (maker_id, status)'],
+  ['works_maker_best', 'works (maker_id, status, curated, stars, id)'],
+  ['works_place_best', 'works (status, place, curated, stars, id)'],
+  ['works_artist_best', 'works (artist_id, status, curated, stars, id)'],
+  ['works_taken_status', 'works (status, taken_at)'],
   ['works_status_best', 'works (status, curated, stars, id)'],
   ['works_sha256', 'works (sha256)'],
   ['works_source', 'works (source_url)'],
@@ -39,6 +42,10 @@ function ensure(db, { log = console.log } = {}) {
   let made = 0; const skipped = [];
   for (const [name, on] of LIST) {
     try { db.exec(`CREATE INDEX IF NOT EXISTS ${name} ON ${on}`); made++; } catch (e) { skipped.push(`${name}: ${String(e.message).slice(0, 80)}`); }
+  }
+  // Search at scale (find.js): the words of a work under a trigram index, so a word anywhere is found without a scan.
+  if (db.kind === 'postgres') {
+    try { db.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm'); db.exec("CREATE INDEX IF NOT EXISTS works_find ON works USING gin ((lower(coalesce(title,'') || ' ' || coalesce(place,'') || ' ' || coalesce(keywords,'') || ' ' || coalesce(accession,'') || ' ' || coalesce(substr(taken_at,1,4),''))) gin_trgm_ops)"); made++; } catch (e) { skipped.push(`works_find: ${String(e.message).slice(0, 120)}`); }
   }
   if (skipped.length) log(`[indexes] ${made} in place; skipped ${skipped.length}: ${skipped.join(' · ')}`);
   return { made, skipped };
