@@ -115,13 +115,14 @@
   var hadNet = false;
   // More, before the visitor reaches the end.
   function more() {
-    if (loading || done) return; loading = true; if (window.WMWave) WMWave.show();
+    if (loading || done) return; loading = true; if (window.WMWave && (!cur || order.indexOf(cur) >= order.length - 2)) WMWave.show(); // fetched early and quietly; the wave only when you have reached the end
     fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { if (!r.ok) throw new Error('no feed'); return r.json(); }).then(function (j) {
       if (hadNet) found(); hadNet = true;
       var list = (j && j.items) || [];
       if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/wander">Wander everything</a>'; scroller.appendChild(e); }, 0); }
       else if (!list.length) { done = true; return; }
       list.forEach(function (w) { if (items[w.slug]) return; var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); });
+      if (cur) prefetch(order.indexOf(cur));
       if (!packing && !pack.length) setTimeout(packUp, 1500);
     }).catch(function () {
       // The house cannot be reached: the pack, if there is one.
@@ -133,7 +134,16 @@
   setTimeout(packUp, 8000);
   // Which photograph is before you now; the one before it is told to the house.
   function stood(slug, s) { if (!slug || s < 2 || /^[trc]:/.test(slug)) return; try { navigator.sendBeacon('/w/' + slug + '/stood', JSON.stringify({ v: V, s: s })); } catch (e) {} }
-  function prefetch(i) { for (var k = 1; k <= 3; k++) { var w = items[order[i + k]]; if (w && w.img && !w.pre) { w.pre = new Image(); w.pre.src = w.img; } } }
+  // The next ones are ready before you move (Will, 9 Nov: lightning fast): the screen's own picture is fetched and
+  // decoded ahead, the next two first, then two more and the one behind, so a swipe lands on pixels, never a wait.
+  var SAVE = false; try { SAVE = !!(navigator.connection && navigator.connection.saveData); } catch (e) {}
+  function ready(w, pri) {
+    if (!w || !w.el || w.pre) return; var im = w.el.querySelector('.st-im'); if (!im) { if (w.img) { w.pre = new Image(); w.pre.src = w.img; } return; }
+    w.pre = im; try { im.loading = 'eager'; if (pri) im.fetchPriority = pri; } catch (e) {}
+    var dec = function () { try { if (im.decode) im.decode().catch(function () {}); } catch (e) {} };
+    if (im.complete && im.naturalWidth) dec(); else im.addEventListener('load', dec, { once: true });
+  }
+  function prefetch(i) { var ahead = SAVE ? 1 : 4; for (var k = 1; k <= ahead; k++) ready(items[order[i + k]], k <= 2 ? 'high' : 'low'); if (!SAVE && i > 0) ready(items[order[i - 1]], 'low'); }
   // Turning the phone (Will, 18 Oct: a horizontal photograph should be enjoyed sideways, full screen; Instagram gets
   // this wrong). The screen's height changes under the scroll, so the snap would land on a neighbour: through the
   // turn the current work is held in place, and landscape is its own presentation (the picture alone, edge to edge).
@@ -161,7 +171,7 @@
       if (cur) stood(cur, Math.round((Date.now() - since) / 1000));
       if (Z.on) zEnd(false);
       cur = slug; since = Date.now();
-      var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 4) more();
+      var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 6) more();
       try { history.replaceState(null, '', '/wander?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);
       arrive(slug);

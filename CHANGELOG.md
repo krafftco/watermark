@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.6 · The next ones, ready · 9 November 2026
+
+- Wander fetches and decodes the next two pictures before you move (then two more, and the one behind), so a swipe lands on the picture, never a wait. The first three screens load at once; more screens are fetched earlier and quietly.
+
 ## 1.77.5 · Four pauses, gone · 9 November 2026
 - Four things the website did for itself that made everyone wait a second or five: checking the whole register at each start and each hour, re-reading every work for a known visitor's next page of Wander, rebuilding the search list each minute, and re-reading a large archive's contact sheets every three minutes. Each now does the small thing, or keeps what it read for longer.
 
