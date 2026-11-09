@@ -15,7 +15,7 @@ function mountFind(app, { db, V, I }) {
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
   const shape = w => { const year = (w.taken_at || '').slice(0, 4); const fields = { title: norm(tidy(w.title)), place: norm(w.place), maker: norm(w.maker), kw: norm(w.keywords), cap: norm(w.caption).slice(0, 300), year, acc: norm(w.accession) }; return { ...w, year, title: tidy(w.title), makerSlug: V.makerSlug({ name: w.maker, handle: w.handle }), f: fields, g: grams(`${fields.title} ${fields.place} ${fields.maker}`) }; };
   const FIND_DB_OVER = Number(process.env.FIND_DB_OVER || 20000);
-  const isBig = () => { if (process.env.FIND_DB === '1') return true; if (process.env.FIND_DB === '0') return false; try { return db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n > FIND_DB_OVER; } catch (e) { return false; } };
+  const isBig = () => { if (process.env.FIND_DB === '1') return true; if (process.env.FIND_DB === '0') return false; try { const n = (app.locals.kept || ((k, ms, f) => f()))('find:held', 300e3, () => db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n); return n > FIND_DB_OVER; } catch (e) { return false; } }; // the count kept five minutes (9 Nov: 70 ms a time at half a million)
   // What a search reads of a work, as the database holds it; the index `works_find` (indexes.js) is on these words.
   const WORDS = "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,'') || ' ' || coalesce(w.accession,'') || ' ' || coalesce(substr(w.taken_at,1,4),''))";
   const COLS = 'w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.accession, w.width, w.height, w.stars, w.curated, w.kind, m.name AS maker, m.handle, m.id AS maker_id';
@@ -32,8 +32,15 @@ function mountFind(app, { db, V, I }) {
     try { return db.prepare(`SELECT ${COLS} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'${open ? '' : " AND COALESCE(w.zone,'all')<>'mature'"} AND ? <% ${WORDS} ORDER BY ? <<-> ${WORDS} LIMIT 60`).all(nq, nq).map(shape); } catch (e) { console.error('[find near]', e.message); return []; }
   }
   const bySlugs = slugs => { if (!slugs.length) return []; const rows = db.prepare(`SELECT ${COLS} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.slug IN (${slugs.map(() => '?').join(',')})`).all(...slugs).map(shape); const by = new Map(rows.map(r => [r.slug, r])); return slugs.map(x => by.get(x)).filter(Boolean); };
+  // (9 Nov) A large house's index is counts alone, a second or two of counting questions: the worker builds it ahead
+  // (shared.js) and the website reads it; a small house builds its own, as before.
+  if (app.locals.shared) app.locals.shared.register('find', { ms: Number(process.env.FIND_KEEP_S || 300) * 1000, build: () => (isBig() ? buildNow() : { small: true, at: Date.now() }) });
   function build() {
     if (Date.now() - index.at < (process.env.NODE_ENV === 'test' ? 60e3 : Number(process.env.FIND_KEEP_S || 300) * 1000)) return index; // (9 Nov) five minutes: the build reads every held work (2.7 s at 60,000)
+    if (app.locals.shared && process.env.NODE_ENV !== 'test' && isBig()) { try { const ix = app.locals.shared.get('find'); if (ix && !ix.small && ix.makers) { index = { ...ix, at: Date.now() }; return index; } } catch (e) { console.error('[find] shared', e.message); } }
+    return buildNow();
+  }
+  function buildNow() {
     // (9 Nov, the scale test: at 500,000 works this list was over a gigabyte in the website's memory and four seconds to
     // read.) Past FIND_DB_OVER works on view the works stay in the database: a search asks it for candidates (the trigram
     // index `works_find`), and the counts by maker, place, medium and year are asked as counts.

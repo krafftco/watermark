@@ -9,9 +9,12 @@
 function mountShared(app, { db, ROLE, cfg = {} }) {
   const off = process.env.NODE_ENV === 'test' || cfg.noKeep;
   db.exec('CREATE TABLE IF NOT EXISTS kept_data (k TEXT PRIMARY KEY, v TEXT, at INTEGER)');
+  // A Map and a Set cross the row as plain data and come back as themselves.
+  const pack = (k, x) => x instanceof Map ? { __m: [...x] } : x instanceof Set ? { __s: [...x] } : x;
+  const unpack = (k, x) => x && typeof x === 'object' && Array.isArray(x.__m) ? new Map(x.__m) : x && typeof x === 'object' && Array.isArray(x.__s) ? new Set(x.__s) : x;
   const reg = new Map(), mem = new Map();
   const POLL = 30e3; // how often the website looks for a newer row
-  const write = (key, v, at) => { try { db.prepare('INSERT INTO kept_data (k, v, at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, at=excluded.at').run(key, JSON.stringify(v), at); } catch (e) { console.error('[shared]', key, e.message.split('\n')[0]); } };
+  const write = (key, v, at) => { try { db.prepare('INSERT INTO kept_data (k, v, at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, at=excluded.at').run(key, JSON.stringify(v, pack), at); } catch (e) { console.error('[shared]', key, e.message.split('\n')[0]); } };
   function buildNow(key, r, save) { const at = Date.now(); const v = r.build(); mem.set(key, { v, at, seen: at, rowAt: at }); if (save) write(key, v, at); return v; }
   function get(key) {
     const r = reg.get(key); if (!r) throw new Error('shared: no such key ' + key);
@@ -24,7 +27,7 @@ function mountShared(app, { db, ROLE, cfg = {} }) {
     const rowAt = row ? Number(row.at) : 0;
     if (rowAt && now - rowAt < r.ms * 6) {
       if (h && h.rowAt === rowAt) { h.seen = now; return h.v; }
-      try { const full = db.prepare('SELECT v FROM kept_data WHERE k=?').get(key); const v = JSON.parse(full.v); mem.set(key, { v, at: rowAt, seen: now, rowAt }); return v; } catch (e) { /* a bad row: build */ }
+      try { const full = db.prepare('SELECT v FROM kept_data WHERE k=?').get(key); const v = JSON.parse(full.v, unpack); mem.set(key, { v, at: rowAt, seen: now, rowAt }); return v; } catch (e) { /* a bad row: build */ }
     }
     if (h && now - h.at < r.ms) { h.seen = now; return h.v; } // built here not long ago; the worker is behind
     return buildNow(key, r, true);
