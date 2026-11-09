@@ -395,7 +395,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const dest = path.join(originals, slug + ext);
     // A file staged on another disk (e.g. /tmp beside a mounted volume) can't be renamed across; copy it.
     try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
-    const vaultLater = store.kind === 's3' && !cfg.vaultNow; // the copy to the bucket follows in the background (vaultPending)
+    const vaultLater = store.kind === 's3' && !cfg.vaultNow && process.env.VAULT_NOW !== '1'; // VAULT_NOW=1 (a house without a disk): the original is in the bucket before the record is made; // the copy to the bucket follows in the background (vaultPending)
     if (!vaultLater) await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
     db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1);
