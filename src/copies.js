@@ -110,7 +110,7 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
   const done = []; // completion times, for the rate
   const scribe = { lanes: 0, made: 0, failed: 0, at: null, last: null, error: null };
   const nap = ms => new Promise(r => { const t = setTimeout(r, ms); if (t.unref) t.unref(); });
-  const fleetSeen = () => { try { const t = Date.now() - 120e3; return db.prepare("SELECT v FROM settings WHERE k LIKE 'scribe:%'").all().some(r => { try { return JSON.parse(r.v).at > t; } catch (e) { return false; } }); } catch (e) { return false; } };
+  const fleetSeen = () => { try { const t = Date.now() - 120e3; return db.prepare("SELECT v FROM settings WHERE k LIKE 'scribe:%'").all().some(r => { try { const v = JSON.parse(r.v); return v.at > t && v.role === 'scribe'; } catch (e) { return false; } }); } catch (e) { return false; } };
   const resting = () => {
     if (setting('scribes_paused') === '1') return true;
     if (GOV && GOV.showing && GOV.showing()) return true;
@@ -168,7 +168,12 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
     else db.prepare("UPDATE feeds SET status='queued', note=NULL WHERE status='paused' AND note='imports held'").run();
   };
   if (setting('imports_held') == null && !quiet) holdImports(true); // Will, 9 Nov: stop imports; make the collection we hold first
-  app.locals.importsHeld = () => setting('imports_held') === '1';
+  // The pace (9 Nov): even with imports let go, nothing new starts while more than SCRIBE_BEHIND (500) works wait for
+  // their copies, so the house never again takes in faster than it can make ready.
+  const BEHIND = +process.env.SCRIBE_BEHIND || 500; let behindAt = 0, behindWas = false;
+  const behind = () => { if (Date.now() - behindAt > 30e3) { behindAt = Date.now(); try { behindWas = db.prepare(`SELECT COUNT(*) n FROM works w WHERE ${WANT}`).get().n > BEHIND; } catch (e) { behindWas = false; } } return behindWas; };
+  app.locals.importsHeld = () => setting('imports_held') === '1' || (!quiet && behind());
+  app.locals.copiesBehind = behind;
   app.get('/studio/scribes', studioOnly, (req, res) => {
     const p = progress(); const V = app.locals.V || require('./views'); const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const pct = p.ready + p.left ? Math.round(100 * p.ready / (p.ready + p.left)) : 100;
@@ -181,7 +186,7 @@ ${req.query.ok ? `<p class="bl-ok">${esc(req.query.ok)}</p>` : ''}
 <p>${p.scribes ? `${p.scribes} scribe${p.scribes === 1 ? '' : 's'} at work, ${p.lanes} lanes.` : 'No scribe at work. Start one in Render (a background worker with ROLE=scribe), or the worker makes them one at a time.'}${p.stuck ? ` ${p.stuck} could not be made after three tries (see the restoration room).` : ''}</p>
 <form method="post" action="/studio/scribes/pause" class="bl-in"><button>${p.paused ? 'Let them work' : 'Pause the scribes'}</button></form>
 <form method="post" action="/studio/scribes/imports" class="bl-in"><button>${p.importsHeld ? 'Let imports run again' : 'Hold all imports'}</button></form>
-<p class="scb-note">${p.importsHeld ? '<b>Imports are held.</b> The line, the feeds and the inboxes start nothing new; makers sending their own work are never held.' : 'Imports are running.'} The gate is ${WALL.gate() ? '<b>on</b>: the open walls show only work whose copies are made' : '<b>off</b>'}.</p>
+<p class="scb-note">${p.importsHeld ? '<b>Imports are held.</b> The line, the feeds and the inboxes start nothing new; makers sending their own work are never held.' : 'Imports are let go' + (behind() ? ', and waiting: more than ' + BEHIND + ' works are still to copy, so nothing new starts until the scribes catch up.' : '.')} The gate is ${WALL.gate() ? '<b>on</b>: the open walls show only work whose copies are made' : '<b>off</b>'}.</p>
 <form method="post" action="/studio/copies/gate" class="bl-in"><input type="hidden" name="on" value="${WALL.gate() ? '0' : '1'}"><button>${WALL.gate() ? 'Open the gate' : 'Turn the gate on'}</button></form>
 <h2>The scribes</h2><ul class="scb-l">${p.fleet.map(row).join('') || '<li><small>None yet.</small></li>'}</ul>
 <script>setTimeout(()=>location.reload(),30000)</script></main>` }));
@@ -190,7 +195,7 @@ ${req.query.ok ? `<p class="bl-ok">${esc(req.query.ok)}</p>` : ''}
   app.post('/studio/scribes/pause', studioOnly, (req, res) => { const on = setting('scribes_paused') !== '1'; put('scribes_paused', on ? '1' : '0'); res.redirect('/studio/scribes?ok=' + encodeURIComponent(on ? 'Paused: each finishes the work in hand.' : 'At work again.')); });
   app.post('/studio/scribes/imports', studioOnly, (req, res) => { const on = setting('imports_held') !== '1'; holdImports(on); res.redirect('/studio/scribes?ok=' + encodeURIComponent(on ? 'Imports held. A feed running now pauses at its next item.' : 'Imports run again; feeds held for this pick up where they stopped.')); });
   if (!quiet && (ROLE.scribe || ROLE.chores)) {
-    const go = () => { for (let i = 0; i < LANES; i++) lane(); if (ROLE.scribe) { beat(); setInterval(beat, 30e3).unref(); console.log(`[scribe] ${ME} at work, ${LANES} lanes`); } };
+    const go = () => { for (let i = 0; i < LANES; i++) lane(); beat(); setInterval(beat, 30e3).unref(); console.log(`[scribe] ${ME} at work, ${LANES} lanes (${ROLE.role})`); };
     setTimeout(go, ROLE.scribe ? 5e3 : 240e3).unref();
   }
   app.locals.copies = { gen: () => made, ask, make, drain, backfill, gate, counts, noMaster, placeholder, job, claim, one, progress, fleet, holdImports, scribe, ME };

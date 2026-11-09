@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.1 · The pace · 9 November 2026
+- New work comes in only as fast as the scribes can make it ready: nothing new starts while more than five hundred works wait for their copies. The Studio's scribes page now counts the worker's own copy-making too.
+
 ## 1.77.0 · The scribes · 9 November 2026
 - A new kind of machine whose only job is to make every work's display copies, best work first, as many side by side as the house runs; the Studio sees how many are ready, how many are left and when it will be done. Imports hold meanwhile, so the collection already here is made whole before anything new comes in.
 

@@ -117,7 +117,7 @@ function mountLineup(app, { db, V, studioOnly }) {
         return;
       }
       if (paused()) return;
-      if (setting('imports_held') === '1') return; // the scribes first (9 Nov)
+      if (app.locals.importsHeld ? app.locals.importsHeld() : setting('imports_held') === '1') return; // the scribes first (9 Nov)
       if (app.locals.governor && !app.locals.governor.chores()) return;
       if (db.prepare("SELECT 1 FROM feeds WHERE status IN ('queued','running')").get()) return; // one heavy job at a time
       const item = db.prepare("SELECT * FROM lineup WHERE status='waiting' ORDER BY pos, id LIMIT 1").get(); if (!item) return;
