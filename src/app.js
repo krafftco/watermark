@@ -426,6 +426,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // after a change.
   { const K = new Map(); const off = process.env.NODE_ENV === 'test' || cfg.noKeep;
     app.locals.kept = (key, ms, fn) => { if (off) return fn(); const h = K.get(key); const now = Date.now(); if (h && now - h.at < ms) return h.v; const v = fn(); K.set(key, { at: now, v }); if (K.size > 4000) { let n = 0; for (const k of K.keys()) { K.delete(k); if (++n >= 800) break; } } return v; }; }
+  require('./shared').mountShared(app, { db, ROLE, cfg }); // data any process can build, built ahead by the worker (9 Nov)
   app.set('trust proxy', Number(process.env.TRUST_PROXY || 1)); // 1 on Render alone; 2 with CloudFront in front (25 Oct), else every visitor reads as the edge
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
@@ -677,8 +678,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   function todays() {
     const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const H = app.locals.museums ? app.locals.museums.hallSql('works') : '';
-    const rows = db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4)${H} ORDER BY id`).all();
-    const pool = rows.length >= 7 ? rows : db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held'${H} ORDER BY id`).all();
+    // (9 Nov) the pool is every best work on the open walls: asked once an hour, not once a page.
+    const pool = app.locals.kept('todays:pool', 3600e3, () => { const rows = db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held' AND COALESCE(zone,'all')='all' AND (curated=1 OR stars>=4)${H} ORDER BY id`).all();
+      return rows.length >= 7 ? rows : db.prepare(`SELECT id, slug, title, place, width, height FROM works WHERE status='held'${H} ORDER BY id`).all(); });
     if (!pool.length) return null;
     const h = crypto.createHash('sha1').update('today:' + day).digest(); const i = h.readUInt32BE(0) % pool.length;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(pool[i].id) || pool[i]; const m = mk(w) || {};
@@ -691,16 +693,14 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // /wander is the stroll now (stroll.js); the old random-work redirect is gone (Will, 21 Oct: one word, Wander).
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
   // Kept five minutes (9 Nov: a grouping over every held work and a standing a maker, 1.7 s on the live house).
-  let artistsKept = null;
-  app.get('/artists', (req, res) => {
-    if (artistsKept && Date.now() - artistsKept.at < (process.env.NODE_ENV === 'test' ? 0 : 300e3)) return res.send(V.artists({ artists: artistsKept.artists }));
+  app.locals.shared.register('artists', { ms: 300e3, build: () => {
     const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') GROUP BY m.id ORDER BY n DESC, m.id`).all();
     const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
       collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
     artists.forEach(a => { const st = RG.standing(db, a.id); a.regard = st.standing; a.shown = st.n; a.held = st.held; }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
-    artistsKept = { at: Date.now(), artists };
-    res.send(V.artists({ artists }));
-  });
+    return artists;
+  } });
+  app.get('/artists', (req, res) => res.send(V.artists({ artists: app.locals.shared.get('artists') })));
   // A minute's cache for the two slowest public rooms (21 Oct: /ledger took 6 s and /makers 3 s on the live house): the
   // register told entry by entry and every maker's standing, built once a minute for strangers; anyone signed in, or
   // the Studio, is built fresh. The page is the same for everyone else.
@@ -725,17 +725,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // the website down). The best COLLECTION_MAX by the maker's own grade, without the heavy columns, kept two minutes.
   const HEAVY = new Set(['closer', 'attribution', 'frick', 'al_grade', 'tidy', 'hand_why', 'zone_note', 'rights_note', 'object', 'credentials', 'exif', 'said']);
   const COLLECTION_MAX = Number(process.env.COLLECTION_MAX || 1200);
-  const HALL_KEEP_MS = process.env.NODE_ENV === 'test' ? 0 : 120e3; // tests add work and read the page at once
-  let hallKept = null, leanCols = null;
-  function hallList() {
-    if (hallKept && Date.now() - hallKept.at < HALL_KEEP_MS) return hallKept;
+  let leanCols = null;
+  // (9 Nov) Built ahead by the worker in a split house (shared.js); five minutes there, nothing kept under test.
+  app.locals.shared.register('hall', { ms: 300e3, build: () => {
     if (!leanCols || leanCols === 'id') leanCols = Object.keys(db.prepare('SELECT * FROM works ORDER BY id LIMIT 1').get() || { id: 1 }).filter(n => !HEAVY.has(n)).join(', ');
     const where = `status='held'${app.locals.museums ? app.locals.museums.hallSql('works') : ''}`;
     const total = db.prepare(`SELECT COUNT(*) n FROM works WHERE ${where}`).get().n;
     const works = db.prepare(`SELECT ${leanCols} FROM works WHERE ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT ${COLLECTION_MAX}`).all();
-    hallKept = { at: Date.now(), total, works };
-    return hallKept;
-  }
+    return { at: Date.now(), total, works };
+  } });
+  const hallList = () => app.locals.shared.get('hall');
   app.locals.hallList = hallList;
   // The columns of a work without the long ones (guides, readings, credentials): for any list a page draws.
   // 9 Nov: no visitor path reads whole rows of many works; the few shown are read whole by id.

@@ -117,6 +117,7 @@ ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([
     return `<div class="dsc">${head}<div class="rws rws-dsc" data-rws>${rows.map(r => `<section class="rw" id="${esc2(r.id)}" data-rw><header class="rw-h"><h2>${esc2(r.title)}</h2>${r.href ? `<a href="${esc2(r.href)}">All</a>` : ''}</header><div class="rw-s" data-rw-s>${r.tiles.map(R.tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc2(V.VER)}" defer></script><script>(function(){var i=document.querySelector('[data-dsc-q]');if(!i)return;i.addEventListener('focus',function(){if(window.WMFind){WMFind.open({mode:'page',q:i.value});i.blur();}});})();</script></div>`;
   }
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
+  if (app.locals.shared) app.locals.shared.register('discover', { ms: 300e3, build: () => ({ body: discover({ query: {}, cookies: {}, headers: {} }) }) });
   app.get('/look', (req, res) => {
     const q = String(req.query.q || '').trim(); if (q) return res.redirect(302, `/find?q=${encodeURIComponent(q)}`);
     const t = String(req.query.time || '').trim(); if (t) { const m = t.match(/^(\d{3})0s$/); return res.redirect(302, m ? `/wander?in=decade:${m[1]}0` : `/wander?in=year:${encodeURIComponent(t)}`); }
@@ -125,7 +126,7 @@ ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([
     if (stranger && dcache.ixAt === ixAt && Date.now() - dcache.at < 60000) return res.send(dcache.html);
     // The rows are the same for everyone; kept five minutes (9 Nov: two seconds to build, once a minute and for every signed-in visit).
     const KEEP = process.env.NODE_ENV === 'test' ? 0 : 300e3;
-    if (!(bcache.body && bcache.ixAt === ixAt && Date.now() - bcache.at < KEEP)) bcache = { at: Date.now(), ixAt, body: discover(req) };
+    bcache = { body: app.locals.shared ? app.locals.shared.get('discover').body : discover(req) }; // (9 Nov) built ahead by the worker in a split house
     const html = V.layout({ title: 'Discover · Watermark', path: '/look', desc: 'Find anything in the house: works, artists, books, records, places, museums, movements, years.', body: bcache.body });
     if (stranger) dcache = { at: Date.now(), ixAt, html };
     res.send(html);

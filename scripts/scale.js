@@ -14,6 +14,9 @@ const URL_ = process.env.SCALE_DB;
 if (!URL_ || /render\.com|amazonaws|watermark-db/.test(URL_)) { console.error('scale: SCALE_DB must name a local test database'); process.exit(2); }
 const N = +process.env.SCALE_WORKS || 500000, MK = +process.env.SCALE_MAKERS || 200, SEED = +process.env.SCALE_SEED || 24;
 const C = +process.env.SCALE_C || 200, S = +process.env.SCALE_S || 40;
+// SCALE_THINK_MS (3000): each visitor reads for about that long between pages (half to one and a half times it), as people do;
+// 0 is the throughput run, every visitor asking again the instant a page lands.
+const THINK = process.env.SCALE_THINK_MS === undefined ? 3000 : +process.env.SCALE_THINK_MS;
 const P95 = +process.env.SCALE_P95_MS || 1000, FIRST = +process.env.SCALE_FIRST_MS || 3000, RSS = +process.env.SCALE_RSS_MB || 1200;
 const node = (code, env) => execFileSync(process.execPath, ['-e', code], { cwd: path.join(__dirname, '..'), env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 1 << 26 }).toString();
 
@@ -84,8 +87,11 @@ async function main() {
   const m0 = await mem();
   const until = Date.now() + S * 1000; let n = 0, peak = m0.rssMB || 0;
   const watch = setInterval(async () => { const m = await mem(); if (m.rssMB > peak) peak = m.rssMB; }, 3000);
+  const nap = ms => new Promise(r => setTimeout(r, ms));
   async function visitor(i) {
+    if (THINK) await nap(Math.random() * THINK); // people do not all arrive in the same instant
     while (Date.now() < until) {
+      if (THINK && n > C) await nap(THINK * (0.5 + Math.random()));
       const [k, u] = doors[(i + n++) % doors.length]; const t = Date.now();
       try { const r = await fetch(base + u(), { redirect: 'manual', headers: { accept: 'text/html,image/webp,*/*', 'x-forwarded-for': `10.${i % 250}.${(i >> 8) % 250}.${1 + (n % 250)}` } }); await r.arrayBuffer(); if (r.status === 429) stats[k].lim = (stats[k].lim || 0) + 1; else if (r.status >= 400) { stats[k].err++; stats[k].codes[r.status] = (stats[k].codes[r.status] || 0) + 1; } } catch (e) { stats[k].err++; stats[k].codes.net = (stats[k].codes.net || 0) + 1; }
       stats[k].t.push(Date.now() - t);
@@ -95,7 +101,7 @@ async function main() {
   clearInterval(watch); const m1 = await mem(); if (m1.rssMB > peak) peak = m1.rssMB;
   const q = (a, p) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
   const faults = []; let total = 0;
-  console.log(`scale: ${C} visitors for ${S} s`);
+  console.log(`scale: ${C} visitors for ${S} s${THINK ? `, reading about ${THINK / 1000} s between pages` : ', asking again at once (throughput)'}`);
   console.log('door              n   first    p50    p95    max  err');
   for (const [k] of doors) {
     const s = stats[k]; total += s.t.length; const p95 = q(s.t, 0.95);

@@ -1,0 +1,22 @@
+'use strict';
+// Built ahead (shared.js): a worker builds and writes; a website reads the row, and builds only when there is none.
+const assert = require('assert'); const Database = require('better-sqlite3');
+const { mountShared } = require('../src/shared');
+const env = process.env.NODE_ENV; process.env.NODE_ENV = 'x';
+const db = new Database(':memory:');
+let built = 0; const build = () => ({ n: ++built });
+const worker = { locals: {} }, web = { locals: {} };
+mountShared(worker, { db, ROLE: { split: true, chores: true, web: false }, cfg: { noTimers: true } }).register('k', { ms: 60e3, build });
+mountShared(web, { db, ROLE: { split: true, chores: false, web: true }, cfg: { noTimers: true } }).register('k', { ms: 60e3, build });
+assert.strictEqual(web.locals.shared.get('k').n, 1, 'no row: the website builds, and writes');
+assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM kept_data').get().n, 1);
+assert.strictEqual(web.locals.shared.get('k').n, 1, 'and keeps it');
+assert.strictEqual(worker.locals.shared.round(), null, 'fresh: the worker leaves it');
+db.prepare('UPDATE kept_data SET at=?').run(Date.now() - 55e3);
+assert.strictEqual(worker.locals.shared.round(), 'k', 'due: the worker builds');
+const web2 = { locals: {} }; mountShared(web2, { db, ROLE: { split: true, chores: false, web: true }, cfg: { noTimers: true } }).register('k', { ms: 60e3, build });
+assert.strictEqual(web2.locals.shared.get('k').n, 2, 'a fresh website reads the worker’s row'); assert.strictEqual(built, 2, 'without building');
+db.prepare('UPDATE kept_data SET at=?').run(Date.now() - 400e3);
+const web3 = { locals: {} }; mountShared(web3, { db, ROLE: { split: true, chores: false, web: true }, cfg: { noTimers: true } }).register('k', { ms: 60e3, build });
+assert.strictEqual(web3.locals.shared.get('k').n, 3, 'a row far too old (the worker is down): the website builds');
+process.env.NODE_ENV = env; console.log('shared: holds');
