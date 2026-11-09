@@ -5625,3 +5625,8 @@ html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
 .scb-l{list-style:none;padding:0}.scb-r{padding:10px 0;border-top:1px solid rgba(127,127,127,.2)}.scb-r small{display:block;color:var(--mute,#6b655e)}.scb-off{opacity:.55}
 .scb-note{color:var(--mute,#6b655e)}
 @media (max-width:600px){.scb-n{grid-template-columns:repeat(2,1fr)}}
+
+/* On view / in the collection (9 Nov): the museum's own line under a work. */
+.onv{margin:8px 0 0;font-size:12.5px;letter-spacing:.04em;color:#6b655c;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.onv b{font-weight:600;text-transform:uppercase;letter-spacing:.12em;font-size:11px;color:#3a352e}
+.onv-on b:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#b08a3c;margin-right:7px;vertical-align:1px}

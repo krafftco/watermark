@@ -57,7 +57,19 @@ function mountWall(app, { db, V, studioOnly, ledger }) {
   });
   // How many held works the standard keeps off the open walls, for the desk.
   const counts = () => db.prepare(`SELECT COUNT(*) n, SUM(CASE WHEN 1=1${sql('w')} THEN 1 ELSE 0 END) ok FROM works w WHERE w.status='held'`).get();
-  app.locals.wall = { WALL_MIN_PX, sql, holds, block, counts, gate, setGate };
+  // The label (Will, 9 Nov: "we are a museum… some things in the basement, in the vault… people can access all of
+  // those things"): one plain line under the work, as a museum's own record says it. On view = on the house's open
+  // walls (Wander, the collection, Discover); in the collection = kept, with its own page, found by name, not hung.
+  function onView(w, maker) {
+    if (!w || w.status !== 'held') return null;
+    return !!(holds(w).ok && (w.hall || !maker || maker.door !== 'record'));
+  }
+  function label(w, maker) {
+    const on = onView(w, maker); if (on === null) return '';
+    return on ? `<p class="onv onv-on"><b>On view</b><span>in Wander and the collection</span></p>`
+      : `<p class="onv"><b>In the collection</b><span>not on view · kept by the house, and always here</span></p>`;
+  }
+  app.locals.wall = { WALL_MIN_PX, sql, holds, block, counts, gate, setGate, onView, label };
   return app.locals.wall;
 }
 module.exports = { mountWall, sql, holds, WALL_MIN_PX, setGate, gate };

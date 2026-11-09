@@ -29,6 +29,7 @@ const { createApp } = require('../src/app');
   let t = await (await go(`/wander?maker=ada-lens`)).text(); assert.ok(t.includes(small), 'a maker’s wander shows the small one');
   t = await (await go(`/m/ada-lens/${small}`)).text(); assert.ok(t.includes('The Small One'), 'its own page');
   t = await (await go(`/w/${small}`)).text(); assert.ok(t.includes('The Small One') && !t.includes('Not on the house’s open walls'), 'the public page says nothing of it');
+  assert.ok(t.includes('In the collection') && !t.includes('onv-on'), 'the small one: in the collection, not on view'); t = await (await go(`/w/${fine}`)).text(); assert.ok(t.includes('onv-on') && t.includes('On view'), 'the fine one: on view');
   // 3. The record says why, and the house may say otherwise.
   await go('/studio/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'password=pw' });
   t = await (await go(`/studio/works/${small}`)).text(); assert.ok(t.includes('Not on the house’s open walls') && t.includes('600 px on the long side'), 'the record’s line');
