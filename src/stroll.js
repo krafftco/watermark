@@ -13,7 +13,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
   // little chance in it, and when there is a word, only what matches it (place, title, maker, keywords).
   const makerBy = key => { if (!key) return null; const all = db.prepare('SELECT * FROM makers').all(); return all.find(m => m.handle === key) || all.find(m => V.makerSlug(m) === key) || null; };
-  const POOL = new Map(); app.locals.wanderPoolDirty = () => POOL.clear();
+  const POOL = new Map(); const POOL_MS = process.env.NODE_ENV === 'test' ? 0 : Number(process.env.WANDER_POOL_S || 120) * 1000; app.locals.wanderPoolDirty = () => POOL.clear();
   function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : ''); if (not.length) { where += ` AND w.slug NOT IN (${not.map(() => '?').join(',')})`; params.push(...not); }
@@ -23,10 +23,16 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // at random here rather than sorted by the database for every page; a word, a maker or the adult rooms open still ask.
     let rows;
     if (!q && !mk) {
-      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); const pk = sql + '#' + (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) + '#' + (app.locals.copies ? app.locals.copies.gen() : 0); let pool = POOL.get(pk); // any entry on the register (a work published, held back) makes the pool new
-      if (!pool || Date.now() - pool.at > 60e3) { pool = { at: Date.now(), rows: db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${sql}`).all() }; POOL.set(pk, pool); if (POOL.size > 20) POOL.delete(POOL.keys().next().value); }
-      const notSet = new Set(not); const cands = pool.rows.filter(r => !notSet.has(r.slug)).map(r => ({ r, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) }));
-      cands.sort((x, y) => y.k - x.k); rows = cands.slice(0, n).map(x => x.r);
+      // (9 Nov) The pool is light and kept by the clock alone: id, slug and the two weights for every work on the open
+      // walls, two minutes. It had been `SELECT w.*` of the whole hall (50,000 rows with their guides, ~800 MB and six
+      // seconds on the bridge), remade on any register entry or any copy made, twenty pools kept: with the scribes
+      // making eighty copies a minute every Wander request rebuilt it, and the website fell over.
+      const sql = where.replace(/ AND w\.slug NOT IN \([^)]*\)/, ''); let pool = POOL.get(sql);
+      if (!pool || Date.now() - pool.at > POOL_MS) { pool = { at: Date.now(), rows: db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${sql}`).all() }; POOL.set(sql, pool); if (POOL.size > 4) POOL.delete(POOL.keys().next().value); }
+      const notSet = new Set(not); const cands = []; for (const r of pool.rows) if (!notSet.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
+      cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
+      const full = ids.length ? db.prepare(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`).all(...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
+      rows = ids.map(i => byId.get(Number(i))).filter(Boolean);
     }
     else rows = db.prepare(`SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY (CASE WHEN w.curated=1 THEN 4 WHEN w.stars>=4 THEN 3 WHEN w.stars>=3 THEN 1.5 ELSE 1 END) * (0.5 + RANDOM() / 18446744073709551616.0 + 0.5) DESC LIMIT ?`).all(...params, n);
     // For you: when the house knows what held this visitor, a few of the eye's picks are set among the rest.

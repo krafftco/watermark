@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.4 · Wander, light · 9 November 2026
+- Wander no longer reads the whole collection to choose what to show next. It keeps a small list of what is on the walls and reads only the handful it shows. This was the slowness of the 9th: with the collection grown to fifty thousand works, each visit had been reading all of it.
+
 ## 1.77.3 · Straight to the vault · 9 November 2026
 - On a house without a disk, a new original is in the vault before its record is made, so a restart can never lose it.
 
