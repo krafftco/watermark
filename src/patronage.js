@@ -28,7 +28,7 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
     const m = makerBySlug(req.params.slug); if (!m) return res.sendStatus(404);
     if (app.locals.walk) app.locals.walk.set(res, `maker:${m.handle}`);
     const RG = require('./regard');
-    const works = RG.byRegard(db, db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, id").all(m.id));
+    const works = RG.byRegard(db, db.prepare(`SELECT ${app.locals.leanCols()} FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT ${Number(process.env.MAKER_PAGE_MAX || 2400)}`).all(m.id));
     const years = RG.chronology(db, works);
     // Alongside their own work: what this maker collects, when their gallery is public.
     const mb = db.prepare('SELECT * FROM buyers WHERE (id=? OR (email IS NOT NULL AND lower(email)=lower(?))) AND public=1 ORDER BY CASE WHEN id=? THEN 0 ELSE 1 END LIMIT 1').get(m.buyer_id || 0, m.email || '', m.buyer_id || 0);

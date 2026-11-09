@@ -21,7 +21,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
   const jcache = new Map();
   app.get('/trade', (req, res) => {
     const Q = { q: String(req.query.q || '').trim().slice(0, 80), maker: String(req.query.maker || '').slice(0, 80), shape: ORIENT[req.query.shape] ? req.query.shape : '', min: [12, 24, 40].includes(+req.query.min) ? +req.query.min : 0, use: String(req.query.use || '').slice(0, 30), max: Math.max(0, parseInt(req.query.max, 10) || 0), sort: ['best', 'new', 'big'].includes(req.query.sort) ? req.query.sort : 'best' };
-    let rows = db.prepare("SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(w.disputed,0)=0 AND COALESCE(m.standing,'open')='open'").all();
+    let rows = db.prepare(`SELECT ${app.locals.leanCols('w')} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(w.disputed,0)=0 AND COALESCE(m.standing,'open')='open' ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${Number(process.env.TRADE_MAX || 6000)}`).all();
     if (Q.q) { const t = Q.q.toLowerCase(); rows = rows.filter(w => [w.title, w.place, w.keywords, w.caption, w.camera, mk(w).name, w.accession].some(x => String(x || '').toLowerCase().includes(t))); }
     if (Q.maker) rows = rows.filter(w => V.makerSlug(mk(w)) === Q.maker);
     if (Q.shape) rows = rows.filter(w => orient(w) === Q.shape);
@@ -31,7 +31,7 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
     // Each work's record costs a dozen lookups, so make it only for what is shown (30 Oct: /trade made every
     // held work's record before paging and took ten seconds). A filter on use or price needs the records;
     // those are kept a minute.
-    const make = w => { const k = w.slug + ':' + (w.updated_at || '') + ':' + (w.stars || 0); const hit = jcache.get(w.slug); if (hit && hit.k === k && Date.now() - hit.at < 60000) return hit.j; const j = J(w); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); jcache.set(w.slug, { k, j, at: Date.now() }); return j; };
+    const make = w => { const k = w.slug + ':' + (w.updated_at || '') + ':' + (w.stars || 0); const hit = jcache.get(w.slug); if (hit && hit.k === k && Date.now() - hit.at < 60000) return hit.j; const j = J(app.locals.wholeWorks([w])[0]); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); jcache.set(w.slug, { k, j, at: Date.now() }); return j; };
     const order = Q.sort === 'new' ? (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')) : Q.sort === 'big' ? (a, b) => (mp(b) || 0) - (mp(a) || 0) : (a, b) => (b.curated - a.curated) || ((b.stars || 0) - (a.stars || 0)) || (b.id - a.id);
     rows.sort(order);
     const page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;

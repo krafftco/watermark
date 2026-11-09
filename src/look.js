@@ -63,7 +63,7 @@ ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([
   const SAFE = { toString: () => "w.status='held' AND COALESCE(w.zone,'all')!='mature'" + require('./wall').sql('w') }; // the open walls hold to the wall standard (7 Nov)
   const wt = (w, set) => ({ href: set ? `/wander?in=${set}&at=${encodeURIComponent(w.slug)}` : `/w/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: [w.artist || w.maker, w.year || (w.taken_at || '').slice(0, 4)].filter(Boolean).join(' · '), wide: (w.width || 0) > (w.height || 0) * 1.3 });
   const WSEL = "SELECT w.slug, w.title, w.width, w.height, w.taken_at, m.name AS maker, a.name AS artist FROM works w JOIN makers m ON m.id=w.maker_id LEFT JOIN artists a ON a.id=w.artist_id";
-  let dcache = { at: 0, html: '' };
+  let dcache = { at: 0, html: '' }, bcache = { at: 0, body: '' };
   function discover(req) {
     const R = app.locals.rows; const F = app.locals.find; const ix = F && F.index ? F.index() : {};
     const rows = [];
@@ -123,7 +123,10 @@ ${cents.length ? `<h2 class="met-h" id="centuries">By century</h2>${cents.map(([
     const stranger = !(app.locals.buyerOf && app.locals.buyerOf(req)) && !(app.locals.accounts && app.locals.accounts.makerOf(req));
     const ixAt = app.locals.find && app.locals.find.index ? app.locals.find.index().at : 0; // the page is new whenever Find's index is (a minute, or a change)
     if (stranger && dcache.ixAt === ixAt && Date.now() - dcache.at < 60000) return res.send(dcache.html);
-    const html = V.layout({ title: 'Discover · Watermark', path: '/look', desc: 'Find anything in the house: works, artists, books, records, places, museums, movements, years.', body: discover(req) });
+    // The rows are the same for everyone; kept five minutes (9 Nov: two seconds to build, once a minute and for every signed-in visit).
+    const KEEP = process.env.NODE_ENV === 'test' ? 0 : 300e3;
+    if (!(bcache.body && bcache.ixAt === ixAt && Date.now() - bcache.at < KEEP)) bcache = { at: Date.now(), ixAt, body: discover(req) };
+    const html = V.layout({ title: 'Discover · Watermark', path: '/look', desc: 'Find anything in the house: works, artists, books, records, places, museums, movements, years.', body: bcache.body });
     if (stranger) dcache = { at: Date.now(), ixAt, html };
     res.send(html);
   });

@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.77.7 · Five more rooms, light · 9 November 2026
+
+- A maker's page, the public API's lists, the trade search and trips read only the columns a list needs, with a ceiling; the few works shown are read whole. The artists list and Discover's rows are kept five minutes.
+
 ## 1.77.6 · The next ones, ready · 9 November 2026
 
 - Wander fetches and decodes the next two pictures before you move (then two more, and the one behind), so a swipe lands on the picture, never a wait. The first three screens load at once; more screens are fetched earlier and quietly.

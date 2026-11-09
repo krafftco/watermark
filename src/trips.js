@@ -24,7 +24,7 @@ function mountTrips(app, { db, V, C, images, cache, originalPath, ledger, makerO
   const placeOf = w => String(w.place || '').trim();
   const shown = w => w.status === 'held' && !w.keep_back;
   const owner = (req, m) => { const me = makerOf(req); return (me && me.id === m.id) || isStudio(req); };
-  const frames = m => db.prepare(`SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND in_trip=1 AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0 AND place IS NOT NULL AND place<>''`).all(m.id);
+  const frames = m => db.prepare(`SELECT ${app.locals.leanCols()} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND in_trip=1 AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0 AND place IS NOT NULL AND place<>''`).all(m.id);
   const when = w => String(w.taken_at || w.created_at || '');
   // Every place with enough frames to be a trip, the most frames first; the cover is the best shown frame.
   function list(m) {

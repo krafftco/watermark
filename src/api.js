@@ -34,18 +34,18 @@ function mountApi(app, { db, C, V, q, mk, R, listed, offered, priced, shieldOf, 
   app.get('/api/v1', (req, res) => res.json({ name: 'Watermark', version: 1, docs: `${base}/developers`, endpoints: ['/api/v1/works/:slug', '/api/v1/works?q=&maker=&limit=', '/api/v1/makers/:slug', '/api/v1/licenses/:ref', '/api/v1/verify (POST a file, or ?sha256=)', '/api/v1/match?src=', '/api/v1/credit/:slug', '/api/v1/register/:slug', '/oembed?url='], house: { key: ledger.publicKey ? ledger.publicKey() : null, register: `${base}/ledger.json` } }));
   // The list is read once a minute (28 Oct, for an audience), not for every call.
   let heldAt = 0, heldRows = [];
-  const heldList = () => { if (Date.now() - heldAt > 60e3) { heldRows = db.prepare("SELECT w.* FROM works w WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id DESC").all(); heldAt = Date.now(); } return heldRows; };
+  const heldList = () => { if (Date.now() - heldAt > (process.env.NODE_ENV === 'test' ? 0 : 300e3)) { heldRows = db.prepare(`SELECT ${app.locals.leanCols('w')} FROM works w WHERE w.status='held' ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${Number(process.env.API_LIST_MAX || 5000)}`).all(); heldAt = Date.now(); } return heldRows; };
   app.get('/api/v1/works', (req, res) => {
     const qs = String(req.query.q || '').trim().slice(0, 80), mkr = String(req.query.maker || '').trim().slice(0, 80), limit = Math.min(100, Math.max(1, Number(req.query.limit) || 24)), offset = Math.max(0, Number(req.query.offset) || 0);
     let rows = heldList();
     if (mkr) rows = rows.filter(w => V.makerSlug(mk(w)) === mkr);
     if (qs) { const t = qs.toLowerCase(); rows = rows.filter(w => `${w.title} ${w.place || ''} ${w.keywords || ''} ${mk(w).name}`.toLowerCase().includes(t)); }
-    res.json({ total: rows.length, offset, limit, works: rows.slice(offset, offset + limit).map(w => { const j = workJSON(w); return { id: j.id, slug: j.slug, title: j.title, maker: j.maker, year: j.year, place: j.place, credit: j.credit, images: j.images, pages: j.pages, open: j.open ? j.open.licence : null, collect: (j.uses.find(u => u.key === 'social') || {}).price_cents || null }; }) });
+    res.json({ total: rows.length, offset, limit, works: app.locals.wholeWorks(rows.slice(offset, offset + limit)).map(w => { const j = workJSON(w); return { id: j.id, slug: j.slug, title: j.title, maker: j.maker, year: j.year, place: j.place, credit: j.credit, images: j.images, pages: j.pages, open: j.open ? j.open.licence : null, collect: (j.uses.find(u => u.key === 'social') || {}).price_cents || null }; }) });
   });
   app.get('/api/v1/works/:slug', (req, res) => { const w = held(req.params.slug); if (!w) return res.status(404).json({ error: 'No photograph at this address.' }); res.json(workJSON(w)); });
   app.get('/api/v1/makers/:slug', (req, res) => {
     const m = makerBySlug(String(req.params.slug)); if (!m || m.standing === 'held') return res.status(404).json({ error: 'No maker at this address.' });
-    const works = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id DESC").all(m.id);
+    const works = db.prepare(`SELECT ${app.locals.leanCols()} FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id DESC LIMIT 2000`).all(m.id);
     const st = regard ? regard.standing(db, m.id) : null;
     res.json({ name: m.name, slug: V.makerSlug(m), kind: m.kind || 'maker', house: m.house || null, place: m.place || null, bio: m.bio || null, site: m.site || null, page: `${base}/m/${V.makerSlug(m)}`, shown: works.length, held: st ? st.held : works.length, standing: st ? st.standing : null,
       works: works.slice(0, 50).map(w => ({ id: w.accession, slug: w.slug, title: V.tidy(w.title), year: (w.taken_at || '').slice(0, 4) || null, images: img(w), page: `${base}/m/${V.makerSlug(m)}/${w.slug}` })) });

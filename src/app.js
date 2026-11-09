@@ -685,11 +685,15 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Wander: a photograph you did not go looking for. The best work weighs more; what you just saw is left out.
   // /wander is the stroll now (stroll.js); the old random-work redirect is gone (Will, 21 Oct: one word, Wander).
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
+  // Kept five minutes (9 Nov: a grouping over every held work and a standing a maker, 1.7 s on the live house).
+  let artistsKept = null;
   app.get('/artists', (req, res) => {
+    if (artistsKept && Date.now() - artistsKept.at < (process.env.NODE_ENV === 'test' ? 0 : 300e3)) return res.send(V.artists({ artists: artistsKept.artists }));
     const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') GROUP BY m.id ORDER BY n DESC, m.id`).all();
     const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
       collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
     artists.forEach(a => { const st = RG.standing(db, a.id); a.regard = st.standing; a.shown = st.n; a.held = st.held; }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
+    artistsKept = { at: Date.now(), artists };
     res.send(V.artists({ artists }));
   });
   // A minute's cache for the two slowest public rooms (21 Oct: /ledger took 6 s and /makers 3 s on the live house): the
@@ -727,6 +731,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return hallKept;
   }
   app.locals.hallList = hallList;
+  // The columns of a work without the long ones (guides, readings, credentials): for any list a page draws.
+  // 9 Nov: no visitor path reads whole rows of many works; the few shown are read whole by id.
+  app.locals.leanCols = (alias) => { if (!leanCols || leanCols === 'id') leanCols = Object.keys(db.prepare('SELECT * FROM works ORDER BY id LIMIT 1').get() || { id: 1 }).filter(n => !HEAVY.has(n)).join(', '); return alias ? leanCols.split(', ').map(c => alias + '.' + c).join(', ') : leanCols; };
+  app.locals.wholeWorks = (rows) => { if (!rows.length) return []; const by = new Map(db.prepare(`SELECT * FROM works WHERE id IN (${rows.map(() => '?').join(',')})`).all(...rows.map(r => r.id)).map(w => [w.id, w])); return rows.map(r => by.get(r.id) || r); };
   app.get('/makers', minute((req, res) => res.send(V.home({ maker, works: hallList().works, uses: q.uses.all(maker.id), sent: req.query.sent }))));
   app.get(['/', '/house', '/collection'], minute((req, res) => {
     if (app.locals.walk) app.locals.walk.set(res, 'collection');
