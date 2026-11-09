@@ -5,7 +5,7 @@
 // A row is { k, title, href, tiles: [{ href, img, title, line, wide }] }. Arrows move between tiles on a keyboard
 // (public/rows.js), a swipe on a phone; the first tile of each row sits at the left margin like a television's.
 function mountRows(app, { db, V, C }) {
-  const { esc, tidy } = V; const I = require('./icons');
+  const { esc, tidy } = V; const I = require('./icons'); const quiet = () => !!(V.isQuiet && V.isQuiet()); // rooms put away while quiet (8 Nov)
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
   const all = (sql, ...a) => { try { return db.prepare(sql).all(...a); } catch (e) { return []; } };
   const img = s => `/img/${encodeURIComponent(s)}/screen`;
@@ -51,16 +51,16 @@ function mountRows(app, { db, V, C }) {
       if (picked.length >= 3) rows.push({ k: 'Latest', title: 'Latest from the makers', href: '/ledger', tiles: picked.map((x, i) => ({ ...x.t, wide: i === 0, line: `${x.maker} · ${x.kind} · ${V.date(String(x.at).replace(' ', 'T'))}` })) });
     } catch (e) { /* the news is a nicety */ }
     // Tonight in the Keys: the clock's programme for this hour.
-    try { const prog = app.locals.clock ? app.locals.clock.programme(req) : null; if (prog && prog.items && prog.items.length) rows.push({ k: 'The Keys', title: `${prog.slot && prog.slot.name ? prog.slot.name : 'Tonight'} in the Keys`, href: '/keys', tiles: prog.items.slice(0, 8).map(it => ({ href: it.href, img: it.img || null, title: it.title, line: it.why || it.line || '', dark: !it.img })) }); } catch (e) { /* the clock is optional */ }
+    try { if (!quiet()) { const prog = app.locals.clock ? app.locals.clock.programme(req) : null; if (prog && prog.items && prog.items.length) rows.push({ k: 'The Keys', title: `${prog.slot && prog.slot.name ? prog.slot.name : 'Tonight'} in the Keys`, href: '/keys', tiles: prog.items.slice(0, 8).map(it => ({ href: it.href, img: it.img || null, title: it.title, line: it.why || it.line || '', dark: !it.img })) }); } } catch (e) { /* the clock is optional */ }
     // On the turntable.
     const recs = all("SELECT slug, title, performer, composer, year, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY id DESC LIMIT 12");
-    if (recs.length) rows.push({ k: 'The Listening Room', title: 'The Listening Room', href: '/listening', tiles: recs.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: `${r.performer || r.composer || ''}${r.year ? ' · ' + r.year : ''}`, disc: true })) });
+    if (recs.length && !quiet()) rows.push({ k: 'The Listening Room', title: 'The Listening Room', href: '/listening', tiles: recs.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: `${r.performer || r.composer || ''}${r.year ? ' · ' + r.year : ''}`, disc: true })) });
     // From the shelf.
     const books = all("SELECT t.slug, t.title, t.author, t.kind, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 AND (t.body IS NOT NULL OR t.plates IS NOT NULL) ORDER BY t.id DESC LIMIT 12");
     if (books.length) rows.push({ k: 'The Library', title: 'The Library', href: '/library', tiles: books.map(t => ({ href: `/read/${t.slug}`, img: t.cover ? img(t.cover) : null, html: t.cover ? null : cloth(t), title: tidy(t.title), line: byName(t.author) || (t.kind === 'photobook' ? 'A photo book' : 'A book'), book: true })) });
     // The Screening Room, when something is on the bill.
     const films = all("SELECT f.slug, f.title, f.filmmaker, f.poster_slug, f.poster_url FROM films f WHERE f.status='showing' ORDER BY f.id DESC LIMIT 8");
-    if (films.length) rows.push({ k: 'The Screening Room', title: 'The Screening Room', href: '/screening', tiles: films.map(f => ({ href: `/screening/${f.slug}`, img: f.poster_slug ? img(f.poster_slug) : f.poster_url, title: tidy(f.title), line: f.filmmaker || '' })) });
+    if (films.length && !quiet()) rows.push({ k: 'The Screening Room', title: 'The Screening Room', href: '/screening', tiles: films.map(f => ({ href: `/screening/${f.slug}`, img: f.poster_slug ? img(f.poster_slug) : f.poster_url, title: tidy(f.title), line: f.filmmaker || '' })) });
     return rows;
   }
   const tile = t => `<a class="rw-t${t.wide ? ' rw-wide' : ''}${t.square ? ' rw-sq' : ''}${t.disc ? ' rw-disc' : ''}${t.book ? ' rw-book' : ''}${t.dark ? ' rw-dark' : ''}" href="${esc(t.href)}"${t.wander ? ' data-nv-wander' : ''} tabindex="0">${t.img ? `<img src="${esc(t.img)}" alt="" loading="lazy" decoding="async" draggable="false">` : t.html || `<span class="rw-blank">${I.wave}</span>`}<span class="rw-tt"><b>${esc(t.title)}</b>${t.line ? `<i>${esc(t.line)}</i>` : ''}</span></a>`;
@@ -88,7 +88,7 @@ function mountRows(app, { db, V, C }) {
     if (latest.length) rows.push({ k: 'latest', id: 'latest', title: 'Latest', line: `the newest, across everything`, mast, tiles: latest.slice(0, 12).map((x, i) => ({ ...x.t, wide: i === 0 ? true : x.t.wide, line: `${x.kind} · ${V.date(x.at)}` })) });
     const sortBar = `<nav class="rw-sort" aria-label="Sort">${SORTS.map(([k, l]) => `<a href="${slug}?sort=${k}#work"${sort === k ? ' aria-current="true"' : ''}>${l}</a>`).join('')}</nav>`;
     const byDate = [...works].sort((a, b) => String(b.taken_at || b.created_at || '').localeCompare(String(a.taken_at || a.created_at || '')));
-    if (sort === 'year') {
+    if (!works.length) { /* nothing on view yet: no empty band */ } else if (sort === 'year') {
       years.forEach((y, i) => rows.push({ k: 'work', id: i === 0 ? 'work' : null, title: y.year, line: `${y.n} work${y.n === 1 ? '' : 's'}`, sort: i === 0 ? sortBar : null, href: `/wander?maker=${encodeURIComponent(m.handle)}&q=${encodeURIComponent(y.year)}`, tiles: y.works.slice(0, 24).map(wt) }));
     } else if (sort === 'place') {
       const places = new Map(); for (const w of works) { const pl = w.place || 'Unplaced'; if (!places.has(pl)) places.set(pl, []); places.get(pl).push(w); }
@@ -101,10 +101,11 @@ function mountRows(app, { db, V, C }) {
     try { const TR = app.locals.trips; const tl = TR ? TR.list(m) : []; if (tl.length) rows.push({ k: 'trips', id: 'trips', title: 'Trips', line: 'as they were shot, played like a film', tiles: tl.slice(0, 12).map(t => ({ href: t.href, img: t.cover ? img(t.cover) : null, title: t.place, line: `${t.n} frames${t.held ? ` · ◆ ${t.held} held back` : ''}`, wide: true })) }); } catch (e) { /* trips are a nicety */ }
     if (series.length) rows.push({ k: 'series', title: 'Series', href: '/collection', tiles: series.map(x => { const w = works.find(k => (x.works || []).includes(k.slug)) || null; return { href: `/series/${x.slug}`, img: w ? img(w.slug) : null, title: tidy(x.title), line: x.note || `${(x.works || []).length} works`, wide: true }; }) });
     if (texts.length) rows.push({ k: 'books', title: `Books and writing`, line: `${first}’s press`, href: `/library?maker=${encodeURIComponent(m.handle)}`, tiles: texts.map(t => ({ href: t.body && !t.file ? `/read/${t.slug}` : `/library/${t.slug}`, img: t.cover ? img(t.cover) : null, html: t.cover ? null : cloth({ title: tidy(t.title), author: m.name, slug: t.slug }), title: tidy(t.title), line: t.kind === 'photobook' ? 'A photo book' : (t.kind ? t.kind[0].toUpperCase() + t.kind.slice(1) : 'Writing'), book: true })) });
-    if (records.length) rows.push({ k: 'records', title: 'Records', line: `${first}’s music`, href: '/listening', tiles: records.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: r.performer || r.composer || 'A record', disc: true })) });
+    if (records.length && !quiet()) rows.push({ k: 'records', title: 'Records', line: `${first}’s music`, href: '/listening', tiles: records.map(r => ({ href: `/listening/${r.slug}`, img: r.cover_slug ? img(r.cover_slug) : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`, title: tidy(r.title), line: r.performer || r.composer || 'A record', disc: true })) });
     if (hangs.length) rows.push({ k: 'shows', title: 'Shows and walls', href: '/collectors', tiles: hangs.map(h => ({ href: h.href, img: h.cover ? img(h.cover) : null, title: tidy(h.title), line: h.line, wide: true })) });
     if (stories.length) rows.push({ k: 'stories', title: 'From Studios', line: 'The magazine', href: `https://studios.krafftco.com/author/${encodeURIComponent(V.makerSlug(m))}/`, tiles: stories.slice(0, 12).map(p => ({ href: p.url, img: p.feature_image || null, title: tidy(p.title), line: p.excerpt ? String(p.excerpt).slice(0, 90) : 'A story', wide: true })) });
     if (collects && collects.n) rows.push({ k: 'collects', title: `What ${first} collects`, line: `${collects.n} by other makers`, href: `/g/${collects.code}`, tiles: collects.works.map(w => ({ href: `/w/${encodeURIComponent(w.slug)}`, img: img(w.slug), title: tidy(w.title), line: w.maker })) });
+    if (!rows.length) return `<section class="mh-sec"><div class="mh-wrap"><p class="mh-none">Nothing on view yet. ${esc(first)}’s first work will hang here.</p></div></section>`;
     return `<div class="rws rws-mk" data-rws>${rows.map(r => `${r.mast || ''}<section class="rw"${r.id ? ` id="${r.id}"` : ''} data-rw><header class="rw-h"><h2>${esc(r.title)}</h2>${r.line ? `<span class="rw-l">${esc(r.line)}</span>` : ''}${r.href ? `<a href="${esc(r.href)}">All</a>` : ''}</header>${r.sort || ''}<div class="rw-s" data-rw-s>${r.tiles.map(tile).join('')}</div></section>`).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`;
   }
   const html = (req, data) => { const rows = rowsFor(req, data); return `<div class="rws" data-rws>${rows.map(row).join('')}</div><script src="/static/rows.js?v=${esc(V.VER)}" defer></script>`; };

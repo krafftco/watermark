@@ -2452,7 +2452,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     FR.end(FR.byId(f.id), 'test'); assert.ok(!FR.active(mkr) && db.prepare('SELECT white_on FROM makers WHERE id=?').get(mkr.id).white_on === 0, 'closed; the house address off');
     r = await req(port, 'GET', `/m/${require('../src/views').makerSlug(mkr)}`); assert.ok(r.status === 200 && /class="gz"/.test(r.body), 'the page on the house stays');
     r = await req(port, 'GET', '/house'); assert.ok(/Latest from the makers/.test(r.body), 'the house’s own Latest on the front door');
-    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/almanack/.test(r.body), 'the almanack on the desk');
+    { const V = require('../src/views'); r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(!/account\/almanack/.test(r.body), 'the quiet house keeps the almanack off the desk (8 Nov)'); V.setQuiet(false); r = await req(port, 'GET', '/account', { cookie: mck }); V.setQuiet(true); assert.ok(/almanack/.test(r.body), 'the almanack on the desk'); }
     r = await req(port, 'GET', '/press'); assert.ok(/The franchise/.test(r.body) && /The Gazette and the Almanack/.test(r.body), 'said on the printing house');
   }
   console.log('ok: the franchise');
@@ -2515,7 +2515,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', `/draw/d/${dwId}/vault`, { cookie: mck }); assert.ok(r.status === 302 && /\/account\/works\/.+\?ok=drawn/.test(r.headers.location), 'into the vault: ' + r.status + ' ' + r.headers.location);
     const dwWork = db.prepare("SELECT w.* FROM works w JOIN drawings d ON d.work_id=w.id WHERE d.id=?").get(dwId); assert.ok(dwWork && dwWork.kind === 'drawing' && dwWork.status === 'hidden' && /a study, again/i.test(dwWork.title), 'a work of kind drawing, kept back: ' + JSON.stringify(dwWork && { kind: dwWork.kind, status: dwWork.status }));
     r = await req(port, 'GET', '/ledger'); assert.ok(!/drawing\.vaulted/.test(r.body), 'nothing of it on the public register');
-    r = await req(port, 'GET', '/account', { cookie: mck }); assert.ok(/\/draw\/mine/.test(r.body), 'the rail');
+    { const V = require('../src/views'); V.setQuiet(false); r = await req(port, 'GET', '/account', { cookie: mck }); V.setQuiet(true); assert.ok(/\/draw\/mine/.test(r.body), 'the rail (Draw is put away while the house is quiet)'); }
     console.log('ok: Draw');
   }
   { // The bindings and the shelves (25 Oct): every book without a cover is bound by the house; the Library is a room of shelves by kind, by author, with a search.

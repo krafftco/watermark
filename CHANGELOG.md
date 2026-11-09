@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.76.0 · The maker's week · 8 November 2026
+- A new maker sees their own rooms: the studio's sheet is twenty-one rooms, from Your studio to Getting paid; the Keys' rooms, the publishing wing, the market and the experiments are put away while the house is quiet. Every address still answers, Find and Every room still know them, and the Studio's Launch switch puts them back.
+- The front door's rows, Discover and the open Wander leave out the Listening and Screening Rooms while the house is quiet.
+- A maker's page no longer opens on a wall of zeros: the counts show only once they are more than nothing, an empty page says the first work will hang there, and the patrons' wall waits for its first name.
+- The maker's desk drops the Writer's Desk, Draw and the almanack while the house is quiet; an offer of representation still asks for an answer.
+
 ## 1.75.0 · The copies · 8 November 2026
 - The website never opens a master. A missing display copy is made from a copy (the other format, a larger size, from the disk or the bucket) or answered with the nearest smaller copy, else the wall's dark, and asked of the worker by a ticket (`render_asks`).
 - The worker makes each work's set (thumb, screen, large; JPEG and WebP) on arrival and on a ticket, puts it in the bucket and marks the work (`works.copies_at`).

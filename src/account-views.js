@@ -71,6 +71,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 }
 
 const I = require('./icons');
+const quietNow = () => { try { return require('./views').isQuiet(); } catch (e) { return false; } }; // the maker's week (8 Nov): the desk shows the path to a first sale
 function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
   setDeskPath('/account');
   const all = works; if (stars) works = works.filter(w => w.stars === stars);
@@ -135,9 +136,9 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
     [`/m/${esc(m.handle)}`, 'Your page', m.bio ? 'As the public sees it' : 'Add a portrait and a line'],
     edit && totals.works >= 5 ? ['/account#holdings', 'The edit', `Standing ${edit.now.standing}${edit.best && edit.best.from ? ` · culling from ${'★'.repeat(edit.best.from)} would give ${edit.best.standing}` : ''}`] : null,
     viewing ? null : ['/account/deliveries', 'Deliver an album', 'To a client or a friend'],
-    viewing ? null : ['/account/desk', 'The Writer’s Desk', 'A manuscript: the binder, the drafts, the press'],
-    viewing ? null : ['/draw/mine', 'Draw', 'A sheet with real brushes, layers and the easel’s tools; your drawings'],
-    viewing || !almanack ? null : ['/account/almanack', almanack.has ? `${almanack.y}’s almanack` : 'The almanack', almanack.has ? 'Set; remake it as the year goes on' : `Your ${almanack.y} as one book, in one press`],
+    viewing || quietNow() ? null : ['/account/desk', 'The Writer’s Desk', 'A manuscript: the binder, the drafts, the press'],
+    viewing || quietNow() ? null : ['/draw/mine', 'Draw', 'A sheet with real brushes, layers and the easel’s tools; your drawings'],
+    viewing || !almanack || quietNow() ? null : ['/account/almanack', almanack.has ? `${almanack.y}’s almanack` : 'The almanack', almanack.has ? 'Set; remake it as the year goes on' : `Your ${almanack.y} as one book, in one press`],
   ].filter(Boolean);
   const moneyRows = [
     G ? ['/account/payouts', 'Representation', `${money(G.cutsMonth)} this month · ${money(G.cuts)} in all`] : null,
@@ -150,7 +151,7 @@ function dashboard({ keys = [], way = '', role = null, m, pct, works, jewels, by
   ].filter(Boolean);
   const col = (title, rows0, empty) => { const rows = (rows0 || []).filter(Boolean); return `<section class="dk2-col"><h2>${title}</h2>${rows.length ? `<ul>${rows.map(([href, verb, line]) => `<li><a href="${href}"><b>${esc(verb)}</b><span>${esc(line)}</span></a></li>`).join('')}</ul>` : `<p class="dk2-empty">${empty}</p>`}</section>`; };
   const desk = () => `<section class="dk2" aria-label="The desk">
-<header class="dk2-line"><span><b>${money(totals.today)}</b><i>today${totals.todayN ? ` · ${totals.todayN}` : ''}</i></span><span><b>${money(totals.month)}</b><i>this month</i></span><span><b>${needRows.length}</b><i>need${needRows.length === 1 ? 's' : ''} you</i></span>${keys.length ? `<a href="/keys" class="dk2-key">${I.key}<i>No. ${keys[0].no}</i></a>` : ''}</header>
+<header class="dk2-line"><span><b>${money(totals.today)}</b><i>today${totals.todayN ? ` · ${totals.todayN}` : ''}</i></span><span><b>${money(totals.month)}</b><i>this month</i></span><span><b>${needRows.length}</b><i>need${needRows.length === 1 ? 's' : ''} you</i></span>${keys.length && !quietNow() ? `<a href="/keys" class="dk2-key">${I.key}<i>No. ${keys[0].no}</i></a>` : ''}</header>
 <div class="dk2-cols">${col('Needs you', needRows, 'All clear.')}${col('The work', workRows, '')}${col('Money', moneyRows, '')}</div>
 ${recent.length ? `<p class="dk2-late">Lately: ${recent.slice(0, 3).map(l => `<a href="/w/${esc(l.slug)}">${esc(l.title)}</a>, ${esc(l.use_name.toLowerCase())}, ${money(require('./fee').makerOf(l, pct))}`).join(' · ')}</p>` : ''}
 </section>`;
