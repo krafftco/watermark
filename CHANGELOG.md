@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.80.0 · Never a broken picture · 10 November 2026
+
+- A picture is never shown half-arrived or broken: it stays unseen until it is whole, is tried again if it fails, and a missing copy is taken off the walls and made again.
+- Each work says whether it is on view or in the collection.
+- The worker prepares the collection, the artists, Discover, search and today's work ahead, so the first visitor after a restart does not wait.
+- Doors that hand out an original or set a book as a PDF answer people, not crawlers, one at a time.
+- The website says in its log what it was doing whenever it pauses.
+
 ## 1.79.0 · Built for half a million · 9 November 2026
 
 - Search is asked of the database once the house is large, so the website no longer keeps every work in memory.
