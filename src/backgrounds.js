@@ -43,13 +43,34 @@ function mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf, makerO
     await pipe.withIccProfile(keep === 'p3' ? 'p3' : 'srgb').withExif({ IFD0: { Artist: who, Copyright: `${tidy(w.title)}, ${who}. ${open(w) ? 'Public domain.' : 'All rights reserved; for your own screen.'} Watermark.`, ImageDescription: `${tidy(w.title)}, ${who}. A background from Watermark.` } }).jpeg({ quality: 92, chromaSubsampling: '4:4:4', mozjpeg: true }).toFile(tmp);
     fs.renameSync(tmp, out); return out;
   }
+  // (9 Nov, the evening a crawler followed every Fill · Whole · See it link of the open works: each one fetched a master
+  // from the vault and cut a 4K file on the website, hundreds waiting in line, and the whole house slowed behind them.)
+  // No crawler is answered; a person may take BG_PER_10MIN (12) in ten minutes; one is made at a time and at most
+  // BG_WAITING (3) wait, the rest are asked to come back. A file already made is served at once, outside the line.
+  const BOT = /bot|crawl|spider|slurp|facebookexternalhit|preview|headless|python|curl\/|wget|go-http|okhttp|java\/|scrapy|httpclient|monitor|uptime|render\/|pingdom|betterstack|gpt|claude|anthropic|perplexity|bytespider|ccbot|amazonbot|applebot|yandex|baidu|semrush|ahrefs|mj12|dotbot|petal/i;
+  const PER = Math.max(1, Number(process.env.BG_PER_10MIN || 12)), WAITING = Math.max(0, Number(process.env.BG_WAITING || 3));
+  const took = new Map(); let lane = Promise.resolve(), waiting = 0;
+  const madeAlready = (w, key, mode) => { const f = path.join(dir, `${w.slug}-${key}-${mode}-${String(w.sha256 || w.id).slice(0, 10)}.jpg`); return fs.existsSync(f); };
+  function gate(req, res, w, key, mode) {
+    const ua = String(req.headers['user-agent'] || ''); if (!ua || BOT.test(ua)) { res.set('X-Robots-Tag', 'noindex, nofollow'); res.sendStatus(403); return false; }
+    if (madeAlready(w, key, mode)) return true;
+    if (process.env.NODE_ENV !== 'test') {
+      const now = Date.now(), ip = req.ip || 'x'; const t = (took.get(ip) || []).filter(x => now - x < 600e3);
+      if (t.length >= PER) { res.set('Retry-After', '600'); res.sendStatus(429); return false; }
+      t.push(now); took.set(ip, t); if (took.size > 5000) took.clear();
+      if (waiting > WAITING) { res.set('Retry-After', '30'); res.sendStatus(503); return false; }
+    }
+    return true;
+  }
+  const inLane = fn => { waiting++; const run = lane.then(fn, fn); lane = run.then(() => { waiting--; }, () => { waiting--; }); return run; };
   app.get('/w/:slug/background/:key', async (req, res) => {
     const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return res.sendStatus(404);
     if (!may(req, w)) return res.redirect(`/w/${w.slug}#backgrounds`);
     const sc = SCREENS.find(s => s[0] === req.params.key); if (!sc) return res.sendStatus(404);
     const mode = req.query.mode === 'whole' ? 'whole' : 'fill';
     try {
-      const f = await make(w, sc[0], mode);
+      if (!gate(req, res, w, sc[0], mode)) return;
+      const f = madeAlready(w, sc[0], mode) ? await make(w, sc[0], mode) : await inLane(() => make(w, sc[0], mode));
       const name = `${tidy(w.title)}, ${byName(w)} (${sc[1]}).jpg`;
       res.set('Content-Disposition', `${req.query.see ? 'inline' : 'attachment'}; filename="${name.replace(/[^\x20-\x7e]/g, '').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
       res.set('Cache-Control', open(w) ? 'public, max-age=86400' : 'private, no-store');
@@ -63,7 +84,7 @@ function mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf, makerO
     const ws = w.width || 0, hs = w.height || 0;
     if (!ok) return `<section class="bgx bgx-min" id="backgrounds"><p class="bgx-l"><b>As a background.</b> Made to the exact pixels of your phone, your Mac or your television, for those who hold it. <a href="/license/${esc(w.slug)}">Collect it</a> and every size is yours.</p></section>`; // 3 Nov: a stranger gets one line, not eight empty screens
     return `<section class="bgx" id="backgrounds"><p class="k">Live with it</p><h2>As a background.</h2><p class="bgx-l">${ok ? 'Made to the exact pixels of your screen. Filled to the edge, or set whole on the dark like a print in its mat.' : `Made to the exact pixels of your screen, for those who hold it. <a href="/license/${esc(w.slug)}">Collect it</a> and every size is yours.`}</p>
-<div class="bgx-g">${SCREENS.map(([k, n, W, H, line]) => { const tight = ws && hs && Math.max(W / ws, H / hs) > MAX_UP; return `<div class="bgx-s"><span class="bgx-shape" style="aspect-ratio:${W}/${H}"></span><b>${esc(n)}</b><i>${W} × ${H}${tight ? ' · set whole: the file is smaller than the screen' : ''}</i><small>${esc(line)}</small>${ok ? `<span class="bgx-a"><a href="/w/${esc(w.slug)}/background/${k}" download>Fill</a><a href="/w/${esc(w.slug)}/background/${k}?mode=whole" download>Whole</a><a href="/w/${esc(w.slug)}/background/${k}?see=1" target="_blank" rel="noopener">See it</a></span>` : ''}</div>`; }).join('')}</div>
+<div class="bgx-g">${SCREENS.map(([k, n, W, H, line]) => { const tight = ws && hs && Math.max(W / ws, H / hs) > MAX_UP; return `<div class="bgx-s"><span class="bgx-shape" style="aspect-ratio:${W}/${H}"></span><b>${esc(n)}</b><i>${W} × ${H}${tight ? ' · set whole: the file is smaller than the screen' : ''}</i><small>${esc(line)}</small>${ok ? `<span class="bgx-a"><a href="/w/${esc(w.slug)}/background/${k}" download rel="nofollow">Fill</a><a href="/w/${esc(w.slug)}/background/${k}?mode=whole" download rel="nofollow">Whole</a><a href="/w/${esc(w.slug)}/background/${k}?see=1" target="_blank" rel="noopener nofollow">See it</a></span>` : ''}</div>`; }).join('')}</div>
 ${ok ? `<p class="bgx-n">On an iPhone: open it, Share, Use as Wallpaper. On a Mac: right-click the desktop, Change Wallpaper, add the file. On the Frame: the SmartThings app, Art Mode, My Photos, add it. ${open(w) ? 'Free: the work belongs to everyone.' : `${esc(m ? m.name : 'The maker')}’s name and the copyright are written inside the file.`}</p>` : ''}</section>`;
   }
   app.locals.backgrounds = { block, make, may, SCREENS };

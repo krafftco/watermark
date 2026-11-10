@@ -433,7 +433,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
   const AI_BOTS = ['GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'CCBot', 'ClaudeBot', 'anthropic-ai', 'Google-Extended', 'Applebot-Extended', 'PerplexityBot', 'Bytespider', 'Meta-ExternalAgent', 'Amazonbot', 'cohere-ai', 'Diffbot', 'ImagesiftBot', 'Omgilibot'];
   app.get('/robots.txt', (req, res, next) => C.staging ? res.type('text').send('User-agent: *\nDisallow: /\n') : next());
-  app.get('/robots.txt', (req, res) => res.type('text').send(`${AI_BOTS.map(b => `User-agent: ${b}\nDisallow: /`).join('\n\n')}\n\nUser-agent: *\nAllow: /img/*/thumb\nAllow: /img/*/screen\nDisallow: /img/\nDisallow: /d/\nDisallow: /k/\nDisallow: /studio\nDisallow: /buy/\nAllow: /\n\nSitemap: ${C.base}/sitemap.xml\n`));
+  app.get('/robots.txt', (req, res) => res.type('text').send(`${AI_BOTS.map(b => `User-agent: ${b}\nDisallow: /`).join('\n\n')}\n\nUser-agent: *\nAllow: /img/*/thumb\nAllow: /img/*/screen\nDisallow: /img/\nDisallow: /w/*/background/\nDisallow: /d/\nDisallow: /k/\nDisallow: /studio\nDisallow: /buy/\nAllow: /\n\nSitemap: ${C.base}/sitemap.xml\n`));
   // Every public page, so search engines find the collection, each work, its life and the public rooms.
   app.get('/sitemap.xml', (req, res) => {
     const u = p => `<url><loc>${C.base}${p}</loc></url>`;
