@@ -1,0 +1,17 @@
+process.env.NODE_ENV='test';
+const assert=require('assert'),fs=require('fs'),path=require('path'),os=require('os'),sharp=require('sharp');
+const {createApp}=require('../src/app');
+(async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'wm-af-'));
+const app=createApp({dataDir:dir,base:'http://localhost',adminPassword:'pw',secret:'af',noTimers:true,vaultNow:true});
+const {db}=app.locals;const srv=app.listen(0);const base='http://127.0.0.1:'+srv.address().port;
+const a=app.locals.art.ensure('Leonardo da Vinci',{born:1452,died:1519});
+const mk=async(t,kind,i)=>{const f=path.join(dir,'f'+i+'.jpg');await sharp({create:{width:1200,height:900,channels:3,noise:{type:'gaussian',mean:60+i*40,sigma:30}}}).jpeg().toFile(f);const w=await app.locals.registerWork({file:f,title:t,originalName:'f'+i+'.jpg',kind});db.prepare("UPDATE works SET status='held', artist_id=?, kind=?, open='pd' WHERE id=?").run(a.id,kind,w.id);return w;};
+const t=await mk('Trattato della pittura, folio 12','drawing',1);const l=await mk('Lady with an Ermine','painting',2);
+let h=await (await fetch(base+'/art/'+a.slug)).text();assert.ok(h.includes('apl-find')&&h.includes('Find a work by Vinci'),'the box on the page');
+h=await (await fetch(base+'/art/'+a.slug+'?q='+encodeURIComponent("Leonardo's trattato"))).text();assert.ok(/trattato della pittura/i.test(h)&&!/lady with an ermine/i.test(h),'found within');assert.ok(h.includes('/wander/art/'+a.slug+'?all=1&amp;at='+t.slug)||h.includes('at='+t.slug));
+h=await (await fetch(base+'/art/'+a.slug+'?kind=painting')).text();assert.ok(/lady with an ermine/i.test(h)&&!/trattato della/i.test(h),'by kind');
+h=await (await fetch(base+'/art/'+a.slug+'?q=zzzz')).text();assert.ok(h.includes('Nothing in the house'));
+app.locals.findIndexDirty&&app.locals.findIndexDirty();
+let j=await (await fetch(base+'/api/find?q='+encodeURIComponent("Leonardo's trattato"))).json();assert.ok(j.works&&j.works[0]&&j.works[0].slug===t.slug,'the whole house finds it: '+JSON.stringify((j.works||[]).map(w=>w.slug)));
+j=await (await fetch(base+'/api/find?q=vinci+ermine')).json();assert.ok(j.works[0]&&j.works[0].slug===l.slug,'artist + word');
+console.log('artist find: holds');process.exit(0);})().catch(e=>{console.error(e);process.exit(1)});

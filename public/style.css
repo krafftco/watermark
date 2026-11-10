@@ -5636,3 +5636,28 @@ html:has(.st-side-on) .tb{opacity:0;pointer-events:none}
    each image `ld` on load (or error); pages without the script are untouched. */
 html.wm-ld img:not(.ld){opacity:0!important}
 html.wm-ld img.ld{transition:opacity .3s ease}
+
+/* Find within one artist (10 Nov). */
+.apl-find{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 6px;max-width:640px}
+.apl-find input{flex:1 1 220px;min-width:0;padding:11px 14px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(255,255,255,.06);color:#f3efe7;font:inherit;font-size:16px}
+.apl-find input::placeholder{color:rgba(243,239,231,.5)}
+.apl-find button{padding:11px 18px;border-radius:999px;border:1px solid #c9a24a;background:none;color:#e6c875;font:inherit;cursor:pointer}
+.apl-kinds{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.apl-kinds a{color:rgba(243,239,231,.75);text-decoration:none;border-bottom:1px solid transparent}
+.apl-kinds a[aria-current]{color:#e6c875;border-color:#c9a24a}
+.apl-kinds small{opacity:.55}
+.apl-found{min-height:100svh;background:#0b0a09;color:#f3efe7;padding:76px max(16px,4vw) 110px}
+.apl-fh h1{font-family:var(--serif,Georgia,serif);font-weight:400;font-size:clamp(30px,5vw,54px);margin:6px 0 0}
+.apl-fh h1 small{font-size:.4em;opacity:.6;letter-spacing:.04em}
+.apl-fh .k a{color:inherit}
+.apl-fn,.apl-fn2{font-size:14px;color:rgba(243,239,231,.7);margin:10px 0 0}
+.apl-fn a,.apl-fn2 a,.apl-fk a{color:#e6c875}
+.apl-fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px 16px;margin:26px 0 0}
+.apl-ft{color:inherit;text-decoration:none;display:block;min-width:0}
+.apl-ft img{width:100%;aspect-ratio:1;object-fit:contain;background:#141210;display:block}
+.apl-ft b{display:block;font-weight:500;font-size:13.5px;margin-top:8px;overflow-wrap:anywhere}
+.apl-ft i{display:block;font-style:normal;font-size:12px;opacity:.6}
+.apl-fk{margin:44px 0 0;max-width:760px}
+.apl-fk h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(243,239,231,.6);font-weight:600}
+.apl-fk ul{list-style:none;padding:0;margin:12px 0 0}
+.apl-fk li{padding:9px 0;border-top:1px solid rgba(255,255,255,.1);font-size:14px}

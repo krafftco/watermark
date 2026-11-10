@@ -219,8 +219,36 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     return h;
   }
   const pageCache = new Map();
+  const KINDS_IN = ['painting', 'drawing', 'print', 'sculpture', 'photograph'];
+  function searchBox(a, q, kind) {
+    let kinds = []; try { kinds = db.prepare("SELECT COALESCE(kind,'photograph') k, COUNT(*) n FROM works WHERE artist_id=? AND status='held' AND COALESCE(keep_back,0)=0 GROUP BY COALESCE(kind,'photograph') ORDER BY COUNT(*) DESC").all(a.id).filter(x => KINDS_IN.includes(x.k)); } catch (e) { kinds = []; }
+    const first = a.name.trim().split(/\s+/).pop();
+    return `<form class="apl-find" action="/art/${esc(a.slug)}" method="get" role="search"><input type="search" name="q" value="${esc(q || '')}" placeholder="Find a work by ${esc(first)}: a title, a subject, a year" aria-label="Find a work by ${esc(a.name)}" autocomplete="off"><button>Find</button>${kinds.length > 1 ? `<span class="apl-kinds">${kinds.map(k => `<a href="/art/${esc(a.slug)}?kind=${k.k}"${kind === k.k ? ' aria-current="true"' : ''}>${k.k[0].toUpperCase() + k.k.slice(1)}s <small>${k.n.toLocaleString('en-US')}</small></a>`).join('')}</span>` : ''}</form>`;
+  }
+  function within(a, q, kind) {
+    const toks = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 6);
+    const nameWords = new Set(a.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean));
+    const words = toks.filter(t => !nameWords.has(t)); // the artist's own name is no filter on their own page
+    const W = "lower(coalesce(w.title,'') || ' ' || coalesce(w.caption,'') || ' ' || coalesce(w.medium,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,'') || ' ' || coalesce(w.accession,'') || ' ' || coalesce(substr(w.taken_at,1,4),''))";
+    const conds = words.map(t => `${W} LIKE '%${t}%'`); // letters and digits only, by the line above
+    if (kind && KINDS_IN.includes(kind)) conds.push(kind === 'photograph' ? "COALESCE(w.kind,'photograph')='photograph'" : `w.kind='${kind}'`);
+    let ws = []; try { ws = db.prepare(`SELECT w.slug, w.title, w.taken_at, w.medium, w.kind, w.width, w.height FROM works w WHERE w.artist_id=? AND w.status='held' AND COALESCE(w.keep_back,0)=0 AND COALESCE(w.zone,'all')<>'mature'${conds.length ? ' AND ' + conds.join(' AND ') : ''} ORDER BY w.curated DESC, w.stars DESC, w.taken_at, w.id LIMIT 240`).all(a.id); } catch (e) { console.error('[art find]', e.message); }
+    let known = []; if (words.length) { try { known = db.prepare(`SELECT c.title, c.year, c.medium, c.collection, c.object_url, c.wiki FROM catalogue c WHERE c.artist_id=? AND ${words.map(t => `lower(coalesce(c.title,'') || ' ' || coalesce(c.medium,'') || ' ' || coalesce(c.collection,'') || ' ' || coalesce(c.year,'')) LIKE '%${t}%'`).join(' AND ')} ORDER BY c.year, c.title LIMIT 60`).all(a.id); } catch (e) { known = []; } }
+    const have = new Set(ws.map(w => String(w.title || '').toLowerCase())); known = known.filter(c => !have.has(String(c.title || '').toLowerCase()));
+    const what = [kind && KINDS_IN.includes(kind) ? kind + 's' : null, words.length ? `“${esc(words.join(' '))}”` : null].filter(Boolean).join(' · ') || 'every work';
+    const tiles = ws.map(w => `<a class="apl-ft" href="/wander/art/${esc(a.slug)}?all=1&at=${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(V.tidy(w.title))}" loading="lazy"><b>${esc(V.tidy(w.title))}</b><i>${esc([String(w.taken_at || '').slice(0, 4), w.medium].filter(Boolean).join(' · '))}</i></a>`).join('');
+    const body = `<main class="apl apl-found"><header class="apl-fh"><p class="k"><a href="/art">The hall</a> · <a href="/art/${esc(a.slug)}">${esc(a.name)}</a></p><h1>${esc(a.name)}${dates(a) ? ` <small>${esc(dates(a))}</small>` : ''}</h1>${searchBox(a, q, kind)}<p class="apl-fn">${ws.length ? `${ws.length === 240 ? 'The first 240' : ws.length.toLocaleString('en-US')} ${ws.length === 1 ? 'work' : 'works'} in the house for ${what}.` : `Nothing in the house by ${esc(a.name)} for ${what}.`} <a href="/art/${esc(a.slug)}">The whole page</a></p></header>
+${tiles ? `<section class="apl-fg">${tiles}</section>` : ''}
+${known.length ? `<section class="apl-fk"><h2>Known, and not yet in the house</h2><ul>${known.map(c => `<li><b>${esc(c.title || 'Untitled')}</b>${c.year ? `, ${esc(String(c.year))}` : ''}${c.medium ? ` · ${esc(c.medium)}` : ''}${c.collection ? ` · ${esc(c.collection)}` : ''}${c.object_url || c.wiki ? ` · <a href="${esc(c.object_url || c.wiki)}" rel="noopener">its own record</a>` : ''}</li>`).join('')}</ul></section>` : ''}
+${!ws.length && !known.length ? `<p class="apl-fn2">Try one word of the title, a subject, a year, or <a href="/find?q=${encodeURIComponent(q)}">look in the whole house</a>.</p>` : ''}</main>`;
+    return V.layout({ title: `${a.name}: ${q || kind || 'find'} · Watermark`, bare: true, path: `/art/${a.slug}`, desc: `Find a work by ${a.name}.`, body });
+  }
   app.get('/art/:slug', (req, res, next) => {
     const a = bySlug(req.params.slug); if (!a) return next();
+    // Find within one artist (Will, 10 Nov: "if I want to find a particular drawing or painting from a particular artist"):
+    // ?q= a word over the title, the caption, the medium, the place and the year; ?kind= paintings, drawings, prints.
+    // What the house holds first (each opens in Wander among the artist's work), then what the catalogue knows of.
+    if (req.query.q !== undefined || req.query.kind) return res.send(within(a, String(req.query.q || '').replace(/['’`]s\b/g, '').slice(0, 80), String(req.query.kind || '').toLowerCase().replace(/[^a-z]/g, '')));
     const studio = isStudio(req); const whole = req.query.all === '1'; const ck = `${a.slug}|${studio ? 's' : 'p'}${whole ? '|all' : ''}`; const hit = pageCache.get(ck); if (hit && Date.now() - hit.at < 60e3) return res.send(hit.html);
     const OB = require('./object'); const ws = chronology(a); const r = rights(a, ws[0] || null); const h = wallOf(a, ws);
     const photographers = [...new Map(ws.filter(w => w.handle !== 'the-public-domain').map(w => [w.handle, w.maker_name])).entries()];
@@ -233,7 +261,7 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki, url: c.object_url, onView: c.on_view }));
     const show = app.locals.shows ? app.locals.shows.forPage(a) : null;
-    const body = AP.render({ a, ws, ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const body = AP.render({ a, ws, find: searchBox(a), ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
     const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     pageCache.set(ck, { at: Date.now(), html });
