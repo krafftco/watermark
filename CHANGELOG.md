@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.81.1 · The sharp picture · 10 November 2026
+- A work opened full screen on a phone is never swapped for a smaller, softer copy; the largest copy is made the first time a screen asks for it.
+
 ## 1.81.0 · The volume · 10 November 2026
 - Bound volumes: a codex, a notebook or a treatise that came in a page at a time is bound again and turned one page at a time (two abreast on a wide screen). From any page: study it on the easel, open its record, keep a note.
 - The house proposes volumes from the records (pages of one artist that share a title and differ by a folio number); the Studio names and opens them.
