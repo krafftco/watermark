@@ -474,6 +474,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
+  app.use((req, res, next) => { const r = global.__wmLast || (global.__wmLast = []); r.push(`${req.method} ${String(req.originalUrl || req.url).slice(0, 120)}`); if (r.length > 8) r.shift(); next(); }); // the last few requests, for the lag line (server.js)
   app.use((req, res, next) => V.REQ.run({ path: req.path }, next)); // every page knows where it is (the rooms sheet)
   require('./devices').mountDevices(app, { db, C, V, mail, ledger }); // your devices (27 Oct): the gate that signs out an ended device, before any route
 

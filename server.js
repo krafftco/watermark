@@ -26,5 +26,9 @@ app.locals.store.checkKey()
   })
   .catch(e => { console.error(e.message); process.exit(1); });
 
-// (9 Nov) LOOP_LAG=<ms>: say when the event loop was held longer than that, for the scale test to read beside the slow questions.
-if (process.env.LOOP_LAG) { const over = Number(process.env.LOOP_LAG) || 300; let last = Date.now(); setInterval(() => { const now = Date.now(), d = now - last - 100; last = now; if (d > over) console.log('[lag]', d, 'ms'); }, 100).unref(); }
+// The loop's holds, said (9 Nov, 11:35 pm: the website stopped answering for some thirty seconds, Render took it out of
+// rotation and visitors saw 502 for four minutes; nothing in the log said what it had been doing). Every process that
+// answers visitors now says when the event loop was held longer than LOOP_LAG ms (1500; the scale test asks for 300),
+// with the request that was running and the last few before it. LOOP_LAG=0 turns it off.
+{ const role = require('./src/role'); const over = process.env.LOOP_LAG === undefined ? (role.web && process.env.NODE_ENV !== 'test' ? 1500 : 0) : Number(process.env.LOOP_LAG);
+  if (over > 0) { let last = Date.now(); setInterval(() => { const now = Date.now(), d = now - last - 100; last = now; if (d > over) { const r = global.__wmLast || []; console.log('[lag]', d, 'ms; running or just run:', r.slice(-4).join(' | ') || 'no request (a timer)'); } }, 100).unref(); } }
