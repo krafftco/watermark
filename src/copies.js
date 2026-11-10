@@ -199,6 +199,52 @@ ${req.query.ok ? `<p class="bl-ok">${esc(req.query.ok)}</p>` : ''}
     const go = () => { for (let i = 0; i < LANES; i++) lane(); beat(); setInterval(beat, 30e3).unref(); console.log(`[scribe] ${ME} at work, ${LANES} lanes (${ROLE.role})`); };
     setTimeout(go, ROLE.scribe ? 5e3 : 240e3).unref();
   }
+  // Never a broken picture (Will, 9 Nov: "We are the Frick, the Met; we don't do that business of showing broken
+  // images … bring it into conservation and make sure an image is made"). A page that could not load a picture after
+  // three tries keeps it unseen and tells the house (POST /api/picture/failed?s=<slug>&z=<size>). The house looks:
+  //   the copy is not there (disk or bucket) → the work comes off the open walls at once (copies_at cleared, so the
+  //     gate holds it), a ticket is written, and the scribes make its copies again; it goes back up by itself.
+  //   the copy is there → the visitor's connection, most likely; but PICTURE_REPORTS (3) reports of one work inside an
+  //     hour send it to the restoration room: the worker runs conservation's own check (which remakes a bad display
+  //     copy from the original, and takes the work off view only if the original itself is unsound).
+  // Every report is kept in `picture_reports`; nothing here opens a master on the website.
+  db.exec('CREATE TABLE IF NOT EXISTS picture_reports (slug TEXT PRIMARY KEY, size TEXT, n INTEGER NOT NULL DEFAULT 1, first_at TEXT, last_at TEXT, state TEXT, note TEXT)');
+  const REPORTS = Math.max(1, Number(process.env.PICTURE_REPORTS || 3));
+  const told = new Map(); // address → times, so one browser cannot flood the desk
+  async function failed(slug, size) {
+    const w = db.prepare("SELECT id, slug, status, keep_back, copies_at FROM works WHERE slug=?").get(String(slug || '')); if (!w || w.status !== 'held' || w.keep_back) return 'not on view';
+    const z = images.SIZES[size] ? size : 'screen';
+    const row = db.prepare('SELECT * FROM picture_reports WHERE slug=?').get(w.slug);
+    const fresh = row && row.last_at && Date.now() - new Date(String(row.last_at).replace(' ', 'T') + 'Z').getTime() < 3600e3;
+    const n = fresh ? row.n + 1 : 1;
+    let there = false; try { there = await images.hasCopy(images.fileOf(cache, w.slug, z, 'jpg')); } catch (e) { there = false; }
+    let state, note;
+    if (!there) { db.prepare('UPDATE works SET copies_at=NULL, copies_tries=0 WHERE id=?').run(w.id); ask(w.slug, z); state = 'remaking'; note = `the ${z} copy was not there; off the open walls until the scribes make it again`; console.log('[picture]', w.slug, note); }
+    else if (n >= REPORTS) { state = 'check'; note = `${n} reports inside an hour with the copy in place; sent to the restoration room`; console.log('[picture]', w.slug, note); }
+    else { state = 'sound'; note = 'the copy is in place'; }
+    db.prepare('INSERT INTO picture_reports (slug, size, n, first_at, last_at, state, note) VALUES (?, ?, 1, ?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET size=excluded.size, n=?, last_at=excluded.last_at, state=excluded.state, note=excluded.note').run(w.slug, z, now(), now(), state, note, n);
+    return state;
+  }
+  app.post('/api/picture/failed', (req, res) => {
+    res.status(204).end();
+    try {
+      const ip = req.ip || 'x', t = (told.get(ip) || []).filter(x => Date.now() - x < 600e3); if (t.length >= 30) return; t.push(Date.now()); told.set(ip, t); if (told.size > 5000) told.clear();
+      failed(String(req.query.s || '').slice(0, 200), String(req.query.z || '')).catch(e => console.error('[picture]', e.message));
+    } catch (e) { /* a beacon is never an error */ }
+  });
+  // The worker's part: works sent for a check go through conservation's own (it remakes a bad display copy, and only an
+  // unsound original leaves the walls).
+  async function checks() {
+    const rows = db.prepare("SELECT slug FROM picture_reports WHERE state='check' ORDER BY last_at LIMIT 5").all();
+    for (const r of rows) {
+      const w = db.prepare('SELECT * FROM works WHERE slug=?').get(r.slug); let note = 'checked';
+      try { if (w && app.locals.conservation && app.locals.conservation.check) { const c = await app.locals.conservation.check(w); note = c && c.ok === false ? 'the restoration room has it' : 'checked: sound'; } } catch (e) { note = 'check failed: ' + String(e.message).slice(0, 120); }
+      db.prepare("UPDATE picture_reports SET state='checked', note=? WHERE slug=?").run(note, r.slug); console.log('[picture]', r.slug, note);
+    }
+    return rows.length;
+  }
+  if (ROLE.chores && !(app.locals.noTimers) && process.env.NODE_ENV !== 'test') setInterval(() => { checks().catch(e => console.error('[picture]', e.message)); }, 60e3).unref();
+  app.locals.pictures = { failed, checks, reports: () => db.prepare('SELECT * FROM picture_reports ORDER BY last_at DESC LIMIT 200').all() };
   app.locals.copies = { gen: () => made, ask, make, drain, backfill, gate, counts, noMaster, placeholder, job, claim, one, progress, fleet, holdImports, scribe, ME };
   return app.locals.copies;
 }
