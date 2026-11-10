@@ -261,7 +261,7 @@ ${!ws.length && !known.length ? `<p class="apl-fn2">Try one word of the title, a
     for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki, url: c.object_url, onView: c.on_view }));
     const show = app.locals.shows ? app.locals.shows.forPage(a) : null;
-    const body = AP.render({ a, ws, find: searchBox(a), ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const body = AP.render({ a, ws, find: searchBox(a) + (app.locals.volumes ? app.locals.volumes.strip(a) : ''), ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
     const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     pageCache.set(ck, { at: Date.now(), html });

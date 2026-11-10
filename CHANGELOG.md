@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.81.0 · The volume · 10 November 2026
+- Bound volumes: a codex, a notebook or a treatise that came in a page at a time is bound again and turned one page at a time (two abreast on a wide screen). From any page: study it on the easel, open its record, keep a note.
+- The house proposes volumes from the records (pages of one artist that share a title and differ by a folio number); the Studio names and opens them.
+- An open volume stands on the artist's page, answers in Find, and is met once on the open walls, at its first page.
+- An artist's page has its own search, and Find takes an artist's name as a word ("Leonardo's trattato").
+
 ## 1.80.0 · Never a broken picture · 10 November 2026
 
 - A picture is never shown half-arrived or broken: it stays unseen until it is whole, is tried again if it fails, and a missing copy is taken off the walls and made again.

@@ -21,7 +21,7 @@ const WALL_MIN_PX = Math.max(400, Number(process.env.WALL_MIN_PX || (process.env
 let gateOn = false; const setGate = on => { gateOn = !!on; }; const gate = () => gateOn;
 function sql(a = 'w') {
   // MAX(a,b) is two-arg here (greatest on Postgres by the dialect); frick is JSON with no spaces ("verdict":"down").
-  return (gateOn ? ` AND ${a}.copies_at IS NOT NULL` : '') + ` AND (${a}.wall='on' OR (COALESCE(${a}.wall,'')<>'off' AND MAX(COALESCE(${a}.width,0),COALESCE(${a}.height,0))>=${WALL_MIN_PX} AND COALESCE(${a}.frick,'') NOT LIKE '%"verdict":"down"%'))`;
+  return (gateOn ? ` AND ${a}.copies_at IS NOT NULL` : '') + ` AND COALESCE(${a}.vol_page,0)=0` + ` AND (${a}.wall='on' OR (COALESCE(${a}.wall,'')<>'off' AND MAX(COALESCE(${a}.width,0),COALESCE(${a}.height,0))>=${WALL_MIN_PX} AND COALESCE(${a}.frick,'') NOT LIKE '%"verdict":"down"%'))`;
 }
 // The same rule read for one work: { ok, why }.
 function holds(w) {
@@ -29,6 +29,7 @@ function holds(w) {
   if (w.wall === 'on') return { ok: true, why: 'the house says it hangs' };
   if (w.wall === 'off') return { ok: false, why: 'the house keeps it off the open walls' };
   if (gateOn && !w.copies_at) return { ok: false, why: 'its display copies are not yet made; the worker makes them and it goes up by itself' };
+  if (w.vol_page) return { ok: false, why: 'a page of a bound volume; the volume is met once on the open walls, at its first page' };
   const long = Math.max(w.width || 0, w.height || 0);
   if (long < WALL_MIN_PX) return { ok: false, why: `${long || 'an unknown number of'} px on the long side; the open walls need ${WALL_MIN_PX}` };
   let r = null; try { r = w.frick ? JSON.parse(w.frick) : null; } catch (e) { /* no reading */ }
@@ -38,7 +39,7 @@ function holds(w) {
 
 function mountWall(app, { db, V, studioOnly, ledger }) {
   const esc = V.esc;
-  for (const [c, t] of [['wall', 'TEXT'], ['frick', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['wall', 'TEXT'], ['frick', 'TEXT'], ['vol_page', 'INTEGER']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   // The record: one line, and the house's say.
   function block(w, base, { studio = false } = {}) {
     const h = holds(w);
