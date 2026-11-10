@@ -916,7 +916,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     try {
       let fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const CP = app.locals.copies;
-      const got = await images.derivativeOf(() => originalPath(w), cache, w.slug, req.params.size, fmt, { standIn: true, noMaster: CP && CP.noMaster(), onMiss: CP ? CP.ask : null });
+      const size = req.params.size === 'wall' && w.width && w.height && Math.max(w.width, w.height) <= 2400 ? 'large' : req.params.size; // (10 Nov) a master no larger than the large copy has no wall copy to make: the large one is the answer
+      const got = await images.derivativeOf(() => originalPath(w), cache, w.slug, size, fmt, { standIn: true, noMaster: CP && CP.noMaster(), onMiss: CP ? CP.ask : null });
       if (got.making) { res.set({ 'Cache-Control': 'no-store', 'X-Making': '1', 'Access-Control-Allow-Origin': '*' }); return res.type('image/svg+xml').send(CP.placeholder); } // (8 Nov) nothing made yet: the wall's dark, and a ticket for the worker
       const file = got.file; if (got.standIn) { fmt = got.fmt; res.set('X-Stand-In', '1'); }
       res.set('Cache-Control', w.keep_back || inPrivate || got.standIn ? 'private, no-store' : 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'); // (8 Nov) an hour in the browser, a day at the edge; a new master invalidates the edge by itself (edge.work)

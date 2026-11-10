@@ -248,8 +248,12 @@ async function derivativeOf(getOriginal, cacheDir, slug, size, fmt = 'jpg', { st
   // is a JPEG, which every browser takes), asks the worker for the real copy, and else answers the wall's dark.
   if (noMaster) {
     if (onMiss) { try { onMiss(slug, size); } catch (e) { /* asked */ } }
-    const near = existingCopy(cacheDir, slug, size, { atLeast: false }) || existingCopy(cacheDir, slug, size);
-    if (near && (near.fmt === fmt || near.fmt === 'jpg')) return { file: near.file, fmt: near.fmt, standIn: true };
+    // (10 Nov: a phone's viewer asked for the wall copy, which no one had made, and was handed whatever happened to
+    // be on this box's disk, often the thumb, stretched across the screen.) The nearest finished copy is looked for
+    // on the disk and then in the bucket, the largest of the smaller ones first, then the larger ones: a small
+    // download, never picture work.
+    const i = ORDER.indexOf(size); const tries = [...ORDER.slice(0, Math.max(0, i)).reverse(), ...ORDER.slice(i + 1)];
+    for (const z of tries) for (const fm of (fmt === 'jpg' ? ['jpg'] : [fmt, 'jpg'])) { const nf = fileOf(cacheDir, slug, z, fm); if (fs.existsSync(nf) || await fromBucket(nf)) return { file: nf, fmt: fm, standIn: true, size: z }; }
     const sibJ = fileOf(cacheDir, slug, size, 'jpg');
     if (fmt !== 'jpg' && (fs.existsSync(sibJ) || await fromBucket(sibJ))) return { file: sibJ, fmt: 'jpg', standIn: true };
     return { file: null, fmt, standIn: true, making: true };

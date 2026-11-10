@@ -36,6 +36,12 @@ const { createApp } = require('../src/app');
   await CP.drain(); r = await fetch(`${base}/img/${b.slug}/thumb`, { headers: { accept: 'image/webp' } }); assert.equal(r.headers.get('content-type'), 'image/webp'); assert.ok(!r.headers.get('x-stand-in'), 'the worker made it');
   for (const n of orig) fs.renameSync(path.join(dir, 'originals', n), path.join(dir, 'originals', n + '.away'));
   for (const n of orig) fs.renameSync(path.join(dir, 'originals', n + '.away'), path.join(dir, 'originals', n));
+  // 3b. (10 Nov) A phone's viewer asks for the wall copy, which is made only when asked: it is handed the large copy (the largest smaller one, never the thumb), the worker makes the wall copy, and the next look has it. A master no larger than the large copy answers with the large copy itself.
+  const big = await put(await sharp({ create: { width: 4200, height: 2800, channels: 3, noise: { type: 'gaussian', mean: 120, sigma: 40 } } }).jpeg({ quality: 80 }).toBuffer(), 'Big'); await CP.make(big);
+  r = await fetch(`${base}/img/${big.slug}/wall?f=jpg`); assert.ok(r.headers.get('x-stand-in'), 'a stand-in for the wall'); let mw = await sharp(Buffer.from(await r.arrayBuffer())).metadata(); assert.equal(mw.width, 2400, 'the large copy stands in, not the thumb: ' + mw.width);
+  assert.equal(db.prepare('SELECT size FROM render_asks WHERE slug=?').get(big.slug).size, 'wall');
+  await CP.drain(); r = await fetch(`${base}/img/${big.slug}/wall?f=jpg`); assert.ok(!r.headers.get('x-stand-in'), 'the wall copy, made'); mw = await sharp(Buffer.from(await r.arrayBuffer())).metadata(); assert.equal(mw.width, 3840);
+  r = await fetch(`${base}/img/${a.slug}/wall?f=jpg`); assert.ok(!r.headers.get('x-stand-in') && !r.headers.get('x-making'), 'a small master: the large copy is the answer');
   // 4. The gate: before the backfill every work the standard allows is on the open walls; after, only work with its copies.
   const c = await put(await sharp(fx).modulate({ brightness: 1.3 }).jpeg().toBuffer(), 'Fresh');
   const feed = async () => (await (await fetch(`${base}/api/stroll?n=20`)).json()).items.map(i => i.slug);
@@ -45,6 +51,6 @@ const { createApp } = require('../src/app');
   assert.ok(/copies are not yet made/.test(W.holds(db.prepare('SELECT * FROM works WHERE id=?').get(c.id)).why));
   const walk = () => { app.locals.walk.forget('collection'); return app.locals.walk.list('collection').works.map(w => w.slug); }; assert.ok(!walk().includes(c.slug), 'the collection walk too');
   CP.ask(c.slug); await CP.drain(); f = await feed(); assert.ok(f.includes(c.slug), 'made, it goes up by itself');
-  const h = await (await fetch(`${base}/healthz`)).json(); assert.ok(h.copies && h.copies.gate === true && h.copies.made === 3, JSON.stringify(h.copies));
+  const h = await (await fetch(`${base}/healthz`)).json(); assert.ok(h.copies && h.copies.gate === true && h.copies.made === 4, JSON.stringify(h.copies));
   srv.close(); console.log('copies: holds'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

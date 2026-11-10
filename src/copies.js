@@ -25,7 +25,7 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
 
   // A ticket for the worker: this work's copies are wanted.
   function ask(slug, size) {
-    try { db.prepare("INSERT INTO render_asks (slug, asked_at, n, size) VALUES (?, ?, 1, ?) ON CONFLICT(slug) DO UPDATE SET n=render_asks.n+1, asked_at=excluded.asked_at").run(slug, now(), size || null); } catch (e) { /* asked */ }
+    try { db.prepare("INSERT INTO render_asks (slug, asked_at, n, size) VALUES (?, ?, 1, ?) ON CONFLICT(slug) DO UPDATE SET n=render_asks.n+1, asked_at=excluded.asked_at, size=CASE WHEN excluded.size='wall' THEN 'wall' ELSE render_asks.size END").run(slug, now(), size || null); } catch (e) { /* asked */ }
   }
   const THUMB = ['thumb']; let made = 0; // a newly made set renews the open wander's pool (stroll.js keys on it)
   // Make a work's set (the thumb for anything kept; every size for work on view) and mark it.
@@ -43,10 +43,10 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
   async function drain(limit = 20) {
     if (draining) return 0; draining = true; let n = 0;
     try {
-      const rows = db.prepare('SELECT slug FROM render_asks ORDER BY asked_at LIMIT ?').all(limit);
+      const rows = db.prepare('SELECT slug, size FROM render_asks ORDER BY asked_at LIMIT ?').all(limit);
       for (const r of rows) {
         const w = db.prepare('SELECT * FROM works WHERE slug=?').get(r.slug);
-        if (w && ['held', 'hidden'].includes(w.status)) { try { await make(w); n++; } catch (e) { console.error('[copies]', r.slug, e.message); } }
+        if (w && ['held', 'hidden'].includes(w.status)) { try { await make(w); if (r.size === 'wall' && w.status === 'held' && !w.keep_back && Math.max(w.width || 0, w.height || 0) > 2400) await images.warm(() => originalPath(w), cache, w.slug, ['wall']); n++; } catch (e) { console.error('[copies]', r.slug, e.message); } }
         db.prepare('DELETE FROM render_asks WHERE slug=?').run(r.slug);
         if (GOV && GOV.settle && !quiet) await GOV.settle('copies');
       }
