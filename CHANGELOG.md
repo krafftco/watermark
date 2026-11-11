@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.82.1 · The download door · 11 November 2026
+- A download that was slow or abandoned no longer shuts the door on the next person; a busy door answers with the house's own sign, not the cold page.
+
 ## 1.82.0 · At auction · 10 November 2026
 - At auction: a lot coming to sale, kept as the house keeps any work, with one door out to the auction house to bid. Recorded by hand in the Studio; shown only with the house's own or an open photograph.
 

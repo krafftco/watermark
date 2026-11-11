@@ -58,7 +58,7 @@ function mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf, makerO
       const now = Date.now(), ip = req.ip || 'x'; const t = (took.get(ip) || []).filter(x => now - x < 600e3);
       if (t.length >= PER) { res.set('Retry-After', '600'); res.sendStatus(429); return false; }
       t.push(now); took.set(ip, t); if (took.size > 5000) took.clear();
-      if (waiting > WAITING) { res.set('Retry-After', '30'); res.sendStatus(503); return false; }
+      if (waiting > WAITING) { res.set('Retry-After', '30'); res.sendStatus(429); return false; } // 429, the house's sign; a 503 shows as the cold page in the app
     }
     return true;
   }

@@ -29,7 +29,7 @@ function mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStud
   // Taking a free-and-clear original: no key, no count, the credit line in the file's name; recorded on the register as taken, not licensed.
   app.get('/open/:slug/take', async (req, res) => {
     const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w || !w.open || !OPEN[w.open]) return res.sendStatus(404);
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = await originalPath(w); } catch (e) { console.error('[open take]', w.slug, e.message); return res.sendStatus(503); }
     ledger.append(db, 'open.taken', w.slug, { licence: w.open });
     const name = `${w.slug}-${OPEN[w.open].short.toLowerCase().replace(/\s+/g, '-')}${path.extname(w.original_file) || '.jpg'}`;
     // Free and clear still carries the mark: the maker, the licence and the way back, and a mark unique to the taking.

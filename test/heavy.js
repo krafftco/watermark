@@ -20,6 +20,10 @@ const { createApp } = require('../src/app');
   r = await get(`/w/${w.slug}/post.jpg`, 'facebookexternalhit/1.1'); assert.notEqual(r.status, 403, 'a link preview still gets its card'); await r.arrayBuffer();
   r = await get(`/w/${w.slug}`, 'Mozilla/5.0 (compatible; Googlebot/2.1)'); assert.equal(r.status, 200, 'pages are for everyone'); await r.text();
   const st = H.state(); assert.ok(st.refused >= 5 && st.limited === 1 && st.master.on === 0 && st.master.waiting === 0, JSON.stringify(st));
+  // a download begun and never read does not hold the door: the lane is let go when the answer begins
+  db.prepare("UPDATE works SET open='cc0' WHERE slug=?").run(w.slug);
+  const other = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36';
+  await new Promise((ok, no) => { const rq = require('http').get(base + `/w/${w.slug}/d/1/save`, { headers: { 'user-agent': other } }, rs => { rs.pause(); setTimeout(() => { try { assert.equal(H.state().master.on, 0, 'the lane is free once the answer has begun'); rs.destroy(); ok(); } catch (e) { no(e); } }, 150); }); rq.on('error', no); });
   r = await get('/robots.txt', person); const t = await r.text(); assert.ok(t.includes('Disallow: /open/*/take') && t.includes('Disallow: /read/*.pdf'));
   srv.close(); console.log('heavy: the doors hold'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
