@@ -55,5 +55,10 @@ const { createApp } = require('../src/app');
   F.keep(fine); feed = await onFeed(); assert.ok(feed.includes(fine), '“It hangs” puts it back: ' + feed.join(",") + " " + JSON.stringify(rd(fine)));
   t = await (await go('/studio/standard?living=1')).text(); assert.ok(t.includes('Living makers') && t.includes('never taken down by it'), 'the desk’s living scope');
   const c = W.counts(); assert.ok(c.n === 3 && c.ok === 2, JSON.stringify(c));
+  // An artist's wander holds to the same standard (11 Nov): the small file stays in the catalogue, off the wall walked.
+  { const A = app.locals.art; const a = A.ensure('Claude Testet', { born: 1840, died: 1926 }); db.prepare("UPDATE works SET wall=NULL, frick=NULL, status='held', keep_back=0 WHERE slug IN (?,?,?)").run(big, fine, small);
+    for (const sl of [big, fine, small]) A.link(db.prepare('SELECT * FROM works WHERE slug=?').get(sl), a);
+    const h = A.wall(db.prepare('SELECT * FROM artists WHERE id=?').get(a.id)); const on = db.prepare('SELECT w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=?').all(h.id).map(r => r.slug);
+    assert.ok(on.includes(big) && on.includes(fine) && !on.includes(small), 'the artist’s wall: ' + on.join(',')); }
   srv.close(); console.log('wall: holds'); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

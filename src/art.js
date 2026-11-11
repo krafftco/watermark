@@ -211,7 +211,13 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
     if (!h) { db.prepare('INSERT INTO hangs (buyer_id, slug, title, line, public) VALUES (?,?,?,?,1)').run(hb.id, slug, a.name, 'The work, in the order it was made.'); h = db.prepare('SELECT * FROM hangs WHERE slug=?').get(slug); }
     // Only when the order changed, and then in a few statements, never one a work (2 Nov: a thousand UPDATEs over the
     // Postgres bridge on every visit was the ten seconds Vincent's page took while his catalogue came in).
-    const want = ws.slice(0, 1000).map(w => w.id);
+    // (11 Nov, Will, a 900-pixel Monet small in the middle of the Duo: "they don't fit the frame; they all differ; if they
+    // don't look stunning here, this will flop".) The wall an artist is wandered by holds to the wall standard as the
+    // open walls do: only a work whose file can fill a screen (wall.sql: the long side, the standard's reading, its
+    // copies made). The small files stay in the catalogue on the artist's page, each with its record. If none of the
+    // artist's files holds, the wall keeps them all rather than stand empty.
+    let want = ws.slice(0, 1000).map(w => w.id);
+    try { const W = require('./wall'); const ok = new Set(); for (let i = 0; i < want.length; i += 400) { const part = want.slice(i, i + 400); for (const r of db.prepare(`SELECT w.id FROM works w WHERE w.id IN (${part.map(() => '?').join(',')})${W.sql('w')}`).all(...part)) ok.add(r.id); } if (ok.size) want = want.filter(id => ok.has(id)); } catch (e) { console.error('[art wall]', e.message); }
     const have = db.prepare('SELECT work_id FROM hang_works WHERE hang_id=? ORDER BY pos, work_id').all(h.id).map(r => r.work_id);
     if (have.length === want.length && have.every((id, i) => id === want[i])) return h;
     db.prepare('DELETE FROM hang_works WHERE hang_id=?').run(h.id);
