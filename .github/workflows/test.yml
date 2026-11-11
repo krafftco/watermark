@@ -19,7 +19,7 @@ jobs:
           cache: npm
       # The tools the Dockerfile gives the house (the document kind reads PDFs with poppler and OCRs with tesseract);
       # without them the suite stops at 'poppler on the box' and the gate stays red for nothing.
-      - run: (sudo sed -i 's|http://azure.archive.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true) && (sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq || true) && (for i in 1 2 3 4; do sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq poppler-utils tesseract-ocr lua5.1 && break || { echo "::warning::apt try $i failed"; sleep 25; sudo apt-get update -qq || true; }; done) && dpkg -s poppler-utils > /dev/null
+      - run: bash scripts/ci-apt.sh poppler-utils tesseract-ocr lua5.1
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm test
@@ -67,13 +67,13 @@ jobs:
           cache: npm
       # The client at the server's version (16), from PGDG: the runner's own is newer and its pg_restore is refused by 16.
       - run: |
-          (sudo sed -i 's|http://azure.archive.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true) && (sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq || true) && (for i in 1 2 3 4; do sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq poppler-utils tesseract-ocr curl gnupg && break || { echo "::warning::apt try $i failed"; sleep 25; sudo apt-get update -qq || true; }; done) && dpkg -s poppler-utils > /dev/null
+          bash scripts/ci-apt.sh poppler-utils tesseract-ocr curl gnupg
           # postgresql.org drops connections now and then (5 Nov, twice in ten minutes): try, then the keyserver.
           for i in 1 2 3 4 5; do curl -fsSL --retry 3 --retry-all-errors https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /tmp/pgdg.asc && break; sleep 8; done
           if [ ! -s /tmp/pgdg.asc ]; then gpg --keyserver keyserver.ubuntu.com --recv-keys B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 && gpg --export --armor B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 > /tmp/pgdg.asc; fi
           sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg < /tmp/pgdg.asc
           echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-          (sudo sed -i 's|http://azure.archive.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true) && (sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq || true) && (for i in 1 2 3 4; do sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq postgresql-client-16 && break || { echo "::warning::apt try $i failed"; sleep 25; sudo apt-get update -qq || true; }; done) && dpkg -s postgresql-client-16 > /dev/null
+          bash scripts/ci-apt.sh postgresql-client-16
           echo "PG_BIN=/usr/lib/postgresql/16/bin" >> $GITHUB_ENV
       - run: npm ci
       # A failure's last lines go out as an annotation, readable through the API where the full log is not.
