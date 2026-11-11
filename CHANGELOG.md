@@ -5,6 +5,9 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.82.0 · At auction · 10 November 2026
+- At auction: a lot coming to sale, kept as the house keeps any work, with one door out to the auction house to bid. Recorded by hand in the Studio; shown only with the house's own or an open photograph.
+
 ## 1.81.1 · The sharp picture · 10 November 2026
 - A work opened full screen on a phone is never swapped for a smaller, softer copy; the largest copy is made the first time a screen asks for it.
 
