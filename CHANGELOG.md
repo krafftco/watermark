@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.83.0 · The cull · 11 November 2026
+
+- A maker goes through their own work one picture at a time: swipe right to put it on view, left to keep it back, up to leave it for later; Undo takes the last one back.
+- Sets: Undecided, Not on view, On view, Everything; by place. Keys on a computer; 1–5 grade as you go.
+
 ## 1.82.2 · A person is never refused · 11 November 2026
 
 - Downloads (an open original, a background, a detail, a book's PDF): a person waits their turn and gets the file; no count by address, no 'Too Many Requests'.
