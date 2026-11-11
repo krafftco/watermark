@@ -54,12 +54,7 @@ function mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf, makerO
   function gate(req, res, w, key, mode) {
     const ua = String(req.headers['user-agent'] || ''); if (!ua || BOT.test(ua)) { res.set('X-Robots-Tag', 'noindex, nofollow'); res.sendStatus(403); return false; }
     if (madeAlready(w, key, mode)) return true;
-    if (process.env.NODE_ENV !== 'test') {
-      const now = Date.now(), ip = req.ip || 'x'; const t = (took.get(ip) || []).filter(x => now - x < 600e3);
-      if (t.length >= PER) { res.set('Retry-After', '600'); res.sendStatus(429); return false; }
-      t.push(now); took.set(ip, t); if (took.size > 5000) took.clear();
-      if (waiting > WAITING) { res.set('Retry-After', '30'); res.sendStatus(429); return false; } // 429, the house's sign; a 503 shows as the cold page in the app
-    }
+    // (11 Nov) no count by address and no turning away here: the heavy doors (heavy.js) keep crawlers out and make people wait their turn.
     return true;
   }
   const inLane = fn => { waiting++; const run = lane.then(fn, fn); lane = run.then(() => { waiting--; }, () => { waiting--; }); return run; };

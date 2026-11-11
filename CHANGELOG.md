@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.82.2 · A person is never refused · 11 November 2026
+
+- Downloads (an open original, a background, a detail, a book's PDF): a person waits their turn and gets the file; no count by address, no 'Too Many Requests'.
+- A browser that has never been inside the house is sent to the page the button is on; crawlers are refused as before.
+- A full line answers 'One moment', a page of the house that tries again by itself.
+
 ## 1.82.1 · The download door · 11 November 2026
 - A download that was slow or abandoned no longer shuts the door on the next person; a busy door answers with the house's own sign, not the cold page.
 
