@@ -9,7 +9,7 @@ on:
   pull_request:
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
   # The load test (7 Nov, docs/STABILITY.md): forty visitors over a seeded house; p95, errors, the stand-in, memory growth.
   # The runner has two cores, so the page line is looser here than on a Mac (LOAD_P95_MS 2500).
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
           LOAD_P95_MS: '2500'
           LOAD_GROW_MB: '450'   # the runner's caches fill from cold (sharp, the find index, V8); a leak shows as growth past this, not under it
   postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:

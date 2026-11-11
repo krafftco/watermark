@@ -21,7 +21,7 @@ on:
         default: "2500"
 jobs:
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: npm i -g autocannon@8
       - name: Each door, in turn
