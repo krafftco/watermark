@@ -89,6 +89,12 @@
   var lb = $('lb'), img = $('lbImg'), lo = $('lbLo'), cur = -1, list = W, idle, lastFocus;
   function open(slug, from) {
     var w = bySlug[slug]; if (!w) return;
+    // The page's own dark viewer is retired (Will, 12 Nov: "Wander is our way to present media, not this view ever"):
+    // a photograph opens in Wander, from that work, through what was showing (a maker's work, a word, or the
+    // collection). An old link (/collection#slug) is replaced, so Back never returns to a page that sends you away again.
+    { var to = '/wander?at=' + encodeURIComponent(slug) + (state.maker ? '&maker=' + encodeURIComponent(state.maker) : state.q ? '&q=' + encodeURIComponent(state.q) : '&in=collection');
+      if (from) location.href = to; else { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} location.replace(to); }
+      return; }
     list = showing.indexOf(w) > -1 ? showing : W; cur = list.indexOf(w);
     lastFocus = from || document.activeElement;
     lb.hidden = false; document.documentElement.classList.add('lb-on');
