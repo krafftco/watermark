@@ -29,7 +29,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name='email_ok'").get()) db.exec('ALTER TABLE makers ADD COLUMN email_ok INTEGER NOT NULL DEFAULT 1'); // 0 only for an address typed at the open door and not yet proven
   // Once (12 Nov): addresses typed at the open door before this day, with nothing brought in, are unproven too, so the
   // first-week letters stop going to addresses a form-filler typed.
-  try { if (!db.prepare("SELECT 1 FROM settings WHERE key='email_ok_1112'").get()) { db.prepare("UPDATE makers SET email_ok=0 WHERE door='record' AND NOT EXISTS (SELECT 1 FROM works w WHERE w.maker_id=makers.id)").run(); db.prepare("INSERT INTO settings (key, value) VALUES ('email_ok_1112','1') ON CONFLICT (key) DO UPDATE SET value=excluded.value").run(); } } catch (e) { console.error('[signin] email_ok', e.message); }
+  try { if (!db.prepare("SELECT 1 FROM settings WHERE k='email_ok_1112'").get()) { db.prepare("UPDATE makers SET email_ok=0 WHERE door='record' AND NOT EXISTS (SELECT 1 FROM works w WHERE w.maker_id=makers.id)").run(); db.prepare("INSERT INTO settings (k, v) VALUES ('email_ok_1112','1') ON CONFLICT(k) DO UPDATE SET v=excluded.v").run(); } } catch (e) { console.error('[signin] email_ok', e.message); }
   function admit(req, res, email, how = 'code') {
     let { maker } = whois(email); let { buyer } = whois(email);
     // (12 Nov) The open door lets a new address in unproven. The first time that address is proven (a code, a link,
