@@ -36,9 +36,21 @@ ${artists.length ? `<nav class="ezl-art" aria-label="Study an artist">${artists.
 ${band(a ? 'In the order made' : 'The masters', a ? '' : 'Great works that belong to everyone', masters)}${band('From the collection', 'The house’s best, by living makers', best)}</main>` }));
   });
   app.get('/easel/:slug', (req, res) => {
-    const w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug); if (!w) return res.redirect('/wander');
+    // A work not on view may be studied by those who may already see it (Will, 12 Nov: "you should be able to study a
+    // work that is private… I just uploaded a portrait of myself that I want to paint"): its maker and the Studio
+    // always; and, unless the maker keeps it back, whoever was sent it: anyone holding a live album's link, or, for a
+    // private gallery, the people inside (the picture route's own rule, deliveries.mayView). Never cached, never indexed.
+    let w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug); let quiet = false;
+    if (!w) {
+      const h = db.prepare("SELECT * FROM works WHERE slug=? AND status='hidden'").get(req.params.slug);
+      const me = h && app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null, D = app.locals.deliveries;
+      const mine = h && ((me && me.id === h.maker_id) || (app.locals.isStudio && app.locals.isStudio(req)));
+      const sent = h && !h.keep_back && D && (D.guarded(h.id) ? D.mayView(req, h) : D.inLive(h.id));
+      if (!h || !(mine || sent)) return res.redirect('/wander');
+      w = h; quiet = true; res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' });
+    }
     if (app.locals.zone && app.locals.zone.mature(w) && !app.locals.zone.open(req)) return res.redirect(`/w/${encodeURIComponent(w.slug)}`);
-    const m = mk(w); const back = String(req.query.back || `/w/${w.slug}`).replace(/[^\w\-/?=&.%]/g, '') || `/w/${w.slug}`;
+    const m = mk(w); const home = quiet ? '/account/table' : `/w/${w.slug}`; let back = String(req.query.back || home).replace(/[^\w\-/?=&.%]/g, ''); if (!/^\/(?!\/)/.test(back)) back = home; // only a path of this house
     let look = []; try { const c = w.closer ? JSON.parse(w.closer) : null; look = (c && c.study && c.study.look) ? c.study.look.slice(0, 3).map(x => (typeof x === 'string' ? x : x.what || x.text || '')).filter(Boolean) : []; } catch (e) { look = []; }
     const yr = (w.taken_at || '').slice(0, 4);
     const body = `<main class="ez" data-easel data-slug="${esc(w.slug)}" data-large="/img/${esc(w.slug)}/large" data-wall="/img/${esc(w.slug)}/wall" data-ar="${w.width && w.height ? (w.width / w.height).toFixed(4) : '1.5'}">
