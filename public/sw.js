@@ -2,7 +2,7 @@
 // house and the last copy of each is kept so the rooms you have walked are there when the connection is
 // not; photographs are kept as you see them, up to a few hundred, oldest out first. Nothing private is
 // cached: the studio, your gallery, the Studio, sign-in and anything with a key go straight to the house.
-const V = 'wm-2026-11-12placard';
+const V = 'wm-2026-11-12making';
 const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline'];
 const PRIVATE = /^\/(notices|api\/notices|basket|api\/basket|stroll|wander|api\/stroll|frame\/|tv$|show\/|cab\/|cabinet|showings|hang\/.*\/g\/|account|yours|studio|signin|signout|auth|api\/me|c\/|d\/|seat\/|k\/|collector\/|swap|market\/.*\/bid|library\/d\/|w\/[^/]+\/archive)/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -28,7 +28,7 @@ self.addEventListener('fetch', e => {
   // the file's name, and a wrong answer is never served over a good copy already held.
   if (u.pathname.startsWith('/static/')) { e.respondWith(caches.open(V).then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (fits(u.pathname, res)) { c.put(r, res.clone()); return res; } return hit || res; }).catch(() => hit); return hit || net; })); return; }
   // Photographs as shown: cache first, a few hundred kept; only a picture is ever kept as one.
-  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
+  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/') && !res.headers.get('x-making')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
   // Pages: the house first; the last copy if the house cannot be reached; the offline room if there is none.
   if (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html')) {
     e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic' && (res.headers.get('content-type') || '').includes('text/html') && !res.headers.get('content-disposition')) caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); }); /* a download is never kept as a page */ if (res.status >= 502 && res.status <= 504) return (await caches.match(r)) || (await caches.match('/offline')) || res; return res; })
