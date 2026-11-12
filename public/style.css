@@ -2453,7 +2453,7 @@ main.st{position:fixed;inset:0;background:#0b0a09;color:#f2efe9;overflow:hidden;
 .bk-split{margin:0 0 22px;font-size:13px;color:var(--mu)}
 .bk-go{display:grid;gap:10px;justify-items:start}.bk-go form{margin:0;width:100%}.bk-go .buy-btn{width:100%;text-align:center}
 .bk-alt{background:none;border:0;padding:6px 0;font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;color:var(--ink)}
-.bk-note{margin:0;font-size:13px;color:var(--mu)}.bk-more{font-size:13px;color:var(--ink);margin-top:8px}
+.bk-note{margin:0;font-size:13px;color:var(--mu)}.bk-more{font-size:13px;color:var(--ink);margin-top:8px;display:inline-block;min-height:24px;line-height:24px}
 @media (max-width:600px){.bk-it{grid-template-columns:60px 1fr auto 30px;gap:12px}.bk-th img{width:60px;height:46px}.bk-t b{font-size:16px}.bk-t small{display:none}}
 body:has([data-stroll]) .bk-toast{bottom:auto;top:calc(118px + env(safe-area-inset-top));background:rgba(14,14,14,.85)}
 /* Notifications (18 Oct). */
@@ -5363,7 +5363,7 @@ body:has(.yu) .rm-bar{display:none}
 /* The registry (5 Nov): the record of a physical work */
 .rgy{max-width:1040px;margin:0 auto;padding:28px clamp(16px,4vw,40px) 80px}
 .rgy-hero{padding:24px 0 8px}.rgy-hero h1{font:400 clamp(34px,5vw,56px)/1.05 var(--read);text-transform:none;letter-spacing:0;margin:6px 0 14px}
-.rgy-sub{margin-left:14px}
+.rgy-sub{margin-left:14px;display:inline-block;min-height:24px;line-height:24px}
 .rgy-h{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(18px,4vw,48px);align-items:start;margin:10px 0 18px}
 .rgy-h h1{font:400 clamp(30px,4vw,48px)/1.08 var(--read);text-transform:none;letter-spacing:0;margin:4px 0 8px}
 .rgy-ph{margin:0;background:#ece7df;padding:clamp(14px,3vw,34px)}.rgy-ph img{display:block;width:100%;height:auto;box-shadow:0 10px 30px rgba(0,0,0,.25)}

@@ -44,6 +44,26 @@ jobs:
           LOAD_S: '25'
           LOAD_P95_MS: '2500'
           LOAD_GROW_MB: '450'   # the runner's caches fill from cold (sharp, the find index, V8); a leak shows as growth past this, not under it
+  # The accessibility checker (issue #4): axe-core in Playwright's Chromium over the main public and signed-in doors,
+  # phone and desk, WCAG 2.0/2.1 A and AA; any serious or critical fault fails. The test raises its own findings as an
+  # annotation; a crash before that is raised here.
+  a11y:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Chromium's system libraries come through apt; the same mirror fallbacks as the other jobs, then Playwright's own.
+      - run: |
+          bash scripts/ci-apt.sh libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 fonts-liberation || echo "::warning::apt for Chromium did not finish; Playwright tries its own"
+          npx playwright install --with-deps chromium || npx playwright install chromium
+      - run: |
+          set -o pipefail
+          NODE_ENV=test node test/a11y.js 2>&1 | tee /tmp/a11y.txt || { grep -q '::error title=a11y' /tmp/a11y.txt || echo "::error title=a11y::$(tail -c 1500 /tmp/a11y.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
   postgres:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

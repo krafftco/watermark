@@ -51,7 +51,7 @@ ${ok}
 <h2>Entering on ${dateOf(j)}</h2>
 ${now.length ? `<div class="pdd-g">${now.map(card).join('')}</div>` : '<p class="pdd-none">The house has no one in its records who died in ' + diedFor(j) + ' yet.</p>'}
 <form class="pdd-tell" method="post" action="/public-domain/tell"><h3>Tell me that morning</h3><p>One letter on ${dateOf(j)}, nothing else.</p>
-<input type="email" name="email" required placeholder="you@example.com" autocomplete="email"><select name="artist" aria-label="Which artist"><option value="">Everyone entering</option>${pick}</select><button type="submit">Tell me</button><input class="hpot" name="website" tabindex="-1" autocomplete="off"></form>
+<input type="email" name="email" required placeholder="you@example.com" autocomplete="email"><select name="artist" aria-label="Which artist"><option value="">Everyone entering</option>${pick}</select><button type="submit">Tell me</button><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"></form>
 ${last.length ? `<h2>Entered on ${dateOf(j - 1)}</h2><div class="pdd-g pdd-g-s">${last.map(card).join('')}</div>` : ''}
 ${ahead.length ? `<h2>The years ahead</h2><div class="pdd-ah">${ahead.map(x => `<div><h3>${x.j}</h3><p>${x.list.map(a => `<a href="/art/${esc(a.slug)}">${esc(a.name)}</a>`).join(' · ')}</p></div>`).join('')}</div>` : ''}
 <p class="pdd-fine">The house’s reading: life plus seventy years for an artist’s work, and ninety-five years from first publication in the United States. Terms differ by country, by kind of work, and for work unpublished, anonymous or made for hire; a photograph of a work can carry rights of its own. Check before you rely on it; this is not legal advice.</p>
