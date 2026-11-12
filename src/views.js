@@ -988,7 +988,7 @@ function handPage({ url, svg, mailOn, email, next }) {
 <p class="note">A passkey is the other way: once saved on a device (Face ID, Touch ID), it signs you in there with no code and no mail. Offered on the sign-in page.</p></div></div>
 <p class="note"><a href="${esc(next || '/yours')}">Back</a></p></section>` });
 }
-function signin({ b, m, has, mailOn = true, out = false, gone = false, next = null }) {
+function signin({ b, m, has, mailOn = true, out = false, gone = false, next = null, known = false }) {
   // One field. The code comes by mail; a passkey, when the browser holds one, is offered in the same field.
   // The Studio door asks for a fresh code even of someone signed in, so never answer it with 'you are in'.
   const inside = !(next && next.startsWith('/studio')) && (!!(b && (b.email || has)) || !!m);
@@ -1000,7 +1000,7 @@ ${inside ? `<div class="si-step is-on"><p class="k">Signed in</p><h1>${who ? `Go
 <p class="si-row"><a class="buy-btn" href="${m ? '/account' : '/yours'}">${m ? 'Go to your room' : 'Go to your gallery'}</a>${m ? '<a class="si-alt" href="/yours">Your gallery</a>' : ''}</p>
 <form method="post" action="/signout" class="si-out"><button>Sign out of this device</button></form></div>`
 : `<div class="si-step is-on" data-step="email">
-<p class="k">${gone ? 'That link has been used' : out ? 'Signed out' : 'Watermark'}</p><h1>${gone ? 'Sign in again.' : out ? 'Until next time.' : 'Your email gets you in.'}</h1>
+<p class="k">${gone ? 'That link has been used' : out ? 'Signed out' : known ? 'Welcome back' : 'Watermark'}</p><h1>${gone ? 'Sign in again.' : out ? 'Until next time.' : known ? 'We know that address.' : 'Your email gets you in.'}</h1>${known ? '<p class="lede">It already has a place in the house. Enter it once more and we will send a code, so only you can open it.</p>' : ''}
 <p class="lede">${gone ? 'Links work once and for ten minutes. Enter your email and we will send a fresh one.' : 'New or returning, it is the same: your email, and a six-digit code comes back. No password, no account to make. Your gallery opens the first time.'}</p>
 <form class="si-f" data-si-email novalidate><label class="si-field"><input type="email" name="email" inputmode="email" autocomplete="username webauthn" autocapitalize="off" spellcheck="false" placeholder="you@somewhere.com" required autofocus><span class="si-line"></span></label>
 <button class="buy-btn si-go" type="submit"><span>Send the code</span><i class="si-spin" aria-hidden="true"></i></button></form>

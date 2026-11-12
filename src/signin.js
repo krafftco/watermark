@@ -26,8 +26,20 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
 
   // Let them in: the collection on this device joins the one the email names; a maker opens their room too.
   app.locals.admit = (...a) => admit(...a);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name='email_ok'").get()) db.exec('ALTER TABLE makers ADD COLUMN email_ok INTEGER NOT NULL DEFAULT 1'); // 0 only for an address typed at the open door and not yet proven
+  // Once (12 Nov): addresses typed at the open door before this day, with nothing brought in, are unproven too, so the
+  // first-week letters stop going to addresses a form-filler typed.
+  try { if (!db.prepare("SELECT 1 FROM settings WHERE key='email_ok_1112'").get()) { db.prepare("UPDATE makers SET email_ok=0 WHERE door='record' AND NOT EXISTS (SELECT 1 FROM works w WHERE w.maker_id=makers.id)").run(); db.prepare("INSERT INTO settings (key, value) VALUES ('email_ok_1112','1') ON CONFLICT (key) DO UPDATE SET value=excluded.value").run(); } } catch (e) { console.error('[signin] email_ok', e.message); }
   function admit(req, res, email, how = 'code') {
-    const { maker } = whois(email); let { buyer } = whois(email);
+    let { maker } = whois(email); let { buyer } = whois(email);
+    // (12 Nov) The open door lets a new address in unproven. The first time that address is proven (a code, a link,
+    // a passkey), it becomes its owner's: every device let in before is signed out.
+    if (how !== 'record' && maker && maker.email_ok === 0) {
+      db.prepare('UPDATE makers SET email_ok=1, sess=COALESCE(sess,0)+1 WHERE id=?').run(maker.id);
+      if (buyer) db.prepare('UPDATE buyers SET sess=COALESCE(sess,0)+1 WHERE id=?').run(buyer.id);
+      maker = db.prepare('SELECT * FROM makers WHERE id=?').get(maker.id); if (buyer) buyer = db.prepare('SELECT * FROM buyers WHERE id=?').get(buyer.id);
+      try { ledger.append(db, 'maker.proven', maker.handle, {}); } catch (e) { /* quiet */ }
+    }
     const cur = buyerOf(req);
     if (!buyer) {
       if (cur && !cur.email) { db.prepare('UPDATE buyers SET email=? WHERE id=?').run(email, cur.id); buyer = db.prepare('SELECT * FROM buyers WHERE id=?').get(cur.id); }
@@ -56,7 +68,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
 
   app.get('/signin', (req, res) => {
     const b = buyerOf(req), m = makerOf(req);
-    res.send(V.signin({ b, m, has: (app.locals.passkeysOf ? app.locals.passkeysOf(b) : []).length > 0, mailOn: mail.on(), out: !!req.query.out, next: safeNext(req.query.next) }));
+    res.send(V.signin({ b, m, has: (app.locals.passkeysOf ? app.locals.passkeysOf(b) : []).length > 0, mailOn: mail.on(), out: !!req.query.out, next: safeNext(req.query.next), known: req.query.known === '1' }));
   });
   const safeNext = n => (typeof n === 'string' && /^\/[a-z0-9/_?=&#.%-]*$/i.test(n) && !n.startsWith('//') ? n : null);
 

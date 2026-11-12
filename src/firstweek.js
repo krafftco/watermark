@@ -48,6 +48,7 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
     let sent = 0;
     for (const m of makers) {
       if (C.maker && C.maker.handle === m.handle) continue; // the house's own maker
+      if (m.email_ok === 0 && !db.prepare('SELECT 1 FROM works WHERE maker_id=? LIMIT 1').get(m.id)) continue; // (12 Nov) an address typed at the door and never proven gets no letters: it may not be theirs
       const day = Math.floor((now - new Date(m.joined_at + 'Z').getTime()) / DAY) + 1; if (day < 1 || day > 7) continue;
       if (db.prepare('SELECT 1 FROM first_week WHERE maker_id=? AND day=?').get(m.id, day)) continue;
       const w = where(m); if (!w.next) { db.prepare("INSERT OR IGNORE INTO first_week (maker_id, day, act) VALUES (?,?,'done')").run(m.id, day); continue; }

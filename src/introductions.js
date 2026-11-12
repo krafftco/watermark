@@ -96,6 +96,7 @@ function mountIntroductions(app, { db, C, mail, ledger, V, isStudio, makerOf, bu
       return res.redirect('/account?welcome=1');
     }
     let b = db.prepare('SELECT * FROM buyers WHERE email=?').get(email);
+    if (b || db.prepare('SELECT 1 FROM makers WHERE lower(email)=?').get(email)) return res.redirect('/signin?next=/yours&known=1'); // (12 Nov) an address the house knows is opened only by its owner, with a code
     if (!b) { const bid = db.prepare("INSERT INTO buyers (customer, email, name, code, introduced_by) VALUES ('', ?, ?, ?, ?)").run(email, name, nanoid(10), who ? who.line : i.by_kind).lastInsertRowid; b = db.prepare('SELECT * FROM buyers WHERE id=?').get(bid); }
     else if (!b.introduced_by) db.prepare('UPDATE buyers SET introduced_by=? WHERE id=?').run(who ? who.line : i.by_kind, b.id);
     setBuyer(res, b);

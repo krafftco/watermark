@@ -79,7 +79,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
 <div><p class="k">Show it</p><p>Your own page, your own gallery; the stroll and the walls when the house invites you. Private until you say otherwise.</p></div>
 <div><p class="k">Let someone use it</p><p>Set a price for each use, or none and answer each ask yourself. Every license is a signed record, every delivered file carries your name and the way back, and ${require('./fee').yours(85)}.</p></div></div></section>
 <section class="own-s"><h2>And then, if you want, register it</h2><p>Registration with the U.S. Copyright Office is the one thing that does change: it lets you sue for infringement and ask for statutory damages. The Office takes groups of up to ${GROUP} photographs by one maker, published in one year, for one fee. The house prepares the filing from your deeds; you tap once and pay the Office’s fee at cost.</p></section>
-<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>Your name and your email open your own museum: put your work in, keep all of it, hang the best. Your first files get their deeds in a minute. Watermark’s own halls hold what has been collected, hung by a curator, or called Bravo.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><label class="own-adult"><input type="checkbox" name="adult" value="1" required> I am eighteen or older</label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
+<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>Your name and your email open your own museum: put your work in, keep all of it, hang the best. Your first files get their deeds in a minute. Watermark’s own halls hold what has been collected, hung by a curator, or called Bravo.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><label class="own-adult"><input type="checkbox" name="adult" value="1" required> I am eighteen or older</label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
 <p class="own-fine">Not legal advice; the law differs by country and by case. The house keeps the record and says what it is; a lawyer says what it means for you. <a href="/legal/makers">The Maker Agreement</a> · <a href="/copyright">How the house works with the Copyright Office</a>.</p>
 </article>` }));
   });
@@ -91,16 +91,22 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     const x = req.body || {}, name = String(x.name || '').replace(/<[^>]*>/g, '').trim().slice(0, 80), email = String(x.email || '').trim().toLowerCase().slice(0, 160);
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return res.redirect('/own?ok=check#door');
     if (x.adult !== '1') return res.redirect('/join?ok=adult'); // the house is for adults (29 Oct): eighteen or older, said at the door
-    let m = db.prepare('SELECT * FROM makers WHERE email=?').get(email);
+    if (String(x.website || '').trim()) return res.redirect('/account/upload?welcome=own'); // the honeypot: a form-filler is told nothing and given nothing
+    // (12 Nov) A name and an email typed at the door prove nothing. An address the house already knows, as a maker or
+    // a collector, is never opened from here: its owner signs in with a code. Only a new address is let straight in,
+    // unproven (`email_ok` 0): the first sign-in by code makes it theirs and signs every earlier device out.
+    let m = db.prepare('SELECT * FROM makers WHERE lower(email)=?').get(email);
+    if (m || db.prepare('SELECT 1 FROM buyers WHERE lower(email)=?').get(email)) return res.redirect('/signin?next=/account/upload&known=1');
     if (!m) {
       const slugify = s => String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
       let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
       const id = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?,?,?,'maker',datetime('now'),'record')").run(handle, name, email).lastInsertRowid;
+      db.prepare('UPDATE makers SET email_ok=0 WHERE id=?').run(id);
       m = mk(id);
       ledger.append(db, 'maker.recorded', m.handle, {});
       mail.send({ to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     }
-    if (app.locals.admit) app.locals.admit(req, res, email);
+    if (app.locals.admit) app.locals.admit(req, res, email, 'record');
     res.redirect('/account/upload?welcome=own');
   });
   // The house invites a recorded maker in: their work may then hang.
