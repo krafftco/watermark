@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.85.0 · Wander is how the house shows a picture · 12 November 2026
+
+- A picture sent to you can be studied: a work not on view opens on the easel for its maker and for those it was sent to in an album; Study in an album returns you to the album.
+- One way to look: a picture on the collection page, an old link to one, and the picture on a work's own page all open Wander at that work. The dark viewers those pages had are gone.
+- A photographer's first screens on a phone: Collect above the tab bar, the welcome said once, the vault's button in reach, one checklist on the desk.
+- The door holds letters, never people: a stale or hurried form asks for one more press; a burst of sign-ups opens museums but sends no welcome; the house's own letters have a daily ceiling.
+- Accessibility is checked on every change: 31 doors at phone and desk size.
+
 ## 1.84.1 · The door asks who you are · 12 November 2026
 
 - An address the house already knows is sent to sign in; signing up no longer opens anyone's rooms without the code from their own mail.
