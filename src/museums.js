@@ -134,11 +134,11 @@ ${works.length ? `<p><a class="buy-btn" href="/wander?in=following">Wander what 
 }
 
 // The door, said: what opens when you open a museum.
-function joinPage({ esc, base, err }) {
+function joinPage({ esc, base, err, token = '', name = '', email = '', adult = false }) {
   return `<section class="narrow jn"><p class="k">For everyone who makes pictures</p><h1>Open your museum.</h1>
 <p class="lede">Put your pictures in, keep all of them, and hang the best: your own museum, under your name, in a minute. Your trips, your family, your work; the ones you hold back stay yours and stay private.</p>
 ${err ? `<p class="err">${esc(err)}</p>` : ''}
-<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><label class="own-adult"><input type="checkbox" name="adult" value="1" required> I am eighteen or older</label><button class="buy-btn">Open my museum</button></form>
+<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name" value="${esc(name)}"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email" value="${esc(email)}"></label><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><input type="hidden" name="t" value="${esc(token)}"><label class="own-adult"><input type="checkbox" name="adult" value="1" required${adult ? ' checked' : ''}> I am eighteen or older</label><button class="buy-btn">Open my museum</button></form>
 <ul class="jn-what"><li><b>Your museum.</b> You are its curator: ${MUSEUM_WALL} works on view at a time, in your order, and everything else kept in storage, fingerprinted and deeded as yours.</li>
 <li><b>Your store.</b> Set your prices; the price is yours, whole. The house's share is paid by the collector, on top. Paid every Friday.</li>
 <li><b>The house's halls.</b> Work rises into Watermark's own collection when it is collected, hung by a curator or called Bravo. No one has to let you in.</li>

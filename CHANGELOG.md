@@ -10,6 +10,7 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - An address the house already knows is sent to sign in; signing up no longer opens anyone's rooms without the code from their own mail.
 - A new museum's letters wait until its maker has signed in from their mail once; a form filled by a machine makes nothing.
 - A museum made at the open door has its draft prices from the first minute.
+- A crowd of form-fillers cannot make the house write to strangers: the sign-up form carries the time it was served (a form sent too quickly or left open for hours is shown again for one more press), a burst of sign-ups still opens every museum but sends only so many welcome letters an hour, and the letters the house sends by itself stop at a daily ceiling; sign-in codes and receipts always go.
 
 ## 1.84.0 · The placard · 12 November 2026
 

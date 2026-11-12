@@ -265,13 +265,14 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
       AND l.id NOT IN (SELECT license_id FROM print_orders WHERE status<>'pending') ORDER BY l.id LIMIT 50`).all(`-${days} days`);
     let n = 0;
     for (const l of rows) {
+      if (mail.autoFull && mail.autoFull()) break; // (#24) past the day's ceiling the letter waits for tomorrow
       db.prepare('INSERT OR IGNORE INTO wall_letters (license_id) VALUES (?)').run(l.id);
       const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) continue; const maker = mk(w);
       const k = l.download_token ? `?k=${l.download_token}` : '';
       try {
         const m = require('./mail-letters').ready({ base: C.base, title: tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, img: `${C.base}/img/${w.slug}/screen?f=jpg`, no: l.collector_no || null, of: w.edition_size || null,
           printUrl: `${C.base}/yours/p/${l.ref}${k}#print`, guideUrl: `${C.base}/print`, proof: { price: money(PROOF_CENTS), url: `${C.base}/yours/p/${l.ref}${k}#print` } });
-        await mail.send({ to: l.licensee_email, subject: m.subject, text: m.text, html: m.html }); n++;
+        await mail.send({ kind: 'auto', to: l.licensee_email, subject: m.subject, text: m.text, html: m.html }); n++;
       } catch (e) { console.error('[wall]', l.ref, e.message); }
     }
     return n;

@@ -36,7 +36,39 @@ async function probe() { // the sending domain's standing at Resend, read once a
   } catch (e) { state.domain = 'unreachable: ' + e.message; }
 }
 const log = []; // letters the house would have sent with mail off (tests read app.locals.mailLog)
-async function send({ to, subject, text, from, html, feature, cta, headers, replyTo }) {
+// The day's ceiling on letters the house sends by itself (12 Nov, #24: form-filling bots typed other people's addresses
+// at the open door and the house wrote to each of them until the provider's quota ran out). A letter the house starts
+// on its own (`kind: 'auto'`: a welcome at the open door, the first-week mornings, the looking, Friday and wall letters)
+// counts toward MAIL_DAY_MAX a UTC day; past it, it is skipped and said once. Everything else (sign-in codes, receipts,
+// the letters of a sale, invitations a person pressed, replies) is never counted and never held. `once` names a letter
+// that may go at most once a day to its key (the welcome, per address). The count lives in the house's settings table
+// through `setStore`, so every process of the house shares it.
+let store = null; // { get(k) → string|null, set(k, v) }, wired by app.js
+const mem = new Map(); // the same, in memory, until a store is set
+const kv = { get: k => (store ? store.get(k) : (mem.has(k) ? mem.get(k) : null)), set: (k, v) => (store ? store.set(k, v) : mem.set(k, v)) };
+function setStore(s) { store = s || null; }
+const dayMax = () => { const v = process.env.MAIL_DAY_MAX, n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n >= 0 ? n : 300; };
+const today = () => new Date().toISOString().slice(0, 10);
+state.auto = { day: null, n: 0, max: dayMax(), skipped: 0, ceiling: false };
+const autoFull = () => autoCount() >= dayMax(); // a caller that marks a letter sent asks this first, so a held letter waits
+function autoCount(day = today()) { try { return Number(kv.get(`mail_auto_${day}`)) || 0; } catch (e) { return 0; } }
+// Ask before an automatic letter: true when it may go (and counts it); 'ceiling' past the day's ceiling; 'once' when
+// this letter already went to its key today. A held letter is dropped here; callers that mark letters ask autoFull first.
+function admitAuto(once) {
+  const day = today(), max = dayMax(); let n = autoCount(day);
+  if (state.auto.day !== day) Object.assign(state.auto, { day, skipped: 0, ceiling: false });
+  state.auto.max = max; state.auto.n = n;
+  const ok = once ? `mail_once_${require('crypto').createHash('sha256').update(String(once).toLowerCase()).digest('hex').slice(0, 24)}` : null;
+  try { if (ok && kv.get(ok) === day) return 'once'; } catch (e) { /* sent anyway */ }
+  if (n >= max) {
+    if (!state.auto.ceiling) console.log(`[mail] the day's ceiling of ${max} automatic letters is reached`);
+    state.auto.ceiling = true; state.auto.skipped++; return 'ceiling';
+  }
+  try { kv.set(`mail_auto_${day}`, String(n + 1)); if (ok) kv.set(ok, day); } catch (e) { /* the letter goes; the count is best-effort */ }
+  state.auto.n = n + 1; return true;
+}
+async function send({ to, subject, text, from, html, feature, cta, headers, replyTo, kind, once }) {
+  if (kind === 'auto') { const a = admitAuto(once); if (a !== true) return { skipped: true, ceiling: a === 'ceiling', once: a === 'once' }; }
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
   if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); log.push({ to, subject, text: text || '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
@@ -103,4 +135,4 @@ const templates = {
 };
 
 if (process.env.NODE_ENV !== 'test') setTimeout(() => probe(), 5e3).unref();
-module.exports = { on, send, templates, paper, state, probe, log };
+module.exports = { on, send, templates, paper, state, probe, log, setStore, autoCount, autoFull, dayMax };

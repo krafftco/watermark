@@ -573,6 +573,10 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
   app.locals.noTimers = !!cfg.noTimers; app.locals.mailLog = mail.log;
+  // The day's ceiling on the house's own letters counts in settings, shared by every process (#24).
+  { let made = false; const mk = () => { if (!made) { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); made = true; } };
+    mail.setStore({ get: k => { mk(); const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; },
+      set: (k, v) => { mk(); db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, String(v)); } }); }
   require('./clearance').mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), bagcheck: BAG });
   require('./sign').mountSign(app, { db, V, C, store, ledger, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a release signed on the spot, with a finger (26 Oct) // the clearance desk: releases, what may be licensed (26 Oct)
   require('./spend').mountSpend(app, { db }); // the meter on Al (8 Nov): every call on the house's key counted and capped by the day
