@@ -5770,3 +5770,6 @@ form.st button{min-width:24px;min-height:24px}
 .vt-kind,.vt-artist{display:grid;gap:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);flex:1;max-width:360px}
 .vt-kind select,.vt-artist input{font:inherit;font-size:16px;letter-spacing:0;text-transform:none;padding:10px 0;border:0;border-bottom:1px solid var(--ink);border-radius:0;background:none;color:var(--ink);outline:none;-webkit-appearance:none;appearance:none}
 .vt-kind select{padding-right:22px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777' stroke-width='1.3'/%3E%3C/svg%3E") no-repeat right 4px center}
+/* The on-view label on the dark wall (12 Nov): it was written for paper and could not be read on velvet. */
+.lot-wall .onv{color:#b9b1a4}
+.lot-wall .onv b{color:#ece6da}
