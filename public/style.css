@@ -2770,7 +2770,7 @@ html[data-guide="hints"] .sd-look li:not(.on) .sd-reveal{display:inline-block}
 }
 /* The beta and the test house. */
 .brand{position:relative}
-.brand .beta{position:absolute;left:100%;top:2px;margin-left:6px;font:500 9px/1 "Archivo",sans-serif;letter-spacing:.16em;text-transform:uppercase;opacity:.45}
+.brand .beta{position:absolute;left:100%;top:2px;margin-left:6px;font:500 9px/1 "Archivo",sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#6b6b68}
 .stg{position:sticky;top:0;z-index:9999;background:#b4572e;color:#fff;font:500 12px/1.4 "Archivo",sans-serif;letter-spacing:.04em;text-align:center;padding:6px 16px}.stg a{color:#fff;text-decoration:underline}
 .fb .lede{max-width:52ch}.fb-f{display:grid;gap:16px;max-width:560px}.fb-k{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 18px}.fb-k legend{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin-bottom:8px}
 .fb .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
@@ -5287,7 +5287,7 @@ body:has(.yu) .rm-bar{display:none}
 /* The line beside a name (4 Nov): dates the museum's way, at work, Verified */
 .lfl{display:inline-flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-left:6px;font-size:.78em;font-weight:400;letter-spacing:0;vertical-align:baseline}
 .lfl-y{opacity:.62}
-.lfl-w,.st-life .lfl-w{display:inline-flex;align-items:center;gap:5px;font-weight:400;opacity:.8}
+.lfl-w,.st-life .lfl-w{display:inline-flex;align-items:center;gap:5px;font-weight:400}
 .lfl-w:before{content:"";width:6px;height:6px;border-radius:50%;background:#c9a24a;box-shadow:0 0 6px rgba(201,162,74,.7)}
 .lfl-v,.st-life .lfl-v{display:inline-flex;align-items:center;gap:4px;font-weight:400;opacity:.8}
 .lfl-v:before{content:"";width:11px;height:11px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 0a6 6 0 1 0 0 12A6 6 0 0 0 6 0zm2.8 4.2L5.2 8 3.4 6.2l.7-.7 1.1 1.1 2.9-3.1z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 0a6 6 0 1 0 0 12A6 6 0 0 0 6 0zm2.8 4.2L5.2 8 3.4 6.2l.7-.7 1.1 1.1 2.9-3.1z'/%3E%3C/svg%3E") center/contain no-repeat}
@@ -5736,3 +5736,14 @@ html.wm-ld img.ld{transition:opacity .3s ease}
 .cll-end{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:24px;gap:6px}.cll-end h1{font:400 32px/1.15 Georgia,'Times New Roman',serif;margin:4px 0}.cll-end p{margin:4px 0;opacity:.8}.cll-end-a{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:center;margin-top:14px!important;opacity:1!important}.cll-end .link{color:inherit}
 .cll-say{position:absolute;left:50%;top:64px;transform:translateX(-50%);margin:0;background:rgba(233,228,218,.95);color:#0b0a09;padding:9px 14px;border-radius:999px;font-size:13px;max-width:90vw;z-index:6;text-align:center}
 @media (max-width:760px){.cll-b span{font-size:13px;white-space:nowrap}.cll-b{padding:0 12px;gap:6px}.cll-deck{gap:7px}.cll-un,.cll-la{padding:0 11px}.cll-hint{display:none}.cll-count{display:none}.cll-top{gap:8px}}
+
+/* Accessibility (11 Nov): a way past the header, a focus ring a keyboard can always see, targets a finger can hit. */
+.skip{position:fixed;left:12px;top:-80px;z-index:10000;background:#0e0e0e;color:#fff;padding:12px 18px;border-radius:6px;font:500 14px/1 var(--sans);text-decoration:none;transition:top .15s}
+.skip:focus{top:12px;outline:2px solid #d9bc7c;outline-offset:2px}
+#main:focus{outline:none}
+a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:not([tabindex="-1"]):focus-visible,[role="button"]:focus-visible,input[type=checkbox]:focus-visible,input[type=radio]:focus-visible,input[type=range]:focus-visible,select:focus-visible{outline:2px solid currentColor!important;outline-offset:2px}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):focus-visible,textarea:focus-visible{outline:1px solid currentColor!important;outline-offset:3px}
+html.dk a:focus-visible,html.dk button:focus-visible,.st a:focus-visible,.st button:focus-visible{outline-color:#e6c875!important}
+form.st button{min-width:24px;min-height:24px}
+.st-plate a{display:inline-block;padding:3px 0}
+.mh-key{text-decoration:underline;text-underline-offset:3px}

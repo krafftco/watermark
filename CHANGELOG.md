@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.84.0 · The placard · 12 November 2026
+
+- A card for Instagram in the house's own hand: the work on a white mount over its own colours, who made it, its title, and one line of fact from the record (collected, and its number; an edition complete; on view and what a piece costs; in the public domain). Send → Placard on any work; a collector's own piece carries "Collected · No. 3" from You.
+- Reaching the house without a mouse or with a screen reader: a way past the header on every page, a focus ring that always shows, names on picture links and unlabelled fields, stronger small type.
+
 ## 1.83.0 · The cull · 11 November 2026
 
 - A maker goes through their own work one picture at a time: swipe right to put it on view, left to keep it back, up to leave it for later; Undo takes the last one back.

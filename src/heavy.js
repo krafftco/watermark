@@ -19,7 +19,7 @@ const DOORS = [
   [/^\/w\/[^/]+\/d\/\d+\/save\/?$/, 'master'],
   [/^\/w\/[^/]+\/archive\.wmark$/, 'master'],
   [/^\/img\/[^/]+\/detail\/\d+\/?$/, 'draw'],
-  [/^\/w\/[^/]+\/(post|story)\.jpg$/, 'draw'],
+  [/^\/w\/[^/]+\/(post|story|placard)\.jpg$/, 'draw'],
   [/^\/(read|art)\/[^/]+\/card\.png$/, 'draw'],
 ];
 // (11 Nov, after two mornings of a real person being turned away: first the cold page, then a bare 'Too Many Requests'.)

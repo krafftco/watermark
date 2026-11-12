@@ -1935,7 +1935,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { // The rooms, scoped and on the clock; the kids' corner; a museum's own house on its own domain.
     r = await req(port, 'GET', '/keys'); assert.ok(/class="ck"/.test(r.body) && /your time/.test(r.body), 'the programme on the Keys');
     r = await req(port, 'GET', '/keys/at/musee'); assert.equal(r.status, 200); assert.ok(/The Keys at /.test(r.body) && /The balcony/.test(r.body) && /balcony\/at\/musee/.test(r.body), 'a collection’s own rooms');
-    r = await req(port, 'GET', '/kids'); assert.equal(r.status, 200); assert.ok(/kids’ corner/.test(r.body) && !/\$\d/.test(r.body.toString().replace(/[\s\S]*<main>/, '').replace(/<footer[\s\S]*/, '')), 'the corner shows no price');
+    r = await req(port, 'GET', '/kids'); assert.equal(r.status, 200); assert.ok(/kids’ corner/.test(r.body) && !/\$\d/.test(r.body.toString().replace(/[\s\S]*<main[^>]*>/, '').replace(/<footer[\s\S]*/, '')), 'the corner shows no price');
     // The balcony at a collection: a stranger at the window; one who stood before its work in the last three hours is in.
     r = await req(port, 'GET', '/balcony/at/musee'); const rck = r.headers['set-cookie'].find(c => c.startsWith('wm_room=')).split(';')[0]; assert.equal(r.headers.location, '/balcony');
     r = await req(port, 'GET', '/balcony', { cookie: rck }); assert.ok(/The balcony at /.test(r.body) && /bc-door/.test(r.body), 'the door, to one who has not looked');

@@ -48,6 +48,63 @@ function mountPostIt(app, { db, V, images, cache, originalPath }) {
     return out;
   }
 
+  // The placard (Will, 12 Nov, an auction house's advertisement in hand: the house's name, the work on a white mount,
+  // the artist, one line of fact). Ours says what the record says and nothing more: collected, and its number; an
+  // edition complete; on view and what a piece costs; in the public domain. Never an estimate, never a count of people.
+  let logoPng = null;
+  const logo = async () => { if (!logoPng) logoPng = await require('sharp')(path.join(__dirname, '..', 'public', 'watermark-logo.svg'), { density: 400 }).resize({ width: 300 }).png().toBuffer(); return logoPng; };
+  function stateOf(w, req) {
+    const ref = String((req && req.query && req.query.ref) || '').slice(0, 40);
+    if (ref) {
+      const l = db.prepare("SELECT u.key AS use_key, l.collector_no FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=? AND l.work_id=? AND l.status='active'").get(ref, w.id);
+      if (l) return { key: 'mine', line: l.collector_no ? `Collected · No. ${l.collector_no}${w.edition_size ? ` of ${w.edition_size}` : ''}` : (['social', 'reference', 'print'].includes(l.use_key) ? 'Collected' : 'Licensed'), sub: 'at Watermark' };
+    }
+    let j = null; try { j = app.locals.wanderJSON ? app.locals.wanderJSON(w, req) : null; } catch (er) { j = null; }
+    const sold = db.prepare("SELECT COUNT(*) AS n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status IN ('active','expired')").get(w.id).n;
+    if (w.edition_size && sold >= w.edition_size) return { key: 'complete', line: 'The edition is complete', sub: 'collected at Watermark' };
+    if (w.open && /^(pd|cc0)$/.test(w.open)) return { key: 'open', line: 'In the public domain', sub: 'kept, and printed, at Watermark' };
+    if (sold > 0) return { key: 'collected', line: 'Collected at Watermark', sub: j && j.collect ? `a piece of it, ${j.collect.price}` : '' };
+    if (j && j.collect) return { key: 'on', line: 'On view at Watermark', sub: `a piece of it, ${j.collect.price}` };
+    return { key: 'kept', line: 'Kept at Watermark', sub: '' };
+  }
+  async function placard(w, st) {
+    const out = path.join(cache, `placard-${w.slug}-${(w.sha256 || '').slice(0, 10)}-${require('crypto').createHash('sha1').update(`${st.line}|${st.sub}`).digest('hex').slice(0, 8)}-p1.jpg`);
+    if (fs.existsSync(out)) return out;
+    const sharp = require('sharp');
+    const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg');
+    const W = 1080, H = 1350, mx = 58, my = 60, mw = W - mx * 2, mh = H - my * 2;
+    const wall = await sharp(src).resize(W, H, { fit: 'cover' }).blur(14).modulate({ brightness: 0.82 }).toBuffer();
+    const pic = await sharp(src).resize(820, 660, { fit: 'inside' }).toBuffer({ resolveWithObject: true });
+    const top = my + 190 + Math.round((660 - pic.info.height) / 2), left = Math.round((W - pic.info.width) / 2);
+    const name = fit(byOf(w), 34), title = fit(V.tidy ? V.tidy(w.title) : w.title, 46);
+    const y0 = my + 190 + 660 + 92;
+    const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`
+      + `<rect x="${left - 1}" y="${top - 1}" width="${pic.info.width + 2}" height="${pic.info.height + 2}" fill="none" stroke="#d9d3c7" stroke-width="1"/>`
+      + `<text x="${W / 2}" y="${y0}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="600" font-size="46" fill="#14120f">${e(name)}</text>`
+      + `<text x="${W / 2}" y="${y0 + 52}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="32" fill="#4a453d">${e(title)}</text>`
+      + `<text x="${W / 2}" y="${y0 + 118}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="38" fill="#14120f">${e(st.line)}</text>`
+      + (st.sub ? `<text x="${W / 2}" y="${y0 + 160}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" letter-spacing="1" fill="#6a6359">${e(st.sub)}</text>` : '')
+      + `<text x="${W / 2}" y="${my + mh - 34}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="4" fill="#857d70">${e(footOf(w).toUpperCase())}</text>`
+      + `</svg>`;
+    const mat = await sharp({ create: { width: mw, height: mh, channels: 3, background: '#fbf9f4' } }).png().toBuffer();
+    const lg = await logo(); const lm = await sharp(lg).metadata();
+    const tmp = `${out}.${process.pid}.tmp`;
+    await sharp(wall).composite([{ input: mat, left: mx, top: my }, { input: lg, left: Math.round((W - lm.width) / 2), top: my + 62 }, { input: pic.data, left, top }, { input: Buffer.from(svg), left: 0, top: 0 }])
+      .jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toFile(tmp);
+    try { fs.renameSync(tmp, out); } catch (er) { try { fs.unlinkSync(tmp); } catch (e2) { /* */ } }
+    return out;
+  }
+  app.get('/w/:slug/placard.jpg', async (req, res) => {
+    const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug));
+    if (!may(req, w)) return res.sendStatus(404);
+    try {
+      const st = stateOf(w, req); const f = await placard(w, st);
+      res.set('Cache-Control', w.zone === 'mature' || st.key === 'mine' ? 'private, max-age=600' : 'public, max-age=600');
+      if (req.query.dl) res.set('Content-Disposition', `attachment; filename="${String(V.tidy ? V.tidy(w.title) : w.title).replace(/[^\w .,'-]+/g, ' ').trim() || 'Watermark'} (placard).jpg"`);
+      res.type('image/jpeg').sendFile(f);
+    } catch (er) { console.error('[placard]', w.slug, er.message); res.sendStatus(500); }
+  });
+
   app.get(['/w/:slug/post.jpg', '/w/:slug/story.jpg'], async (req, res) => {
     const kind = req.path.endsWith('/post.jpg') ? 'post' : 'story';
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug));
@@ -109,6 +166,6 @@ ${ws.length > 1 ? `<section class="lnb-grid" aria-label="The work">${ws.slice(1,
 ${ws.length ? `<div class="bbd-grid">${ws.map(w => `<button type="button" class="bbd-w" data-wm-send="${e(w.slug)}" data-send-title="${e(V.tidy(w.title))}" data-send-by="${e(m.name)}"><img loading="lazy" src="/img/${e(w.slug)}/thumb" alt=""><span>${e(V.tidy(w.title))}</span></button>`).join('')}</div>` : `<p>Nothing on view yet. <a href="/account/upload">Put your work in</a>, then hang it, and it appears here ready to post.</p>`}</section>
 <section class="bbd-why"><h2>3 · Why it works</h2><p>Instagram is where people are. Watermark is where the work is kept, owned and paid for. Every post you make is a door back to your page, where you keep the full price and are paid on Friday.</p></section></article>` }));
   });
-  app.locals.postIt = { card, may, bioUrl };
+  app.locals.postIt = { card, placard, stateOf, may, bioUrl };
 }
 module.exports = { mountPostIt };
