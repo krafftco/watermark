@@ -54,7 +54,7 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
       const w = where(m); if (!w.next) { db.prepare("INSERT OR IGNORE INTO first_week (maker_id, day, act) VALUES (?,?,'done')").run(m.id, day); continue; }
       if (!force && day === 1 && now - new Date(m.joined_at + 'Z').getTime() < 20 * 3600000) continue; // the first morning is the morning after, not the hour they joined
       db.prepare('INSERT OR IGNORE INTO first_week (maker_id, day, act) VALUES (?,?,?)').run(m.id, day, w.next.key);
-      try { mail.send(letter(m, day, w.next)); sent++; } catch (e) { console.error('[firstweek]', e.message); }
+      try { mail.send({ ...letter(m, day, w.next), kind: 'auto' }); sent++; } catch (e) { console.error('[firstweek]', e.message); }
     }
     return sent;
   }

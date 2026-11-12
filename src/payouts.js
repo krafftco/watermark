@@ -195,7 +195,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     let n = 0;
     for (const m of db.prepare("SELECT * FROM makers WHERE email IS NOT NULL AND email<>'' AND COALESCE(friday_letter,1)=1").all()) {
       const c = letterFor(m); if (!c.sold && !c.cleared && !c.stood && !c.gallerist) continue;
-      try { const L = require('./mail-letters').friday(c); await mail.send({ to: m.email, subject: L.subject, text: L.text, html: L.html }); n++; } catch (e) { console.error('[friday letter]', m.handle, e.message); }
+      try { const L = require('./mail-letters').friday(c); await mail.send({ kind: 'auto', to: m.email, subject: L.subject, text: L.text, html: L.html }); n++; } catch (e) { console.error('[friday letter]', m.handle, e.message); }
     }
     return { ok: true, sent: n };
   }

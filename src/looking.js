@@ -129,7 +129,7 @@ function mountLooking(app, { db, C, buyerOf, mail, fetchImpl = (...a) => fetch(.
       try {
         const c = await letterFor(b, { month }); if (!c) continue;
         if (!c.rec.n) continue;
-        await mail.send({ to: b.email, ...LETTERS.looking(c) });
+        await mail.send({ to: b.email, ...LETTERS.looking(c), kind: 'auto' });
         db.prepare('INSERT OR IGNORE INTO letters (buyer_id, month) VALUES (?,?)').run(b.id, month); sent++;
       } catch (e) { console.error('[letter]', e.message); }
     }

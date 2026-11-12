@@ -1,5 +1,5 @@
 // A museum for everyone (29 Oct): the open door, the limited wall, the halls earned, following and Wander's Following.
-process.env.NODE_ENV = 'test'; process.env.MUSEUM_WALL = '3';
+process.env.NODE_ENV = 'test'; process.env.RECORD_MIN_MS = '0'; process.env.MUSEUM_WALL = '3';
 const assert = require('assert');
 const fs = require('fs'); const path = require('path'); const os = require('os');
 const sharp = require('sharp');
@@ -18,7 +18,7 @@ const { createApp } = require('../src/app');
   assert.ok(/Open your museum/.test(t) && /action="\/record"/.test(t) && /Collectors, not followers/.test(t), 'the door is open');
 
   // An artist opens a museum and puts work in.
-  const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com', adult: '1' });
+  const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com', adult: '1', t: (t.match(/name="t" value="([^"]+)"/) || [])[1] });
   assert.ok(/\/account\/upload/.test(r.headers.get('location')), 'opened');
   const am = db.prepare("SELECT * FROM makers WHERE email='ana@example.com'").get(); assert.equal(am.door, 'record');
   assert.ok(db.prepare("SELECT 1 FROM uses WHERE maker_id=? AND key='social' AND price_cents>0").get(am.id), 'the open door gives the draft prices at once (#12), so Collect shows before any restart');

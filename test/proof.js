@@ -1,7 +1,7 @@
 'use strict';
 // An address is opened only by its owner (12 Nov). The open door and an introduction link let a NEW address in,
 // unproven; an address the house already knows is sent to sign in with a code; the first proof signs earlier devices out.
-process.env.NODE_ENV = 'test';
+process.env.NODE_ENV = 'test'; process.env.RECORD_MIN_MS = '0'; // the door's form token is checked; its minimum age is shortened for the test
 const fs = require('fs'), path = require('path'), os = require('os'), assert = require('assert');
 const { createApp } = require('../src/app');
 (async () => {
@@ -10,19 +10,20 @@ const { createApp } = require('../src/app');
   const { db } = app.locals; const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
   const form = o => Object.entries(o).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
   const post = (u, body, cookie, json) => fetch(base + u, { method: 'POST', redirect: 'manual', headers: { 'content-type': json ? 'application/json' : 'application/x-www-form-urlencoded', origin: base, ...(cookie ? { cookie } : {}) }, body: json ? JSON.stringify(body) : form(body) });
+  const tok = async () => ((await (await fetch(base + '/join')).text()).match(/name="t" value="([^"]+)"/) || [])[1]; // the open door's signed form time
   const jar = r => r.headers.getSetCookie().map(c => c.split(';')[0]).filter(c => !/=$/.test(c)).join('; ');
   // a stranger opens a museum with a new address: let in, unproven
-  let r = await post('/record', { name: 'Ada Lovelace', email: 'ada@example.com', adult: '1' });
+  let r = await post('/record', { name: 'Ada Lovelace', email: 'ada@example.com', adult: '1', t: await tok() });
   assert.strictEqual(r.status, 302); assert.ok(/\/account\/upload/.test(r.headers.get('location')));
   const first = jar(r); assert.ok(/wm_m=/.test(first), 'the new address is let in');
   let m = db.prepare("SELECT * FROM makers WHERE email='ada@example.com'").get(); assert.strictEqual(m.email_ok, 0, 'and marked unproven');
   r = await fetch(base + '/account', { headers: { cookie: first }, redirect: 'manual' }); assert.strictEqual(r.status, 200);
   // a second stranger types the same address: never let in
-  r = await post('/record', { name: 'Not Ada', email: 'ada@example.com', adult: '1' });
+  r = await post('/record', { name: 'Not Ada', email: 'ada@example.com', adult: '1', t: await tok() });
   assert.ok(/\/signin\?/.test(r.headers.get('location')), 'a known address is sent to sign in');
   assert.ok(!/wm_m=|wm_b=/.test(jar(r)), 'and given no cookie');
   // the honeypot gives nothing
-  r = await post('/record', { name: 'Bot', email: 'bot@example.com', adult: '1', website: 'http://spam' });
+  r = await post('/record', { name: 'Bot', email: 'bot@example.com', adult: '1', website: 'http://spam', t: await tok() });
   assert.ok(!db.prepare("SELECT 1 FROM makers WHERE email='bot@example.com'").get(), 'a form-filler makes no account'); assert.ok(!/wm_m=/.test(jar(r)));
   // the owner proves the address with a code: theirs now, and the earlier device is out
   r = await post('/signin/code', { email: 'ada@example.com' }, null, true); assert.strictEqual(r.status, 200);
@@ -38,7 +39,7 @@ const { createApp } = require('../src/app');
   r = await post('/i/tok123', { name: 'Someone', email: 'col@example.com' });
   assert.ok(/\/signin\?/.test(r.headers.get('location') || ''), 'known collector → sign in: ' + r.status + ' ' + r.headers.get('location')); assert.ok(!/wm_b=/.test(jar(r)));
   // the first-week letters never go to an unproven address with nothing brought in
-  r = await post('/record', { name: 'Typed Address', email: 'victim@example.com', adult: '1' });
+  r = await post('/record', { name: 'Typed Address', email: 'victim@example.com', adult: '1', t: await tok() });
   const before = (app.locals.mailLog || []).length;
   db.prepare("UPDATE makers SET joined_at=datetime('now','-2 days') WHERE email='victim@example.com'").run();
   if (app.locals.firstWeek && app.locals.firstWeek.mornings) { app.locals.firstWeek.mornings({ force: true }); await new Promise(z => setTimeout(z, 100)); assert.ok(!(app.locals.mailLog || []).slice(before).some(l => /victim@/.test(String(l.to))), 'no first-week letter to an unproven address'); }

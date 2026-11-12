@@ -79,12 +79,31 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
 <div><p class="k">Show it</p><p>Your own page, your own gallery; the stroll and the walls when the house invites you. Private until you say otherwise.</p></div>
 <div><p class="k">Let someone use it</p><p>Set a price for each use, or none and answer each ask yourself. Every license is a signed record, every delivered file carries your name and the way back, and ${require('./fee').yours(85)}.</p></div></div></section>
 <section class="own-s"><h2>And then, if you want, register it</h2><p>Registration with the U.S. Copyright Office is the one thing that does change: it lets you sue for infringement and ask for statutory damages. The Office takes groups of up to ${GROUP} photographs by one maker, published in one year, for one fee. The house prepares the filing from your deeds; you tap once and pay the Office’s fee at cost.</p></section>
-<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>Your name and your email open your own museum: put your work in, keep all of it, hang the best. Your first files get their deeds in a minute. Watermark’s own halls hold what has been collected, hung by a curator, or called Bravo.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><label class="own-adult"><input type="checkbox" name="adult" value="1" required> I am eighteen or older</label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
+<section class="own-door"><p class="k">The door</p><h2>Bring in what you made.</h2><p>Your name and your email open your own museum: put your work in, keep all of it, hang the best. Your first files get their deeds in a minute. Watermark’s own halls hold what has been collected, hung by a curator, or called Bravo.</p>${me ? `<p><a class="buy-btn" href="/account/upload">Into the vault</a></p>` : `<form method="post" action="/record" class="own-f"><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Email<input name="email" type="email" required maxlength="160" autocomplete="email"></label><input class="hpot" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><input type="hidden" name="t" value="${recordToken()}"><label class="own-adult"><input type="checkbox" name="adult" value="1" required> I am eighteen or older</label><button class="buy-btn">Open my studio</button></form><p class="note">Nothing is shown publicly until you say so. ${esc(C.base.replace(/^https?:\/\//, ''))} is a Krafft company.</p>`}</section>
 <p class="own-fine">Not legal advice; the law differs by country and by case. The house keeps the record and says what it is; a lawyer says what it means for you. <a href="/legal/makers">The Maker Agreement</a> · <a href="/copyright">How the house works with the Copyright Office</a>.</p>
 </article>` }));
   });
 
   // The open door.
+  // (12 Nov, #24) The form carries a signed time: the house knows when it served it. A post with no token, a forged one,
+  // one sent faster than a person reads (RECORD_MIN_MS, 3 s) or older than two hours is a form-filler's, and is answered
+  // like the honeypot. And the door opens at most RECORD_PER_HOUR (40) new museums an hour in all, since bots rotate
+  // addresses; past it a person is told the door is busy, and nothing is made or mailed.
+  const crypto = require('crypto');
+  const tokSig = ts => crypto.createHmac('sha256', C.secret).update(`record.${ts}`).digest('hex').slice(0, 32);
+  const recordToken = () => { const ts = Date.now(); return `${ts}.${tokSig(ts)}`; };
+  app.locals.recordToken = recordToken;
+  const tokenOk = t => {
+    const m = /^(\d{12,14})\.([0-9a-f]{32})$/.exec(String(t || '')); if (!m) return false;
+    const a = Buffer.from(m[2]), b = Buffer.from(tokSig(m[1])); if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    const age = Date.now() - Number(m[1]), min = process.env.RECORD_MIN_MS != null && process.env.RECORD_MIN_MS !== '' ? Number(process.env.RECORD_MIN_MS) : 3000;
+    return age >= min && age <= 2 * 3600000;
+  };
+  let busySaid = 0;
+  const perHour = () => { const n = Number(process.env.RECORD_PER_HOUR); return process.env.RECORD_PER_HOUR && Number.isFinite(n) && n >= 0 ? n : 40; };
+  const busy = res => res.status(429).set('Retry-After', '900').send(V.layout({ title: 'The door is busy · Watermark', path: '/join', body: `<section class="narrow jn"><p class="k">Open your museum</p><h1>The door is busy.</h1>
+<p class="lede">The door is busy; try again in a little while, or sign in if you have been here before.</p>
+<p><a class="buy-btn" href="/signin">Sign in</a> <a href="/">Back to the house</a></p></section>` }));
   const slow = (() => { const hits = new Map(); return (k, n = 5) => { const now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 3600000); a.push(now); hits.set(k, a); return a.length > n; }; })();
   app.get('/record', (req, res) => res.redirect('/own#door'));
   app.post('/record', (req, res) => {
@@ -92,12 +111,15 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return res.redirect('/own?ok=check#door');
     if (x.adult !== '1') return res.redirect('/join?ok=adult'); // the house is for adults (29 Oct): eighteen or older, said at the door
     if (String(x.website || '').trim()) return res.redirect('/account/upload?welcome=own'); // the honeypot: a form-filler is told nothing and given nothing
+    if (!tokenOk(x.t)) return res.redirect('/account/upload?welcome=own'); // no form served by the house, or filled too fast: the same
     // (12 Nov) A name and an email typed at the door prove nothing. An address the house already knows, as a maker or
     // a collector, is never opened from here: its owner signs in with a code. Only a new address is let straight in,
     // unproven (`email_ok` 0): the first sign-in by code makes it theirs and signs every earlier device out.
     let m = db.prepare('SELECT * FROM makers WHERE lower(email)=?').get(email);
     if (m || db.prepare('SELECT 1 FROM buyers WHERE lower(email)=?').get(email)) return res.redirect('/signin?next=/account/upload&known=1');
     if (!m) {
+      const made = Number(db.prepare("SELECT COUNT(*) n FROM makers WHERE door='record' AND joined_at > datetime('now', '-1 hour')").get().n) || 0;
+      if (made >= perHour()) { if (Date.now() - busySaid > 60000) { busySaid = Date.now(); console.log(`[record] the door is busy: ${made} opened in the hour`); } return busy(res); }
       const slugify = s => String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
       let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
       const id = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?,?,?,'maker',datetime('now'),'record')").run(handle, name, email).lastInsertRowid;
@@ -107,7 +129,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
       { const U = (app.locals.accounts || {}).DEFAULT_USES || []; const add = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); U.forEach(u => add.run(id, ...u)); }
       m = mk(id);
       ledger.append(db, 'maker.recorded', m.handle, {});
-      mail.send({ to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
+      mail.send({ kind: 'auto', once: `welcome:${email}`, to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     }
     if (app.locals.admit) app.locals.admit(req, res, email, 'record');
     res.redirect('/account/upload?welcome=own');
