@@ -18,6 +18,9 @@ A worker is one session with one issue. It reads `CLAUDE.md`, then its issue, th
 - Send mail, post, or message anyone. Human counterparties are reached only through the handoffs in `docs/ENTERPRISE.md`.
 - Hide a failure. A red test, a thing not checked, a guess: say so in the pull request.
 
+## Sharing the machine
+Other sessions run tests on the same machine. Remove only the temp folders your own runs made (note their names as you make them); never `rm -rf /tmp/wm-*`: on 12 Nov that deleted a running test house and turned a good suite red.
+
 ## When stuck
 Three tries, then write what was tried and what blocked on the issue (`gh api -X POST repos/krafftco/watermark/issues/<n>/comments -f body=…`) and stop. A clear "blocked, because" is a good result.
 
