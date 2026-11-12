@@ -67,6 +67,9 @@ function mountWall(app, { db, V, studioOnly, ledger }) {
   }
   function label(w, maker) {
     const on = onView(w, maker); if (on === null) return '';
+    // A maker of the open door hangs their own museum (29 Oct): their published work is on view there, not "not on view"
+    // (#12: the label told a new photographer the work they had just put on view was not).
+    if (!on && maker && maker.door === 'record' && !w.hall) return `<p class="onv onv-on"><b>On view</b><span>in ${esc(maker.name)}’s museum</span></p>`;
     return on ? `<p class="onv onv-on"><b>On view</b><span>in Wander and the collection</span></p>`
       : `<p class="onv"><b>In the collection</b><span>not on view · kept by the house, and always here</span></p>`;
   }

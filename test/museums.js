@@ -21,6 +21,7 @@ const { createApp } = require('../src/app');
   const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com', adult: '1' });
   assert.ok(/\/account\/upload/.test(r.headers.get('location')), 'opened');
   const am = db.prepare("SELECT * FROM makers WHERE email='ana@example.com'").get(); assert.equal(am.door, 'record');
+  assert.ok(db.prepare("SELECT 1 FROM uses WHERE maker_id=? AND key='social' AND price_cents>0").get(am.id), 'the open door gives the draft prices at once (#12), so Collect shows before any restart');
   const slugs = [];
   for (let i = 0; i < 4; i++) {
     const buf = await sharp({ create: { width: 1600, height: 1100, channels: 3, background: { r: 30 + i * 50, g: 90, b: 160 - i * 30 } } }).composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100"><circle cx="${300 + i * 300}" cy="${400 + i * 100}" r="${180 + i * 40}" fill="#fff"/></svg>`) }]).jpeg().toBuffer();
