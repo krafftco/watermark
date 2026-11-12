@@ -78,7 +78,9 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
   }
   const countsNow = () => ({ scribes: (() => { try { const p = progress(); return { left: p.left, perMin: p.perMin, etaMin: p.etaMin, scribes: p.scribes, paused: p.paused, importsHeld: p.importsHeld }; } catch (e) { return null; } })(), asks: db.prepare('SELECT COUNT(*) n FROM render_asks').get().n, made: db.prepare("SELECT COUNT(*) n FROM works WHERE copies_at IS NOT NULL AND status='held'").get().n, held: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n, gate: WALL.gate(), noMaster: noMaster(), backfill: job });
   const counts = () => (app.locals.kept ? app.locals.kept('copies-counts', 30e3, countsNow) : countsNow()); // (9 Nov) /healthz asked these of every work on each call
-  // The placeholder: the wall's own dark, nothing else; never cached.
+  // The placeholder: the wall's own dark, nothing else; never cached. Its 24 × 16 size is the page's signal (the head
+  // script in views.js `layout`): an /img picture that loads at exactly 24 × 16 is this, kept unseen and asked again
+  // at 3, 6, 12 and 24 s. No display copy is ever that small; change the size here and there together.
   const placeholder = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16" viewBox="0 0 24 16"><rect width="24" height="16" fill="#0b0a09"/></svg>';
   app.post('/studio/copies/backfill', studioOnly, (req, res) => { backfill().catch(() => {}); res.redirect('/studio/restoration?ok=' + encodeURIComponent('Reading the bucket for every work’s copies; /healthz says how far.')); });
   app.post('/studio/copies/gate', studioOnly, (req, res) => { gate(req.body && req.body.on === '1'); res.redirect('/studio/restoration?ok=' + encodeURIComponent(WALL.gate() ? 'The open walls show only work whose copies are made.' : 'The open walls show every work the standard allows.')); });
