@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.84.1 · The door asks who you are · 12 November 2026
+
+- An address the house already knows is sent to sign in; signing up no longer opens anyone's rooms without the code from their own mail.
+- A new museum's letters wait until its maker has signed in from their mail once; a form filled by a machine makes nothing.
+- A museum made at the open door has its draft prices from the first minute.
+
 ## 1.84.0 · The placard · 12 November 2026
 
 - A card for Instagram in the house's own hand: the work on a white mount over its own colours, who made it, its title, and one line of fact from the record (collected, and its number; an edition complete; on view and what a piece costs; in the public domain). Send → Placard on any work; a collector's own piece carries "Collected · No. 3" from You.
