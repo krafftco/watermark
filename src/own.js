@@ -96,6 +96,9 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
       const slugify = s => String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
       let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
       const id = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?,?,?,'maker',datetime('now'),'record')").run(handle, name, email).lastInsertRowid;
+      // The house's draft prices for each use, as every other door gives them (12 Nov, #12: a maker opened here had none
+      // until the next restart, so no Collect on their work and an empty prices page).
+      { const U = (app.locals.accounts || {}).DEFAULT_USES || []; const add = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); U.forEach(u => add.run(id, ...u)); }
       m = mk(id);
       ledger.append(db, 'maker.recorded', m.handle, {});
       mail.send({ to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
