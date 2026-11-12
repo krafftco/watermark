@@ -92,7 +92,14 @@ const setMarker = m => { marker = m; };
 // (21 Oct, Will: "as good as Lightroom or Leica") Up from 88/90 and 90/92: on a grainy frame JPEG 90 sat at 41 dB
 // against the resized master, 94 at 42.6, with the bytes up by two fifths; WebP 94 matches at two thirds the size.
 const Q = { jpg: { thumb: 80, screen: 92, large: 94, wall: 94 }, webp: { thumb: 76, screen: 92, large: 94, wall: 94 } };
-const fileOf = (cacheDir, slug, size, fmt) => path.join(cacheDir, `${slug}-${size}${marker && size !== 'thumb' ? 'm' : ''}q5.${fmt}`); // q3: the qualities of 21 Oct; q4: the maker's colour kept; q5: the maker's copyright on every copy (29 Oct)
+// A trim box (12 Nov, issue #1): a shelf scan's ragged border (scanner bed, paper margin, a black bar) left off the
+// display copies, never the master. `setTrim(slug => {x, y, w, h} | null)` is set by trim.js; a trimmed work's copies
+// carry a short hash of the box in their names, so they never collide with the untrimmed ones (which keep their names
+// and bytes). A 5th argument to `fileOf` names the box outright (null: the untrimmed name).
+let trimFor = null; const setTrim = fn => { trimFor = fn; };
+const trimOf = slug => { if (!trimFor) return null; try { const t = trimFor(slug); return t && t.w > 0 && t.h > 0 ? t : null; } catch (e) { return null; } };
+const trimTag = t => (t ? '-t' + crypto.createHash('sha1').update([t.x, t.y, t.w, t.h].map(v => (+v).toFixed(5)).join(',')).digest('hex').slice(0, 8) : '');
+const fileOf = (cacheDir, slug, size, fmt, trim) => path.join(cacheDir, `${slug}${trimTag(trim === undefined ? trimOf(slug) : trim)}-${size}${marker && size !== 'thumb' ? 'm' : ''}q5.${fmt}`); // q3: the qualities of 21 Oct; q4: the maker's colour kept; q5: the maker's copyright on every copy (29 Oct)
 // The maker's colour, kept (Will, 29 Oct: "the best export that's color accurate and that does not change their vision at
 // all; if they put it in one way, that's them telling us that's the way they want it"). A master in sRGB (or untagged,
 // which the web reads as sRGB) is shown in sRGB. A master in anything wider (Display P3 from a phone, Adobe RGB or
@@ -108,16 +115,21 @@ async function gamut(original) {
   try { const m = await sharp(original).metadata(); if (m.icc && m.space === 'srgb' && (m.channels || 3) >= 3 && !/sRGB|IEC ?61966/i.test(m.icc.toString('latin1').replace(/\0/g, ''))) g = 'p3'; } catch (e) { /* unreadable: sRGB */ }
   if (gamutCache.size > 4000) gamutCache.clear(); gamutCache.set(k, g); return g;
 }
-async function derivative(original, cacheDir, slug, size, fmt = 'jpg', { source = null } = {}) {
+async function derivative(original, cacheDir, slug, size, fmt = 'jpg', { source = null, trim } = {}) {
   const w = SIZES[size];
   if (!w) throw new Error('unknown size');
   if (!FORMATS[fmt]) fmt = 'jpg';
   fs.mkdirSync(cacheDir, { recursive: true });
-  const out = fileOf(cacheDir, slug, size, fmt);
+  const box = trim === undefined ? trimOf(slug) : trim;
+  const out = fileOf(cacheDir, slug, size, fmt, box);
   if (!fs.existsSync(out)) {
     const tmp = `${out}.${process.pid}.${Date.now()}.tmp`;
     // `source` (7 Nov): a larger copy already made, so a 60 MP master is not decoded again for a 600 px thumb
-    let base = sharp(source || original).rotate().resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
+    let base = sharp(source || original).rotate();
+    // The trim is cut once, from the master, upright (after the EXIF turn) and before the resize; a copy made from a
+    // larger copy (`source`) has it already.
+    if (box && !source) { const m = await sharp(original).metadata(); const sw = m.orientation >= 5; const W = sw ? m.height : m.width, H = sw ? m.width : m.height; const left = Math.max(0, Math.round(box.x * W)), top = Math.max(0, Math.round(box.y * H)); base = base.extract({ left, top, width: Math.max(1, Math.min(W - left, Math.round(box.w * W))), height: Math.max(1, Math.min(H - top, Math.round(box.h * H))) }); }
+    base = base.resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true });
     if (marker && size !== 'thumb') {
       const payload = marker.payloadFor(slug);
       if (payload != null) { const { data, info } = await base.raw().toBuffer({ resolveWithObject: true }); require('./mark').embedRaw(data, info, payload, marker.key); base = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } }); }
@@ -339,4 +351,4 @@ async function look(file) {
 function alike(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; }
 function hamming(a, b) { let v = BigInt('0x' + a) ^ BigInt('0x' + b), n = 0; while (v) { n += Number(v & 1n); v >>= 1n; } return n; }
 
-module.exports = { has, hasCopy, existingCopy, sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };
+module.exports = { setTrim, has, hasCopy, existingCopy, sweep, trimRenditions, usage, free, saidOf, gamut, setOwner, setMarker, fileOf, inspect, derivative, derivativeOf, copy, dhash, hamming, look, alike, SAME_LEVELS, SIZES, FORMATS, pick, warm, warmed, setRenditionStore, dropBucket, settled, fromBucket, pushAll, pushState };

@@ -213,7 +213,7 @@ ${goneN ? `<h3>Off the wall by the standard · ${goneN}</h3>${act('back', 'Put t
   app.post('/studio/standard/back', studioOnly, (req, res) => { const n = putBack(scopeOf(req.query).s); if (req.body && req.body.json) return res.json({ ok: true, n }); res.redirect(back(req, `${n} put back on the wall.`)); });
 
   const api = { transport: null };
-  Object.assign(api, { run, measure, houseFaults, decide, apply, putBack, keep, waiting, jobs, FAULTS }); app.locals.frick = api;
+  Object.assign(api, { SHELF, run, measure, houseFaults, decide, apply, putBack, keep, waiting, jobs, FAULTS }); app.locals.frick = api;
   return api;
 }
 module.exports = { mountFrick, FAULTS };

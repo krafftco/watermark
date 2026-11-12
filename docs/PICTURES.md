@@ -28,6 +28,7 @@ The maker's file is the work. The house keeps it byte for byte and never improve
 | Nothing private rides on a copy for the walls: no GPS, no serial numbers; only the house's copyright line | **holds** |
 | Every copy made the moment a work arrives, kept-back work included, so the Library and the walls never wait on a 60 MP decode | **holds** |
 | The gate: no change to how copies are made ships unless `test/pictures.js` passes (block structure, PSNR against the same resize, the colour kept, nothing private carried) | **holds** |
+| A shelf scan's border (a scanner bed, a paper margin, a black or white bar; at most 6% a side, straight and abrupt) may be left off the display copies, only when the Studio applies the house's proposed trim on /studio/trim; never a living maker's work, a page of a volume, a drawing or a print; the master untouched, the untrimmed copies kept under their own names, Undo puts them back (12 Nov, #1) | **holds** |
 | A picture is never shown larger than its pixels allow (a quarter's grace, then the dark around it) | **holds** |
 | The edge (CloudFront) holds a copy an hour and is told at once when a master changes | **holds** |
 

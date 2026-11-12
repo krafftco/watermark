@@ -30,6 +30,7 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
   const THUMB = ['thumb']; let made = 0; // a newly made set renews the open wander's pool (stroll.js keys on it)
   // Make a work's set (the thumb for anything kept; every size for work on view) and mark it.
   async function make(w) {
+    if (app.locals.trim && w && 'trim' in w) app.locals.trim.note(w); // the box as the row says it now (a box applied a moment ago on another process)
     const o = () => originalPath(w);
     let full = false;
     await images.warm(o, cache, w.slug, THUMB);

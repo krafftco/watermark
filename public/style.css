@@ -5749,3 +5749,13 @@ form.st button{min-width:24px;min-height:24px}
 .st-plate a{display:inline-block;padding:3px 0}
 .mh-key{text-decoration:underline;text-underline-offset:3px}
 .ky .insc blockquote{color:#7a5f22;opacity:1}
+/* Trim the scans (12 Nov, #1): the Studio's desk, before and after side by side */
+.trm .trm-n{color:var(--mut);font-size:13px}.trm .trm-live{color:var(--mut)}
+.trm .trm-run{display:flex;gap:10px;align-items:center;margin:12px 0 24px}.trm .trm-run input{width:80px}
+.trm .trm-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin:12px 0 28px}
+.trm .trm-w{font-size:12px}.trm .trm-t{display:block;font-weight:600;margin-bottom:6px}
+.trm .trm-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.trm .trm-pair figure{margin:0;position:relative;background:#1b1a18}
+.trm .trm-pair figure>img{width:100%;display:block}.trm .trm-pair figcaption{color:var(--mut);padding-top:4px}
+.trm .trm-box{position:absolute;outline:1px solid #e0a63c;box-shadow:0 0 0 999px rgba(163,57,45,.35);pointer-events:none}
+.trm .trm-in{position:relative;overflow:hidden}.trm .trm-in img{width:100%;display:block}.trm .trm-cut{position:relative;overflow:hidden;width:100%}.trm .trm-cut img{position:absolute;max-width:none;display:block}
+.trm .trm-l{color:var(--mut);margin:6px 0}.trm .trm-a{display:flex;gap:6px}.trm .trm-a form{margin:0}

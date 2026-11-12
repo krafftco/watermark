@@ -2409,6 +2409,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.pairs = require('./pairs').mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, inLane, ledger, studioOnly });
   require('./hands').mountHands(app, { db, V, ledger, studioOnly, images, cache, originalPath }); /* whose hand (6 Nov): workshop pieces, copies and extra files off a master's wall */ require('./tidy').mountTidy(app, { db, V, images, cache, originalPath, ledger, studioOnly, pairs: require('./pairs'), governor: app.locals.governor }); // the tidy of an artist's set: repeats and bad files off view (2 Nov)
   require('./frick').mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPath }); // the standard: what falls short of the Frick's comes off the wall (5 Nov)
+  require('./trim').mountTrim(app, { db, V, ledger, studioOnly, images, cache, originalPath }); // trimming the scans (12 Nov, #1): a shelf scan's border left off the display copies, never the master
   if (!cfg.noTimers) GOV.boot('twins', () => mergeTwins());
   // The second look before any file is called the same picture as a held one (images.look/alike): from the held work's
   // small copy when it is on disk, else its original.
