@@ -96,6 +96,16 @@ async function pictures(dir) {
     await Promise.all([p.waitForNavigation(), tap('form[action="/record"] button')]);
     const m = await look('after join');
     if (!/\/account/.test(m.path)) throw new Error('landed on ' + m.path + ', not signed in');
+    // #21: the door is whole on the first screen, the welcome said once and never over the door
+    const v = await p.evaluate(() => {
+      const r = e => { if (!e) return null; const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right, h: b.height }; };
+      const hi = document.querySelector('.wm-hi'); const on = hi && getComputedStyle(hi).opacity !== '0';
+      return { door: r(document.querySelector('.vt-door')), hi: on ? r(hi) : null, banners: document.querySelectorAll('[data-welcome]').length, vh: innerHeight };
+    });
+    if (!v.door) hard('after join', 'no vault door');
+    else if (v.door.top < 0 || v.door.bottom > v.vh) hard('after join', `the vault door is not whole on the first screen (${Math.round(v.door.top)}–${Math.round(v.door.bottom)} of ${v.vh})`);
+    if (v.hi && v.door && v.hi.top < v.door.bottom && v.hi.bottom > v.door.top && v.hi.left < v.door.right && v.hi.right > v.door.left) hard('after join', 'the welcome toast lies over the vault door');
+    if (v.hi && v.banners) hard('after join', 'the welcome is said twice (banner and toast)');
   });
   const maker = db.prepare("SELECT * FROM makers WHERE email='ada@example.com'").get();
   if (!maker) { hard('join', 'no maker made'); return finish(); }
@@ -106,6 +116,8 @@ async function pictures(dir) {
     await look('vault, empty');
     await p.setInputFiles('#aFiles', files); taps++;
     await look('vault, chosen');
+    const sd = await p.evaluate(() => { const b = document.querySelector('#aGo').getBoundingClientRect(); return { top: b.top, bottom: b.bottom, vh: innerHeight }; });
+    if (sd.top < 0 || sd.bottom > sd.vh) hard('vault, chosen', `Send is off the screen once files are chosen (${Math.round(sd.top)}–${Math.round(sd.bottom)} of ${sd.vh})`);
     const go1 = p.locator('#aGo'); if (await go1.isDisabled()) throw new Error('Send stayed disabled after choosing files');
     await go1.click(); taps++;
     const t0 = Date.now();
@@ -123,7 +135,14 @@ async function pictures(dir) {
   const works = db.prepare('SELECT slug, status FROM works WHERE maker_id=? ORDER BY id').all(maker.id);
 
   // 3. See them
-  await step('desk', async () => { await go('/account', 'desk'); await look('desk', { full: true }); });
+  await step('desk', async () => {
+    await go('/account', 'desk'); await look('desk', { full: true });
+    // #20 (Will, 12 Nov): one checklist; the by-invitation 'way in' is gone from the desk of the open door
+    const d = await p.evaluate(() => ({ way: !!document.querySelector('.hd-way'), words: /The way in|Ask the house to look|hanging there is by invitation/.test(document.body.innerText), lists: document.querySelectorAll('.fs, .hd-way').length, h: document.documentElement.scrollHeight }));
+    if (d.way || d.words) hard('desk', 'the way in (by invitation) is still on the desk');
+    if (d.lists > 1) hard('desk', `${d.lists} checklists on the desk`);
+    notes.push(`desk ${d.h} px tall`);
+  });
   await step('library', async () => { await go('/account/table', 'library'); await look('library'); });
   await step('cull', async () => {
     await go('/account/cull', 'cull'); await p.waitForTimeout(800); await look('cull');
@@ -165,9 +184,11 @@ async function pictures(dir) {
   await step('work page', async () => {
     if (!pub) throw new Error('no work on view to open');
     await go('/w/' + pub.slug, 'work page'); await look('work page');
-    const col = await p.evaluate(() => { const b = document.querySelector('.ap-col, [data-collect-now]'); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight }; });
+    const col = await p.evaluate(() => { const b = document.querySelector('.ap-col, [data-collect-now]'); if (!b) return null; const r = b.getBoundingClientRect(); const tb = document.querySelector('.tb'); const t = tb && getComputedStyle(tb).display !== 'none' ? tb.getBoundingClientRect().top : innerHeight; return { top: r.top, bottom: r.bottom, vh: innerHeight, tb: t }; });
     if (!col) soft('work page', 'no Collect in the act row');
-    else if (col.bottom > col.vh) soft('work page', `Collect sits below the first screen (bottom ${Math.round(col.bottom)} of ${col.vh})`);
+    else if (col.bottom > col.vh) hard('work page', `Collect sits below the first screen (bottom ${Math.round(col.bottom)} of ${col.vh})`);
+    else if (col.bottom > col.tb) hard('work page', `Collect sits under the tab bar (bottom ${Math.round(col.bottom)}, the bar from ${Math.round(col.tb)})`);
+    else notes.push(`work page: Collect ends at ${Math.round(col.bottom)}, the tab bar starts at ${Math.round(col.tb)}`);
     const send = p.locator('[data-wm-send]').first();
     if (!(await send.count())) throw new Error('no Send button');
     await send.click(); taps++; await p.waitForTimeout(900);

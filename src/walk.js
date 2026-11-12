@@ -55,7 +55,7 @@ function mountWalk(app, { db, V, SERIES }) {
 
 // The bar on the photograph page.
 function walkBar(k) {
-  if (!k) return '';
+  if (!k || k.n < 2) return ''; // one of one has nowhere to walk (#19: it pushed Collect under the phone's tab bar)
   return `<nav class="wk" aria-label="Walk" data-walk><a class="wk-go wk-prev" href="${esc(k.prev.href)}" title="${esc(k.prev.title)}">${I.back}<span>Before</span></a><p class="wk-where"><a href="${esc(k.href)}">${esc(k.label)}</a><b>${k.i} of ${k.n}</b></p><a class="wk-go wk-next" href="${esc(k.next.href)}" title="${esc(k.next.title)}"><span>Next</span>${I.next}</a></nav>
 <script>window.__WM_WALK=${JSON.stringify({ prev: k.prev, next: k.next, i: k.i, n: k.n, label: k.label, href: k.href }).replace(/</g, '\\u003c')};</script>`;
 }
