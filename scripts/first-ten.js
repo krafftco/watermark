@@ -90,8 +90,9 @@ async function pictures(dir) {
     await door.scrollIntoViewIfNeeded(); await door.click(); taps++;
     await p.waitForURL(/\/join/);
     await look('join');
-    await fill('form[action="/record"] [name="name"]', 'Ada Lumen');
-    await fill('form[action="/record"] [name="email"]', 'ada@example.com');
+    // typed as a person types, a key at a time (#24: the door turns away a form posted faster than a person can fill it)
+    await p.locator('form[action="/record"] [name="name"]').first().pressSequentially('Ada Lumen', { delay: 70 }); fields++;
+    await p.locator('form[action="/record"] [name="email"]').first().pressSequentially('ada@example.com', { delay: 70 }); fields++;
     await tap('form[action="/record"] [name="adult"]');
     await Promise.all([p.waitForNavigation(), tap('form[action="/record"] button')]);
     const m = await look('after join');

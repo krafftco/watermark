@@ -66,6 +66,7 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
   // You already own it.
   app.get('/own', (req, res) => {
     const me = makerOf(req);
+    res.set('Cache-Control', 'no-store'); // the form carries a fresh signed time
     res.send(V.layout({ title: 'You already own it · Watermark', path: '/own', desc: 'Every time you make a picture, you own it. Watermark is where you hold it, show it, and let others use it on your terms.', body: `<article class="own">
 <header class="own-h"><p class="k">Watermark</p><h1>You already own it.</h1><p class="lede">Every time you take a photograph, or paint, or write a line, you make something that is yours by law from that moment. No form, no fee, no one’s permission. Most people never find that out. This is the house where you do, and where you use it.</p></header>
 <section class="own-s"><h2>Five things people get wrong</h2><ol class="own-l">
@@ -85,51 +86,63 @@ ${sig ? `<div><dt>The house’s signature</dt><dd><code>${esc(sig.slice(0, 32))}
   });
 
   // The open door.
-  // (12 Nov, #24) The form carries a signed time: the house knows when it served it. A post with no token, a forged one,
-  // one sent faster than a person reads (RECORD_MIN_MS, 3 s) or older than two hours is a form-filler's, and is answered
-  // like the honeypot. And the door opens at most RECORD_PER_HOUR (40) new museums an hour in all, since bots rotate
-  // addresses; past it a person is told the door is busy, and nothing is made or mailed.
+  // (12 Nov, #24) Form-filling bots typed strangers' addresses here and the house wrote to each. Three guards, none of
+  // which turns a person away:
+  //   The form carries a signed time (`t`). The honeypot alone gets the silent fake success. A post with no token, a
+  //     forged one, one sent within RECORD_MIN_MS (1 s) of the form or over two hours after is shown the same form
+  //     again, as typed, with a fresh token and one line: nothing is made or mailed until the second press.
+  //   Past RECORD_PER_HOUR (40) museums opened at this door in the hour, the museum is still made (unproven, as every
+  //     one here) but the welcome letter is dropped; the person lands where everyone does.
+  //   Past RECORD_FLOOD_PER_HOUR (400) the door is a flood: a page says it is busy, and nothing is made.
+  //   Only this door counts: `makers.door_at` is stamped here alone (a partner's makers share door 'record').
   const crypto = require('crypto');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name='door_at'").get()) db.exec('ALTER TABLE makers ADD COLUMN door_at TEXT');
   const tokSig = ts => crypto.createHmac('sha256', C.secret).update(`record.${ts}`).digest('hex').slice(0, 32);
   const recordToken = () => { const ts = Date.now(); return `${ts}.${tokSig(ts)}`; };
   app.locals.recordToken = recordToken;
+  const envNum = (k, d) => { const v = process.env[k], n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n >= 0 ? n : d; };
   const tokenOk = t => {
     const m = /^(\d{12,14})\.([0-9a-f]{32})$/.exec(String(t || '')); if (!m) return false;
     const a = Buffer.from(m[2]), b = Buffer.from(tokSig(m[1])); if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
-    const age = Date.now() - Number(m[1]), min = process.env.RECORD_MIN_MS != null && process.env.RECORD_MIN_MS !== '' ? Number(process.env.RECORD_MIN_MS) : 3000;
-    return age >= min && age <= 2 * 3600000;
+    const age = Date.now() - Number(m[1]);
+    return age >= envNum('RECORD_MIN_MS', 1000) && age <= 2 * 3600000;
   };
-  let busySaid = 0;
-  const perHour = () => { const n = Number(process.env.RECORD_PER_HOUR); return process.env.RECORD_PER_HOUR && Number.isFinite(n) && n >= 0 ? n : 40; };
-  const busy = res => res.status(429).set('Retry-After', '900').send(V.layout({ title: 'The door is busy · Watermark', path: '/join', body: `<section class="narrow jn"><p class="k">Open your museum</p><h1>The door is busy.</h1>
+  let busySaid = 0, quietSaid = 0;
+  const busy = res => res.status(429).set('Retry-After', '900').set('Cache-Control', 'no-store').send(V.layout({ title: 'The door is busy · Watermark', path: '/join', body: `<section class="narrow jn"><p class="k">Open your museum</p><h1>The door is busy.</h1>
 <p class="lede">The door is busy; try again in a little while, or sign in if you have been here before.</p>
 <p><a class="buy-btn" href="/signin">Sign in</a> <a href="/">Back to the house</a></p></section>` }));
+  // The same form again, as typed, with a fresh token (DRAFT line for Will).
+  const again = (res, x) => res.set('Cache-Control', 'no-store').send(V.layout({ title: 'Open your museum · Watermark', path: '/join',
+    body: require('./museums').joinPage({ esc: V.esc, base: C.base, token: recordToken(), err: 'One more press, please.', name: String(x.name || '').slice(0, 80), email: String(x.email || '').slice(0, 160), adult: x.adult === '1' }) }));
   const slow = (() => { const hits = new Map(); return (k, n = 5) => { const now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 3600000); a.push(now); hits.set(k, a); return a.length > n; }; })();
   app.get('/record', (req, res) => res.redirect('/own#door'));
   app.post('/record', (req, res) => {
     const x = req.body || {}, name = String(x.name || '').replace(/<[^>]*>/g, '').trim().slice(0, 80), email = String(x.email || '').trim().toLowerCase().slice(0, 160);
-    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || slow(req.ip)) return res.redirect('/own?ok=check#door');
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect('/own?ok=check#door');
     if (x.adult !== '1') return res.redirect('/join?ok=adult'); // the house is for adults (29 Oct): eighteen or older, said at the door
     if (String(x.website || '').trim()) return res.redirect('/account/upload?welcome=own'); // the honeypot: a form-filler is told nothing and given nothing
-    if (!tokenOk(x.t)) return res.redirect('/account/upload?welcome=own'); // no form served by the house, or filled too fast: the same
+    if (!tokenOk(x.t)) return again(res, x); // no form served by the house, too quick or too old: one more press
+    if (slow(req.ip)) return res.redirect('/own?ok=check#door');
     // (12 Nov) A name and an email typed at the door prove nothing. An address the house already knows, as a maker or
     // a collector, is never opened from here: its owner signs in with a code. Only a new address is let straight in,
     // unproven (`email_ok` 0): the first sign-in by code makes it theirs and signs every earlier device out.
     let m = db.prepare('SELECT * FROM makers WHERE lower(email)=?').get(email);
     if (m || db.prepare('SELECT 1 FROM buyers WHERE lower(email)=?').get(email)) return res.redirect('/signin?next=/account/upload&known=1');
     if (!m) {
-      const made = Number(db.prepare("SELECT COUNT(*) n FROM makers WHERE door='record' AND joined_at > datetime('now', '-1 hour')").get().n) || 0;
-      if (made >= perHour()) { if (Date.now() - busySaid > 60000) { busySaid = Date.now(); console.log(`[record] the door is busy: ${made} opened in the hour`); } return busy(res); }
+      const made = Number(db.prepare("SELECT COUNT(*) n FROM makers WHERE door_at > datetime('now', '-1 hour')").get().n) || 0;
+      if (made >= envNum('RECORD_FLOOD_PER_HOUR', 400)) { if (Date.now() - busySaid > 60000) { busySaid = Date.now(); console.log(`[record] a flood at the door: ${made} opened in the hour`); } return busy(res); }
+      const quiet = made >= envNum('RECORD_PER_HOUR', 40); // past the hour's line the museum opens, the welcome is dropped
+      if (quiet && Date.now() - quietSaid > 60000) { quietSaid = Date.now(); console.log(`[record] ${made} opened at the door in the hour: no welcome letters until it slows`); }
       const slugify = s => String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
       let handle = slugify(name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(name)}-${i++}`;
       const id = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?,?,?,'maker',datetime('now'),'record')").run(handle, name, email).lastInsertRowid;
-      db.prepare('UPDATE makers SET email_ok=0 WHERE id=?').run(id);
+      db.prepare("UPDATE makers SET email_ok=0, door_at=datetime('now') WHERE id=?").run(id);
       // The house's draft prices for each use, as every other door gives them (12 Nov, #12: a maker opened here had none
       // until the next restart, so no Collect on their work and an empty prices page).
       { const U = (app.locals.accounts || {}).DEFAULT_USES || []; const add = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); U.forEach(u => add.run(id, ...u)); }
       m = mk(id);
       ledger.append(db, 'maker.recorded', m.handle, {});
-      mail.send({ kind: 'auto', once: `welcome:${email}`, to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
+      if (!quiet) mail.send({ kind: 'auto', once: `welcome:${email}`, to: email, subject: 'Your museum is open', text: `${name.split(/\s+/)[0]},\n\nYour museum on Watermark is open. Bring in what you made: each file is fingerprinted, written to the register with the day you made it, and given a deed that says it is yours.\n\n${C.base}/account/upload\n\nWhat you bring in is private until you say otherwise. Thank you. You are our honoured guest.\n\nWatermark, a Krafft company.` }).catch(() => {});
     }
     if (app.locals.admit) app.locals.admit(req, res, email, 'record');
     res.redirect('/account/upload?welcome=own');

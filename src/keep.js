@@ -265,6 +265,7 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
       AND l.id NOT IN (SELECT license_id FROM print_orders WHERE status<>'pending') ORDER BY l.id LIMIT 50`).all(`-${days} days`);
     let n = 0;
     for (const l of rows) {
+      if (mail.autoFull && mail.autoFull()) break; // (#24) past the day's ceiling the letter waits for tomorrow
       db.prepare('INSERT OR IGNORE INTO wall_letters (license_id) VALUES (?)').run(l.id);
       const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w) continue; const maker = mk(w);
       const k = l.download_token ? `?k=${l.download_token}` : '';
