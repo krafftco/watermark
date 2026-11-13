@@ -1879,7 +1879,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/studio/logout', (req, res) => { res.clearCookie('wm_s'); res.redirect('/'); });
 
   // The Trove: the maker's private gallery of everything they hold, and what each work has done in its life.
-  function troveRows() {
+  // (13 Nov) Never the whole collection: the Studio's front page and its Works tab each read every work with nine
+  // counts apiece (62,000 works: five seconds in Postgres and nine with the page built), and since the bridge is
+  // synchronous every visitor waited behind it; three missed health checks and the host took the house down (502).
+  // A caller now says which works it wants and how many at most.
+  function troveRows(where = '1=1', params = [], limit = 2000) {
     return db.prepare(`SELECT w.*,
       (SELECT COALESCE(SUM(price_cents),0) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired')) AS earned,
       (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired')) AS licensed,
@@ -1890,24 +1894,43 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       (SELECT COUNT(*) FROM sightings s WHERE s.work_id=w.id) AS sightings,
       (SELECT COUNT(*) FROM seals s WHERE s.work_id=w.id AND s.status='open') AS sealed,
       (SELECT GROUP_CONCAT(c.title, ' · ') FROM collection_works cw JOIN collections c ON c.id=cw.collection_id WHERE cw.work_id=w.id) AS rooms
-      FROM works w ORDER BY w.id DESC`).all().map(w => {
+      FROM works w WHERE ${where} ORDER BY w.id DESC LIMIT ${Math.max(1, Math.min(5000, Number(limit) || 2000))}`).all(...params).map(w => {
         const missing = [];
         if (!w.caption) missing.push('caption'); if (!w.place) missing.push('place'); if (!w.taken_at) missing.push('date');
         if (!w.keywords) missing.push('keywords'); if (!w.rooms) missing.push('a collection');
         return { ...w, missing, complete: Math.round(100 * (5 - missing.length) / 5) };
       });
   }
+  // The whole house in a few counts, asked of the database and kept five minutes (never rows).
+  let houseTotalsAt = 0, houseTotalsV = null;
+  function houseTotals() {
+    if (houseTotalsV && Date.now() - houseTotalsAt < 300000) return houseTotalsV;
+    const g = (sql, ...a) => { try { return db.prepare(sql).get(...a) || {}; } catch (e) { console.error('[studio totals]', e.message); return {}; } };
+    const c = g("SELECT COUNT(*) AS n, SUM(CASE WHEN COALESCE(caption,'')='' THEN 1 ELSE 0 END) AS c1, SUM(CASE WHEN COALESCE(place,'')='' THEN 1 ELSE 0 END) AS c2, SUM(CASE WHEN COALESCE(taken_at,'')='' THEN 1 ELSE 0 END) AS c3, SUM(CASE WHEN COALESCE(keywords,'')='' THEN 1 ELSE 0 END) AS c4 FROM works");
+    const noRoom = Number(g('SELECT COUNT(*) AS n FROM works w WHERE NOT EXISTS (SELECT 1 FROM collection_works cw WHERE cw.work_id=w.id)').n) || 0;
+    const missing = Number(g("SELECT COUNT(*) AS n FROM works w WHERE COALESCE(w.caption,'')='' OR COALESCE(w.place,'')='' OR COALESCE(w.taken_at,'')='' OR COALESCE(w.keywords,'')='' OR NOT EXISTS (SELECT 1 FROM collection_works cw WHERE cw.work_id=w.id)").n) || 0;
+    const n = Number(c.n) || 0, gaps = (Number(c.c1) || 0) + (Number(c.c2) || 0) + (Number(c.c3) || 0) + (Number(c.c4) || 0) + noRoom;
+    const paidL = "status IN ('active','expired')";
+    houseTotalsV = { works: n, missing, complete: n ? Math.round(100 * (5 * n - gaps) / (5 * n)) : 0,
+      seen30: Number(g("SELECT COALESCE(SUM(count),0) AS s FROM views WHERE day >= date('now','-30 day')").s) || 0,
+      seen: Number(g('SELECT COALESCE(SUM(count),0) AS s FROM views').s) || 0,
+      earned: Number(g(`SELECT COALESCE(SUM(price_cents),0) AS s FROM licenses WHERE ${paidL}`).s) || 0,
+      licensed: Number(g(`SELECT COUNT(DISTINCT work_id) AS n FROM licenses WHERE ${paidL}`).n) || 0,
+      sealed: Number(g("SELECT COUNT(*) AS n FROM seals WHERE status='open'").n) || 0 };
+    houseTotalsAt = Date.now(); return houseTotalsV;
+  }
   app.get('/studio/trove', studioOnly, (req, res) => {
-    let rows = troveRows();
+    // The Works tab shows the house's own works (or one room's), 2,000 at most; the totals are the whole house's, counted.
+    let rows = req.query.room ? [] : troveRows('w.maker_id=?', [maker.id], 2000);
     const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
-    if (room) { const ids = new Set(db.prepare('SELECT work_id FROM collection_works WHERE collection_id=?').all(room.id).map(r => r.work_id)); rows = rows.filter(w => ids.has(w.id)); }
+    if (room) rows = troveRows('w.id IN (SELECT cw.work_id FROM collection_works cw WHERE cw.collection_id=?)', [room.id], 2000);
     const st = app.locals.standing ? app.locals.standing() : {}, cp = app.locals.capturesOf ? app.locals.capturesOf() : {}; rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
     const sorts = { stars: (a, b) => (b.stars || 0) - (a.stars || 0) || b.earned - a.earned, standing: (a, b) => b.applause - a.applause || b.standing - a.standing || b.seen - a.seen, duds: (a, b) => (a.seen >= 20 ? a.standing : 9) - (b.seen >= 20 ? b.standing : 9) || b.seen - a.seen, earned: (a, b) => b.earned - a.earned || b.seen - a.seen, seen: (a, b) => b.seen - a.seen, newest: (a, b) => b.id - a.id, taken: (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')), untapped: (a, b) => (b.licensed ? -1 : b.seen) - (a.licensed ? -1 : a.seen), unfinished: (a, b) => a.complete - b.complete };
     const sort = sorts[req.query.sort] ? req.query.sort : 'earned';
     rows.sort(sorts[sort]);
-    const all = troveRows();
-    const totals = { works: all.length, earned: all.reduce((a, w) => a + w.earned, 0), licensed: all.filter(w => w.licensed).length, seen: all.reduce((a, w) => a + w.seen, 0), sealed: all.reduce((a, w) => a + w.sealed, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
-    const untapped = all.filter(w => !w.licensed && w.seen > 0).sort((a, b) => b.seen - a.seen).slice(0, 3);
+    const HT = houseTotals();
+    const totals = { works: HT.works, earned: HT.earned, licensed: HT.licensed, seen: HT.seen, sealed: HT.sealed, complete: HT.complete };
+    const untapped = rows.filter(w => !w.licensed && w.seen > 0).sort((a, b) => b.seen - a.seen).slice(0, 3);
     res.send(S.trove({ batch: app.locals.batch ? app.locals.batch.bar({ action: '/studio/works/batch', studio: true, back: req.originalUrl.split('?')[0] + (req.query.view ? '?view=' + req.query.view : '') }) : '', view: req.query.view === 'list' ? 'list' : 'wall', maker, rows, totals, sort, room, rooms: db.prepare('SELECT c.*, (SELECT COUNT(*) FROM collection_works cw WHERE cw.collection_id=c.id) n FROM collections c ORDER BY sort, id').all(), untapped, notice: req.query.ok }));
   });
 
@@ -2010,7 +2033,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   // Holdings: the Studio's front page.
   app.get('/studio', studioOnly, (req, res) => {
-    const all = troveRows();
+    // (13 Nov) Counts for the whole house; rows only for the house's own works (the lines below ask about those alone).
+    const HT = houseTotals();
+    const all = db.prepare('SELECT * FROM works WHERE maker_id=? ORDER BY id DESC LIMIT 5000').all(maker.id);
     const sum = sql => db.prepare(sql).get().s || 0;
     const paid = "l.status IN ('active','expired')";
     const collected = sum(`SELECT SUM(l.price_cents) s FROM licenses l JOIN uses u ON u.id=l.use_id WHERE ${paid} AND u.key='social'`);
@@ -2022,10 +2047,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const earned = collected + licensed + gifts + tipped.s + resale.r + resale.f;
     const month = sum(`SELECT SUM(l.price_cents) s FROM licenses l WHERE ${paid} AND COALESCE(l.starts_at, l.created_at) >= date('now','start of month')`);
     const ed = new Map(db.prepare("SELECT work_id, COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired') GROUP BY work_id").all().map(r => [r.work_id, r.n]));
-    const t = { earned, month, works: all.length, rooms: db.prepare('SELECT COUNT(*) n FROM collections').get().n,
+    const t = { earned, month, works: HT.works, rooms: db.prepare('SELECT COUNT(*) n FROM collections').get().n,
       numbered: db.prepare("SELECT COUNT(*) n FROM licenses WHERE collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
       collectors: db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n,
-      seen30: all.reduce((a, w) => a + w.seen30, 0), complete: all.length ? Math.round(all.reduce((a, w) => a + w.complete, 0) / all.length) : 0 };
+      seen30: HT.seen30, complete: HT.complete };
     const streams = [{ name: 'Collected', cents: collected }, { name: 'Licensed', cents: licensed }, { name: 'Resale', cents: resale.r + resale.f, note: `${resale.n} trade${resale.n === 1 ? '' : 's'} · ${V.money(resale.r)} royalties, ${V.money(resale.f)} fees` }, { name: 'Tips', cents: tipped.s, note: `${tipped.n} from readers, to writers and photographers` }, { name: 'Patronage', cents: monthly, per: ' / mo', note: `${patrons} patron${patrons === 1 ? '' : 's'}${gifts ? ` · ${V.money(gifts)} in gifts` : ''}` }];
     const n = sql => db.prepare(sql).get().n;
     const needs = [
@@ -2034,12 +2059,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       { n: (() => { try { return n("SELECT COUNT(*) n FROM bids WHERE status='new'"); } catch (e) { return 0; } })(), label: ' requests to buy from collectors', href: '/studio/market' },
       { n: db.prepare("SELECT COUNT(*) n FROM licenses WHERE status='active' AND ends_at IS NOT NULL AND ends_at <= ?").get(new Date(Date.now() + 60 * 864e5).toISOString()).n, label: ' licenses ending within 60 days', href: '/studio/activity' },
       { n: n("SELECT COUNT(*) n FROM sightings WHERE status='new'"), label: ' sightings of your work to look at', href: '/studio/sightings' },
-      { n: all.filter(w => w.missing.length).length, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
+      { n: HT.missing, label: ' works missing part of their record', href: '/studio/trove?sort=unfinished' },
       { n: all.filter(w => w.maker_id === maker.id && ['held', 'hidden'].includes(w.status) && !w.copyright_reg && !w.copyright_group && (!app.locals.copyrightRegistrable || app.locals.copyrightRegistrable(w))).length, label: ' photographs of the house not yet registered with the U.S. Copyright Office', href: '/studio/copyright' },
       { n: all.filter(w => w.maker_id === maker.id && !w.open && !w.edition_size && w.status === 'held').length, label: ' public photographs of the house not yet numbered as editions', href: '/studio/editions' },
       { n: all.filter(w => w.maker_id === maker.id && !w.open && w.status === 'held' && !meets(w, 'campaign')).length, label: ' public photographs of the house held below full resolution: upload their masters', href: '/studio/masters#need' },
     ];
-    const rows = all.map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
+    // The twelve that have earned or been seen most: found by their counts, then read whole (24 rows at most).
+    const topIds = [...new Set([
+      ...db.prepare(`SELECT l.work_id AS id FROM licenses l WHERE ${paid} GROUP BY l.work_id ORDER BY SUM(l.price_cents) DESC LIMIT 12`).all().map(r => r.id),
+      ...db.prepare("SELECT v.work_id AS id FROM views v WHERE v.day >= date('now','-30 day') GROUP BY v.work_id ORDER BY SUM(v.count) DESC LIMIT 12").all().map(r => r.id)])].filter(x => x != null);
+    const rows = (topIds.length ? troveRows(`w.id IN (${topIds.map(() => '?').join(',')})`, topIds, 24) : troveRows('w.maker_id=?', [maker.id], 12)).map(w => ({ ...w, sold: ed.get(w.id) || 0 })).sort((a, b) => b.earned - a.earned || b.seen30 - a.seen30 || b.seen - a.seen).slice(0, 12);
     const recent = db.prepare(`SELECT l.*, w.title, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE ${paid} ORDER BY l.id DESC LIMIT 6`).all();
     // The house's desk (Will, 24 Oct, "do it": the same shell as the maker's): the line and three columns, one verb a row.
     let desk = null;
