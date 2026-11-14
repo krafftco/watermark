@@ -27,8 +27,17 @@
     [].forEach.call(thumbs.children, function (t, k) { var on = k === pr[0] || k === pr[1]; t.classList.toggle('on', on); if (k === i && t.scrollIntoView) { try { t.scrollIntoView({ inline: 'center', block: 'nearest', behavior: push ? 'smooth' : 'auto' }); } catch (e) { } } });
     $('[data-vlm-prev]').disabled = pr[0] === 0; $('[data-vlm-next]').disabled = (pr[1] >= 0 ? pr[1] : pr[0]) >= N - 1;
     try { history.replaceState(null, '', '/volume/' + D.slug + (i ? '?p=' + (i + 1) : '')); } catch (e) { }
+    leaf(pr);
     var last = pr[1] >= 0 ? pr[1] : pr[0]; ready(last + 1); ready(last + 2); ready(pr[0] - 1); if (wide()) { ready(last + 3); ready(pr[0] - 2); }
   }
+  // Beside the page (#37): About on the first page (or whenever About is pressed), Written on this leaf on a paired page.
+  var lf = $('[data-vlf]'), abt = $('[data-vlf-abt]'), ab = false;
+  function leaf(pr) {
+    if (!lf) return; var on = 0;
+    [].forEach.call(lf.querySelectorAll('[data-vlf-p]'), function (s) { var k = +s.getAttribute('data-vlf-p') - 1, vis = k === pr[0] || k === pr[1] || (ab && s.hasAttribute('data-vlf-about')); s.hidden = !vis; if (vis) on++; });
+    lf.hidden = !on;
+  }
+  if (abt) abt.addEventListener('click', function () { ab = !ab; abt.setAttribute('aria-expanded', ab ? 'true' : 'false'); leaf(pair()); if (ab && lf) { var s = lf.querySelector('[data-vlf-about]'); if (s) s.scrollIntoView({ block: 'nearest' }); } });
   function turn(d) {
     var pr = pair(), last = pr[1] >= 0 ? pr[1] : pr[0], to = d > 0 ? last + 1 : pr[0] - 1;
     if (to < 0 || to >= N) { stage.classList.add('vlm-end'); setTimeout(function () { stage.classList.remove('vlm-end'); }, 300); return; }

@@ -245,11 +245,11 @@ function sectionNav(nb, c, ci) {
   return `<nav class="rdo" aria-label="In this section"><p class="rdo-k" aria-hidden="true">In this section</p><ul class="rdo-ol">${h}</ul></nav>`;
 }
 // One chapter's body, as the reader sets it. `pix` is the reader's pictures-in-the-text (looked up by the old place).
-function render(nb, ci, pix) {
+function render(nb, ci, pix, links) {
   const c = nb.chapters[ci]; const { F, H } = nb;
   const P = (i, cls, tag = 'p') => (F[i].oj >= 0 && pix ? pix.before(F[i].oc, F[i].oj) : '') + `<${tag}${cls ? ` class="${cls}"` : ''}>${H[i]}</${tag}>` + (F[i].oj >= 0 && pix ? pix.after(F[i].oc, F[i].oj) : '');
   if (c.kind === 'front') return (ci === 0 ? `<p class="rdo-kind">${KIND}</p>` : '') + c.items.map((it, k) => P(it.i, k === 0 ? 'rdr-first' : '')).join('');
-  if (c.kind === 'contents') return `<nav class="rdo rdo-con" aria-label="${esc(c.head)}">${contents(nb, c, ci)}</nav>`;
+  if (c.kind === 'contents') return `${msLink(nb, '')}<nav class="rdo rdo-con" aria-label="${esc(c.head)}">${contents(nb, c, ci)}</nav>`;
   const parts = c.parts > 0; const lv = { part: 3, topic: parts ? 4 : 3 }; let inTopic = false;
   let h = sectionNav(nb, c, ci);
   for (const b of c.blocks) {
@@ -260,7 +260,7 @@ function render(nb, ci, pix) {
     else if (b.k === 'fn') h += fn(b, P);
     else if (b.k === 'note') {
       const hl = Math.min(6, inTopic ? lv.topic + 1 : (parts ? 4 : 3));
-      h += `<div class="rdo-note" id="n${b.n}"><p class="rdo-no">${b.n}</p>${b.items.map(it => it.k === 'h' ? P(it.i, 'rdo-lh', `h${hl}`) : it.k === 't' ? P(it.i) : it.k === 'fn' ? fn(it, P) : `<p class="rdo-src"><span class="rdo-lab">Manuscript</span> ${it.mm.name ? `${esc(it.mm.name)}${it.mm.folio ? `, ${esc(it.mm.folio)}` : ''} <span class="rdo-orig">(${esc(it.mm.line)})</span>` : esc(it.mm.line)}</p>`).join('')}</div>`;
+      h += `<div class="rdo-note" id="n${b.n}"><p class="rdo-no">${b.n}</p>${b.items.map(it => it.k === 'h' ? P(it.i, 'rdo-lh', `h${hl}`) : it.k === 't' ? P(it.i) : it.k === 'fn' ? fn(it, P) : `<p class="rdo-src"><span class="rdo-lab">Manuscript</span> ${it.mm.name ? `${esc(it.mm.name)}${it.mm.folio ? `, ${esc(it.mm.folio)}` : ''} <span class="rdo-orig">(${esc(it.mm.line)})</span>` : esc(it.mm.line)}${links ? (lf => lf ? seeLeaf(links.get(`${lf.key}\u0000${lf.leaf}`)) : '')(leafOf(it.mm)) : ''}</p>`).join('')}</div>`;
     }
   }
   return h;
@@ -290,6 +290,90 @@ function place(nb, query, at) {
   if (q) { const k = nb.text.findIndex(x => x.includes(q)); if (k >= 0) return { at: k, note: null, asked: true }; }
   return { at: Math.min(max, nb.remap[Math.min(c, nb.remap.length - 1)] || 0), note: null, asked: true };
 }
+// ---- By manuscript (#37; Will, 13–14 Nov: "even the codexes, how can we show them beautifully and help people understand
+// what they are looking at"). A second way through the book: every manuscript Richter cites, its leaves in order, the
+// notes written on each. Read from the manuscript lines stage 1 already parsed ({ ms, name, folio }), never from the
+// text again: `byMs(nb)` is built once per built book and kept on it, so a request only joins strings.
+//   The key: the abbreviation as a slug ('C.A.' → 'ca', 'Leic.' → 'leic'), with a roman or letter part that stands
+//   before the leaf ('S.K.M. III. 1b' → 'skm-iii', 'W.A.II.5b' → 'w-a-ii'): Forster III is not Forster I. The leaf: a
+//   number with a or b, r or v ('172b'), Richter's own text kept as its label; ordered by the number, then a before b
+//   and r before v. A line with two numbers ('C.A. 172b; 516b') keeps both as written and is keyed by the first. A line
+//   that does not read this way ('F1. Uff.', 'W. XII.', 'L. Ib') is listed under Other with its text: never dropped,
+//   never guessed.
+const LEAF = /^(\d{1,4})\s*([abrv])?$/i;
+const QUAL = /^([IVX]{1,6}|[A-Z])\s*\.\s*(?=\S)|^([IVX]{1,6})\s+(?=\d)/;
+const compact = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+function leafOf(mm) {
+  if (!mm) return null; if (mm._lf !== undefined) return mm._lf;
+  let r = null;
+  if (mm.ms && mm.folio) {
+    let rest = String(mm.folio).trim().replace(/\.\s*$/, '').trim(); const quals = []; let q;
+    while ((q = rest.match(QUAL)) && quals.length < 3) { quals.push(q[1] || q[2]); rest = rest.slice(q[0].length).trim(); }
+    const parts = rest.split(/\s*;\s*/); const first = parts[0].match(LEAF);
+    if (first && parts.slice(1).every(x => LEAF.test(x))) {
+      const side = first[2] ? ({ a: 1, r: 1, b: 2, v: 2 })[first[2].toLowerCase()] : 0;
+      r = { key: [compact(mm.ms), ...quals.map(x => x.toLowerCase())].join('-'), abbr: `${mm.ms}${quals.length ? ' ' + quals.map(x => x + '.').join(' ') : ''}`, name: `${mm.name}${quals.length ? ', ' + quals.join(' ') : ''}`, leaf: `${+first[1]}${first[2] ? first[2].toLowerCase() : ''}`, label: parts[0], num: +first[1], side, also: parts.slice(1) };
+    }
+  }
+  try { Object.defineProperty(mm, '_lf', { value: r, enumerable: false }); } catch (e) { /* */ }
+  return r;
+}
+const plainOf = h => String(h || '').replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, (x, k) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[k]).replace(/\s+/g, ' ').trim();
+const cut = (s, n) => s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, '') + '…';
+// A note in a line: Leonardo's heading if it has one, else its first words.
+function gist(nb, n) {
+  const v = nb.notes.get(n); if (!v) return { head: false, text: '' };
+  const h = v.note.items.find(it => it.k === 'h'); if (h) return { head: true, text: cut(plainOf(nb.H[h.i]), 110) };
+  const t = v.note.items.find(it => it.k === 't'); return { head: false, text: t ? cut(plainOf(nb.H[t.i]), 90) : '' };
+}
+const msOrder = m => m.name.replace(/^the\s+/i, '');
+function byMs(nb) {
+  if (!nb) return null; if (nb.byMs) return nb.byMs;
+  const mss = new Map(); const other = new Map();
+  for (const n of [...nb.notes.keys()].sort((a, b) => a - b)) {
+    for (const mm of nb.notes.get(n).note.ms) {
+      const lf = leafOf(mm);
+      if (!lf) { const k = mm.line; if (!other.has(k)) other.set(k, { line: k, notes: [] }); const o = other.get(k); if (!o.notes.includes(n)) o.notes.push(n); continue; }
+      if (!mss.has(lf.key)) mss.set(lf.key, { key: lf.key, abbr: lf.abbr, name: lf.name, leaves: new Map(), notes: 0 });
+      const m = mss.get(lf.key);
+      if (!m.leaves.has(lf.leaf)) m.leaves.set(lf.leaf, { leaf: lf.leaf, label: lf.label, num: lf.num, side: lf.side, notes: [] });
+      const L = m.leaves.get(lf.leaf); if (L.notes.some(x => x.n === n)) continue;
+      L.notes.push({ n, line: mm.line, also: lf.also, ...gist(nb, n) }); m.notes++;
+    }
+  }
+  const list = [...mss.values()].map(m => ({ ...m, leaves: [...m.leaves.values()].sort((a, b) => a.num - b.num || a.side - b.side || a.label.localeCompare(b.label)) }))
+    .sort((a, b) => msOrder(a).localeCompare(msOrder(b), 'en', { sensitivity: 'base' }) || a.key.localeCompare(b.key, 'en', { numeric: true }));
+  const index = new Map(list.map(m => [m.key, m]));
+  const find = s => { const c = compact(s); if (!c) return null; return index.get(String(s).trim().toLowerCase()) || list.find(m => compact(m.key) === c || compact(m.abbr) === c) || null; };
+  const notesOn = (key, leaf) => { const m = index.get(key); const L = m && m.leaves.find(x => x.leaf === leaf); return L ? { m, L } : null; };
+  nb.byMs = { list, other: [...other.values()], index, find, notesOn };
+  return nb.byMs;
+}
+const hasMs = nb => !!(nb && byMs(nb).list.length);
+const leafKey = s => { const m = String(s || '').trim().match(LEAF); return m ? `${+m[1]}${m[2] ? m[2].toLowerCase() : ''}` : null; };
+// The page itself: the index of manuscripts, or one manuscript's leaves. `links` (leaves.js) says which leaves have a
+// page in an open volume; `u` the book's address. Every sentence here is a DRAFT for Will.
+const MS_LEDE = 'The notes gathered by the manuscript and leaf Richter gives for each. The leaf numbers are his.'; // DRAFT for Will
+const MS_OTHER = 'Lines not read as a manuscript and a leaf, as Richter wrote them.'; // DRAFT for Will
+const count = (n, one, many) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+function seeLeaf(ps) {
+  if (!ps || !ps.length) return '';
+  const [a, ...more] = ps;
+  return `<span class="rdm-see"><a href="${esc(a.href)}">See the leaf</a> · <a href="${esc(a.study)}">Study</a>${a.unsure ? ' · <span class="rdm-un">unsure</span>' : ''}${more.map(x => ` · <a href="${esc(x.href)}">also page ${x.p}</a>${x.unsure ? ' <span class="rdm-un">unsure</span>' : ''}`).join('')}</span>`;
+}
+function msPage(nb, { u, key, links }) {
+  const X = byMs(nb); const m = key && key !== 'other' ? X.index.get(String(key)) : null;
+  const noteLi = (x, extra = '') => `<li><a href="${u}?n=${x.n}"><b class="rdm-n">${x.n}</b> <span class="${x.head ? 'rdm-h' : 'rdm-t'}">${esc(x.text || '')}</span></a>${extra}</li>`;
+  if (m) {
+    return `<p class="rdm-up"><a href="${u}?by=ms">All manuscripts</a></p><h1 class="rdm-t1">${esc(m.name)} <span class="rdm-ab">${esc(m.abbr)}</span></h1><p class="rdm-ct">${count(m.leaves.length, 'leaf', 'leaves')} · ${count(m.notes, 'note', 'notes')}</p>`
+      + m.leaves.map((L, k) => `<section class="rdm-lf" aria-labelledby="rdm-l${k}"><h2 id="rdm-l${k}"><span class="rdm-lk">Leaf</span> ${esc(L.label)}</h2>${links ? (s => s ? `<p class="rdm-sl">${s}</p>` : '')(seeLeaf(links.get(`${m.key}\u0000${L.leaf}`))) : ''}<ul class="rdm-ns">${L.notes.map(x => noteLi({ ...x, n: x.n }, x.also && x.also.length ? ` <span class="rdm-also">with ${esc(x.also.join('; '))}</span>` : '')).join('')}</ul></section>`).join('');
+  }
+  if (key === 'other' && X.other.length) {
+    return `<p class="rdm-up"><a href="${u}?by=ms">All manuscripts</a></p><h1 class="rdm-t1">Other</h1><p class="rdm-ct">${esc(MS_OTHER)}</p><ul class="rdm-ot">${X.other.map(o => `<li><span class="rdm-line">${esc(o.line)}</span><span class="rdm-on">${o.notes.map(n => `<a href="${u}?n=${n}" aria-label="Note ${n}">${n}</a>`).join(', ')}</span></li>`).join('')}</ul>`;
+  }
+  return `<h1 class="rdm-t1">By manuscript</h1><p class="rdm-ld">${esc(MS_LEDE)}</p><ul class="rdm-ix">${X.list.map(x => `<li><a href="${u}?by=ms&amp;ms=${esc(x.key)}"><b>${esc(x.name.charAt(0).toUpperCase() + x.name.slice(1))}</b> <span class="rdm-ab">${esc(x.abbr)}</span></a><span class="rdm-ct">${count(x.leaves.length, 'leaf', 'leaves')} · ${count(x.notes, 'note', 'notes')}</span></li>`).join('')}${X.other.length ? `<li class="rdm-oi"><a href="${u}?by=ms&amp;ms=other"><b>Other</b></a><span class="rdm-ct">${count(X.other.reduce((s, o) => s + o.notes.length, 0), 'line', 'lines')}</span></li>` : ''}</ul>`;
+}
+const msLink = (nb, u) => hasMs(nb) ? `<p class="rdm-to"><a href="${u}?by=ms">By manuscript</a><span>the notes by the manuscript and leaf they were written on</span></p>` : ''; // DRAFT for Will
 function note(nb, n) { const v = nb && nb.notes.get(+n); return v ? { n: +n, chapter: v.chapter, section: v.sec.no, ms: v.note.ms.map(m => ({ ms: m.ms, name: m.name, folio: m.folio, line: m.line })) } : null; }
 const goField = nb => `<form class="rdo-go" method="get" data-rd-go><label for="rdo-go-n">Go to note</label><input id="rdo-go-n" name="n" type="number" inputmode="numeric" min="1" max="${Math.max(...nb.notes.keys())}" placeholder="548" required><button type="submit">Go</button><p class="rdo-go-say" data-rd-go-say role="status"></p></form>`;
-module.exports = { OFF, parse, runs, numbers, manuscript, detect, build, book, render, place, note, goField, KIND, LABEL, CACHE };
+module.exports = { OFF, parse, runs, numbers, manuscript, detect, build, book, render, place, note, goField, KIND, LABEL, CACHE, leafOf, byMs, hasMs, leafKey, msPage, msLink, seeLeaf, MS_LEDE, MS_OTHER };
