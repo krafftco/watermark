@@ -9,7 +9,7 @@
   // A book of numbered notes (#35) is set in its own chapters (R.lay); a place kept under the old chaptering is carried
   // to where that old chapter's first line now stands (R.remap), never lost and never an error.
   var cq = function (i) { return '?c=' + i + (R.lay ? '&l=' + R.lay : ''); };
-  var carry = function (o) { if (R.lay && o && o.c != null && o.lay !== R.lay) { o.c = (R.remap && R.remap[o.c] != null) ? R.remap[o.c] : 0; o.y = 0; o.lay = R.lay; } return o; };
+  var carry = function (o) { if (R.lay && o && o.c != null && o.lay !== R.lay) { var m = o.lay === 'n1' && R.remap1 && R.remap1.length ? R.remap1 : R.remap; o.c = (m && m[o.c] != null) ? m[o.c] : 0; o.y = 0; o.lay = R.lay; } return o; };
   carry(S);
   var pref = {}; try { pref = JSON.parse(localStorage.getItem('wm_read_pref') || '{}'); } catch (e) { pref = {}; }
   var html = document.documentElement, at = R.at, cover = main.querySelector('[data-rd-cover]'), page = main.querySelector('[data-rd-page]');
@@ -223,12 +223,16 @@
   if (R.from && cover.hidden) setTimeout(function () { say(R.from + ' sent you this' + (R.q ? ' passage.' : ' book.') + (R.kept ? ' It is on your shelf.' : '')); }, 600);
   if (R.q) { if (!cover.hidden) { /* the cover shows who sent it; Begin opens at the passage */ var bb = main.querySelector('[data-rd-begin]'); if (bb) bb.addEventListener('click', function () { setTimeout(light, 400); }, { once: true }); } else setTimeout(light, 200); }
   apply(); prog(); paintRib(); if (cover.hidden) face(at);
-  if (cover.hidden && R.note) toNote(R.note, at); else if (cover.hidden && /^#n\d+$/.test(location.hash)) toNote(location.hash.slice(1), at);
+  if (cover.hidden && R.note) { toNote(R.note, at); if (R.within) setTimeout(function () { say(R.within); }, 500); } else if (cover.hidden && /^#n\d+$/.test(location.hash)) toNote(location.hash.slice(1), at);
   // Go to note: a number, Enter; the note is on the page already, in whichever chapter.
   var gf = main.querySelector('[data-rd-go]');
   if (gf) gf.addEventListener('submit', function (e) {
     e.preventDefault(); var n = parseInt(gf.querySelector('input').value, 10), el = document.getElementById('n' + n), say = gf.querySelector('[data-rd-go-say]');
+    // A number with no line of its own (Richter's "(453-457)" over one note): the nearest lower note, and said so.
+    var k = n, within = '';
+    if (!el && n > 0) { for (k = n - 1; k > 0 && n - k <= 200 && !document.getElementById('n' + k); k--) { /* */ } el = k > 0 ? document.getElementById('n' + k) : null;
+      if (el) { var up = n + 1; while (up < n + 400 && !document.getElementById('n' + up)) up++; var box = el.closest('.rdo-note'); within = 'Note ' + n + ' is within ' + (box ? box.id.slice(1) : k) + '\u2013' + (up - 1) + '.'; } }
     if (!el) { if (say) say.textContent = 'There is no note ' + (n || '') + ' in this book.'; return; }
-    if (say) say.textContent = ''; var s = el.closest('.rdr-ch'); toNote('n' + n, +s.getAttribute('data-ch'));
+    if (say) say.textContent = within; var s = el.closest('.rdr-ch'); toNote(el.id, +s.getAttribute('data-ch')); if (within) setTimeout(function () { say(within); }, 300);
   });
 })();

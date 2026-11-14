@@ -5824,3 +5824,4 @@ html.rdp{--rdo-mute:color-mix(in srgb,var(--rd-mute,#7a716a) 72%,var(--rd-ink,#1
 @media (min-width:900px){.vlf-row{flex-direction:row}.vlf-row>.vlf{flex:0 0 340px;max-height:none;border-top:0;border-left:1px solid #2a2622;padding:16px 22px}}
 .vlf-dk{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:6px;border-top:1px dotted var(--line,#e4dfd5);font-size:12px}.vlf-dk form{margin:0}.vlm-dk .vlf-dk input,.vlm-dk .vlf-dk select{width:100%;margin:0;font-size:13px}.vlm-dk .vlf-tk{display:flex;gap:6px;align-items:center}.vlm-dk .vlf-tk input{display:inline;width:auto}.vlf-dk button{justify-self:start;align-self:flex-start;font-size:13px;min-height:28px}
 .vlm-dk textarea{display:block;width:100%;margin:0 0 6px;font:inherit;font-size:14px}
+.rdr-ch .rdo-ns{white-space:nowrap}.rdr-ch .rdo-note:focus,.rdr-ch .rdo-note:focus-visible{outline:1px solid var(--rd-rule);outline-offset:6px;border-radius:2px}
