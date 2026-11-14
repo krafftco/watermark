@@ -18,7 +18,7 @@ const more = [
   '785.', 'The text of note 785.', 'W.A.II.5b]',
   '786.', 'The text of note 786.', 'C.A. 172b]',
 ].join('\n\n');
-const full = body + '\n\n' + more;
+const full = body.replace('F1. Uff.]', 'F1. Uff.]\n\n' + more); // after note 775, inside XIII (#40: the book now runs on to XXII)
 const bare = full.split('\n\n').filter(p => !/\]$/.test(p) || /^\[|Footnote|Pl\./.test(p)).join('\n\n');
 
 (async () => {
@@ -43,9 +43,9 @@ const bare = full.split('\n\n').filter(p => !/\]$/.test(p) || /^\[|Footnote|Pl\.
     assert.ok(/<main class="rdr rdm">/.test(r.h) && r.h.includes(OL.MS_LEDE), 'the index, in the reader');
     const ix = [...r.h.matchAll(/<li><a href="\/read\/notebooks\?by=ms&amp;ms=([a-z0-9-]+)"><b>([^<]+)<\/b> <span class="rdm-ab">([^<]+)<\/span><\/a><span class="rdm-ct">([^<]+)<\/span>/g)].map(m => [m[1], m[3], m[4]]);
     assert.deepStrictEqual(ix.map(x => x[0]), ['ash-ii', 'ca', 'leic', 'skm-i', 'skm-iii', 'b', 'l', 'w-a-ii', 'w-p'], 'every manuscript, spelled out, in order of name: ' + JSON.stringify(ix));
-    assert.deepStrictEqual(ix.find(x => x[0] === 'ca'), ['ca', 'C.A.', '4 leaves · 6 notes'], 'C.A.: 9b, 10a, 117a, 172b');
+    assert.deepStrictEqual(ix.find(x => x[0] === 'ca'), ['ca', 'C.A.', '4 leaves · 7 notes'], 'C.A.: 9b, 10a, 117a (twice since #40: "C. A. 117a; 361a]" under XX), 172b');
     assert.ok(/<b>Codex Atlanticus<\/b>/.test(r.h) && /<b>The Forster codices \(South Kensington Museum\), III<\/b>/.test(r.h), 'spelled out with the abbreviation');
-    assert.ok(/ms=other"><b>Other<\/b><\/a><span class="rdm-ct">2 lines<\/span>/.test(r.h), 'Other: F1. Uff. and W. XII.');
+    assert.ok(/ms=other"><b>Other<\/b><\/a><span class="rdm-ct">4 lines<\/span>/.test(r.h), 'Other: F1. Uff., W. XII. and (#40) L. o\' and L. Ia');
     r = await get('/read/notebooks?by=ms&ms=ca');
     const leaves = [...r.h.matchAll(/<h2 id="rdm-l\d+"><span class="rdm-lk">Leaf<\/span> ([^<]+)<\/h2>/g)].map(m => m[1]);
     assert.deepStrictEqual(leaves, ['9b', '10a', '117a', '172b'], 'leaves in natural order: ' + JSON.stringify(leaves));
@@ -59,7 +59,7 @@ const bare = full.split('\n\n').filter(p => !/\]$/.test(p) || /^\[|Footnote|Pl\.
     r = await get('/read/notebooks?by=ms&ms=l'); assert.ok(r.h.includes('The text of note 784 &lt;with a bracket&gt; &amp; an ampersand.'), 'escaped');
     r = await get('/read/notebooks?by=ms&ms=nope'); assert.strictEqual(r.status, 200); assert.ok(r.h.includes(OL.MS_LEDE), 'an unknown key is the index, never an error');
     r = await get('/read/notebooks?c=0&l=n1'); assert.ok(/<p class="rdm-to"><a href="\?by=ms">By manuscript<\/a>/.test(r.h), 'reached from the contents');
-    const con = r.h.match(/<section class="rdr-ch" data-ch="1"[\s\S]*?<\/section>\s*<section/)[0]; assert.ok(con.includes('href="?by=ms"'), 'and from the contents chapter');
+    const con = r.h.match(/<section class="rdr-ch" data-ch="\d+"[^>]*>(?:(?!<section class="rdr-ch")[\s\S])*?aria-label="Contents of Volume 1"[\s\S]*?<\/section>\s*<section/)[0]; // the contents chapter, wherever it stands (#40) assert.ok(con.includes('href="?by=ms"'), 'and from the contents chapter');
     // A book without manuscript lines: no By manuscript, and ?by=ms is the book as ever.
     r = await get('/read/bare-notes?c=0&l=n1'); assert.ok(/rdo-note/.test(r.h), 'still a book of numbered notes'); assert.ok(!r.h.includes('by=ms'), 'no By manuscript');
     r = await get('/read/bare-notes?by=ms'); assert.ok(!r.h.includes('rdm') && /<main class="rdr/.test(r.h), 'the address is the book');

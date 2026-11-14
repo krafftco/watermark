@@ -15,6 +15,17 @@
 //   AI is asked; nothing walks the library.
 //   The seam for later (stage 2, not built): `note(n)` on a built book → { n, chapter, ms: [{ ms, name, folio, line }] },
 //   exposed as `app.locals.bookNotes.note(slug, n)` (reading.js), so a note can be joined to a codex page in Volumes.
+// #40 (14 Nov, the real book read against stage 1): the chapters follow the text's own shapes. Each volume's contents
+//   is a zone, from "CONTENTS…" (or the volume's title page) to its last synopsis before the next note: a numeral there is
+//   an entry, never a section. A section is a numeral with a mixed-case title that is exactly the next section; a part a
+//   numeral with a line in capitals, inside the section. A bare range line "(279. 280)." opens those notes together, one
+//   block anchored for each number that has no line of its own; a number joined to its text ("13. From the character…")
+//   is a note only when it is exactly the next, its own number never stands bare, the note before has no footnote, and
+//   the text reads as a note's. A footnote never runs across a note's number, a numeral, a range line or a capital
+//   heading. A number with no anchor goes to the nearest lower note, and the reader is told ("within 453–457"). A
+//   manuscript line is read by its shape (a known abbreviation and a leaf), never as any short line ending "]".
+//   lay 'n2'. Places kept under 13 Nov's chaptering (lay 'n1') are carried by running that build, frozen in
+//   outline-n1.js, once per built book: each old chapter goes to where its first line now stands.
 const OFF = { off: false }; // the test sets it to compare the reader with all of this away
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const NUM = /^\d{1,4}(?:\s*(?:\.|,|—|–|-{1,2})\s*\d{1,4})*\.?$/;
@@ -69,7 +80,6 @@ const MSS = [
   [/^C\.\s?A\.\s*/, 'C.A.', 'Codex Atlanticus'], [/^Br\.\s?M\.\s*/, 'Br. M.', 'Codex Arundel (British Museum)'], [/^S\.\s?K\.\s?M\.\s*/, 'S.K.M.', 'the Forster codices (South Kensington Museum)'],
   [/^Leic\.\s*/, 'Leic.', 'Codex Leicester'], [/^Ash\.\s*/, 'Ash.', 'Ashburnham'], [/^Tr\.\s*/, 'Tr.', 'Codex Trivulzianus'], [/^W\.\s*/, 'W.', 'Windsor'],
 ];
-const isSrc = p => p.length <= 48 && /\]$/.test(p) && !/\[/.test(p) && /^[A-Z][A-Za-z0-9]*\./.test(p);
 function manuscript(line) {
   const orig = String(line).replace(/\]\s*$/, '').trim();
   for (const [re, ms, name] of MSS) { const m = orig.match(re); if (m) return { ms, name, folio: orig.slice(m[0].length).trim(), line: orig }; }
@@ -89,69 +99,104 @@ function detect(F) {
   let secs = 0; for (let i = 0; i < F.length - 1; i++) if (BROMAN.test(F[i].t) && F[i + 1].t.length <= 200 && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t)) secs++;
   return secs >= 3;
 }
+// The shapes of the real text (#40, read against the live page on 14 Nov).
+const CONTENTS = /^_*contents\b/i;
+const HEADLINE = /^_*([IVXLC]+)\._*\s+(\S[\s\S]{1,200})$/; // a numeral and its title in one paragraph
+const RANGEP = /^_?\(\s*([\dl][\dl\s.,—–-]*)\)\s*\.?_?$/; // a bare range line: "(279. 280).", "(355-361).", "(1379-l413)."
+const synLike = p => /\(\s*\d[^()]*\)\s*\.?\s*(?:—|--)/.test(p) || !!parse(p, 1);
+// A manuscript line by its shape: a known abbreviation, then a leaf (a number, a roman part, or Richter's o' and the like).
+const SRC_AB = /^(?:C\.\s?A\.|Br\.\s?M\.|S\.\s?K\.\s?M\.|Leic\.|Ash\.|Tr\.|Triv\.|W\.|F[l1]\.|[A-M]\.|[A-Z][a-z]{1,4}\.)\s*/;
+const isSrc = p => { if (p.length > 48 || !/\]$/.test(p) || /\[/.test(p) || /\b[a-z]{5,}\b/.test(p)) return false; const m = p.match(SRC_AB); if (!m) return false; const rest = p.slice(m[0].length).replace(/\]$/, ''); return /\d|^[IVX]{1,5}[ab]?\b|[a-z]['"’”]|^[A-Z][a-z]{0,3}\./.test(rest); };
+function expand(s) {
+  const t = String(s).replace(/l/g, '1'); const out = [];
+  for (const part of t.split(/\s*[.,]\s*/).filter(Boolean)) { const m = part.match(/^(\d{1,4})(?:\s*(?:—|–|-{1,2})\s*(\d{1,4}))?$/); if (!m) return null; const a = +m[1], b = m[2] ? +m[2] : a; if (b < a || b - a > 60) out.push(a); else for (let k = a; k <= b; k++) out.push(k); }
+  return out.length ? out : null;
+}
+const SMALLW = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'to', 'by', 'for', 'with', 'from', 'as']);
+const titled = s => String(s).toLowerCase().replace(/(^|[\s(—-])([a-z][a-z’']*)/g, (m, pre, w, off) => pre + (off > 0 && SMALLW.has(w) ? w : w[0].toUpperCase() + w.slice(1)));
 function build(t, chs) {
   const F = flatten(chs); if (!detect(F)) return null;
-  const kind = new Array(F.length).fill(null); // what each paragraph is, for setting: 'p','syn','intro','h','t','fn','src','skip'
+  const kind = new Array(F.length).fill(null); // 'p','intro','h','t','fn','src','skip'
   const clean = F.map(x => x.t);
-  // Volumes.
+  const bare = new Set(); F.forEach(x => { const m = x.t.match(BNUM); if (m) bare.add(+m[1]); });
+  // Volumes: a "Volume N" paragraph opens one; the first volume may have none.
   const vols = []; F.forEach((x, i) => { if (VOL.test(x.t)) vols.push(i); });
-  const ranges = []; { let s = 0; for (const v of vols) { if (v > s) ranges.push([s, v, ranges.length ? F[s].t : null]); s = v; } ranges.push([s, F.length, ranges.length ? F[s].t : null]); }
-  if (ranges.length && vols[0] === 0) ranges[0][2] = F[0].t;
+  const ranges = []; { let s = 0; for (const v of vols) { if (v > s) ranges.push([s, v, vols.includes(s)]); s = v; } ranges.push([s, F.length, vols.includes(s)]); }
   const chapters = []; const notes = new Map(); const secByNo = new Map(); const topicNames = new Set(); const entries = [];
-  let lastNote = 0, lastSec = 0;
-  for (const [s0, e, volHead] of ranges) {
-    let s = s0; const vno = chapters.filter(c => c.kind === 'front').length + 1;
-    if (volHead) { kind[s] = 'skip'; s++; }
-    // The contents: the first cluster of synopses in the volume.
-    const syn = []; for (let i = s; i < e; i++) { if (BNUM.test(F[i].t) && syn.length) break; const sp = parse(F[i].t, 1); if (sp) { if (syn.length && i - syn[syn.length - 1].i > 6) break; syn.push({ i, sp }); } }
-    let cStart = -1, cEnd = s;
-    if (syn.length) {
-      cStart = syn[0].i; if (cStart - 1 >= s && F[cStart - 1].t.length <= 160 && !BNUM.test(F[cStart - 1].t)) { cStart--; if (!BROMAN.test(F[cStart].t) && cStart - 1 >= s && BROMAN.test(F[cStart - 1].t)) cStart--; }
-      cEnd = syn[syn.length - 1].i + 1;
+  let lastNote = 0, lastSec = 0, sec = null, note = null, topic = null, intro = false, pendSrc = [];
+  const firstBare = (a, e) => { for (let i = a; i < e; i++) if (BNUM.test(F[i].t)) return i; return e; };
+  for (const [s, e, hasVol] of ranges) {
+    const vno = vols.indexOf(s) + 1 || 1;
+    // The contents zone: from "CONTENTS…" (or, after a volume's title page, the first numeral or synopsis) to the
+    // last synopsis before the first note that follows. Inside it a numeral is an entry, never a section.
+    const fb = firstBare(s, e); let cz = -1;
+    for (let i = s; i < fb; i++) if (CONTENTS.test(F[i].t)) { cz = i; break; }
+    if (cz < 0 && hasVol) for (let i = s + 1; i < fb; i++) if (BROMAN.test(F[i].t) || synLike(F[i].t)) { cz = i; break; }
+    let zEnd = cz; if (cz >= 0) for (let i = cz; i < fb; i++) if (synLike(F[i].t)) zEnd = i + 1;
+    if (cz >= 0 && zEnd === cz) cz = -1;
+    // Before it: the front matter (the first volume) or the volume's title page, each a chapter of its own.
+    // Without contents: the front runs to the first note, numeral or range line.
+    const fEnd = cz >= 0 ? cz : (() => { for (let i = s + (hasVol ? 1 : 0); i < e; i++) if (BNUM.test(F[i].t) || BROMAN.test(F[i].t) || HEADLINE.test(F[i].t) || RANGEP.test(F[i].t) || rangeLine(F[i].t)) return i; return e; })();
+    if (fEnd > s || hasVol) {
+      const front = { kind: 'front', head: hasVol ? strip_(F[s].t) : null, vol: vno, items: [] };
+      for (let i = s; i < fEnd; i++) { if (i === s && hasVol) { kind[i] = 'skip'; continue; } front.items.push({ k: 'p', i }); kind[i] = 'p'; }
+      chapters.push(front);
     }
-    const front = { kind: 'front', head: volHead ? strip_(volHead) : null, vol: vno, items: [] };
-    const fEnd = cStart >= 0 ? cStart : (() => { for (let i = s; i < e; i++) if (BNUM.test(F[i].t) || (BROMAN.test(F[i].t) && i + 1 < e)) return i; return e; })();
-    for (let i = s; i < fEnd; i++) { front.items.push({ k: 'p', i }); kind[i] = 'p'; }
-    if (front.items.length || volHead || !chapters.length) chapters.push(front);
-    if (cStart >= 0) {
-      const con = { kind: 'contents', head: ranges.length > 1 ? `Contents of Volume ${vno}` : 'Contents', vol: vno, entries: [], span: [cStart, cEnd] };
-      let ent = null; const isSyn = new Map(syn.map(x => [x.i, x.sp]));
-      for (let i = cStart; i < cEnd; i++) {
-        const p = F[i].t; kind[i] = 'skip';
-        if (isSyn.has(i)) { if (!ent) { ent = { no: null, title: null, syn: [] }; con.entries.push(ent); } ent.syn.push(...isSyn.get(i)); for (const r of isSyn.get(i)) if (r.topic) topicNames.add(norm(r.topic.replace(/_/g, ''))); continue; }
-        const r = p.match(BROMAN); if (r) { ent = { no: r[1], title: null, syn: [] }; con.entries.push(ent); continue; }
-        if (ent && !ent.syn.length) { ent.title = strip_(p).replace(/\.$/, ''); continue; }
-        if (!ent || ent.syn.length) { ent = { no: null, title: strip_(p).replace(/\.$/, ''), syn: [] }; con.entries.push(ent); }
+    let bodyFrom = s;
+    if (cz >= 0) {
+      const con = { kind: 'contents', head: (vols.length > 1 || hasVol) ? `Contents of Volume ${vno}` : 'Contents', vol: vno, entries: [], span: [cz, zEnd] };
+      let ent = null;
+      for (let i = cz; i < zEnd; i++) {
+        const p = F[i].t; kind[i] = 'skip'; if (CONTENTS.test(p)) continue;
+        const r = p.match(BROMAN); if (r) { ent = { no: r[1], title: null, syn: [], raw: [] }; con.entries.push(ent); continue; }
+        const hl = !synLike(p) && p.match(HEADLINE); if (hl) { ent = { no: hl[1], title: strip_(hl[2]).replace(/\.$/, ''), syn: [], raw: [] }; con.entries.push(ent); continue; }
+        if (synLike(p)) { if (!ent) { ent = { no: null, title: null, syn: [], raw: [] }; con.entries.push(ent); } const sp = parse(p, 1); if (sp) { ent.syn.push(...sp); for (const x of sp) if (x.topic) topicNames.add(norm(strip_(x.topic))); } else ent.raw.push(p); continue; }
+        if (ent && !ent.syn.length && !ent.raw.length) { ent.title = strip_(p).replace(/\.$/, ''); continue; }
+        ent = { no: null, title: strip_(p).replace(/\.$/, ''), syn: [], raw: [] }; con.entries.push(ent);
       }
-      con.entries = con.entries.filter(en => en.syn.length);
-      // A first entry without its numeral is section I (or the one after the last).
+      con.entries = con.entries.filter(en => en.syn.length || en.raw.length || en.title);
+      // An entry with no title of its own takes the first capital run of its synopsis (section I: "PROLEGOMENA…").
+      for (const en of con.entries) if (!en.title && en.syn.length && en.syn[0].part && !en.syn[0].no) en.title = titled(en.syn.shift().part);
       let k = lastSec; for (const en of con.entries) { if (en.no) k = roman(en.no); else { k++; en.no = toRoman(k); } }
       entries.push(...con.entries.map(en => ({ ...en, vol: vno })));
-      chapters.push(con);
-    }
-    // The body: sections, parts, topics, notes.
-    let sec = null, note = null, topic = null, intro = false, partSeen = false;
-    // The next entry's numeral, left at the foot of the contents ("X." when the contents go on no further), is not a section.
-    if (cStart >= 0 && cEnd < e && BROMAN.test(F[cEnd].t)) { const en = chapters[chapters.length - 1].entries; const lastNo = en.length ? roman(en[en.length - 1].no) : 0; if (roman(F[cEnd].t.match(BROMAN)[1]) === lastNo + 1) { kind[cEnd] = 'skip'; } }
-    const open = (no, title) => { sec = { kind: 'section', no, head: `${no}. ${title}`, title, vol: vno, blocks: [], parts: 0 }; chapters.push(sec); secByNo.set(no, sec); lastSec = roman(no); note = null; topic = null; intro = true; partSeen = false; };
-    // A number is the next note when it rises, and either follows closely or the next bare number follows it.
+      chapters.push(con); bodyFrom = zEnd;
+    } else if (fEnd > s) bodyFrom = fEnd;
+    // The body: sections (a numeral and a mixed-case title, exactly the next section), parts (a numeral and a line in
+    // capitals, restarting in each section), topics, notes.
+    const open = (no, title) => { sec = { kind: 'section', no, head: `${no}. ${title}`, title, vol: vno, blocks: [], parts: 0 }; chapters.push(sec); secByNo.set(no, sec); lastSec = roman(no); note = null; topic = null; intro = true; };
     const after = i => { for (let j = i + 1; j < e && j < i + 60; j++) { const m = F[j].t.match(BNUM); if (m) return +m[1]; } return null; };
-    const want = (n, i) => { if (n <= lastNote) return false; if (n <= lastNote + 80) return true; const a = after(i); return a != null && a > n && a <= n + 4; };
-    const nextIsNote = i => { const m = i < e && F[i].t.match(BNUM); return !!(m && want(+m[1], i)); };
-    for (let i = cEnd; i < e; i++) {
+    const want = (n, i) => { if (n <= lastNote || notes.has(n)) return false; if (n <= lastNote + 80) return true; const a = after(i); return a != null && a > n && a <= n + 4; };
+    const nextIsNote = i => { for (let j = i; j < e && j < i + 2; j++) { const m = F[j].t.match(BNUM); if (m) return want(+m[1], j); if (!RANGEP.test(F[j].t)) return false; return true; } return false; };
+    const structural = j => BNUM.test(F[j].t) || BROMAN.test(F[j].t) || RANGEP.test(F[j].t) || isCaps(F[j].t);
+    const newNote = (n, also, i) => { lastNote = Math.max(lastNote, n); note = { k: 'note', n, also: also || [], items: [], ms: [] }; sec.blocks.push(note); notes.set(n, { sec, note }); for (const a of note.also) notes.set(a, { sec, note }); if (topic) topic.notes.push(n); intro = false; if (pendSrc.length) { for (const x of pendSrc) { note.ms.push(x.mm); note.items.push(x); } pendSrc = []; } };
+    for (let i = bodyFrom; i < e; i++) {
       if (kind[i]) continue; const p = F[i].t;
-      const r = p.match(BROMAN);
-      if (r && i + 1 < e) {
-        const nx = F[i + 1].t;
-        if (isCaps(nx) && !BNUM.test(nx) && sec) { sec.blocks.push({ k: 'part', no: r[1], title: strip_(nx).replace(/\.$/, '') }); sec.parts++; kind[i] = kind[i + 1] = 'skip'; i++; note = null; topic = null; intro = false; partSeen = true; continue; }
-        if ((!sec || roman(r[1]) > roman(sec.no)) && nx.length <= 200 && !BNUM.test(nx) && !isCaps(nx)) { kind[i] = kind[i + 1] = 'skip'; open(r[1], strip_(nx).replace(/\.$/, '')); i++; continue; }
+      // A numeral heading: on its own line with its title after it, or both in one paragraph.
+      let hd = null; const r = p.match(BROMAN);
+      if (r && i + 1 < e && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t) && F[i + 1].t.length <= 200 && !synLike(F[i + 1].t)) hd = { no: r[1], title: F[i + 1].t, span: 2 };
+      else { const hl = !synLike(p) && p.length <= 210 && p.match(HEADLINE); if (hl && (isCaps(hl[2]) || /^[A-Z‘“'"_]/.test(hl[2]))) hd = { no: hl[1], title: hl[2], span: 1 }; }
+      if (hd) {
+        const caps = isCaps(hd.title);
+        if (!caps && roman(hd.no) === lastSec + 1) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; open(hd.no, strip_(hd.title).replace(/\.$/, '')); i += hd.span - 1; continue; }
+        if (caps && sec) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; sec.blocks.push({ k: 'part', no: hd.no, title: strip_(hd.title).replace(/\.$/, '') }); sec.parts++; i += hd.span - 1; note = null; topic = null; intro = false; continue; }
       }
       if (!sec) { const no = toRoman(lastSec + 1); const en = entries.find(x => x.no === no && x.vol === vno) || entries.find(x => x.no === no); open(no, en && en.title ? en.title : `Section ${no}`); }
+      // A note: its number alone on a line. A number joined to its text only when it is exactly the next, the note
+      // before has no footnote, its own number does not stand bare later, and the text reads as a note's.
       let m = p.match(BNUM), body = null;
-      if (!m) { const ro = p.match(RUNON); if (ro && +ro[1] === lastNote + 1 && +ro[1] >= 10) { m = ro; body = ro[2]; } }
+      if (!m) { const ro = p.match(RUNON); if (ro && +ro[1] === lastNote + 1 && !bare.has(+ro[1]) && note && !note.items.some(x => x.k === 'fn') && !/^(\d|[a-z]|\[Footnote|On the \d)/.test(ro[2])) { m = ro; body = ro[2]; } }
       if (m && want(+m[1], i)) {
-        const n = +m[1]; lastNote = n; note = { k: 'note', n, items: [], ms: [] }; sec.blocks.push(note); notes.set(n, { sec, note }); if (topic) topic.notes.push(n); intro = false;
+        newNote(+m[1], null, i);
         if (body != null) { clean[i] = body; note.items.push({ k: 't', i }); kind[i] = 't'; } else kind[i] = 'skip';
+        continue;
+      }
+      // A bare range line opens those notes together: one block, anchored for each number without its own line.
+      const rg = p.match(RANGEP);
+      if (rg) {
+        const ns = (expand(rg[1]) || []).filter(n => n > lastNote && !bare.has(n) && !notes.has(n));
+        kind[i] = 'skip';
+        if (ns.length) { newNote(ns[0], ns.slice(1), i); note.label = rg[1].replace(/l/g, '1').replace(/\s*-\s*/g, '–').replace(/\s*\.\s*/g, ', ').replace(/,\s*$/, ''); }
+        else { if (note) note.items.push({ k: 't', i }); else sec.blocks.push({ k: 'p', i }); kind[i] = note ? 't' : 'p'; }
         continue;
       }
       const rl = rangeLine(p);
@@ -163,19 +208,23 @@ function build(t, chs) {
       if (p.length <= 120 && (/\.$/.test(p) || F[i].h) && !/\d/.test(p) && /^[A-Z‘“'"_]/.test(p) && !isCaps(p) && nextIsNote(i + 1) && (topicNames.has(norm(strip_(p))) || !note)) {
         kind[i] = 'skip'; topic = { k: 'topic', text: p.replace(/\.$/, ''), ns: null, notes: [] }; sec.blocks.push(topic); note = null; intro = false; continue;
       }
-      if (/^\[Footnote/i.test(p) || /^_?\[Footnote/i.test(p)) {
-        const is = []; let j = i; for (; j < e && j < i + 12; j++) { is.push(j); kind[j] = 'fn'; if (/\]_?\s*$/.test(F[j].t)) break; }
+      // Richter's footnote: from "[Footnote" to the paragraph that ends "]"; never across a note's number, a numeral,
+      // a range line or a capital heading (an unclosed footnote must not swallow what follows it).
+      if (/^_?\[Footnote/i.test(p)) {
+        const is = [i]; kind[i] = 'fn'; let j = i;
+        if (!/\]_?\s*$/.test(p)) for (j = i + 1; j < e && j < i + 12 && !structural(j); j++) { is.push(j); kind[j] = 'fn'; if (/\]_?\s*$/.test(F[j].t)) break; }
         clean[i] = clean[i].replace(/^_?\[Footnote\s*([^:\]]*):?\s*/i, (x, ref) => ref ? `${ref.trim()}: ` : ''); clean[is[is.length - 1]] = clean[is[is.length - 1]].replace(/\](_?)\s*$/, '$1');
-        if (note) note.items.push({ k: 'fn', is }); else sec.blocks.push({ k: 'fn', is }); i = j; continue;
+        if (note) note.items.push({ k: 'fn', is }); else sec.blocks.push({ k: 'fn', is }); i = is[is.length - 1]; continue;
       }
+      if (isSrc(p)) { const mm = manuscript(p); kind[i] = 'src'; if (note) { note.ms.push(mm); note.items.push({ k: 'src', i, mm }); } else pendSrc.push({ k: 'src', i, mm }); continue; }
       if (intro) { const last = sec.blocks[sec.blocks.length - 1]; if (last && last.k === 'intro') last.is.push(i); else sec.blocks.push({ k: 'intro', is: [i] }); kind[i] = 'intro'; continue; }
       if (note) {
-        if (isSrc(p)) { const mm = manuscript(p); note.ms.push(mm); note.items.push({ k: 'src', i, mm }); kind[i] = 'src'; continue; }
         if (isCaps(p) || (F[i].h && !/[.!?\]]$/.test(p))) { note.items.push({ k: 'h', i }); kind[i] = 'h'; continue; }
         note.items.push({ k: 't', i }); kind[i] = 't'; continue;
       }
       sec.blocks.push({ k: 'p', i }); kind[i] = 'p';
     }
+    if (pendSrc.length && sec) { for (const x of pendSrc) { sec.blocks.push({ k: 'p', i: x.i }); kind[x.i] = 'p'; } pendSrc = []; }
   }
   // The type of each paragraph: *word* and the source's _italics_, which may run across paragraphs, as emphasis. An
   // italic that has not closed within 60 paragraphs was a stray mark; no underscore reaches the page.
@@ -194,7 +243,7 @@ function build(t, chs) {
     on = st; H[k] = h.replace(/<\/em><em>/g, '');
   }
   // Which chapter holds each note, and the contents' entries joined to their sections.
-  const nb = { chapters, notes, F, H, kind, entries, lay: 'n1' };
+  const nb = { chapters, notes, F, H, kind, entries, lay: 'n2' };
   chapters.forEach((c, ci) => { c.ci = ci; });
   for (const [, v] of notes) v.chapter = v.sec.ci;
   for (const c of chapters) if (c.kind === 'contents') for (const en of c.entries) { const s = secByNo.get(en.no); en.ci = s ? s.ci : null; }
@@ -206,6 +255,13 @@ function build(t, chs) {
   for (let k = F.length - 1; k >= 0; k--) if (where[k] < 0) where[k] = k + 1 < F.length ? where[k + 1] : chapters.length - 1;
   const remap = []; for (let k = 0; k < F.length; k++) if (remap[F[k].oc] == null) remap[F[k].oc] = where[k];
   nb.remap = Array.from({ length: chs.length }, (_, k) => remap[k] == null ? 0 : remap[k]);
+  // Places saved under 13 Nov's chaptering (lay 'n1', one day of ribbons and links): that build, frozen in
+  // outline-n1.js, is run once here, and each of its chapters is carried to where its first line now stands.
+  try {
+    const old = require('./outline-n1').build(t, chs);
+    const first = c => { let m = Infinity; const see = i => { if (i != null && i < m) m = i; }; if (c.span) see(c.span[0]); for (const it of c.items || []) see(it.i); for (const b of c.blocks || []) { see(b.i); for (const x of b.is || []) see(x); for (const it of b.items || []) { see(it.i); for (const x of it.is || []) see(x); } } return m; };
+    nb.remap1 = old ? old.chapters.map(c => { const i = first(c); return Number.isFinite(i) ? where[i] : 0; }) : [];
+  } catch (e) { nb.remap1 = []; }
   nb.text = chapters.map(c => { const is = []; for (const it of c.items || []) is.push(it.i); for (const b of c.blocks || []) { if (b.i != null) is.push(b.i); is.push(...(b.is || [])); for (const it of b.items || []) { if (it.i != null) is.push(it.i); is.push(...(it.is || [])); } } return is.map(x => clean[x]).join(' ').replace(/[_*]/g, '').replace(/\s+/g, ' ').toLowerCase(); });
   return nb;
 }
@@ -214,9 +270,16 @@ function toRoman(n) { const T = [[100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], 
 function num(nb, at, item) {
   const [a, b] = item; const label = b == null ? String(a) : `${a}–${b}`;
   let n = null; if (nb.notes.has(a)) n = a; else if (b != null) for (let k = a + 1; k <= Math.min(b, a + 400); k++) if (nb.notes.has(k)) { n = k; break; }
-  if (n == null) return `<span class="rdo-n">${label}</span>`;
-  const c = nb.notes.get(n).chapter; const say = b == null ? `Note ${a}` : `Notes ${a} to ${b}`;
+  let say = b == null ? `Note ${a}` : `Notes ${a} to ${b}`;
+  if (n == null) { const w = within(nb, a, 60); if (!w) return `<span class="rdo-n">${label}</span>`; n = w.k; say += `, within ${w.k}–${w.up}`; }
+  const c = nb.notes.get(n).chapter;
   return `<a class="rdo-n" href="${noteHref(nb, c, at, n)}" data-rd-note="n${n}" data-rd-nc="${c}" aria-label="${say}">${label}</a>`;
+}
+// A number with no anchor of its own (Richter gave it no line: "(453-457)" over one note): the nearest lower note that
+// has one, and where the next begins, so the reader can be told "within 453–457". Null beyond `lim` numbers.
+function within(nb, n, lim) {
+  let k = n - 1; while (k > 0 && n - k <= lim && !nb.notes.has(k)) k--; if (!nb.notes.has(k)) return null;
+  let up = n + 1; while (up < n + 400 && !nb.notes.has(up)) up++; return { k: nb.notes.get(k).note.n, up: up - 1 };
 }
 const noteHref = (nb, c, at, n) => `${c === at ? '' : `?c=${c}&l=${nb.lay}`}#n${n}`;
 const rangeOf = tp => tp.ns ? tp.ns.map(x => x.length > 1 ? `${x[0]}–${x[1]}` : String(x[0])).join(', ') : tp.notes.length ? (tp.notes.length > 1 ? `${tp.notes[0]}–${tp.notes[tp.notes.length - 1]}` : String(tp.notes[0])) : '';
@@ -260,7 +323,7 @@ function render(nb, ci, pix, links) {
     else if (b.k === 'fn') h += fn(b, P);
     else if (b.k === 'note') {
       const hl = Math.min(6, inTopic ? lv.topic + 1 : (parts ? 4 : 3));
-      h += `<div class="rdo-note" id="n${b.n}"><p class="rdo-no">${b.n}</p>${b.items.map(it => it.k === 'h' ? P(it.i, 'rdo-lh', `h${hl}`) : it.k === 't' ? P(it.i) : it.k === 'fn' ? fn(it, P) : `<p class="rdo-src"><span class="rdo-lab">Manuscript</span> ${it.mm.name ? `${esc(it.mm.name)}${it.mm.folio ? `, ${esc(it.mm.folio)}` : ''} <span class="rdo-orig">(${esc(it.mm.line)})</span>` : esc(it.mm.line)}${links ? (lf => lf ? seeLeaf(links.get(`${lf.key}\u0000${lf.leaf}`)) : '')(leafOf(it.mm)) : ''}</p>`).join('')}</div>`;
+      h += `<div class="rdo-note" id="n${b.n}">${(b.also || []).map(a => `<span class="rdo-al" id="n${a}"></span>`).join('')}<p class="rdo-no">${b.label ? esc(b.label) : b.n}</p>${b.items.map(it => it.k === 'h' ? P(it.i, 'rdo-lh', `h${hl}`) : it.k === 't' ? P(it.i) : it.k === 'fn' ? fn(it, P) : `<p class="rdo-src"><span class="rdo-lab">Manuscript</span> ${it.mm.name ? `${esc(it.mm.name)}${it.mm.folio ? `, ${esc(it.mm.folio)}` : ''} <span class="rdo-orig">(${esc(it.mm.line)})</span>` : esc(it.mm.line)}${links ? (lf => lf ? seeLeaf(links.get(`${lf.key}\u0000${lf.leaf}`)) : '')(leafOf(it.mm)) : ''}</p>`).join('')}</div>`;
     }
   }
   return h;
@@ -283,12 +346,14 @@ function book(t, chs) {
 // passage (?q=) the chapter that holds it. Never an error: anything else is the book's start.
 function place(nb, query, at) {
   const n = parseInt(query.n, 10); if (n && nb.notes.has(n)) return { at: nb.notes.get(n).chapter, note: `n${n}`, asked: true };
+  if (n > 0) { const w = within(nb, n, 200); if (w) return { at: nb.notes.get(w.k).chapter, note: `n${w.k}`, asked: true, within: `Note ${n} is within ${w.k}–${w.up}.` }; } // DRAFT for Will
   const max = nb.chapters.length - 1; const c = Math.max(0, parseInt(query.c, 10) || 0);
   if (query.c == null) return { at: 0, note: null, asked: false };
   if (String(query.l || '') === nb.lay) return { at: Math.min(max, c), note: null, asked: true };
+  const old = String(query.l || '') === 'n1' && nb.remap1 && nb.remap1.length ? nb.remap1 : nb.remap;
   const q = String(query.q || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 60);
   if (q) { const k = nb.text.findIndex(x => x.includes(q)); if (k >= 0) return { at: k, note: null, asked: true }; }
-  return { at: Math.min(max, nb.remap[Math.min(c, nb.remap.length - 1)] || 0), note: null, asked: true };
+  return { at: Math.min(max, old[Math.min(c, old.length - 1)] || 0), note: null, asked: true };
 }
 // ---- By manuscript (#37; Will, 13–14 Nov: "even the codexes, how can we show them beautifully and help people understand
 // what they are looking at"). A second way through the book: every manuscript Richter cites, its leaves in order, the
@@ -331,6 +396,7 @@ function byMs(nb) {
   if (!nb) return null; if (nb.byMs) return nb.byMs;
   const mss = new Map(); const other = new Map();
   for (const n of [...nb.notes.keys()].sort((a, b) => a - b)) {
+    if (nb.notes.get(n).note.n !== n) continue; // a number opened with another (a range line) is listed under the first
     for (const mm of nb.notes.get(n).note.ms) {
       const lf = leafOf(mm);
       if (!lf) { const k = mm.line; if (!other.has(k)) other.set(k, { line: k, notes: [] }); const o = other.get(k); if (!o.notes.includes(n)) o.notes.push(n); continue; }
