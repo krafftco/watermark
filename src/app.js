@@ -828,7 +828,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./companies').mountCompanies(app, { db, V, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // companies as makers: products, the making, the machines, the people, the archive (3 Nov)
   require('./wall').mountWall(app, { db, V, studioOnly, ledger }); // the wall standard (7 Nov): edge to edge or not on the open walls
   require('./copies').mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, ledger }); // the copies (8 Nov): the website never opens a master
-  require('./volumes').mountVolumes(app, { db, V, studioOnly, ledger }); require('./auction').mountAuction(app, { db, V, studioOnly }); // at auction (10 Nov): a lot kept as a work, with the way out to bid
+  require('./volumes').mountVolumes(app, { db, V, studioOnly, ledger }); require('./leaves').mountLeaves(app, { db, V, studioOnly, ledger }); require('./auction').mountAuction(app, { db, V, studioOnly }); // leaves (#37): a volume's page paired with a manuscript leaf; at auction (10 Nov): a lot kept as a work, with the way out to bid
   // the volume (10 Nov): pages bound again and turned
   require('./look').mountLook(app, { db, V }); // Look: every collection in one place, and the Met's open access a room at a time (3 Nov)
   require('./prices').mountPrices(app, { db, V, ledger, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the price record, from the register (3 Nov)
