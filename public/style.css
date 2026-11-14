@@ -5773,3 +5773,29 @@ form.st button{min-width:24px;min-height:24px}
 /* The on-view label on the dark wall (12 Nov): it was written for paper and could not be read on velvet. */
 .lot-wall .onv{color:#b9b1a4}
 .lot-wall .onv b{color:#ece6da}
+/* A book of numbered notes (#35, outline.js: Leonardo's Notebooks): the contents and each section's outline, the notes,
+   Richter's words told apart from Leonardo's. In the reader's own type and its paper, sepia and night (var(--rd-*));
+   the quiet colour is the reader's mute taken a little toward the ink, so small labels keep 4.5:1 on every paper. */
+html.rdp{--rdo-mute:color-mix(in srgb,var(--rd-mute,#7a716a) 72%,var(--rd-ink,#1d1a16))}
+.rdo{margin:0 0 2.2em;padding:1em 0 1.1em;border-top:1px solid var(--rd-rule);border-bottom:1px solid var(--rd-rule);font-size:.86em;line-height:1.45}
+.rdo-k,.rdo-lab{font-family:'Archivo',system-ui,sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--rdo-mute);margin:0 0 .7em;text-indent:0}
+.rdo-ol{list-style:none;margin:0;padding:0}.rdo-ol li{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:.32em 0;border-top:1px dotted var(--rd-rule)}.rdo-ol li:first-child{border-top:0}
+.rdo-ol .rdo-op{display:block;font-family:'Archivo',system-ui,sans-serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--rdo-mute);padding-top:1em}.rdo-ol .rdo-op>ul{list-style:none;margin:.4em 0 0;padding:0;font-family:'Newsreader',Georgia,serif;font-size:calc(var(--rd-size)*.86);letter-spacing:0;text-transform:none;color:var(--rd-ink)}
+.rdo-ol .rdo-op>ul li{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:.32em 0;border-top:1px dotted var(--rd-rule)}
+.rdo-pn,.rdo-pt span{font-variant-numeric:oldstyle-nums;margin-right:.3em}
+.rdo a{color:var(--rd-ink);text-decoration:underline;text-decoration-color:var(--rd-rule);text-underline-offset:.18em}.rdo a:hover,.rdo a:focus-visible{text-decoration-color:currentColor}
+.rdo-ns{flex:none;font-family:'Archivo',system-ui,sans-serif;font-size:12px;color:var(--rdo-mute);font-variant-numeric:tabular-nums;text-align:right;max-width:45%}.rdo-ns a,.rdo-ns .rdo-n{color:var(--rdo-mute)}
+.rdo-con{border:0;padding:0}.rdo-ent{margin:0 0 2em}.rdo-ent h3{font-weight:400;font-size:1.2em;margin:1.4em 0 .5em}.rdo-ent h3 a{text-decoration-color:var(--rd-rule)}
+.rdo-pt{font-family:'Archivo',system-ui,sans-serif;font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--rdo-mute);margin:2.4em 0 1em;text-align:center;line-height:1.5}
+.rdo-ent .rdo-pt{text-align:left;margin:1.2em 0 .4em}
+.rdo-th{font-weight:400;font-style:italic;font-size:1.08em;margin:2em 0 .8em;line-height:1.35}.rdo-th .rdo-ns{font-style:normal;margin-left:.4em}
+.rdo-note{margin:1.6em 0 0}.rdo-note>.rdo-no{font-family:'Archivo',system-ui,sans-serif;font-size:12px;letter-spacing:.08em;color:var(--rdo-mute);text-indent:0;margin:0 0 .3em;font-variant-numeric:tabular-nums}
+.rdo-note>p.rdo-no::first-letter{font-size:inherit;float:none;margin:0}
+.rdo-lh{font-family:'Newsreader',Georgia,serif;font-weight:500;font-size:.92em;letter-spacing:.01em;text-transform:lowercase;margin:.4em 0 .5em;line-height:1.4}.rdo-lh::first-letter{text-transform:uppercase}
+.rdo-note>p:not(.rdo-no):not(.rdo-src){text-indent:0;margin:0 0 .6em}
+.rdo-intro{margin:0 0 2em;padding:0 0 0 1em;border-left:2px solid var(--rd-rule);color:var(--rdo-mute);font-size:.92em}.rdo-intro p{text-indent:0!important;margin:0 0 .6em}
+.rdo-fn{margin:.2em 0 .8em;font-size:.86em;color:var(--rdo-mute)}.rdo-fn summary{cursor:pointer;font-family:'Archivo',system-ui,sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;padding:.3em 0;min-height:24px}.rdo-fn p{text-indent:0!important;margin:.3em 0 .5em;padding-left:1em;border-left:2px solid var(--rd-rule)}
+.rdo-src{text-indent:0!important;font-family:'Archivo',system-ui,sans-serif;font-size:12px;color:var(--rdo-mute);margin:.2em 0 .6em}.rdo-src .rdo-lab{display:inline;margin:0 .5em 0 0;font-size:10px}
+.rdo-kind{text-indent:0!important;font-style:italic;color:var(--rdo-mute);text-align:center;margin:0 0 2em}
+.rdo-go{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:18px 0 0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;color:var(--rd-ink)}.rdo-go input{width:6em;font:inherit;padding:6px 8px;border:1px solid var(--rd-rule);border-radius:6px;background:var(--rd-bg);color:var(--rd-ink)}.rdo-go button{font:inherit;padding:6px 12px;border:1px solid var(--rd-rule);border-radius:999px;background:none;color:var(--rd-ink);cursor:pointer}.rdo-go-say{flex-basis:100%;margin:0;color:var(--rdo-mute)}
+.rdr-ch .rdo-k,.rdr-ch .rdo-lab,.rdr-ch .rdo-kind,.rdr-ch .rdo-src,.rdr-ch .rdo-note>.rdo-no{text-indent:0}

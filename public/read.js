@@ -6,6 +6,11 @@
   var main = document.querySelector('main.rdr[data-read]'); if (!main) return;
   var R; try { R = JSON.parse(main.getAttribute('data-read')); } catch (e) { return; }
   var key = 'wm_read_' + R.slug, S = {}; try { S = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { S = {}; }
+  // A book of numbered notes (#35) is set in its own chapters (R.lay); a place kept under the old chaptering is carried
+  // to where that old chapter's first line now stands (R.remap), never lost and never an error.
+  var cq = function (i) { return '?c=' + i + (R.lay ? '&l=' + R.lay : ''); };
+  var carry = function (o) { if (R.lay && o && o.c != null && o.lay !== R.lay) { o.c = (R.remap && R.remap[o.c] != null) ? R.remap[o.c] : 0; o.y = 0; o.lay = R.lay; } return o; };
+  carry(S);
   var pref = {}; try { pref = JSON.parse(localStorage.getItem('wm_read_pref') || '{}'); } catch (e) { pref = {}; }
   var html = document.documentElement, at = R.at, cover = main.querySelector('[data-rd-cover]'), page = main.querySelector('[data-rd-page]');
   var TOUCH = matchMedia('(pointer:coarse)').matches;
@@ -67,7 +72,7 @@
   function depth() { var s = sec(); if (!s) return 0; if (paged()) return s.scrollLeft / Math.max(1, s.scrollWidth - s.clientWidth); return window.scrollY / Math.max(1, document.body.scrollHeight - innerHeight); }
   var told = 0;
   function tell() { try { var now = Date.now(); if (now - told < 15000) return; told = now; var pct = Math.round(100 * Math.min(1, depth())); var body = 'c=' + at + '&n=' + R.n + '&pct=' + pct; if (navigator.sendBeacon) navigator.sendBeacon('/read/' + encodeURIComponent(R.slug) + '/place', new Blob([body], { type: 'application/x-www-form-urlencoded' })); else fetch('/read/' + encodeURIComponent(R.slug) + '/place', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: body, keepalive: true }); } catch (e) { /* */ } }
-  function keep() { if (!cover.hidden) return; S.c = at; S.y = depth(); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } prog(); tell(); }
+  function keep() { if (!cover.hidden) return; S.c = at; if (R.lay) S.lay = R.lay; S.y = depth(); S.at = Date.now(); try { localStorage.setItem(key, JSON.stringify(S)); } catch (e) { /* */ } prog(); tell(); }
   window.addEventListener('pagehide', function () { told = 0; if (!cover.hidden) return; tell(); });
   function prog() {
     var p = main.querySelector('[data-rd-prog]'); if (p) p.style.width = Math.round(100 * (at + depth()) / R.n) + '%';
@@ -80,7 +85,7 @@
     i = Math.max(0, Math.min(R.n - 1, i)); at = i; cover.hidden = true;
     var secs = main.querySelectorAll('.rdr-ch'); for (var k = 0; k < secs.length; k++) secs[k].hidden = (+secs[k].getAttribute('data-ch') !== i);
     var links = main.querySelectorAll('[data-rd-toc-panel] a'); for (var j = 0; j < links.length; j++) { if (+links[j].getAttribute('data-c') === i) links[j].setAttribute('aria-current', 'page'); else links[j].removeAttribute('aria-current'); }
-    try { history.replaceState(null, '', '?c=' + i); } catch (e) { /* */ }
+    try { history.replaceState(null, '', cq(i)); } catch (e) { /* */ }
     var toc = main.querySelector('[data-rd-toc-panel]'); if (toc) toc.hidden = true;
     apply(); paintRib();
     requestAnimationFrame(function () {
@@ -99,9 +104,9 @@
     s.scrollTo({ left: Math.max(0, Math.min(max, Math.round(x / w) * w + dir * w)), behavior: 'smooth' }); setTimeout(keep, 450);
   }
   // The ribbon (24 Oct): R, or the ribbon button, marks the place; the cover and the chapters show where it lies; 'Go to the ribbon' opens it.
-  var rib = null; try { rib = JSON.parse(localStorage.getItem(key + '_rib') || 'null'); } catch (e) { rib = null; }
+  var rib = null; try { rib = JSON.parse(localStorage.getItem(key + '_rib') || 'null'); } catch (e) { rib = null; } carry(rib);
   function paintRib() { var b = main.querySelector('[data-rd-rib]'); if (b) b.setAttribute('aria-pressed', rib && rib.c === at ? 'true' : 'false'); var l = main.querySelectorAll('[data-rd-toc-panel] a'); for (var i = 0; i < l.length; i++) l[i].classList.toggle('rdr-ribbed', !!(rib && +l[i].getAttribute('data-c') === rib.c)); var g = main.querySelector('[data-rd-torib]'); if (g) g.hidden = !rib; }
-  function setRib() { if (rib && rib.c === at) rib = null; else rib = { c: at, y: depth() }; try { localStorage.setItem(key + '_rib', JSON.stringify(rib)); } catch (e) { /* */ } paintRib(); }
+  function setRib() { if (rib && rib.c === at) rib = null; else rib = { c: at, y: depth(), lay: R.lay || undefined }; try { localStorage.setItem(key + '_rib', JSON.stringify(rib)); } catch (e) { /* */ } paintRib(); }
   main.addEventListener('click', function (e) { if (e.target.closest('[data-rd-rib]')) setRib(); else if (e.target.closest('[data-rd-torib]') && rib) show(rib.c, rib.y); });
   document.addEventListener('keydown', function (e) { if (e.target.closest('input,textarea')) return; if (e.key === 'r' || e.key === 'R') setRib(); });
   // The cover: Begin opens the first chapter, or the place you were at.
@@ -110,11 +115,24 @@
     var btn = cover.querySelector('[data-rd-begin]'); if (btn && resume) btn.textContent = 'Go back to your place';
     if (btn) btn.addEventListener('click', function () { if (resume) show(S.c, S.y); else show(0, 0); });
     if (resume) { var again = document.createElement('button'); again.type = 'button'; again.className = 'rdr-cover-again'; again.textContent = 'Or begin again'; again.addEventListener('click', function () { show(0, 0); }); btn.parentNode.insertBefore(again, btn.nextSibling); }
-  } else if (!/[?&]c=/.test(location.search) && S.c != null && (S.c !== at || S.y > 0.02)) {
+  } else if (!/[?&]c=/.test(location.search) && !R.note && S.c != null && (S.c !== at || S.y > 0.02)) {
     var back = document.createElement('div'); back.className = 'rdr-resume'; back.innerHTML = '<span>You were reading.</span> <button type="button">Go back to your place</button>';
     back.querySelector('button').addEventListener('click', function () { show(S.c, S.y); back.remove(); }); main.appendChild(back); setTimeout(function () { back.classList.add('on'); }, 50); setTimeout(function () { back.remove(); }, 12000);
   }
+  // A number in a section's outline (#35): its note, in whichever chapter it falls; on a page, the page that holds it.
+  function toNote(id, c) {
+    if (c !== at || !cover.hidden) show(c, 0); else { var tp0 = main.querySelector('[data-rd-toc-panel]'); if (tp0) tp0.hidden = true; }
+    setTimeout(function () {
+      var el = document.getElementById(id), s = sec(); if (!el) return;
+      if (s && paged()) { var cs = getComputedStyle(s), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0, n = parseInt(cs.columnCount, 10) || 1, g = parseFloat(cs.columnGap) || 0, cw = (s.clientWidth - pl - pr - (n - 1) * g) / n, st = cw + g, x = s.scrollLeft + el.getBoundingClientRect().left - s.getBoundingClientRect().left - pl, k = Math.floor((x + 4) / st); window.scrollTo(0, 0); s.scrollTo({ left: Math.max(0, Math.floor(k / n) * n * st), behavior: 'instant' }); }
+      else el.scrollIntoView({ block: 'start' });
+      el.setAttribute('tabindex', '-1'); try { el.focus({ preventScroll: true }); } catch (e) { /* */ }
+      try { history.replaceState(null, '', cq(at) + '#' + id); } catch (e) { /* */ }
+      keep();
+    }, 80);
+  }
   main.addEventListener('click', function (e) {
+    var nt = e.target.closest('a[data-rd-note]'); if (nt) { e.preventDefault(); toNote(nt.getAttribute('data-rd-note'), +nt.getAttribute('data-rd-nc')); return; }
     var a = e.target.closest('a[data-c]'); if (a) { e.preventDefault(); show(+a.getAttribute('data-c'), 0); return; }
     var tn = e.target.closest('[data-rd-turn]'); if (tn) { turn(+tn.getAttribute('data-rd-turn')); return; }
     var fb = e.target.closest('[data-rd-facing]'); if (fb) { var fm = main.querySelector('[data-rd-fmenu]'); if (fm) { fm.hidden = !fm.hidden; var tp = main.querySelector('[data-rd-toc-panel]'); if (tp) tp.hidden = true; } return; }
@@ -150,7 +168,7 @@
   // sheet, Copy the link, or the house's letter), the pill that rises when a passage is selected, and the passage
   // a link arrived with, lit on the page. The link always says which chapter; a passage link carries the words.
   var SH = { sheet: main.querySelector('[data-rd-share-sheet]'), qp: main.querySelector('[data-rd-qp]'), q: '' };
-  function pageUrl(q) { return location.origin + '/read/' + encodeURIComponent(R.slug) + (cover.hidden || q ? '?c=' + at : '') + (q ? '&q=' + encodeURIComponent(q) : ''); }
+  function pageUrl(q) { return location.origin + '/read/' + encodeURIComponent(R.slug) + (cover.hidden || q ? cq(at) : '') + (q ? '&q=' + encodeURIComponent(q) : ''); }
   function shareText(q) { return q ? '“' + q + '” — ' + (R.author ? R.author + ', ' : '') + R.title : R.title + (R.author ? ', by ' + R.author : '') + '. Read it in the house, free, and keep it on your shelf.'; }
   function openSheet(q) {
     if (!SH.sheet) return; SH.q = q || ''; var b = SH.sheet.querySelector('[data-rd-sh-q]'), u = SH.sheet.querySelector('[data-rd-sh-unquote]'), qf = SH.sheet.querySelector('[data-rd-sh-qf]'), cf = SH.sheet.querySelector('[data-rd-sh-cf]');
@@ -205,4 +223,12 @@
   if (R.from && cover.hidden) setTimeout(function () { say(R.from + ' sent you this' + (R.q ? ' passage.' : ' book.') + (R.kept ? ' It is on your shelf.' : '')); }, 600);
   if (R.q) { if (!cover.hidden) { /* the cover shows who sent it; Begin opens at the passage */ var bb = main.querySelector('[data-rd-begin]'); if (bb) bb.addEventListener('click', function () { setTimeout(light, 400); }, { once: true }); } else setTimeout(light, 200); }
   apply(); prog(); paintRib(); if (cover.hidden) face(at);
+  if (cover.hidden && R.note) toNote(R.note, at); else if (cover.hidden && /^#n\d+$/.test(location.hash)) toNote(location.hash.slice(1), at);
+  // Go to note: a number, Enter; the note is on the page already, in whichever chapter.
+  var gf = main.querySelector('[data-rd-go]');
+  if (gf) gf.addEventListener('submit', function (e) {
+    e.preventDefault(); var n = parseInt(gf.querySelector('input').value, 10), el = document.getElementById('n' + n), say = gf.querySelector('[data-rd-go-say]');
+    if (!el) { if (say) say.textContent = 'There is no note ' + (n || '') + ' in this book.'; return; }
+    if (say) say.textContent = ''; var s = el.closest('.rdr-ch'); toNote('n' + n, +s.getAttribute('data-ch'));
+  });
 })();
