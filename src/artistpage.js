@@ -51,7 +51,7 @@ ${Object.entries(n).map(([y, c]) => `<a class="apl-tick" href="#y-${y}" style="l
 <span class="apl-end apl-b" style="left:0">${a.born ? `Born ${a.born}` : from}</span><span class="apl-end apl-d" style="left:100%">${a.died ? `Died ${a.died}` : 'Today'}</span></div>`;
 }
 
-function render({ a, ws, find = '', ghosts = [], show = null, whole = false, known = 0, writings, V, rights, wanderHref, museums, photographers, claimLine, kinds, binding, isStudio }) {
+function render({ a, ws, find = '', ghosts = [], show = null, whole = false, known = 0, writings, V, rights, wanderHref, near = null, museums, photographers, claimLine, kinds, binding, isStudio }) {
   const { esc, tidy } = V; const all = ghosts.length ? ws.concat(ghosts).sort((x, y) => (x.y || 99999) - (y.y || 99999) || (x.ghost ? 1 : 0) - (y.ghost ? 1 : 0)) : ws; const ch = chapters(a, all); const r = rights;
   const hero = ws.find(w => w.curated) || ws.slice().sort((x, y) => (y.stars || 0) - (x.stars || 0))[0];
   const ys = ws.map(w => w.y).filter(Boolean); const span = ys.length ? (Math.min(...ys) === Math.max(...ys) ? `${ys[0]}` : `${Math.min(...ys)} to ${Math.max(...ys)}`) : '';
@@ -63,7 +63,8 @@ function render({ a, ws, find = '', ghosts = [], show = null, whole = false, kno
     return `<figure class="apl-w"${anchor}><a href="${esc(wanderHref)}${wanderHref.includes('?') ? '&' : '?'}at=${esc(w.slug)}" title="Open it in Wander"><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="lazy" decoding="async"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}></a><figcaption><b><a href="/m/${esc(w.handle)}/${esc(w.slug)}">${esc(tidy(w.title))}</a></b>${w.y ? `<span>${w.y}</span>` : ''}${w.medium ? `<i>${esc(w.medium)}</i>` : ''}${w.keeps ? `<em>${esc(w.keeps)}</em>` : ''}${w.handle && w.handle !== 'the-public-domain' ? `<small>Photograph by ${esc(w.maker_name)}</small>` : ''}<a class="apl-st" href="/easel/${esc(w.slug)}?back=${encodeURIComponent('/art/' + a.slug)}">Study it on the easel</a></figcaption></figure>`; };
   const bio = String(a.bio || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const facts = [known ? `${known} known work${known === 1 ? '' : 's'}, ${ws.length} in the house` : null, !known && ws.length ? `${ws.length} work${ws.length === 1 ? '' : 's'}${kinds.length ? ` · ${kinds.join(', ')}` : ''}` : null, span ? `made ${span}` : null, writings.length ? `${writings.length} in their own words` : null, museums.length ? `kept in ${museums.length} collection${museums.length === 1 ? '' : 's'}` : null].filter(Boolean);
-  return `<main class="apl">
+  const walk = steps(a, near, V);
+  return `<main class="apl">${walk}
 <header class="apl-h">${hero ? `<figure class="apl-hero"><a href="${esc(wanderHref)}${wanderHref.includes('?') ? '&' : '?'}at=${esc(hero.slug)}" title="Open it in Wander"><img src="/img/${esc(hero.slug)}/large" alt="${esc(tidy(hero.title))}"></a><figcaption>${esc(tidy(hero.title))}${hero.y ? `, ${hero.y}` : ''}</figcaption></figure>` : ''}
 <div class="apl-ht"><p class="k"><a href="/art">The hall</a>${a.movement ? ` · <a href="/art?movement=${encodeURIComponent(a.movement)}">${esc(a.movement)}</a>` : ''}</p><h1>${esc(a.name)}</h1>
 <p class="apl-dates">${esc([a.born || a.died ? `${a.born || '?'} – ${a.died || (a.born ? 'living' : '')}` : '', a.nationality].filter(Boolean).join(' · '))}${a.claim_status === 'claimed' ? ' · <span class="apl-kept">Kept by the artist’s side</span>' : ''}</p>
@@ -80,8 +81,17 @@ ${writings.length ? `<section class="apl-wr" id="writings"><h2>In their own word
 ${photographers.length || museums.length ? `<section class="apl-who">${museums.length ? `<div><h2>Where the originals are</h2><p>${museums.map(m => m && m.html ? m.html : esc(m)).join('<br>')}</p>${museums.some(m => m && m.html) ? '<p><a href="/art/visit">See it in person: every museum, by city</a></p>' : ''}</div>` : ''}${photographers.length ? `<div><h2>Photographed by</h2><p>${photographers.map(([h, n]) => `<a href="/m/${esc(h)}">${esc(n)}</a>`).join('<br>')}</p></div>` : ''}</section>` : ''}
 <section class="apl-foot"><p class="apl-rights"><b>${r.state === 'pd' ? 'Public domain.' : r.state === 'reserved' ? 'Under copyright.' : 'Terms set by the artist’s side.'}</b> ${esc(r.why || '')}</p>
 ${a.sources || a.wiki ? `<p class="apl-src">Read further: ${[a.wiki, ...String(a.sources || '').split('\n')].map(s => String(s || '').trim()).filter(Boolean).map(s => /^https?:/.test(s) ? `<a href="${esc(s)}" rel="noopener">${esc(s.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : esc(s)).join(' · ')}</p>` : ''}
-<p class="apl-claim">${claimLine}</p>${isStudio ? `<p class="apl-claim"><a href="/studio/art/${esc(a.slug)}">Edit this page, or bring in more of the work</a></p>` : ''}</section></main>`;
+<p class="apl-claim">${claimLine}</p>${isStudio ? `<p class="apl-claim"><a href="/studio/art/${esc(a.slug)}">Edit this page, or bring in more of the work</a></p>` : ''}</section>${walk ? walk.replace('class="apw"', 'class="apw apw-end"').replace(/ data-apw-keys/, '') : ''}</main>${walk ? STEP_KEYS : ''}`;
 }
+// Through the hall (#43; Will, 15 Nov: "toggle to the next artist"): back to the hall, and the artist before and after
+// this one in the hall's own order. Links, so they work on touch, with a keyboard and before any script; the arrow keys
+// (left, right) step too, unless a field has the keys. Set at the top and again at the foot of the page.
+function steps(a, near, V) {
+  if (!near) return '';
+  const { esc } = V; const I = require('./icons');
+  return `<nav class="apw" aria-label="Artists in the hall" data-apw-keys><a class="apw-hall" href="/art">The hall</a><span class="apw-by">${near.prev ? `<a class="apw-s" href="/art/${esc(near.prev.slug)}" rel="prev" data-apw="prev" aria-label="Previous artist: ${esc(near.prev.name)}">${I.back}<span>${esc(near.prev.name)}</span></a>` : ''}${near.next ? `<a class="apw-s apw-n" href="/art/${esc(near.next.slug)}" rel="next" data-apw="next" aria-label="Next artist: ${esc(near.next.name)}"><span>${esc(near.next.name)}</span>${I.next}</a>` : ''}</span></nav>`;
+}
+const STEP_KEYS = `<script>(function(){document.addEventListener('keydown',function(e){if(e.metaKey||e.ctrlKey||e.altKey||e.shiftKey||e.defaultPrevented)return;var t=e.target;if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable],dialog[open]'))return;var k=e.key==='ArrowLeft'?'prev':e.key==='ArrowRight'?'next':null;if(!k)return;var a=document.querySelector('[data-apw-keys] [data-apw="'+k+'"]');if(a){e.preventDefault();location.href=a.href;}});})();</script>`;
 
 // Their own words: books on the shelf whose author is this artist (every part of the name present, either order).
 function writingsOf(db, a) {

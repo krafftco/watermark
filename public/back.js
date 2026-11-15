@@ -4,7 +4,7 @@
 // three, five or ten places at once. With no trail (a link opened cold), Back goes to the page above this one.
 (function () {
   var KEY = 'wm_trail', MAX = 12;
-  var app = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  var app = !!(window.__WM_APP || navigator.standalone === true || (window.matchMedia && ['standalone', 'fullscreen', 'minimal-ui'].some(function (k) { return matchMedia('(display-mode: ' + k + ')').matches; })));
   if (app) document.documentElement.classList.add('wm-app');
   var here = location.pathname + location.search;
   function read() { try { return JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
@@ -22,6 +22,7 @@
   write(t);
   // The page above this one, for a link opened cold.
   function parent(p) {
+    var given = document.querySelector('[data-up]'); if (given && given.getAttribute('data-up')) return given.getAttribute('data-up'); // the page's own parent (#43)
     var s = p.replace(/[?#].*$/, '').replace(/\/+$/, '');
     if (/^\/w\/[^/]+$/.test(s) || /^\/m\/[^/]+\/[^/]+$/.test(s)) return /^\/m\//.test(s) ? s.replace(/\/[^/]+$/, '') : '/collection';
     if (/^\/(account|studio|yours)\/.+/.test(s)) { var top = s.split('/').slice(0, 2).join('/'), up = s.replace(/\/[^/]+$/, ''); return up.length > top.length ? up : top; }
@@ -43,7 +44,9 @@
       b.hidden = false;
       var up = back[0] ? back[0].p : parent(here);
       b.title = back[0] ? 'Back to ' + back[0].t : 'Up a level';
-      b.onclick = function (e) { if (e && e.preventDefault) e.preventDefault(); step(1, up); };
+      // With somewhere to go back to in this visit, a step back; with none (opened cold, or the app's first page), straight
+      // up to the parent: never a history step out of the house (#43).
+      b.onclick = function (e) { if (e && e.preventDefault) e.preventDefault(); if (back[0]) step(1, up); else location.href = up; };
       var wrap = b.parentNode, more = wrap && wrap.querySelector('[data-nv-trail]');
       if (!more || back.length < 2) return;
       more.hidden = false;
