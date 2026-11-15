@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.86.0 · Every turn leads somewhere you can get back from · 15 November 2026
+
+- In the app on a phone or an iPad, taking a file never replaces the app: a photograph, a card or a PDF goes to the device's own sheet (Save Image, Save to Files, AirDrop); a whole album's zip and other large files open outside the app, and you come back to where you were.
+- Every room without a header has the house's Back in its top corner, in the app and in a browser; it goes back a step, or up to the room above.
+- An artist's page leads back to the hall and on to the artist before and after, by a tap or the arrow keys.
+- If the app ever lands on a file, or on something that could not be opened, it shows a page of the house with a way back.
+
 ## 1.85.0 · Wander is how the house shows a picture · 12 November 2026
 
 - A picture sent to you can be studied: a work not on view opens on the easel for its maker and for those it was sent to in an album; Study in an album returns you to the album.

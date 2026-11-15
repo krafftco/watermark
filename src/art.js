@@ -47,6 +47,7 @@ function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, 
   for (const [c, t] of [['periods', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('artists') WHERE name=?").get(c)) db.exec(`ALTER TABLE artists ADD COLUMN ${c} ${t}`);
   for (const [c, t] of [['artist_id', 'INTEGER'], ['attribution', 'TEXT'], ['art_override', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name=?").get(c)) db.exec(`ALTER TABLE works ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS works_artist ON works (artist_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS artists_sort ON artists (sort_name, id)');
 
   const bySlug = s => db.prepare('SELECT * FROM artists WHERE slug=?').get(String(s));
   const byId = id => db.prepare('SELECT * FROM artists WHERE id=?').get(id);
@@ -247,7 +248,15 @@ ${shown.length ? `<p class="ax-az">${letters.map(l => `<a href="#ax-${esc(l)}">$
 ${tiles ? `<section class="apl-fg">${tiles}</section>` : ''}
 ${known.length ? `<section class="apl-fk"><h2>Known, and not yet in the house</h2><ul>${known.map(c => `<li><b>${esc(c.title || 'Untitled')}</b>${c.year ? `, ${esc(String(c.year))}` : ''}${c.medium ? ` · ${esc(c.medium)}` : ''}${c.collection ? ` · ${esc(c.collection)}` : ''}${c.object_url || c.wiki ? ` · <a href="${esc(c.object_url || c.wiki)}" rel="noopener">its own record</a>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${!ws.length && !known.length ? `<p class="apl-fn2">Try one word of the title, a subject, a year, or <a href="/find?q=${encodeURIComponent(q)}">look in the whole house</a>.</p>` : ''}</main>`;
-    return V.layout({ title: `${a.name}: ${q || kind || 'find'} · Watermark`, bare: true, path: `/art/${a.slug}`, desc: `Find a work by ${a.name}.`, body });
+    return V.layout({ title: `${a.name}: ${q || kind || 'find'} · Watermark`, bare: true, path: `/art/${a.slug}`, up: `/art/${a.slug}`, desc: `Find a work by ${a.name}.`, body });
+  }
+  // The artists either side of this one, in the hall's own order (sort_name, as /art lists them), among those with work
+  // held (#43; Will, 15 Nov: "toggle to the next artist"). Two ordered lookups on the index, never a walk of the hall.
+  function near(a) {
+    const sn = a.sort_name || a.name;
+    const prev = db.prepare("SELECT a.slug, a.name FROM artists a WHERE (a.sort_name < ? OR (a.sort_name = ? AND a.id < ?)) AND EXISTS (SELECT 1 FROM works w WHERE w.artist_id=a.id AND w.status='held') ORDER BY a.sort_name DESC, a.id DESC LIMIT 1").get(sn, sn, a.id) || null;
+    const next = db.prepare("SELECT a.slug, a.name FROM artists a WHERE (a.sort_name > ? OR (a.sort_name = ? AND a.id > ?)) AND EXISTS (SELECT 1 FROM works w WHERE w.artist_id=a.id AND w.status='held') ORDER BY a.sort_name, a.id LIMIT 1").get(sn, sn, a.id) || null;
+    return { prev, next };
   }
   app.get('/art/:slug', (req, res, next) => {
     const a = bySlug(req.params.slug); if (!a) return next();
@@ -267,9 +276,9 @@ ${!ws.length && !known.length ? `<p class="apl-fn2">Try one word of the title, a
     for (const c of cat) if (c.work) { c.work.title = c.title || c.work.title; c.work.medium = c.medium || c.work.medium; if (c.collection) c.work.keeps = c.collection; }
     const ghosts = cat.filter(c => !c.work).map(c => ({ ghost: true, id: 'q' + c.qid, title: c.title, y: c.year, keeps: c.collection, qid: c.qid, medium: c.medium, size: c.size, image: !!c.image, wiki: c.wiki, url: c.object_url, onView: c.on_view }));
     const show = app.locals.shows ? app.locals.shows.forPage(a) : null;
-    const body = AP.render({ a, ws, find: searchBox(a) + (app.locals.volumes ? app.locals.volumes.strip(a) : ''), ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, museums, photographers, claimLine, kinds, binding, isStudio: studio });
+    const body = AP.render({ a, ws, find: searchBox(a) + (app.locals.volumes ? app.locals.volumes.strip(a) : ''), ghosts, show, whole, known: knownN, writings: AP.writingsOf(db, a), V, rights: r, wanderHref: h ? `/wander/art/${a.slug}` : `/wander?q=${encodeURIComponent(a.name)}`, near: near(a), museums, photographers, claimLine, kinds, binding, isStudio: studio });
     const hero = ws.find(w => w.curated) || ws[0];
-    const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
+    const html = V.layout({ title: `${a.name} · Watermark`, bare: true, path: `/art/${a.slug}`, up: '/art', image: hero ? `/art/${a.slug}/card.png` : null, desc: `${a.name}${dates(a) ? ` (${dates(a)})` : ''}: every work in the house in the order it was made, and their own words.`, body });
     pageCache.set(ck, { at: Date.now(), html });
     res.send(html);
   });
@@ -413,7 +422,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   }
   if (!app.locals.noTimers && ROLE.chores) { app.locals.governor.boot('art fill', () => fill()); setInterval(() => fill().catch(() => {}), 10 * 60 * 1000).unref(); }
 
-  app.locals.art = { shelf, chronology, wall: a => wallOf(a, chronology(a)), uncache: slug => { for (const k of ['s', 'p', 's|all', 'p|all']) pageCache.delete(`${slug}|${k}`); }, verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
+  app.locals.art = { near, shelf, chronology, wall: a => wallOf(a, chronology(a)), uncache: slug => { for (const k of ['s', 'p', 's|all', 'p|all']) pageCache.delete(`${slug}|${k}`); }, verdict, fill, ensure, link, unlink, ofWork, rights, blocks, label, block, attribute, attributionOf, bySlug, worksOf, countOf, MOVEMENTS, dates };
 }
 
 module.exports = { mountArt, rights, slugify, sortName, MOVEMENTS, PD_YEARS };
