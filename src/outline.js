@@ -33,7 +33,10 @@ const PART = /^(?:([IVXLC]+)\.\s*)?([A-Z][A-Z\s,;:’'\-&]*[A-Z])\.?$/;
 const TOPIC = /^([\s\S]*?\S)\s*\(([^()]*)\)\s*\.?$/;
 const BNUM = /^(\d{1,4})\.$/;
 const RUNON = /^(\d{1,4})\.\s+(\S[\s\S]*)$/;
-const BROMAN = /^_*([IVXLC]+)\._*$/;
+// A numeral alone on its line: "III.", "_XIII.", and (#59) as the stored text may carry it, with emphasis marks, spaces or
+// no full stop ("**IV.**", "XII"); a single letter needs its full stop (a diagram's "C" is not a numeral).
+const BROMAN = /^[_*\s]*(?:([IVXLC]+)\s*\.|([IVXLC]{2,}))[_*\s]*$/;
+const romM = p => { const m = String(p).match(BROMAN); return m ? [m[0], m[1] || m[2]] : null; };
 const VOL = /^_*volume\s+([0-9]+|[ivx]+|one|two|three)\.?_*$/i;
 const isCaps = p => !/[a-z]/.test(p) && /[A-Z]{3}/.test(p);
 const strip_ = s => String(s).replace(/_/g, '').trim();
@@ -114,7 +117,7 @@ function expand(s) {
 }
 const SMALLW = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'to', 'by', 'for', 'with', 'from', 'as']);
 const titled = s => String(s).toLowerCase().replace(/(^|[\s(—-])([a-z][a-z’']*)/g, (m, pre, w, off) => pre + (off > 0 && SMALLW.has(w) ? w : w[0].toUpperCase() + w.slice(1)));
-function build(t, chs) {
+function build(t, chs, guide) {
   const F = flatten(chs); if (!detect(F)) return null;
   const kind = new Array(F.length).fill(null); // 'p','intro','h','t','fn','src','skip'
   const clean = F.map(x => x.t);
@@ -132,11 +135,13 @@ function build(t, chs) {
     const fb = firstBare(s, e); let cz = -1;
     for (let i = s; i < fb; i++) if (CONTENTS.test(F[i].t)) { cz = i; break; }
     if (cz < 0 && hasVol) for (let i = s + 1; i < fb; i++) if (BROMAN.test(F[i].t) || synLike(F[i].t)) { cz = i; break; }
-    let zEnd = cz; if (cz >= 0) for (let i = cz; i < fb; i++) if (synLike(F[i].t)) zEnd = i + 1;
+    // An entry's synopsis may be a single topic ("Plans of anatomical studies (796—800).") right after its numeral and title.
+    const entrySyn = i => synLike(F[i].t) || (cz >= 0 && i - 2 >= cz && !!rangeLine(F[i].t) && !!romM(F[i - 2].t) && !synLike(F[i - 1].t) && !rangeLine(F[i - 1].t));
+    let zEnd = cz; if (cz >= 0) for (let i = cz; i < fb; i++) if (entrySyn(i)) zEnd = i + 1;
     if (cz >= 0 && zEnd === cz) cz = -1;
     // Before it: the front matter (the first volume) or the volume's title page, each a chapter of its own.
     // Without contents: the front runs to the first note, numeral or range line.
-    const fEnd = cz >= 0 ? cz : (() => { for (let i = s + (hasVol ? 1 : 0); i < e; i++) if (BNUM.test(F[i].t) || BROMAN.test(F[i].t) || HEADLINE.test(F[i].t) || RANGEP.test(F[i].t) || rangeLine(F[i].t)) return i; return e; })();
+    const fEnd = cz >= 0 ? cz : (() => { for (let i = s + (hasVol ? 1 : 0); i < e; i++) if (BNUM.test(F[i].t) || BROMAN.test(F[i].t) || RANGEP.test(F[i].t) || rangeLine(F[i].t)) return i; return e; })();
     if (fEnd > s || hasVol) {
       const front = { kind: 'front', head: hasVol ? strip_(F[s].t) : null, vol: vno, items: [] };
       for (let i = s; i < fEnd; i++) { if (i === s && hasVol) { kind[i] = 'skip'; continue; } front.items.push({ k: 'p', i }); kind[i] = 'p'; }
@@ -148,9 +153,9 @@ function build(t, chs) {
       let ent = null;
       for (let i = cz; i < zEnd; i++) {
         const p = F[i].t; kind[i] = 'skip'; if (CONTENTS.test(p)) continue;
-        const r = p.match(BROMAN); if (r) { ent = { no: r[1], title: null, syn: [], raw: [] }; con.entries.push(ent); continue; }
+        const r = romM(p); if (r) { ent = { no: r[1], title: null, syn: [], raw: [] }; con.entries.push(ent); continue; }
         const hl = !synLike(p) && p.match(HEADLINE); if (hl) { ent = { no: hl[1], title: strip_(hl[2]).replace(/\.$/, ''), syn: [], raw: [] }; con.entries.push(ent); continue; }
-        if (synLike(p)) { if (!ent) { ent = { no: null, title: null, syn: [], raw: [] }; con.entries.push(ent); } const sp = parse(p, 1); if (sp) { ent.syn.push(...sp); for (const x of sp) if (x.topic) topicNames.add(norm(strip_(x.topic))); } else ent.raw.push(p); continue; }
+        if (entrySyn(i)) { if (!ent) { ent = { no: null, title: null, syn: [], raw: [] }; con.entries.push(ent); } const one = !synLike(p) && rangeLine(p); const sp = one ? [{ topic: one.text, ns: one.ns }] : parse(p, 1); if (sp) { ent.syn.push(...sp); for (const x of sp) if (x.topic) topicNames.add(norm(strip_(x.topic))); } else ent.raw.push(p); continue; }
         if (ent && !ent.syn.length && !ent.raw.length) { ent.title = strip_(p).replace(/\.$/, ''); continue; }
         ent = { no: null, title: strip_(p).replace(/\.$/, ''), syn: [], raw: [] }; con.entries.push(ent);
       }
@@ -172,12 +177,14 @@ function build(t, chs) {
     for (let i = bodyFrom; i < e; i++) {
       if (kind[i]) continue; const p = F[i].t;
       // A numeral heading: on its own line with its title after it, or both in one paragraph.
-      let hd = null; const r = p.match(BROMAN);
-      if (r && i + 1 < e && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t) && F[i + 1].t.length <= 200 && !synLike(F[i + 1].t)) hd = { no: r[1], title: F[i + 1].t, span: 2 };
-      else { const hl = !synLike(p) && p.length <= 210 && p.match(HEADLINE); if (hl && (isCaps(hl[2]) || /^[A-Z‘“'"_]/.test(hl[2]))) hd = { no: hl[1], title: hl[2], span: 1 }; }
+      // A numeral alone on its line (#59: always alone in this text; "III. Castles and Villas." on one line is Richter's
+      // list, never a section), then its title. With a guide (the contents' own numbering, below), only there.
+      let hd = null; const r = romM(p);
+      if (r && i + 1 < e && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t) && F[i + 1].t.length <= 200 && !synLike(F[i + 1].t)) hd = { no: r[1], title: F[i + 1].t.replace(/\*/g, ''), span: 2 };
+      if (guide && guide.has(i)) { const g = guide.get(i); kind[i] = kind[i + 1] = 'skip'; open(g.no, strip_(F[i + 1].t.replace(/\*/g, '')).replace(/\.$/, '')); i += 1; continue; }
       if (hd) {
         const caps = isCaps(hd.title);
-        if (!caps && roman(hd.no) === lastSec + 1) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; open(hd.no, strip_(hd.title).replace(/\.$/, '')); i += hd.span - 1; continue; }
+        if ((!guide || !entries.some(x => x.no === hd.no)) && !caps && roman(hd.no) === lastSec + 1) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; open(hd.no, strip_(hd.title).replace(/\.$/, '')); i += hd.span - 1; continue; }
         if (caps && sec) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; sec.blocks.push({ k: 'part', no: hd.no, title: strip_(hd.title).replace(/\.$/, '') }); sec.parts++; i += hd.span - 1; note = null; topic = null; intro = false; continue; }
       }
       if (!sec) { const no = toRoman(lastSec + 1); const en = entries.find(x => x.no === no && x.vol === vno) || entries.find(x => x.no === no); open(no, en && en.title ? en.title : `Section ${no}`); }
@@ -219,7 +226,7 @@ function build(t, chs) {
       if (isSrc(p)) { const mm = manuscript(p); kind[i] = 'src'; if (note) { note.ms.push(mm); note.items.push({ k: 'src', i, mm }); } else pendSrc.push({ k: 'src', i, mm }); continue; }
       if (intro) { const last = sec.blocks[sec.blocks.length - 1]; if (last && last.k === 'intro') last.is.push(i); else sec.blocks.push({ k: 'intro', is: [i] }); kind[i] = 'intro'; continue; }
       if (note) {
-        if (isCaps(p) || (F[i].h && !/[.!?\]]$/.test(p))) { note.items.push({ k: 'h', i }); kind[i] = 'h'; continue; }
+        if (!BROMAN.test(p) && (isCaps(p) || (F[i].h && !/[.!?\]]$/.test(p)))) { note.items.push({ k: 'h', i }); kind[i] = 'h'; continue; } // a bare numeral is never Leonardo's heading
         note.items.push({ k: 't', i }); kind[i] = 't'; continue;
       }
       sec.blocks.push({ k: 'p', i }); kind[i] = 'p';
@@ -331,12 +338,39 @@ function render(nb, ci, pix, links) {
 const fn = (b, P) => `<details class="rdo-fn"><summary>${LABEL}</summary>${b.is.map(i => P(i)).join('')}</details>`;
 // ---- The cache and the doors the reader uses.
 const CACHE = new Map(); const NOT = new Set();
+// One miss must not cascade (#59: on live a missed III left II holding II–X, and Richter's one-line list inside XII
+// then read as sections III–V). When the contents list the sections, the body's sections must agree with them: the
+// same count, and each title beginning with the first two words of its contents title. If they do not, the sections
+// are found again by the contents' own numbering (a numeral whose next paragraph begins with that title), and the
+// host's log says how many matched: "[outline] <slug>: sections N of M matched".
+const first2 = s => norm(strip_(String(s || '').replace(/\*/g, ''))).split(' ').filter(Boolean).slice(0, 2).join(' ');
+function agrees(nb) {
+  const secs = nb.chapters.filter(c => c.kind === 'section'); const en = nb.entries;
+  if (secs.length !== en.length) return false;
+  return secs.every(c => { const x = en.find(y => y.no === c.no); return x && first2(x.title) === first2(c.title); });
+}
+function guideOf(nb) {
+  const { F } = nb; const spans = nb.chapters.filter(c => c.span).map(c => c.span); const inC = i => spans.some(([a, b]) => i >= a && i < b);
+  const g = new Map(); let pos = spans.length ? spans[0][1] : 0; let found = 0;
+  for (const en of nb.entries) {
+    const w = first2(en.title); if (!w) continue;
+    for (let i = pos; i < F.length - 1; i++) { if (inC(i)) continue; const r = romM(F[i].t); if (r && r[1] === en.no && first2(F[i + 1].t) === w) { g.set(i, { no: en.no }); pos = i + 2; found++; break; } }
+  }
+  g.found = found; return g;
+}
+function checked(t, chs) {
+  const nb = build(t, chs); if (!nb || nb.entries.length < 3 || agrees(nb)) return nb;
+  const g = guideOf(nb); const nb2 = build(t, chs, g); if (!nb2) return nb;
+  const n2 = nb2.chapters.filter(c => c.kind === 'section').length;
+  console.log(`[outline] ${t.slug}: sections ${n2} of ${nb.entries.length} matched (by the contents; the body's own reading gave ${nb.chapters.filter(c => c.kind === 'section').length})`);
+  return nb2;
+}
 function book(t, chs) {
   if (OFF.off || !t || !chs || !chs.length || !t.body) return null;
   const key = `${t.slug}\u0000${t.updated_at || t.created_at || ''}\u0000${String(t.body).length}`;
   if (NOT.has(key)) return null;
   if (CACHE.has(key)) { const nb = CACHE.get(key); CACHE.delete(key); CACHE.set(key, nb); return nb; }
-  const nb = build(t, chs);
+  const nb = checked(t, chs);
   if (!nb) { NOT.add(key); if (NOT.size > 500) NOT.delete(NOT.values().next().value); return null; }
   CACHE.set(key, nb); while (CACHE.size > 4) CACHE.delete(CACHE.keys().next().value);
   return nb;

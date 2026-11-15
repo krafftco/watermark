@@ -40,7 +40,9 @@ const body = [
   'II.', 'Linear Perspective.', "_Leonardo's theory of perspective is set out here in two paragraphs of Richter's, the italic", 'running across both of them, as the source has it._',
   '40.', 'The text of note 40.', '[Footnote: Compare the diagram.]', '40. Compare 53, 2.', ...fill(41, 60),
   // III: a numeral with a leading underscore, as the source has XIII and XVI.
-  '_III.', 'Six books on Light and Shade.', "Richter's introduction to the books on light and shade.", 'and its second paragraph._', ...fill(110, 125),
+  // III (#59, the real sequence): a note with a capital heading and its text, then the bare numeral, then the title.
+  '109.', 'OF A MIXTURE OF NATURAL AND ARTIFICIAL PERSPECTIVE.', 'This diagram distinguishes natural from artificial perspective.',
+  'III.', 'Six books on Light and Shade.', '_Linear Perspective cannot be immediately followed by the books on light and shade.', 'and its second paragraph._', ...fill(110, 125),
   'IV.', 'Perspective of Disappearance.', ...fill(222, 230),
   // V: bare range lines; "(281-283)." opens 281 and 283, 282 keeps its own line.
   'V.', 'Theory of colours.', ...fill(263, 278),
@@ -80,11 +82,19 @@ const body = [
   'XI.', 'The notes on Sculpture.', 'Compositions for the monument to Francesco Sforza (707—709).—Notes on the casting (710—715).',
   'XII.', 'Architectural Designs.', 'Plans for towns (741—744).—Plans for canals (745—750).',
   'XIII.', 'Theoretical writings on Architecture.', 'I. ON FISSURES IN WALLS.—Of cracks in walls (770—773).—Of the stability of buildings (774).',
+  'XIV.', 'Anatomy, Zoology and Physiology.', 'Plans of anatomical studies (796—800).',
+  'XV.', 'Astronomy.', 'The earth as a planet (857—860).',
   'XVI.', 'Physical Geography.', 'I. INTRODUCTION.—The nature of water (919).—II. OF THE OCEAN.—The tides (920—925).',
+  'XVII.', 'Topographical Notes.', 'Notes on Italy (1001—1005).',
+  'XVIII.', 'Naval Warfare.—Mechanical Appliances.—Music.', 'Naval warfare (1113—1116).',
+  'XIX.', 'Philosophical Maxims. Morals. Polemics and Speculations.', 'Philosophical maxims (1132—1135).',
   'XX.', 'Humorous Writings.', 'I. STUDIES ON THE LIFE AND HABITS OF ANIMALS.—The cardinal virtues (1220—1222).—III. JESTS AND TALES.—A jest (1280).—IV. PROPHECIES.—Of dreaming (1293).',
-  'XI.', 'The notes on Sculpture.', '707.', 'The text of note 707.', ...fill(708, 715),
+  'XXI.', 'Letters. Personal Records. Dated Notes.', 'Drafts of letters (1336—1347).',
+  'XXII.', 'Miscellaneous Notes.', 'Miscellaneous notes (1379—1566).',
+  'XI.', 'The notes on Sculpture.', '707.', 'The text of note 707.', ...fill(708, 715), 'HENRY DE GEYMULLER.',
   'XI.', 'This numeral is not a section: XI is already open.',
-  'XII.', 'Architectural Designs.', '_Richter on the designs, an italic that closes', 'later, on piers._', ...fill(741, 750),
+  'XII.', 'Architectural Designs.', '_Richter on the designs, an italic that closes', 'later, on piers._',
+  'I. Plans for towns.', 'II. Plans for canals.', 'III. Castles and Villas.', 'IV. Ecclesiastical Architecture.', 'V. Palace architecture.', ...fill(741, 750),
   '_XIII.', 'Theoretical writings on Architecture.', "Leonardo's original writings on the theory of Architecture have come down to us only in a fragmentary state;_", '_The small number of chapters given under the fifth class is part of the plan._',
   'I.', 'ON FISSURES IN WALLS.',
   '770.', 'First write the treatise on the causes of the giving way of walls and then, separately, treat of the remedies.', '[Footnote: See Pl. CIV.]',
@@ -162,7 +172,12 @@ if (require.main === module) (async () => {
     assert.ok(/<nav class="rdo"[\s\S]*STUDIES ON THE LIFE AND HABITS OF ANIMALS[\s\S]*JESTS AND TALES[\s\S]*PROPHECIES[\s\S]*<\/nav>/.test(xx), 'XX\'s parts in XX');
     for (const k of ['II', 'III', 'V', 'IX', 'XII', 'XIII', 'XVI', 'XX']) assert.ok(/<nav class="rdo" aria-label="In this section">/.test(S[C[k]]) || !/rdo-pt|rdo-th/.test(S[C[k]]), `section ${k} has its outline`);
     assert.ok(S[C.II].includes('<aside class="rdo-intro"') && /<p><em>running across both of them, as the source has it\.<\/em><\/p>/.test(S[C.II]), 'II: Richter\'s italic introduction');
-    assert.ok(S[C.III].includes('<aside class="rdo-intro"') && /<p><em>and its second paragraph\.<\/em><\/p>/.test(S[C.III]), 'III: an underscored numeral opens a section and its italic');
+    assert.ok(S[C.III].includes('<aside class="rdo-intro"') && /<p><em>and its second paragraph\.<\/em><\/p>/.test(S[C.III]), 'III: after a note with a capital heading, the bare numeral opens the section');
+    assert.ok(!/<h\d class="rdo-lh">[IVXL_*]+\.?<\/h\d>/.test(h), 'a bare numeral is never set as Leonardo\'s heading');
+    assert.ok(/<p class="rdo-lh"|<h\d class="rdo-lh">HENRY DE GEYMULLER\.<\/h\d>/.test(S[C.XI]) && S[C.XII].includes('III. Castles and Villas.'), 'the signature stays in XI; XII\'s one-line list stays in XII');
+    // Each section holds only its own notes (the real ranges).
+    const RANGES = { I: [1, 39], II: [40, 109], III: [110, 221], IV: [222, 262], V: [263, 288], VI: [289, 307], VII: [308, 392], VIII: [393, 481], IX: [482, 662], X: [663, 706], XI: [707, 740], XII: [741, 769], XIII: [770, 795], XIV: [796, 856], XV: [857, 918], XVI: [919, 1000], XVII: [1001, 1112], XVIII: [1113, 1131], XIX: [1132, 1219], XX: [1220, 1335], XXI: [1336, 1378], XXII: [1379, 1566] };
+    for (const [k, [a, b]] of Object.entries(RANGES)) { const ns = [...S[C[k]].matchAll(/<div class="rdo-note" id="n(\d+)"/g)].map(m => +m[1]); assert.ok(ns.length && ns.every(x => x >= a && x <= b), `${k} holds ${ns[0]}–${ns[ns.length - 1]}, not within ${a}–${b}`); }
     assert.ok(S[C.XI].includes('<p>XI.</p>') || S[C.XI].includes('This numeral is not a section'), 'a numeral that is not the next section stays text');
     console.log('ok: every section its own chapter and outline; parts restart; IX part III found; no part leaks');
     // Anchors: which numbers have one, and where the others land.
@@ -205,6 +220,16 @@ if (require.main === module) (async () => {
     assert.equal(R(r.h).remap1.length > 0, true, 'the 13 Nov chaptering is carried');
     const q = await get(`/read/notebooks?c=2&l=n1&q=${encodeURIComponent('The stability of a building is the result')}`); assert.equal(R(q.h).at, C.XIII, 'a passage sent opens where it now is');
     console.log('ok: old places (the import\'s and 13 Nov\'s) land inside the book, never an error');
+    // One miss must not cascade (#59): with IV's numeral lost, the body's own reading would leave III holding III–XXII;
+    // the contents' own numbering finds every other section again, and the host's log says so.
+    const lost = body.replace('\n\nIV.\n\nPerspective of Disappearance.\n\n222.', '\n\nPerspective of Disappearance.\n\n222.'); assert.notEqual(lost, body);
+    add('notebooks-lost', 'The Notebooks of Leonardo da Vinci', lost);
+    const logs = []; const log0 = console.log; console.log = (...a) => { logs.push(a.join(' ')); };
+    let L2; try { L2 = await get('/read/notebooks-lost?c=0&l=n2'); } finally { console.log = log0; }
+    const T2 = toc(L2.h);
+    assert.ok(logs.includes('[outline] notebooks-lost: sections 21 of 22 matched (by the contents; the body\'s own reading gave 3)'), 'the log line: ' + JSON.stringify(logs.filter(x => x.startsWith('[outline]'))));
+    assert.deepEqual(T2.filter(x => /^[IVXL]+\. /.test(x)).map(x => x.split('.')[0]), ['I', 'II', 'III', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI', 'XXII'], 'every other section found: ' + JSON.stringify(T2));
+    console.log('ok: a lost numeral does not cascade: the sections are found by the contents, and the log says 21 of 22');
     // The seam for the codices.
     assert.deepEqual(app.locals.bookNotes.note('notebooks', 772), { n: 772, chapter: C.XIII, section: 'XIII', ms: [{ ms: 'C.A.', name: 'Codex Atlanticus', folio: '172b; 516b', line: 'C.A. 172b; 516b' }] });
     assert.equal(app.locals.bookNotes.note('river', 1), null); assert.equal(app.locals.bookNotes.note('notebooks', 20), null);
