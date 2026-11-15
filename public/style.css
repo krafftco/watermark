@@ -5890,7 +5890,13 @@ dialog.rm.rm-plain{display:block;z-index:9000}
 .mst-pg .mst-api code{overflow-wrap:anywhere}
 /* The scout's bar wraps to two rows on an iPad upright and covered the last row of pictures (found by Safari's engine
    in the reach walk, 15 Nov): the room leaves the bar's full height at its foot. */
-main.sct[data-sct]{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
+main.sct[data-sct]{padding-bottom:24px}
+/* (later the same day) Space at the foot was not the cure: the bar was fixed to the screen and so lay over the house's
+   footer at the end of the page. It now rides the foot of the screen only while the room itself is in view, and its
+   own select and tick are a proper size to press. */
+main.sct[data-sct] .sct-bar{position:sticky;margin:24px -16px 0}
+main.sct[data-sct] .sct-bar select{min-height:28px}
+main.sct[data-sct] .sct-bar input[type=checkbox]{width:24px;height:24px;margin:0 6px 0 0;vertical-align:middle}
 
 /* ── Reach: targets and layers (#47–#52; 15 Nov). Every control at least 24×24 px (WCAG 2.5.8), made by enlarging the
    pressable box, not the look: padding with a matching negative margin, so the type, the spacing and the layout stay
@@ -5960,3 +5966,6 @@ main.st{overflow:clip}
 .lot-maker a{padding-block:5px}
 .wk-go{padding-block:4px;margin-block:-4px}.wk-where a{padding-block:7px;margin-block:-7px}
 .hg-share a:not(.buy-btn){padding-block:5px}
+/* The easel's tools on a screen narrower than their row (an iPad upright): they wrap to a second line rather than
+   run off the edge where the last ones (Hide) could not be reached (the reach walk in CI, 15 Nov). */
+@media (max-width:1000px){.ez-tools{flex-wrap:wrap;justify-content:center;overflow:visible;border-radius:18px;max-width:calc(100vw - 20px)}}
