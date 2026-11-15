@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
+
+- A room's own bar now stops below the house's header instead of sliding under it: the Library's filter and star rows, the trade's search bar, and the columns beside a work. The header's height is measured once on each page and every room's bar and every jump to an anchor follows it, upright or turned, on a phone, an iPad or the desk.
+- On a work's page the text beside the picture scrolls with the page; the picture stays in view.
+- No page is wider than its screen any more, so nothing zooms out and the top bar's presses land: a wide table scrolls sideways in its own box (which can be reached by key), a field is never wider than its column, the Work Master's lines wrap, and the reader's controls wrap on a phone.
+
 ## 1.86.1 · Every control in reach · 15 November 2026
 
 - The house's top bar on an iPad held upright: Sign in (or You), Keep your work and Find no longer lie on one another when the bell or the trade chip joins the row; Find and Share show their marks alone between 701 and 900 wide.

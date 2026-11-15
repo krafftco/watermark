@@ -9,11 +9,13 @@
 //   - invisible: it takes presses but cannot be seen (opacity under .05 all the way up, pointer-events not none).
 //   - stranded:  it cannot be brought onto the screen.
 //   - inert:     it shows (opacity over .5) but takes no presses (pointer-events: none).
-//   - wide:      the page is wider than the screen (the browser zooms it all out, or it scrolls sideways).
+//   - wide:      the page is wider than the screen (the browser zooms it all out, or it scrolls sideways), at every
+//                size and after the turn; never on ALLOW (#46): a wide table or line scrolls in its own box.
 //   - small:     under 24×24, unless it is a link in running text or (outside a fixed or sticky bar) nothing else is
 //                within a 24 px square of its centre (WCAG 2.5.8's spacing allowance).
 //   - bar:       at the top of the page and at its foot (where scrolling cannot move it), a control under a fixed or
 //                sticky bar; and at the top, halfway and the foot, a bar's own control that is covered.
+//                A sticky bar its room has begun to push off the screen is leaving with the page, not a bar, then.
 //   - tap:       the top bar's controls (Back, the menu, the desk's tabs, Find, the tab bar) are pressed for real, a
 //                touch on a touch screen, at the top and after scrolling halfway: the press must reach the control.
 //   - does:      on one page per person and size, Back, the menu and each desk tab are pressed and must do what they say.
@@ -74,17 +76,6 @@ const DOES = { out: '/about', maker: '/account/table', studio: '/studio/volumes'
 // Found and filed, not yet fixed: page (a pattern), the control's short selector (a pattern), the kind, and its issue.
 // Each line is a fault someone has to mend; it is here so the walk stays a fence for the next fault, not a pass for this one.
 const ALLOW = [
-  // #45: a room's sticky bar (top 0) slides under the house's sticky header.
-  { page: /^\/account\/table$/, control: /^button\[data-[fs]\]$/, kind: 'bar', issue: 45, why: 'the Library\'s filter and star rows under the desk header' },
-  { page: /^\/trade$/, control: /^(input|select|button\.buy-btn)$/, kind: 'bar', issue: 45, why: 'the trade search bar under the header (landscape)' },
-  { page: /^\/(w\/[^/]+|today)$/, control: /^(button\.eye-b|button\.hg-open|summary)$/, kind: 'bar', issue: 45, why: 'a work\'s side column under the header' },
-  // #46: pages wider than the screen (the whole page zooms out; the top bar's presses miss).
-  { page: /^\/studio\/(accounts|analytics)$/, control: /./, kind: 'wide', issue: 46, why: 'tables wider than a phone' },
-  { page: /^\/studio\/(accounts|analytics)$/, control: /./, kind: 'tap', issue: 46, why: 'zoomed out by the wide table: presses land beside' },
-  { page: /^\/studio\/(accounts|analytics)$/, control: /^a\[href="\/studio\//, kind: 'bar', issue: 46, why: 'the last desk tab, past the zoomed-out page' },
-  { page: /^\/master$/, control: /./, kind: 'wide', issue: 46, why: 'the API lines do not wrap' },
-  { page: /^\/master$/, control: /./, kind: 'tap', issue: 46, why: 'zoomed out by the wide section: presses land beside' },
-  { page: /^\/read\//, control: /^div\.rdr-ctl$/, kind: 'wide', issue: 46, why: 'the reader\'s controls 6 px too wide on a phone' },
   // #47: the Krafft houses bar, put away above the screen on a phone, still in reach.
   { page: /./, control: /^(button\.kh-k|a\.kh-you|a\[href="https:\/\/(studios|watermark)\.krafftco\.com\/#kh"\])$/, kind: 'stranded', issue: 47, why: 'off the screen while closed' },
   // #48: Wander's own controls.
@@ -136,6 +127,9 @@ function probe({ mode, edge }) {
   const words = el => (el.getAttribute('aria-label') || el.textContent || el.value || el.getAttribute('title') || el.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim().slice(0, 40);
   const opacityUp = el => { let o = 1; for (let e = el; e && e.nodeType === 1; e = e.parentElement) o *= +cs(e).opacity; return o; };
   const barOf = el => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const p = cs(e).position; if (p === 'fixed' || p === 'sticky') return e; } return null; };
+  // A bar as it is now: fixed, or sticky and held at its offset. A sticky box its container has begun to push off the
+  // screen (its top above its offset) is leaving with the page, like any content, and is not a bar while it does (#45).
+  const pinnedOf = el => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const s = cs(e); if (s.position === 'fixed') return e; if (s.position === 'sticky') { const t = parseFloat(s.top); if (isNaN(t) || e.getBoundingClientRect().top >= t - 1) return e; } } return null; };
   const who = h => h ? { tag: h.tagName.toLowerCase(), cls: (typeof h.className === 'string' ? h.className : '').slice(0, 60), sel: short(h), pe: cs(h).pointerEvents, op: +opacityUp(h).toFixed(2), z: cs(h).zIndex, pos: cs(h).position, bar: !!barOf(h) } : { tag: 'nothing' };
   const shown = el => {
     if (el.closest('[inert],[aria-hidden="true"]')) { const r = el.getBoundingClientRect(); if (el.closest('[inert]') || !r.width || !r.height) return false; }
@@ -204,9 +198,9 @@ function probe({ mode, edge }) {
       const r = el.getBoundingClientRect();
       if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue;
       if (opacityUp(el) < 0.05 || cs(el).pointerEvents === 'none') continue;
-      const bar = barOf(el); const t = hitTest(el);
+      const bar = pinnedOf(el); const t = hitTest(el);
       if (t.centre && t.fails < 3) continue;
-      const c = t.cover; const cBar = c && barOf(c);
+      const c = t.cover; const cBar = c && pinnedOf(c);
       // A bar's own control covered (anywhere); or, where the page cannot scroll it out, a control under a bar.
       // Where scrolling cannot move it out: the top half of the screen at the top of the page, the foot half at its foot.
       const stuck = !scrolls || (edge === 'top' && r.bottom <= vh / 2) || (edge === 'foot' && r.top >= vh / 2);
@@ -282,7 +276,8 @@ let dir;
   browser = await launchBrowser();
   const faults = []; const allowed = []; const skipped = new Set(); let walked = 0; const combos = new Set();
   const note = (f) => {
-    const a = (ENGINE.webkit ? ALLOW.concat(ALLOW_WEBKIT) : ALLOW).find(x => x.page.test(f.page) && x.control.test(f.sel) && (!x.kind || x.kind === f.kind));
+    // A page wider than its screen is never allowed (#46): the browser zooms all of it out and every press misses.
+    const a = f.kind === 'wide' ? null : (ENGINE.webkit ? ALLOW.concat(ALLOW_WEBKIT) : ALLOW).find(x => x.page.test(f.page) && x.control.test(f.sel) && (!x.kind || x.kind === f.kind));
     f = { ...f, engine: ENGINE.name };
     (a ? allowed : faults).push(a ? { ...f, issue: a.issue } : f);
   };
@@ -321,6 +316,18 @@ let dir;
         return ok ? null : { sel: el.tagName.toLowerCase() + (c(el) ? '.' + c(el) : '') + (el.getAttribute('href') && !c(el) ? `[href="${el.getAttribute('href')}"]` : ''), words: (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40), tag: h ? 'landed on ' + h.tagName.toLowerCase() + (c(h) ? '.' + c(h) : '') : 'no click reached the page' }; }).filter(Boolean);
     });
     for (const d of res) note({ page: p, size, role, kind: 'tap', at: edge, sel: d.sel, words: d.words, cover: { tag: d.tag } });
+  };
+  // Wider than the screen: the document's width (scrollWidth) past its viewport (clientWidth + 1), or a layout viewport
+  // the browser widened to fit it (innerWidth), so it zooms the whole page out or scrolls it sideways. Named by page and
+  // size, with the first thing that runs past the edge outside a box that scrolls on its own.
+  const wideCheck = async (page, p, size, role) => {
+    const wide = await page.evaluate(() => {
+      const w = document.documentElement.scrollWidth, c = document.documentElement.clientWidth; if (innerWidth <= c + 1 && w <= c + 1) return null;
+      const inBox = e => { for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o !== 'visible' && o !== 'clip') return true; } return false; };
+      const e = [...document.querySelectorAll('body *')].find(e => { const r = e.getBoundingClientRect(); return r.right > c + 1 && r.width > 0 && getComputedStyle(e).position !== 'fixed' && !inBox(e); });
+      return { w: Math.max(w, innerWidth), c, sel: e ? e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '') : '?' };
+    });
+    if (wide) note({ page: p, size, role, kind: 'wide', sel: wide.sel, words: '', cover: { tag: `${p} is ${wide.w} wide on a ${wide.c} screen` } });
   };
   const scrollTo = (page, where) => page.evaluate(w => { const H = document.documentElement.scrollHeight - innerHeight; scrollTo({ top: w === 'top' ? 0 : w === 'mid' ? H / 2 : H, behavior: 'instant' }); }, where).then(() => scrollSettle(page));
   const walkHere = async (page, p, size, role, extra = '', edges = true) => {
@@ -398,8 +405,7 @@ let dir;
           await settle(page);
           const before = faults.length;
           // Wider than the screen: the browser zooms the whole page out (or it scrolls sideways), and every control shrinks.
-          const wide = await page.evaluate(() => { const w = document.documentElement.scrollWidth, c = document.documentElement.clientWidth; if (innerWidth <= c + 1 && w <= c + 1) return null; const e = [...document.querySelectorAll('body *')].find(e => { const r = e.getBoundingClientRect(); return r.right > c + 1 && r.width > 0 && getComputedStyle(e).position !== 'fixed'; }); return { w: Math.max(w, innerWidth), sel: e ? e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '') : '?' }; });
-          if (wide) note({ page: p, size, role, kind: 'wide', sel: wide.sel, words: '', cover: { tag: `the page is ${wide.w} wide on a ${S.viewport.width} screen` } });
+          await wideCheck(page, p, size, role);
           await walkHere(page, p, size, role);
           // A control that moves on the press itself (on touchend, before the click the walk holds back) takes the page
           // away: said, and the rest of that page's presses left out.
@@ -410,6 +416,7 @@ let dir;
             await scrollTo(page, 'top');
             await page.setViewportSize({ width: S.viewport.height, height: S.viewport.width }); await page.waitForTimeout(120);
             await page.setViewportSize(S.viewport); await page.waitForTimeout(150); await still(page);
+            await wideCheck(page, p, size + '↻', role);
             await walkHere(page, p, size, role, '↻', false);
           }
           if (shots && faults.length > before && !shotOnce.has(p + size)) { shotOnce.add(p + size); await page.screenshot({ path: path.join(shots, `${size}-${p.replace(/[^a-z0-9]+/gi, '_')}.png`) }).catch(() => {}); }
