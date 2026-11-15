@@ -90,10 +90,9 @@ jobs:
     timeout-minutes: 20
     env:
       WM_ENGINE: webkit
-      # TODO(#55): advisory for the first merge only: WebKit cannot run on the workers' machine, so its first findings are
-      # read here. Findings are warnings and the job passes; a missing WebKit or a crash still fails it. Remove this line
-      # (the job becomes a gate) once the first findings are fixed or allow-listed.
-      WM_WEBKIT_ADVISORY: '1'
+      # A gate (#55). Its first two runs were advisory (WM_WEBKIT_ADVISORY: '1', findings as warnings) because WebKit
+      # cannot run on the workers' machine; their findings were fixed or allow-listed (ALLOW_WEBKIT in reach-walk.js and
+      # wayback.js). To bring up a new engine or profile the same way, set that flag again for one run, never to quiet a gate.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

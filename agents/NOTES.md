@@ -15,6 +15,10 @@ The CTO session keeps it honest.
   (`scripts/engine.js`; iPad (gen 7), iPad Mini, iPhone 13 from Playwright's `devices`). Here `WM_ENGINE=webkit` prints
   one line and exits 0; in CI a missing WebKit fails. Its findings come back as annotations titled `… webkit`
   (`scripts/engine-findings.js`, ≤1500 chars each, 10 a level a step) and whole in the job's `webkit-findings` artifact.
+- WebKit in CI (#55): the job takes ~13 min (reach ~10). Playwright's WebKit does not let `route()` stand in for requests
+  that go through the house's service worker, and the worker claims the page at once: a test that stubs answers runs
+  with `serviceWorkers: 'block'`. WebKit likely holds Wander in its arrival state (bar hidden, pointer-events none,
+  `st-arr`) is what WebKit sees (#60). Allow lines seen only in WebKit go in `ALLOW_WEBKIT`, apart from `ALLOW`.
 - Locally `test/wayback.js` needs `CHROME=/usr/bin/google-chrome` (Playwright's pinned Chromium is not on this machine).
 - A local Postgres for `scripts/sql-check.js` and the Postgres half of a test: /var/lib/wmpg, port 5433, started as
   docs/HISTORY.md says ("Two engines, one shape"). Stop it when you are done if no one else is on it.

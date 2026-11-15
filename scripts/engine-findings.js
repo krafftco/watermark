@@ -33,7 +33,7 @@ if (walk === 'reach') {
   head = `reach webkit: ${data.faults.length} findings in ${rows.length} groups; ${(data.allowed || []).length} on the allow-list (${issues || 'none'})`;
 } else {
   rows = data.fails || [];
-  head = `wayback webkit: ${rows.length} of ${data.checks} checks failed`;
+  head = `wayback webkit: ${rows.length} of ${data.checks} checks failed; ${(data.allowed || []).length} on the allow-list`;
 }
 const fault = rows.length > 0 || rc !== 0;
 if (!fault) { console.log(head + ': clean'); process.exit(0); }
