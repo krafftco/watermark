@@ -2313,16 +2313,22 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .nv-bk .nv-back,.nv-bk .nv-trail,.nv-bk .nv-back:hover,.nv-bk .nv-trail:hover{background:none;border:0;border-radius:8px;-webkit-tap-highlight-color:transparent}
 .nv-bk .nv-back .nv-chev{width:24px;height:24px}.nv-bk .nv-back{min-width:40px;color:var(--ink)}
 .nv-bk .nv-back:active{transform:translateX(-2px)}
-.nv-float{display:none}
 .top .nv-share{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:0;background:none;color:var(--ink);font:500 13px/1 var(--sans);letter-spacing:.04em;cursor:pointer;border-radius:999px;margin-left:clamp(2px,1vw,8px);-webkit-tap-highlight-color:transparent}.top .nv-share svg{width:19px;height:19px}.top .nv-share:hover{background:var(--soft)}
 @media (max-width:700px){.top .nv-share span{display:none}.top .nv-share{padding:6px 6px}}
-.nv-float .nv-share{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;margin-left:6px;border:0;border-radius:999px;background:rgba(11,10,9,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#f3efe7;padding:0;vertical-align:top}.nv-float .nv-share span{display:none}.nv-float .nv-share svg{width:19px;height:19px}.nv-float{white-space:nowrap}.nv-float>.nv-bk{vertical-align:top}
+.nv-float .nv-share{display:none;align-items:center;justify-content:center;width:44px;height:44px;margin-left:6px;border:0;border-radius:999px;background:rgba(11,10,9,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#f3efe7;padding:0;vertical-align:top}.nv-float .nv-share span{display:none}.nv-float .nv-share svg{width:19px;height:19px}.nv-float{white-space:nowrap}.nv-float>.nv-bk{vertical-align:top}
 .bks{position:fixed;left:0;width:44px;height:44px;border-radius:50%;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(11,10,9,.55);color:#f3efe7;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transform:translateX(-44px);transition:background .15s,opacity .25s,transform .25s;pointer-events:none}.bks svg{width:22px;height:22px}.bks.on{background:#c9a24a;color:#0b0a09}
-html.wm-app .nv-float{display:block;position:fixed;left:12px;top:calc(10px + env(safe-area-inset-top));z-index:70}
-html.wm-app .nv-float .nv-bk{background:rgba(11,10,9,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:999px;padding:0 4px 0 12px}
-html.wm-app .nv-float .nv-back,html.wm-app .nv-float .nv-trail{color:#f3efe7}
-html.wm-app .nv-float .nv-back span{display:none}
-html.wm-app .nv-float .bkt{position:fixed;left:12px;right:12px;top:calc(60px + env(safe-area-inset-top))}
+/* The way back on a bare page (#43): the house's Back, top left inside the safe area, 44 by 44 at least, in the app and in
+   a browser alike; Share beside it in the app only. A room with its own way back is not given this one (OWN_BACK). */
+.nv-float{display:block;position:fixed;left:calc(12px + env(safe-area-inset-left));top:calc(10px + env(safe-area-inset-top));z-index:70}
+.nv-float .nv-bk{background:rgba(11,10,9,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:999px;padding:0}
+.nv-float .nv-bk .nv-back{min-width:44px;min-height:44px;justify-content:center;padding:0;color:#f3efe7;border-radius:999px}
+.nv-float .nv-back span{display:none}
+.nv-float .nv-trail{color:#f3efe7;height:44px;margin:0 4px 0 -8px}
+.nv-float .nv-back:focus-visible,.nv-float .nv-share:focus-visible{outline:2px solid #c9a24a;outline-offset:2px}
+html.wm-app .nv-float .nv-share{display:inline-flex}
+@media (display-mode: standalone){.nv-float .nv-share{display:inline-flex}}
+.nv-float .bkt{position:fixed;left:12px;right:12px;top:calc(62px + env(safe-area-inset-top))}
+@media print{.nv-float{display:none}}
 html.wm-app.in-stay .nv-float{display:none}
 .bkt{position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:240px;max-width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:var(--bg,#f6f5f2);border:1px solid var(--ln);border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.14);padding:6px}
 .bkt[hidden]{display:none}
@@ -4698,6 +4704,14 @@ html.rm-on{overflow:hidden}
 @media (max-width:800px){.vg-h{grid-template-columns:1fr}.vg-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}}
 /* The artist's page (31 Oct): src/artistpage.js. The hall: dark, the work in the order made, the life as a line. */
 .apl{min-height:100svh;background:#0f0d0b;color:#e9e4da;padding:0 0 72px}
+/* Through the hall (#43): back to the hall, the artist before and after. The row starts clear of the house's Back. */
+.apw{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:calc(10px + env(safe-area-inset-top)) calc(clamp(16px,4vw,64px) + env(safe-area-inset-right)) 0 calc(76px + env(safe-area-inset-left));font:500 12px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.apw a{color:#bdb6aa;text-decoration:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;-webkit-tap-highlight-color:transparent}
+.apw a:hover,.apw a:focus-visible{color:#f3efe7}.apw a:focus-visible{outline:2px solid #c9a24a;outline-offset:2px;border-radius:4px}
+.apw-by{display:flex;gap:clamp(12px,3vw,32px);min-width:0}
+.apw-s{min-width:44px;max-width:38vw}.apw-s span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.apw-s svg{width:18px;height:18px;flex:none}
+.apw-end{padding:28px clamp(16px,4vw,64px) 0;border-top:1px solid rgba(233,228,218,.12);margin:40px clamp(16px,4vw,64px) 0;padding-left:0;padding-right:0}
+@media(max-width:560px){.apw-s span{display:none}.apw-s{justify-content:center}}
 .apl a{color:inherit}
 .apl-h{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(24px,4vw,64px);align-items:center;padding:clamp(28px,5vw,72px) clamp(16px,4vw,64px) 24px}
 .apl-hero{margin:0}.apl-hero img{width:100%;max-height:80svh;object-fit:contain;display:block}.apl-hero figcaption{font:italic 13px/1.4 var(--read);color:#8f897f;margin-top:10px}
@@ -5825,6 +5839,11 @@ html.rdp{--rdo-mute:color-mix(in srgb,var(--rd-mute,#7a716a) 72%,var(--rd-ink,#1
 .vlf-dk{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:6px;border-top:1px dotted var(--line,#e4dfd5);font-size:12px}.vlf-dk form{margin:0}.vlm-dk .vlf-dk input,.vlm-dk .vlf-dk select{width:100%;margin:0;font-size:13px}.vlm-dk .vlf-tk{display:flex;gap:6px;align-items:center}.vlm-dk .vlf-tk input{display:inline;width:auto}.vlf-dk button{justify-self:start;align-self:flex-start;font-size:13px;min-height:28px}
 .vlm-dk textarea{display:block;width:100%;margin:0 0 6px;font:inherit;font-size:14px}
 .rdr-ch .rdo-ns{white-space:nowrap}.rdr-ch .rdo-note:focus,.rdr-ch .rdo-note:focus-visible{outline:1px solid var(--rd-rule);outline-offset:6px;border-radius:2px}
+/* A file on its way in the installed app (#43): the pressed link says so and cannot be pressed twice. */
+[data-sv-busy]{opacity:.55;pointer-events:none;cursor:progress}
+.nv-float~#main .dvc-t>.dv-logo{left:calc(72px + env(safe-area-inset-left))}
+html.wm-app .apw{padding-left:calc(128px + env(safe-area-inset-left))}
+@media (display-mode: standalone){.apw{padding-left:calc(128px + env(safe-area-inset-left))}}
 /* The reach walk (#42; Will, 15 Nov, on an iPad: "sometimes it feels like the top bar doesn't work"). The house's top bar
    between the phone and the desk (701-900 wide: an iPad held upright): the verbs never shrink under the wordmark or
    under Find, and Find and Share drop their words to make the room (their names stay for a screen reader). Every

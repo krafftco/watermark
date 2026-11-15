@@ -1,6 +1,6 @@
 {
   "name": "watermark",
-  "version": "1.85.1",
+  "version": "1.86.1",
   "description": "Watermark: hold, show and license photographs at the source.",
   "main": "server.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "load": "node scripts/load.js",
     "walk": "node scripts/wander-walk.js",
     "a11y": "NODE_ENV=test node test/a11y.js",
-    "reach": "NODE_ENV=test node scripts/reach-walk.js"
+    "reach": "NODE_ENV=test node scripts/reach-walk.js",
+    "wayback": "NODE_ENV=test node test/wayback.js"
   },
   "keywords": [],
   "author": "",
