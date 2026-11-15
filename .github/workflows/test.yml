@@ -82,6 +82,45 @@ jobs:
       - run: |
           set -o pipefail
           NODE_ENV=test node scripts/reach-walk.js 2>&1 | tee /tmp/reach.txt || { grep -q '::error title=reach' /tmp/reach.txt || echo "::error title=reach::$(tail -c 1500 /tmp/reach.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
+  # The reach walk and the way back again in Safari's engine (#55): Playwright's WebKit with an iPad (gen 7), an iPad Mini
+  # and an iPhone 13 (touch, the real user agent). Each walk's own annotations are muted in the log (sed) and every finding
+  # is raised in full by scripts/engine-findings.js, named "webkit". A WebKit that will not install fails the job.
+  reach-webkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      WM_ENGINE: webkit
+      # TODO(#55): advisory for the first merge only: WebKit cannot run on the workers' machine, so its first findings are
+      # read here. Findings are warnings and the job passes; a missing WebKit or a crash still fails it. Remove this line
+      # (the job becomes a gate) once the first findings are fixed or allow-listed.
+      WM_WEBKIT_ADVISORY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: install
+        run: npx playwright install --with-deps webkit || { echo "::error title=reach-webkit::WebKit could not be installed (npx playwright install --with-deps webkit failed); the WebKit pass did not run"; exit 1; }
+      - run: |
+          rc=0
+          NODE_ENV=test REACH_JSON=/tmp/reach-webkit.json node scripts/reach-walk.js > /tmp/reach-webkit.txt 2>&1 || rc=$?
+          sed 's/^::/: :/' /tmp/reach-webkit.txt
+          node scripts/engine-findings.js reach /tmp/reach-webkit.json /tmp/reach-webkit.txt $rc
+      # Runs whether or not the reach walk found anything, once WebKit is installed.
+      - if: (success() || failure()) && steps.install.outcome == 'success'
+        run: |
+          rc=0
+          NODE_ENV=test WAYBACK_JSON=/tmp/wayback-webkit.json node test/wayback.js > /tmp/wayback-webkit.txt 2>&1 || rc=$?
+          sed 's/^::/: :/' /tmp/wayback-webkit.txt
+          node scripts/engine-findings.js wayback /tmp/wayback-webkit.json /tmp/wayback-webkit.txt $rc
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-findings
+          path: /tmp/*-webkit.*
+          if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

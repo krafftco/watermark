@@ -31,6 +31,7 @@ process.env.NODE_ENV = 'test';
 const fs = require('fs'); const path = require('path'); const os = require('os');
 const sharp = require('sharp');
 const { chromium } = require('playwright');
+const ENGINE = require('./engine'); ENGINE.guard('reach');
 const { createApp } = require('../src/app');
 const V = require('../src/views');
 
@@ -43,6 +44,22 @@ const SIZES = {
   phone: { viewport: { width: 390, height: 844 }, ua: IPHONE_UA, touch: true },
   desk: { viewport: { width: 1440, height: 900 }, touch: false },
 };
+// The browser and the device (#55). WM_ENGINE=webkit: Playwright's WebKit with Apple's own profiles (touch, the real
+// user agent and scale): an iPad (gen 7) upright and turned, an iPad Mini, an iPhone 13; the desk is Safari's. The
+// sizes keep their names so REACH_SIZES and the full/small lists hold. Every finding carries the engine's name.
+if (ENGINE.webkit) {
+  const d = ENGINE.devices, as = (dev, extra) => ({ viewport: dev.viewport, ua: dev.userAgent, touch: dev.hasTouch, dsf: dev.deviceScaleFactor, screen: dev.screen, ...extra });
+  Object.assign(SIZES, { ipadP: as(d['iPad (gen 7)'], { full: true }), ipadL: as(d['iPad (gen 7) landscape'], { full: true }), mini: as(d['iPad Mini']), phone: as(d['iPhone 13']), desk: as(d['Desktop Safari'], { viewport: { width: 1440, height: 900 } }) });
+}
+const launchBrowser = async () => {
+  if (ENGINE.webkit) return ENGINE.launch();
+  try { return await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}); }
+  catch (e) { return chromium.launch({ channel: 'chrome' }); }
+};
+const contextFor = S => ({ viewport: S.viewport, userAgent: S.ua, hasTouch: S.touch, isMobile: S.touch, deviceScaleFactor: S.dsf || (S.touch ? 2 : 1), ...(S.screen ? { screen: S.screen } : {}) });
+// WebKit: a programmatic scroll can still be easing (rubber band at an end) when elementFromPoint is asked; wait until
+// the scroll position holds for two frames. Chromium is left as it was.
+const scrollSettle = page => ENGINE.webkit ? page.evaluate(() => new Promise(res => { let last = -1, same = 0, n = 0; const f = () => { const y = scrollY; same = y === last ? same + 1 : 0; last = y; if (same >= 2 || ++n > 60) res(); else requestAnimationFrame(f); }; requestAnimationFrame(f); })) : Promise.resolve();
 // The smaller set, walked at the iPad mini, the phone and the desk: the front, a work, Wander, the hall, a maker's
 // page, a volume; the maker's studio and Library; the Studio's front, its Works, Volumes, Accounts and The numbers.
 const SMALL = ['/', '/w/$slug', '/wander', '/art', '/art/$artist', '/volume/$volume', '/read/$book', '/about', '/account', '/account/table', '/account/upload', '/yours', '/studio', '/studio/trove', '/studio/volumes', '/studio/accounts', '/studio/analytics', '/studio/licenses'];
@@ -257,11 +274,11 @@ let dir;
   const roleOf = p => /^\/studio/.test(p) ? 'studio' : /^\/(account|yours|notices|draw\/mine|curate)/.test(p) ? 'maker' : 'out';
 
   let browser;
-  try { browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}); }
-  catch (e) { browser = await chromium.launch({ channel: 'chrome' }); }
+  browser = await launchBrowser();
   const faults = []; const allowed = []; const skipped = new Set(); let walked = 0; const combos = new Set();
   const note = (f) => {
     const a = ALLOW.find(x => x.page.test(f.page) && x.control.test(f.sel) && (!x.kind || x.kind === f.kind));
+    f = { ...f, engine: ENGINE.name };
     (a ? allowed : faults).push(a ? { ...f, issue: a.issue } : f);
   };
   if (shots) fs.mkdirSync(shots, { recursive: true });
@@ -300,7 +317,7 @@ let dir;
     });
     for (const d of res) note({ page: p, size, role, kind: 'tap', at: edge, sel: d.sel, words: d.words, cover: { tag: d.tag } });
   };
-  const scrollTo = (page, where) => page.evaluate(w => { const H = document.documentElement.scrollHeight - innerHeight; scrollTo({ top: w === 'top' ? 0 : w === 'mid' ? H / 2 : H, behavior: 'instant' }); }, where);
+  const scrollTo = (page, where) => page.evaluate(w => { const H = document.documentElement.scrollHeight - innerHeight; scrollTo({ top: w === 'top' ? 0 : w === 'mid' ? H / 2 : H, behavior: 'instant' }); }, where).then(() => scrollSettle(page));
   const walkHere = async (page, p, size, role, extra = '', edges = true) => {
     for (const f of await page.evaluate(probe, { mode: 'centre' })) note({ page: p, size: size + extra, role, ...f });
     if (edges) for (const edge of ['top', 'mid', 'foot']) {
@@ -350,7 +367,7 @@ let dir;
     for (const role of ['out', 'trade', 'maker', 'studio']) {
       const list = (only ? only.map(fill).filter(p => role === 'trade' ? lists.trade.includes(p) : roleOf(p) === role) : S.full ? lists[role] : role === 'trade' ? lists.trade.slice(1, 3) : smallSet.filter(p => roleOf(p) === role));
       if (!list.length) continue;
-      const ctx = await browser.newContext({ viewport: S.viewport, userAgent: S.ua, hasTouch: S.touch, isMobile: S.touch, deviceScaleFactor: S.touch ? 2 : 1, serviceWorkers: 'block' });
+      const ctx = await browser.newContext({ ...contextFor(S), serviceWorkers: 'block' });
       // REACH_FONTS=dir: the house's web fonts from a folder (fonts.css and its files) where Google's cannot be reached,
       // so the words are as wide here as in CI and on a phone.
       if (process.env.REACH_FONTS) {
@@ -386,7 +403,7 @@ let dir;
           // Turn it: portrait → landscape → portrait, the page left open; walked again.
           if (size === 'ipadP') {
             await scrollTo(page, 'top');
-            await page.setViewportSize({ width: 1180, height: 820 }); await page.waitForTimeout(120);
+            await page.setViewportSize({ width: S.viewport.height, height: S.viewport.width }); await page.waitForTimeout(120);
             await page.setViewportSize(S.viewport); await page.waitForTimeout(150); await still(page);
             await walkHere(page, p, size, role, '↻', false);
           }
@@ -403,7 +420,7 @@ let dir;
   const line = f => `${f.page} · ${f.size} · ${f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}”${f.box ? ' [' + f.box.join(',') + ']' : ''}${f.cover ? ' · under ' + [f.cover.sel || f.cover.tag, f.cover.pe ? 'pe:' + f.cover.pe : '', f.cover.op != null ? 'op:' + f.cover.op : '', f.cover.z ? 'z:' + f.cover.z : '', f.cover.pos && f.cover.pos !== 'static' ? f.cover.pos : ''].filter(Boolean).join(' ') : ''}`;
   if (process.env.REACH_JSON) fs.writeFileSync(process.env.REACH_JSON, JSON.stringify({ faults, allowed }, null, 1));
   if (skipped.size) console.log(`not walked (404 in the test house): ${[...skipped].join(' ')}`);
-  const summary = `reach: ${walked} page walks (${combos.size} page × size × person) in ${secs}s; ${faults.length} faults; ${allowed.length} on the allow-list`;
+  const summary = `reach (${ENGINE.name}): ${walked} page walks (${combos.size} page × size × person) in ${secs}s; ${faults.length} faults; ${allowed.length} on the allow-list`;
   if (allowed.length) console.log(`allowed (filed): ${[...new Set(allowed.map(a => '#' + a.issue))].join(' ')}`);
   if (faults.length) {
     const lines = faults.map(line);

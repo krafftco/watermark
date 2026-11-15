@@ -11,6 +11,11 @@ The CTO session keeps it honest.
   modules load. The setup script does this.
 - Playwright cannot download its own browser. Tests that need one drive the machine's Chrome: copy how
   `test/a11y.js` and `scripts/reach-walk.js` find it. So nothing here proves Safari's engine: say so.
+- Safari's engine runs only in CI: the `reach-webkit` job (#55) walks reach and the way back with `WM_ENGINE=webkit`
+  (`scripts/engine.js`; iPad (gen 7), iPad Mini, iPhone 13 from Playwright's `devices`). Here `WM_ENGINE=webkit` prints
+  one line and exits 0; in CI a missing WebKit fails. Its findings come back as annotations titled `… webkit`
+  (`scripts/engine-findings.js`, ≤1500 chars each, 10 a level a step) and whole in the job's `webkit-findings` artifact.
+- Locally `test/wayback.js` needs `CHROME=/usr/bin/google-chrome` (Playwright's pinned Chromium is not on this machine).
 - A local Postgres for `scripts/sql-check.js` and the Postgres half of a test: /var/lib/wmpg, port 5433, started as
   docs/HISTORY.md says ("Two engines, one shape"). Stop it when you are done if no one else is on it.
 - The shell cannot reach the live house or the test house (the network allow-list). A worker never sees live data.

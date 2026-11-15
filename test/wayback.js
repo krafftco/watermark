@@ -20,6 +20,7 @@ process.env.NODE_ENV = 'test';
 const fs = require('fs'); const path = require('path'); const os = require('os'); const assert = require('assert');
 const sharp = require('sharp');
 const { chromium, devices } = require('playwright');
+const ENGINE = require('../scripts/engine'); ENGINE.guard('wayback'); // WM_ENGINE=webkit: Safari's engine (#55)
 const { createApp } = require('../src/app');
 const SHOTS = process.env.WAYBACK_SHOTS || '';
 
@@ -74,7 +75,7 @@ const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(s
   const dv = db.prepare("INSERT INTO deliveries (token, maker_id, title, client_name) VALUES ('wbtok', ?, 'A day in Paris', 'Rae')").run(mk.id).lastInsertRowid;
   slugs.slice(0, 3).forEach((s, i) => db.prepare('INSERT INTO delivery_works (delivery_id, work_id, pos, ref) VALUES (?,?,?,?)').run(dv, db.prepare('SELECT id FROM works WHERE slug=?').get(s).id, i, 'r' + i));
 
-  const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
+  const browser = ENGINE.webkit ? await ENGINE.launch() : await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
   const open = async (ctx, p) => { const page = await ctx.newPage(); const r = await page.goto(base + p, { waitUntil: 'load' }); await page.waitForTimeout(250); return [page, r]; };
 
   // ---- 1. Downloads in the app ----
@@ -238,8 +239,10 @@ const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(s
   }
 
   await browser.close(); srv.close();
-  console.log(`${checks - fails.length} of ${checks} checks hold`);
-  if (fails.length) { console.log(`::error title=wayback::${fails.length} failed: ${fails.slice(0, 12).join(' || ').replace(/%/g, '%25').replace(/\n/g, ' ')}`); process.exitCode = 1; }
+  console.log(`${ENGINE.name}: ${checks - fails.length} of ${checks} checks hold`);
+  // WAYBACK_JSON=file: every failed check, named with the engine, for CI to raise in full (the WebKit pass).
+  if (process.env.WAYBACK_JSON) fs.writeFileSync(process.env.WAYBACK_JSON, JSON.stringify({ engine: ENGINE.name, checks, fails }, null, 1));
+  if (fails.length) { console.log(`::error title=wayback ${ENGINE.name}::${fails.length} failed: ${fails.slice(0, 12).join(' || ').replace(/%/g, '%25').replace(/\n/g, ' ')}`); process.exitCode = 1; }
   else console.log('ok: the way back holds (downloads, bare pages, the artist page, the worker)');
 })().catch(e => { console.error(e); console.log('::error title=wayback::' + String(e && e.message || e).slice(0, 400)); process.exitCode = 1; })
   .finally(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* */ } setTimeout(() => process.exit(), 50); });
