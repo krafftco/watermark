@@ -5852,7 +5852,7 @@ header.top .nv-verbs{flex:0 0 auto;overflow:visible}
 header.top .nv-verbs a{padding-top:11px;padding-bottom:11px}
 header.top .nv-w{padding-top:11px;padding-bottom:11px}
 header.top .nv-bell{padding:6px}
-header.top .tr-chip{padding-top:5px;padding-bottom:5px}
+header.top .tr-chip{display:inline-flex;align-items:center;min-height:26px;box-sizing:border-box}
 @media (min-width:701px) and (max-width:900px){header.top .nv-find span,header.top .nv-share span{display:none}}
 .dh-top .dh-brand{padding-top:6px;padding-bottom:6px}
 .dh-top .dh-as a{padding-top:9px;padding-bottom:9px}

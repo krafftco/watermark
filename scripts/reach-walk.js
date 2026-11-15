@@ -23,7 +23,8 @@
 // 1440×900 walk the smaller set SMALL below. People: signed out (DOORS and the house's own pages), a maker by email code
 // (the maker's and the collector's rooms), the Studio by its password (the house's rooms); and someone from the trade.
 // Faults found and filed rather than fixed are on ALLOW, each with its issue; a new fault fails. Exit 1 on any fault.
-// Run: `npm run reach` (PW_CHANNEL=chrome on a machine with Chrome but not Playwright's own Chromium).
+// Run: `npm run reach` (PW_CHANNEL=chrome on a machine with Chrome but not Playwright's own Chromium; REACH_FONTS=dir
+// where Google's fonts cannot be reached, or the words are narrower than in CI and the walk sees another house).
 // `REACH_ONLY=/studio/volumes,/account` walks just those; `REACH_SIZES=ipadP` just that size; `REACH_SHOTS=dir` saves a
 // picture of each fault's page.
 process.env.NODE_ENV = 'test';
@@ -54,7 +55,7 @@ const ALLOW = [
   // #45: a room's sticky bar (top 0) slides under the house's sticky header.
   { page: /^\/account\/table$/, control: /^button\[data-[fs]\]$/, kind: 'bar', issue: 45, why: 'the Library\'s filter and star rows under the desk header' },
   { page: /^\/trade$/, control: /^(input|select|button\.buy-btn)$/, kind: 'bar', issue: 45, why: 'the trade search bar under the header (landscape)' },
-  { page: /^\/w\//, control: /^(button\.eye-b|button\.hg-open|summary)$/, kind: 'bar', issue: 45, why: 'a work\'s side column under the header' },
+  { page: /^\/(w\/[^/]+|today)$/, control: /^(button\.eye-b|button\.hg-open|summary)$/, kind: 'bar', issue: 45, why: 'a work\'s side column under the header' },
   // #46: pages wider than the screen (the whole page zooms out; the top bar's presses miss).
   { page: /^\/studio\/(accounts|analytics)$/, control: /./, kind: 'wide', issue: 46, why: 'tables wider than a phone' },
   { page: /^\/studio\/(accounts|analytics)$/, control: /./, kind: 'tap', issue: 46, why: 'zoomed out by the wide table: presses land beside' },
@@ -74,17 +75,20 @@ const ALLOW = [
   { page: /^\/account\/table$/, control: /^(input\[data-lib-(size|auto)\]|a\.lib-(help|wan))$/, kind: 'small', issue: 50, why: 'the Library\'s toolbar' },
   { page: /^\/account\/table$/, control: /^button\.lib-tk$/, kind: 'invisible', issue: 50, why: 'Select on a plate until hovered' },
   { page: /^\/account\/(cull|stand)$/, control: /^(a\.link|a(\[data-way-back\])?\[href="\/account"\])$/, kind: 'small', issue: 50, why: 'the cull\'s end panel; the stand\'s way back' },
-  { page: /^\/deliver\//, control: /^input$/, kind: 'small', issue: 50, why: 'an album\'s own-amount field' },
+  { page: /^\/deliver\//, control: /^(input|a\.dv-logo)$/, kind: 'small', issue: 50, why: 'an album\'s own-amount field; its wordmark' },
+  { page: /^\/account$/, control: /^a\[href="\/(w|voices)\/[^"]+"\]$/, kind: 'small', issue: 50, why: 'the studio\'s rows: a work\'s title beside Add your voice' },
   { page: /^\/deliver\//, control: /^input$/, kind: 'bar', issue: 50, why: 'an album\'s own-amount field at the foot' },
   // #51: public rooms with their own bars.
   { page: /^\/(art\/[^/]+|draw|vr|easel\/[^/]+|read\/[^/]+|today|w\/[^/]+|master|write)$/, control: /./, kind: 'small', issue: 51, why: 'the hall, Draw, VR, the easel, the reader, a work' },
   { page: /^\/(about)?$/, control: /^(a\.tr-chip|a\[href="\/house"\])$/, kind: 'small', issue: 51, why: 'the trade chip on a phone; the front door\'s "What this is"' },
   { page: /^\/draw$/, control: /^input\[data-dw-picker\]$/, kind: 'invisible', issue: 51, why: 'the colour picker' },
   { page: /^\/$/, control: /^a\[href="\/house"\]$/, kind: 'covered', issue: 51, why: 'the front door\'s "What this is" with the trade chip' },
+  { page: /^\/$/, control: /^a\[href="\/house"\]$/, kind: 'invisible', issue: 51, why: 'the front door\'s "What this is" unseen but pressable on a phone' },
   // #52: layers over controls.
   { page: /^\/collection$/, control: /^button\[data-(mk|r)\]$/, kind: 'bar', issue: 52, why: 'maker chips and room buttons under the pinned bar' },
   { page: /^\/balcony$/, control: /^(a\[href="(https:\/\/studios\.krafftco\.com|\/museums|\/privacy|\/legal)"\]|a\.foot-beta)$/, kind: '', issue: 52, why: 'the word layer and the field over the footer' },
   { page: /^\/balcony$/, control: /^button\.link$/, kind: 'small', issue: 52, why: 'Close' },
+  { page: /^\/yours\/reading$/, control: /^a\[href="\/yours"\]$/, kind: 'covered', issue: 52, why: 'the heading over the way back (landscape)' },
 ];
 
 const SETTLE_MS = 350;
@@ -266,6 +270,7 @@ let dir;
   const still = page => page.waitForFunction(() => !document.getAnimations().some(a => a.playState === 'running' && a.effect && a.effect.getTiming().iterations !== Infinity), null, { timeout: 2500, polling: 100 }).catch(() => {});
   const settle = async page => {
     await page.waitForFunction(() => [...document.images].every(i => i.complete), null, { timeout: 4000 }).catch(() => {});
+    await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
     await page.waitForTimeout(SETTLE_MS);
     await still(page);
   };
@@ -344,6 +349,12 @@ let dir;
       const list = (only ? only.map(fill).filter(p => role === 'trade' ? lists.trade.includes(p) : roleOf(p) === role) : S.full ? lists[role] : role === 'trade' ? lists.trade.slice(1, 3) : smallSet.filter(p => roleOf(p) === role));
       if (!list.length) continue;
       const ctx = await browser.newContext({ viewport: S.viewport, userAgent: S.ua, hasTouch: S.touch, isMobile: S.touch, deviceScaleFactor: S.touch ? 2 : 1, serviceWorkers: 'block' });
+      // REACH_FONTS=dir: the house's web fonts from a folder (fonts.css and its files) where Google's cannot be reached,
+      // so the words are as wide here as in CI and on a phone.
+      if (process.env.REACH_FONTS) {
+        await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: fs.readFileSync(path.join(process.env.REACH_FONTS, 'fonts.css')) }));
+        await ctx.route('https://fonts.gstatic.com/reach/**', r => r.fulfill({ contentType: 'font/woff2', body: fs.readFileSync(path.join(process.env.REACH_FONTS, path.basename(new URL(r.request().url()).pathname))) }));
+      }
       if (cookiesFor[role]) await ctx.addCookies(cookiesFor[role]);
       // The tours and the first-visit sheets would sit over the page for a newcomer: they are part of what is walked
       // only on the front door; elsewhere the walk is someone who has been here before.
@@ -366,7 +377,10 @@ let dir;
           const wide = await page.evaluate(() => { const w = document.documentElement.scrollWidth, c = document.documentElement.clientWidth; if (innerWidth <= c + 1 && w <= c + 1) return null; const e = [...document.querySelectorAll('body *')].find(e => { const r = e.getBoundingClientRect(); return r.right > c + 1 && r.width > 0 && getComputedStyle(e).position !== 'fixed'; }); return { w: Math.max(w, innerWidth), sel: e ? e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '') : '?' }; });
           if (wide) note({ page: p, size, role, kind: 'wide', sel: wide.sel, words: '', cover: { tag: `the page is ${wide.w} wide on a ${S.viewport.width} screen` } });
           await walkHere(page, p, size, role);
-          if (S.touch) for (const edge of ['top', 'mid']) { await scrollTo(page, edge); await topbar(page, S.touch, p, size, role, edge); }
+          // A control that moves on the press itself (on touchend, before the click the walk holds back) takes the page
+          // away: said, and the rest of that page's presses left out.
+          if (S.touch) try { for (const edge of ['top', 'mid']) { await scrollTo(page, edge); await topbar(page, S.touch, p, size, role, edge); } }
+          catch (e) { if (!/context was destroyed|navigation/i.test(String(e))) throw e; console.log(`left on a press: ${p} at ${size} (${role})`); await page.waitForLoadState('load').catch(() => {}); await page.goto(base + p, { waitUntil: 'load' }); await settle(page); }
           // Turn it: portrait → landscape → portrait, the page left open; walked again.
           if (size === 'ipadP') {
             await scrollTo(page, 'top');
@@ -392,7 +406,16 @@ let dir;
   if (faults.length) {
     const lines = faults.map(line);
     console.error(summary + '\n' + lines.join('\n'));
-    if (process.env.GITHUB_ACTIONS) console.log(`::error title=reach::${(summary + '\n' + lines.join('\n')).slice(0, 1500).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`);
+    if (process.env.GITHUB_ACTIONS) {
+      // CI's log cannot be read from a session, only its annotations (ten a step): the faults grouped by page, kind and
+      // control, with the sizes and people they were seen at, packed into as few annotations as they fit.
+      const g = new Map();
+      for (const f of faults) { const k = `${f.page} · ${f.kind} · ${f.sel} “${f.words}”${f.cover ? ' · under ' + (f.cover.sel || f.cover.tag) : ''}`; if (!g.has(k)) g.set(k, new Set()); g.get(k).add(f.size + (f.role === 'out' ? '' : '/' + f.role)); }
+      const rows = [...g].map(([k, v]) => `${k} · ${[...v].join(',')}`); const packs = [summary]; let cur = '';
+      for (const r of rows) { if ((cur + r).length > 3800) { packs.push(cur); cur = ''; } cur += r + '\n'; }
+      if (cur) packs.push(cur);
+      packs.slice(0, 10).forEach((m, i) => console.log(`::error title=reach ${i}/${Math.min(packs.length, 10) - 1}::${m.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`));
+    }
     done(1);
   }
   console.log(summary); done(0);
