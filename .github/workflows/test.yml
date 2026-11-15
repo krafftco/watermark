@@ -64,6 +64,23 @@ jobs:
       - run: |
           set -o pipefail
           NODE_ENV=test node test/a11y.js 2>&1 | tee /tmp/a11y.txt || { grep -q '::error title=a11y' /tmp/a11y.txt || echo "::error title=a11y::$(tail -c 1500 /tmp/a11y.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
+  # The reach walk (#42): every control on every page pressable at iPad, phone and desk sizes, in both rotations.
+  reach:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: |
+          bash scripts/ci-apt.sh libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 fonts-liberation || echo "::warning::apt for Chromium did not finish; Playwright tries its own"
+          npx playwright install --with-deps chromium || npx playwright install chromium
+      - run: |
+          set -o pipefail
+          NODE_ENV=test node scripts/reach-walk.js 2>&1 | tee /tmp/reach.txt || { grep -q '::error title=reach' /tmp/reach.txt || echo "::error title=reach::$(tail -c 1500 /tmp/reach.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
   postgres:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

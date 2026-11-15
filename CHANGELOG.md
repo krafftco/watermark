@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.85.1 · Every control in reach · 15 November 2026
+
+- The house's top bar on an iPad held upright: Sign in (or You), Keep your work and Find no longer lie on one another when the bell or the trade chip joins the row; Find and Share show their marks alone between 701 and 900 wide.
+- Every control in the house's top bar and the desk's is tall enough to press (they were 12 to 17 px): The house · My studio · Gallery, Find, The front door, Sign out, the bell, the wordmark.
+- The cull's top bar (back to the Library, the decks) can be pressed when the deck is done; the panel that says so no longer lies over it.
+- Volumes and Pay the makers sit in the desk's margins like every other room.
+- A new walk, run on every change: every control on every page, at iPad portrait and landscape (turned while open), an iPad mini, a phone and a desk, signed out, as a maker and in the Studio, must be reachable, uncovered and large enough to press.
+
 ## 1.85.0 · Wander is how the house shows a picture · 12 November 2026
 
 - A picture sent to you can be studied: a work not on view opens on the easel for its maker and for those it was sent to in an album; Study in an album returns you to the album.
