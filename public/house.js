@@ -63,7 +63,10 @@
     + '@media print{.kh{display:none}}'
     // On a phone the bar stays out of the way (Will, 17 Oct: you need to see the images): it hides as you scroll; a
     // small K at the top left comes and goes like Instagram's, and a tap on it brings the bar in.
-    + '.kh.kh-m{position:fixed;top:0;left:0;right:0;transform:translateY(-100%);transition:transform .32s ease;box-shadow:0 6px 24px rgba(0,0,0,.35)}.kh.kh-m.on{transform:none}'
+    // Put away, it is out of reach for everyone (#47): hidden once it has slid up, so no key, reader or press finds
+    // its links above the screen; shown at once when the dot brings it in. In this script's own styles, so it holds
+    // on every site that loads the bar, with or without Watermark's stylesheet.
+    + '.kh.kh-m{position:fixed;top:0;left:0;right:0;transform:translateY(-100%);visibility:hidden;pointer-events:none;transition:transform .32s ease,visibility 0s linear .32s;box-shadow:0 6px 24px rgba(0,0,0,.35)}.kh.kh-m.on{transform:none;visibility:visible;pointer-events:auto;transition:transform .32s ease,visibility 0s}'
     + '.kh-dot{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:999;width:34px;height:34px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:rgba(17,17,17,.55);color:#f6f5f2;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transform:translateY(-6px);transition:opacity .35s ease,transform .35s ease;-webkit-tap-highlight-color:transparent}'
     + '.kh-dot svg{width:14px;height:14px}.kh-dot.up{opacity:.55;transform:none}.kh-dot.top{opacity:.9;transform:none}.kh-dot.gone{opacity:0;transform:translateY(-6px);pointer-events:none}';
   var KM = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
@@ -123,7 +126,7 @@
     var quiet = !!document.querySelector('meta[name="kh-dot"][content="off"]');
     if (nav) quiet = false;
     if (nav) { /* embedded: always in its row, nothing to hide */ }
-    else if (quiet && window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches) bar.classList.add('kh-m');
+    else if (quiet && window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches) { bar.classList.add('kh-m'); bar.setAttribute('inert', ''); }
     else if (window.matchMedia && matchMedia('(max-width:760px) and (pointer:coarse)').matches && !document.querySelector('.kh-dot')) {
       bar.classList.add('kh-m');
       var dot = document.createElement('button'); dot.type = 'button'; dot.className = 'kh-dot top'; dot.setAttribute('aria-label', 'Krafft'); dot.innerHTML = KM;
@@ -132,7 +135,7 @@
       if (hdr) { dot.className = 'kh-dot kh-in'; hdr.insertBefore(dot, hdr.firstChild); } else document.body.appendChild(dot);
       var inRow = !!hdr;
       var lastY = window.pageYOffset || 0, idle;
-      function state() { if (inRow) return; var y = window.pageYOffset || 0; if (bar.classList.contains('on')) { dot.className = 'kh-dot gone'; return; } if (y < 24) dot.className = 'kh-dot top'; else if (y < lastY - 4) dot.className = 'kh-dot up'; else if (y > lastY + 4) dot.className = 'kh-dot gone'; lastY = y; }
+      function state() { if (bar.classList.contains('on')) bar.removeAttribute('inert'); else bar.setAttribute('inert', ''); if (inRow) return; var y = window.pageYOffset || 0; if (bar.classList.contains('on')) { dot.className = 'kh-dot gone'; return; } if (y < 24) dot.className = 'kh-dot top'; else if (y < lastY - 4) dot.className = 'kh-dot up'; else if (y > lastY + 4) dot.className = 'kh-dot gone'; lastY = y; }
       window.addEventListener('scroll', function () { if (bar.classList.contains('on')) bar.classList.remove('on'); state(); clearTimeout(idle); idle = setTimeout(function () { if (!inRow && !dot.classList.contains('top')) dot.className = 'kh-dot up'; }, 1600); }, { passive: true });
       dot.addEventListener('click', function () { bar.classList.add('on'); state(); });
       document.addEventListener('click', function (e) { if (bar.classList.contains('on') && !bar.contains(e.target) && !dot.contains(e.target)) { bar.classList.remove('on'); state(); } });
