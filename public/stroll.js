@@ -713,29 +713,5 @@
   if (ssheet) ssheet.addEventListener('click', function (e) { if (e.target === ssheet) closeSheets(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ssheet && !ssheet.hidden) { e.stopImmediatePropagation(); closeSheets(); } }, true);
 })();
-/* A reading of the screen (14 Nov): /wander?vv=1 shows what the device reports about its own height, so a gap under
-   the tab bar on one tablet can be understood from a screenshot. Shown to no one who does not ask for it. */
-(function () {
-  if (!/[?&]vv=1(?:&|$)/.test(location.search)) return;
-  var b = document.createElement('pre');
-  b.style.cssText = 'position:fixed;left:8px;top:calc(8px + env(safe-area-inset-top));z-index:9999;margin:0;padding:8px 10px;background:rgba(0,0,0,.82);color:#9f9;font:12px/1.45 ui-monospace,Menlo,monospace;border-radius:8px;pointer-events:none;white-space:pre';
-  var probe = document.createElement('div'); probe.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none';
-  var px = function (h) { probe.style.height = h; return Math.round(probe.getBoundingClientRect().height); };
-  var bot = document.createElement('div'); bot.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:3px;background:#f33;z-index:9999;pointer-events:none';
-  function read() {
-    var vv = window.visualViewport, tb = document.querySelector('.tb'), r = tb ? tb.getBoundingClientRect() : null, st = document.querySelector('main.st'), sr = st ? st.getBoundingClientRect() : null;
-    var sa = function (n) { probe.style.height = 'env(safe-area-inset-' + n + ')'; return Math.round(probe.getBoundingClientRect().height); };
-    b.textContent = [
-      'inner ' + innerWidth + ' x ' + innerHeight,
-      'client ' + document.documentElement.clientWidth + ' x ' + document.documentElement.clientHeight,
-      'visual ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' top ' + Math.round(vv.offsetTop) + ' scale ' + vv.scale.toFixed(2) : 'none'),
-      'screen ' + screen.width + ' x ' + screen.height + ' avail ' + screen.availHeight + ' dpr ' + devicePixelRatio,
-      'vh ' + px('100vh') + ' dvh ' + px('100dvh') + ' svh ' + px('100svh') + ' lvh ' + px('100lvh'),
-      'safe t' + sa('top') + ' b' + sa('bottom'),
-      'stage ' + (sr ? Math.round(sr.top) + '..' + Math.round(sr.bottom) : 'none') + '  tabs ' + (r ? Math.round(r.top) + '..' + Math.round(r.bottom) : 'none'),
-      'standalone ' + (navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) + '  scrollY ' + Math.round(scrollY),
-      (navigator.userAgent.match(/(CriOS|FxiOS|EdgiOS|Version)\/[\d.]+/) || ['?'])[0] + ' ' + (navigator.userAgent.match(/(iPad|iPhone|Macintosh|Android)/) || ['?'])[0] + ' touch ' + navigator.maxTouchPoints
-    ].join('\n');
-  }
-  document.body.appendChild(probe); document.body.appendChild(bot); document.body.appendChild(b); read(); setInterval(read, 500);
-})();
+/* The screen's own numbers, when asked (?vv=1): public/vv.js. */
+(function(){if(/[?&]vv=1(?:&|$)/.test(location.search)){var s=document.createElement('script');s.src='/static/vv.js';document.head.appendChild(s)}})();

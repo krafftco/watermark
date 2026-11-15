@@ -5861,3 +5861,17 @@ header.top .tr-chip{display:inline-flex;align-items:center;min-height:26px;box-s
 .dh-top .dh-find{min-width:28px;justify-content:center}
 header.top .brand{padding-top:4px;padding-bottom:4px}
 .cll-top{position:relative;z-index:2}
+/* Under the status bar (15 Nov): opened from the home screen on an iPad or a phone the house is drawn beneath the
+   clock, and the device keeps that strip for itself: a bar's first row there cannot be pressed (Will: "the top bar
+   doesn't work"). Every bar that sits at the top of the screen now starts below it. In a browser the inset is zero. */
+@supports (padding: env(safe-area-inset-top)){
+  .dk,.dh{padding-top:env(safe-area-inset-top)}
+  .cx-bar{height:auto;min-height:52px;padding-top:env(safe-area-inset-top)}
+  .lib-top{padding-top:calc(18px + env(safe-area-inset-top))}
+  .ctc-top{padding-top:calc(12px + env(safe-area-inset-top))}
+  .rgy-mini{padding-top:env(safe-area-inset-top)}
+  .rdr-toc,.rdr-fmenu,.rdr-sh{padding-top:env(safe-area-inset-top)}
+  dialog.rm .rm-in{padding-top:calc(clamp(18px,3vw,36px) + env(safe-area-inset-top))}
+}
+/* The rooms sheet shown without the device's own modal layer (a fallback): above everything, the page beneath still. */
+dialog.rm.rm-plain{display:block;z-index:9000}
