@@ -73,7 +73,7 @@ const ALLOW = [
   // #50: the maker's rooms.
   { page: /^\/account\/table$/, control: /^(input\[data-lib-(size|auto)\]|a\.lib-(help|wan))$/, kind: 'small', issue: 50, why: 'the Library\'s toolbar' },
   { page: /^\/account\/table$/, control: /^button\.lib-tk$/, kind: 'invisible', issue: 50, why: 'Select on a plate until hovered' },
-  { page: /^\/account\/(cull|stand)$/, control: /^(a\.link|a\[href="\/account"\])$/, kind: 'small', issue: 50, why: 'the cull\'s end panel; the stand\'s way back' },
+  { page: /^\/account\/(cull|stand)$/, control: /^(a\.link|a(\[data-way-back\])?\[href="\/account"\])$/, kind: 'small', issue: 50, why: 'the cull\'s end panel; the stand\'s way back' },
   { page: /^\/deliver\//, control: /^input$/, kind: 'small', issue: 50, why: 'an album\'s own-amount field' },
   { page: /^\/deliver\//, control: /^input$/, kind: 'bar', issue: 50, why: 'an album\'s own-amount field at the foot' },
   // #51: public rooms with their own bars.
