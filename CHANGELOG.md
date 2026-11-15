@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.0 · The agents' door, built and shut · 15 November 2026
+
+- A read-only desk feed for the house's scheduled seats, `GET /agents/desk.json`: letters at the desk by number, day, kind and work (never their words, a name or an address), makers who joined by number and public handle, and the counts by day. Shut until a key is set in the host's environment; without it, it is an address the house does not have.
+- Seven indexes so each of its lists reads only its days.
+
 ## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
 
 - A room's own bar now stops below the house's header instead of sliding under it: the Library's filter and star rows, the trade's search bar, and the columns beside a work. The header's height is measured once on each page and every room's bar and every jump to an anchor follows it, upright or turned, on a phone, an iPad or the desk.

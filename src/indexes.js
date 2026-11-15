@@ -38,6 +38,14 @@ const LIST = [
   ['work_releases_work', 'work_releases (work_id)'],
   ['print_orders_status', 'print_orders (status)'],
   ['tips_post', 'tips (post_slug)'],
+  // the agents' door (#28): each of its lists reads only its window, by the day
+  ['feedback_at', 'feedback (at)'],
+  ['sightings_created', 'sightings (created_at)'],
+  ['disputes_at', 'disputes (at)'],
+  ['makers_created', 'makers (created_at)'],
+  ['works_created', 'works (created_at)'],
+  ['ledger_type_at', 'ledger (type, at)'],
+  ['licenses_starts', 'licenses (starts_at)'],
 ];
 function ensure(db, { log = console.log } = {}) {
   let made = 0; const skipped = [];

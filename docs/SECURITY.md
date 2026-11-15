@@ -33,6 +33,15 @@ What stands, what is next, and the hands that hold the keys. Plain, so it can be
 - Done 27 Oct: the threat model and the incident runbook below.
 
 
+## The agents' door (15 Nov 2026, #28)
+
+`GET /agents/desk.json` (src/agentsdoor.js) is how the scheduled seats (front-desk, concierge, analyst) read the house's desk without a person's sign-in. It is read-only and answers on the website's process.
+- **What it shows**, for the last 1 to 31 days (`?days=`, 7 by default): letters at the desk by their number at the desk (F-, R-, WM-C-), day, kind (feedback, report, notice, dispute), the work's slug and whether answered; makers who joined by maker number, public handle, day, door, works in, works on view, whether they shared their page, whether their address is proven; and the counts by day (visits, joins, works in, works hung, pieces collected). Every list has named columns and a limit of 500.
+- **What it never shows**: an address, a name beyond the public handle, an IP, a device, a price, a picture, or the words of a guest's letter. The words are behind `AGENT_LETTERS=1`, to be set only on counsel's and Will's word; while it is off the words are not read from the database. With it on, any address inside the words is masked, but names in the words are not.
+- **The key**: `AGENT_KEY`, in Render's environment for the `watermark` web service only, 32 characters or more (unset or shorter, the door is shut). It is accepted only as `Authorization: Bearer <key>`, compared in constant time, and never logged; a key in the address is refused. Shut, keyless or wrong, the door answers exactly as the house's own 404. Answers carry `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. At most 60 answers an hour per key, per process (then 429 with Retry-After).
+- **Changing it**: Will, in Render → `watermark` → Environment → `AGENT_KEY`: a new long random value, Save (the service redeploys), then the same value in the scheduled seats' environment. Removing the variable shuts the door.
+- **If it leaks**: remove or replace `AGENT_KEY` on Render at once (that alone shuts the door to the old key); give the new value to the seats; note it as `house.incident`. What leaked is a week of counts, handles and letter numbers, never addresses or words (unless AGENT_LETTERS was on, in which case counsel hears of it the same day).
+
 ## The threat model (27 Oct 2026)
 
 What the house holds that is worth taking, who would want it, and what stands in the way.
