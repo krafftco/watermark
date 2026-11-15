@@ -5891,3 +5891,72 @@ dialog.rm.rm-plain{display:block;z-index:9000}
 /* The scout's bar wraps to two rows on an iPad upright and covered the last row of pictures (found by Safari's engine
    in the reach walk, 15 Nov): the room leaves the bar's full height at its foot. */
 main.sct[data-sct]{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
+
+/* ── Reach: targets and layers (#47–#52; 15 Nov). Every control at least 24×24 px (WCAG 2.5.8), made by enlarging the
+   pressable box, not the look: padding with a matching negative margin, so the type, the spacing and the layout stay
+   where they were. What is put away takes no presses. One block, kept at the end so it merges beside #45/#46. ── */
+/* The dark rooms set .dk on <html>, and the desk header's .dk rules (sticky, z 20; the status bar's inset) caught the
+   whole page with them. */
+html.dk{position:static;z-index:auto;padding-top:0}
+/* #48 Wander: the bar's Watermark, the maker's name, the place, the ends of a set. (The plate's links already carry
+   3 px of padding: the negative margins below take back only what is added.) */
+.st-home{min-height:24px;padding-block:5px;margin-block:-5px;box-sizing:border-box}
+.st-plate .st-by{padding-block:7px;margin-block:-4px}
+.st-k a{padding-block:6px;margin-block:-3px}
+.st-end a,.st-none a{padding-block:5px;margin-block:-5px}
+/* The wall clips what is parked beside it (the two side panels) rather than scrolling to it when something asks
+   to be brought into view; nothing then slides the wall sideways over its own controls. */
+main.st{overflow:clip}
+/* The side tabs take no presses while unseen: faded by stillness, a zoom or a side open, and at the desk until the
+   pointer is over the wall (or a key brings focus into it). */
+.st-tab{transition:opacity .4s,color .3s,visibility 0s}
+.st-still .st-tab,.st-rest .st-tab,.st-side-on .st-tab,.st.st-zoom .st-tab{visibility:hidden;transition:opacity .4s,color .3s,visibility 0s .4s}
+@media(hover:hover) and (pointer:fine){main.st:not(:hover):not(:focus-within) .st-tab{visibility:hidden;pointer-events:none}main.st:focus-within .st-tab:focus-visible{opacity:1}}
+/* The front door's "What this is": 24 tall, its rule drawn where the border was; gone with the card. */
+.st-hello{transition:opacity .9s var(--e),transform .9s var(--e),visibility 0s}
+.st-hello-off,.st-still .st-hello{visibility:hidden;transition:opacity .9s var(--e),transform .9s var(--e),visibility 0s .9s}
+.st-hello-off a,.st-still .st-hello a{pointer-events:none}
+.st-hello a{padding-block:7px;border-bottom:0;background:linear-gradient(rgba(217,188,124,.45),rgba(217,188,124,.45)) left 0 bottom 6px/100% 1px no-repeat}
+/* #49 the Studio: each row's links in Accounts; a summary beside its field; the fields beside their buttons (the
+   Listening room's, the master record's). */
+.ac-doors a{padding-block:5px}
+.gv-sug{display:flow-root}.gv-sug summary{padding-block:4px;margin-block:-4px}
+.rq-f input,.mst-f input{min-height:24px;box-sizing:border-box;margin-block:-1.5px}
+/* #50 the maker's rooms: the Library's toolbar, the cull's end, the stand's way back. */
+.lib-wan,.lib-help,.lib-auto{padding-block:5px;margin-block:-5px}
+.lib-size input{height:24px;margin:-6px 2px 2px;position:relative;top:4px} /* a slider set on a text line: the line keeps its height, the box is centred where the old one was */
+.cll-end[hidden]{display:none}
+.cll-end-a .link{padding-block:4px;margin-block:-4px}
+.ac-row .hd-t b a{padding-block:4px}
+.sd2-h a[data-way-back]{display:inline-block;padding-block:4px;margin-block:-4px}
+/* The Library's Select and an album's heart wait unseen until a pointer is over their plate: until then they take no
+   presses (a key still reaches them, and focus shows them); on a touch screen they are always seen. */
+.lib-t:focus-within .lib-tk{opacity:1}
+@media (hover:hover) and (pointer:fine){body:not(.lib-on) .lib-t:not(:hover):not(.is-sel):not(:focus-within) .lib-tk,.dv-w:not(:hover):not([data-hearted]) .dvh-b:not(:focus-visible){pointer-events:none}}
+/* #51 Draw: the colour swatches 24 across (the same disc inside a wider dark ring); the picker is pressed through its
+   circle (a label), so the hidden field itself takes no presses. */
+.dw-colors [data-dw-color]{width:24px;height:24px;border-width:3px;margin:-1px}
+.dw-pick{width:24px;height:24px;margin:-1px}.dw-pick input{pointer-events:none}
+/* #52 layers: the balcony's word panel is hidden until a word opens it (its display hid the [hidden] attribute, and the
+   empty panel lay over the footer); the reading room's kicker sits above the title's tall line box. */
+.bc-word[hidden]{display:none}
+.bc-word .link{padding-block:5px;margin-block:-5px}
+.lbr-tt .k a{position:relative;z-index:1;padding-block:5px}
+/* The collection's bar where its row does not fit (an iPad upright): the views go to a second line instead of the
+   rooms and the makers being squeezed to nothing under their neighbours; where it fits, one row of 52 as before. */
+@media (min-width:761px){.cx-bar{flex-wrap:wrap;height:auto;min-height:52px}.cx-rooms{min-width:56px}}
+@media (min-width:761px) and (max-width:1080px){.cx-bar{padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:6px;row-gap:4px}.ix-h{top:80px}}
+/* #51 public rooms with their own bars: Draw's way back, its layer buttons, its sliders and title; the easel's, the
+   reader's and VR's way back; VR's Hide; a work's maker, Before, Next and its room in its side column; "For those who make" beside its button. */
+.dw-back,.xr-home{padding-block:4px;margin-block:-4px}
+.dw-leye{padding:6px;margin:-6px}
+.dw-layers .k button,.dw-lacts button{min-height:24px;margin-block:-1px}
+.dw-size input,.dw-op input{height:24px;margin-block:-2px}
+.dw-lacts input{height:24px;margin:-6px 2px 2px;position:relative;top:4px}
+.dw-title{padding-block:4px;margin-block:-2px}
+.ez-back{padding-block:4px;margin-block:-4px}
+.rdr-back{padding-block:3px;margin-block:-3px}
+.xr-hide{padding-block:5px;margin-block:-5px}
+.lot-maker a{padding-block:5px}
+.wk-go{padding-block:4px;margin-block:-4px}.wk-where a{padding-block:7px;margin-block:-7px}
+.hg-share a:not(.buy-btn){padding-block:5px}

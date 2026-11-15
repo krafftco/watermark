@@ -53,6 +53,7 @@ The CTO session keeps it honest.
 - **A dead end in the installed app** (15 Nov): no browser bar there. A file is never navigated to; every page has a Back.
 - **Controls too small or under another on an iPad upright** (15 Nov). 701–900 px wide is a real screen. The `reach` job
   walks it; if you add a bar or a row of controls, run `node scripts/reach-walk.js` yourself.
+- **A bigger target that moved the page** (15 Nov, #48). Enlarge a control with padding and a negative margin of the same size, but read every rule that already pads it first (`.st-plate a` had 3 px: the margin takes back only what you add); an inline-block (a slider in a label) sits on the text line by its margin box, so a symmetric margin can still grow the line. Compare boxes before and after, never by eye. A panel with `display:grid|flex` ignores its `hidden` attribute unless it has a `[hidden]{display:none}` rule.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 

@@ -76,34 +76,6 @@ const DOES = { out: '/about', maker: '/account/table', studio: '/studio/volumes'
 // Found and filed, not yet fixed: page (a pattern), the control's short selector (a pattern), the kind, and its issue.
 // Each line is a fault someone has to mend; it is here so the walk stays a fence for the next fault, not a pass for this one.
 const ALLOW = [
-  // #47: the Krafft houses bar, put away above the screen on a phone, still in reach.
-  { page: /./, control: /^(button\.kh-k|a\.kh-you|a\[href="https:\/\/(studios|watermark)\.krafftco\.com\/#kh"\])$/, kind: 'stranded', issue: 47, why: 'off the screen while closed' },
-  // #48: Wander's own controls.
-  { page: /^\/(wander)?(\?.*)?$/, control: /^(a\.st-home|a\.st-by|a\[href="\/(wander|library|yours|house)[^"]*"\])$/, kind: 'small', issue: 48, why: 'Wander\'s bar and its ends' },
-  { page: /^\/(wander)?(\?.*)?$/, control: /^button\.st-tab/, kind: 'invisible', issue: 48, why: 'the side tabs at the desk' },
-  // #49: the Studio's rooms.
-  { page: /^\/studio\/accounts$/, control: /^a\[href="\/(account|m)[/?]/, kind: 'small', issue: 49, why: 'each row\'s links' },
-  { page: /^\/studio\/(gifts|listening)$/, control: /^(summary|input)$/, kind: 'small', issue: 49, why: 'a summary and a field' },
-  { page: /^\/studio\/scout$/, control: /^(a\[href="(\/releases|https:\/\/krafftco\.com|https:\/\/studios\.krafftco\.com|\/terms|\/privacy|\/legal)"\]|a\.foot-beta|select\[data-sct-maker\]|input\[data-sct-show\])$/, kind: '', issue: 49, why: 'the scout\'s fixed bar over the footer at its foot; its own small field and switch (seen in CI)' },
-  // #50: the maker's rooms.
-  { page: /^\/account\/table$/, control: /^(input\[data-lib-(size|auto)\]|a\.lib-(help|wan))$/, kind: 'small', issue: 50, why: 'the Library\'s toolbar' },
-  { page: /^\/account\/table$/, control: /^button\.lib-tk$/, kind: 'invisible', issue: 50, why: 'Select on a plate until hovered' },
-  { page: /^\/account\/(cull|stand)$/, control: /^(a\.link|a(\[data-way-back\])?\[href="\/account"\])$/, kind: 'small', issue: 50, why: 'the cull\'s end panel; the stand\'s way back' },
-  { page: /^\/deliver\//, control: /^(input|a\.dv-logo)$/, kind: 'small', issue: 50, why: 'an album\'s own-amount field; its wordmark' },
-  { page: /^\/account$/, control: /^a\[href="\/(w|voices)\/[^"]+"\]$/, kind: 'small', issue: 50, why: 'the studio\'s rows: a work\'s title beside Add your voice' },
-  { page: /^\/deliver\//, control: /^input$/, kind: 'bar', issue: 50, why: 'an album\'s own-amount field at the foot' },
-  // #51: public rooms with their own bars.
-  { page: /^\/(art\/[^/]+|draw|vr|easel\/[^/]+|read\/[^/]+|today|w\/[^/]+|master|write)$/, control: /./, kind: 'small', issue: 51, why: 'the hall, Draw, VR, the easel, the reader, a work' },
-  { page: /^\/(about)?$/, control: /^(a\.tr-chip|a\[href="\/house"\])$/, kind: 'small', issue: 51, why: 'the trade chip on a phone; the front door\'s "What this is"' },
-  { page: /^\/draw$/, control: /^input\[data-dw-picker\]$/, kind: 'invisible', issue: 51, why: 'the colour picker' },
-  { page: /^\/easel\//, control: /^button\[data-ez(-hide)?\]$/, kind: 'bar', issue: 51, why: 'the easel\'s Hide and Mirror under its pane at the screen\'s edge (seen in CI)' },
-  { page: /^\/$/, control: /^a\[href="\/house"\]$/, kind: 'covered', issue: 51, why: 'the front door\'s "What this is" with the trade chip' },
-  { page: /^\/$/, control: /^a\[href="\/house"\]$/, kind: 'invisible', issue: 51, why: 'the front door\'s "What this is" unseen but pressable on a phone' },
-  // #52: layers over controls.
-  { page: /^\/collection$/, control: /^button\[data-(mk|r)\]$/, kind: 'bar', issue: 52, why: 'maker chips and room buttons under the pinned bar' },
-  { page: /^\/balcony$/, control: /^(a\[href="(https:\/\/studios\.krafftco\.com|\/museums|\/privacy|\/legal)"\]|a\.foot-beta)$/, kind: '', issue: 52, why: 'the word layer and the field over the footer' },
-  { page: /^\/balcony$/, control: /^button\.link$/, kind: 'small', issue: 52, why: 'Close' },
-  { page: /^\/yours\/reading$/, control: /^a\[href="\/yours"\]$/, kind: 'covered', issue: 52, why: 'the heading over the way back (landscape)' },
 ];
 
 const SETTLE_MS = 350;
