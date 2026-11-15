@@ -2,7 +2,7 @@
 
 Read this first. It is short on purpose. The dated record of how every room was built is `docs/HISTORY.md` (85,000 words): never read it whole; search it (`grep -n "<room or file name>" docs/HISTORY.md`) before touching a room.
 
-Watermark is a Krafft company: a museum you can collect from. Makers keep their work here; anyone can own a piece of it. Live at watermark.krafftco.com. Will Fullerton is the CEO and decides. The CTO session (Claude) runs engineering and reports to him. Workers (other Claude sessions) take one issue each. How we work together: `docs/ENTERPRISE.md`. A worker's contract: `docs/WORKERS.md`.
+Watermark is a Krafft company: a museum you can collect from. Makers keep their work here; anyone can own a piece of it. Live at watermark.krafftco.com. Will Fullerton is the CEO and decides. The CTO session (Claude) runs engineering and reports to him. Workers (other Claude sessions) take one issue each. How we work together: `docs/ENTERPRISE.md`. A worker's contract: `docs/WORKERS.md`. What the workers have learned: `agents/NOTES.md`.
 
 ## Rules from Will (never broken)
 - Restrained, precise voice; no hype. Anything written in Will's voice, and every price, is a draft until he confirms.

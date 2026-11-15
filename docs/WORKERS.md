@@ -26,3 +26,6 @@ Three tries, then write what was tried and what blocked on the issue (`gh api -X
 
 ## What good looks like
 A reviewer can read the pull request in two minutes, run one command, and see the proof. The diff touches as few files as the job allows. Nothing else in the house moved.
+
+## The workers' memory
+`agents/NOTES.md` is what earlier workers learned: the machine's quirks, how CI is read, what has gone wrong and the rule each fault left. Read it before you start (`bash scripts/worker-setup.sh <issue> <name>` sets up your worktree and names it). Before you finish, add to it what the next worker should know, in your pull request. When your job reads real content (a book, a museum's records), ask the CTO session for the real page's shape before you build on an invented one.

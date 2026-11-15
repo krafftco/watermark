@@ -5,6 +5,7 @@ Every seat in the house's enterprise, and the rules they share. One file per sea
 Will Fullerton is the CEO and decides. The CTO session runs the House and reports to him. `docs/ENTERPRISE.md` says how people and agents hand work to each other; `docs/WORKERS.md` is the contract for anyone who changes code.
 
 ## Rules every seat keeps
+0. Read `agents/NOTES.md`: what earlier workers learned. Add to it before you finish.
 1. Read `CLAUDE.md` first; "Rules from Will" bind every seat, not only engineers.
 2. An agent prepares; a person sends. No seat mails, messages, posts or publishes to anyone outside the house. Words for the outside are drafts, marked DRAFT, until Will confirms them. Every price is a draft.
 3. No secrets in anything written. No seat signs in anywhere with a password or changes a setting on Render, AWS, Stripe, DNS or a mail provider.
