@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.86.1 · Every control in reach · 15 November 2026
+
+- The house's top bar on an iPad held upright: Sign in (or You), Keep your work and Find no longer lie on one another when the bell or the trade chip joins the row; Find and Share show their marks alone between 701 and 900 wide.
+- Every control in the house's top bar and the desk's is tall enough to press (they were 12 to 17 px): The house · My studio · Gallery, Find, The front door, Sign out, the bell, the wordmark.
+- The cull's top bar (back to the Library, the decks) can be pressed when the deck is done; the panel that says so no longer lies over it.
+- Volumes and Pay the makers sit in the desk's margins like every other room.
+- A new walk, run on every change: every control on every page, at iPad portrait and landscape (turned while open), an iPad mini, a phone and a desk, signed out, as a maker and in the Studio, must be reachable, uncovered and large enough to press.
+
 ## 1.86.0 · Every turn leads somewhere you can get back from · 15 November 2026
 
 - In the app on a phone or an iPad, taking a file never replaces the app: a photograph, a card or a PDF goes to the device's own sheet (Save Image, Save to Files, AirDrop); a whole album's zip and other large files open outside the app, and you come back to where you were.

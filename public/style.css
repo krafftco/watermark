@@ -5844,3 +5844,20 @@ html.rdp{--rdo-mute:color-mix(in srgb,var(--rd-mute,#7a716a) 72%,var(--rd-ink,#1
 .nv-float~#main .dvc-t>.dv-logo{left:calc(72px + env(safe-area-inset-left))}
 html.wm-app .apw{padding-left:calc(128px + env(safe-area-inset-left))}
 @media (display-mode: standalone){.apw{padding-left:calc(128px + env(safe-area-inset-left))}}
+/* The reach walk (#42; Will, 15 Nov, on an iPad: "sometimes it feels like the top bar doesn't work"). The house's top bar
+   between the phone and the desk (701-900 wide: an iPad held upright): the verbs never shrink under the wordmark or
+   under Find, and Find and Share drop their words to make the room (their names stay for a screen reader). Every
+   control in either top bar is tall enough to press (it was 12 to 17 px); only padding is added, so nothing moves. */
+header.top .nv-verbs{flex:0 0 auto;overflow:visible}
+header.top .nv-verbs a{padding-top:11px;padding-bottom:11px}
+header.top .nv-w{padding-top:11px;padding-bottom:11px}
+header.top .nv-bell{padding:6px}
+header.top .tr-chip{display:inline-flex;align-items:center;min-height:26px;box-sizing:border-box}
+@media (min-width:701px) and (max-width:900px){header.top .nv-find span,header.top .nv-share span{display:none}}
+.dh-top .dh-brand{padding-top:6px;padding-bottom:6px}
+.dh-top .dh-as a{padding-top:9px;padding-bottom:9px}
+.dh-top .dh-find,.dh-top .dh-out,.dh-top .dh-form button{padding-top:10px;padding-bottom:10px}
+.dh-top .dh-bell{padding:6px}
+.dh-top .dh-find{min-width:28px;justify-content:center}
+header.top .brand{padding-top:4px;padding-bottom:4px}
+.cll-top{position:relative;z-index:2}
