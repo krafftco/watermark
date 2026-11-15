@@ -45,6 +45,9 @@ async function frame(i, w, h, { bright = 0, q = 92 } = {}) {
   const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
   let peak = 0; const mem = setInterval(() => { peak = Math.max(peak, process.memoryUsage().rss); }, 100);
   say(direct ? 'an S3 vault: straight to the bucket in parts' : 'the local vault: through the house');
+  // A drill told to prove the bucket must prove the bucket: never fall back to the house's road and pass (#31).
+  if (process.env.DRILL_S3_ENDPOINT && !direct) throw new Error(`asked for an S3 vault at ${process.env.DRILL_S3_ENDPOINT}, but the house is not sending straight to it (store ${store && store.kind}, multipart ${!!(store && store.multipart)})`);
+  if (process.env.DRILL_S3_ENDPOINT) { const S3 = require('@aws-sdk/client-s3'); const h = await new S3.S3Client({ region: 'us-east-1', endpoint: process.env.DRILL_S3_ENDPOINT, forcePathStyle: true }).send(new S3.HeadBucketCommand({ Bucket: process.env.DRILL_S3_BUCKET || 'drill' })); say('the bucket answers', h.$metadata.httpStatusCode); }
 
   // A maker, walked by the Studio (the cookie a maker's own sign-in would give).
   let maker = db.prepare("SELECT * FROM makers WHERE kind IS NULL OR kind='maker' ORDER BY id LIMIT 1").get();

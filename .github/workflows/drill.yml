@@ -28,12 +28,31 @@ jobs:
           DRILL_MEM_MB: '2200'
       # An S3 vault, by moto (the S3 emulator AWS's SDK teams test against; pip, no Docker: MinIO's public images
       # went behind a login in 2026 and a test that depends on someone else's registry is not a test).
+      # (#31, 11–15 Nov: red every night from the pin to 24.04, "ECONNREFUSED 127.0.0.1:9000".) The step installed moto
+      # into the image's system Python with `pip -q`, started `moto_server` from wherever that put it, and a wait loop that
+      # fell through: moto never listened and nothing said why. Now: our own Python, moto in a venv at a pinned version,
+      # started by its absolute path; the wait fails the step with moto.log as an annotation. No path skips this half.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: An S3 vault (moto)
         run: |
-          python3 -m pip install -q 'moto[server]'
-          (moto_server -p 9000 > moto.log 2>&1 &)
-          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:9000/ && break; sleep 1; done
-          node test/drill.js
+          set -u
+          say() { echo "::error title=drill (moto)::$1: $(tail -c 1300 "$2" 2>/dev/null | sed 's/%/%25/g' | awk 1 ORS='%0A')"; }
+          python -m venv /tmp/moto > /tmp/moto-install.log 2>&1 \
+            && /tmp/moto/bin/pip install --disable-pip-version-check 'moto[server]==5.2.5' >> /tmp/moto-install.log 2>&1 \
+            || { say "moto did not install" /tmp/moto-install.log; exit 1; }
+          nohup /tmp/moto/bin/moto_server -H 127.0.0.1 -p 9000 > moto.log 2>&1 &
+          pid=$!; up=0
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:9000/ && { up=1; echo "moto up after ${i}s"; break; }
+            kill -0 $pid 2>/dev/null || break
+            sleep 1
+          done
+          [ $up = 1 ] || { say "moto never answered on 127.0.0.1:9000 (process $(kill -0 $pid 2>/dev/null && echo alive || echo gone))" moto.log; exit 1; }
+          set -o pipefail
+          node test/drill.js 2>&1 | tee /tmp/drill-s3.txt
+          grep -q 'an S3 vault: straight to the bucket in parts' /tmp/drill-s3.txt || { say "the drill did not take the S3 road" /tmp/drill-s3.txt; exit 1; }
         env:
           DRILL_S3_ENDPOINT: http://127.0.0.1:9000
           DRILL_S3_BUCKET: drill
