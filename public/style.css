@@ -5888,3 +5888,6 @@ dialog.rm.rm-plain{display:block;z-index:9000}
 /* The Work Master (/master): its own prefix, so the page is a column and its API lines wrap (#46). */
 .mst-pg .mst-f{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.mst-pg .mst-f input{flex:1 1 260px;min-width:0}
 .mst-pg .mst-api code{overflow-wrap:anywhere}
+/* The scout's bar wraps to two rows on an iPad upright and covered the last row of pictures (found by Safari's engine
+   in the reach walk, 15 Nov): the room leaves the bar's full height at its foot. */
+.sct{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
