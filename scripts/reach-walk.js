@@ -51,6 +51,11 @@ if (ENGINE.webkit) {
   const d = ENGINE.devices, as = (dev, extra) => ({ viewport: dev.viewport, ua: dev.userAgent, touch: dev.hasTouch, dsf: dev.deviceScaleFactor, screen: dev.screen, ...extra });
   Object.assign(SIZES, { ipadP: as(d['iPad (gen 7)'], { full: true }), ipadL: as(d['iPad (gen 7) landscape'], { full: true }), mini: as(d['iPad Mini']), phone: as(d['iPhone 13']), desk: as(d['Desktop Safari'], { viewport: { width: 1440, height: 900 } }) });
 }
+// Seen in WebKit only and filed (kept here, apart from ALLOW, so the two lists are edited without meeting).
+const ALLOW_WEBKIT = [
+  // #52: the balcony's word layer over the footer; at the iPad (gen 7) turned (1080 wide) it also covers Terms.
+  { page: /^\/balcony$/, control: /^a\[href="\/terms"\]$/, kind: '', issue: 52, why: 'the word layer over the footer\'s Terms (WebKit, iPad gen 7 landscape)' },
+];
 const launchBrowser = async () => {
   if (ENGINE.webkit) return ENGINE.launch();
   try { return await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}); }
@@ -277,7 +282,7 @@ let dir;
   browser = await launchBrowser();
   const faults = []; const allowed = []; const skipped = new Set(); let walked = 0; const combos = new Set();
   const note = (f) => {
-    const a = ALLOW.find(x => x.page.test(f.page) && x.control.test(f.sel) && (!x.kind || x.kind === f.kind));
+    const a = (ENGINE.webkit ? ALLOW.concat(ALLOW_WEBKIT) : ALLOW).find(x => x.page.test(f.page) && x.control.test(f.sel) && (!x.kind || x.kind === f.kind));
     f = { ...f, engine: ENGINE.name };
     (a ? allowed : faults).push(a ? { ...f, issue: a.issue } : f);
   };

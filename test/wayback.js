@@ -52,7 +52,7 @@ const MEASURE = `(() => {
     .map(([el]) => el.outerHTML.slice(0, 90));
   return { x: r.x, y: r.y, w: r.width, h: r.height, shown: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0, mine: !!(at && at.closest && at.closest('.nv-float')), covers: ctl, href: b.getAttribute('href'), name: b.getAttribute('aria-label') };
 })()`;
-const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return null; const r = b.getBoundingClientRect(); const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { x: r.x, y: r.y, w: r.width, h: r.height, top: !!(at && (at === b || b.contains(at))), href: b.getAttribute('href'), floats: !!document.querySelector('.nv-float') }; })()`;
+const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return null; const r = b.getBoundingClientRect(); const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { x: r.x, y: r.y, w: r.width, h: r.height, top: !!(at && (at === b || b.contains(at))), under: at && !(at === b || b.contains(at)) ? at.tagName.toLowerCase() + (typeof at.className === 'string' && at.className ? '.' + at.className.trim().split(/\s+/).slice(0, 2).join('.') : '') + ' z:' + getComputedStyle(at).zIndex + ' ' + getComputedStyle(at).position : '', href: b.getAttribute('href'), floats: !!document.querySelector('.nv-float') }; })()`;
 
 (async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-wayback-'));
@@ -80,7 +80,9 @@ const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(s
 
   // ---- 1. Downloads in the app ----
   {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'] }); await ctx.addInitScript(APP_INIT);
+    // The service worker is kept out here (it is section 4's): once it holds the page (it claims at once in WebKit), the
+    // file requests go through it and Playwright's WebKit cannot stand in for their answers (#55's first WebKit run).
+    const ctx = await browser.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' }); await ctx.addInitScript(APP_INIT);
     await ctx.addCookies([{ name: 'wm_in', value: '1', url: base }]);
     // The files the house hands over, as its own pages link them: each kind of link, set on a page of the house.
     const files = [
@@ -176,7 +178,7 @@ const OWN = sel => `(() => { const b = document.querySelector(${JSON.stringify(s
         const [page] = await open(ctx, p); const o = await page.evaluate(OWN(sel)); const tag = `${mode} ${size} ${p}`; const vp = page.viewportSize();
         if (!o && new URL(page.url()).pathname !== p.split('?')[0]) { await page.close(); continue; } // sent on to another room (a phone's viewing room is Wander), checked there
         ok(o && o.w > 0 && o.x >= 0 && o.y >= 0 && o.x + o.w <= vp.width && o.y + o.h <= vp.height, `${tag}: its own way back (${sel}) is on screen ${JSON.stringify(o)}`);
-        ok(o && o.top, `${tag}: nothing covers its own way back`);
+        ok(o && o.top, `${tag}: nothing covers its own way back${o && o.under ? ' (under ' + o.under + ' at ' + [o.x, o.y, o.w, o.h].map(Math.round).join(',') + ' in ' + vp.width + '×' + vp.height + ')' : ''}`);
         ok(o && o.href && o.href !== p, `${tag}: its own way back goes somewhere`);
         ok(o && !o.floats, `${tag}: no second Back laid over it`);
         await page.close();
