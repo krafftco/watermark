@@ -65,22 +65,26 @@ go.textContent='Done: '+ok+' registered'+(skip?', '+skip+' skipped':'');setTimeo
 
 // The register of licenses: every grant, request and ending, with the photograph beside it, grouped the way a
 // registrar reads them: what waits for an answer, what is live, what ends soon, what has ended.
-function licenses({ list }) {
-  const now = Date.now(), soon = now + 30 * 864e5;
-  const groups = [
-    ['Waiting for an answer', l => l.status === 'requested'],
-    ['Awaiting payment', l => l.status === 'awaiting_payment'],
-    ['Ending within thirty days', l => l.status === 'active' && l.ends_at && new Date(l.ends_at).getTime() < soon],
-    ['Live', l => l.status === 'active' && !(l.ends_at && new Date(l.ends_at).getTime() < soon)],
-    ['Ended, declined', l => ['expired', 'declined'].includes(l.status)],
-  ];
-  const seen = new Set();
+// (#87) The register of licences at scale: `groups` (each a bounded list) with `n` the database's counts; or one group
+// paged (`page`: Live or Ended, 200 at a time); or what a find asked for (`found`).
+function licenses({ groups = null, n = {}, q = '', found = null, page = null }) {
   const row = l => `<a class="lg-row" href="/studio/licenses/${esc(l.ref)}"><img src="/img/${esc(l.slug || '')}/thumb" alt="" loading="lazy"><span class="lg-t"><b>${esc(l.title)}</b><small>${esc(l.ref)} · ${date(l.created_at)}</small></span><span class="lg-w"><b>${esc(l.licensee_company || l.licensee_name || '—')}</b><small>${esc(l.licensee_email || '')}</small></span><span class="lg-u">${esc(l.use_name)}${l.ends_at ? `<small>${l.status === 'active' ? 'until' : 'ended'} ${date(l.ends_at)}</small>` : '<small>for good</small>'}</span><span class="lg-f">${money(l.price_cents)}</span><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></a>`;
-  const sections = groups.map(([name, f]) => { const rows = list.filter(l => !seen.has(l.id) && f(l)); rows.forEach(l => seen.add(l.id)); return rows.length ? `<section class="lg-g"><header class="gh"><h2>${name}</h2><span>${rows.length}</span></header><div class="lg-list">${rows.map(row).join('')}</div></section>` : ''; }).join('');
-  const live = list.filter(l => l.status === 'active'), fees = live.reduce((a, l) => a + (l.price_cents || 0), 0);
+  const sec = (name, rows, total, more) => rows.length ? `<section class="lg-g"><header class="gh"><h2>${name}</h2><span>${Number(total).toLocaleString('en-US')}</span></header><div class="lg-list">${rows.map(row).join('')}</div>${total > rows.length ? `<p class="note">The newest ${rows.length} of ${Number(total).toLocaleString('en-US')}.${more ? ` <a href="${more}">See all</a>` : ''}</p>` : ''}</section>` : '';
+  const find = `<form class="dkp-q lg-find" method="get" action="/studio/licenses" role="search"><label><span>Find a licence</span><input type="search" name="q" value="${esc(q)}" placeholder="A reference, a licensee, an email" autocomplete="off"></label><button>Find</button></form>`;
+  let body;
+  if (found) body = `${sec(`Found for “${esc(q)}”`, found, found.length)}${found.length ? '' : '<p class="note">Nothing on the register matches.</p>'}<p><a href="/studio/licenses">All licences</a></p>`;
+  else if (page) {
+    const name = page.show === 'live' ? 'Live' : 'Ended, declined', href = k => `/studio/licenses?show=${page.show}&${k}`;
+    body = `${sec(name, page.rows, page.total)}<nav class="dkp-nav lg-more" aria-label="More licences">${page.newer ? `<a href="${href('after=' + page.newer)}" rel="prev">&larr; Newer</a>` : ''}${page.older ? `<a href="${href('before=' + page.older)}" rel="next">Older &rarr;</a>` : ''}</nav><p><a href="/studio/licenses">All licences</a></p>`;
+  } else {
+    const g = groups || {};
+    body = [sec('Waiting for an answer', g.requested || [], n.requested), sec('Awaiting payment', g.awaiting || [], n.awaiting), sec('Ending within thirty days', g.ending || [], n.ending),
+      sec('Live', g.live || [], n.live, '/studio/licenses?show=live'), sec('Ended, declined', g.ended || [], n.ended, '/studio/licenses?show=ended')].join('') || '<p class="note">No licenses yet.</p>';
+  }
   return layout({ studio: true, title: 'Licenses · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/licenses')}<p class="k">The house</p><h1>Licenses.</h1>
-<div class="hd-held"><span><b>${live.length}</b> live</span><span><b>${list.filter(l => l.status === 'requested').length}</b> waiting</span><span><b>${money(fees)}</b> in live licenses</span><span><b>${list.length}</b> on the register</span></div>
-${sections || '<p class="note">No licenses yet.</p>'}</section>` });
+<div class="hd-held"><span><b>${Number(n.active || 0).toLocaleString('en-US')}</b> live</span><span><b>${Number(n.requested || 0).toLocaleString('en-US')}</b> waiting</span><span><b>${money(n.fees || 0)}</b> in live licenses</span><span><b>${Number(n.all || 0).toLocaleString('en-US')}</b> on the register</span></div>
+${find}
+${body}</section>` });
 }
 
 function licenseDetail({ l, payLink, notice }) {

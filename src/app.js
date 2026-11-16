@@ -2634,7 +2634,40 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.redirect('/studio/makers');
   });
 
-  app.get('/studio/licenses', studioOnly, (req, res) => res.send(S.licenses({ list: db.prepare('SELECT l.*, w.title, w.slug, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id ORDER BY l.id DESC').all() })));
+  // (#87, the scale gate) Every licence on the register was read whole (8,000 rows, a 3.4 MB page at 100,000 works). Now
+  // the counts are grouped; what waits for the house (asked, awaiting payment, ending within thirty days) is listed, 200
+  // at most each; Live and Ended show their newest LG_N with 'See all', a page of 200 with Older / Newer by id; and a
+  // find by reference, licensee or email asks the database.
+  app.get('/studio/licenses', studioOnly, (req, res) => {
+    const LG_N = 60, COLS = 'l.id, l.ref, l.created_at, l.licensee_company, l.licensee_name, l.licensee_email, l.ends_at, l.status, l.price_cents, w.title, w.slug, u.name AS use_name';
+    const FROM = 'FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id';
+    const soon = new Date(Date.now() + 30 * 864e5).toISOString();
+    const ending = "l.status='active' AND l.ends_at IS NOT NULL AND l.ends_at < ?";
+    const live = "l.status='active' AND NOT (l.ends_at IS NOT NULL AND l.ends_at < ?)", ended = "l.status IN ('expired','declined')";
+    const list = (where, args, n) => db.prepare(`SELECT ${COLS} ${FROM} WHERE ${where} ORDER BY l.id DESC LIMIT ${n}`).all(...args);
+    const counts = Object.fromEntries(db.prepare('SELECT status, COUNT(*) n, COALESCE(SUM(price_cents),0) c FROM licenses GROUP BY status').all().map(r => [r.status, { n: Number(r.n), c: Number(r.c) }]));
+    const nOf = (where, args) => Number(db.prepare(`SELECT COUNT(*) n FROM licenses l WHERE ${where}`).get(...args).n);
+    const DP = require('./deskpage'); const at = DP.where(req.query);
+    const show = ['live', 'ended'].includes(req.query.show) ? req.query.show : null;
+    const q = String(req.query.q || '').trim().slice(0, 120);
+    let found = null, page = null;
+    if (q) found = db.prepare(`SELECT ${COLS} ${FROM} WHERE l.ref = ? OR lower(COALESCE(l.licensee_email,'')) LIKE ? OR lower(COALESCE(l.licensee_name,'')) LIKE ? OR lower(COALESCE(l.licensee_company,'')) LIKE ? ORDER BY l.id DESC LIMIT 200`).all(q, ...Array(3).fill(`%${q.toLowerCase().replace(/[%_\\]/g, '')}%`));
+    else if (show) {
+      const base = show === 'live' ? live : ended, args = show === 'live' ? [soon] : [];
+      const conds = [base], a = [...args]; if (at.before) { conds.push('l.id < ?'); a.push(at.before); } if (at.after) { conds.push('l.id > ?'); a.push(at.after); }
+      const rows = db.prepare(`SELECT ${COLS} ${FROM} WHERE ${conds.join(' AND ')} ORDER BY l.id ${at.after ? 'ASC' : 'DESC'} LIMIT 201`).all(...a);
+      const more = rows.length > 200; if (more) rows.length = 200; if (at.after) rows.reverse();
+      page = { show, rows, total: nOf(base, args), older: rows.length && (at.after || more) ? rows[rows.length - 1].id : null, newer: rows.length && (at.after ? more : at.before) ? rows[0].id : null };
+    }
+    res.send(S.licenses({
+      groups: show || q ? null : {
+        requested: list("l.status='requested'", [], 200), awaiting: list("l.status='awaiting_payment'", [], 200), ending: list(ending, [soon], 200),
+        live: list(live, [soon], LG_N), ended: list(ended, [], LG_N),
+      },
+      n: { requested: (counts.requested || {}).n || 0, awaiting: (counts.awaiting_payment || {}).n || 0, ending: nOf(ending, [soon]), live: nOf(live, [soon]), ended: ((counts.expired || {}).n || 0) + ((counts.declined || {}).n || 0), active: (counts.active || {}).n || 0, fees: (counts.active || {}).c || 0, all: Object.values(counts).reduce((s, x) => s + x.n, 0) },
+      q, found, page,
+    }));
+  });
   app.get('/studio/licenses/:ref', studioOnly, (req, res) => {
     const l = q.licFull.get(req.params.ref); if (!l) return res.sendStatus(404);
     res.send(S.licenseDetail({ l, notice: req.query.ok, payLink: req.query.pay }));
