@@ -17,8 +17,21 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   const makerBy = key => { if (!key) return null; const h = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(key)); if (h) return h;
     if (Date.now() - mkList.at > (process.env.NODE_ENV === 'test' ? 0 : 60e3)) mkList = { at: Date.now(), rows: db.prepare('SELECT id, name, handle FROM makers').all() };
     const m = mkList.rows.find(x => V.makerSlug(x) === key); return m ? db.prepare('SELECT * FROM makers WHERE id=?').get(m.id) : null; };
-  const POOL_MAX = Number(process.env.WANDER_POOL_MAX || 20000);
+  // (16 Nov, #70) POOL_MAX 4,000 (it was 20,000: a slice of 16,000 rows read on the website every two minutes at the
+  // scale gate's size). The open wander's pool, the one every stranger draws from, is built by the worker (shared.js)
+  // and read here as one kept row; a word's or a maker's pool is built here, its POOL_MAX best.
+  const POOL_MAX = Number(process.env.WANDER_POOL_MAX || 4000);
   const POOL = new Map(); const POOL_MS = process.env.NODE_ENV === 'test' ? 0 : Number(process.env.WANDER_POOL_S || 120) * 1000; app.locals.wanderPoolDirty = () => POOL.clear();
+  // A pool: id, slug and the two weights. The open wander's (sliced, on the worker) takes every Kth work past POOL_MAX,
+  // a different slice each time it is remade, so the whole wall comes round; a word's or a maker's is their POOL_MAX
+  // best by the maker's grade (in an index's order, so a museum of 60,000 is not read whole on the website).
+  function poolRows(where, params, sliced) {
+    let slice = '';
+    if (sliced) { let total = 0; try { total = Number(db.prepare(`SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}`).get(...params).n); } catch (e) { total = 0; } const K = Math.ceil(total / POOL_MAX); if (K > 1) slice = ` AND (w.id % ${K}) = ${Math.floor(Math.random() * K)}`; }
+    return db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}${slice}${sliced ? '' : ' ORDER BY w.curated DESC, w.stars DESC, w.id DESC'} LIMIT ${POOL_MAX}`).all(...params);
+  }
+  const openWhere = zoneOpen => "w.status='held'" + (zoneOpen ? '' : " AND COALESCE(w.zone,'all')='all'") + (app.locals.editSql ? app.locals.editSql('w') : '');
+  if (app.locals.shared) for (const zoneOpen of [false, true]) app.locals.shared.register(`wander-pool${zoneOpen ? '-open' : ''}`, { ms: POOL_MS || 120e3, build: () => poolRows(openWhere(zoneOpen), [], true) });
   function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : '');
@@ -35,11 +48,9 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // different slice each time the pool is remade, so the whole collection comes round and the website holds a
     // fixed amount whatever the collection's size.
     const key = where + '|' + JSON.stringify(params); let pool = POOL.get(key);
-    if (!pool || Date.now() - pool.at > POOL_MS) {
-      let slice = '';
-      if (!q && !mk) { let total = 0; try { total = Number(db.prepare(`SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}`).get(...params).n); } catch (e) { total = 0; } const K = Math.ceil(total / POOL_MAX); if (K > 1) slice = ` AND (w.id % ${K}) = ${Math.floor(Math.random() * K)}`; }
-      pool = { at: Date.now(), rows: db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}${slice} LIMIT ${POOL_MAX}`).all(...params) }; POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value);
-    }
+    const zs = app.locals.zone ? app.locals.zone.sql(req) : '';
+    if (!q && !mk && app.locals.shared && where === openWhere(!zs)) pool = { rows: app.locals.shared.get(`wander-pool${zs ? '' : '-open'}`) }; // the open wander: built ahead
+    else if (!pool || Date.now() - pool.at > POOL_MS) { pool = { at: Date.now(), rows: poolRows(where, params, false) }; POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value); }
     const notSet0 = new Set(not); const cands = []; for (const r of pool.rows) if (!notSet0.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
     cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
     const full = ids.length ? db.prepare(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`).all(...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
@@ -73,7 +84,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // read a whole body); one book's chapters are cut once and kept, the first two hundred books at a time.
   const SHELF = { at: 0, ids: [] }; const CHAPTERS = new Map();
   function shelfBook() {
-    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
+    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY t.id DESC LIMIT 2000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
     if (!SHELF.ids.length) return null;
     const id = SHELF.ids[Math.floor(Math.random() * SHELF.ids.length)]; const kept = CHAPTERS.get(id); if (kept && Date.now() - kept.at < 3600e3) return kept;
     const t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.id=?").get(id); if (!t) return null;
@@ -135,7 +146,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // The ways in (18 Oct: Find should never be an empty box): the places, the makers and the series held, with counts.
   app.get('/api/stroll/ways', (req, res) => {
     const places = db.prepare("SELECT place AS name, COUNT(*) n FROM works WHERE status='held' AND place IS NOT NULL AND place!='' GROUP BY place ORDER BY n DESC, place LIMIT 24").all();
-    const makers = db.prepare("SELECT m.*, COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(m.kind,'') NOT IN ('writer','gallery') GROUP BY m.id ORDER BY n DESC LIMIT 12").all().map(m => ({ name: m.name, slug: V.makerSlug(m), n: m.n }));
+    const makers = db.prepare("SELECT m.id, m.name, COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(m.kind,'') NOT IN ('writer','gallery') GROUP BY m.id, m.name ORDER BY n DESC LIMIT 12").all().map(m => ({ name: m.name, slug: V.makerSlug(m), n: m.n }));
     let series = []; try { series = db.prepare("SELECT s.slug, s.title, COUNT(sw.work_id) n FROM series s JOIN series_works sw ON sw.series_id=s.id JOIN works w ON w.id=sw.work_id AND w.status='held' WHERE s.public=1 GROUP BY s.id ORDER BY n DESC LIMIT 12").all(); } catch (e) { series = []; }
     res.set('Cache-Control', 'public, max-age=300').json({ places, makers, series });
   });

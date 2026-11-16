@@ -37,10 +37,16 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
   // Runs are kept a few minutes per maker; any act of the maker's here clears them.
   const RUNS = new Map(); let HOUSE = { at: 0, sheets: [] };
   const COLS = 'id, slug, title, status, keep_back, flag, stars, curated, width, height, taken_at, place, attribution, zone, al_grade, sheet_open, sheet_pick, maker_id';
+  const FRAMES = "status IN ('held','hidden') AND taken_at IS NOT NULL AND taken_at<>'' AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0";
   function runsOf(makerId) {
     const k = RUNS.get(makerId); if (k && Date.now() - k.at < (process.env.NODE_ENV === 'test' ? 180e3 : 1800e3)) return k; // (9 Nov) half an hour: 1.6 s to rebuild for a large archive, and it ran every three minutes
-    const rows = db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND taken_at IS NOT NULL AND taken_at<>'' AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0`).all(makerId)
-      .map(w => ({ ...w, t: time(w.taken_at) })).filter(w => w.t).sort((a, b) => (a.t - b.t) || (a.id - b.id));
+    const v = { at: Date.now(), ...runsIn(makerId, db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND taken_at IS NOT NULL AND taken_at<>'' AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0`).all(makerId)) };
+    RUNS.set(makerId, v); if (RUNS.size > 400) RUNS.delete(RUNS.keys().next().value);
+    return v;
+  }
+  // The runs (sheets) in a maker's frames, read in the order taken.
+  function runsIn(makerId, rows0) {
+    const rows = rows0.map(w => ({ ...w, t: time(w.taken_at) })).filter(w => w.t).sort((a, b) => (a.t - b.t) || (a.id - b.id));
     const runs = []; let cur = [];
     const samePlace = (a, b) => !a.place || !b.place || String(a.place).trim() === String(b.place).trim();
     for (const w of rows) { const p = cur[cur.length - 1]; if (p && (w.t - p.t > GAP() || !samePlace(p, w))) { runs.push(cur); cur = []; } cur.push(w); }
@@ -55,11 +61,31 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
       const s = { roll: ++roll, pick: chosen, frames: fr, first: start + 1, total: r.length, open: r.some(w => w.sheet_open), place: (r.find(w => w.place) || {}).place || '', from: r[0].t, to: r[r.length - 1].t, maker_id: makerId };
       sheets.push(s); for (const w of fr) bySlug.set(w.slug, s);
     }
-    const v = { at: Date.now(), sheets, bySlug }; RUNS.set(makerId, v); if (RUNS.size > 400) RUNS.delete(RUNS.keys().next().value);
-    return v;
+    return { sheets, bySlug };
   }
-  const forget = id => { RUNS.delete(id); HOUSE.at = 0; if (app.locals.wanderBaseDirty) app.locals.wanderBaseDirty(); };
-  const sheetOf = w => (w && w.maker_id ? runsOf(w.maker_id).bySlug.get(w.slug) : null) || null;
+  // (16 Nov, #70) The sheet of one frame, from the frames around it alone. Wander and the work page asked for the
+  // maker's whole archive to find one frame's run (60,000 rows for a museum at the scale gate's size, on every page of
+  // Wander a museum's work was on). A run is frames taken one after another, so the run of a frame lies among the
+  // AROUND frames before and after it, within two days either side: two questions on works_taken (maker_id,
+  // taken_at), at most 2 × AROUND rows. It is the whole-archive answer unless a run is longer than AROUND frames on
+  // one side of this frame or lasts more than two days (then the sheet is cut at the window's edge). Kept a few
+  // minutes a frame.
+  const AROUND = Number(process.env.SHEET_AROUND || 600);
+  const NEAR = new Map(); const NEAR_MS = process.env.NODE_ENV === 'test' ? 0 : 180e3;
+  function sheetOf(w0) {
+    if (!w0 || !w0.maker_id || !w0.slug) return null;
+    const w = w0.taken_at !== undefined && w0.id ? w0 : { ...w0, ...(db.prepare('SELECT id, taken_at FROM works WHERE slug=?').get(w0.slug) || {}) }; // asked by slug alone
+    if (!w.taken_at || !w.id) return null;
+    const t = time(w.taken_at); if (!t) return null;
+    const k = NEAR.get(w.slug); if (k && Date.now() - k.at < NEAR_MS) return k.s;
+    const day = 864e5, lo = new Date(t - 2 * day).toISOString().slice(0, 10), hi = new Date(+t + 3 * day).toISOString().slice(0, 10);
+    const before = db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND ${FRAMES} AND taken_at >= ? AND (taken_at < ? OR (taken_at = ? AND id < ?)) ORDER BY taken_at DESC, id DESC LIMIT ${AROUND}`).all(w.maker_id, lo, w.taken_at, w.taken_at, w.id);
+    const after = db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND ${FRAMES} AND taken_at < ? AND (taken_at > ? OR (taken_at = ? AND id >= ?)) ORDER BY taken_at, id LIMIT ${AROUND}`).all(w.maker_id, hi, w.taken_at, w.taken_at, w.id);
+    const s = runsIn(w.maker_id, before.concat(after)).bySlug.get(w.slug) || null;
+    NEAR.set(w.slug, { at: Date.now(), s }); if (NEAR.size > 2000) NEAR.delete(NEAR.keys().next().value);
+    return s;
+  }
+  const forget = id => { RUNS.delete(id); LATEST.delete(id); NEAR.clear(); HOUSE.at = 0; if (app.locals.wanderBaseDirty) app.locals.wanderBaseDirty(); };
   const href = s => `/sheet/${encodeURIComponent(s.pick.slug)}`;
   // What a frame is to this viewer: true (the picture), or a wash.
   const trueFor = (s, w, mine) => mine || onView(w) || (s.open && !guarded(w));
@@ -67,6 +93,16 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
   // For Wander and the work page: is this frame on a sheet, and where is it.
   function of(w) { const s = sheetOf(w); return s ? { href: href(s), n: s.frames.length, line: lineOf(s) } : null; }
   function list(m) { return runsOf(m.id).sheets.slice().sort((a, b) => b.from - a.from); }
+  // (#76) The newest sheets, for the maker's public page (it shows twelve): from the RECENT frames last taken, not the
+  // whole archive (60,000 rows for a museum). The oldest run in the window may be cut at its edge. Kept as runsOf is.
+  const RECENT = Number(process.env.SHEET_RECENT || 2000); const LATEST = new Map();
+  function latest(m) {
+    const k = LATEST.get(m.id); if (k && Date.now() - k.at < (process.env.NODE_ENV === 'test' ? 0 : 1800e3)) return k.sheets;
+    const rows = db.prepare(`SELECT ${COLS} FROM works WHERE maker_id=? AND ${FRAMES} ORDER BY taken_at DESC LIMIT ${RECENT}`).all(m.id);
+    const sheets = runsIn(m.id, rows).sheets.sort((a, b) => b.from - a.from);
+    LATEST.set(m.id, { at: Date.now(), sheets }); if (LATEST.size > 400) LATEST.delete(LATEST.keys().next().value);
+    return sheets;
+  }
   // Every sheet of the house with an open run or three frames on view, for Wander's screen.
   function house() {
     if (Date.now() - HOUSE.at < 600e3) return HOUSE.sheets;
@@ -167,7 +203,7 @@ ${mine ? `<div class="ctc-own"><p>This is your sheet. ${nOut ? `${s.open ? 'Open
   app.post('/sheet/:slug/pick', (req, res) => {
     const g = guard(req, res); if (!g) return;
     if (!onView(g.w)) return res.status(400).json({ ok: false, why: 'Only a frame on view can be circled.' });
-    const all = runsOf(g.m.id); for (const s of all.sheets) if (s === g.s) for (const w of s.frames) db.prepare('UPDATE works SET sheet_pick=0 WHERE id=?').run(w.id);
+    for (const w of g.s.frames) db.prepare('UPDATE works SET sheet_pick=0 WHERE id=?').run(w.id);
     db.prepare('UPDATE works SET sheet_pick=1 WHERE id=?').run(g.w.id); forget(g.m.id);
     answer(req, res, { ok: true, href: `/sheet/${g.w.slug}` }, `/sheet/${g.w.slug}`);
   });
@@ -201,7 +237,7 @@ ${closed ? `<form method="post" action="/account/sheets/all"><input type="hidden
   const card = w => `<section class="st-i st-sheet" data-slug="${esc(w.slug)}" data-kind="sheet"><article class="st-sh"><a class="ctc-paper ctc-mini" href="${esc(w.href)}">${w.film}</a><p class="k">From the contact sheet</p><h2>${esc(w.title)}</h2><p class="st-shby">${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${w.day ? ` · ${esc(w.day)}` : ''}</p><a class="st-shgo" href="${esc(w.href)}">See the whole roll · ${w.n} frames</a></article></section>`;
   const STYLE = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap">';
 
-  app.locals.sheets = { of, list, screen, card, film, runsOf, forget, STYLE };
+  app.locals.sheets = { of, list, latest, screen, card, film, runsOf, forget, STYLE };
   return app.locals.sheets;
 }
 module.exports = { mountSheets };

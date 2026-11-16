@@ -47,6 +47,9 @@ const LIST = [
   ['works_created', 'works (created_at)'],
   ['ledger_type_at', 'ledger (type, at)'],
   ['licenses_starts', 'licenses (starts_at)'],
+  // (16 Nov, #70–#77) the visitors' rooms at scale, each read by its index and a LIMIT
+  ['works_guided', "works (status, stars DESC, id) WHERE closer IS NOT NULL"], // the hour's guided works (clock.js): only works with a guide, best first
+  ['works_open', "works (maker_id, status) WHERE open IS NOT NULL"], // a museum's page counts its open works (institutions.js): 57 ms over 60,000 works without it
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
 // website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.

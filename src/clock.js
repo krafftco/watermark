@@ -23,13 +23,24 @@ function mountClock(app, { db, V, C, buyerOf }) {
   const one = (sql, ...a) => { try { return db.prepare(sql).get(...a); } catch (e) { return null; } };
   const all = (sql, ...a) => { try { return db.prepare(sql).all(...a); } catch (e) { return []; } };
   const w2 = w => (w ? { slug: w.slug, title: tidy(w.title), maker: w.maker, place: w.place } : null);
+  // (16 Nov, #73) The pools the hour and the kids' corner choose from: the POOL_MAX best, chosen by the database by the
+  // maker's grade (works_status_best; the guided through works_guided, which holds only works with a guide), kept ten
+  // minutes; never every starred work of the house (34,000 rows at the scale gate's size, read to choose six). The pick
+  // within a pool is by the day, as before, in the order of id.
+  const POOL_MAX = Number(process.env.CLOCK_POOL_MAX || 2000);
+  const kept = (k, f) => (app.locals.kept ? app.locals.kept(k, 600e3, f) : f());
+  function pool(kind, maker = null) {
+    const mk = maker ? 'AND w.maker_id=? ' : '', ma = maker ? [maker.id] : [];
+    return kept(`clock|${kind}|${maker ? maker.id : ''}`, () => (kind === 'guided'
+      ? all(`SELECT w.id, w.slug, w.title, w.place, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.closer IS NOT NULL AND w.zone='all' ${mk}ORDER BY w.stars DESC, w.id LIMIT ${POOL_MAX}`, ...ma)
+      : all(`SELECT w.id, w.slug, w.title, w.place, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND (w.stars>=4 OR w.curated=1) AND w.zone='all' ${mk}ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${POOL_MAX}`, ...ma).sort((a, b) => a.id - b.id)));
+  }
   // What the house has, scoped: a deterministic pick by the day so a slot holds still for the hour.
   function programme(req, { maker = null } = {}) {
     const zone = zoneOf(req), hour = hourIn(zone), slot = slotAt(hour);
     const day = Math.floor(Date.now() / 86400e3), mk = maker ? 'AND w.maker_id=? ' : '', ma = maker ? [maker.id] : [];
     const pick = (rows, k = 1) => (rows.length ? Array.from({ length: Math.min(k, rows.length) }, (_, i) => rows[(day + i * 7 + hour) % rows.length]) : []);
-    const guided = all(`SELECT w.slug, w.title, w.place, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.closer IS NOT NULL AND w.zone='all' ${mk} ORDER BY w.stars DESC, w.id`, ...ma);
-    const starred = all(`SELECT w.slug, w.title, w.place, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND (w.stars>=4 OR w.curated=1) AND w.zone='all' ${mk} ORDER BY w.id`, ...ma);
+    const guided = pool('guided', maker), starred = pool('starred', maker);
     const tours = all(`SELECT DISTINCT h.slug, h.title, h.line, b.name AS guide FROM hangs h JOIN tour_voices v ON v.hang_id=h.id JOIN buyers b ON b.id=h.buyer_id ${maker ? 'JOIN hang_works hw ON hw.hang_id=h.id JOIN works w ON w.id=hw.work_id' : ''} WHERE h.public=1 ${mk} ORDER BY h.updated_at DESC`, ...ma);
     const walls = all(`SELECT DISTINCT h.slug, h.title, h.line FROM hangs h ${maker ? 'JOIN hang_works hw ON hw.hang_id=h.id JOIN works w ON w.id=hw.work_id' : ''} WHERE h.public=1 ${mk} ORDER BY h.updated_at DESC LIMIT 40`, ...ma);
     const craft = all("SELECT slug, title, summary, section FROM guides WHERE status!='hidden' ORDER BY sort, id");
@@ -73,8 +84,10 @@ function mountClock(app, { db, V, C, buyerOf }) {
   // The kids' corner.
   app.get('/kids', (req, res) => {
     const day = Math.floor(Date.now() / 86400e3);
-    const rows = all("SELECT w.slug, w.title, w.place, w.closer, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.zone='all' AND (w.stars>=4 OR w.curated=1) ORDER BY w.id");
-    const picks = rows.length ? Array.from({ length: Math.min(6, rows.length) }, (_, i) => rows[(day * 3 + i * 5) % rows.length]) : [];
+    const rows = pool('starred');
+    const ids = rows.length ? Array.from({ length: Math.min(6, rows.length) }, (_, i) => rows[(day * 3 + i * 5) % rows.length].id) : [];
+    const guide = new Map(ids.length ? all(`SELECT id, closer FROM works WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids).map(r => [r.id, r.closer]) : []); // the guide's words of the six alone
+    const picks = ids.map(id => { const w = rows.find(r => r.id === id); return { ...w, closer: guide.get(id) || null }; });
     const firstLine = w => { try { const c = JSON.parse(w.closer || '{}'); const t = String(c.text || c.guide || '').split(/\n+/)[0] || ''; return t.split(/(?<=\.)\s/)[0].slice(0, 180); } catch (e) { return ''; } };
     const I = require('./icons');
     res.send(V.layout({ title: 'The kids’ corner · Watermark', path: '/kids', desc: 'A room for children: look, find, draw. Nothing to buy.', body: `<section class="cx-intro kd"><p class="k">The house · all day</p><h1>The kids’ corner.</h1>

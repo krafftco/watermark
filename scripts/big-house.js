@@ -57,23 +57,8 @@ const ALLOW = [
   // 16 Nov, the first measurement (#8): every room over a budget at 100,000 works, each with the issue that takes it out.
   // Counts (rows, bytes, statements) are allowed to a quarter above what was measured; times to three times it (CI's
   // runner is slower and shared), and a time is listed when it reached half its line, so a slow run does not flake.
-  // Wander's pools (a maker's works, read to choose from) are kept two minutes, so which room builds one depends on the
-  // walk's timing: that statement is allowed in any room ('*'), by its text.
-  { room: '*', budget: 'rows', max: 75000, sql: "FROM works WHERE maker_id=? AND status IN ('held','hidden') AND taken_at IS NOT NULL", issue: 70 }, // measured 60,000 (/wander), 25,000 (/, /api/stroll)
-  { room: 'visitor /art', budget: 'stmts', max: 3700, issue: 71 }, // measured 2,943
-  { room: 'visitor /collection', budget: 'rows', max: 125000, issue: 72 }, // measured 100,000
-  { room: 'visitor /kids', budget: 'rows', max: 42500, issue: 73 }, // measured 33,998
-  { room: 'visitor /vr', budget: 'stmtMs', max: 550, issue: 74 }, // measured 177
-  { room: 'visitor /vr', budget: 'rows', max: 117100, issue: 74 }, // measured 93,650
-  { room: 'visitor /keys', budget: 'rows', max: 42500, issue: 73 }, // measured 33,998
-  { room: 'visitor /trade', budget: 'stmts', max: 500, issue: 75 }, // measured 360
-  { room: 'visitor /trade', budget: 'rows', max: 7500, issue: 75 }, // measured 6,000
-  { room: 'visitor /m/museum-a', budget: 'stmtMs', max: 1100, issue: 76 }, // measured 362
-  { room: 'visitor /m/museum-a', budget: 'rows', max: 75000, issue: 76 }, // measured 60,000
-  { room: 'visitor /api/index.json', budget: 'rows', max: 37500, issue: 77 }, // measured 30,000
-  { room: 'maker /wander', budget: 'stmtMs', max: 500, issue: 70 }, // measured 159
-  { room: 'maker /wander', budget: 'rows', max: 117100, issue: 70 }, // measured 93,650
   { room: 'museum /account/held', budget: 'rows', max: 37600, issue: 79 }, // measured 30,004
+  { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // measured 60,000 (hidden under #70's Wander cache until #70)
   { room: 'museum /account', budget: 'pageMs', max: 11200, issue: 78 }, // measured 3,723
   { room: 'museum /account', budget: 'bytes', max: 93200000, issue: 78 }, // measured 74,558,883
   { room: 'museum /account', budget: 'stmtMs', max: 1150, issue: 78 }, // measured 383

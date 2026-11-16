@@ -25,7 +25,10 @@ function mountVR(app, { db, V }) {
     const v = setOf(key) || setOf('collection'); if (!v) return { label: 'The collection', href: '/collection', items: [] };
     let ws = v.works.slice();
     if (at) { const i = ws.findIndex(w => w.slug === at); if (i > 0) ws = ws.slice(i).concat(ws.slice(0, i)); }
-    ws = ws.slice(0, MAX).map(w => db.prepare("SELECT w.*, m.name AS maker_name FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.slug=? AND w.status='held'").get(w.slug)).filter(Boolean);
+    // (16 Nov, #74) The thirty hung, in one question and only the columns the room draws (it asked for each work whole).
+    const slugs = ws.slice(0, MAX).map(w => w.slug);
+    const by = new Map(slugs.length ? db.prepare(`SELECT w.slug, w.title, w.place, w.taken_at, w.width, w.height, m.name AS maker_name FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.slug IN (${slugs.map(() => '?').join(',')}) AND w.status='held'`).all(...slugs).map(w => [w.slug, w]) : []);
+    ws = slugs.map(sl => by.get(sl)).filter(Boolean);
     return { label: v.label, href: v.href, items: ws.map(w => ({ slug: w.slug, title: V.tidy(w.title), maker: w.maker_name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, w: w.width || 3, h: w.height || 2, img: `/img/${w.slug}/screen?f=jpg`, page: `/w/${w.slug}` })) };
   }
   app.get('/vendor/three.module.min.js', (req, res) => {

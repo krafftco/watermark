@@ -21,30 +21,42 @@ function mountTrade(app, { db, C, V, I, mk, mail, ledger, buyerOf }) {
   const jcache = new Map();
   app.get('/trade', (req, res) => {
     const Q = { q: String(req.query.q || '').trim().slice(0, 80), maker: String(req.query.maker || '').slice(0, 80), shape: ORIENT[req.query.shape] ? req.query.shape : '', min: [12, 24, 40].includes(+req.query.min) ? +req.query.min : 0, use: String(req.query.use || '').slice(0, 30), max: Math.max(0, parseInt(req.query.max, 10) || 0), sort: ['best', 'new', 'big'].includes(req.query.sort) ? req.query.sort : 'best' };
-    let rows = db.prepare(`SELECT ${app.locals.leanCols('w')} FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND COALESCE(w.disputed,0)=0 AND COALESCE(m.standing,'open')='open' ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${Number(process.env.TRADE_MAX || 6000)}`).all();
-    if (Q.q) { const t = Q.q.toLowerCase(); rows = rows.filter(w => [w.title, w.place, w.keywords, w.caption, w.camera, mk(w).name, w.accession].some(x => String(x || '').toLowerCase().includes(t))); }
-    if (Q.maker) rows = rows.filter(w => V.makerSlug(mk(w)) === Q.maker);
-    if (Q.shape) rows = rows.filter(w => orient(w) === Q.shape);
-    if (Q.min) rows = rows.filter(w => (mp(w) || 0) >= Q.min);
+    // (16 Nov, #75) Asked of the database: the same TRADE_MAX best held works (by the maker's grade) as before, filtered,
+    // sorted and paged there; only the ids of the page come back, and the page's works are read whole in one question
+    // (the page read 6,000 rows of every light column and filtered them here, then asked for each shown work by itself).
+    const makers = db.prepare("SELECT m.* FROM makers m WHERE EXISTS (SELECT 1 FROM works w WHERE w.maker_id=m.id AND w.status='held') ORDER BY m.id LIMIT 2000").all();
+    const where = [], args = [];
+    if (Q.q) { const t = `%${Q.q.toLowerCase().replace(/[%_\\]/g, '')}%`; where.push(`(${['x.title', 'x.place', 'x.keywords', 'x.caption', 'x.camera', 'x.maker_name', 'x.accession'].map(c => `lower(COALESCE(${c},'')) LIKE ?`).join(' OR ')})`); args.push(t, t, t, t, t, t, t); }
+    if (Q.maker) { const mm = makers.find(m => V.makerSlug(m) === Q.maker); where.push('x.maker_id=?'); args.push(mm ? mm.id : -1); }
+    const R = 'x.width*1.0/x.height';
+    if (Q.shape) where.push(`x.width>0 AND x.height>0 AND ${{ pano: `${R} >= 2`, landscape: `${R} > 1.08 AND ${R} < 2`, portrait: `${R} < 0.93`, square: `${R} >= 0.93 AND ${R} <= 1.08` }[Q.shape]}`);
+    if (Q.min) { where.push('ROUND(COALESCE(x.width,0)*COALESCE(x.height,0)/100000.0)/10.0 >= ?'); args.push(Q.min); }
+    const best = 'x.curated DESC, COALESCE(x.stars,0) DESC, x.id DESC';
+    const orderSql = Q.sort === 'new' ? `COALESCE(x.taken_at,'') DESC, ${best}` : Q.sort === 'big' ? `COALESCE(x.width*x.height,0) DESC, ${best}` : best;
+    // (the makers held apart by NOT IN, so the best are read in works_status_best's order and the makers joined after)
+    const pool = `(SELECT w.id, w.title, w.place, w.keywords, w.caption, w.camera, w.accession, w.maker_id, w.width, w.height, w.taken_at, w.curated, w.stars, m.name AS maker_name FROM (SELECT w.id, w.title, w.place, w.keywords, w.caption, w.camera, w.accession, w.maker_id, w.width, w.height, w.taken_at, w.curated, w.stars FROM works w WHERE w.status='held' AND COALESCE(w.disputed,0)=0 AND w.maker_id NOT IN (SELECT id FROM makers WHERE COALESCE(standing,'open')<>'open') ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${Number(process.env.TRADE_MAX || 6000)}) w JOIN makers m ON m.id=w.maker_id) x${where.length ? ' WHERE ' + where.join(' AND ') : ''}`;
     const J = app.locals.workJSON;
     const rel = u => String(u || '').replace(C.base, '') || '/';
     // Each work's record costs a dozen lookups, so make it only for what is shown (30 Oct: /trade made every
     // held work's record before paging and took ten seconds). A filter on use or price needs the records;
     // those are kept a minute.
-    const make = w => { const k = w.slug + ':' + (w.updated_at || '') + ':' + (w.stars || 0); const hit = jcache.get(w.slug); if (hit && hit.k === k && Date.now() - hit.at < 60000) return hit.j; const j = J(app.locals.wholeWorks([w])[0]); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); jcache.set(w.slug, { k, j, at: Date.now() }); return j; };
-    const order = Q.sort === 'new' ? (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')) : Q.sort === 'big' ? (a, b) => (mp(b) || 0) - (mp(a) || 0) : (a, b) => (b.curated - a.curated) || ((b.stars || 0) - (a.stars || 0)) || (b.id - a.id);
-    rows.sort(order);
-    const page = Math.max(0, parseInt(req.query.page, 10) || 0), per = 48;
+    const make = w => { const k = w.slug + ':' + (w.updated_at || '') + ':' + (w.stars || 0); const hit = jcache.get(w.slug); if (hit && hit.k === k && Date.now() - hit.at < 60000) return hit.j; const j = J(w, memo); j.pages.work = rel(j.pages.work); j.uses.forEach(u => { u.url = rel(u.url); }); jcache.set(w.slug, { k, j, at: Date.now() }); if (jcache.size > 5000) jcache.delete(jcache.keys().next().value); return j; };
+    const memo = (() => { const M = new Map(), U = new Map(); return { mk: w => { if (!M.has(w.maker_id)) M.set(w.maker_id, mk(w)); return M.get(w.maker_id); }, uses: id => { if (!U.has(id)) U.set(id, db.prepare("SELECT * FROM uses WHERE maker_id=? AND kind!='delivery' ORDER BY sort").all(id)); return U.get(id); } }; })();
+    const whole = ids => app.locals.wholeWorks(ids.map(r => ({ id: r.id }))); // the works of a page, whole, in one question
+    const page = Math.max(0, Math.min(Math.floor(Number(process.env.TRADE_MAX || 6000) / 48), parseInt(req.query.page, 10) || 0)), per = 48;
     let items, total;
     if (Q.use || Q.max) {
-      items = rows.map(w => ({ w, j: make(w) }));
+      // A use or a ceiling needs each work's record (its uses and prices): made for the first TRADE_SCAN in this order
+      // alone, never for all six thousand (each record is a few questions).
+      const scan = Number(process.env.TRADE_SCAN || 480);
+      items = whole(db.prepare(`SELECT x.id FROM ${pool} ORDER BY ${orderSql} LIMIT ${scan}`).all(...args)).map(w => ({ w, j: make(w) }));
       if (Q.use) items = items.filter(x => x.j.uses.some(u => u.key === Q.use));
       if (Q.max) items = items.filter(x => x.j.uses.some(u => (!Q.use || u.key === Q.use) && u.instant && u.price_cents != null && u.price_cents <= Q.max * 100));
       total = items.length; items = items.slice(page * per, page * per + per);
     } else {
-      total = rows.length; items = rows.slice(page * per, page * per + per).map(w => ({ w, j: make(w) }));
+      total = Number(db.prepare(`SELECT COUNT(*) n FROM ${pool}`).get(...args).n);
+      items = whole(db.prepare(`SELECT x.id FROM ${pool} ORDER BY ${orderSql} LIMIT ${per} OFFSET ${page * per}`).all(...args)).map(w => ({ w, j: make(w) }));
     }
-    const makers = db.prepare("SELECT DISTINCT m.* FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held'").all();
     const useKeys = [...new Map(db.prepare("SELECT key, name FROM uses WHERE kind!='delivery' ORDER BY id").all().map(u => [u.key, u.key === 'social' ? 'Collect' : u.name])).entries()];
     const qs = o => '?' + new URLSearchParams(Object.entries({ ...Q, ...o }).filter(([, v]) => v !== '' && v != null && v !== 0)).toString();
     if (!on(req)) set(res, true); // to arrive here is to ask for the trade

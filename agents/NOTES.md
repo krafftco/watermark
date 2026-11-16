@@ -90,6 +90,18 @@ The CTO session keeps it honest.
 - Wander's pools are kept two minutes, so the room that builds one changes with the walk's timing: allow a statement
   that moves like that by its text (`room: '*'`, `sql`).
 - `test/listreads.js` is CLAUDE.md's SQL gate as a test; `test/listreads-allow.json` only shrinks (a stale line fails).
+- A cache that one room fills can hide another room's cost (#70, 16 Nov): when Wander stopped building a museum's
+  sheets, the museum's sheets desk showed its own 60,000 rows. Fix a shared cache's first caller and walk the whole gate.
+- A page's slowest statements on this machine vary 3× between runs (disk cache): a statement at 50 ms warm can read
+  240 ms on the walk's first visit. Look at the plan, not one timing; keep what you add well under half its line.
+- Postgres plans by cost: on a 100,000-row house a question for the maker holding 60% of it is a (parallel) seq scan
+  and a top-N sort even with the index there (45–65 ms), and `x IN (SELECT …)` is flattened into a join; `NOT IN
+  (SELECT …)` keeps works in its own index's order. Get plans from the local Postgres: move a kept big house with
+  `scripts/to-postgres.js` after `DELETE FROM hits` (the gate's hits are text times; Postgres wants numbers).
+- SQLite takes a partial index only when it beats an equality on another index: `works (status, stars DESC, id) WHERE
+  closer IS NOT NULL` is used, `works (stars DESC, id) WHERE …` is passed over for works_status_best. Check the plan.
+- Regard: `RG.byRegard`/`chronology` ask for the works given (`regardFor`, 500 ids a question); `regardMap` (the whole
+  house) is for a maker's standing and is built by the worker in a split house. Never sort a page through regardMap.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 
