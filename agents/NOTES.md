@@ -90,6 +90,20 @@ The CTO session keeps it honest.
 - Wander's pools are kept two minutes, so the room that builds one changes with the walk's timing: allow a statement
   that moves like that by its text (`room: '*'`, `sql`).
 - `test/listreads.js` is CLAUDE.md's SQL gate as a test; `test/listreads-allow.json` only shrinks (a stale line fails).
+- A desk's list (#78–#93): `src/deskpage.js` gives a page (the newest 200 by id, `?before=`/`?after=` keyset, never OFFSET),
+  a search that asks the database (`?q=`, the words find.js reads, so Postgres uses `works_find`) and the controls; `find()`
+  is a picker's search (20, as you type). A sum per maker is one GROUP BY with `src/grouped.js` (`inList`, `byId`); a
+  per-row count is asked with `IN (…)` for the rows shown. A count over a museum is still a walk of its index: say its cost.
+- A maker's money is `payouts.statements(makers)` (one grouped question a sum); `statement(m)` is the same path for one.
+  `test/statements.js` holds it to the old per-maker questions, both engines, both sides of the fee: change the
+  arithmetic in one place and run it.
+- The gate cannot see what its fixture leaves empty: readings (`works.frick`), notes, stood above the floor. A loop
+  per row over an empty list costs nothing there and everything on live: read the room's code, not only its numbers.
+- Walk your own rooms on a kept house: `BIG_KEEP=1` once, then `BIG_DIR=<it> BIG_ONLY='<who> <room>'`; after adding an
+  index, run `indexes.ensure` and `ANALYZE` on that house first (the build does it; the re-walk does not).
+- An inline `// comment` added at the end of a long one-line statement in app.js swallows the rest of the line: use `/* */`.
+- `test/a11y.js` launches Playwright's own Chromium, which this machine lacks: run it with a preload that falls back to
+  `channel: 'chrome'` (as reach-walk does). The reach walk's Wander faults at ipadL come and go with the machine's load.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 

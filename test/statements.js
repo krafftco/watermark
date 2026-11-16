@@ -62,28 +62,31 @@ const plain = o => JSON.parse(JSON.stringify(o, (k, v) => (v && typeof v === 'ob
   // A row into any table: the columns given, and something for every other column that must have one.
   let k = 0;
   const ins = (t, o) => {
-    const cols = db.prepare(`SELECT name, type, "notnull" nn, dflt_value d, pk FROM pragma_table_info('${t}')`).all();
+    const cols = db.kind === 'postgres'
+      ? db.prepare("SELECT column_name AS name, data_type AS type, CASE WHEN is_nullable='NO' THEN 1 ELSE 0 END AS nn, CASE WHEN is_identity='YES' THEN 'id' ELSE column_default END AS d, 0 AS pk FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=?").all(t)
+      : db.prepare(`SELECT name, type, "notnull" nn, dflt_value d, pk FROM pragma_table_info('${t}')`).all();
     const v = { ...o };
-    for (const c of cols) if (c.nn && c.d == null && !c.pk && !(c.name in v)) v[c.name] = /INT|REAL|NUM/i.test(c.type) ? 1 : `${t}-${c.name}-${++k}`;
+    for (const c of cols) if (c.nn && c.d == null && !c.pk && !(c.name in v)) v[c.name] = /INT|REAL|NUM|DOUBLE/i.test(c.type) ? 1 : `${t}-${c.name}-${++k}`;
     const ks = Object.keys(v);
     return Number(db.prepare(`INSERT INTO ${t} (${ks.join(', ')}) VALUES (${ks.map(() => '?').join(', ')})`).run(...ks.map(x => v[x])).lastInsertRowid);
   };
   const house = app.locals.maker.id;
   // The makers: each share the statement can meet (the default, 0, 70, 90), a gallery, a maker with nothing at all.
-  const mk = (h, pct, kind = 'maker') => ins('makers', { handle: h, name: h, email: h + '@example.com', kind, ...(pct == null ? {} : { share_pct: pct }) }); // share_pct: the column's default, or 0, 70, 90
+  const sfx = process.env.STM_SECOND ? '-c' : ''; // the second pass may share a Postgres database with the first
+  const mk = (h, pct, kind = 'maker') => ins('makers', { handle: h + sfx, name: h, email: h + '@example.com', kind, ...(pct == null ? {} : { share_pct: pct }) }); // share_pct: the column's default, or 0, 70, 90
   const A = mk('ann', null), B = mk('ben', 0), C = mk('cy', 70), D = mk('di', 90), G = mk('gal', null, 'gallery'), E = mk('empty', 80);
   const makers = [house, A, B, C, D, G, E];
   // A real work for its row's shape; the rest are its clones, two a maker.
   const f = path.join(dir, 'w.jpg'); fs.copyFileSync(path.join(__dirname, 'fixture.jpg'), f);
-  const w0 = await app.locals.registerWork({ file: f, originalName: 'w.jpg', title: 'Seed' });
+  const w0 = await app.locals.registerWork({ file: f, originalName: 'w.jpg', title: 'Seed' }).catch(() => db.prepare('SELECT id FROM works ORDER BY id LIMIT 1').get()); // held already: the first pass's
   const wcols = Object.keys(db.prepare('SELECT * FROM works WHERE id=?').get(w0.id)).filter(c => c !== 'id');
-  const work = (maker, i) => { db.prepare(`INSERT INTO works (${wcols.join(', ')}) SELECT ${wcols.map(c => c === 'maker_id' ? '?' : c === 'slug' ? '?' : c === 'sha256' ? '?' : c).join(', ')} FROM works WHERE id=?`).run(...wcols.filter(c => ['maker_id', 'slug', 'sha256'].includes(c)).map(c => (c === 'maker_id' ? maker : c === 'slug' ? `st-${maker}-${i}` : `${maker}x${i}`)), w0.id); return db.prepare('SELECT id FROM works WHERE slug=?').get(`st-${maker}-${i}`).id; };
+  const work = (maker, i) => { db.prepare(`INSERT INTO works (${wcols.join(', ')}) SELECT ${wcols.map(c => c === 'maker_id' ? '?' : c === 'slug' ? '?' : c === 'sha256' ? '?' : c).join(', ')} FROM works WHERE id=?`).run(...wcols.filter(c => ['maker_id', 'slug', 'sha256'].includes(c)).map(c => (c === 'maker_id' ? maker : c === 'slug' ? `st${sfx}-${maker}-${i}` : `${maker}x${i}${sfx}`)), w0.id); return db.prepare('SELECT id FROM works WHERE slug=?').get(`st${sfx}-${maker}-${i}`).id; };
   const use = (maker, key) => (db.prepare('SELECT id FROM uses WHERE maker_id=? AND key=?').get(maker, key) || {}).id || ins('uses', { maker_id: maker, key, name: key, description: key });
   const days = n => `datetime('now', '-${n} days')`;
   for (const [mi, m] of makers.entries()) {
     if (m === E) continue;
     const a = work(m, 1), b = work(m, 2);
-    const lic = (wk, key, price, status, ago, house_cents = null) => { const id = ins('licenses', { work_id: wk, use_id: use(m, key), licensee_name: 'L', licensee_email: 'l@example.com', ref: `R-${m}-${++k}`, price_cents: price, status, house_cents }); db.prepare(`UPDATE licenses SET created_at=${days(ago)}, starts_at=${days(ago)} WHERE id=?`).run(id); return id; };
+    const lic = (wk, key, price, status, ago, house_cents = null) => { const id = ins('licenses', { work_id: wk, use_id: use(m, key), licensee_name: 'L', licensee_email: 'l@example.com', ref: `R${sfx}-${m}-${++k}`, price_cents: price, status, house_cents }); db.prepare(`UPDATE licenses SET created_at=${days(ago)}, starts_at=${days(ago)} WHERE id=?`).run(id); return id; };
     lic(a, 'social', 500 + mi, 'active', 2); lic(a, 'social', 700, 'active', 30, 200); lic(b, 'editorial', 35000 + mi * 7, 'expired', 40);
     lic(b, 'editorial', 9999, 'requested', 1); lic(b, 'editorial', 0, 'active', 1); lic(a, 'editorial', 12345, 'declined', 1);
     const p1 = lic(a, 'print', 18000, 'active', 20), p2 = lic(b, 'print', 24000 + mi, 'active', 60, 3000);
@@ -92,20 +95,20 @@ const plain = o => JSON.parse(JSON.stringify(o, (k, v) => (v && typeof v === 'ob
     db.prepare(`UPDATE tips SET created_at=${days(20)}, paid_at=${days(20)} WHERE maker_id=? AND amount_cents=?`).run(m, 300 + mi); ins('tips', { grp: 'g', maker_id: m, amount_cents: 150, status: 'paid' });
     ins('payouts', { trade_id: 1, kind: 'royalty', maker_id: m, amount_cents: 410 + mi, status: 'owed' }); ins('payouts', { trade_id: 1, kind: 'fee', maker_id: m, amount_cents: 77, status: 'owed' });
     ins('maker_payouts', { maker_id: m, amount_cents: 1000 + mi, status: 'paid' }); ins('maker_payouts', { maker_id: m, amount_cents: 5, status: 'failed' });
-    const t = ins('texts', { slug: `t-${m}`, kind: 'essay', title: 'T', maker_id: m, price_cents: 800 });
-    ins('text_orders', { ref: `TO-${m}-1`, text_id: t, status: 'paid', price_cents: 999 + mi }); ins('text_orders', { ref: `TO-${m}-2`, text_id: t, status: 'pending', price_cents: 999 });
-    db.prepare(`UPDATE text_orders SET created_at=${days(30)}, paid_at=${days(30)} WHERE ref=?`).run(`TO-${m}-1`); ins('text_orders', { ref: `TO-${m}-3`, text_id: t, status: 'paid', price_cents: 1234 });
+    const t = ins('texts', { slug: `t${sfx}-${m}`, kind: 'essay', title: 'T', maker_id: m, price_cents: 800 });
+    ins('text_orders', { ref: `TO${sfx}-${m}-1`, text_id: t, status: 'paid', price_cents: 999 + mi }); ins('text_orders', { ref: `TO${sfx}-${m}-2`, text_id: t, status: 'pending', price_cents: 999 });
+    db.prepare(`UPDATE text_orders SET created_at=${days(30)}, paid_at=${days(30)} WHERE ref=?`).run(`TO${sfx}-${m}-1`); ins('text_orders', { ref: `TO${sfx}-${m}-3`, text_id: t, status: 'paid', price_cents: 1234 });
     const cp = ins('copies', { text_id: t, seller_kind: 'maker', seller_id: m, price_cents: 2500 + mi });
-    ins('copy_orders', { ref: `CO-${m}-1`, copy_id: cp, cents: 2600, paid: 1 }); ins('copy_orders', { ref: `CO-${m}-2`, copy_id: cp, cents: 2600, paid: 0 });
+    ins('copy_orders', { ref: `CO${sfx}-${m}-1`, copy_id: cp, cents: 2600, paid: 1 }); ins('copy_orders', { ref: `CO${sfx}-${m}-2`, copy_id: cp, cents: 2600, paid: 0 });
     if (m !== G) ins('gallery_cuts', { license_ref: `R-${m}`, gallery_id: G, maker_id: m, cents: 120 + mi });
     ins('work_splits', { work_id: a, name: 'Second shooter', pct: 10 }); ins('work_splits', { work_id: a, name: 'Assistant', pct: 2.5 + mi });
-    const sit = ins('sitters', { buyer_id: ins('buyers', { customer: `cus-${m}`, email: `s${m}@example.com` }), name: mi % 2 ? null : 'Sitter ' + mi });
+    const sit = ins('sitters', { buyer_id: ins('buyers', { customer: `cus${sfx}-${m}`, email: `s${m}@example.com` }), name: mi % 2 ? null : 'Sitter ' + mi });
     ins('sitter_pay', { sitter_id: sit, maker_id: m, license_ref: `R-${m}`, cents: 90 + mi }); ins('sitter_pay', { sitter_id: sit, maker_id: m, license_ref: `R2-${m}`, cents: 11 });
     const shop = ins('print_shops', { maker_id: m, house: 0, lab: null });
-    ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj-${m}-1`, status: 'delivered', cents: 4000 + mi, done_at: null }); ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj-${m}-2`, status: 'offered', cents: 999 });
-    db.prepare(`UPDATE print_jobs SET done_at=${days(2)} WHERE token=?`).run(`pj-${m}-1`); ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj-${m}-3`, status: 'delivered', cents: 500 });
-    db.prepare(`UPDATE print_jobs SET done_at=${days(40)} WHERE token=?`).run(`pj-${m}-3`);
-    const br = ins('briefs', { ref: `B-${m}`, token: `bt-${m}`, company: 'Co', email: 'co@example.com', title: 'A brief', status: 'done', paid: 1 });
+    ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj${sfx}-${m}-1`, status: 'delivered', cents: 4000 + mi, done_at: null }); ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj${sfx}-${m}-2`, status: 'offered', cents: 999 });
+    db.prepare(`UPDATE print_jobs SET done_at=${days(2)} WHERE token=?`).run(`pj${sfx}-${m}-1`); ins('print_jobs', { order_id: 1, shop_id: shop, token: `pj${sfx}-${m}-3`, status: 'delivered', cents: 500 });
+    db.prepare(`UPDATE print_jobs SET done_at=${days(40)} WHERE token=?`).run(`pj${sfx}-${m}-3`);
+    const br = ins('briefs', { ref: `B${sfx}-${m}`, token: `bt${sfx}-${m}`, company: 'Co', email: 'co@example.com', title: 'A brief', status: 'done', paid: 1 });
     const ans = ins('brief_answers', { brief_id: br, maker_id: m, fee_cents: 50000 + mi }); db.prepare(`UPDATE briefs SET proposal_id=?, approved_at=${days(3)} WHERE id=?`).run(ans, br);
     ins('gazette_payments', { sub_id: 1, maker_id: m, cents: 600, maker_cents: 480 + mi, house_cents: 120 }); ins('gazette_payments', { sub_id: 1, maker_id: m, cents: 600, maker_cents: 480, house_cents: 120 });
     db.prepare(`UPDATE gazette_payments SET at=${days(25)} WHERE maker_id=? AND maker_cents=480`).run(m);
@@ -134,6 +137,7 @@ const plain = o => JSON.parse(JSON.stringify(o, (k, v) => (v && typeof v === 'ob
   console.log(`statements: ${checked} makers, every field, as the per-maker questions had it (house's share on the ${FEE.on() ? 'collector' : 'maker'}'s side)`);
   fs.rmSync(dir, { recursive: true, force: true });
   if (!process.env.STM_SECOND) {
+    if (db.kind === 'postgres') { db.exec('DROP SCHEMA public CASCADE'); db.exec('CREATE SCHEMA public'); } // the second pass builds its own house
     const r = spawnSync(process.execPath, [__filename], { env: { ...process.env, FEE_SIDE: 'collector', STM_SECOND: '1' }, stdio: 'inherit' });
     if (r.status !== 0) { console.error('statements: the collector side failed'); process.exit(1); }
   }
