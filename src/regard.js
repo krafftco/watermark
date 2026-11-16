@@ -35,9 +35,9 @@ function chronology(db, works) {
 // Standing: how a maker ranks in the house. Not the sum of regard (which rewards hanging everything) but the
 // regard of what is shown, divided by the square root of how much is shown: a tight edit of strong work
 // outranks a long wall of the same work with the weak hung beside it. The great collectors culled; so does the house.
-function standing(db, makerId, { from = null } = {}) {
+function standing(db, makerId, { from = null, rows = null } = {}) { // `rows` (id, stars, status) when the caller has read them (#78)
   const m = regardMap(db);
-  const rows = db.prepare('SELECT id, stars, status FROM works WHERE maker_id=?').all(makerId);
+  rows = rows || db.prepare('SELECT id, stars, status FROM works WHERE maker_id=?').all(makerId);
   const shown = rows.filter(w => (from == null ? w.status === 'held' : (w.stars || 0) >= from && w.status !== 'withdrawn'));
   const sum = shown.reduce((a, w) => a + (m.get(w.id) || 0), 0);
   return { n: shown.length, held: rows.length, sum, standing: shown.length ? Math.round(sum / Math.sqrt(shown.length) * 10) / 10 : 0 };

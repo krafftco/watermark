@@ -47,6 +47,13 @@ const LIST = [
   ['works_created', 'works (created_at)'],
   ['ledger_type_at', 'ledger (type, at)'],
   ['licenses_starts', 'licenses (starts_at)'],
+  // ---- the desks at scale (#78–#93, w/78-scale-desks): a desk lists a page of a maker's works, newest first by id,
+  // and pages by id (deskpage.js); counts and sums are grouped by maker. Each line names the desk that asks it.
+  ['works_maker_id', 'works (maker_id, id)'], // /account, /account/table, the estate, copyright: the newest page of one maker
+  ['works_maker_stars', 'works (maker_id, stars, id)'], // /account?stars=n: one grade's page
+  ['sightings_work', 'sightings (work_id)'], // /account: a row's sightings, asked for the rows shown
+  ['works_status_id', 'works (status, id)'], // /studio/masters, /studio/hangs: the newest page of what is held, stopping at the page
+  ['works_maker_keep', 'works (maker_id, status, open, bytes)'], // /account: the open-access count and Keeping's weighed sum, read from the index alone
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
 // website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.

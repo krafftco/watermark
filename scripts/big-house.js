@@ -74,12 +74,6 @@ const ALLOW = [
   { room: 'maker /wander', budget: 'stmtMs', max: 500, issue: 70 }, // measured 159
   { room: 'maker /wander', budget: 'rows', max: 117100, issue: 70 }, // measured 93,650
   { room: 'museum /account/held', budget: 'rows', max: 37600, issue: 79 }, // measured 30,004
-  { room: 'museum /account', budget: 'pageMs', max: 11200, issue: 78 }, // measured 3,723
-  { room: 'museum /account', budget: 'bytes', max: 93200000, issue: 78 }, // measured 74,558,883
-  { room: 'museum /account', budget: 'stmtMs', max: 1150, issue: 78 }, // measured 383
-  { room: 'museum /account', budget: 'rows', max: 75000, issue: 78 }, // measured 60,000
-  { room: 'museum /account/gallerist', budget: 'stmtMs', max: 500, issue: 80 }, // measured 157
-  { room: 'museum /account/gallerist', budget: 'rows', max: 75000, issue: 80 }, // measured 60,000
   { room: 'museum /account/table', budget: 'bytes', max: 21400000, issue: 81 }, // measured 17,051,284
   { room: 'museum /account/table', budget: 'stmtMs', max: 850, issue: 81 }, // measured 268
   { room: 'museum /account/table', budget: 'rows', max: 75000, issue: 81 }, // measured 60,000
@@ -96,10 +90,6 @@ const ALLOW = [
   { room: 'studio /studio/licenses', budget: 'bytes', max: 4400000, issue: 87 }, // measured 3,489,937
   { room: 'studio /studio/licenses', budget: 'rows', max: 10000, issue: 87 }, // measured 8,000
   { room: 'studio /studio/payouts', budget: 'stmts', max: 9000, issue: 85 }, // measured 7,183
-  { room: 'studio /studio/masters', budget: 'pageMs', max: 4250, issue: 88 }, // measured 1,414
-  { room: 'studio /studio/masters', budget: 'bytes', max: 60000000, issue: 88 }, // measured 47,931,455
-  { room: 'studio /studio/masters', budget: 'stmtMs', max: 450, issue: 88 }, // measured 140
-  { room: 'studio /studio/masters', budget: 'rows', max: 122600, issue: 88 }, // measured 98,001
   { room: 'studio /studio/standard', budget: 'rows', max: 104200, issue: 89 }, // measured 83,300
   { room: 'studio /studio/accounts', budget: 'stmts', max: 2700, issue: 90 }, // measured 2,085
   { room: 'studio /studio/hangs', budget: 'bytes', max: 9400000, issue: 91 }, // measured 7,492,791
@@ -108,7 +98,6 @@ const ALLOW = [
   { room: 'studio /studio/analytics', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
   { room: 'studio /studio/books', budget: 'stmts', max: 12200, issue: 93 }, // measured 9,745
   { room: 'studio /studio/digest', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
-  { room: 'studio /account', budget: 'bytes', max: 4700000, issue: 78 }, // measured 3,729,892
   { room: 'studio /studio/trove?sort=unfinished', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
 ];
 

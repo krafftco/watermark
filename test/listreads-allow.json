@@ -1,5 +1,4 @@
 [
-  {"file":"accounts.js","sql":"SELECT w.id, w.slug, w.title, w.place, w.status, w.curated, w.stars, w.share_cents, w.widt","why":"no LIMIT","issue":78},
   {"file":"aledit.js","sql":"SELECT id, stars, stars_by, al_grade, curated FROM works WHERE maker_id=? AND al_grade IS ","why":"no LIMIT","issue":94},
   {"file":"aledit.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND COALESCE(flag,'')","why":"no LIMIT, SELECT *","issue":94},
   {"file":"aledit.js","sql":"SELECT * FROM works WHERE maker_id=? AND status='hidden' AND stars>=4 AND attribution IS N","why":"no LIMIT, SELECT *","issue":94},
@@ -28,7 +27,6 @@
   {"file":"app.js","sql":"SELECT * FROM works WHERE maker_id=? AND taken_at=? AND camera=? AND status NOT IN ('merge","why":"no LIMIT, SELECT *","issue":94},
   {"file":"app.js","sql":"SELECT id, slug, title, dhash, width, height FROM works WHERE maker_id=? AND dhash IS NOT ","why":"no LIMIT","issue":94},
   {"file":"app.js","sql":"SELECT * FROM works WHERE credentials IS NULL ORDER BY id","why":"no LIMIT, SELECT *","issue":94},
-  {"file":"app.js","sql":"SELECT slug, title, width, height, status FROM works WHERE status='held' ORDER BY id","why":"no LIMIT","issue":88},
   {"file":"app.js","sql":"SELECT id, slug, status, keep_back, copies_at FROM works WHERE status IN ('held','hidden')","why":"no LIMIT","issue":94},
   {"file":"archive.js","sql":"SELECT * FROM works","why":"no LIMIT, SELECT *","issue":94},
   {"file":"archive.js","sql":"SELECT w.* FROM works w LEFT JOIN (SELECT work_id, MAX(checked_at) last FROM fixity GROUP ","why":"SELECT *","issue":94},
@@ -70,7 +68,6 @@
   {"file":"frick.js","sql":"SELECT w.id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy","why":"no LIMIT","issue":89},
   {"file":"frick.js","sql":"SELECT w.id, w.slug, w.title, w.width, w.height, w.frick FROM works w JOIN makers m ON m.i","why":"no LIMIT","issue":94},
   {"file":"frick.js","sql":"SELECT w.id, w.slug FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.tidy LIKE 'below","why":"no LIMIT","issue":94},
-  {"file":"gallerist.js","sql":"SELECT w.id, w.slug, w.title, w.status, w.keep_back, w.stars, w.curated, w.width, w.height","why":"no LIMIT","issue":80},
   {"file":"gazette.js","sql":"SELECT t.*, (SELECT n FROM gazette_sends gs WHERE gs.text_id=t.id ORDER BY gs.id DESC LIMI","why":"SELECT *","issue":94},
   {"file":"hands.js","sql":"SELECT id, slug, title, caption, source_url, width, height, original_file FROM works WHERE","why":"no LIMIT","issue":94},
   {"file":"hangbest.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('hidden','held') AND (stars >= ? OR cu","why":"no LIMIT, SELECT *","issue":82},

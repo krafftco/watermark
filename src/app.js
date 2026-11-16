@@ -2524,11 +2524,20 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     })().finally(() => { crScan = null; });
     res.redirect('/studio/masters?ok=' + encodeURIComponent('Reading Content Credentials from every original. It runs in the background.'));
   });
-  app.get('/studio/masters', studioOnly, (req, res) => res.send(S.masters({
-    upgraded: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NOT NULL').get().n,
-    web: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NULL').get().n,
-    need: db.prepare("SELECT slug, title, width, height, status FROM works WHERE status='held' ORDER BY id").all().filter(w => !meets(w, 'campaign'))
-      .map(w => ({ ...w, mp: mpOf(w), waiting: Object.keys(MIN_MP).filter(k => !meets(w, k)) })), min: MIN_MP, ok: req.query.ok })));
+  // (#88, the scale gate) The list of every held work below full resolution was every held work read (98,000 rows, a
+  // 48 MB page at 100,000 works). Now the line (below MIN_MP.campaign, as `meets`) is asked in the database: a count,
+  // and a page of the newest 200 with a search (deskpage.js); a master is still uploaded row by row, or by the folder.
+  app.get('/studio/masters', studioOnly, (req, res) => {
+    const DP = require('./deskpage'); const at = DP.where(req.query);
+    const below = `w.status='held' AND COALESCE(w.width,0) * COALESCE(w.height,0) < ${Math.round(MIN_MP.campaign * 1e6)}`;
+    const total = db.prepare(`SELECT COUNT(*) n FROM works w WHERE ${below}`).get().n;
+    const pg = DP.page(db, { cols: 'w.id, w.slug, w.title, w.width, w.height, w.status', base: below, at });
+    const all = db.prepare('SELECT COUNT(*) n, COUNT(master_at) up FROM works').get();
+    res.send(S.masters({
+      upgraded: all.up, web: all.n - all.up, total, at, older: pg.older, newer: pg.newer,
+      need: pg.rows.map(w => ({ ...w, mp: mpOf(w), waiting: Object.keys(MIN_MP).filter(k => !meets(w, k)) })), min: MIN_MP, ok: req.query.ok,
+    }));
+  });
 
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
     db.prepare("UPDATE works SET status = CASE status WHEN 'held' THEN 'hidden' ELSE 'held' END WHERE slug=?").run(req.params.slug);
