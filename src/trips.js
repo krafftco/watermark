@@ -27,14 +27,16 @@ function mountTrips(app, { db, V, C, images, cache, originalPath, ledger, makerO
   const frames = m => db.prepare(`SELECT ${app.locals.leanCols()} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND in_trip=1 AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0 AND place IS NOT NULL AND place<>''`).all(m.id);
   const when = w => String(w.taken_at || w.created_at || '');
   // Every place with enough frames to be a trip, the most frames first; the cover is the best shown frame.
+  // (16 Nov, #76) Counted by the database, never read frame by frame (the maker's page read every frame of a museum,
+  // 60,000 rows and 340 ms, to name twelve trips): one question over the maker's TRIP_WINDOW newest frames (through
+  // works_taken), grouped by place, the best shown frame of each its cover; LIST_MAX trips at most, the most frames
+  // first. A maker with more than TRIP_WINDOW frames has their trips counted among the newest TRIP_WINDOW.
+  const TRIP_WINDOW = Number(process.env.TRIP_WINDOW || 5000), LIST_MAX = 24;
   function list(m) {
-    const by = new Map();
-    for (const w of frames(m)) { const p = placeOf(w); if (!by.has(p)) by.set(p, []); by.get(p).push(w); }
-    return [...by.entries()].filter(([, ws]) => ws.length >= MIN && ws.some(shown)).map(([place, ws]) => {
-      const vis = ws.filter(shown).sort((a, b) => (b.stars - a.stars) || (b.curated - a.curated));
-      const dates = ws.map(when).filter(Boolean).sort();
-      return { place, slug: slugify(place), n: ws.length, held: ws.length - vis.length, cover: vis[0] ? vis[0].slug : null, from: dates[0] || null, to: dates[dates.length - 1] || null, href: `/trip/${encodeURIComponent(m.handle)}/${slugify(place)}` };
-    }).sort((a, b) => b.n - a.n);
+    const rows = db.prepare(`WITH f AS (SELECT TRIM(place) AS place, slug, id, stars, curated, COALESCE(taken_at, created_at) AS t, CASE WHEN status='held' AND COALESCE(keep_back,0)=0 THEN 1 ELSE 0 END AS shown FROM works WHERE maker_id=? AND status IN ('held','hidden') AND in_trip=1 AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)=0 AND place IS NOT NULL AND TRIM(place)<>'' ORDER BY taken_at DESC LIMIT ${TRIP_WINDOW}),
+      g AS (SELECT place, slug, COUNT(*) OVER (PARTITION BY place) AS n, SUM(shown) OVER (PARTITION BY place) AS vis, MIN(t) OVER (PARTITION BY place) AS a, MAX(t) OVER (PARTITION BY place) AS b, ROW_NUMBER() OVER (PARTITION BY place ORDER BY shown DESC, stars DESC, curated DESC, id) AS r FROM f)
+      SELECT place, slug, n, vis, a, b FROM g WHERE r=1 AND n >= ? AND vis > 0 ORDER BY n DESC, place LIMIT ${LIST_MAX}`).all(m.id, MIN);
+    return rows.map(g => { const n = Number(g.n); return { place: g.place, slug: slugify(g.place), n, held: n - Number(g.vis), cover: g.slug, from: g.a || null, to: g.b || null, href: `/trip/${encodeURIComponent(m.handle)}/${slugify(g.place)}` }; });
   }
   function trip(m, pslug) {
     const ws = frames(m).filter(w => slugify(placeOf(w)) === pslug).sort((a, b) => (when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : a.id - b.id));

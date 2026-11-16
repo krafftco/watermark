@@ -42,8 +42,6 @@
   {"file":"catalogue.js","sql":"SELECT w.* FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.artist_id=? AND m.kind='i","why":"no LIMIT, SELECT *","issue":94},
   {"file":"catalogue.js","sql":"SELECT w.slug, w.source_url, w.width, w.height, m.handle FROM works w JOIN makers m ON m.i","why":"no LIMIT","issue":94},
   {"file":"catalogue.js","sql":"SELECT source_url FROM works WHERE source_url LIKE 'https://commons.wikimedia.org/%'","why":"no LIMIT","issue":94},
-  {"file":"clock.js","sql":"SELECT w.slug, w.title, w.place, m.name AS maker FROM works w JOIN makers m ON m.id=w.make","why":"no LIMIT","issue":73},
-  {"file":"clock.js","sql":"SELECT w.slug, w.title, w.place, w.closer, m.name AS maker FROM works w JOIN makers m ON m","why":"no LIMIT","issue":73},
   {"file":"closer.js","sql":"SELECT id FROM works WHERE status='held' AND closer IS NULL AND (curated=1 OR stars>=?) OR","why":"no LIMIT","issue":94},
   {"file":"closer.js","sql":"SELECT id FROM works WHERE status='held' AND curated=1 AND closer IS NOT NULL AND closer N","why":"no LIMIT","issue":94},
   {"file":"committee.js","sql":"SELECT w.*, m.name AS maker_name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id W","why":"SELECT *","issue":94},
@@ -84,7 +82,6 @@
   {"file":"library.js","sql":"SELECT * FROM texts ORDER BY id DESC","why":"no LIMIT, SELECT *","issue":94},
   {"file":"look.js","sql":"SELECT w.slug, w.title, w.width, w.height, w.taken_at, w.kind, w.curated, w.stars, a.name ","why":"no LIMIT","issue":94},
   {"file":"look.js","sql":"SELECT w.slug, w.title, w.width, w.height, w.taken_at, m.name AS maker, a.name AS artist F","why":"no LIMIT","issue":94},
-  {"file":"looking.js","sql":"SELECT wk.id, wk.slug, wk.title, wk.place, wk.keywords, wk.maker_id, wk.stars, wk.curated,","why":"no LIMIT","issue":70},
   {"file":"museums.js","sql":"SELECT w.*, w.created_at AS t, 'made' AS why FROM works w WHERE w.maker_id IN ( ${} ) AND ","why":"SELECT *","issue":94},
   {"file":"notebook.js","sql":"SELECT w.id, w.slug, w.title, w.status, COUNT(*) people, SUM(COALESCE(s.seconds,0)) secs, ","why":"no LIMIT","issue":79},
   {"file":"open.js","sql":"SELECT w.*, m.name AS maker_name, m.kind AS maker_kind, m.handle FROM works w JOIN makers ","why":"no LIMIT, SELECT *","issue":94},
@@ -110,8 +107,6 @@
   {"file":"speech.js","sql":"SELECT * FROM works WHERE status='held' AND closer IS NOT NULL ORDER BY curated DESC, star","why":"no LIMIT, SELECT *","issue":94},
   {"file":"stand.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND created_at >= dat","why":"SELECT *","issue":94},
   {"file":"stand.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY id DESC LIMI","why":"SELECT *","issue":94},
-  {"file":"stroll.js","sql":"SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_o","why":"no LIMIT","issue":70},
-  {"file":"stroll.js","sql":"SELECT m.*, COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'","why":"SELECT *","issue":70},
   {"file":"table.js","sql":"SELECT w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.","why":"no LIMIT","issue":81},
   {"file":"table.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden')","why":"no LIMIT, SELECT *","issue":81},
   {"file":"tidy.js","sql":"SELECT id, slug, title, caption, width, height, dhash, source_url, stars, curated, origina","why":"no LIMIT","issue":94},
@@ -120,6 +115,5 @@
   {"file":"trips.js","sql":"SELECT ${} FROM works WHERE maker_id=? AND status IN ('held','hidden') AND in_trip=1 AND C","why":"no LIMIT","issue":94},
   {"file":"vangogh.js","sql":"SELECT * FROM works WHERE artist_id=? AND status='held' ORDER BY COALESCE(taken_at, ''), i","why":"no LIMIT, SELECT *","issue":94},
   {"file":"volumes.js","sql":"SELECT artist_id id FROM works WHERE artist_id IS NOT NULL AND status='held' GROUP BY arti","why":"no LIMIT","issue":94},
-  {"file":"volumes.js","sql":"SELECT id, slug, title, source_url, taken_at FROM works WHERE artist_id=? AND status='held","why":"no LIMIT","issue":94},
-  {"file":"walk.js","sql":"SELECT w.id, w.slug, w.title, w.width, w.height, w.maker_id FROM works w","why":"no LIMIT","issue":74}
+  {"file":"volumes.js","sql":"SELECT id, slug, title, source_url, taken_at FROM works WHERE artist_id=? AND status='held","why":"no LIMIT","issue":94}
 ]

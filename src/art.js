@@ -177,15 +177,28 @@ ${on() && !a ? `<form method="post" action="${action}" class="ax-f"><input type=
   app.post('/studio/works/:slug/art', studioOnly, async (req, res) => { const w = findWork(req.params.slug); if (!w) return res.sendStatus(404); await act(req, res, w, `/studio/works/${encodeURIComponent(w.slug)}`); });
 
   // The room: /art. The kinds of work in the house, the movements, and every artist A–Z with one picture each.
-  const cover = a => db.prepare("SELECT slug FROM works WHERE artist_id=? AND status='held' AND zone IS NOT 'mature' ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(a.id);
+  // (16 Nov, #71) The hall's lists, built ahead by the worker (shared.js) and kept five minutes: every artist with work
+  // held, their count and their cover in three grouped questions, the kinds and the movements. The room asked for each
+  // artist's cover one at a time (2,940 questions at the scale gate's size) and counted every held work on each visit.
+  const HALL_COLS = 'a.id, a.slug, a.name, a.sort_name, a.born, a.died, a.nationality, a.movement, a.claim_status, a.sale_ok';
+  const hallBuild = () => {
+    const covers = new Map(db.prepare("SELECT artist_id, slug FROM (SELECT artist_id, slug, ROW_NUMBER() OVER (PARTITION BY artist_id ORDER BY curated DESC, stars DESC, id DESC) AS r FROM works WHERE artist_id IS NOT NULL AND status='held' AND COALESCE(zone,'all')<>'mature') x WHERE r=1").all().map(r => [r.artist_id, r.slug]));
+    const artists = db.prepare(`SELECT ${HALL_COLS}, c.n FROM artists a JOIN (SELECT artist_id, COUNT(*) AS n FROM works WHERE status='held' AND artist_id IS NOT NULL GROUP BY artist_id) c ON c.artist_id=a.id ORDER BY a.sort_name`).all().map(a => ({ ...a, n: Number(a.n), cover: covers.get(a.id) || null }));
+    const kinds = db.prepare("SELECT kind, COUNT(*) n FROM works WHERE status='held' AND (artist_id IS NOT NULL OR COALESCE(kind,'photograph')!='photograph') GROUP BY kind ORDER BY n DESC").all();
+    const byKind = {}; for (const r of db.prepare("SELECT kind, artist_id, COUNT(*) n FROM works WHERE status='held' AND artist_id IS NOT NULL AND kind IS NOT NULL GROUP BY kind, artist_id").all()) (byKind[r.kind] = byKind[r.kind] || []).push(r.artist_id);
+    const movements = db.prepare("SELECT a.movement, COUNT(DISTINCT a.id) artists, COUNT(w.id) n FROM artists a JOIN works w ON w.artist_id=a.id AND w.status='held' WHERE a.movement IS NOT NULL AND a.movement!='' GROUP BY a.movement ORDER BY n DESC").all();
+    return { artists, kinds, byKind, movements };
+  };
+  if (app.locals.shared) app.locals.shared.register('art-hall', { ms: 300e3, build: hallBuild });
   app.get('/art', (req, res, next) => (app.locals.minute ? app.locals.minute(artRoom) : artRoom)(req, res, next)); // a stranger's room once a minute (28 Oct)
   function artRoom(req, res) {
     const OB = require('./object');
-    const artists = db.prepare("SELECT a.*, (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held') n FROM artists a WHERE (SELECT COUNT(*) FROM works w WHERE w.artist_id=a.id AND w.status='held')>0 ORDER BY a.sort_name").all();
-    const kinds = db.prepare("SELECT kind, COUNT(*) n FROM works WHERE status='held' AND (artist_id IS NOT NULL OR COALESCE(kind,'photograph')!='photograph') GROUP BY kind ORDER BY n DESC").all().filter(k => OB.KINDS[k.kind]);
-    const movements = db.prepare("SELECT a.movement, COUNT(DISTINCT a.id) artists, COUNT(w.id) n FROM artists a JOIN works w ON w.artist_id=a.id AND w.status='held' WHERE a.movement IS NOT NULL AND a.movement!='' GROUP BY a.movement ORDER BY n DESC").all();
+    const hall = app.locals.shared ? app.locals.shared.get('art-hall') : hallBuild();
+    const artists = hall.artists, kinds = hall.kinds.filter(k => OB.KINDS[k.kind]), movements = hall.movements;
+    const cover = a => (a.cover ? { slug: a.cover } : null);
     const mv = String(req.query.movement || ''), kd = String(req.query.kind || '');
-    const shown = artists.filter(a => (!mv || a.movement === mv)).filter(a => !kd || db.prepare("SELECT 1 FROM works WHERE artist_id=? AND status='held' AND kind=?").get(a.id, kd));
+    const ofKind = kd ? new Set((hall.byKind[kd] || []).map(Number)) : null;
+    const shown = artists.filter(a => (!mv || a.movement === mv)).filter(a => !kd || ofKind.has(Number(a.id)));
     const letters = [...new Set(shown.map(a => (a.sort_name || a.name)[0].toUpperCase()))];
     res.send(V.layout({ title: 'The hall · Watermark', path: '/art', desc: 'The artists behind the work in the house: paintings, sculpture, drawings, photographed and kept, each under its maker’s name.', body: `<section class="ax-room">
 <header class="ax-head"><p class="k">The hall</p><h1>Every artist, and all of their work.</h1><p class="lede">A page for every artist, living or long gone: the work in the order it was made, the life as a line, and their own words beside it. Wander one from the first picture to the last. A photograph can show a painting, but the painting is someone’s. Every work of art photographed into the house hangs here under the name of the person who made it, with the photographer credited, and the artist’s page gathers all of it. Where the work is in the public domain the photographs are collected and licensed as any work; where it is under copyright they are shown and credited, may be collected for yourself, and are never licensed for a story, a company, an audience, a wall or a print until the artist or their estate sets terms.</p></header>

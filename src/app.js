@@ -750,6 +750,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     return { at: Date.now(), total, works };
   } });
   const hallList = () => app.locals.shared.get('hall');
+  // (16 Nov, #72) The whole house's regard (the makers' standing on their desks), built ahead by the worker in a split house.
+  if (ROLE.split && process.env.NODE_ENV !== 'test') { app.locals.shared.register('regard', { ms: 300e3, build: () => RG.compute(db) }); RG.keptFrom(() => app.locals.shared.get('regard')); }
   app.locals.hallList = hallList;
   // The columns of a work without the long ones (guides, readings, credentials): for any list a page draws.
   // 9 Nov: no visitor path reads whole rows of many works; the few shown are read whole by id.
@@ -792,8 +794,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (req.headers['if-none-match'] === tag) return res.status(304).end();
     const works = hallList().works.map(w => ({ ...w, maker: makers[w.maker_id] || maker, share_cents: w.maker_id !== maker.id && !w.share_cents ? socialOf[w.maker_id] || null : w.share_cents }));
     let heard = new Set(); try { heard = new Set(db.prepare('SELECT DISTINCT work_id FROM voices WHERE public=1 AND audio IS NOT NULL').all().map(r => r.work_id)); } catch (e) { /* none */ }
-    const rooms = db.prepare('SELECT c.slug, cw.work_id FROM collections c JOIN collection_works cw ON cw.collection_id=c.id WHERE c.public=1').all();
-    const roomOf = {}; rooms.forEach(r => { (roomOf[r.work_id] = roomOf[r.work_id] || []).push(r.slug); });
+    // (16 Nov, #77) The rooms of the works listed, never every place in every room (30,000 rows at the scale gate's size).
+    const roomOf = {}; const listed = works.map(w => w.id);
+    for (let i = 0; i < listed.length; i += 500) { const part = listed.slice(i, i + 500); for (const r of db.prepare(`SELECT c.slug, cw.work_id FROM collections c JOIN collection_works cw ON cw.collection_id=c.id WHERE c.public=1 AND cw.work_id IN (${part.map(() => '?').join(',')})`).all(...part)) (roomOf[r.work_id] = roomOf[r.work_id] || []).push(r.slug); }
     res.json(works.map(w => V.indexRow(w, w.maker, { voiced: heard.has(w.id), rooms: roomOf[w.id] || [] })));
   });
 
