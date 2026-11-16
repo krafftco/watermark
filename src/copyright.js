@@ -127,7 +127,11 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
       deposit: { file: `copyright-group-${g.id}-deposit.zip`, format: 'JPEG, one a photograph, named as in the title list', url: `${C.base}/studio/copyright/${g.id}/deposit.zip` },
       status: { status: g.status, service_request: g.sr || null, registration: g.reg || null } };
   }
-  app.locals.copyrightChecks = (w, kind) => { const pub = pubMap(w.maker_id); return checksOf(w, kind || (pub(w) ? 'GRPPH' : 'GRUPH'), null, pub); };
+  // (#8) A page asks this of every work it lists (the house's 3,000: 6,000 aggregate questions, eight seconds); the
+  // maker's map is read once a turn of the loop and forgotten after it, so a page reads it once and nothing goes stale.
+  const tick = (fn) => { const kept = new Map(); return k => { if (!kept.has(k)) { if (!kept.size) setImmediate(() => kept.clear()); kept.set(k, fn(k)); } return kept.get(k); }; };
+  const pubOnce = tick(pubMap);
+  app.locals.copyrightChecks = (w, kind) => { const pub = pubOnce(w.maker_id); return checksOf(w, kind || (pub(w) ? 'GRPPH' : 'GRUPH'), null, pub); };
   app.get('/studio/copyright/:id/packet.json', studioOnly, (req, res) => {
     const g = db.prepare('SELECT * FROM copyright_groups WHERE id=?').get(Number(req.params.id)); if (!g) return res.sendStatus(404);
     res.set('Content-Disposition', `attachment; filename="copyright-group-${g.id}-packet.json"`).type('application/json').send(JSON.stringify(packet(g), null, 2));
@@ -189,7 +193,7 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
   // What is not the house's (or the maker's) to register: the public domain, an open licence's holder, another
   // artist's work, a museum's collection. These are told plainly and never asked to be registered (5 Nov).
   const LIC = { 'cc-by': 'CC BY', 'cc-by-sa': 'CC BY-SA', 'cc-by-nc': 'CC BY-NC' };
-  const makerOf = id => db.prepare('SELECT id, name, kind, handle FROM makers WHERE id=?').get(id) || {};
+  const makerOf = tick(id => db.prepare('SELECT id, name, kind, handle FROM makers WHERE id=?').get(id) || {});
   function notOurs(w) {
     if (w.open === 'pd') return { state: 'open', line: 'In the public domain: there is no copyright in it to register, and a faithful photograph of it adds none.' };
     if (w.open === 'cc0') return { state: 'open', line: 'Dedicated to the public domain (CC0) by its holder: there is nothing to register.' };

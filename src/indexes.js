@@ -28,6 +28,7 @@ const LIST = [
   ['ledger_type', 'ledger (type, seq)'],
   ['notes_work', 'notes (work_id)'],
   ['hang_works_work', 'hang_works (work_id)'],
+  ['collection_works_work', 'collection_works (work_id)'], // (#8) "works in no room" on /studio: 1.3 s at 100,000 works without it
   ['downloads_license', 'downloads (license_id)'],
   ['downloads_sha', 'downloads (sha256)'],
   ['buyers_email', 'buyers (email)'],

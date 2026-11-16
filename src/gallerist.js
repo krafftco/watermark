@@ -19,13 +19,17 @@ function mountGallerist(app, { db, V, makerOf, isStudio }) {
         COUNT(s.id) people, SUM(COALESCE(s.seconds,0)) secs, SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) back
       FROM works w LEFT JOIN stood s ON s.work_id=w.id WHERE w.maker_id=? AND w.status IN ('held','hidden')
       GROUP BY w.id, w.slug, w.title, w.status, w.keep_back, w.stars, w.curated, w.width, w.height, w.open`).all(m.id);
+    // (#8) The four counts for all the maker's works at once, one question each (they were asked work by work: 12,000
+    // questions for the house's 3,000 works, 240,000 for a museum's 60,000).
+    const per = (t, extra = '') => { const by = new Map(); try { for (const x of db.prepare(`SELECT x.work_id AS id, COUNT(*) AS n FROM ${t} x JOIN works w ON w.id=x.work_id WHERE w.maker_id=?${extra} GROUP BY x.work_id`).all(m.id)) by.set(x.id, Number(x.n) || 0); } catch (e) { /* a table a fresh house lacks: none */ } return by; };
+    const hats = per('applause'), bravos = per('bravos'), saves = per('hang_works'), sold = per('licenses', " AND x.status='active' AND x.price_cents>0");
     for (const r of rows) {
       r.people = +r.people || 0; r.secs = +r.secs || 0; r.back = +r.back || 0;
       r.avg = r.people ? r.secs / r.people : 0;
-      r.hats = cnt('SELECT COUNT(*) n FROM applause WHERE work_id=?', r.id);
-      r.bravos = cnt('SELECT COUNT(*) n FROM bravos WHERE work_id=?', r.id);
-      r.saves = cnt('SELECT COUNT(*) n FROM hang_works WHERE work_id=?', r.id);
-      r.sold = cnt("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status='active' AND price_cents>0", r.id);
+      r.hats = hats.get(r.id) || 0;
+      r.bravos = bravos.get(r.id) || 0;
+      r.saves = saves.get(r.id) || 0;
+      r.sold = sold.get(r.id) || 0;
       r.weight = r.secs + r.back * 60 + r.bravos * 120 + r.hats * 15 + r.saves * 45;
     }
     return rows;

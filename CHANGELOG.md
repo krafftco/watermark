@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.86.3 · Desks that answer quickly at any size · 16 November 2026
+
+- The Studio's vault lists the newest 2,000 works; the rest are found by Find. A maker's copyright page, the gallerist's notes and the Studio's front page answer in a fraction of the time on a large collection.
+- Every room of the house is now measured on each change against a collection of 100,000 works, as a visitor, a maker, a museum and the Studio.
+
 ## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
 
 - A room's own bar now stops below the house's header instead of sliding under it: the Library's filter and star rows, the trade's search bar, and the columns beside a work. The header's height is measured once on each page and every room's bar and every jump to an anchor follows it, upright or turned, on a phone, an iPad or the desk.
