@@ -117,7 +117,7 @@ function expand(s) {
 }
 const SMALLW = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'to', 'by', 'for', 'with', 'from', 'as']);
 const titled = s => String(s).toLowerCase().replace(/(^|[\s(—-])([a-z][a-z’']*)/g, (m, pre, w, off) => pre + (off > 0 && SMALLW.has(w) ? w : w[0].toUpperCase() + w.slice(1)));
-function build(t, chs, guide) {
+function build(t, chs) {
   const F = flatten(chs); if (!detect(F)) return null;
   const kind = new Array(F.length).fill(null); // 'p','intro','h','t','fn','src','skip'
   const clean = F.map(x => x.t);
@@ -168,6 +168,7 @@ function build(t, chs, guide) {
     } else if (fEnd > s) bodyFrom = fEnd;
     // The body: sections (a numeral and a mixed-case title, exactly the next section), parts (a numeral and a line in
     // capitals, restarting in each section), topics, notes.
+    const maxSec = entries.length >= 3 ? Math.max(...entries.map(x => roman(x.no))) : lastSec + 1;
     const open = (no, title) => { sec = { kind: 'section', no, head: `${no}. ${title}`, title, vol: vno, blocks: [], parts: 0 }; chapters.push(sec); secByNo.set(no, sec); lastSec = roman(no); note = null; topic = null; intro = true; };
     const after = i => { for (let j = i + 1; j < e && j < i + 60; j++) { const m = F[j].t.match(BNUM); if (m) return +m[1]; } return null; };
     const want = (n, i) => { if (n <= lastNote || notes.has(n)) return false; if (n <= lastNote + 80) return true; const a = after(i); return a != null && a > n && a <= n + 4; };
@@ -176,18 +177,27 @@ function build(t, chs, guide) {
     const newNote = (n, also, i) => { lastNote = Math.max(lastNote, n); note = { k: 'note', n, also: also || [], items: [], ms: [] }; sec.blocks.push(note); notes.set(n, { sec, note }); for (const a of note.also) notes.set(a, { sec, note }); if (topic) topic.notes.push(n); intro = false; if (pendSrc.length) { for (const x of pendSrc) { note.ms.push(x.mm); note.items.push(x); } pendSrc = []; } };
     for (let i = bodyFrom; i < e; i++) {
       if (kind[i]) continue; const p = F[i].t;
-      // A numeral heading: on its own line with its title after it, or both in one paragraph.
-      // A numeral alone on its line (#59: always alone in this text; "III. Castles and Villas." on one line is Richter's
-      // list, never a section), then its title. With a guide (the contents' own numbering, below), only there.
-      let hd = null; const r = romM(p);
-      if (r && i + 1 < e && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t) && F[i + 1].t.length <= 200 && !synLike(F[i + 1].t)) hd = { no: r[1], title: F[i + 1].t.replace(/\*/g, ''), span: 2 };
-      if (guide && guide.has(i)) { const g = guide.get(i); kind[i] = kind[i + 1] = 'skip'; open(g.no, strip_(F[i + 1].t.replace(/\*/g, '')).replace(/\.$/, '')); i += 1; continue; }
-      if (hd) {
-        const caps = isCaps(hd.title);
-        if ((!guide || !entries.some(x => x.no === hd.no)) && !caps && roman(hd.no) === lastSec + 1) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; open(hd.no, strip_(hd.title).replace(/\.$/, '')); i += hd.span - 1; continue; }
-        if (caps && sec) { for (let k = 0; k < hd.span; k++) kind[i + k] = 'skip'; sec.blocks.push({ k: 'part', no: hd.no, title: strip_(hd.title).replace(/\.$/, '') }); sec.parts++; i += hd.span - 1; note = null; topic = null; intro = false; continue; }
+      // A numeral alone on its line (#67, the rule read off all twenty-two of the real book's sections):
+      //   followed by a line in capitals, it is a PART of the open section (in the body a section's title is never in
+      //   capitals; only the contents give some that way); followed by anything else (a word, a quotation mark, a title
+      //   running over two or three short paragraphs) it is a SECTION when its value is above the last section's and no
+      //   more than the contents list. Never "exactly the next": one missed numeral must not hide the sections after it.
+      const r = romM(p);
+      if (r && i + 1 < e && !BNUM.test(F[i + 1].t) && !BROMAN.test(F[i + 1].t) && !RANGEP.test(F[i + 1].t) && !synLike(F[i + 1].t) && !/^_?\[Footnote/i.test(F[i + 1].t)) {
+        const nx = F[i + 1].t.replace(/\*/g, '');
+        if (isCaps(nx)) { if (!sec) { const no = toRoman(lastSec + 1); const en = entries.find(x => x.no === no && x.vol === vno) || entries.find(x => x.no === no); open(no, en && en.title ? en.title : `Section ${no}`); } kind[i] = kind[i + 1] = 'skip'; sec.blocks.push({ k: 'part', no: r[1], title: strip_(nx).replace(/\.$/, '') }); sec.parts++; i += 1; note = null; topic = null; intro = false; continue; }
+        const v = roman(r[1]);
+        if (v > lastSec && v <= maxSec) {
+          // The title's lines: short paragraphs after the numeral, up to the first long one, a note, a numeral, a range, a
+          // topic line, a capital heading or a footnote (three at most).
+          const ls = []; for (let j = i + 1; j < e && ls.length < 3; j++) { const q = F[j].t; if (q.length > 90 || BNUM.test(q) || BROMAN.test(q) || RANGEP.test(q) || rangeLine(q) || isCaps(q) || /^_?\[Footnote/i.test(q) || synLike(q)) break; if (ls.length && j + 1 < e && (BNUM.test(F[j + 1].t) || RANGEP.test(F[j + 1].t))) break; ls.push(j); }
+          if (!ls.length) ls.push(i + 1);
+          const en = entries.find(x => x.no === r[1] && x.title) ;
+          const title = en ? (isCaps(en.title) ? titled(en.title) : en.title) : ls.map(j => strip_(F[j].t.replace(/\*/g, ''))).join(' ').replace(/\s+/g, ' ').replace(/\.$/, '');
+          kind[i] = 'skip'; for (const j of ls) kind[j] = 'skip'; open(r[1], title); i = ls[ls.length - 1]; continue;
+        }
       }
-      if (!sec) { const no = toRoman(lastSec + 1); const en = entries.find(x => x.no === no && x.vol === vno) || entries.find(x => x.no === no); open(no, en && en.title ? en.title : `Section ${no}`); }
+      if (!sec) { const no = toRoman(lastSec + 1); const en = entries.find(x => x.no === no && x.vol === vno) || entries.find(x => x.no === no); open(no, en && en.title ? (isCaps(en.title) ? titled(en.title) : en.title) : `Section ${no}`); }
       // A note: its number alone on a line. A number joined to its text only when it is exactly the next, the note
       // before has no footnote, its own number does not stand bare later, and the text reads as a note's.
       let m = p.match(BNUM), body = null;
@@ -338,32 +348,20 @@ function render(nb, ci, pix, links) {
 const fn = (b, P) => `<details class="rdo-fn"><summary>${LABEL}</summary>${b.is.map(i => P(i)).join('')}</details>`;
 // ---- The cache and the doors the reader uses.
 const CACHE = new Map(); const NOT = new Set();
-// One miss must not cascade (#59: on live a missed III left II holding II–X, and Richter's one-line list inside XII
-// then read as sections III–V). When the contents list the sections, the body's sections must agree with them: the
-// same count, and each title beginning with the first two words of its contents title. If they do not, the sections
-// are found again by the contents' own numbering (a numeral whose next paragraph begins with that title), and the
-// host's log says how many matched: "[outline] <slug>: sections N of M matched".
+// The contents and the body compared (#59, #67): when they disagree (the count, or a title's first two words), the host's
+// log says so in one line, "[outline] <slug>: sections N of M found, K titled as the contents". It only reports.
 const first2 = s => norm(strip_(String(s || '').replace(/\*/g, ''))).split(' ').filter(Boolean).slice(0, 2).join(' ');
 function agrees(nb) {
   const secs = nb.chapters.filter(c => c.kind === 'section'); const en = nb.entries;
   if (secs.length !== en.length) return false;
   return secs.every(c => { const x = en.find(y => y.no === c.no); return x && first2(x.title) === first2(c.title); });
 }
-function guideOf(nb) {
-  const { F } = nb; const spans = nb.chapters.filter(c => c.span).map(c => c.span); const inC = i => spans.some(([a, b]) => i >= a && i < b);
-  const g = new Map(); let pos = spans.length ? spans[0][1] : 0; let found = 0;
-  for (const en of nb.entries) {
-    const w = first2(en.title); if (!w) continue;
-    for (let i = pos; i < F.length - 1; i++) { if (inC(i)) continue; const r = romM(F[i].t); if (r && r[1] === en.no && first2(F[i + 1].t) === w) { g.set(i, { no: en.no }); pos = i + 2; found++; break; } }
-  }
-  g.found = found; return g;
-}
 function checked(t, chs) {
   const nb = build(t, chs); if (!nb || nb.entries.length < 3 || agrees(nb)) return nb;
-  const g = guideOf(nb); const nb2 = build(t, chs, g); if (!nb2) return nb;
-  const n2 = nb2.chapters.filter(c => c.kind === 'section').length;
-  console.log(`[outline] ${t.slug}: sections ${n2} of ${nb.entries.length} matched (by the contents; the body's own reading gave ${nb.chapters.filter(c => c.kind === 'section').length})`);
-  return nb2;
+  const secs = nb.chapters.filter(c => c.kind === 'section');
+  const matched = secs.filter(c => { const x = nb.entries.find(y => y.no === c.no); return x && first2(x.title) === first2(c.title); }).length;
+  console.log(`[outline] ${t.slug}: sections ${secs.length} of ${nb.entries.length} found, ${matched} titled as the contents`); // reports; never blocks a section
+  return nb;
 }
 function book(t, chs) {
   if (OFF.off || !t || !chs || !chs.length || !t.body) return null;

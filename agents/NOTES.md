@@ -69,6 +69,9 @@ The CTO session keeps it honest.
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
   go through `src/outline.js` (and `outline-n1.js` for one day's old places). `app.locals.bookNotes.note(slug, n)`.
+  What the Leonardo book taught (four rounds, 13–16 Nov): in the body a numeral alone, then a line in CAPITALS, is a part;
+  a numeral alone, then anything else (one word, a quotation mark, a title over three short lines), is a section when it is
+  above the last and within the contents' count. Never require "exactly the next" or a title match: one miss hid the rest.
 - **Volumes** (/volume, /studio/volumes): `works.vol_page` (NULL, 0 for the first page of an open volume, else the
   volume's id) decides what leaves the open walls; keep it, `volume_pages.pos` and `volumes.n` true together.
 - **Wander** (/wander): docs/WANDER.md's ten sentences, `scripts/wander-walk.js`. Sets are keys (`maker:`, `album:`,
