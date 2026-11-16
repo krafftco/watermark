@@ -271,7 +271,8 @@ function createApp(cfg = {}) {
   const q = {
     work: db.prepare("SELECT * FROM works WHERE slug=?"),
     publicWorks: db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id DESC"),
-    allWorks: db.prepare('SELECT * FROM works ORDER BY id DESC'),
+    // (#8) the vault's list: the newest 2,000, by name (it read every work whole: 100,000 rows, 7 s and 35 MB a visit).
+    allWorks: db.prepare('SELECT id, slug, title, place, camera, created_at, status FROM works ORDER BY id DESC LIMIT 2000'),
     uses: db.prepare("SELECT * FROM uses WHERE maker_id=? AND kind!='delivery' ORDER BY sort"),
     use: db.prepare('SELECT * FROM uses WHERE maker_id=? AND key=?'),
     useById: db.prepare('SELECT * FROM uses WHERE id=?'),

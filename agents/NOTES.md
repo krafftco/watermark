@@ -77,6 +77,22 @@ The CTO session keeps it honest.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 
+## The scale gate (#8)
+- `node scripts/big-house.js` builds a house of 100,000 works from rows (about 10 s here: real pictures for six works,
+  every other row a clone pointing at their files) and walks every room once as visitor, maker `mk`, museum `museum-a`
+  (60,000 works) and the Studio, timing every SQLite statement (better-sqlite3's prototype is wrapped in the walk's
+  process). `BIG_KEEP=1` keeps the house; `BIG_DIR=<it>` walks it again without building; `BIG_ONLY='studio /studio$'`
+  walks the rooms matching; `BIG_TABLE=x.md` writes every room's numbers. The whole run is about 40 s here.
+- What it finds first: a desk that lists every work of its maker (fine for 400, 72 MB for a museum), a count asked
+  per work or per maker inside a loop (`/account/copyright` asked one maker-wide aggregate 3,000 times: 9.7 s), and a
+  pool read whole to choose a few. Count in one grouped question; let the database choose and LIMIT.
+- A page's cost depends on who asks: walk your room as a museum (`museum` in the table), not only as `mk`.
+- Wander's pools are kept two minutes, so the room that builds one changes with the walk's timing: allow a statement
+  that moves like that by its text (`room: '*'`, `sql`).
+- `test/listreads.js` is CLAUDE.md's SQL gate as a test; `test/listreads-allow.json` only shrinks (a stale line fails).
+- Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
+  the folder, and a vanished folder is said in the log.
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.

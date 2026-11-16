@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.1 · Desks that answer quickly at any size · 16 November 2026
+
+- The Studio's vault lists the newest 2,000 works; the rest are found by Find. A maker's copyright page, the gallerist's notes and the Studio's front page answer in a fraction of the time on a large collection.
+- Every room of the house is now measured on each change against a collection of 100,000 works, as a visitor, a maker, a museum and the Studio.
+
 ## 1.87.0 · The house keeps its own counts for its desk · 16 November 2026
 
 - The house can hand its own scheduled helpers the day's counts and who joined, read-only and shut until the house opens it. No letter's words, no name and no address are in it.

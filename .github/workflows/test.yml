@@ -57,6 +57,35 @@ jobs:
           LOAD_S: '25'
           LOAD_P95_MS: '2500'
           LOAD_GROW_MB: '450'   # the runner's caches fill from cold (sharp, the find index, V8); a leak shows as growth past this, not under it
+  # The scale gate (#8; 9 and 13 Nov): a house of 100,000 works built from rows (seconds), every room walked once
+  # as a visitor, a maker, a museum's desk and the Studio; a statement over 250 ms or 5,000 rows, a page over 1.5 s, 3 MB
+  # or 300 statements fails, unless its room is in the script's ALLOW with an issue. The script raises its own faults as
+  # annotations (room, budget, statement); a crash before that is raised here.
+  scale:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: |
+          npm ci > /tmp/npm-ci.txt 2>&1 && exit 0
+          echo "::warning title=scale (npm ci)::$(tail -c 1300 /tmp/npm-ci.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"
+          sleep 10; npm ci > /tmp/npm-ci.txt 2>&1 && exit 0
+          echo "::error title=scale (npm ci)::the install failed twice; the scale gate did not run:%0A$(tail -c 1300 /tmp/npm-ci.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1
+      - run: |
+          set -o pipefail
+          node scripts/big-house.js 2>&1 | tee /tmp/scale.txt || { grep -q '::error title=scale' /tmp/scale.txt || echo "::error title=scale::$(tail -c 1400 /tmp/scale.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
+        env:
+          BIG_TABLE: /tmp/scale-table.md
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-table
+          path: /tmp/scale-table.md
+          if-no-files-found: ignore
   # The accessibility checker (issue #4): axe-core in Playwright's Chromium over the main public and signed-in doors,
   # phone and desk, WCAG 2.0/2.1 A and AA; any serious or critical fault fails. The test raises its own findings as an
   # annotation; a crash before that is raised here.
