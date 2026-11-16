@@ -306,6 +306,8 @@ let dir;
     for (const f of await page.evaluate(probe, { mode: 'centre' })) note({ page: p, size: size + extra, role, ...f });
     if (edges) for (const edge of ['top', 'mid', 'foot']) {
       await scrollTo(page, edge); if (edge !== 'top') { await page.waitForTimeout(60); await still(page); }
+      // A room that grows as its foot is reached (more tiles, late pictures) is not at its foot yet: go down again.
+      if (edge === 'foot') for (let i = 0; i < 6 && !(await page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 2)); i++) { await scrollTo(page, edge); await page.waitForTimeout(120); await still(page); }
       for (const f of await page.evaluate(probe, { mode: 'here', edge })) note({ page: p, size: size + extra, role, ...f });
     }
     await scrollTo(page, 'top');
