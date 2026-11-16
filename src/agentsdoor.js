@@ -4,8 +4,11 @@
 // default, 1 to 31). Three lists, each from named columns under a LIMIT, each from an index on its day column:
 //   letters  what came to the desk: its number at the desk, the day, its kind (feedback, report, notice, dispute),
 //            the work's slug if any, whether it has been answered. Never the words, never a name, never an address.
-//   makers   who joined: maker number, the public handle, the day, the door, works brought in, works on view,
-//            whether they have shared their page, whether their address is proven. No address, no name.
+//   makers   who joined: maker number, the day, the door, works brought in, works on view, whether they have shared
+//            their page, whether their address is proven (`proven`). The handle is the person's name as they typed it
+//            at joining (slugified), so it is given only for a maker with a work on view (their page is public then);
+//            otherwise `handle: null`. Left out: makers the house is holding (standing 'held') and the test house's
+//            readers at play (door 'play', peephole.js), who are not makers in the ordinary sense. No address.
 //   counts   by day: visits (people whose browser answered, `here`), joins, works in, works hung (`work.published` on
 //            the register), pieces collected (the analytics' own rule: paid licences by the day they began).
 // The door is shut unless AGENT_KEY (the host's environment, 32 characters or more) is set, and then answers only to
@@ -15,13 +18,17 @@
 //
 // THE WORDS OF GUESTS' LETTERS: only on counsel's and Will's word. AGENT_LETTERS=1 adds each letter's words (with any
 // address in them masked). Off (the default), the words are not even read from the database: the statements below do
-// not name the column.
+// not name the column. The masking (`masked`) is best-effort: email addresses (and the "name at host dot com" shape),
+// phone numbers (international +… and US shapes), street addresses (a number, up to five words, a street word, and an
+// apartment or suite after it), US ZIP codes and UK postcodes. A name, or an address written some other way, gets
+// through: that is why the switch stays off until counsel and Will say otherwise.
 //
 // Cost, at 100,000 makers and a million works: letters, three range reads on the day index of each desk table (rows in
 // the window only, 500 at most each); makers, one range read on makers(created_at) for the window, then for each of at
 // most 500 makers two counts on works(maker_id, status, …) and one lookup on maker_steps' key; counts, five grouped
 // range reads on day indexes (here's key, makers(created_at), works(created_at), ledger(type, at), licenses(starts_at)),
-// each touching only the window's rows. Nothing walks the collection. It runs on the web process, as every other
+// each touching only the window's rows: linear in what arrived in the window (an import week costs a walk of that
+// import, ~0.2 s at 300,000 works on Postgres), never in the collection. The 60-an-hour cap bounds it. It runs on the web process, as every other
 // machine-facing door does (/healthz, the API): the worker answers no one.
 const crypto = require('crypto');
 
@@ -32,7 +39,17 @@ const LIMIT = 500;
 const keyOf = () => { const k = process.env.AGENT_KEY || ''; return k.length >= MIN_KEY ? k : null; };
 const lettersOn = () => process.env.AGENT_LETTERS === '1';
 const same = (a, b) => { const x = crypto.createHash('sha256').update(a).digest(), y = crypto.createHash('sha256').update(b).digest(); return crypto.timingSafeEqual(x, y) && a.length === b.length; };
-const masked = s => (s == null ? null : String(s).replace(/[^\s@<>()[\],;:"]+@[^\s@<>()[\],;:"]+/g, '[address]'));
+const STREET = '(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|place|pl|way|terrace|parkway|pkwy|highway|hwy|square|sq|row|crescent|close|strasse|straße|rue|via)';
+const MASKS = [
+  [/[^\s@<>()[\],;:"]+@[^\s@<>()[\],;:"]+/g, '[email]'],
+  [/\b[\w+-]+(?:\s*[([]?\s*(?:\bdot\b|\.)\s*[)\]]?\s*[\w+-]+)*\s*[([]?\s*\bat\b\s*[)\]]?\s*[\w-]+(?:\s*[([]?\s*\bdot\b\s*[)\]]?\s*[\w-]+)*?\s*[([]?\s*\bdot\b\s*[)\]]?\s*[a-z]{2,6}\b/gi, '[email]'],
+  [/\+\d[\d\s().-]{6,}\d/g, '[phone]'],
+  [/(?:\(\d{3}\)\s*|\b\d{3}[\s.-])\d{3}[\s.-]\d{4}\b/g, '[phone]'],
+  [new RegExp(`\\b\\d{1,6}[a-z]?\\s+(?:[\\w.'’-]+\\s+){0,5}?${STREET}\\b\\.?(?:,?\\s*(?:apt|apartment|suite|ste|unit|flat|#)\\.?\\s*[\\w-]+)?`, 'gi'), '[street]'],
+  [/\b\d{5}(?:-\d{4})?\b/g, '[postcode]'],
+  [/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/g, '[postcode]'],
+];
+const masked = s => (s == null ? null : MASKS.reduce((t, [re, to]) => t.replace(re, to), String(s)));
 const dayOf = s => (s ? String(s).slice(0, 10) : null);
 const slugOfPage = p => { const m = /^\/(?:w|m\/[^/]+)\/([a-z0-9-]+)/i.exec(String(p || '')); return m ? m[1] : null; };
 const n = x => Number(x) || 0;
@@ -50,9 +67,9 @@ function mountAgentsDoor(app, { db }) {
       (SELECT COUNT(*) FROM works w WHERE w.maker_id = m.id) AS works_in,
       (SELECT COUNT(*) FROM works w WHERE w.maker_id = m.id AND w.status = 'held') AS on_view,
       (SELECT COUNT(*) FROM maker_steps s WHERE s.maker_id = m.id AND s.step = 'shared') AS shared
-      FROM makers m WHERE m.created_at >= ? AND m.kind IN ('maker', 'company') ORDER BY m.id DESC LIMIT 500`),
+      FROM makers m WHERE m.created_at >= ? AND m.kind IN ('maker', 'company') AND COALESCE(m.standing, 'open') <> 'held' AND COALESCE(m.door, '') <> 'play' ORDER BY m.id DESC LIMIT 500`),
     visits: db.prepare('SELECT day AS d, COUNT(*) AS n FROM here WHERE day >= ? GROUP BY day ORDER BY day LIMIT 500'),
-    joins: db.prepare("SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM makers WHERE created_at >= ? AND kind IN ('maker', 'company') GROUP BY substr(created_at, 1, 10) LIMIT 500"),
+    joins: db.prepare("SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM makers WHERE created_at >= ? AND kind IN ('maker', 'company') AND COALESCE(door, '') <> 'play' GROUP BY substr(created_at, 1, 10) LIMIT 500"),
     worksIn: db.prepare('SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM works WHERE created_at >= ? GROUP BY substr(created_at, 1, 10) LIMIT 500'),
     hung: db.prepare("SELECT substr(at, 1, 10) AS d, COUNT(*) AS n FROM ledger WHERE type = 'work.published' AND at >= ? GROUP BY substr(at, 1, 10) LIMIT 500"),
     collected: db.prepare("SELECT substr(starts_at, 1, 10) AS d, COUNT(*) AS n FROM licenses WHERE starts_at >= ? AND status IN ('active', 'expired') AND price_cents > 0 GROUP BY substr(starts_at, 1, 10) LIMIT 500"),
@@ -77,7 +94,7 @@ function mountAgentsDoor(app, { db }) {
     return out.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0)).slice(0, LIMIT);
   }
   function makers(since) {
-    return Q.makers.all(since).map(r => ({ number: n(r.id), handle: /^[a-z0-9-]+$/i.test(r.handle || '') ? r.handle : null, day: dayOf(r.created_at), door: r.door || null, works_in: n(r.works_in), on_view: n(r.on_view), shared: n(r.shared) > 0, address_proven: r.email_ok == null ? null : n(r.email_ok) === 1 }));
+    return Q.makers.all(since).map(r => ({ number: n(r.id), handle: n(r.on_view) > 0 && /^[a-z0-9-]+$/i.test(r.handle || '') ? r.handle : null, day: dayOf(r.created_at), door: r.door || null, works_in: n(r.works_in), on_view: n(r.on_view), shared: n(r.shared) > 0, proven: r.email_ok == null ? true : n(r.email_ok) === 1 }));
   }
   function counts(since, days, today) {
     const by = st => { const m = new Map(); for (const r of st.all(since)) m.set(String(r.d), n(r.n)); return m; };

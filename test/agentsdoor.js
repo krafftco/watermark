@@ -33,6 +33,12 @@ const ledger = require('../src/ledger');
   const work = (m, slug, status) => db.prepare("INSERT INTO works (maker_id, slug, title, original_file, sha256, status, width, height) VALUES (?,?,?,?,?,?,1000,1000)").run(m, slug, slug, slug + '.jpg', crypto.createHash('sha256').update(slug).digest('hex'), status).lastInsertRowid;
   const w1 = work(mk1, 'harbour-at-dusk', 'held'); work(mk1, 'kept-back', 'hidden'); work(mk2, 'bo-one', 'held');
   db.prepare("INSERT INTO maker_steps (maker_id, step) VALUES (?, 'shared')").run(mk2);
+  // A maker with nothing on view (handle withheld); one the house is holding; a reader at play: the last two never listed.
+  const mk3 = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES ('cy-nothing-yet','Cy Nothing','cy@example.com','maker',datetime('now'),'record')").run().lastInsertRowid;
+  work(mk3, 'cy-kept', 'hidden');
+  const mkHeld = db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door, standing) VALUES ('jane-q-private','Jane Q Private','jq@example.com','maker',datetime('now'),'house','held')").run().lastInsertRowid;
+  work(mkHeld, 'jq-one', 'held');
+  db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door, bio) VALUES ('rita-reader','Rita Reader','rita@example.com','maker',datetime('now'),'play','A reader of the house, at play.')").run();
   const WORDS = { fb: 'The basket emptied itself; write to me at guest@example.com', rep: 'Seen on a blog without credit', claim: 'I made this photograph in 2019, Jane Roe' };
   db.prepare("INSERT INTO feedback (kind, body, email, page, device, ip) VALUES ('broke', ?, 'guest@example.com', '/w/harbour-at-dusk', 'Mac', '10.0.0.1')").run(WORDS.fb);
   db.prepare("INSERT INTO sightings (work_id, url, note, reporter_email) VALUES (?, 'https://example.org/x', ?, 'spotter@example.com')").run(w1, WORDS.rep);
@@ -73,7 +79,7 @@ const ledger = require('../src/ledger');
   assert.strictEqual(J.days, 7); assert.strictEqual(J.counts.length, 7); assert.strictEqual(J.words, false);
   assert.ok(!raw.includes('@'), 'no "@" anywhere in the answer');
   for (const w of Object.values(WORDS)) assert.ok(!raw.includes(w.slice(0, 20)), 'no letter\'s words with the switch off');
-  for (const s of ['Ada Lens', 'Bo Frame', 'Jane Roe', 'Sam Poe', 'example', '10.0.0']) assert.ok(!raw.includes(s), `no name, address or ip: ${s}`);
+  for (const s of ['Ada Lens', 'Bo Frame', 'Jane Roe', 'Sam Poe', 'example', '10.0.0', 'cy-nothing-yet', 'Cy Nothing', 'jane-q-private', 'rita', 'Rita']) assert.ok(!raw.includes(s), `no name, address, ip or withheld handle: ${s}`);
   const kinds = J.letters.map(l => l.kind).sort();
   assert.deepStrictEqual(kinds, ['dispute', 'feedback', 'notice', 'report']);
   for (const l of J.letters) assert.deepStrictEqual(Object.keys(l).sort(), ['answered', 'day', 'kind', 'number', 'work']);
@@ -83,12 +89,15 @@ const ledger = require('../src/ledger');
   assert.ok(/^WM-C-\d{4}$/.test(L('notice').number)); assert.strictEqual(L('notice').answered, false); assert.strictEqual(L('dispute').answered, true);
   assert.strictEqual(L('feedback').day, today);
   const M = h => J.makers.find(m => m.handle === h);
-  for (const m of J.makers) assert.deepStrictEqual(Object.keys(m).sort(), ['address_proven', 'day', 'door', 'handle', 'number', 'on_view', 'shared', 'works_in']);
-  assert.deepStrictEqual(M('ada-lens'), { number: Number(mk1), handle: 'ada-lens', day: today, door: 'record', works_in: 2, on_view: 1, shared: false, address_proven: false });
-  assert.deepStrictEqual(M('bo-frame'), { number: Number(mk2), handle: 'bo-frame', day: today, door: 'house', works_in: 1, on_view: 1, shared: true, address_proven: true });
+  for (const m of J.makers) assert.deepStrictEqual(Object.keys(m).sort(), ['day', 'door', 'handle', 'number', 'on_view', 'proven', 'shared', 'works_in']);
+  assert.deepStrictEqual(M('ada-lens'), { number: Number(mk1), handle: 'ada-lens', day: today, door: 'record', works_in: 2, on_view: 1, shared: false, proven: false });
+  assert.deepStrictEqual(M('bo-frame'), { number: Number(mk2), handle: 'bo-frame', day: today, door: 'house', works_in: 1, on_view: 1, shared: true, proven: true });
+  assert.deepStrictEqual(J.makers.find(m => m.number === Number(mk3)), { number: Number(mk3), handle: null, day: today, door: 'record', works_in: 1, on_view: 0, shared: false, proven: true }, 'nothing on view: the number only');
+  assert.deepStrictEqual(J.makers.map(m => m.number).filter(x => x !== 1).sort(), [mk1, mk2, mk3].map(Number).sort(), 'the held maker and the reader at play are not listed (1 is the house\'s own, made at boot)');
+  assert.ok(!J.makers.some(m => m.number === Number(mkHeld) || m.door === 'play'));
   const T = J.counts[J.counts.length - 1];
   assert.deepStrictEqual(Object.keys(T).sort(), ['collected', 'day', 'joins', 'visits', 'works_hung', 'works_in']);
-  assert.strictEqual(T.day, today); assert.ok(T.visits >= 2 && T.joins >= 2 && T.works_in >= 3 && T.works_hung >= 1, JSON.stringify(T));
+  assert.strictEqual(T.joins, 5, 'joins: the house\'s own, three makers and the held one; never the reader at play'); assert.strictEqual(T.day, today); assert.ok(T.visits >= 2 && T.joins >= 2 && T.works_in >= 3 && T.works_hung >= 1, JSON.stringify(T));
   r = await get('/agents/desk.json?days=40', bearer(KEY)); calls++; assert.strictEqual((await r.json()).counts.length, 31, 'at most 31 days');
   r = await get('/agents/desk.json?days=0', bearer(KEY)); calls++; assert.strictEqual((await r.json()).days, 7, 'a nonsense span is the default');
   r = await get('/agents/desk.json?days=1', bearer(KEY)); calls++; assert.strictEqual((await r.json()).counts.length, 1);
@@ -98,7 +107,28 @@ const ledger = require('../src/ledger');
   r = await get('/agents/desk.json', bearer(KEY)); calls++; raw = await r.text(); J = JSON.parse(raw);
   assert.strictEqual(J.words, true);
   assert.ok(raw.includes('The basket emptied itself') && raw.includes('Seen on a blog without credit') && raw.includes('I made this photograph'), 'the words, with the switch on');
-  assert.ok(!raw.includes('@') && raw.includes('[address]'), 'an address in the words is masked');
+  assert.ok(!raw.includes('@') && raw.includes('[email]'), 'an email address in the words is masked');
+  // The masking, each shape (best-effort; the switch stays off until counsel and Will say otherwise).
+  const fb = db.prepare("INSERT INTO feedback (kind, body, page) VALUES ('idea', ?, NULL)");
+  const SHAPES = [
+    ['write to jane.roe@gmail.com please', 'jane.roe', '[email]'],
+    ['or jane dot roe at gmail dot com', 'roe', '[email]'],
+    ['and jane (at) mail [dot] example [dot] org', 'jane', '[email]'],
+    ['call +1 (212) 555-0199 any time', '555-0199', '[phone]'],
+    ['or +44 20 7946 0958 in London', '7946', '[phone]'],
+    ['my cell 212.555.0199 works', '555.0199', '[phone]'],
+    ['or (212) 555-0123 after six', '555-0123', '[phone]'],
+    ['or 212-555-0144 at the office', '555-0144', '[phone]'],
+    ['I live at 409 East 81st Street Apt 4B, New York', '81st', '[street]'],
+    ['send it to 12 Baker St.', 'Baker', '[street]'],
+    ['ship to 1600 Pennsylvania Avenue NW', 'Pennsylvania', '[street]'],
+    ['New York NY 10028-0102 is the ZIP', '10028', '[postcode]'],
+    ['London SW1A 1AA for the print', 'SW1A', '[postcode]'],
+  ];
+  SHAPES.forEach(([t], i) => fb.run(`s${i}: ${t}`));
+  r = await get('/agents/desk.json?days=1', bearer(KEY)); calls++; J = JSON.parse(await r.text());
+  for (const [i, [t, gone, mark]] of SHAPES.entries()) { const l = J.letters.find(x => x.words && x.words.startsWith(`s${i}: `)); assert.ok(l && l.words.includes(mark), `masked as ${mark}: ${t} → ${l && l.words}`); assert.ok(l, `masked as ${mark}: ${t}`); assert.ok(!l.words.includes(gone), `${gone} masked in: ${l.words}`); }
+  const keep = J.letters.find(x => x.words && x.words.startsWith('I made this photograph in 2019')); assert.ok(keep && keep.words.includes('2019'), 'a year is not a postcode');
   delete process.env.AGENT_LETTERS;
   r = await get('/agents/desk.json', bearer(KEY)); calls++; raw = await r.text();
   assert.ok(!raw.includes('The basket emptied itself'), 'off again: no words');
@@ -120,11 +150,31 @@ const ledger = require('../src/ledger');
   assert.ok(!(await r.text()).includes('@'));
   await like404(await get('/agents/desk.json', bearer('w'.repeat(43))), 'a wrong key while limited is still the 404');
 
+  // A secret in an address never reaches the trail: the door's path in any case, and any key/token/code/secret/
+  // authorization parameter on any address of the house. The value is "abc" made distinct, so a hash cannot match it.
+  const ABC = 'abc' + crypto.randomBytes(6).toString('hex');
+  await like404(await get('/AGENTS/desk.json?key=' + ABC), 'the door in capitals, with a key in the address');
+  for (const p of [`/AGENTS/desk.json?key=${ABC}`, `/collection?Token=${ABC}`, `/nothing?a=1&CODE=${ABC}`, `/find?q=x&secret=${ABC}`, `/about?Authorization=${ABC}`]) await (await get(p)).arrayBuffer();
+  const trail0 = (global.__wmLast || []).join(' ');
+  assert.ok(!trail0.includes(ABC) && trail0.includes('/AGENTS/desk.json') && trail0.includes('/collection'), 'the trail keeps the paths only: ' + trail0);
+  await (await get('/find?q=keep-this-one')).arrayBuffer(); assert.ok((global.__wmLast || []).join(' ').includes('q=keep-this-one'), 'an ordinary query is kept');
+
   // The key never in anything the house logs: the console, the request trail, the hits.
   await new Promise(res => setTimeout(res, 300));
   const trail = (global.__wmLast || []).join(' ');
   let hits = ''; try { hits = JSON.stringify(db.prepare('SELECT path, ref FROM hits ORDER BY id DESC LIMIT 500').all()); } catch (e) { /* no hits kept in this house */ }
-  for (const [where, text] of [['console', said.join('\n')], ['request trail', trail], ['hits', hits]]) assert.ok(!text.includes(KEY) && !text.includes(KEY.slice(0, 31)), `the key is not in the ${where}`);
+  for (const [where, text] of [['console', said.join('\n')], ['request trail', trail], ['hits', hits]]) { assert.ok(!text.includes(KEY) && !text.includes(KEY.slice(0, 31)), `the key is not in the ${where}`); assert.ok(!text.includes(ABC), `the "abc" value is not in the ${where}`); }
+
+  // Postgres: the indexes are built CONCURRENTLY, and one left half-built (INVALID) is noticed, dropped and built again.
+  if (db.kind === 'postgres') {
+    const valid = name => { const r = db.prepare('SELECT i.indisvalid AS ok FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = ? LIMIT 1').get(name); return r ? !!r.ok : null; };
+    db.exec('DROP INDEX IF EXISTS works_created');
+    try { db.exec('CREATE UNIQUE INDEX CONCURRENTLY works_created ON works (maker_id)'); } catch (e) { /* duplicates: the build fails and leaves the index invalid, as a dead build does */ }
+    assert.strictEqual(valid('works_created'), false, 'a half-built index, made on purpose');
+    const logged = []; require('../src/indexes').ensure(db, { log: x => logged.push(x) });
+    assert.strictEqual(valid('works_created'), true, 'built again, valid');
+    assert.ok(logged.some(x => /works_created was left half-built/.test(x)), 'and said in the log');
+  }
 
   srv.close(); delete process.env.AGENT_KEY;
   try { db.close && db.close(); } catch (e) { /* closed */ }

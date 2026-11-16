@@ -7,8 +7,9 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 
 ## 1.87.0 · The agents' door, built and shut · 15 November 2026
 
-- A read-only desk feed for the house's scheduled seats, `GET /agents/desk.json`: letters at the desk by number, day, kind and work (never their words, a name or an address), makers who joined by number and public handle, and the counts by day. Shut until a key is set in the host's environment; without it, it is an address the house does not have.
-- Seven indexes so each of its lists reads only its days.
+- A read-only desk feed for the house's scheduled seats, `GET /agents/desk.json`: letters at the desk by number, day, kind and work (never their words, a name or an address), makers who joined by number (a handle only once they have a work on view; held makers and readers at play left out), and the counts by day. Shut until a key is set in the host's environment; without it, it is an address the house does not have.
+- Seven indexes so each of its lists reads only its days. On Postgres every index of the house is now built without holding a write, and one left half-built is rebuilt at the worker's next start.
+- The house's slow-moment trail keeps only the path of an address that carries a key, token, code or secret.
 
 ## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
 
