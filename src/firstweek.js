@@ -18,24 +18,26 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
   const first = m => String(m.name || '').split(/\s+/)[0] || 'there';
 
   // The seven acts, in the order of the week. Each is read from what the house can see, never a box ticked.
-  function acts(m) {
-    const works = n('SELECT COUNT(*) n FROM works WHERE maker_id=?', m.id);
-    const shown = n("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'", m.id);
-    const graded = n('SELECT COUNT(*) n FROM works WHERE maker_id=? AND stars > 0', m.id);
-    const albums = n('SELECT COUNT(*) n FROM deliveries WHERE maker_id=?', m.id);
-    const alm = n("SELECT COUNT(*) n FROM texts WHERE maker_id=? AND kind='almanack'", m.id);
+  // `k` (optional): the counts already asked for many makers at once (`lines`, #90); without it, asked for this one.
+  function acts(m, k = null) {
+    const works = k ? k.works : n('SELECT COUNT(*) n FROM works WHERE maker_id=?', m.id);
+    const shown = k ? k.shown : n("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'", m.id);
+    const graded = k ? k.graded : n('SELECT COUNT(*) n FROM works WHERE maker_id=? AND stars > 0', m.id);
+    const albums = k ? k.albums : n('SELECT COUNT(*) n FROM deliveries WHERE maker_id=?', m.id);
+    const alm = k ? k.alm : n("SELECT COUNT(*) n FROM texts WHERE maker_id=? AND kind='almanack'", m.id);
+    const had = step => (k ? !!(k.steps && k.steps.has(step)) : has(m, step));
     return [
       { key: 'work', title: 'Your work', done: works > 0, href: '/account/upload', go: 'Put work in', line: 'Bring in what you made. Each file is fingerprinted, deeded and written to the register the moment it arrives; nothing is shown until you say so.' },
       { key: 'page', title: 'Your page', done: !!(m.portrait || (m.bio && m.bio.length > 20)), href: '/account/profile', go: 'Write it', line: 'A portrait and a few lines, in your own words. It is the first thing a collector reads.' },
       { key: 'edit', title: 'Your best in front', done: shown > 0 && graded > 0, href: '/account/table', go: 'Grade and publish', line: 'Grade with stars, then publish only what you would hang. A tight edit outranks a long wall; the rest stays kept.' },
-      { key: 'prices', title: 'Your prices', done: has(m, 'prices'), href: '/account/prices', go: 'See your prices', line: 'The house has set fair drafts for each use. Look them over and change any; the price is yours.' },
+      { key: 'prices', title: 'Your prices', done: had('prices'), href: '/account/prices', go: 'See your prices', line: 'The house has set fair drafts for each use. Look them over and change any; the price is yours.' },
       { key: 'paid', title: 'Your bank', done: !!m.stripe_account, href: '/account/payouts', go: 'Add your bank', line: 'Every dollar that clears goes to your bank on Friday. Add it once; it takes three minutes.' },
-      { key: 'shared', title: 'Your page, sent', done: has(m, 'shared'), href: '/account', go: 'Copy your page', line: 'Send your page to the people who already follow your work. The first collectors are the ones who know you.' },
+      { key: 'shared', title: 'Your page, sent', done: had('shared'), href: '/account', go: 'Copy your page', line: 'Send your page to the people who already follow your work. The first collectors are the ones who know you.' },
       { key: 'album', title: 'An album', done: albums > 0 || alm > 0, href: '/account/deliveries', go: 'Deliver an album', line: 'Deliver photographs to a friend or a client: a present, with your name inside every file, and a way for them to say thank you.' },
     ];
   }
-  const where = m => { const a = acts(m); const done = a.filter(x => x.done).length; const next = a.find(x => !x.done) || null; const days = m.joined_at ? Math.max(0, Math.floor((Date.now() - new Date(m.joined_at + 'Z').getTime()) / DAY)) : null; return { acts: a, done, total: a.length, next, days }; };
-  const line = m => { const w = where(m); if (!m.joined_at) return 'Not yet opened'; if (!w.next) return `All ${w.total} done`; return `${w.done} of ${w.total} · at ${w.next.title.toLowerCase()} · ${w.days === 0 ? 'today' : w.days === 1 ? 'a day' : w.days + ' days'}`; };
+  const where = (m, k = null) => { const a = acts(m, k); const done = a.filter(x => x.done).length; const next = a.find(x => !x.done) || null; const days = m.joined_at ? Math.max(0, Math.floor((Date.now() - new Date(m.joined_at + 'Z').getTime()) / DAY)) : null; return { acts: a, done, total: a.length, next, days }; };
+  const line = (m, k = null) => { const w = where(m, k); if (!m.joined_at) return 'Not yet opened'; if (!w.next) return `All ${w.total} done`; return `${w.done} of ${w.total} · at ${w.next.title.toLowerCase()} · ${w.days === 0 ? 'today' : w.days === 1 ? 'a day' : w.days + ' days'}`; };
 
   // The morning letter: the day's act, one tap. Day n is the nth day after joining; the act is the first undone,
   // so a maker who races ahead is never told to do what they have done.
@@ -78,7 +80,20 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
   const append = ledger.append; ledger.append = function (db_, type, subject, data) { const r = append.apply(this, arguments); try { heard(type, subject, data || {}); } catch (e) { /* */ } return r; };
 
   if (!app.locals.noTimers && ROLE.chores) { const t = setInterval(() => { try { mornings(); } catch (e) { console.error('[firstweek]', e.message); } }, 3600000); if (t.unref) t.unref(); setTimeout(() => { try { mornings(); } catch (e) { /* */ } }, 120000).unref(); }
-  app.locals.firstWeek = { acts, where, line, mornings, letter };
+  // (#90, the scale gate) Every maker's line on /studio/accounts: the counts acts() reads, grouped by maker in five
+  // questions for all of them (it asked seven a maker: 2,085 statements at 300 makers). The same acts, the same line.
+  function lines(makers) {
+    const GR = require('./grouped'); const ids = makers.length > 400 ? null : makers.map(m => Number(m.id));
+    const ask = (col, sql) => { const f = GR.inList(col, ids); try { return db.prepare(sql.replace('{F}', f.sql)).all(...f.args); } catch (e) { return []; } };
+    const W = GR.byId(ask('maker_id', "SELECT maker_id id, COUNT(*) n, SUM(CASE WHEN status='held' THEN 1 ELSE 0 END) shown, SUM(CASE WHEN stars > 0 THEN 1 ELSE 0 END) graded FROM works WHERE {F} GROUP BY maker_id"));
+    const D = GR.byId(ask('maker_id', 'SELECT maker_id id, COUNT(*) n FROM deliveries WHERE {F} GROUP BY maker_id'));
+    const T = GR.byId(ask('maker_id', "SELECT maker_id id, COUNT(*) n FROM texts WHERE {F} AND kind='almanack' GROUP BY maker_id"));
+    const S = new Map(); for (const r of ask('maker_id', "SELECT maker_id id, step FROM maker_steps WHERE {F} AND step IN ('prices','shared')")) { const id = Number(r.id); if (!S.has(id)) S.set(id, new Set()); S.get(id).add(r.step); }
+    const out = new Map();
+    for (const m of makers) { const id = Number(m.id), w = W.get(id) || {}; out.set(id, line(m, { works: Number(w.n) || 0, shown: Number(w.shown) || 0, graded: Number(w.graded) || 0, albums: Number((D.get(id) || {}).n) || 0, alm: Number((T.get(id) || {}).n) || 0, steps: S.get(id) || new Set() })); }
+    return out;
+  }
+  app.locals.firstWeek = { acts, where, line, lines, mornings, letter };
   return app.locals.firstWeek;
 }
 module.exports = { mountFirstWeek };

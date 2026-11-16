@@ -39,7 +39,8 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the Studio side: invite a maker or an estate ----------
   app.get('/studio/accounts', studioOnly, (req, res) => {
     const list = db.prepare(`SELECT m.*, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id) AS works FROM makers m ORDER BY m.id`).all();
-    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, week: app.locals.firstWeek ? m => app.locals.firstWeek.line(m) : null, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
+    const weeks = app.locals.firstWeek && app.locals.firstWeek.lines ? app.locals.firstWeek.lines(list) : null; // (#90) every maker's line, grouped
+    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, week: weeks ? m => weeks.get(Number(m.id)) : null, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
   });
   app.post('/studio/accounts', studioOnly, (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
