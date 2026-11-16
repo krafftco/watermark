@@ -29,8 +29,6 @@ function mountBooks(app, { db, V, studioOnly }) {
   const has = (t, c) => { try { return !!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name='${c}'`).get(); } catch (e) { return false; } }; // t and c are the house's own names, never input
   const table = t => { try { db.prepare(`SELECT 1 FROM ${t} LIMIT 1`).get(); return true; } catch (e) { return false; } };
   const safe = (fn, d = []) => { try { return fn(); } catch (e) { console.error('[books]', e.message); return d; } };
-  const pct = db.prepare('SELECT m.share_pct FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.id=?');
-  const makerName = db.prepare('SELECT m.name, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.id=?');
 
   // Every money event of a month. Columns are fixed so a bookkeeper's rules can rely on them.
   const HEAD = ['date', 'kind', 'revenue_class', 'ref', 'stripe_id', 'gross', 'house', 'owed_to', 'owed_name', 'owed_amount', 'payer', 'work', 'note'];
@@ -38,8 +36,8 @@ function mountBooks(app, { db, V, studioOnly }) {
     const [a, b] = range(ym); const out = [];
     // Licences paid: every Collect, licence, print edition, Reference. gross = what the collector paid; house = the house's part;
     // the rest is owed to the maker (a liability until Friday pay clears it).
-    for (const l of safe(() => db.prepare("SELECT l.*, u.key use_key, w.title, w.slug, w.id wid FROM licenses l JOIN uses u ON u.id=l.use_id JOIN works w ON w.id=l.work_id WHERE l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ? AND l.starts_at < ? ORDER BY l.starts_at").all(a, b))) {
-      const share = (pct.get(l.wid) || {}).share_pct || 85; const maker = FEE.makerOf(l, share); const m = makerName.get(l.wid) || {};
+    for (const l of safe(() => db.prepare("SELECT l.*, u.key use_key, w.title, w.slug, w.id wid, mk.share_pct mk_share, mk.name mk_name, mk.handle mk_handle FROM licenses l JOIN uses u ON u.id=l.use_id JOIN works w ON w.id=l.work_id LEFT JOIN makers mk ON mk.id=w.maker_id WHERE l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ? AND l.starts_at < ? ORDER BY l.starts_at").all(a, b))) {
+      const share = l.mk_share || 85; const maker = FEE.makerOf(l, share); const m = l.mk_handle != null || l.mk_name != null ? { name: l.mk_name, handle: l.mk_handle } : {}; // (#93) the maker joined in, not asked per licence
       const how = l.set_ref ? String(l.set_ref).split(':')[0] : (l.stripe_session ? 'checkout' : 'pocket');
       out.push([l.starts_at, 'license', classOf(l.use_key), l.ref, l.stripe_session || '', dollars(l.price_cents), dollars(l.price_cents - maker), m.handle ? `maker:${m.handle}` : '', m.name || '', dollars(maker), l.licensee_company || l.licensee_name || '', l.title || l.slug, `${l.use_key} · ${how}`]);
     }
@@ -112,13 +110,16 @@ function mountBooks(app, { db, V, studioOnly }) {
   function balances() {
     const rows = [['as_of', 'liability', 'owed_to', 'name', 'amount', 'note']]; const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const P = app.locals.payouts; const K = app.locals.pocket;
-    if (P) for (const m of safe(() => db.prepare("SELECT * FROM makers WHERE kind IS NULL OR kind NOT IN ('institution','gallery','printer') ORDER BY handle").all())) {
-      const st = safe(() => P.statement(m), null); if (!st || !st.owed) continue;
+    // (#93, the scale gate) The makers' statements in one grouped pass (payouts.statements), and the collectors' pockets
+    // in one grouped question (pocket.balancesAll): it asked ~24 questions a maker and two a collector (9,745 statements).
+    const mk = P ? safe(() => db.prepare("SELECT * FROM makers WHERE kind IS NULL OR kind NOT IN ('institution','gallery','printer') ORDER BY handle").all()) : [];
+    const sts = P && mk.length ? safe(() => P.statements(mk), new Map()) : new Map();
+    if (P) for (const m of mk) {
+      const st = sts.get(Number(m.id)); if (!st || !st.owed) continue;
       rows.push([now, 'owed to maker', `maker:${m.handle}`, m.name, dollars(st.owed), `cleared ${dollars(st.cleared)} · clearing ${dollars(st.clearing)} · bank ${m.stripe_account ? 'connected' : 'none'}`]);
     }
-    if (K) for (const b of safe(() => db.prepare('SELECT * FROM buyers ORDER BY id').all())) {
-      const bal = safe(() => K.balance(b), 0); if (!bal) continue;
-      rows.push([now, 'pocket held', `collector:${b.code || b.id}`, b.name || '', dollars(bal), `earned ${dollars(safe(() => K.earned(b), 0))} (cashable) · the rest top-ups`]);
+    if (K) for (const { buyer: b, balance: bal, earned } of safe(() => K.balancesAll(), [])) {
+      rows.push([now, 'pocket held', `collector:${b.code || b.id}`, b.name || '', dollars(bal), `earned ${dollars(earned)} (cashable) · the rest top-ups`]);
     }
     if (table('circle')) { const c = safe(() => db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) s FROM circle WHERE status IN ('active','ending')").get(), { n: 0, s: 0 }); if (c.n) rows.push([now, 'prepaid memberships', 'club', `${c.n} members`, dollars(c.s), 'paid by the year; recognise monthly']); }
     if (table('friends')) { const f = safe(() => db.prepare("SELECT COUNT(*) n, COALESCE(SUM(amount_cents),0) s FROM friends WHERE status='active' AND recurring=1").get(), { n: 0, s: 0 }); if (f.n) rows.push([now, 'recurring friends', 'friends', `${f.n} standing`, dollars(f.s), 'a month’s run rate']); }
