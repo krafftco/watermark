@@ -61,7 +61,7 @@
   {"file":"director.js","sql":"SELECT * FROM works WHERE maker_id=? AND status='held' ORDER BY stars DESC, curated DESC, ","why":"SELECT *","issue":94},
   {"file":"documents.js","sql":"SELECT slug, title, author, year, public, status, doc, pictures, source FROM texts WHERE k","why":"no LIMIT","issue":94},
   {"file":"easel.js","sql":"SELECT w.slug, w.title, w.width, w.height, w.taken_at, w.artist_id, m.name AS maker FROM w","why":"no LIMIT","issue":94},
-  {"file":"estate.js","sql":"SELECT id, slug, title, taken_at, place, kind, medium, accession, sha256, width, height, b","why":"no LIMIT","issue":84},
+  {"file":"estate.js","sql":"SELECT id, slug, title, taken_at, place, kind, medium, accession, sha256, width, height, b","why":"no LIMIT","issue":94},
   {"file":"find.js","sql":"SELECT w.id, w.slug, w.zone, w.title, w.place, w.taken_at, w.keywords, w.caption, w.access","why":"no LIMIT","issue":94},
   {"file":"find.js","sql":"SELECT t.slug, t.title, t.author, t.kind, (t.body IS NOT NULL OR t.plates IS NOT NULL) AS ","why":"no LIMIT","issue":94},
   {"file":"frame.js","sql":"SELECT w.id, w.slug, w.title, w.place, substr(w.taken_at,1,4) AS year, w.width, w.height, ","why":"no LIMIT","issue":94},
