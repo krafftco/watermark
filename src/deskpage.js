@@ -47,4 +47,13 @@ function controls({ esc, path, at, older, newer, keep = {}, hash = '', label = '
   return `<div class="dkp"><form class="dkp-q" method="get" action="${esc(path)}${esc(hash)}" role="search">${hidden}<label><span>${esc(label)}</span><input type="search" name="q" value="${esc(at.q)}" placeholder="A title, a place, an accession number" autocomplete="off"></label><button>Find</button></form>${line}${nav}</div>`;
 }
 
-module.exports = { PAGE, WORDS, where, page, controls };
+// A search across a desk's works (a picker): the works whose words hold every token, or whose slug is the word, best
+// first, LIMIT `limit` (20). For a field that asks as the person types; never a list of every work.
+function find(db, { cols, from = '', base, params = [], q, limit = 20, order = 'w.stars DESC, w.id DESC' }) {
+  const at = where({ q });
+  if (!at.toks.length) return [];
+  const conds = at.toks.map(() => `${WORDS} LIKE ?`).join(' AND ');
+  return db.prepare(`SELECT ${cols} FROM works w ${from} WHERE ${base} AND ((${conds}) OR w.slug = ?) ORDER BY ${order} LIMIT ${limit}`).all(...params, ...at.toks.map(t => `%${t}%`), at.q.toLowerCase());
+}
+
+module.exports = { PAGE, WORDS, where, page, controls, find };

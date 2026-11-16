@@ -5982,3 +5982,7 @@ main.st{overflow:clip}
 /* The Library past one page (#81): Newer / Older ask the house. */
 .lib-more{display:flex;justify-content:center;gap:24px;margin:18px 0 8px}.lib-more[hidden]{display:none}
 .lib-more button{min-height:32px;padding:4px 12px;color:#e8e4dc}.lib-more button:disabled{opacity:.35;cursor:default}
+/* (#91) The hangs desk: find a held photograph, add its slug. */
+.hg-find{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.hg-find label{display:flex;flex-direction:column;gap:4px;flex:1 1 20em}
+.hg-find input{min-height:32px;padding:4px 8px;font:inherit}.hg-find button{min-height:32px;padding:4px 12px}
+.hg-slugs [data-hg-add]{min-height:24px;min-width:24px;padding:0 6px}

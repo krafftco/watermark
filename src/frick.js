@@ -47,6 +47,8 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
     return { sql: '', args: [] };
   }
   const onView = (s, unread) => { const q = scopeSql(s); return db.prepare(`SELECT w.id FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND ${shelfOf(s)} ${q.sql} ${unread ? 'AND w.frick IS NULL' : ''} ORDER BY w.id`).all(...q.args).map(r => r.id); };
+  // (#89, the scale gate) The desk's line counts what is on the wall and unread; it read every id to count them (83,300).
+  const onCount = (s, unread) => { const q = scopeSql(s); return Number(db.prepare(`SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.tidy IS NULL AND ${shelfOf(s)} ${q.sql} ${unread ? 'AND w.frick IS NULL' : ''}`).get(...q.args).n); };
   const row = id => db.prepare('SELECT id, slug, title, caption, width, height, artist_id, maker_id, original_file, sha256, frick, status FROM works WHERE id=?').get(id);
   const readOf = w => { try { return JSON.parse(w.frick || 'null'); } catch (e) { return null; } };
 
@@ -178,7 +180,7 @@ function mountFrick(app, { db, V, ledger, studioOnly, images, cache, originalPat
   const tile = (w, act) => { const r = w.r || {}; const f = whyOf(r); return `<figure class="fk-w"><a href="/studio/works/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"></a><figcaption><b>${esc(w.title || w.slug)}</b><small>${w.width || '?'} × ${w.height || '?'}${r.al ? ` · Al ${r.al.score}` : ''}</small><i>${esc(f)}</i>${r.al && r.al.why ? `<em>${esc(r.al.why)}</em>` : ''}${act || ''}</figcaption></figure>`; };
   app.get('/studio/standard', studioOnly, (req, res) => {
     const sc = scopeOf(req.query); const k = keyOf(sc.s); const j = jobs.get(k);
-    const onN = onView(sc.s, false).length, unread = onView(sc.s, true).length;
+    const onN = onCount(sc.s, false), unread = onCount(sc.s, true);
     const down = waiting(sc.s, 'down'), check = waiting(sc.s, 'check');
     const q = scopeSql(sc.s);
     const gone = db.prepare(`SELECT w.slug, w.title, w.tidy FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.tidy LIKE 'below the standard:%' AND ${SHELF} ${q.sql} ORDER BY w.tidy_at DESC LIMIT 300`).all(...q.args);
