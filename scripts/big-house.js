@@ -74,9 +74,6 @@ const ALLOW = [
   { room: 'maker /wander', budget: 'stmtMs', max: 500, issue: 70 }, // measured 159
   { room: 'maker /wander', budget: 'rows', max: 117100, issue: 70 }, // measured 93,650
   { room: 'museum /account/held', budget: 'rows', max: 37600, issue: 79 }, // measured 30,004
-  { room: 'museum /account/table', budget: 'bytes', max: 21400000, issue: 81 }, // measured 17,051,284
-  { room: 'museum /account/table', budget: 'stmtMs', max: 850, issue: 81 }, // measured 268
-  { room: 'museum /account/table', budget: 'rows', max: 75000, issue: 81 }, // measured 60,000
   { room: 'museum /account/hang', budget: 'rows', max: 26300, issue: 82 }, // measured 21,000
   { room: 'museum /account/copyright', budget: 'stmtMs', max: 1200, issue: 83 }, // measured 389
   { room: 'museum /account/copyright', budget: 'rows', max: 75000, issue: 83 }, // measured 60,000

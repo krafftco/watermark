@@ -5979,3 +5979,6 @@ main.st{overflow:clip}
 .dkp-nav{display:flex;gap:16px;margin-left:auto}
 .dkp-nav a{display:inline-flex;align-items:center;min-height:32px;padding:0 4px;color:var(--ink)}
 @media (max-width:600px){.dkp-q,.dkp-q label{flex:1 1 100%}.dkp-q input{min-width:0;flex:1}}
+/* The Library past one page (#81): Newer / Older ask the house. */
+.lib-more{display:flex;justify-content:center;gap:24px;margin:18px 0 8px}.lib-more[hidden]{display:none}
+.lib-more button{min-height:32px;padding:4px 12px;color:#e8e4dc}.lib-more button:disabled{opacity:.35;cursor:default}

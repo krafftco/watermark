@@ -22,31 +22,52 @@ function mountTable(app, { db, V, C, images, originalPath, makerOf, KINDS }) {
     const looked = w.seen >= 5 ? Math.min(1.5, per / 20) : 0.6;
     return Math.round((grade + Math.min(2, (w.hats || 0) * 0.5 + (w.bravos || 0) * 1.5) + looked) * 100) / 100;
   };
-  const list = m => db.prepare(`SELECT w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.height, w.taken_at, w.created_at, w.accession,
+  // (#81, the scale gate) The Library read every work of the maker, with three whole-table counts joined in (stood,
+  // applause, bravos grouped over every work in the house): for a museum of 60,000, a 17 MB page. Now the grid holds one
+  // page (deskpage.PAGE, the newest by id, then laid out by date as before); the filters (flag, stars, public or private,
+  // a word) and Older / Newer ask the house when the maker has more than a page (`paged`), and the per-work counts are
+  // asked for the rows shown. A maker with a page or less sees what they saw.
+  const DP = require('./deskpage');
+  const filters = (q = {}) => {
+    if (q.f === 'private' || q.f === 'weak') q = { ...q, pub: q.pub || q.f }; if (q.f === 'picks') q = { ...q, flag: q.flag || 'pick' }; // the desk's links (?f=)
+    const conds = ["w.maker_id=?", "w.status IN ('held','hidden','restoring')"], args = [];
+    const flag = String(q.flag || ''); if (flag === 'pick' || flag === 'reject') { conds.push('w.flag=?'); args.push(flag); } else if (flag === 'unflagged') conds.push("COALESCE(w.flag,'')=''");
+    const st = Math.floor(Number(q.stars) || 0); if (st >= 1 && st <= 5) { conds.push('w.stars >= ?'); args.push(st); }
+    const pub = String(q.pub || ''); if (pub === 'private') conds.push("w.status='hidden'"); else if (pub === 'public' || pub === 'weak') conds.push("w.status='held'");
+    return { base: conds.join(' AND '), args };
+  };
+  const shape = w => ({ id: w.id, slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0, merit: merit(w), seen: w.seen || 0, hats: w.hats || 0, bravos: w.bravos || 0 });
+  const COLS = `w.id, w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.height, w.taken_at, w.created_at, w.accession,
       (SELECT COUNT(*) FROM licenses l WHERE l.work_id=w.id AND l.status IN ('active','expired') AND l.price_cents>0) AS sold,
-      w.al_grade, w.created_at AS arrived, COALESCE(st.n, 0) AS seen, COALESCE(st.s, 0) AS secs, COALESCE(ap.n, 0) AS hats, COALESCE(bv.n, 0) AS bravos
-    FROM works w
-    LEFT JOIN (SELECT work_id, COUNT(*) AS n, SUM(seconds) AS s FROM stood GROUP BY work_id) st ON st.work_id=w.id
-    LEFT JOIN (SELECT work_id, COUNT(*) AS n FROM applause GROUP BY work_id) ap ON ap.work_id=w.id
-    LEFT JOIN (SELECT work_id, COUNT(*) AS n FROM bravos GROUP BY work_id) bv ON bv.work_id=w.id
-    WHERE w.maker_id=? AND w.status IN ('held','hidden','restoring') ORDER BY COALESCE(w.taken_at, w.created_at) DESC, w.id DESC`).all(m.id)
-    .map(w => ({ slug: w.slug, title: tidy(w.title), place: w.place || '', status: w.status === 'held' ? 'public' : w.status === 'hidden' ? 'private' : w.status, stars: w.stars || 0, curated: !!w.curated, flag: w.flag || null, kind: w.kind || 'photograph', w: w.width || 0, h: w.height || 0, at: (w.taken_at || w.created_at || '').slice(0, 10), taken: w.taken_at || null, accession: w.accession || '', sold: w.sold || 0, merit: merit(w), seen: w.seen || 0, hats: w.hats || 0, bravos: w.bravos || 0 }));
+      w.al_grade, w.created_at AS arrived,
+      (SELECT COUNT(*) FROM stood s WHERE s.work_id=w.id) AS seen, (SELECT COALESCE(SUM(s.seconds),0) FROM stood s WHERE s.work_id=w.id) AS secs,
+      (SELECT COUNT(*) FROM applause a WHERE a.work_id=w.id) AS hats, (SELECT COUNT(*) FROM bravos b WHERE b.work_id=w.id) AS bravos`;
+  const byDate = (a, b) => String(b.taken_at || b.created_at || '').localeCompare(String(a.taken_at || a.created_at || '')) || b.id - a.id;
+  // One page of the maker's Library: { works, total, older, newer, paged }.
+  function page(m, q = {}) {
+    const f = filters(q), at = DP.where(q);
+    const pg = DP.page(db, { cols: COLS, base: f.base, params: [m.id, ...f.args], at });
+    const total = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden','restoring')").get(m.id).n;
+    return { works: pg.rows.sort(byDate).map(shape), total: Number(total), older: pg.older, newer: pg.newer, paged: Number(total) > DP.PAGE || !!(pg.older || pg.newer) };
+  }
+  const list = m => page(m).works;
   // The stars Lightroom wrote into each master, read again from the file (31 Oct, Will: "Garda, because that was a time
   // in Lightroom that I made 1's selects into 5s"; Al's edit had since graded over some). ?place= narrows it; one at a
   // time, from the original (the vault's copy fetched when the disk's was trimmed). Reading only; the Library grades.
   app.get('/account/table/lightroom.json', async (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
     const word = String(req.query.place || '').trim().toLowerCase().slice(0, 60);
-    const rows = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden')").all(m.id).filter(w => !word || String(w.place || '').toLowerCase().includes(word)).slice(0, 400);
+    const rows = db.prepare(`SELECT id, slug, title, place, stars, stars_by, status, original_file FROM works WHERE maker_id=? AND status IN ('held','hidden')${word ? " AND lower(COALESCE(place,'')) LIKE ?" : ''} ORDER BY id LIMIT 400`).all(m.id, ...(word ? [`%${word.replace(/[%_\\]/g, '')}%`] : [])); // (#81) the word asked in the database; 400 at most, as before
     const out = [];
     for (const w of rows) { let rating = null; try { const said = await images.saidOf(await originalPath(w)); rating = said.rating ?? null; } catch (e) { rating = null; } out.push({ slug: w.slug, title: tidy(w.title), place: w.place || '', stars: w.stars || 0, by: w.stars_by || null, status: w.status === 'held' ? 'public' : 'private', lightroom: rating }); }
     res.set('Cache-Control', 'private, no-store').json({ works: out });
   });
-  app.get('/account/table.json', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); res.set('Cache-Control', 'private, no-store').json({ works: list(m), kinds: KINDS }); });
+  app.get('/account/table.json', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); const P = page(m, req.query); res.set('Cache-Control', 'private, no-store').json({ works: P.works, total: P.total, older: P.older, newer: P.newer, paged: P.paged, kinds: KINDS }); });
   app.get('/account/table', (req, res) => {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/table');
     V.setDeskPath && V.setDeskPath('/account/table');
-    const works = list(m); const places = [...new Set(works.map(w => w.place).filter(Boolean))].sort();
+    const P = page(m, req.query); const works = P.works; // (#81) the places the maker uses most, asked as a grouped count
+    const places = db.prepare("SELECT place, COUNT(*) n FROM works WHERE maker_id=? AND place IS NOT NULL AND place<>'' GROUP BY place ORDER BY COUNT(*) DESC, place LIMIT 200").all(m.id).map(r => r.place).sort();
     const DK = app.locals.darkroom; const looks = DK ? DK.LOOKS.map(([key, name]) => ({ key, name })).concat(DK.looksOf(m.handle).map(l => ({ key: 'mine:' + l.id, name: l.name + ' (yours)' }))) : [];
     const I = require('./icons');
     res.set('Cache-Control', 'private, no-store');
@@ -57,7 +78,7 @@ function mountTable(app, { db, V, C, images, originalPath, makerOf, KINDS }) {
 <div class="lib-fg" data-lib-pub><button type="button" data-p="all" aria-pressed="true">Public and private</button><button type="button" data-p="private">Private</button><button type="button" data-p="public">Public</button><button type="button" data-p="weak" title="Work on view, the weakest first: the grade, what people did before it, whether it sold">Weakest on view</button></div>
 <label class="lib-q"><input type="search" placeholder="A word, a place, a title" data-lib-q></label>
 <label class="lib-size" title="Thumbnail size"><input type="range" min="2" max="10" value="6" data-lib-size></label></nav>
-<p class="lib-line"><span data-lib-count>${works.length} works</span> · <span data-lib-sel>0 selected</span> · <button type="button" class="link lib-look-all" data-lib-lookall title="Every work shown, one at a time, large: swipe or the arrows to walk, pinch or double-tap to look closer">Look through them</button> · <a class="lib-wan" href="/account/cull" title="One work at a time: swipe right to put it on view, left to keep it back">Cull by swiping</a> · <a class="lib-wan" href="/wander?in=studio" title="What is on view, as visitors walk it">Wander your work</a> · <label class="lib-auto"><input type="checkbox" data-lib-auto> Auto-advance after a grade</label> <a class="lib-help" href="#" data-lib-help>Keys</a>${app.locals.alEdit ? (() => { const st = app.locals.alEdit.state(m); return st.on ? ` · <form method="post" action="/account/edit/al" class="lib-al"><button class="link" title="Al looks at every frame you have not graded and gives it stars against the rest of your archive; your own grades of two and up are never touched">${st.job && st.job.running ? `Al is editing: ${st.job.done} of ${st.job.total}` : st.graded ? `Al’s edit: ${st.graded} of ${st.all} read · again for new work` : 'Al’s edit: grade the archive'}</button></form>` : ''; })() : ''}</p></header>
+<p class="lib-line"><span data-lib-count>${P.paged ? `${works.length} of ${P.total.toLocaleString('en-US')}` : `${works.length} works`}</span> · <span data-lib-sel>0 selected</span> · <button type="button" class="link lib-look-all" data-lib-lookall title="Every work shown, one at a time, large: swipe or the arrows to walk, pinch or double-tap to look closer">Look through them</button> · <a class="lib-wan" href="/account/cull" title="One work at a time: swipe right to put it on view, left to keep it back">Cull by swiping</a> · <a class="lib-wan" href="/wander?in=studio" title="What is on view, as visitors walk it">Wander your work</a> · <label class="lib-auto"><input type="checkbox" data-lib-auto> Auto-advance after a grade</label> <a class="lib-help" href="#" data-lib-help>Keys</a>${app.locals.alEdit ? (() => { const st = app.locals.alEdit.state(m); return st.on ? ` · <form method="post" action="/account/edit/al" class="lib-al"><button class="link" title="Al looks at every frame you have not graded and gives it stars against the rest of your archive; your own grades of two and up are never touched">${st.job && st.job.running ? `Al is editing: ${st.job.done} of ${st.job.total}` : st.graded ? `Al’s edit: ${st.graded} of ${st.all} read · again for new work` : 'Al’s edit: grade the archive'}</button></form>` : ''; })() : ''}</p></header>
 <div class="lib-grid" data-lib-grid tabindex="0" aria-label="The grid"></div>
 <p class="lib-empty" data-lib-empty hidden>Nothing matches.${works.length ? '' : ' <a href="/account/upload">Add work</a>; it stays private until you publish it.'}</p>
 <div class="lib-bar" data-lib-bar hidden><span class="lib-bn"><b data-lib-n>0</b> selected</span>
@@ -75,10 +96,11 @@ function mountTable(app, { db, V, C, images, originalPath, makerOf, KINDS }) {
 <div class="lib-loupe" data-lib-loupe hidden><img alt="" data-lib-lim><div class="lib-lplate"><b data-lib-lt></b><span data-lib-ll></span><span class="lib-lstars" data-lib-lstars></span></div><button type="button" class="lib-lprev" data-lib-lprev aria-label="Previous">${I.back}</button><button type="button" class="lib-lnext" data-lib-lnext aria-label="Next">${I.next}</button><button type="button" class="lib-lclose" data-lib-lclose aria-label="Close">${I.close}</button><a class="lib-lopen" data-lib-lopen href="#">The record</a></div>
 <div class="lib-toast" data-lib-toast hidden><span data-lib-tmsg></span><button type="button" class="link" data-lib-undo hidden>Undo</button></div>
 <div class="lib-keys" data-lib-keys hidden><h2>Keys</h2><dl><dt>P · X · U</dt><dd>Pick · Reject · Unflag</dd><dt>1–5 · 0</dt><dd>Stars · clear</dd><dt>E · Space</dt><dd>Loupe (the picture large); ← → walk; Esc back</dd><dt>Click · Shift · ⌘</dt><dd>Select · a run · add one; drag on the wall for a marquee</dd><dt>⌘A · Esc</dt><dd>All shown · none</dd><dt>Enter</dt><dd>Open the record</dd><dt>Caps lock</dt><dd>Auto-advance after a grade</dd></dl><p>On a phone: tap to select, press and drag to sweep, swipe in the loupe.</p><button type="button" class="link" data-lib-keys-close>Close</button></div>
-<script>window.__LIB=${JSON.stringify({ works, kinds: KINDS || [] }).replace(/</g, '\\u003c')}</script>
+<nav class="lib-more" data-lib-more aria-label="More works" hidden><button type="button" class="link" data-lib-newer>&larr; Newer</button><button type="button" class="link" data-lib-older>Older &rarr;</button></nav>
+<script>window.__LIB=${JSON.stringify({ works, kinds: KINDS || [], total: P.total, older: P.older, newer: P.newer, paged: P.paged }).replace(/</g, '\\u003c')}</script>
 <script src="/static/table.js?v=${esc(V.VER)}" defer></script></main>` }));
   });
-  app.locals.table = { list };
+  app.locals.table = { list, page };
   return app.locals.table;
 }
 module.exports = { mountTable };

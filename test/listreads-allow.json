@@ -109,8 +109,6 @@
   {"file":"stand.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY id DESC LIMI","why":"SELECT *","issue":94},
   {"file":"stroll.js","sql":"SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_o","why":"no LIMIT","issue":70},
   {"file":"stroll.js","sql":"SELECT m.*, COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held'","why":"SELECT *","issue":70},
-  {"file":"table.js","sql":"SELECT w.slug, w.title, w.place, w.status, w.stars, w.curated, w.flag, w.kind, w.width, w.","why":"no LIMIT","issue":81},
-  {"file":"table.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden')","why":"no LIMIT, SELECT *","issue":81},
   {"file":"tidy.js","sql":"SELECT id, slug, title, caption, width, height, dhash, source_url, stars, curated, origina","why":"no LIMIT","issue":94},
   {"file":"tidy.js","sql":"SELECT id, slug, title, tidy FROM works WHERE artist_id=? AND tidy IS NOT NULL ORDER BY id","why":"no LIMIT","issue":94},
   {"file":"titles.js","sql":"SELECT id, title FROM works","why":"no LIMIT","issue":94},

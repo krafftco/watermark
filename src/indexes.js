@@ -53,6 +53,8 @@ const LIST = [
   ['works_maker_stars', 'works (maker_id, stars, id)'], // /account?stars=n: one grade's page
   ['sightings_work', 'sightings (work_id)'], // /account: a row's sightings, asked for the rows shown
   ['works_status_id', 'works (status, id)'], // /studio/masters, /studio/hangs: the newest page of what is held, stopping at the page
+  ['works_maker_place', 'works (maker_id, place)'], // /account/table: the places the maker uses, counted from the index
+  ['works_maker_al', 'works (maker_id) WHERE al_grade IS NOT NULL'], // /account/table: how many Al has read (aledit.state), counted from a partial index
   ['works_maker_keep', 'works (maker_id, status, open, bytes)'], // /account: the open-access count and Keeping's weighed sum, read from the index alone
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
