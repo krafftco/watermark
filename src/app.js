@@ -572,7 +572,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
-  app.locals.noTimers = !!cfg.noTimers; app.locals.mailLog = mail.log;
+  app.locals.noTimers = !!cfg.noTimers; app.locals.mailLog = process.env.NODE_ENV === 'test' ? mail.log : null; // (#65) the letters mail-off kept, links and codes in them: for tests only, never outside NODE_ENV=test
   // The day's ceiling on the house's own letters counts in settings, shared by every process (#24).
   { let made = false; const mk = () => { if (!made) { db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)'); made = true; } };
     mail.setStore({ get: k => { mk(); const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; },

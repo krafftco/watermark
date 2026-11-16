@@ -69,8 +69,11 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
       const L = require('./mail-letters'); const best = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND COALESCE(keep_back,0)=0 ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(m.id);
       const K = app.locals.keys; const given = K ? db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='curator'").get().n : 1;
       const letter = L.curatorInvite({ base: C.base, name, maker: m.name, makerFirst: m.name.split(' ')[0], label, link, no: given === 0 ? 1 : null, img: best ? `${C.base}/img/${best.slug}/screen?f=jpg` : null, href: best ? `${C.base}/w/${best.slug}` : C.base, title: best ? V.tidy(best.title) : '', year: best ? String(best.taken_at || '').slice(0, 4) : '' });
-      if (mail.on()) mail.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html }); else if (app.locals.mailLog) app.locals.mailLog.push({ to: email, subject: letter.subject }); }
-    res.redirect('/account/curators?ok=' + encodeURIComponent(mail.on() ? `The keys are on their way to ${email}.` : `Mail is off. Send this link yourself: ${link}`));
+      if (mail.on()) mail.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html }); else if (app.locals.mailLog) app.locals.mailLog.push({ to: email, subject: letter.subject, link }); }
+    // (16 Nov, #65) The join link signs its opener in as the invited address, so it travels only by mail to that address.
+    // With mail off it is never shown to the inviter (it was: any maker could invite an address and become it); the
+    // tests read it from app.locals.mailLog, which exists only under NODE_ENV=test.
+    res.redirect('/account/curators?ok=' + encodeURIComponent(mail.on() ? `The keys are on their way to ${email}.` : `Mail is off, so the letter to ${email} could not be sent.`));
   });
   app.post('/account/curators/:id/end', (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);

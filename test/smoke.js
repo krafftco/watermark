@@ -2765,7 +2765,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'POST', '/account/curators', { cookie: mc, body: { name: 'Michael', email: 'michael@leica.example', label: 'Leica Gallery' } });
     assert.ok(r.headers.location.includes('/account/curators'), 'the keys are sent');
     const cur = db.prepare("SELECT * FROM curators WHERE email='michael@leica.example'").get(); assert.ok(cur && cur.status === 'invited');
+    // (#65) Mail is off here: the inviter is told the letter could not be sent and is never handed the join link, which
+    // signs its opener in as the invited address. The link exists only in the test's mail log.
+    assert.ok(!r.headers.location.includes('curate%2Fjoin') && !r.headers.location.includes('/curate/join/') && !r.headers.location.includes(cur.token), 'the inviter is not handed the join link: ' + r.headers.location);
+    { const pg = await req(port, 'GET', r.headers.location, { cookie: mc }); assert.equal(pg.status, 200); assert.ok(!pg.body.includes('/curate/join/') && !pg.body.includes(cur.token), 'the inviter\'s page carries no join link');
+      assert.ok(/could not be sent/.test(pg.body), 'the inviter is told plainly the letter did not go'); }
+    { const sent = (app.locals.mailLog || []).filter(x => x.to === 'michael@leica.example').pop(); assert.ok(sent && sent.link && sent.link.endsWith('/curate/join/' + cur.token), 'the link is kept for the test, as a letter would carry it'); }
+    { const z = await req(port, 'GET', '/curate/join/' + cur.token.slice(0, -1) + (cur.token.endsWith('x') ? 'y' : 'x')); assert.equal(z.status, 404, 'a guessed join link opens nothing'); assert.ok(!(z.headers['set-cookie'] || []).length, 'and signs no one in'); }
     r = await req(port, 'GET', '/curate/join/' + cur.token); assert.ok(r.headers.location.startsWith('/curate/'), 'the letter opens the archive');
+    { const who = db.prepare("SELECT email FROM buyers WHERE lower(email)='michael@leica.example'").get(); assert.ok(who, 'the mailed link admits the invited address and only it'); }
     const cc = r.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
     r = await req(port, 'GET', r.headers.location, { cookie: cc }); assert.equal(r.status, 200); assert.ok(r.body.includes('data-cu-w="' + ws[1].slug + '"'), 'kept-back work is on the desk');
     r = await req(port, 'POST', '/curate/' + require('../src/views').makerSlug(cm) + '/show', { cookie: cc, body: { title: 'The Stairs of Paris' } });
@@ -2778,6 +2786,20 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'held', 'the kept-back photograph is published with it');
     r = await req(port, 'GET', '/curate/' + require('../src/views').makerSlug(cm)); assert.equal(r.status, 302, 'a stranger cannot open the archive'); }
   console.log('ok: curators');
+  // (#65) A house in production with mail off never writes a sign-in code or a proving link to its logs, nor keeps a
+  // letter's text: the request is made with NODE_ENV=production for its span, and the log is read.
+  { const said = [], was = console.log, env = process.env.NODE_ENV, M = require('../src/mail'), n0 = M.log.length;
+    console.log = (...a) => { said.push(a.join(' ')); };
+    let r;
+    try { process.env.NODE_ENV = 'production'; r = await req(port, 'POST', '/signin/code', { body: { email: 'quiet@prod.example' }, headers: { 'x-forwarded-for': '203.0.113.65' } }); } // its own address: the door's limiter is shared with the blocks below
+    finally { process.env.NODE_ENV = env; console.log = was; }
+    assert.equal(r.status, 200); const j = JSON.parse(r.body); assert.equal(j.sent, false, 'the page is told the letter did not go');
+    const row = db.prepare("SELECT link FROM signins WHERE email='quiet@prod.example' ORDER BY id DESC LIMIT 1").get(); assert.ok(row);
+    const all = said.join('\n'); assert.ok(!all.includes(row.link) && !/\[signin\] code for/.test(all) && !said.filter(l => /quiet@prod|q•+@prod/.test(l)).some(l => /\d{3} ?\d{3}/.test(l)), 'no code or link in the production log: ' + all);
+    assert.ok(/mail is off/.test(all), 'the log says mail is off');
+    const kept = M.log.slice(n0).find(x => x.to === 'quiet@prod.example'); assert.ok(kept && kept.text === '' && !/\d{3} ?\d{3}/.test(kept.subject), 'the letter\'s text and code are not kept outside tests');
+    assert.ok(!String(r.body).includes(row.link), 'and the answer carries no link'); }
+  console.log('ok: no proving link shown or logged with mail off');
   // The Watermark number and the readable file: twelve digits that find the license; a caption and a name a person reads.
   { const T = require('../src/track'); assert.equal(T.track('WM-2026-000082'), 'WM 2026 0000 8264'); assert.equal(T.ref('wm 2026 0000 8264'), 'WM-2026-000082'); assert.equal(T.ref('WM 2026 0000 8265'), null, 'a mistyped number is caught');
     const l = db.prepare("SELECT l.*, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.status='active' AND l.download_token IS NOT NULL AND w.original_file LIKE '%.jpg' AND COALESCE(l.intended_use,'') NOT LIKE 'Delivered:%' ORDER BY l.id DESC LIMIT 1").get();

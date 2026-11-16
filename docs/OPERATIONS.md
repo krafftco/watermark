@@ -12,7 +12,9 @@
 
 ## The deploy window
 
-One promotion a day, **06:30 New York, Monday to Friday**, by `.github/workflows/promote.yml`: `main` moves to `next` when the latest `test` run on `next` is green and the house is not being shown. Render deploys `main` after CI. The live walk (`live.yml`) reads the doors afterwards; a fault mails the owner.
+One promotion a day, **06:30 New York, Monday to Friday** (GitHub starts scheduled runs late, often by an hour), by `.github/workflows/promote.yml`: `main` moves to `next` when the newest finished `test` run on `next`'s own push of that commit is green in every job, the newest commit does not carry `[skip render]` over code beneath it, and the house is not being shown. Render deploys `main` after CI: its check reads the checks on the commit, and a promoted commit already carries `next`'s green ones.
+
+The promotion walks what it promoted (#66): its push, made with the workflow's own token, starts nothing by itself, so promote.yml then starts `test` on `main` and, once green, the live walk (`live.yml`, which waits for /healthz to report the commit, then opens the doors), each by workflow_dispatch, and waits for both. Their runs are on `main` at the promoted commit (`gh api "repos/krafftco/watermark/actions/runs?branch=main"`); a red one turns the promote run red with an annotation naming the run. The mail for a red scheduled run goes to whoever last changed the cron line in promote.yml. A promotion with nothing to promote starts nothing. `dry_run: true` (Actions → promote → Run workflow) does everything but the push and walks `main` as it stands. A push by hand to `main` is walked as before: `test` on push, then `live` on its completion.
 
 - Everything is built on `next`. The test house runs it the same day.
 - A push to `main` by hand outside the window is a **hotfix**: the commit says `hotfix` and why. Rare.

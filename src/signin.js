@@ -3,7 +3,7 @@
 // room if you are a maker, by the same email. A passkey, when you have one, is offered in the same
 // field by the browser, so nothing is ever janky and nothing is ever remembered. No passwords.
 // Codes live ten minutes, five tries, three a quarter-hour per address. Without a mail service the
-// code is logged, so the flow still works in development and in tests.
+// code is logged in development (tests read app.locals.lastCode); never in production (#65).
 const crypto = require('crypto');
 
 const LIFE = 10 * 60 * 1000, TRIES = 5, PER = 3;
@@ -84,7 +84,9 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     await mail.send({ to: email, subject: `${spaced} is your Watermark code`, feature: spaced, cta: { label: 'Sign in with one tap', url: `${C.base}/signin/${link}` },
       text: `${first ? `${first},\n\n` : ''}Your code to sign in to Watermark is\n\n    ${spaced}\n\nIt is good for ten minutes. Or open this link on the device you are signing in on:\n\n${C.base}/signin/${link}\n\nIf you did not ask for it, nothing happens; ignore this message.\n\nWatermark, a Krafft company` });
     if (process.env.NODE_ENV === 'test') app.locals.lastCode = { email, code, link };
-    if (!mail.on()) console.log(`[signin] code for ${email}: ${code}  link: ${C.base}/signin/${link}`);
+    // (#65) The code and the link prove the address: on a house in production (NODE_ENV=production, the Dockerfile's)
+    // they are never written to the host's logs; a machine in development still prints them, mail being off there.
+    if (!mail.on()) console.log(process.env.NODE_ENV === 'production' ? `[signin] mail is off: no code sent to ${mask(email)}` : `[signin] code for ${email}: ${code}  link: ${C.base}/signin/${link}`);
     res.json({ ok: true, to: mask(email), known: !!(who.buyer || who.maker), maker: !!who.maker, sent: mail.on() });
   });
 
@@ -116,7 +118,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     const link = crypto.randomBytes(24).toString('base64url'), salt = crypto.randomBytes(8).toString('hex');
     db.prepare('INSERT INTO signins (email, code_hash, salt, link, created_at, tries) VALUES (?,?,?,?,?,?)').run(email, hash(crypto.randomBytes(8).toString('hex'), salt), salt, link, Date.now(), TRIES);
     await mail.send({ to: email, subject: 'Open Watermark on your other device', cta: { label: 'Open Watermark here', url: `${C.base}/signin/${link}` }, text: `Open this on the phone or computer you want signed in:\n\n${C.base}/signin/${link}\n\nGood for ten minutes, once.\n\nWatermark` });
-    if (!mail.on()) console.log(`[hand] ${C.base}/signin/${link}`);
+    if (!mail.on()) console.log(process.env.NODE_ENV === 'production' ? '[hand] mail is off: the link was not sent' : `[hand] ${C.base}/signin/${link}`); // (#65) as above
     res.redirect('/signin/hand?ok=mailed');
   });
   // The link in the message does the same, on whatever device opens it.

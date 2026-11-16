@@ -31,11 +31,16 @@ The CTO session keeps it honest.
 - `gh api` (REST) only. Issues, comments, pulls: `gh api -X POST repos/krafftco/watermark/…`. Bodies from a file: `-F body=@file`.
 - CI runs on pull requests, on `next` and on `main`. Its logs cannot be read; a failed job's reason is in
   `gh api repos/krafftco/watermark/check-runs/<job id>/annotations`. A job that fails must publish why as an annotation.
-- Jobs: `test`, `postgres`, `load`, `a11y` (also runs `test/wayback.js`), `reach`. All must be green before `main` moves.
+- Jobs: `test`, `postgres`, `load`, `a11y` (also runs `test/wayback.js`), `reach`, `reach-webkit`. All must be green before `main` moves (promote.yml names each in `NEEDS`; rename one, rename it there).
 - `public/sw.js`'s `V` is bumped by almost every change, so it conflicts on merge almost every time. That is expected;
   the CTO session resolves it. Do not rebase to chase it.
 - `[skip render]` in a commit message stops the host deploying THAT push. If such a commit is the newest one when `main`
   moves, the code beneath it is not deployed either. Use it only for a push that carries no code at all; when in doubt, leave it out.
+- A push made with `secrets.GITHUB_TOKEN` starts no workflow; only `workflow_dispatch` (and `repository_dispatch`) by that
+  token does. So promote.yml dispatches `test` and `live` on `main` itself (`scripts/ci-dispatch.sh`, #66). Checks belong
+  to a commit, not a branch: a promoted commit shows (and Render sees) the green checks of its push to `next`.
+- A scheduled or dispatched workflow runs the files on `main`: a change to promote.yml, test.yml, live.yml or
+  `scripts/ci-dispatch.sh` does nothing until it is promoted, and the promotion that carries it runs the old one.
 - `main` and `next` must share history. A hotfix made on `main` is merged back into `next` the same hour, or the next
   promote fails (12 Nov).
 
@@ -49,7 +54,13 @@ The CTO session keeps it honest.
   page's skeleton BEFORE you write the parser, build the fixture from it, and say in the pull request what you never saw.
 - **A person silently turned away** (12 Nov, the sign-up guard's first version: a stale form got a fake success and no
   museum). Only a trap for machines may fail silently. A person is always told, and always has a next press.
-- **A door that signed in whoever typed an address** (12 Nov). No door signs a device in as an address it has not proved.
+- **A door that signed in whoever typed an address** (12 Nov).
+- **A proving link handed to the wrong person** (16 Nov, #65: with mail off the curator invitation showed the inviter the
+  join link, which signs its opener in as the invited address). A link or code that proves an address travels only by
+  mail to that address; with mail off the page says the letter could not be sent. Tests read it from
+  `app.locals.mailLog` / `app.locals.lastCode`, which exist only under NODE_ENV=test; production logs never carry one.
+  A request in the smoke that needs its own limiter count sends `x-forwarded-for` (trust proxy is 1): `/signin/code`
+  allows eight a quarter-hour per address across the whole smoke. No door signs a device in as an address it has not proved.
 - **A dead end in the installed app** (15 Nov): no browser bar there. A file is never navigated to; every page has a Back.
 - **Controls too small or under another on an iPad upright** (15 Nov). 701–900 px wide is a real screen. The `reach` job
   walks it; if you add a bar or a row of controls, run `node scripts/reach-walk.js` yourself.
