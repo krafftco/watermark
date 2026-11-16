@@ -17,7 +17,7 @@ function mountDeskApi(app, { db, C, ledger, stripe }) {
       prints: (() => { try { return db.prepare("SELECT COUNT(*) n FROM print_orders WHERE status IN ('asked','printing')").get().n; } catch (e) { return 0; } })(),
       applications: (() => { try { return db.prepare("SELECT COUNT(*) n FROM applications WHERE status IS NULL OR status='new'").get().n; } catch (e) { return 0; } })(),
       dinnerNames: (() => { try { return db.prepare("SELECT COUNT(*) n FROM night_guests WHERE status='asked'").get().n; } catch (e) { return 0; } })(),
-      owed: (() => { try { let t = 0; for (const m of db.prepare('SELECT * FROM makers').all()) { const st = app.locals.payouts ? app.locals.payouts.statement(m) : null; if (st) t += st.owed; } return t; } catch (e) { return 0; } })(),
+      owed: (() => { try { let t = 0; if (app.locals.payouts) for (const st of app.locals.payouts.statements(db.prepare('SELECT * FROM makers').all()).values()) t += st.owed; return t; } catch (e) { return 0; } })(), // (#85) every maker's statement in one grouped pass
     };
     const nights = (() => { try { return db.prepare("SELECT slug, title, kind, at, city, capacity, (SELECT COALESCE(SUM(1+plus),0) FROM night_guests g WHERE g.night_id=n.id AND g.status='going') going, (SELECT COUNT(*) FROM night_guests g WHERE g.night_id=n.id AND g.status='asked') asked FROM nights n WHERE status='open' AND at >= datetime('now','-6 hours') ORDER BY at LIMIT 5").all(); } catch (e) { return []; } })();
     const circle = (() => { try { return db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM circle WHERE status IN ('active','ending')").get(); } catch (e) { return { n: 0, c: 0 }; } })();
@@ -72,7 +72,7 @@ function mountDeskApi(app, { db, C, ledger, stripe }) {
       at: new Date().toISOString(), base: C.base,
       theNumber: { strangersThisWeek: ST.week, strangersLastWeek: ST.last },
       people: r7 ? { visitors7d: r7.cur.visitors, visitorsPrior: r7.prev.visitors, views7d: r7.cur.views, stood7d: r7.cur.stood, hats7d: r7.cur.hats, bravos7d: r7.cur.bravos, signins7d: r7.cur.signins, visitors30d: r30 ? r30.cur.visitors : null } : null,
-      money: { week, month, all, fridayLast, owed: t(() => { let o = 0; for (const m of db.prepare('SELECT * FROM makers').all()) { const st = L.payouts ? L.payouts.statement(m) : null; if (st) o += st.owed; } return o; }) || 0, feeSide: FEE.on() ? 'collector' : 'maker' },
+      money: { week, month, all, fridayLast, owed: t(() => { let o = 0; if (L.payouts) for (const st of L.payouts.statements(db.prepare('SELECT * FROM makers').all()).values()) o += st.owed; return o; }) || 0, /* (#85) one grouped pass */ feeSide: FEE.on() ? 'collector' : 'maker' },
       live, growth, vault, register, costs, velocity,
     };
   }

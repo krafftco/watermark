@@ -153,6 +153,10 @@ ${recs.length ? `<h2>${esc(first(m.name))} also reads</h2><div class="gzp-recs">
   const earned = makerId => db.prepare('SELECT COALESCE(SUM(maker_cents),0) s, COUNT(*) n FROM gazette_payments WHERE maker_id=?').get(makerId);
   const clearing = (makerId, since) => db.prepare("SELECT COALESCE(SUM(maker_cents),0) s, COUNT(*) n FROM gazette_payments WHERE maker_id=? AND at > datetime('now', ?)").get(makerId, since || `-${HOLD_DAYS} days`);
 
+  // (#85) The same two sums for many makers at once, keyed by maker.
+  const earnedBy = ids => { const GR = require('./grouped'); const f = GR.inList('maker_id', ids); return GR.byId(db.prepare(`SELECT maker_id id, COALESCE(SUM(maker_cents),0) s, COUNT(*) n FROM gazette_payments WHERE ${f.sql} GROUP BY maker_id`).all(...f.args)); };
+  const clearingBy = (ids, since) => { const GR = require('./grouped'); const f = GR.inList('maker_id', ids); return GR.byId(db.prepare(`SELECT maker_id id, COALESCE(SUM(maker_cents),0) s, COUNT(*) n FROM gazette_payments WHERE ${f.sql} AND at > datetime('now', ?) GROUP BY maker_id`).all(...f.args, since || `-${HOLD_DAYS} days`)); };
+
   // Recommendations: up to three makers, by handle.
   const recsOf = m => { let r = []; try { r = JSON.parse(plan(m).recs || '[]'); } catch (e) { r = []; } return r.map(h => maker(h)).filter(x => x && x.id !== m.id).slice(0, 3); };
 
@@ -310,7 +314,7 @@ ${subs.length ? `<table class="tbl"><tr><th>Email</th><th>Name</th><th></th><th>
     res.redirect('/account/gazette?ok=' + encodeURIComponent(`${n} brought in${bad ? `; ${bad} line${bad === 1 ? '' : 's'} not an email` : ''}. Anyone who unsubscribed before stays off.`));
   });
 
-  app.locals.gazette = { box, locked, endOf, send, drain, earned, clearing, subOf, reads, plan, counts, queue };
+  app.locals.gazette = { box, locked, endOf, send, drain, earned, clearing, earnedBy, clearingBy, subOf, reads, plan, counts, queue };
   return app.locals.gazette;
 }
 module.exports = { mountGazette };

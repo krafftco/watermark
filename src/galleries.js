@@ -38,6 +38,9 @@ function mountGalleries(app, { db, C, V, mail, ledger, makerOf, buyerOf, isStudi
   }
   const cutsIn = g => db.prepare('SELECT COALESCE(SUM(cents),0) s, COUNT(*) n FROM gallery_cuts WHERE gallery_id=?').get(g.id);
   const cutsOut = m => db.prepare('SELECT COALESCE(SUM(cents),0) s, COUNT(*) n FROM gallery_cuts WHERE maker_id=?').get(m.id);
+  // (#85) The same two sums for many makers at once, keyed by maker (the statements of /studio and /studio/payouts).
+  const cutsInBy = ids => { const GR = require('./grouped'); const f = GR.inList('gallery_id', ids); return GR.byId(db.prepare(`SELECT gallery_id id, COALESCE(SUM(cents),0) s, COUNT(*) n FROM gallery_cuts WHERE ${f.sql} GROUP BY gallery_id`).all(...f.args)); };
+  const cutsOutBy = ids => { const GR = require('./grouped'); const f = GR.inList('maker_id', ids); return GR.byId(db.prepare(`SELECT maker_id id, COALESCE(SUM(cents),0) s, COUNT(*) n FROM gallery_cuts WHERE ${f.sql} GROUP BY maker_id`).all(...f.args)); };
 
   // The eye: one line of standing for any curator.
   function eye(b) {
@@ -94,7 +97,7 @@ function mountGalleries(app, { db, C, V, mail, ledger, makerOf, buyerOf, isStudi
   const onNow = () => db.prepare(`SELECT h.*, b.name AS curator, b.code AS curator_code, g.name AS gallery, g.handle AS gallery_handle, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) n FROM hangs h JOIN buyers b ON b.id=h.buyer_id LEFT JOIN makers g ON g.buyer_id=b.id AND g.kind='gallery'
     WHERE h.public=1 AND h.opens_at IS NOT NULL AND (h.closes_at IS NULL OR h.closes_at >= date('now')) ORDER BY h.opens_at > date('now'), h.opens_at DESC LIMIT 12`).all();
 
-  app.locals.galleries = { isGallery, galleryOf, artists, cut, cutsIn, cutsOut, eye, showOf, shows, onNow, galleryBuyer, galleryByBuyer, DEFAULT_PCT };
+  app.locals.galleries = { isGallery, galleryOf, artists, cut, cutsIn, cutsOut, cutsInBy, cutsOutBy, eye, showOf, shows, onNow, galleryBuyer, galleryByBuyer, DEFAULT_PCT };
   return app.locals.galleries;
 }
 

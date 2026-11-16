@@ -82,14 +82,10 @@ const ALLOW = [
   { room: 'museum /account/copyright', budget: 'rows', max: 75000, issue: 83 }, // measured 60,000
   { room: 'museum /account/estate', budget: 'stmtMs', max: 550, issue: 84 }, // measured 181
   { room: 'museum /account/estate', budget: 'rows', max: 75000, issue: 84 }, // measured 60,000
-  { room: 'studio /studio', budget: 'pageMs', max: 3200, issue: 85 }, // measured 1,058
-  { room: 'studio /studio', budget: 'stmts', max: 9200, issue: 85 }, // measured 7,301
-  { room: 'studio /studio', budget: 'stmtMs', max: 550, issue: 85 }, // measured 171
   { room: 'studio /studio/trove', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
   { room: 'studio /studio/licenses', budget: 'pageMs', max: 3050, issue: 87 }, // measured 1,011
   { room: 'studio /studio/licenses', budget: 'bytes', max: 4400000, issue: 87 }, // measured 3,489,937
   { room: 'studio /studio/licenses', budget: 'rows', max: 10000, issue: 87 }, // measured 8,000
-  { room: 'studio /studio/payouts', budget: 'stmts', max: 9000, issue: 85 }, // measured 7,183
   { room: 'studio /studio/standard', budget: 'rows', max: 104200, issue: 89 }, // measured 83,300
   { room: 'studio /studio/accounts', budget: 'stmts', max: 2700, issue: 90 }, // measured 2,085
   { room: 'studio /studio/hangs', budget: 'bytes', max: 9400000, issue: 91 }, // measured 7,492,791

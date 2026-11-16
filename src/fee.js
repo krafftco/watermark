@@ -44,8 +44,11 @@ const makerFromTotal = (useKey, total) => {
 const schedule = () => TIERS.map((t, i) => `${t.pct}%${t.upto === Infinity ? (i ? ' above that' : '') : ` ${i ? 'of the next ' : 'to '}$${(t.upto / 100).toLocaleString('en-US')}`}`).join(', ');
 const makerOf = (l, pct) => (l.house_cents != null ? (l.price_cents || 0) - l.house_cents : Math.round((l.price_cents || 0) * (pct || 85) / 100));
 const sqlMaker = (pct, a = 'l') => `(${a}.price_cents - COALESCE(${a}.house_cents, CAST(ROUND(${a}.price_cents * (100 - ${+pct || 85}) / 100.0) AS INTEGER)))`;
+// (#85) The same, with each maker's own share read from the makers row `mk` (as `m.share_pct || 85`), for a sum grouped by maker.
+const PCT_SQL = (mk = 'mk') => `COALESCE(NULLIF(${mk}.share_pct, 0), 85)`;
+const sqlMakerBy = (mk = 'mk', a = 'l') => `(${a}.price_cents - COALESCE(${a}.house_cents, CAST(ROUND(${a}.price_cents * (100 - ${PCT_SQL(mk)}) / 100.0) AS INTEGER)))`;
 // Said on the wall: how the money goes.
 const said = (pct, first) => (on() ? `The price is ${first ? first + '’s' : 'the maker’s'}, every dollar of it; the house’s share is paid by the collector on top.` : `${pct || 85}% of every sale is ${first ? first + '’s' : 'the maker’s'}.`);
 // The short form, inside a sentence: 'the price of every sale is yours' / '85% of every sale is yours'.
 const yours = (pct, whose = 'yours') => (on() ? `the price of every sale is ${whose}, every dollar` : `${pct || 85}% of every sale is ${whose}`);
-module.exports = { on, house, total, premium, makerOf, makerFromTotal, sqlMaker, said, yours, schedule, TIERS, HOUSE_PCT, COLLECT_HOUSE_CENTS };
+module.exports = { on, house, total, premium, makerOf, makerFromTotal, sqlMaker, sqlMakerBy, PCT_SQL, said, yours, schedule, TIERS, HOUSE_PCT, COLLECT_HOUSE_CENTS };

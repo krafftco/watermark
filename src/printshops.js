@@ -116,6 +116,9 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   // What a shop has earned (delivered jobs), and what is still inside the hold: for the maker's statement and Friday pay.
   const earned = makerId => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0 AND s.lab IS NULL").get(makerId); } catch (e) { return { s: 0, n: 0 }; } };
   const clearing = (makerId, since) => { try { return db.prepare("SELECT COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE s.maker_id=? AND j.status='delivered' AND s.house=0 AND s.lab IS NULL AND j.done_at > datetime('now', ?)").get(makerId, since); } catch (e) { return { s: 0, n: 0 }; } };
+  // (#85) The same two sums for many makers at once, keyed by maker.
+  const earnedBy = ids => { const GR = require('./grouped'); const f = GR.inList('s.maker_id', ids); return GR.safe(() => GR.byId(db.prepare(`SELECT s.maker_id id, COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE ${f.sql} AND j.status='delivered' AND s.house=0 AND s.lab IS NULL GROUP BY s.maker_id`).all(...f.args))); };
+  const clearingBy = (ids, since) => { const GR = require('./grouped'); const f = GR.inList('s.maker_id', ids); return GR.safe(() => GR.byId(db.prepare(`SELECT s.maker_id id, COALESCE(SUM(j.cents),0) s, COUNT(*) n FROM print_jobs j JOIN print_shops s ON s.id=j.shop_id WHERE ${f.sql} AND j.status='delivered' AND s.house=0 AND s.lab IS NULL AND j.done_at > datetime('now', ?) GROUP BY s.maker_id`).all(...f.args, since))); };
   const where = orderId => { const j = liveJob(orderId); if (!j) return ''; const s = shopById(j.shop_id); return `${s.house ? 'The house’s room' : s.lab ? 'The lab' : esc(s.name)} · ${STEPS[j.status]}`; };
 
   const ticket = (o, j, shop) => {
@@ -269,7 +272,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   });
 
   if (!app.locals.noTimers && ROLE.chores) { const t = setInterval(() => { try { sweep(); } catch (e) { console.error('[press]', e.message); } }, 60000); if (t.unref) t.unref(); setTimeout(() => { try { ensureHouse(); sweep(); } catch (e) { /* */ } }, 25000).unref(); }
-  app.locals.printShops = { sweep, choose, offer, move, earned, clearing, where, shopOf, shopById, jobOf, STEPS, PCT, ensureHouse };
+  app.locals.printShops = { sweep, choose, offer, move, earned, clearing, earnedBy, clearingBy, where, shopOf, shopById, jobOf, STEPS, PCT, ensureHouse };
   return app.locals.printShops;
 }
 module.exports = { mountPrintShops, STEPS, longIn };

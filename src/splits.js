@@ -20,7 +20,15 @@ function mountSplits(app, { db, V, ledger, isStudio, makerOf, mk }) {
     for (const r of rows) for (const sp of of(r.work_id)) { const c = Math.round(FEE.makerOf(r, m.share_pct || 85) * sp.pct / 100); s += c; n++; by[sp.name] = (by[sp.name] || 0) + c; }
     return { s, n, by };
   }
-  app.locals.splits = { of, releases, owedOut, others };
+  // (#85) What each maker's paid sales owe to collaborators, for many makers in one question (the licence and each of
+  // its work's splits, as owedOut pairs them); `pctOf(makerId)` gives each maker's share_pct as owedOut reads it.
+  function owedOutBy(ids, pctOf) {
+    const GR = require('./grouped'), FEE = require('./fee'); const f = GR.inList('w.maker_id', ids); const out = new Map();
+    const rows = db.prepare(`SELECT w.maker_id AS mid, l.price_cents, l.house_cents, sp.name, sp.pct FROM licenses l JOIN works w ON w.id=l.work_id JOIN work_splits sp ON sp.work_id=l.work_id WHERE ${f.sql} AND l.status IN ('active','expired') AND l.price_cents > 0 ORDER BY l.id, sp.id`).all(...f.args);
+    for (const r of rows) { const id = Number(r.mid); const o = out.get(id) || { s: 0, n: 0, by: {} }; const c = Math.round(FEE.makerOf(r, pctOf(id)) * r.pct / 100); o.s += c; o.n++; o.by[r.name] = (o.by[r.name] || 0) + c; out.set(id, o); }
+    return out;
+  }
+  app.locals.splits = { of, releases, owedOut, owedOutBy, others };
 
   const may = (req, w) => !!w && (isStudio(req) || (makerOf(req) || {}).id === w.maker_id);
   app.get('/account/works/:slug/splits', (req, res) => {
