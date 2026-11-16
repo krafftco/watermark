@@ -73,7 +73,6 @@ const ALLOW = [
   { room: 'visitor /api/index.json', budget: 'rows', max: 37500, issue: 77 }, // measured 30,000
   { room: 'maker /wander', budget: 'stmtMs', max: 500, issue: 70 }, // measured 159
   { room: 'maker /wander', budget: 'rows', max: 117100, issue: 70 }, // measured 93,650
-  { room: 'museum /account/hang', budget: 'rows', max: 26300, issue: 82 }, // measured 21,000
   { room: 'studio /studio/trove', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
   { room: 'studio /studio/licenses', budget: 'pageMs', max: 3050, issue: 87 }, // measured 1,011
   { room: 'studio /studio/licenses', budget: 'bytes', max: 4400000, issue: 87 }, // measured 3,489,937

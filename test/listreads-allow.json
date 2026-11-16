@@ -70,7 +70,6 @@
   {"file":"frick.js","sql":"SELECT w.id, w.slug FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.tidy LIKE 'below","why":"no LIMIT","issue":94},
   {"file":"gazette.js","sql":"SELECT t.*, (SELECT n FROM gazette_sends gs WHERE gs.text_id=t.id ORDER BY gs.id DESC LIMI","why":"SELECT *","issue":94},
   {"file":"hands.js","sql":"SELECT id, slug, title, caption, source_url, width, height, original_file FROM works WHERE","why":"no LIMIT","issue":94},
-  {"file":"hangbest.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('hidden','held') AND (stars >= ? OR cu","why":"no LIMIT, SELECT *","issue":82},
   {"file":"hangbest.js","sql":"SELECT * FROM works WHERE maker_id=? AND status='hidden' AND keep_back=0 AND attribution I","why":"SELECT *","issue":94},
   {"file":"iiif.js","sql":"SELECT id, title FROM works WHERE title LIKE '% QS:%'","why":"no LIMIT","issue":94},
   {"file":"jacket.js","sql":"SELECT * FROM texts WHERE status='held' AND public=1 AND jacket IS NULL AND (body IS NOT N","why":"no LIMIT, SELECT *","issue":94},

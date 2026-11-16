@@ -50,13 +50,20 @@ function mountHangBest(app, { db, V, images, cache, originalPath, ledger, makerO
   const jobs = new Map();
   async function plan(m, from, place) {
     // One city at a time (29 Oct, Will: "go put out best work in Milan"): ?place= narrows the sort to a place.
-    const rows = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status IN ('hidden','held') AND (stars >= ? OR curated=1) ORDER BY stars DESC, id`).all(m.id, from).filter(w => !place || String(w.place || '').toLowerCase().includes(place.toLowerCase()));
-    const out = { clear: [], people: [], children: [], check: [], unread: [], kept: [], hung: [] };
+    // (#82, the scale gate) Every graded work was read whole to sort (21,000 for a museum). Now the database gives the best
+    // HB_MAX still kept back (stars, then the oldest first, as before), counts what already hangs and what the maker keeps
+    // back, and lists at most KEPT_MAX of those; the place narrows in the database. Once these are hung, the next come.
+    const HB_MAX = 500, KEPT_MAX = 300;
+    const cols = (app.locals.leanCols ? app.locals.leanCols() : 'id, slug, title, status, keep_back, flag, disputed, taken_at, stars, curated, width, height, place, sha256, qc, original_file') + ', attribution';
+    const pl = place ? ["AND lower(COALESCE(place,'')) LIKE ?", [`%${place.toLowerCase().replace(/[%_\\]/g, '')}%`]] : ['', []];
+    const graded = `maker_id=? AND (stars >= ? OR curated=1) ${pl[0]}`, args = [m.id, from, ...pl[1]];
+    const cand = `status='hidden' AND COALESCE(keep_back,0)=0 AND COALESCE(flag,'')<>'reject' AND COALESCE(disputed,0)<=0`;
+    const rows = db.prepare(`SELECT ${cols} FROM works WHERE ${graded} AND ${cand} ORDER BY stars DESC, id LIMIT ${HB_MAX}`).all(...args);
+    const n = db.prepare(`SELECT SUM(CASE WHEN status='held' THEN 1 ELSE 0 END) hung, SUM(CASE WHEN status='hidden' AND COALESCE(keep_back,0)<>0 THEN 1 ELSE 0 END) kept, SUM(CASE WHEN ${cand} THEN 1 ELSE 0 END) cand FROM works WHERE ${graded} AND status IN ('hidden','held')`).get(...args) || {};
+    const out = { clear: [], people: [], children: [], check: [], unread: [], kept: [], hung: [], hungN: Number(n.hung) || 0, keptN: Number(n.kept) || 0, more: Math.max(0, (Number(n.cand) || 0) - rows.length) };
+    if (out.keptN) out.kept = db.prepare(`SELECT ${cols} FROM works WHERE ${graded} AND status='hidden' AND COALESCE(keep_back,0)<>0 ORDER BY stars DESC, id LIMIT ${KEPT_MAX}`).all(...args).map(w => ({ w }));
     const looks = [];
     for (const w of rows) {
-      if (w.status === 'held') { out.hung.push({ w }); continue; }
-      if (w.keep_back) { out.kept.push({ w }); continue; }
-      if (w.flag === 'reject' || w.disputed > 0) continue;
       const q = await qc(w); looks.push({ w, q });
       await new Promise(r => setImmediate(r));
     }
@@ -147,7 +154,7 @@ ${p.clear.length ? `<form method="post" action="/account/hang/go"><input type="h
 ${GROUPS.map(([k, name, line, mode]) => p[k].length ? `<section class="hb-g" data-hb-group="${k}"><h2>${name} · ${p[k].length}</h2><p class="muted">${line}</p>
 <div class="hb-grid">${p[k].map(x => tile(x, mode)).join('')}</div>
 ${mode !== 'kept' ? `<form method="post" action="/account/hang/go"><input type="hidden" name="from" value="${from}"><input type="hidden" name="place" value="${esc(place)}"><input type="hidden" name="group" value="${k}"><input type="hidden" name="slugs" data-hb-slugs="${k}"><label class="hb-at"><input type="checkbox" name="attest" value="1" required> I have looked; these are mine and I hold the rights.</label><button class="btn">Hang ${mode === 'hold' ? 'the ones tapped in' : 'the rest'}</button></form>` : ''}</section>` : '').join('')}
-${p.hung.length ? `<p class="muted">${p.hung.length} at this grade already on view.</p>` : ''}
+${p.more ? `<p class="muted">${p.more.toLocaleString('en-US')} more at this grade wait behind these; once these are hung or kept back, they come next.</p>` : ''}${p.keptN > p.kept.length ? `<p class="muted">${p.keptN.toLocaleString('en-US')} kept back in all; the first ${p.kept.length} are shown.</p>` : ''}${p.hungN ? `<p class="muted">${p.hungN.toLocaleString('en-US')} at this grade already on view.</p>` : ''}
 <script src="/static/hangbest.js?v=${esc(V.VER || '')}" defer></script>`;
     res.send(V.layout({ title: 'Hang your best · Watermark', studio: true, body: `<section class="studio-wrap hb">${body}</section>` }));
   });

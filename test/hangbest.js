@@ -37,7 +37,7 @@ const scene = (n, w = 1800, h = 1200) => { let s = ''; seed = n * 7919 + 3; for 
   db.prepare("UPDATE works SET taken_at='2025-05-01T10:00:00', stars=5 WHERE slug=?").run(s.clear); db.prepare("UPDATE works SET taken_at='2025-05-01T10:00:00', stars=4 WHERE slug=?").run(s.twin);
   const p = await app.locals.hangBest.plan(maker, 4);
   const names = k => p[k].map(x => x.w.slug).sort();
-  assert.deepStrictEqual(names('clear'), [s.clear, s.clear2].sort(), 'clear: ' + JSON.stringify(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v.map(x => x.w.slug + (x.why ? ':' + x.why.join('/') : ''))]))));
+  assert.deepStrictEqual(names('clear'), [s.clear, s.clear2].sort(), 'clear: ' + JSON.stringify(Object.fromEntries(Object.entries(p).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, v.map(x => x.w.slug + (x.why ? ':' + x.why.join('/') : ''))]))));
   assert.ok(names('check').includes(s.soft) && names('check').includes(s.dark) && names('check').includes(s.twin), 'soft, dark and the burst twin wait for a look');
   assert.deepStrictEqual(names('people'), [s.people]); assert.deepStrictEqual(names('children'), [s.kid]); assert.deepStrictEqual(names('unread'), [s.unread]);
   // The room, then keep the street picture back, then hang the clear and the people group.
