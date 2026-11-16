@@ -71,7 +71,9 @@ async function send({ to, subject, text, from, html, feature, cta, headers, repl
   if (kind === 'auto') { const a = admitAuto(once); if (a !== true) return { skipped: true, ceiling: a === 'ceiling', once: a === 'once' }; }
   const key = process.env.RESEND_API_KEY;
   const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
-  if (!key || !to) { console.log(`[mail:off] to=${to} subject="${subject}"`); log.push({ to, subject, text: text || '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
+  // (#65) A letter mail-off did not send may carry a sign-in code or a link that proves an address: outside tests neither
+  // its text nor a code in its subject is kept or written to the host's logs.
+  if (!key || !to) { const T = process.env.NODE_ENV === 'test'; console.log(`[mail:off] to=${to} subject="${T ? subject : String(subject || '').replace(/\d{3} ?\d{3}/g, '••• •••')}"`); log.push({ to, subject: T ? subject : String(subject || '').replace(/\d{3} ?\d{3}/g, '••• •••'), text: T ? text || '' : '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
   // The test house mails only its testers, and says so in the subject.
   if (process.env.STAGING === '1') {
     const allow = String(process.env.MAIL_ALLOW || '').toLowerCase().split(/[\s,]+/).filter(Boolean);

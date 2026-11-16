@@ -2,11 +2,14 @@
 # it passes (Render → the service → Settings → "Wait for CI to pass before deploy", Will's switch). Two engines
 # (27 Oct): the suite runs on SQLite as it always did, and the smoke suite and the static SQL check run against a
 # real Postgres, since that is what the live house will stand on.
+# (#66, 16 Nov) workflow_dispatch: promote.yml starts this on main after a promotion, since its push (the workflow's own
+# token) starts nothing by itself; the run's checks then show on the promoted commit.
 name: test
 on:
   push:
     branches: [main, next]
   pull_request:
+  workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-24.04

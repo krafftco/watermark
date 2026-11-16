@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.86.3 · An invitation that is only ever a letter; every morning's release walked · 16 November 2026
+
+- When the house cannot send mail, inviting a curator now says plainly that the letter could not be sent. It no longer shows the link, which opens the archive signed in as the person invited; that link goes only to their mailbox.
+- Each morning's release is now followed by the full checks and a walk through the house's doors, and a failure in either is raised at once.
+
 ## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
 
 - A room's own bar now stops below the house's header instead of sliding under it: the Library's filter and star rows, the trade's search bar, and the columns beside a work. The header's height is measured once on each page and every room's bar and every jump to an anchor follows it, upright or turned, on a phone, an iPad or the desk.
