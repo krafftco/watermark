@@ -84,7 +84,6 @@
   {"file":"museums.js","sql":"SELECT w.*, w.created_at AS t, 'made' AS why FROM works w WHERE w.maker_id IN ( ${} ) AND ","why":"SELECT *","issue":94},
   {"file":"notebook.js","sql":"SELECT w.id, w.slug, w.title, w.status, COUNT(*) people, SUM(COALESCE(s.seconds,0)) secs, ","why":"no LIMIT","issue":79},
   {"file":"open.js","sql":"SELECT w.*, m.name AS maker_name, m.kind AS maker_kind, m.handle FROM works w JOIN makers ","why":"no LIMIT, SELECT *","issue":94},
-  {"file":"own.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY created_at D","why":"no LIMIT, SELECT *","issue":83},
   {"file":"pairs.js","sql":"SELECT w.* FROM works w WHERE w.maker_id=? AND w.id > ? AND w.status='hidden' AND w.origin","why":"no LIMIT, SELECT *","issue":94},
   {"file":"pairs.js","sql":"SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND original_file IS ","why":"no LIMIT, SELECT *","issue":94},
   {"file":"pairs.js","sql":"SELECT DISTINCT maker_id FROM works WHERE status='hidden' AND created_at > datetime('now',","why":"no LIMIT","issue":94},
