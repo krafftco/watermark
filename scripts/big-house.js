@@ -84,9 +84,7 @@ const ALLOW = [
   { room: 'studio /studio/licenses', budget: 'bytes', max: 4400000, issue: 87 }, // measured 3,489,937
   { room: 'studio /studio/licenses', budget: 'rows', max: 10000, issue: 87 }, // measured 8,000
   { room: 'studio /studio/accounts', budget: 'stmts', max: 2700, issue: 90 }, // measured 2,085
-  { room: 'studio /studio/analytics', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
   { room: 'studio /studio/books', budget: 'stmts', max: 12200, issue: 93 }, // measured 9,745
-  { room: 'studio /studio/digest', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
   { room: 'studio /studio/trove?sort=unfinished', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
 ];
 
