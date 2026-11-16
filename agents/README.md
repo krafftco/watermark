@@ -37,6 +37,6 @@ Will Fullerton is the CEO and decides. The CTO session runs the House and report
 Lanes are labels: `lane:stability`, `lane:pictures`, `lane:onboarding`, `lane:access-legal`, `lane:ops`, `lane:market`, `lane:guests`, `lane:record`. `draft` marks words waiting on Will.
 
 ## What is not built yet
-- **The agents' door**: the Floor and the analyst need to read the house's own desk (feedback, new makers, the week's counts) without a person's sign-in. Until it exists those seats are designed, not seated. Issue: "Ops: the agents' door".
+- **The agents' door** is built and shut: `GET /agents/desk.json` (see `docs/SECURITY.md`, "The agents' door"). It opens when Will sets `AGENT_KEY` (32 characters or more) on Render's `watermark` service and gives the same value to the scheduled seats, which send it as `Authorization: Bearer …`. Until then the Floor and the analyst stay designed, not seated. The words of guests' letters stay out (`AGENT_LETTERS`, off) until counsel and Will say agents may read them; the front desk sorts by kind, day and work until then.
 - **Mail in**: `house@watermark.krafftco.com` does not receive. The front desk has nothing to read until it does (Will's hands).
 - **The books**: needs Stripe's reports and Zeni; no seat touches money.

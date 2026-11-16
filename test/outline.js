@@ -20,9 +20,9 @@ const body = [
   'II.', '## Linear Perspective',
   'General introduction (40).—The function of the eye (41—45).—Definition of perspective (46—49).—The perception of the object depends on the direction of the eye (50).',
   'III.', 'Six Books on Light and Shade.', 'General introduction (110).—Prolegomena (111).—Scheme of the books on light and shade (112).—Different principles and plans of treatment (113—116).',
-  'IV.', 'Perspective of Disappearance.', 'Definition (222).—An illustration by experiment (223).—A guiding rule (224).—An experiment (225).',
+  'IV.', 'PERSPECTIVE OF DISAPPEARANCE', 'Definition (222).—An illustration by experiment (223).—A guiding rule (224).—An experiment (225).',
   'V.', 'Theory of colours.', 'The reciprocal effects of colours on objects placed opposite each other (263—271).—Combination of different colours in cast shadows (279. 280).—The effect of colours in the camera obscura (281—283).—On the colours of derived shadows (284).',
-  'VI.', "'Prospettiva de' colri' (Perspective of Colour) and Aerial Perspective.", 'General rules (289—291).—An exceptional case (292).—An experiment (293).—The practice of the Perspective of Colour (294—300).',
+  'VI.', 'PERSPECTIVE OF COLOUR AND AERIAL PERSPECTIVE', 'General rules (289—291).—An exceptional case (292).—An experiment (293).—The practice of the Perspective of Colour (294—300).',
   'VII.', 'On the Proportions and on the Movements of the Human Figure.', 'Preliminary observations (308).—Proportions of the head and face (310—318).—Proportions of the arm (350—361).—The movement of the arm (362).',
   'VIII.', 'Botany for Painters and Elements of Landscape Painting.', 'Classification of trees (393).—The relative position of leaves (394—400).—Light and shade on groups of trees (453—457).—On the treatment of light for landscapes (458—470).',
   'IX.', '## The Practice of Painting', IX_SYN,
@@ -49,7 +49,8 @@ const body = [
   '(279. 280).', 'OF THE COLOURS OF SHADOWS.', 'The text of notes 279 and 280.',
   '(281-283).', 'OF THE CAMERA OBSCURA.', 'The text of note 281.', '282.', 'The text of note 282.', ...fill(284, 288),
   // VI: a range written backwards before its note: nothing is missing, so it stays a line.
-  'VI.', "'Prospettiva de' colri' (Perspective of Colour) and Aerial Perspective.", ...fill(289, 297), '(298—290).', ...fill(298, 300),
+  // VI (#67, as the real page has it): the title starts with a quotation mark and runs over three short paragraphs.
+  'VI.', "'Prospettiva de' colri' (Perspective of Colour)", 'and', 'Aerial Perspective.', "Richter's introduction to the perspective of colour: Leonardo's notes on how colours change with distance and with the air between the eye and the thing seen are gathered here, with his rules for painting them.", ...fill(289, 297), '(298—290).', ...fill(298, 300),
   'VII.', 'On the Proportions and on the Movements of the Human Figure.', ...fill(308, 313), ...fill(315, 318), ...fill(350, 354),
   '(355-361).', 'OF THE ARM.', 'The text that opens at 355.', '357.', 'The text of note 357.', ...fill(358, 362),
   // VIII: a topic whose later numbers have no line of their own.
@@ -142,8 +143,8 @@ if (require.main === module) (async () => {
     const r = await get('/read/notebooks?c=0&l=n2'); assert.equal(r.status, 200); const h = r.h; const S = secs(h); const T = toc(h);
     // The chapters: front, each volume's title page and contents, one chapter per section under its own title.
     assert.deepEqual(T, ['The beginning', 'Volume 1', 'Contents of Volume 1',
-      'I. Prolegomena and General Introduction to the Book on Painting', 'II. Linear Perspective', 'III. Six books on Light and Shade', 'IV. Perspective of Disappearance', 'V. Theory of colours',
-      "VI. 'Prospettiva de' colri' (Perspective of Colour) and Aerial Perspective", 'VII. On the Proportions and on the Movements of the Human Figure', 'VIII. Botany for Painters and Elements of Landscape Painting',
+      'I. Prolegomena and General Introduction to the Book on Painting', 'II. Linear Perspective', 'III. Six Books on Light and Shade', 'IV. Perspective of Disappearance', 'V. Theory of colours',
+      'VI. Perspective of Colour and Aerial Perspective', 'VII. On the Proportions and on the Movements of the Human Figure', 'VIII. Botany for Painters and Elements of Landscape Painting',
       'IX. The Practice of Painting', 'X. Studies and Sketches for Pictures and Decorations', 'Volume 2', 'Contents of Volume 2',
       'XI. The notes on Sculpture', 'XII. Architectural Designs', 'XIII. Theoretical writings on Architecture', 'XIV. Anatomy, Zoology and Physiology', 'XV. Astronomy', 'XVI. Physical Geography',
       'XVII. Topographical Notes', 'XVIII. Naval Warfare.—Mechanical Appliances.—Music', 'XIX. Philosophical Maxims. Morals. Polemics and Speculations', 'XX. Humorous Writings', 'XXI. Letters. Personal Records. Dated Notes', 'XXII. Miscellaneous Notes'],
@@ -220,16 +221,26 @@ if (require.main === module) (async () => {
     assert.equal(R(r.h).remap1.length > 0, true, 'the 13 Nov chaptering is carried');
     const q = await get(`/read/notebooks?c=2&l=n1&q=${encodeURIComponent('The stability of a building is the result')}`); assert.equal(R(q.h).at, C.XIII, 'a passage sent opens where it now is');
     console.log('ok: old places (the import\'s and 13 Nov\'s) land inside the book, never an error');
-    // One miss must not cascade (#59): with IV's numeral lost, the body's own reading would leave III holding III–XXII;
-    // the contents' own numbering finds every other section again, and the host's log says so.
+    // One miss must not cascade (#59, #67): with any one section's numeral lost, only that section is lost; the host's
+    // log says the body and the contents disagree.
+    const chOf = b => { const out = []; let cur = { head: null, paras: [] }; for (const p of b.split(/\n\s*\n/)) { if (/^## /.test(p)) { if (cur.head || cur.paras.length) out.push(cur); cur = { head: p.slice(3), paras: [] }; } else cur.paras.push(p); } out.push(cur); return out; };
+    const P = body.split('\n\n'); const start = P.indexOf('1.'); const ALL = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI', 'XXII'];
+    const isCapsT = x => !/[a-z]/.test(x) && /[A-Z]{3}/.test(x);
+    for (const no of ALL.slice(1)) {
+      const j = P.findIndex((p, k) => k > start && p.replace(/_/g, '') === `${no}.` && !isCapsT(P[k + 1]) && !/^Volume|^THE NOTEBOOKS/.test(P[k + 1]) && !/^This numeral/.test(P[k + 1]) && !(k > P.indexOf('Volume 2') && k <= P.indexOf('Miscellaneous notes (1379—1566).')));
+      assert.ok(j > start, `found ${no}'s numeral in the body`);
+      const trap = P.findIndex(p => /^This numeral is not a section/.test(p)); // the fixture's own stray "XI." would rightly stand for a lost XI
+      const lostB = P.filter((_, k) => k !== j && !(no === 'XI' && (k === trap || k === trap - 1))).join('\n\n');
+      const nb = OL.build({ slug: 'lost-' + no, body: lostB }, chOf(lostB));
+      const got = nb.chapters.filter(c => c.kind === 'section').map(c => c.no);
+      assert.deepEqual(got, ALL.filter(x => x !== no), `without ${no}'s numeral: ${got.join(' ')}`);
+    }
     const lost = body.replace('\n\nIV.\n\nPerspective of Disappearance.\n\n222.', '\n\nPerspective of Disappearance.\n\n222.'); assert.notEqual(lost, body);
     add('notebooks-lost', 'The Notebooks of Leonardo da Vinci', lost);
     const logs = []; const log0 = console.log; console.log = (...a) => { logs.push(a.join(' ')); };
-    let L2; try { L2 = await get('/read/notebooks-lost?c=0&l=n2'); } finally { console.log = log0; }
-    const T2 = toc(L2.h);
-    assert.ok(logs.includes('[outline] notebooks-lost: sections 21 of 22 matched (by the contents; the body\'s own reading gave 3)'), 'the log line: ' + JSON.stringify(logs.filter(x => x.startsWith('[outline]'))));
-    assert.deepEqual(T2.filter(x => /^[IVXL]+\. /.test(x)).map(x => x.split('.')[0]), ['I', 'II', 'III', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI', 'XXII'], 'every other section found: ' + JSON.stringify(T2));
-    console.log('ok: a lost numeral does not cascade: the sections are found by the contents, and the log says 21 of 22');
+    try { await get('/read/notebooks-lost?c=0&l=n2'); } finally { console.log = log0; }
+    assert.ok(logs.includes('[outline] notebooks-lost: sections 21 of 22 found, 21 titled as the contents'), 'the log line: ' + JSON.stringify(logs.filter(x => x.startsWith('[outline]'))));
+    console.log('ok: with any one section\'s numeral lost (II–XXII, each in turn), only that section is lost; the log says so');
     // The seam for the codices.
     assert.deepEqual(app.locals.bookNotes.note('notebooks', 772), { n: 772, chapter: C.XIII, section: 'XIII', ms: [{ ms: 'C.A.', name: 'Codex Atlanticus', folio: '172b; 516b', line: 'C.A. 172b; 516b' }] });
     assert.equal(app.locals.bookNotes.note('river', 1), null); assert.equal(app.locals.bookNotes.note('notebooks', 20), null);

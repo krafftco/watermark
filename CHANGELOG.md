@@ -5,10 +5,21 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.86.3 · Desks that answer quickly at any size · 16 November 2026
+## 1.87.1 · Desks that answer quickly at any size · 16 November 2026
 
 - The Studio's vault lists the newest 2,000 works; the rest are found by Find. A maker's copyright page, the gallerist's notes and the Studio's front page answer in a fraction of the time on a large collection.
 - Every room of the house is now measured on each change against a collection of 100,000 works, as a visitor, a maker, a museum and the Studio.
+
+## 1.87.0 · The house keeps its own counts for its desk · 16 November 2026
+
+- The house can hand its own scheduled helpers the day's counts and who joined, read-only and shut until the house opens it. No letter's words, no name and no address are in it.
+- On Postgres every index of the house is now built without holding a write, and one left half-built is rebuilt at the next start.
+- The house's slow-moment trail keeps only the path of an address that carries a key, a token or a code.
+
+## 1.86.3 · An invitation that is only ever a letter; every morning's release walked · 16 November 2026
+
+- When the house cannot send mail, inviting a curator now says plainly that the letter could not be sent. It no longer shows the link, which opens the archive signed in as the person invited; that link goes only to their mailbox.
+- Each morning's release is now followed by the full checks and a walk through the house's doors, and a failure in either is raised at once.
 
 ## 1.86.2 · Bars below the header, pages the width of the screen · 15 November 2026
 

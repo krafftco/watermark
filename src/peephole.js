@@ -201,6 +201,9 @@ ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Dat
   // PLAY_CENTS of play money in the pocket once, and may open the back office too. The live house only points the way.
   const PLAY = process.env.STAGING === '1', PLAY_CENTS = Number(process.env.PLAY_CENTS || 50000), NEXT = process.env.PLAYHOUSE_BASE || 'https://watermark-next.onrender.com';
   if (!db.prepare("SELECT 1 FROM pragma_table_info('readers') WHERE name='played_at'").get()) db.exec('ALTER TABLE readers ADD COLUMN played_at TEXT');
+  // A reader at play is not a maker who joined (16 Nov, #28): their studio carries door 'play', so the agents' door and
+  // the counts leave them out by that mark. Once, on a house at play, the readers' studios opened before this day get it.
+  if (PLAY) try { db.prepare("UPDATE makers SET door='play' WHERE door='house' AND bio='A reader of the house, at play.' AND lower(email) IN (SELECT lower(email) FROM readers)").run(); } catch (e) { console.error('[peephole] play mark', e.message); }
   app.post('/peephole/play/account', (req, res) => {
     noStore(res); const r = readerOf(req); if (!PLAY || !r || !r.id) return res.sendStatus(403);
     const email = r.email.toLowerCase();
@@ -208,7 +211,7 @@ ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Dat
     if (!m) {
       const slugify = x => String(x).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'maker';
       let handle = slugify(r.name), i = 2; while (db.prepare('SELECT 1 FROM makers WHERE handle=?').get(handle)) handle = `${slugify(r.name)}-${i++}`;
-      db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door, bio) VALUES (?,?,?,'maker',datetime('now'),'house',?)").run(handle, r.name, email, 'A reader of the house, at play.');
+      db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door, bio) VALUES (?,?,?,'maker',datetime('now'),'play',?)").run(handle, r.name, email, 'A reader of the house, at play.');
       m = db.prepare('SELECT * FROM makers WHERE handle=?').get(handle);
     }
     if (app.locals.admit) app.locals.admit(req, res, email, 'the peephole');
