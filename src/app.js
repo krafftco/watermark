@@ -1929,7 +1929,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let rows = req.query.room ? [] : troveRows('w.maker_id=?', [maker.id], 2000);
     const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
     if (room) rows = troveRows('w.id IN (SELECT cw.work_id FROM collection_works cw WHERE cw.collection_id=?)', [room.id], 2000);
-    const st = app.locals.standing ? app.locals.standing() : {}, cp = app.locals.capturesOf ? app.locals.capturesOf() : {}; rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
+    const shownIds = rows.map(w => w.id); const st = app.locals.standing ? app.locals.standing(shownIds) : {}, cp = app.locals.capturesOf ? app.locals.capturesOf(shownIds) : {}; /* (#86) the rows shown, not every work */ rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
     const sorts = { stars: (a, b) => (b.stars || 0) - (a.stars || 0) || b.earned - a.earned, standing: (a, b) => b.applause - a.applause || b.standing - a.standing || b.seen - a.seen, duds: (a, b) => (a.seen >= 20 ? a.standing : 9) - (b.seen >= 20 ? b.standing : 9) || b.seen - a.seen, earned: (a, b) => b.earned - a.earned || b.seen - a.seen, seen: (a, b) => b.seen - a.seen, newest: (a, b) => b.id - a.id, taken: (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')), untapped: (a, b) => (b.licensed ? -1 : b.seen) - (a.licensed ? -1 : a.seen), unfinished: (a, b) => a.complete - b.complete };
     const sort = sorts[req.query.sort] ? req.query.sort : 'earned';
     rows.sort(sorts[sort]);
