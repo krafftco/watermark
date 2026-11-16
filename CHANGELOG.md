@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.0 · The house keeps its own counts for its desk · 16 November 2026
+
+- The house can hand its own scheduled helpers the day's counts and who joined, read-only and shut until the house opens it. No letter's words, no name and no address are in it.
+- On Postgres every index of the house is now built without holding a write, and one left half-built is rebuilt at the next start.
+- The house's slow-moment trail keeps only the path of an address that carries a key, a token or a code.
+
 ## 1.86.3 · An invitation that is only ever a letter; every morning's release walked · 16 November 2026
 
 - When the house cannot send mail, inviting a curator now says plainly that the letter could not be sent. It no longer shows the link, which opens the archive signed in as the person invited; that link goes only to their mailbox.

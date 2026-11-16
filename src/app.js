@@ -474,7 +474,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
-  app.use((req, res, next) => { const r = global.__wmLast || (global.__wmLast = []); r.push(`${req.method} ${String(req.originalUrl || req.url).slice(0, 120)}`); if (r.length > 8) r.shift(); next(); }); // the last few requests, for the lag line (server.js)
+  // The trail keeps no secret (16 Nov, #28): the agents' door keeps only its path, in any case; and any address whose query
+  // names a key, token, code, secret or authorization (in any case) keeps only its path, house-wide.
+  const SECRET_PARAM = /^(key|token|code|secret|authorization)$/i;
+  const trailUrl = req => { const u = String(req.originalUrl || req.url || ''); const q = u.indexOf('?'); if (/^\/agents\//i.test(req.path)) return req.path; if (q < 0) return u; try { for (const k of new URLSearchParams(u.slice(q + 1)).keys()) if (SECRET_PARAM.test(k)) return u.slice(0, q); } catch (e) { return u.slice(0, q); } return u; };
+  app.use((req, res, next) => { const r = global.__wmLast || (global.__wmLast = []); r.push(`${req.method} ${trailUrl(req).slice(0, 120)}`); if (r.length > 8) r.shift(); next(); }); // the last few requests, for the lag line (server.js)
   app.use((req, res, next) => V.REQ.run({ path: req.path }, next)); // every page knows where it is (the rooms sheet)
   require('./devices').mountDevices(app, { db, C, V, mail, ledger }); // your devices (27 Oct): the gate that signs out an ended device, before any route
 
@@ -2768,6 +2772,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const pgActivity = db.kind === 'postgres' ? (() => { try { return db.prepare("SELECT pid, application_name app, state, wait_event_type wait, wait_event, floor(extract(epoch from (now() - COALESCE(query_start, backend_start)))) age_s, left(query, 120) q FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY backend_start").all(); } catch (e) { return [{ error: e.message.split('\n')[0] }]; } })() : undefined;
     res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, al: app.locals.spend ? app.locals.spend.today() : null, faults: process.faults || null, pgSlow: (() => { try { return require('./pgsync').slow(); } catch (e) { return null; } })(), lastFault: app.locals.lastFault || null, screenFault: app.locals.screenFault || null });
   });
+  // The agents' door (15 Nov, #28): a read-only desk feed for the Floor and the analyst, shut unless AGENT_KEY is set.
+  // On the web process, as /healthz and the API are; the worker answers no one.
+  if (ROLE.web) require('./agentsdoor').mountAgentsDoor(app, { db });
   // security.txt (RFC 9116): where a researcher writes, and the house's claims page.
   app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });
 

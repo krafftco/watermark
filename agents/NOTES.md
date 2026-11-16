@@ -65,6 +65,15 @@ The CTO session keeps it honest.
 - **Controls too small or under another on an iPad upright** (15 Nov). 701–900 px wide is a real screen. The `reach` job
   walks it; if you add a bar or a row of controls, run `node scripts/reach-walk.js` yourself.
 - **A bigger target that moved the page** (15 Nov, #48). Enlarge a control with padding and a negative margin of the same size, but read every rule that already pads it first (`.st-plate a` had 3 px: the margin takes back only what you add); an inline-block (a slider in a label) sits on the text line by its margin box, so a symmetric margin can still grow the line. Compare boxes before and after, never by eye. A panel with `display:grid|flex` ignores its `hidden` attribute unless it has a `[hidden]{display:none}` rule.
+- **A "public" field that was not** (16 Nov, #28): `makers.handle` is `slugify(name)` as typed at joining, not the public
+  page's slug, and the test house turns peephole readers into `kind='maker'` rows (now `door='play'`). Before you call
+  anything about a person public, find every door that writes it. Exclude rows by their own mark, never by name.
+- **A secret in an address reaches the `[lag]` trail** (16 Nov, #28): app.js keeps only the path for any query naming
+  key/token/code/secret/authorization. Express routes ignore case (`/AGENTS/…` opens `/agents/…`): test a path with `/i`.
+- **Postgres index builds hold writes** (16 Nov, #28): `src/indexes.js` builds CONCURRENTLY on Postgres (one statement per
+  exec, never inside `db.transaction`) and drops and rebuilds any of its names left INVALID. Add new indexes to its LIST.
+- **A Postgres test run leaves its schema behind**: give each run a fresh database (`createdb`, drop after), or the second
+  run fails on a unique handle.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 

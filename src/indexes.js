@@ -38,15 +38,36 @@ const LIST = [
   ['work_releases_work', 'work_releases (work_id)'],
   ['print_orders_status', 'print_orders (status)'],
   ['tips_post', 'tips (post_slug)'],
+  // the agents' door (#28): each of its lists reads only its window, by the day
+  ['feedback_at', 'feedback (at)'],
+  ['sightings_created', 'sightings (created_at)'],
+  ['disputes_at', 'disputes (at)'],
+  ['makers_created', 'makers (created_at)'],
+  ['works_created', 'works (created_at)'],
+  ['ledger_type_at', 'ledger (type, at)'],
+  ['licenses_starts', 'licenses (starts_at)'],
 ];
+// On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
+// website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.
+// It runs as a statement of its own, never inside a transaction (pgsync's exec of one statement is a simple query). A
+// concurrent build that dies half-way (a restart, a deploy, a duplicate) leaves the index INVALID, and IF NOT EXISTS
+// would then skip it for ever: so each pass first asks pg_index for any of these names not `indisvalid`, says so in the
+// log, drops it (DROP INDEX CONCURRENTLY) and builds it again. The pass runs at every boot of the chores process. SQLite
+// keeps the plain form (it has no concurrent build and no invalid state).
 function ensure(db, { log = console.log } = {}) {
-  let made = 0; const skipped = [];
+  let made = 0; const skipped = []; const pg = db.kind === 'postgres';
+  const names = new Set(LIST.map(([n]) => n).concat('works_find'));
+  if (pg) {
+    let bad = []; try { bad = db.prepare("SELECT c.relname AS name FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace s ON s.oid = c.relnamespace WHERE s.nspname = current_schema() AND NOT i.indisvalid LIMIT 500").all().map(r => r.name).filter(n => names.has(n)); } catch (e) { log(`[indexes] could not ask for invalid indexes: ${String(e.message).slice(0, 120)}`); }
+    for (const n of bad) { log(`[indexes] ${n} was left half-built (invalid): dropping it to build again`); try { db.exec(`DROP INDEX CONCURRENTLY IF EXISTS ${n}`); } catch (e) { skipped.push(`${n} (invalid, not dropped): ${String(e.message).slice(0, 80)}`); } }
+  }
+  const create = pg ? 'CREATE INDEX CONCURRENTLY IF NOT EXISTS' : 'CREATE INDEX IF NOT EXISTS';
   for (const [name, on] of LIST) {
-    try { db.exec(`CREATE INDEX IF NOT EXISTS ${name} ON ${on}`); made++; } catch (e) { skipped.push(`${name}: ${String(e.message).slice(0, 80)}`); }
+    try { db.exec(`${create} ${name} ON ${on}`); made++; } catch (e) { skipped.push(`${name}: ${String(e.message).slice(0, 80)}`); }
   }
   // Search at scale (find.js): the words of a work under a trigram index, so a word anywhere is found without a scan.
-  if (db.kind === 'postgres') {
-    try { db.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm'); db.exec("CREATE INDEX IF NOT EXISTS works_find ON works USING gin ((lower(coalesce(title,'') || ' ' || coalesce(place,'') || ' ' || coalesce(keywords,'') || ' ' || coalesce(accession,'') || ' ' || coalesce(substr(taken_at,1,4),''))) gin_trgm_ops)"); made++; } catch (e) { skipped.push(`works_find: ${String(e.message).slice(0, 120)}`); }
+  if (pg) {
+    try { db.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm'); db.exec(`${create} works_find ON works USING gin ((lower(coalesce(title,'') || ' ' || coalesce(place,'') || ' ' || coalesce(keywords,'') || ' ' || coalesce(accession,'') || ' ' || coalesce(substr(taken_at,1,4),''))) gin_trgm_ops)`); made++; } catch (e) { skipped.push(`works_find: ${String(e.message).slice(0, 120)}`); }
   }
   if (skipped.length) log(`[indexes] ${made} in place; skipped ${skipped.length}: ${skipped.join(' · ')}`);
   return { made, skipped };
