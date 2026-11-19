@@ -221,7 +221,11 @@ function hook() {
   const Database = require('better-sqlite3');
   const mem = new Database(':memory:'); const P = Object.getPrototypeOf(mem.prepare('SELECT 1')); mem.close();
   const note = (sql, ms, rows) => {
-    if (!cur) return; cur.n++; cur.dbMs += ms;
+    if (!cur) return;
+    // The house's own log of visits is kept in memory and written every five seconds, in one batch, whichever room is
+    // being walked when the clock strikes (18 Nov: /studio read 304 statements, 199 of them the batch). It is no room's.
+    if (/^\s*INSERT INTO hits\b/.test(sql)) return;
+    cur.n++; cur.dbMs += ms;
     const k = cur.by.get(sql) || { n: 0, ms: 0 }; k.n++; k.ms += ms; cur.by.set(sql, k);
     if (ms > cur.slow.ms) cur.slow = { ms, sql };
     if (rows > cur.most.rows) cur.most = { rows, sql };
