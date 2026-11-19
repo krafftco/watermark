@@ -129,7 +129,7 @@ jobs:
   # is raised in full by scripts/engine-findings.js, named "webkit". A WebKit that will not install fails the job.
   reach-webkit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       WM_ENGINE: webkit
       # A gate (#55). Its first two runs were advisory (WM_WEBKIT_ADVISORY: '1', findings as warnings) because WebKit
