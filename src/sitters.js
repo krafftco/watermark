@@ -292,6 +292,13 @@ ${a.status === 'asked' ? `<form method="post" action="/sit/ask/${esc(a.token)}" 
   // The photographer's cost: what their sitters have been paid from their side.
   const owedOut = m => { const r = db.prepare('SELECT COALESCE(SUM(p.cents),0) s, COUNT(*) n FROM sitter_pay p WHERE p.maker_id=?').get(m.id); const by = {}; for (const x of db.prepare('SELECT s.name, SUM(p.cents) c FROM sitter_pay p JOIN sitters s ON s.id=p.sitter_id WHERE p.maker_id=? GROUP BY s.id').all(m.id)) by[x.name || 'A sitter'] = x.c; return { s: r.s, n: r.n, by }; };
   const earnedBy = s => db.prepare('SELECT COALESCE(SUM(cents),0) c, COUNT(*) n FROM sitter_pay WHERE sitter_id=?').get(s.id);
+  // (#85) owedOut for many makers in two questions (the statements of /studio and /studio/payouts).
+  const owedOutBy = ids => {
+    const GR = require('./grouped'); const f = GR.inList('p.maker_id', ids); const out = new Map();
+    for (const r of db.prepare(`SELECT p.maker_id id, COALESCE(SUM(p.cents),0) s, COUNT(*) n FROM sitter_pay p WHERE ${f.sql} GROUP BY p.maker_id`).all(...f.args)) out.set(Number(r.id), { s: r.s, n: r.n, by: {} });
+    for (const x of db.prepare(`SELECT p.maker_id mid, s.name, SUM(p.cents) c FROM sitter_pay p JOIN sitters s ON s.id=p.sitter_id WHERE ${f.sql} GROUP BY p.maker_id, s.id, s.name ORDER BY s.id`).all(...f.args)) { const o = out.get(Number(x.mid)); if (o) o.by[x.name || 'A sitter'] = x.c; }
+    return out;
+  };
   { const append = ledger.append; ledger.append = function (db_, type, subject, data) { const r = append.apply(this, arguments); try { if (type === 'license.requested') setImmediate(() => { try { ask(subject); } catch (e) { console.error('[sitters] ask', e.message); } }); if (type === 'license.granted' && data && data.paid) setImmediate(() => { try { pay(subject); } catch (e) { console.error('[sitters] pay', e.message); } }); } catch (e) { /* */ } return r; }; }
 
 
@@ -324,7 +331,7 @@ ${a.status === 'asked' ? `<form method="post" action="/sit/ask/${esc(a.token)}" 
   const inWorks = ids => { const out = {}; if (!ids.length) return out; for (const r of db.prepare(`SELECT st.work_id, s.name FROM sittings st JOIN sitters s ON s.id=st.sitter_id WHERE st.status='on' AND st.credit=1 AND s.credit=1 AND st.work_id IN (${ids.map(() => '?').join(',')})`).all(...ids)) (out[r.work_id] = out[r.work_id] || []).push(r.name || 'a guest'); return out; };
   const mineIn = (b, ids) => { if (!b || !ids.length) return new Set(); const s = sitterOf(b); if (!s) return new Set(); return new Set(db.prepare(`SELECT work_id FROM sittings WHERE sitter_id=? AND status='on' AND work_id IN (${ids.map(() => '?').join(',')})`).all(s.id, ...ids).map(r => r.work_id)); };
 
-  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf, ask, waiting, pay, owedOut, earnedBy, claim, inWorks, mineIn };
+  app.locals.sitters = { sync, gate, credit, block, sitterFor, sittingsOf, ask, waiting, pay, owedOut, owedOutBy, earnedBy, claim, inWorks, mineIn };
   return app.locals.sitters;
 }
 module.exports = { mountSitters };

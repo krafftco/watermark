@@ -129,7 +129,7 @@ jobs:
   # is raised in full by scripts/engine-findings.js, named "webkit". A WebKit that will not install fails the job.
   reach-webkit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       WM_ENGINE: webkit
       # A gate (#55). Its first two runs were advisory (WM_WEBKIT_ADVISORY: '1', findings as warnings) because WebKit
@@ -200,4 +200,4 @@ jobs:
           run() { "$@" 2>&1 | tee /tmp/out.txt || { echo "::error title=$1 $2::$(tail -c 1500 /tmp/out.txt | tr '\n' ' ' | tr -d '%')"; exit 1; }; }
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

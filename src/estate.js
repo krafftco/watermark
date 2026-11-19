@@ -76,7 +76,10 @@ function mountEstate(app, { db, V, C, mail, ledger, isStudio, studioOnly, makerO
   // The maker's room.
   app.get('/account/estate', (req, res) => {
     const m = makerOf(req); if (!m) return res.redirect('/signin?next=/account/estate');
-    const ws = works(m), bytes = ws.reduce((a, w) => a + (+w.bytes || 0), 0), hs = heirsOf(m), ok = req.query.ok ? String(req.query.ok) : '';
+    // (#84, the scale gate) The page read every work to count them and add their bytes (60,000 rows for a museum); the
+    // database counts and sums. The catalogue itself (the PDF, the CSV, the zip) is the whole archive by design.
+    const t = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(bytes),0) b FROM works WHERE maker_id=? AND status IN ('held','hidden','restoring')").get(m.id);
+    const ws = { length: Number(t.n) || 0 }, bytes = Number(t.b) || 0, hs = heirsOf(m), ok = req.query.ok ? String(req.query.ok) : '';
     res.send(V.layout({ title: 'Your estate · Watermark', path: '/account/estate', studio: true, body: `<section class="studio-wrap est"><p class="k">Your estate</p><h1>The catalogue of your work.</h1>
 <p class="lede">Everything you have made, kept as one record: every work with its picture, its date and place, its fingerprint and its entry on the register. Take it with you at any time; name who keeps it after you.</p>${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
 <section class="est-b"><h2>Take the catalogue</h2><p>${ws.length.toLocaleString('en-US')} works${bytes ? ` · ${gb(bytes)} GB of masters` : ''}.</p>

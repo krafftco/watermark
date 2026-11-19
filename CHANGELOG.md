@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.2 · Every desk, a page at a time · 16 November 2026
+
+- A studio with tens of thousands of works opens at once. Your holdings, the Library and the Masters desk show the newest two hundred, with Older and Newer and a search that looks through everything you hold.
+- The Studio's money, accounts, books, licences, analytics and hanging desks ask each question once for the whole house, not once per maker or per work.
+
 ## 1.87.1 · Desks that answer quickly at any size · 16 November 2026
 
 - The Studio's vault lists the newest 2,000 works; the rest are found by Find. A maker's copyright page, the gallerist's notes and the Studio's front page answer in a fraction of the time on a large collection.

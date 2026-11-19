@@ -155,18 +155,23 @@ ${list.length ? `<ul class="nbk-l">${list.map(tile).join('')}</ul>` : `<p class=
     const m = makerOf && makerOf(req); if (!m) return res.redirect('/signin?next=/account/held');
     const span = req.query.span === 'all' ? null : (+req.query.days || 90);
     const since = span ? `AND COALESCE(s.last_at, s.at) > datetime('now','-${Math.max(1, Math.min(3650, span))} days')` : '';
-    const rows = db.prepare(`SELECT w.id, w.slug, w.title, w.status, COUNT(*) people, SUM(COALESCE(s.seconds,0)) secs, SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) back FROM works w JOIN stood s ON s.work_id=w.id WHERE w.maker_id=? ${since} GROUP BY w.id, w.slug, w.title, w.status`).all(m.id).filter(r => r.people >= FLOOR);
-    const cnt = (t, id) => { try { return db.prepare(`SELECT COUNT(*) n FROM ${t} WHERE work_id=?`).get(id).n; } catch (e) { return 0; } };
-    for (const r of rows) { r.avg = r.secs / r.people; r.hats = cnt('applause', r.id); r.bravos = cnt('bravos', r.id); r.notes = db.prepare('SELECT COUNT(*) n FROM work_notes WHERE work_id=? AND public=1 AND removed_at IS NULL').get(r.id).n; r.saved = cnt('hang_works', r.id); r.backPct = Math.round(100 * r.back / r.people); }
+    // (#79, the scale gate) Every work people stood before was read (30,000 for a museum), the floor and the order applied
+    // in the process, then five counts asked per row. Now the database keeps the floor (HAVING), orders by the chosen
+    // measure and gives the hundred shown and the twelve off view; the counts are one grouped question each, for those.
     const by = req.query.by === 'people' ? 'people' : req.query.by === 'back' ? 'backPct' : 'avg';
-    rows.sort((a, c) => c[by] - a[by]);
-    const off = rows.filter(r => r.status !== 'held').slice(0, 12);
+    const ORDER = { avg: 'SUM(COALESCE(s.seconds,0)) * 1.0 / COUNT(*)', people: 'COUNT(*)', backPct: 'ROUND(100.0 * SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) / COUNT(*))' }[by];
+    const top = (extra, n) => db.prepare(`SELECT w.id, w.slug, w.title, w.status, COUNT(*) people, SUM(COALESCE(s.seconds,0)) secs, SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) back FROM works w JOIN stood s ON s.work_id=w.id WHERE w.maker_id=? ${extra} ${since} GROUP BY w.id, w.slug, w.title, w.status HAVING COUNT(*) >= ? ORDER BY ${ORDER} DESC, w.id LIMIT ${n}`).all(m.id, FLOOR);
+    const rows = top('', 100), off = top("AND w.status<>'held'", 12);
+    const ids = [...new Set([...rows, ...off].map(r => r.id))], marks = ids.map(() => '?').join(',');
+    const per = (t, extra = '') => { const out = new Map(); if (!ids.length) return out; try { for (const x of db.prepare(`SELECT work_id id, COUNT(*) n FROM ${t} WHERE work_id IN (${marks})${extra} GROUP BY work_id`).all(...ids)) out.set(Number(x.id), Number(x.n) || 0); } catch (e) { /* a table a fresh house lacks: none */ } return out; };
+    const hats = per('applause'), bravos = per('bravos'), notes = per('work_notes', ' AND public=1 AND removed_at IS NULL'), saved = per('hang_works');
+    for (const r of [...rows, ...off]) { r.people = Number(r.people); r.secs = Number(r.secs) || 0; r.back = Number(r.back) || 0; r.avg = r.secs / r.people; r.hats = hats.get(r.id) || 0; r.bravos = bravos.get(r.id) || 0; r.notes = notes.get(r.id) || 0; r.saved = saved.get(r.id) || 0; r.backPct = Math.round(100 * r.back / r.people); }
     const tbl = list => `<table class="tbl hld-t"><tr><th></th><th>Work</th><th>People</th><th>Each stood</th><th>Came back</th><th>Hats</th><th>Bravos</th><th>Saved</th><th>Notes</th></tr>${list.map(r => `<tr><td><img class="hld-th" src="/img/${esc(r.slug)}/thumb" alt=""></td><td><a href="/w/${esc(r.slug)}">${esc(r.title)}</a>${r.status !== 'held' ? ' <i class="hld-off">not on view</i>' : ''}</td><td>${r.people}</td><td>${dur(r.avg)}</td><td>${r.backPct}%</td><td>${r.hats}</td><td>${r.bravos}</td><td>${r.saved}</td><td>${r.notes}</td></tr>`).join('')}</table>`;
     const link = (k, v, l) => `<a class="${(req.query[k] || '') === v ? 'on' : ''}" href="/account/held?${k}=${v}${k !== 'by' && req.query.by ? `&by=${esc(req.query.by)}` : ''}${k !== 'days' && k !== 'span' && req.query.days ? `&days=${esc(req.query.days)}` : ''}">${l}</a>`;
     res.set('Cache-Control', 'private, no-store').send(layout({ title: 'What held people · Watermark', path: '/account/held', studio: true, body: `<section class="studio-wrap hld">
 <p class="k">${m.kind === 'institution' ? 'The institution' : 'Your studio'}</p><h1>What held people.</h1><p class="lede">Your works by how long people stood before them and came back. What to hang next, what to bring out of the store, what to put in front. People are counted, never named, and a work shows only once ${FLOOR} people have stood before it.</p>
 <p class="nbk-s">${link('by', 'avg', 'Longest each')}${link('by', 'people', 'Most people')}${link('by', 'back', 'Most returned to')} · ${link('days', '30', '30 days')}${link('days', '90', '90 days')}${link('span', 'all', 'All time')}</p>
-${rows.length ? tbl(rows.slice(0, 100)) : '<p class="note">Not enough looking yet to say. It fills in as people wander.</p>'}
+${rows.length ? tbl(rows) : '<p class="note">Not enough looking yet to say. It fills in as people wander.</p>'}
 ${off.length ? `<h2>Not on view, and holding people</h2><p class="note">Works kept back or off the walls that people stood before anyway: worth a second look.</p>${tbl(off)}` : ''}</section>` }));
   });
 

@@ -39,7 +39,8 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
   // ---------- the Studio side: invite a maker or an estate ----------
   app.get('/studio/accounts', studioOnly, (req, res) => {
     const list = db.prepare(`SELECT m.*, (SELECT COUNT(*) FROM works w WHERE w.maker_id=m.id) AS works FROM makers m ORDER BY m.id`).all();
-    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, week: app.locals.firstWeek ? m => app.locals.firstWeek.line(m) : null, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
+    const weeks = app.locals.firstWeek && app.locals.firstWeek.lines ? app.locals.firstWeek.lines(list) : null; // (#90) every maker's line, grouped
+    res.send(A.studioAccounts({ list, base: C.base, notice: req.query.ok, week: weeks ? m => weeks.get(Number(m.id)) : null, asks: app.locals.houseAsksBlock ? app.locals.houseAsksBlock() : '', intros: app.locals.introductions ? require('./introductions').introBlock({ list: app.locals.introductions.all(), used: 0, limit: 0, base: C.base, action: '/studio/introductions', studio: true }) : '' }));
   });
   app.post('/studio/accounts', studioOnly, (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 120); if (!name) return res.redirect('/studio/accounts');
@@ -147,16 +148,28 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     res.redirect('/studio/accounts?ok=' + encodeURIComponent(to === 'held' ? `${m.name} is held; their work is private until released.` : `${m.name} is released.`));
   });
 
-  function dashboard(m) {
+  // (#78, the scale gate) The desk read every work of the maker with five sums apiece: for a museum of 60,000, 3.7 s
+  // and a 72 MB page. Now the counts are one grouped question (by the index on maker, status, curated, stars), the
+  // holdings are a page of the newest (deskpage.js: ?before / ?after by id, ?q asks the database, ?stars narrows), the
+  // per-work sums are asked only for the rows shown, and the jewels are the newest JEWELS of them.
+  const JEWELS = 48;
+  function dashboard(m, query = {}) {
     const pct = m.share_pct || 85;
     const paid = "l.status IN ('active','expired') AND l.price_cents > 0";
-    const works = db.prepare(`SELECT w.id, w.slug, w.title, w.place, w.status, w.curated, w.stars, w.share_cents, w.width, w.height, w.accession, w.bytes,
+    const DP = require('./deskpage');
+    const cols = `w.id, w.slug, w.title, w.place, w.status, w.curated, w.stars, w.share_cents, w.width, w.height, w.accession, w.bytes,
       (SELECT COALESCE(SUM(l.price_cents),0) FROM licenses l WHERE l.work_id=w.id AND ${paid}) AS gross,
       (SELECT COUNT(*) FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=w.id AND ${paid} AND u.key='social') AS shares,
       (SELECT COUNT(*) FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=w.id AND ${paid} AND u.key!='social') AS licenses,
       (SELECT COALESCE(SUM(count),0) FROM views v WHERE v.work_id=w.id AND v.day >= date('now','-30 day')) AS seen30,
-      (SELECT COUNT(*) FROM sightings s WHERE s.work_id=w.id) AS sightings
-      FROM works w WHERE w.maker_id=? ORDER BY w.stars DESC, gross DESC, seen30 DESC, w.id`).all(m.id);
+      (SELECT COUNT(*) FROM sightings s WHERE s.work_id=w.id) AS sightings`;
+    const counted = db.prepare('SELECT COALESCE(stars,0) AS s, status, COALESCE(curated,0) AS c, COUNT(*) AS n FROM works WHERE maker_id=? GROUP BY COALESCE(stars,0), status, COALESCE(curated,0)').all(m.id);
+    const tally = f => counted.reduce((a, r) => a + (f(r) ? Number(r.n) : 0), 0);
+    const stars = [1, 2, 3, 4, 5].includes(Number(query.stars)) ? Number(query.stars) : null;
+    const at = DP.where(query);
+    const pg = DP.page(db, { cols, base: `w.maker_id=?${stars ? ' AND w.stars=?' : ''}`, params: stars ? [m.id, stars] : [m.id], at });
+    const works = pg.rows;
+    const jewels = db.prepare(`SELECT ${cols} FROM works w WHERE w.maker_id=? AND w.curated=1 ORDER BY w.id DESC LIMIT ${JEWELS}`).all(m.id);
     const byUse = db.prepare(`SELECT u.key, u.name, u.kind, COUNT(l.id) AS n, COALESCE(SUM(l.price_cents),0) AS gross FROM uses u
       LEFT JOIN licenses l ON l.use_id=u.id AND ${paid} WHERE u.maker_id=? GROUP BY u.id ORDER BY u.sort`).all(m.id);
     const recent = db.prepare(`SELECT l.ref, l.price_cents, l.house_cents, l.starts_at, u.name AS use_name, u.key, w.title, w.slug FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id
@@ -170,9 +183,9 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
     const month = db.prepare(`SELECT COALESCE(SUM(${MK}),0) v, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND ${paid} AND strftime('%Y-%m', l.starts_at) = strftime('%Y-%m','now')`).get(m.id);
     const toMaker = c => Math.round(c * pct / 100); const own = c => c; // gross, gross30 and ttm are already the maker's side
     return {
-      m, pct, works, byUse, recent, multiple: MULTIPLE,
-      jewels: works.filter(w => w.curated),
-      totals: { works: works.length, public: works.filter(w => w.status === 'held').length, jewels: works.filter(w => w.curated).length,
+      m, pct, works, byUse, recent, multiple: MULTIPLE, jewels, at, older: pg.older, newer: pg.newer, stars,
+      starCounts: [5, 4, 3, 2, 1, 0].map(n => [n, tally(r => Number(r.s) === n)]),
+      totals: { works: tally(() => true), public: tally(r => r.status === 'held'), private: tally(r => r.status !== 'held'), jewels: tally(r => Number(r.c) === 1),
         earned: own(gross), earned30: own(gross30), ttm: own(ttm), today: today.v, todayN: today.n, month: month.v, monthN: month.n, bank: !!m.stripe_account, shares: byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.n, 0),
         value: ttm ? own(ttm) * MULTIPLE : null, tips: app.locals.tipsTo ? toMaker(app.locals.tipsTo(m.id).s) : 0, tipsN: app.locals.tipsTo ? app.locals.tipsTo(m.id).n : 0, royalties: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).r : 0, resales: app.locals.royaltiesTo ? app.locals.royaltiesTo(m.id).n : 0 },
       toMaker,
@@ -189,7 +202,12 @@ function mountAccounts(app, { db, C, sign, isStudio, studioOnly, slugify, DEFAUL
       if (m.kind === 'gallery') role = { kind: 'gallery', represents: n("SELECT COUNT(*) n FROM representation WHERE gallery_id=? AND status='on'", m.id), offered: n("SELECT COUNT(*) n FROM representation WHERE gallery_id=? AND status='offered'", m.id), shows: (app.locals.galleries ? app.locals.galleries.shows(m) : []).length, cuts: n("SELECT COALESCE(SUM(cents),0) n FROM gallery_cuts WHERE gallery_id=?", m.id), cutsMonth: n("SELECT COALESCE(SUM(cents),0) n FROM gallery_cuts WHERE gallery_id=? AND strftime('%Y-%m', at)=strftime('%Y-%m','now')", m.id) };
       if (m.kind === 'institution') role = { kind: 'institution', rights: app.locals.rights ? app.locals.rights.waiting(m.id) : 0, team: n('SELECT COUNT(*) n FROM institution_staff WHERE maker_id=?', m.id), open: n("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held' AND open IS NOT NULL", m.id), imports: n('SELECT COUNT(*) n FROM iiif_imports WHERE maker_id=?', m.id), rightsOpen: !!m.rights_open };
     } catch (e) { role = null; }
-    res.send(A.dashboard({ ...dashboard(m), role, almanack: (() => { try { const AL = app.locals.almanack; if (!AL) return null; const y = String(new Date().getFullYear()); return { y, has: !!AL.existing(m, y) }; } catch (e) { return null; } })(), ok: req.query.ok || null, batch: app.locals.batch && !(req.query.maker && isStudio(req)) ? app.locals.batch.bar({ action: '/account/works/batch' }) : '', keys: app.locals.keys ? app.locals.keys.ofMaker(m) : [], steps: !(req.query.maker && isStudio(req)) && app.locals.steps ? app.locals.steps.of(m, keyedNow) : null, rep: (db.prepare("SELECT g.name FROM representation r JOIN makers g ON g.id=r.gallery_id WHERE r.maker_id=? AND r.status='offered' ORDER BY r.id DESC LIMIT 1").get(m.id) || {}).name || null, edit: (() => { const RG = require('./regard'); const now = RG.standing(db, m.id); const at = [3, 4, 5].map(f => ({ from: f, ...RG.standing(db, m.id, { from: f }) })); const best = at.filter(x => x.n > 0).sort((a, b) => b.standing - a.standing)[0] || null; return { now, at, best: best && best.standing > now.standing ? best : null }; })(), asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, claims: app.locals.disputes ? app.locals.disputes.waiting(m.id) : 0, pairs: app.locals.pairs ? app.locals.pairs.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', stars: Number(req.query.stars) || null, culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
+    const dash = dashboard(m, { q: req.query.q, before: req.query.before, after: req.query.after, stars: req.query.stars });
+    // "The edit" (standing, and what a cull would give) is a photographer's row, never shown to a gallery or a museum; it
+    // weighs every work of the maker, so it is asked once (not four times) and only up to EDIT_MAX works (#78).
+    const EDIT_MAX = 5000;
+    const edit = role || dash.totals.works > EDIT_MAX || dash.totals.works < 5 ? null : (() => { const RG = require('./regard'); const rows = db.prepare('SELECT id, stars, status FROM works WHERE maker_id=? ORDER BY id LIMIT ' + (EDIT_MAX + 1)).all(m.id); const now = RG.standing(db, m.id, { rows }); const at = [3, 4, 5].map(f => ({ from: f, ...RG.standing(db, m.id, { from: f, rows }) })); const best = at.filter(x => x.n > 0).sort((a, b) => b.standing - a.standing)[0] || null; return { now, at, best: best && best.standing > now.standing ? best : null }; })();
+    res.send(A.dashboard({ ...dash, role, edit, maker: req.query.maker && isStudio(req) ? String(req.query.maker) : null, almanack: (() => { try { const AL = app.locals.almanack; if (!AL) return null; const y = String(new Date().getFullYear()); return { y, has: !!AL.existing(m, y) }; } catch (e) { return null; } })(), ok: req.query.ok || null, batch: app.locals.batch && !(req.query.maker && isStudio(req)) ? app.locals.batch.bar({ action: '/account/works/batch' }) : '', keys: app.locals.keys ? app.locals.keys.ofMaker(m) : [], steps: !(req.query.maker && isStudio(req)) && app.locals.steps ? app.locals.steps.of(m, keyedNow) : null, rep: (db.prepare("SELECT g.name FROM representation r JOIN makers g ON g.id=r.gallery_id WHERE r.maker_id=? AND r.status='offered' ORDER BY r.id DESC LIMIT 1").get(m.id) || {}).name || null, asks: app.locals.requests ? app.locals.requests.waiting(m.id) : 0, claims: app.locals.disputes ? app.locals.disputes.waiting(m.id) : 0, pairs: app.locals.pairs ? app.locals.pairs.waiting(m.id) : 0, owed: app.locals.payouts ? app.locals.payouts.statement(m).owed : 0, viewing: !!(req.query.maker && isStudio(req)), need: req.query.need, welcome: req.query.welcome === '1', culled: req.query.culled ? { from: Number(req.query.culled), down: Number(req.query.down) || 0, up: Number(req.query.up) || 0 } : null, keeping: app.locals.keepingOf ? app.locals.keepingOf(m) : null, money: V.money, keyed: app.locals.makerKeys ? app.locals.makerKeys(m).length > 0 : true }));
   });
   // The maker marks the jewels of their gallery; they lead the dashboard.
   app.post('/account/works/:slug/jewel', (req, res) => {

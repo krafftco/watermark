@@ -27,10 +27,26 @@
     root.querySelectorAll('[data-lib-stars] button').forEach(function (b) { b.setAttribute('aria-pressed', +b.getAttribute('data-s') === F.stars); });
     root.querySelectorAll('[data-lib-pub] button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-p') === F.pub); });
   }
-  root.querySelector('[data-lib-flags]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.flag = b.getAttribute('data-f'); render(); });
-  root.querySelector('[data-lib-stars]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.stars = +b.getAttribute('data-s'); render(); });
-  root.querySelector('[data-lib-pub]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.pub = b.getAttribute('data-p'); render(); });
-  var qIn = root.querySelector('[data-lib-q]'); var qT; qIn.addEventListener('input', function () { clearTimeout(qT); qT = setTimeout(function () { F.q = qIn.value.trim(); render(); }, 120); });
+  // (#81) A maker with more than a page (a museum of 60,000): the house holds one page here; a filter, a word, Older and
+  // Newer ask it for the page that matches (/account/table.json), and the grid is laid again. Otherwise all is here.
+  var more = root.querySelector('[data-lib-more]'), olderB = root.querySelector('[data-lib-older]'), newerB = root.querySelector('[data-lib-newer]'), seq = 0;
+  function paintMore() { if (!more) return; more.hidden = !(D.paged && (D.older || D.newer)); olderB.disabled = !D.older; newerB.disabled = !D.newer; }
+  function load(at) {
+    if (!D.paged) { render(); return; }
+    var p = new URLSearchParams(); if (F.flag !== 'all') p.set('flag', F.flag); if (F.stars) p.set('stars', F.stars); if (F.pub !== 'all') p.set('pub', F.pub); if (F.q) p.set('q', F.q);
+    if (at) Object.keys(at).forEach(function (k) { p.set(k, at[k]); });
+    var my = ++seq; root.setAttribute('aria-busy', 'true');
+    fetch('/account/table.json?' + p.toString(), { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
+      if (my !== seq) return; root.removeAttribute('aria-busy');
+      works = j.works || []; bySlug = {}; works.forEach(function (w) { bySlug[w.slug] = w; }); D.total = j.total; D.older = j.older; D.newer = j.newer;
+      render(); if (at) grid.scrollIntoView({ block: 'start' });
+    }).catch(function () { root.removeAttribute('aria-busy'); toast('The house could not be reached.'); });
+  }
+  if (more) { olderB.addEventListener('click', function () { if (D.older) load({ before: D.older }); }); newerB.addEventListener('click', function () { if (D.newer) load({ after: D.newer }); }); }
+  root.querySelector('[data-lib-flags]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.flag = b.getAttribute('data-f'); load(); });
+  root.querySelector('[data-lib-stars]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.stars = +b.getAttribute('data-s'); load(); });
+  root.querySelector('[data-lib-pub]').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; F.pub = b.getAttribute('data-p'); load(); });
+  var qIn = root.querySelector('[data-lib-q]'); var qT; qIn.addEventListener('input', function () { clearTimeout(qT); qT = setTimeout(function () { F.q = qIn.value.trim(); load(); }, D.paged ? 350 : 120); });
   // The tiles.
   function stars(n) { var s = ''; for (var i = 1; i <= 5; i++) s += '<i' + (i <= n ? ' class="on"' : '') + '>★</i>'; return s; }
   function tile(w) {
@@ -45,7 +61,8 @@
     shown = works.filter(matches); if (F.pub === 'weak') shown.sort(function (a, b) { return (a.merit || 0) - (b.merit || 0); }); paintFilters();
     grid.innerHTML = shown.map(tile).join('');
     root.querySelector('[data-lib-empty]').hidden = shown.length > 0;
-    root.querySelector('[data-lib-count]').textContent = shown.length === works.length ? works.length + ' works' : shown.length + ' of ' + works.length;
+    root.querySelector('[data-lib-count]').textContent = D.paged ? shown.length + ' of ' + Number(D.total || 0).toLocaleString('en-US') : shown.length === works.length ? works.length + ' works' : shown.length + ' of ' + works.length;
+    paintMore();
     sel.forEach(function (s) { if (!shown.some(function (w) { return w.slug === s; })) sel.delete(s); });
     paintSel();
   }

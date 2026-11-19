@@ -57,44 +57,7 @@ const ALLOW = [
   // 16 Nov, the first measurement (#8): every room over a budget at 100,000 works, each with the issue that takes it out.
   // Counts (rows, bytes, statements) are allowed to a quarter above what was measured; times to three times it (CI's
   // runner is slower and shared), and a time is listed when it reached half its line, so a slow run does not flake.
-  { room: 'museum /account/held', budget: 'rows', max: 37600, issue: 79 }, // measured 30,004
   { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // measured 60,000 (hidden under #70's Wander cache until #70)
-  { room: 'museum /account', budget: 'pageMs', max: 11200, issue: 78 }, // measured 3,723
-  { room: 'museum /account', budget: 'bytes', max: 93200000, issue: 78 }, // measured 74,558,883
-  { room: 'museum /account', budget: 'stmtMs', max: 1150, issue: 78 }, // measured 383
-  { room: 'museum /account', budget: 'rows', max: 75000, issue: 78 }, // measured 60,000
-  { room: 'museum /account/gallerist', budget: 'stmtMs', max: 500, issue: 80 }, // measured 157
-  { room: 'museum /account/gallerist', budget: 'rows', max: 75000, issue: 80 }, // measured 60,000
-  { room: 'museum /account/table', budget: 'bytes', max: 21400000, issue: 81 }, // measured 17,051,284
-  { room: 'museum /account/table', budget: 'stmtMs', max: 850, issue: 81 }, // measured 268
-  { room: 'museum /account/table', budget: 'rows', max: 75000, issue: 81 }, // measured 60,000
-  { room: 'museum /account/hang', budget: 'rows', max: 26300, issue: 82 }, // measured 21,000
-  { room: 'museum /account/copyright', budget: 'stmtMs', max: 1200, issue: 83 }, // measured 389
-  { room: 'museum /account/copyright', budget: 'rows', max: 75000, issue: 83 }, // measured 60,000
-  { room: 'museum /account/estate', budget: 'stmtMs', max: 550, issue: 84 }, // measured 181
-  { room: 'museum /account/estate', budget: 'rows', max: 75000, issue: 84 }, // measured 60,000
-  { room: 'studio /studio', budget: 'pageMs', max: 3200, issue: 85 }, // measured 1,058
-  { room: 'studio /studio', budget: 'stmts', max: 9200, issue: 85 }, // measured 7,301
-  { room: 'studio /studio', budget: 'stmtMs', max: 550, issue: 85 }, // measured 171
-  { room: 'studio /studio/trove', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
-  { room: 'studio /studio/licenses', budget: 'pageMs', max: 3050, issue: 87 }, // measured 1,011
-  { room: 'studio /studio/licenses', budget: 'bytes', max: 4400000, issue: 87 }, // measured 3,489,937
-  { room: 'studio /studio/licenses', budget: 'rows', max: 10000, issue: 87 }, // measured 8,000
-  { room: 'studio /studio/payouts', budget: 'stmts', max: 9000, issue: 85 }, // measured 7,183
-  { room: 'studio /studio/masters', budget: 'pageMs', max: 4250, issue: 88 }, // measured 1,414
-  { room: 'studio /studio/masters', budget: 'bytes', max: 60000000, issue: 88 }, // measured 47,931,455
-  { room: 'studio /studio/masters', budget: 'stmtMs', max: 450, issue: 88 }, // measured 140
-  { room: 'studio /studio/masters', budget: 'rows', max: 122600, issue: 88 }, // measured 98,001
-  { room: 'studio /studio/standard', budget: 'rows', max: 104200, issue: 89 }, // measured 83,300
-  { room: 'studio /studio/accounts', budget: 'stmts', max: 2700, issue: 90 }, // measured 2,085
-  { room: 'studio /studio/hangs', budget: 'bytes', max: 9400000, issue: 91 }, // measured 7,492,791
-  { room: 'studio /studio/hangs', budget: 'stmtMs', max: 400, issue: 91 }, // measured 129
-  { room: 'studio /studio/hangs', budget: 'rows', max: 122600, issue: 91 }, // measured 98,001
-  { room: 'studio /studio/analytics', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
-  { room: 'studio /studio/books', budget: 'stmts', max: 12200, issue: 93 }, // measured 9,745
-  { room: 'studio /studio/digest', budget: 'rows', max: 75600, issue: 92 }, // measured 60,462
-  { room: 'studio /account', budget: 'bytes', max: 4700000, issue: 78 }, // measured 3,729,892
-  { room: 'studio /studio/trove?sort=unfinished', budget: 'rows', max: 25000, issue: 86 }, // measured 20,000
 ];
 
 // ---------------------------------------------------------------------------------------------------------------- build
@@ -198,7 +161,7 @@ function build(dir) {
         const l0 = db.prepare('SELECT MIN(id) a FROM licenses').get().a;
         db.exec(R(5000, `INSERT INTO wall_letters (license_id, at) SELECT ${l0} + g, datetime('now', '-' || (g % 100) || ' day') FROM s`));
       });
-      step('hits', () => db.exec(R(60000, "INSERT INTO hits (at, path, kind, status, ms, visitor, device, browser, bot, bytes) SELECT datetime('now', '-' || (g % 43200) || ' minute'), CASE g % 4 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || g WHEN 2 THEN '/' ELSE '/look' END, 'page', 200, 20 + (g % 300), 'v' || (g % 9000), 'phone', 'safari', 0, 20000 FROM s")));
+      step('hits', () => db.exec(R(60000, "INSERT INTO hits (at, path, kind, status, ms, visitor, device, browser, bot, bytes) SELECT CAST(strftime('%s', datetime('now', '-' || (g % 43200) || ' minute')) AS INTEGER), CASE g % 4 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || g WHEN 2 THEN '/' ELSE '/look' END, 'page', 200, 20 + (g % 300), 'v' || (g % 9000), 'phone', 'safari', 0, 20000 FROM s")));
       step('texts', () => {
         db.exec(R(150, `INSERT INTO texts (slug, kind, title, author, maker_id, body, public, status, created_at, updated_at) SELECT 'text-' || g, CASE WHEN g % 3 = 0 THEN 'essay' ELSE 'book' END, 'A text ' || g, 'Author ' || g, CASE WHEN g % 10 = 0 THEN ${M} ELSE ${house} END, '## One\n\n' || 'A paragraph of the text, plain and short. ' || g || '\n\n## Two\n\nAnother.', 1, 'held', datetime('now'), datetime('now') FROM s`));
         db.prepare("INSERT INTO texts (slug, kind, title, author, body, public, status, source, terms) VALUES ('notes-book', 'book', 'A Book of Notes', 'An author of the past', ?, 1, 'held', 'https://example.org/notes', 'Public domain.')").run(notesBook());
@@ -258,7 +221,11 @@ function hook() {
   const Database = require('better-sqlite3');
   const mem = new Database(':memory:'); const P = Object.getPrototypeOf(mem.prepare('SELECT 1')); mem.close();
   const note = (sql, ms, rows) => {
-    if (!cur) return; cur.n++; cur.dbMs += ms;
+    if (!cur) return;
+    // The house's own log of visits is kept in memory and written every five seconds, in one batch, whichever room is
+    // being walked when the clock strikes (18 Nov: /studio read 304 statements, 199 of them the batch). It is no room's.
+    if (/^\s*INSERT INTO hits\b/.test(sql)) return;
+    cur.n++; cur.dbMs += ms;
     const k = cur.by.get(sql) || { n: 0, ms: 0 }; k.n++; k.ms += ms; cur.by.set(sql, k);
     if (ms > cur.slow.ms) cur.slow = { ms, sql };
     if (rows > cur.most.rows) cur.most = { rows, sql };
@@ -326,6 +293,8 @@ async function walk(dir) {
       try {
         const r = await fetch(base + p, { redirect: 'manual', signal: AbortSignal.timeout(120000), headers: { cookie, accept: 'text/html,application/json;q=0.9,*/*;q=0.8', 'user-agent': 'Mozilla/5.0 (Macintosh) big-house' } });
         const buf = Buffer.from(await r.arrayBuffer()); rec.status = r.status; rec.bytes = buf.length; if (r.status >= 300 && r.status < 400) rec.to = r.headers.get('location');
+        // A 500 names its fault (the house keeps its last one), so the annotation says what broke and not only that it did.
+        if (r.status >= 500 && app.locals.lastFault) rec.err = `${app.locals.lastFault.message} ${String(app.locals.lastFault.stack || '').split('\n').slice(1, 3).join(' | ')}`.slice(0, 400);
       } catch (e) { rec.status = 'error'; rec.err = String(e.message).slice(0, 120); }
       rec.ms = Date.now() - t;
       await new Promise(r => setImmediate(r)); cur = null; // what a page left on the loop is its own

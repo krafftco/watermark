@@ -24,47 +24,71 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   // The next Friday, as a person says it ('this Friday', 'Friday the 31st').
   function nextFriday(d = new Date()) { const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; const i = names.indexOf(nyDay(d)); let add = (5 - i + 7) % 7; if (add === 0 && nyHour(d) >= 12) add = 7; const f = new Date(d.getTime() + add * 864e5); return new Intl.DateTimeFormat('en-US', { timeZone: PAY_TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(f); }
   const q = {
-    licensed: { get: (id, pct) => db.prepare(`SELECT COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${FEE.sqlMaker(pct)}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0`).get(id) },
-    thanks: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid'"),
-    royalties: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house')"),
-    paid: db.prepare("SELECT COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE maker_id=? AND status='paid'"),
     rows: db.prepare('SELECT * FROM maker_payouts WHERE maker_id=? ORDER BY id DESC LIMIT 60'),
-    // The printing house (24 Oct): words sold from the Library (the maker's price, the house's share having ridden on top; else the share) and copies sold from the shelf (the seller's price, whole).
-    words: (id, pct) => { try { return db.prepare(`SELECT COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0`).get(pct, id); } catch (e) { return { s: 0, m: 0, n: 0 }; } },
-    copies: id => { try { return db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1").get(id); } catch (e) { return { s: 0, n: 0 }; } },
-    // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
-    clearing: (id, pct) => {
-      const since = `-${HOLD_DAYS} days`; let s = 0, n = 0;
-      const add = r => { if (r) { s += r.s || 0; n += r.n || 0; } };
-      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key<>'print' AND l.created_at > datetime('now', ?)`).get(id, since)); } catch (e) { /* */ }
-      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.status IN ('sent','done','delivered'))`).get(id)); } catch (e) { /* */ }
-      try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid' AND COALESCE(paid_at, created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
-      try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
-      try { add(db.prepare(`SELECT COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)`).get(pct, id, since)); } catch (e) { /* */ }
-      try { add(db.prepare("SELECT COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE c.seller_kind='maker' AND c.seller_id=? AND o.paid=1 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
-      try { if (app.locals.printShops) add(app.locals.printShops.clearing(id, since)); } catch (e) { /* */ }
-      try { if (app.locals.briefs) add(app.locals.briefs.clearing(id, since)); } catch (e) { /* */ }
-      try { if (app.locals.gazette) add(app.locals.gazette.clearing(id, since)); } catch (e) { /* */ }
-      return { s, n };
-    },
   };
   // The statement: gross by kind, the maker's share, what has gone out, what is owed.
-  function statement(m) {
-    const pct = m.share_pct || 85;
-    const L = q.licensed.get(m.id, pct), T = q.thanks.get(m.id), R = q.royalties.get(m.id), P = q.paid.get(m.id).s;
-    const share = L.m;
-    const G = app.locals.galleries ? { out: app.locals.galleries.cutsOut(m), in: app.locals.galleries.cutsIn(m) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
-    const S = app.locals.splits ? app.locals.splits.owedOut(m) : { s: 0, n: 0, by: {} };
-    const Si = app.locals.sitters ? app.locals.sitters.owedOut(m) : { s: 0, n: 0, by: {} }; // your sitters: a cost of the business
-    const W = q.words(m.id, pct), Cp = q.copies(m.id);
-    const Pr = app.locals.printShops ? app.locals.printShops.earned(m.id) : { s: 0, n: 0 }; // the press (26 Oct): prints made for the house
-    const Bf = app.locals.briefs ? app.locals.briefs.earned(m.id) : { s: 0, n: 0 }; // commissions (29 Oct): briefs approved
-    const Gz = app.locals.gazette ? app.locals.gazette.earned(m.id) : { s: 0, n: 0 }; // the Gazette's paid tier (2 Nov)
-    const earned = share + T.s + R.s + W.m + Cp.s + Pr.s + Bf.s + Gz.s - G.out.s + G.in.s - S.s - Si.s;
-    const owed = Math.max(0, earned - P);
-    const Cl = q.clearing(m.id, pct); const clearing = Math.min(owed, Math.max(0, Cl.s)); const cleared = owed - clearing;
-    return { pct, licensed: L, share, thanks: T, royalties: R, words: W, copies: Cp, printing: Pr, commissions: Bf, gazette: Gz, gallery: G, splits: S, sitters: Si, earned, paid: P, owed, clearing, clearingN: Cl.n, cleared, holdDays: HOLD_DAYS, friday: nextFriday(), rows: q.rows.all(m.id) };
+  // (#85, the scale gate) Asked for many makers at once: every sum below is one question grouped by maker (for the makers
+  // given, or everyone past STATEMENTS_IN), where it was ~24 questions a maker (7,300 on the Studio's front page at 300
+  // makers). One maker's statement is the same path with one id, so the arithmetic is one. test/statements.js holds it
+  // to the per-maker questions it replaced, maker by maker, on every kind of money.
+  const STATEMENTS_IN = 400;
+  function statements(makers, { rows = false } = {}) {
+    const GR = require('./grouped');
+    const list = (makers || []).filter(Boolean); const out = new Map(); if (!list.length) return out;
+    const ids = list.length > STATEMENTS_IN ? null : [...new Set(list.map(m => Number(m.id)))];
+    const pctOf = new Map(list.map(m => [Number(m.id), m.share_pct || 85]));
+    const since = `-${HOLD_DAYS} days`;
+    const paid = "l.status IN ('active','expired') AND l.price_cents>0";
+    const MK = FEE.sqlMakerBy('mk'), PCT = FEE.PCT_SQL('mk'), FON = FEE.on() ? '1' : '0';
+    // one grouped question: `{F}` is where the maker filter goes (before any other ?), `col` the maker column.
+    const ask = (col, sql, ...more) => { const F = GR.inList(col, ids); return GR.byId(db.prepare(sql.replace('{F}', F.sql)).all(...F.args, ...more)); };
+    const tryAsk = (...a) => GR.safe(() => ask(...a));
+    const sn = r => ({ s: r ? r.s : 0, n: r ? r.n : 0 });
+    const L = ask('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${MK}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE {F} AND ${paid} GROUP BY w.maker_id`);
+    const T = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE {F} AND status='paid' GROUP BY maker_id");
+    const R = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE {F} AND kind='royalty' AND status IN ('owed','paid','house') GROUP BY maker_id");
+    const P = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE {F} AND status='paid' GROUP BY maker_id");
+    const W = tryAsk('t.maker_id', `SELECT t.maker_id id, COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FON}=1 THEN t.price_cents ELSE CAST(o.price_cents * ${PCT} / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id JOIN makers mk ON mk.id=t.maker_id WHERE {F} AND o.status='paid' AND o.price_cents>0 GROUP BY t.maker_id`);
+    const Cp = tryAsk('c.seller_id', "SELECT c.seller_id id, COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE {F} AND c.seller_kind='maker' AND o.paid=1 GROUP BY c.seller_id");
+    // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
+    const clear = [
+      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND u.key<>'print' AND l.created_at > datetime('now', ?) GROUP BY w.maker_id`, since),
+      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.status IN ('sent','done','delivered')) GROUP BY w.maker_id`),
+      tryAsk('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE {F} AND status='paid' AND COALESCE(paid_at, created_at) > datetime('now', ?) GROUP BY maker_id", since),
+      tryAsk('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE {F} AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?) GROUP BY maker_id", since),
+      tryAsk('t.maker_id', `SELECT t.maker_id id, COALESCE(SUM(CASE WHEN ${FON}=1 THEN t.price_cents ELSE CAST(o.price_cents * ${PCT} / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id JOIN makers mk ON mk.id=t.maker_id WHERE {F} AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?) GROUP BY t.maker_id`, since),
+      tryAsk('c.seller_id', "SELECT c.seller_id id, COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE {F} AND c.seller_kind='maker' AND o.paid=1 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?) GROUP BY c.seller_id", since),
+      GR.safe(() => (app.locals.printShops ? app.locals.printShops.clearingBy(ids, since) : new Map())),
+      GR.safe(() => (app.locals.briefs ? app.locals.briefs.clearingBy(ids, since) : new Map())),
+      GR.safe(() => (app.locals.gazette ? app.locals.gazette.clearingBy(ids, since) : new Map())),
+    ];
+    const GL = app.locals.galleries, Gout = GL ? GL.cutsOutBy(ids) : new Map(), Gin = GL ? GL.cutsInBy(ids) : new Map();
+    const Sp = app.locals.splits ? app.locals.splits.owedOutBy(ids, id => pctOf.get(id) || 85) : new Map();
+    const Sit = app.locals.sitters ? app.locals.sitters.owedOutBy(ids) : new Map(); // your sitters: a cost of the business
+    const Prm = app.locals.printShops ? app.locals.printShops.earnedBy(ids) : new Map(); // the press (26 Oct): prints made for the house
+    const Bfm = app.locals.briefs ? app.locals.briefs.earnedBy(ids) : new Map(); // commissions (29 Oct): briefs approved
+    const Gzm = app.locals.gazette ? app.locals.gazette.earnedBy(ids) : new Map(); // the Gazette's paid tier (2 Nov)
+    const friday = nextFriday();
+    for (const m of list) {
+      const id = Number(m.id); if (out.has(id)) continue;
+      const pct = m.share_pct || 85;
+      const l = L.get(id), w = W.get(id);
+      const Lr = { s: l ? l.s : 0, m: l ? l.m : 0, n: l ? l.n : 0 };
+      const Tr = sn(T.get(id)), Rr = sn(R.get(id)), Pv = P.get(id) ? P.get(id).s : 0;
+      const share = Lr.m;
+      const G = GL ? { out: sn(Gout.get(id)), in: sn(Gin.get(id)) } : { out: { s: 0, n: 0 }, in: { s: 0, n: 0 } };
+      const S = Sp.get(id) || { s: 0, n: 0, by: {} }, Si = Sit.get(id) || { s: 0, n: 0, by: {} };
+      const Wr = { s: w ? w.s : 0, m: w ? w.m : 0, n: w ? w.n : 0 }, Cpr = sn(Cp.get(id));
+      const Pr = sn(Prm.get(id)), Bf = sn(Bfm.get(id)), Gz = sn(Gzm.get(id));
+      const earned = share + Tr.s + Rr.s + Wr.m + Cpr.s + Pr.s + Bf.s + Gz.s - G.out.s + G.in.s - S.s - Si.s;
+      const owed = Math.max(0, earned - Pv);
+      let cs = 0, cn = 0; for (const c of clear) { const r = c.get(id); if (r) { cs += r.s || 0; cn += r.n || 0; } }
+      const clearing = Math.min(owed, Math.max(0, cs)); const cleared = owed - clearing;
+      out.set(id, { pct, licensed: Lr, share, thanks: Tr, royalties: Rr, words: Wr, copies: Cpr, printing: Pr, commissions: Bf, gazette: Gz, gallery: G, splits: S, sitters: Si, earned, paid: Pv, owed, clearing, clearingN: cn, cleared, holdDays: HOLD_DAYS, friday, rows: rows ? q.rows.all(m.id) : [] });
+    }
+    return out;
   }
+  function statement(m) { return statements([m], { rows: true }).get(Number(m.id)); }
   // Pay what has cleared, when the maker can be paid and the house is set to pay. From a dollar up.
   async function pay(m, { by = 'house' } = {}) {
     const st = statement(m); const amt = st.cleared;
@@ -124,7 +148,8 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   app.get('/studio/payouts', (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio/login');
     const V = require('./views'); const esc = V.esc;
-    const rows = db.prepare("SELECT * FROM makers WHERE COALESCE(kind,'maker')<>'institution' ORDER BY name").all().map(m => ({ m, st: statement(m) })).filter(x => x.st.owed > 0 || x.st.paid > 0).sort((a, b) => b.st.owed - a.st.owed);
+    const ms = db.prepare("SELECT * FROM makers WHERE COALESCE(kind,'maker')<>'institution' ORDER BY name").all(); const sts = statements(ms); // (#85) one grouped question a sum, not ~24 a maker
+    const rows = ms.map(m => ({ m, st: sts.get(Number(m.id)) })).filter(x => x.st.owed > 0 || x.st.paid > 0).sort((a, b) => b.st.owed - a.st.owed);
     const owed = rows.reduce((n, x) => n + x.st.owed, 0), cleared = rows.reduce((n, x) => n + x.st.cleared, 0);
     const why = { off: 'Payouts are not switched on (PAYOUTS=stripe)', nobank: 'No bank connected yet', clearing: 'Still inside the hold', small: 'Under a dollar', notready: 'Stripe has not finished the account' };
     const ok = req.query.ok ? `<p class="ok">${esc(String(req.query.ok))}</p>` : '';
@@ -202,7 +227,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   }
   app.locals.fridayLetterFor = letterFor;
   if (process.env.NODE_ENV !== 'test' && ROLE.chores) { setInterval(() => friday().catch(() => {}), 30 * 60 * 1000).unref(); setInterval(() => fridayLetters().catch(() => {}), 30 * 60 * 1000).unref(); }
-  app.locals.payouts = { statement, pay, record, ON, friday, fridayLetters, letterFor, HOLD_DAYS, nextFriday };
+  app.locals.payouts = { statement, statements, pay, record, ON, friday, fridayLetters, letterFor, HOLD_DAYS, nextFriday };
   return app.locals.payouts;
 }
 

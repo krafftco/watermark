@@ -65,22 +65,26 @@ go.textContent='Done: '+ok+' registered'+(skip?', '+skip+' skipped':'');setTimeo
 
 // The register of licenses: every grant, request and ending, with the photograph beside it, grouped the way a
 // registrar reads them: what waits for an answer, what is live, what ends soon, what has ended.
-function licenses({ list }) {
-  const now = Date.now(), soon = now + 30 * 864e5;
-  const groups = [
-    ['Waiting for an answer', l => l.status === 'requested'],
-    ['Awaiting payment', l => l.status === 'awaiting_payment'],
-    ['Ending within thirty days', l => l.status === 'active' && l.ends_at && new Date(l.ends_at).getTime() < soon],
-    ['Live', l => l.status === 'active' && !(l.ends_at && new Date(l.ends_at).getTime() < soon)],
-    ['Ended, declined', l => ['expired', 'declined'].includes(l.status)],
-  ];
-  const seen = new Set();
+// (#87) The register of licences at scale: `groups` (each a bounded list) with `n` the database's counts; or one group
+// paged (`page`: Live or Ended, 200 at a time); or what a find asked for (`found`).
+function licenses({ groups = null, n = {}, q = '', found = null, page = null }) {
   const row = l => `<a class="lg-row" href="/studio/licenses/${esc(l.ref)}"><img src="/img/${esc(l.slug || '')}/thumb" alt="" loading="lazy"><span class="lg-t"><b>${esc(l.title)}</b><small>${esc(l.ref)} · ${date(l.created_at)}</small></span><span class="lg-w"><b>${esc(l.licensee_company || l.licensee_name || '—')}</b><small>${esc(l.licensee_email || '')}</small></span><span class="lg-u">${esc(l.use_name)}${l.ends_at ? `<small>${l.status === 'active' ? 'until' : 'ended'} ${date(l.ends_at)}</small>` : '<small>for good</small>'}</span><span class="lg-f">${money(l.price_cents)}</span><span class="pill s-${esc(l.status)}">${esc(l.status.replace('_', ' '))}</span></a>`;
-  const sections = groups.map(([name, f]) => { const rows = list.filter(l => !seen.has(l.id) && f(l)); rows.forEach(l => seen.add(l.id)); return rows.length ? `<section class="lg-g"><header class="gh"><h2>${name}</h2><span>${rows.length}</span></header><div class="lg-list">${rows.map(row).join('')}</div></section>` : ''; }).join('');
-  const live = list.filter(l => l.status === 'active'), fees = live.reduce((a, l) => a + (l.price_cents || 0), 0);
+  const sec = (name, rows, total, more) => rows.length ? `<section class="lg-g"><header class="gh"><h2>${name}</h2><span>${Number(total).toLocaleString('en-US')}</span></header><div class="lg-list">${rows.map(row).join('')}</div>${total > rows.length ? `<p class="note">The newest ${rows.length} of ${Number(total).toLocaleString('en-US')}.${more ? ` <a href="${more}">See all</a>` : ''}</p>` : ''}</section>` : '';
+  const find = `<form class="dkp-q lg-find" method="get" action="/studio/licenses" role="search"><label><span>Find a licence</span><input type="search" name="q" value="${esc(q)}" placeholder="A reference, a licensee, an email" autocomplete="off"></label><button>Find</button></form>`;
+  let body;
+  if (found) body = `${sec(`Found for “${esc(q)}”`, found, found.length)}${found.length ? '' : '<p class="note">Nothing on the register matches.</p>'}<p><a href="/studio/licenses">All licences</a></p>`;
+  else if (page) {
+    const name = page.show === 'live' ? 'Live' : 'Ended, declined', href = k => `/studio/licenses?show=${page.show}&${k}`;
+    body = `${sec(name, page.rows, page.total)}<nav class="dkp-nav lg-more" aria-label="More licences">${page.newer ? `<a href="${href('after=' + page.newer)}" rel="prev">&larr; Newer</a>` : ''}${page.older ? `<a href="${href('before=' + page.older)}" rel="next">Older &rarr;</a>` : ''}</nav><p><a href="/studio/licenses">All licences</a></p>`;
+  } else {
+    const g = groups || {};
+    body = [sec('Waiting for an answer', g.requested || [], n.requested), sec('Awaiting payment', g.awaiting || [], n.awaiting), sec('Ending within thirty days', g.ending || [], n.ending),
+      sec('Live', g.live || [], n.live, '/studio/licenses?show=live'), sec('Ended, declined', g.ended || [], n.ended, '/studio/licenses?show=ended')].join('') || '<p class="note">No licenses yet.</p>';
+  }
   return layout({ studio: true, title: 'Licenses · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/licenses')}<p class="k">The house</p><h1>Licenses.</h1>
-<div class="hd-held"><span><b>${live.length}</b> live</span><span><b>${list.filter(l => l.status === 'requested').length}</b> waiting</span><span><b>${money(fees)}</b> in live licenses</span><span><b>${list.length}</b> on the register</span></div>
-${sections || '<p class="note">No licenses yet.</p>'}</section>` });
+<div class="hd-held"><span><b>${Number(n.active || 0).toLocaleString('en-US')}</b> live</span><span><b>${Number(n.requested || 0).toLocaleString('en-US')}</b> waiting</span><span><b>${money(n.fees || 0)}</b> in live licenses</span><span><b>${Number(n.all || 0).toLocaleString('en-US')}</b> on the register</span></div>
+${find}
+${body}</section>` });
 }
 
 function licenseDetail({ l, payLink, notice }) {
@@ -247,16 +251,18 @@ ${recent.length ? `<section class="hd-list"><div class="hd-h"><h2>Lately</h2><a 
 
 // Masters: choose the archive folder once; every full-resolution file is matched to the work it was
 // published as and becomes that work's original. Frames not yet published are held privately.
-function masters({ upgraded, web, need = [], min = {}, ok = null }) {
+function masters({ upgraded, web, need = [], min = {}, ok = null, total = null, at = null, older = null, newer = null }) {
+  const DP = require('./deskpage'); if (total == null) total = need.length;
   const U = { social: 'Collect', reference: 'the Reference', editorial: 'In a story', commercial: 'For a company', campaign: 'Before an audience', print: 'On a wall' };
   return layout({ studio: true, title: 'Masters · Watermark', body: `<section class="studio-wrap">${nav('/studio/masters')}
 <p class="k">Vault</p><h1>Masters.</h1>
 <p class="lede">${upgraded} works held at full resolution; ${web} still from the web copy.</p>
 ${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
-<section class="hd-list" id="need"><div class="hd-h"><h2>Waiting for a master</h2><span>${need.length} public photograph${need.length === 1 ? '' : 's'}</span></div>
+<section class="hd-list" id="need"><div class="hd-h"><h2>Waiting for a master</h2><span>${Number(total).toLocaleString('en-US')} public photograph${total === 1 ? '' : 's'}</span></div>
 <p class="note">What each use needs: ${Object.entries(min).map(([k, v]) => `${esc(U[k] || k)} ${v} MP`).join(' &middot; ')}. Below the line, a buyer can still ask, and you are told to upload the master; nothing low-resolution is sent for a campaign or a print.</p>
+${at && (total > need.length || at.q || at.before || at.after) ? DP.controls({ esc, path: '/studio/masters', at, older, newer, hash: '#need', shown: need.length, total }) : ''}
 ${need.length ? need.map(w => `<div class="ms-row"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><div><b>${esc(String(w.title).replace(/[.\s]+$/, ''))}</b><span>${w.width && w.height ? `${w.width.toLocaleString('en-US')} &times; ${w.height.toLocaleString('en-US')}, ${w.mp.toFixed(1)} MP` : 'Size unknown'} &middot; waiting: ${w.waiting.map(k => esc(U[k] || k)).join(', ')}</span></div>
-<form method="post" action="/studio/works/${esc(w.slug)}/master" enctype="multipart/form-data" class="ms-up"><label><input type="file" name="file" accept="image/jpeg,image/tiff,image/png" required onchange="this.form.submit()"><span>Upload the master</span></label></form></div>`).join('') : '<p class="hd-calm">Every public photograph is held at full resolution.</p>'}</section>
+<form method="post" action="/studio/works/${esc(w.slug)}/master" enctype="multipart/form-data" class="ms-up"><label><input type="file" name="file" accept="image/jpeg,image/tiff,image/png" required onchange="this.form.submit()"><span>Upload the master</span></label></form></div>`).join('') : (at && at.q ? '' : '<p class="hd-calm">Every public photograph is held at full resolution.</p>')}</section>
 <form method="post" action="/studio/credentials/scan" class="inline"><button class="link">Read Content Credentials from every original</button></form>
 <form class="form upload bulk" onsubmit="return false">
 <label class="drop"><input type="file" id="mFiles" webkitdirectory directory multiple><b>Choose your exports folder</b><span>Every JPEG, TIFF or PNG inside, in every subfolder. Each file goes straight into the vault in parts, four at a time, at your connection's full speed; a closed tab or a dropped line picks up where it stopped. The house then takes them in one by one: a file that matches a work already held becomes its master; one that matches nothing is held privately in an archive room for its place. Folders starting with an underscore (contact sheets, web exports) are skipped.</span></label>
