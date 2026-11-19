@@ -268,12 +268,17 @@ ${R.errors.length ? `<h3>Lately</h3>${list(R.errors, [r => `<b>${r.status}</b>`,
 </div></article>
 </div></section>`;
   }
+  // (18 Nov, the 502) The desk asked for the whole report again on every visit and every thirty seconds from every open
+  // tab; each asking holds the website's one thread. One report a span is kept for REPORT_KEEP_MS and shared.
+  // `report` itself stays fresh for the house's own callers (the digest, the tests); only the two doors below share.
+  const REPORT_KEEP_MS = 30000; const kept = new Map();
+  const reportKept = (span = 'today') => { const k = kept.get(span); if (k && Date.now() - k.at < REPORT_KEEP_MS) return k.R; const R = report(span); kept.set(span, { at: Date.now(), R }); return R; };
   app.get('/studio/analytics', studioOnly, (req, res) => {
-    const R = report(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
+    const R = reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
     if (req.query.frag) return res.set('Cache-Control', 'private, no-store').send(body(R));
-    res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';setInterval(function(){if(document.hidden)return;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){})},30000)})();</script>` }));
+    res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';var busy=false;setInterval(function(){if(document.hidden||busy)return;busy=true;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){}).then(function(){busy=false})},60000)})();</script>` }));
   });
-  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(report(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
+  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
   return { report, health, flush: tick };
 }
 module.exports = { mountAnalytics, page, device, browser };

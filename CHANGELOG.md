@@ -5,10 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.87.2 · Every desk, a page at a time · 16 November 2026
+## 1.87.3 · Every desk, a page at a time · 19 November 2026
 
 - A studio with tens of thousands of works opens at once. Your holdings, the Library and the Masters desk show the newest two hundred, with Older and Newer and a search that looks through everything you hold.
 - The Studio's money, accounts, books, licences, analytics and hanging desks ask each question once for the whole house, not once per maker or per work.
+- Wander, the hall, the collection, the walk and a museum's page read a page of the collection, never the whole of it, however large the house grows.
+
+## 1.87.2 · The numbers desk asks less · 18 November 2026
+
+- The Studio's numbers page counts in the database, keeps one answer for thirty seconds and refreshes once a minute. The house stopped answering on the evening of 18 November while this page was open; whether the page was the cause is not yet proved.
 
 ## 1.87.1 · Desks that answer quickly at any size · 16 November 2026
 
