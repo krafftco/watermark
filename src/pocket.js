@@ -30,6 +30,9 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
   // What was earned here (not put in) may be cashed out: earned, less what has already gone out, never more than the balance.
   const EARNED = ['curation', 'thanks_in', 'earnings', 'resale', 'hosting', 'sitting'];
   const earned = b => (b ? db.prepare(`SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted' AND kind IN (${EARNED.map(() => '?').join(',')})`).get(b.id, ...EARNED).s : 0);
+  // (#93) Every collector's balance and what of it was earned, in one grouped question (the books' month-end), for the
+  // collectors whose balance is not nought: { buyer: {id, name, code}, balance, earned }, by collector.
+  const balancesAll = () => db.prepare(`SELECT b.id, b.name, b.code, COALESCE(SUM(p.cents),0) bal, COALESCE(SUM(CASE WHEN p.kind IN (${EARNED.map(() => '?').join(',')}) THEN p.cents ELSE 0 END),0) earned FROM pocket p JOIN buyers b ON b.id=p.buyer_id WHERE p.status='posted' GROUP BY b.id, b.name, b.code HAVING COALESCE(SUM(p.cents),0) <> 0 ORDER BY b.id`).all(...EARNED).map(r => ({ buyer: { id: r.id, name: r.name, code: r.code }, balance: Number(r.bal), earned: Number(r.earned) }));
   const cashable = b => (b ? Math.max(0, Math.min(balance(b), earned(b) + db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status IN ('posted','pending') AND kind='cashout'").get(b.id).s)) : 0);
   if (!db.prepare("SELECT 1 FROM pragma_table_info('buyers') WHERE name='stripe_account'").get()) db.exec('ALTER TABLE buyers ADD COLUMN stripe_account TEXT');
   const PAY_ON = () => !!stripe && process.env.PAYOUTS === 'stripe';
@@ -103,7 +106,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     } catch (e) { console.error('[pocket friday]', b.id, e.message); db.prepare('DELETE FROM pocket WHERE id=?').run(id); return { ok: false, why: 'failed', cents }; }
   }
   async function friday() { let n = 0, cents = 0; for (const b of db.prepare('SELECT * FROM buyers WHERE stripe_account IS NOT NULL').all()) { const r = await sweep(b, { by: 'friday' }); if (r.ok) { n++; cents += r.cents; } } return { n, cents }; }
-  app.locals.pocket = { balance, tap, tapOn, spend, credit, earned, cashable, cleared, sweep, friday, history, TOPUPS, settle };
+  app.locals.pocket = { balance, balancesAll, tap, tapOn, spend, credit, earned, cashable, cleared, sweep, friday, history, TOPUPS, settle };
   return app.locals.pocket;
 }
 

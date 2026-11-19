@@ -166,8 +166,15 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   app.get('/studio/hangs', (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio/login');
     const rows = db.prepare("SELECT h.*, b.name AS curator, b.code AS curator_code, (SELECT COUNT(*) FROM hang_works hw WHERE hw.hang_id=h.id) AS n FROM hangs h JOIN buyers b ON b.id=h.buyer_id ORDER BY h.featured DESC, h.public DESC, h.sales DESC, h.updated_at DESC").all();
-    const works = db.prepare("SELECT w.slug, w.title, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' ORDER BY w.stars DESC, w.title").all();
-    res.send(hangsDesk({ rows, works, ok: req.query.ok || null, pct: CURATOR_PCT }));
+    // (#91, the scale gate) The desk listed every held work by slug (98,000 rows, a 7.5 MB page at 100,000 works). Now
+    // a search asks the house: ?q= without scripts, /studio/hangs/find.json as you type; twenty at most, best first.
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    res.send(hangsDesk({ rows, works: q ? findHeld(q) : [], q, ok: req.query.ok || null, pct: CURATOR_PCT }));
+  });
+  const findHeld = q => require('./deskpage').find(db, { cols: 'w.slug, w.title, m.name AS maker', from: 'JOIN makers m ON m.id=w.maker_id', base: "w.status='held'", q });
+  app.get('/studio/hangs/find.json', (req, res) => {
+    if (!isStudio(req)) return res.sendStatus(401);
+    res.set('Cache-Control', 'private, no-store').json({ works: findHeld(String(req.query.q || '').trim().slice(0, 80)) });
   });
   app.post('/studio/hangs/new', (req, res) => {
     if (!isStudio(req)) return res.redirect('/studio/login');
@@ -236,7 +243,7 @@ function hangIt({ w, hangs, hung }) {
 }
 
 // Studio → Hangs: every wall in the house, and the house's own.
-function hangsDesk({ rows, works, ok, pct }) {
+function hangsDesk({ rows, works, q = '', ok, pct }) {
   const { setDeskPath } = require('./views'); setDeskPath('/studio/hangs');
   return layout({ title: 'Hangs · Watermark', studio: true, body: `<section class="studio-wrap"><p class="k">The house</p><h1>Hangs.</h1>
 <p class="lede">Every wall curated in the house, the shown ones first. Feature a wall and it leads the front door. The house hangs walls of its own below; they are curated under the house's name and earn nothing (the ${pct}% stays in the house).</p>
@@ -246,7 +253,11 @@ ${rows.length ? `<div class="tbl cl-tbl">${rows.map(h => `<div class="tbl-r"><sp
 <form method="post" action="/studio/hangs/new" class="cl-f hg-new"><label><span>Title</span><input name="title" maxlength="80" required></label><label><span>A line on the wall</span><textarea name="line" rows="2" maxlength="600"></textarea></label>
 <label><span>Works, by slug, in order (one a line or comma-separated)</span><textarea name="works" rows="5" placeholder="the-lamb\nduomo-dusk"></textarea></label>
 <label class="cl-oath"><input type="checkbox" name="public" value="1" checked> Show it at once</label><button class="buy-btn">Hang it</button></form>
-<details class="hg-slugs"><summary>Every held photograph, by slug</summary><ul>${works.map(w => `<li><code>${esc(w.slug)}</code> ${esc(w.title)} <small>${esc(w.maker)}</small></li>`).join('')}</ul></details></section>` });
+<section class="hg-slugs" aria-label="Find a held photograph"><form method="get" action="/studio/hangs" role="search" class="hg-find"><label><span>Find a held photograph by its title, place or accession number</span><input type="search" name="q" value="${esc(q)}" autocomplete="off" data-hg-q></label><button>Find</button></form>
+<ul data-hg-list>${works.map(w => `<li><code>${esc(w.slug)}</code> ${esc(w.title)} <small>${esc(w.maker)}</small> <button type="button" class="link" data-hg-add="${esc(w.slug)}">Add</button></li>`).join('')}</ul>${q && !works.length ? '<p class="note">Nothing held matches.</p>' : ''}
+<script>(function(){var i=document.querySelector('[data-hg-q]'),l=document.querySelector('[data-hg-list]'),t=document.querySelector('textarea[name=works]'),T,n=0;if(!i||!l)return;function e(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+l.addEventListener('click',function(ev){var b=ev.target.closest('[data-hg-add]');if(!b||!t)return;var s=b.getAttribute('data-hg-add');t.value=(t.value.replace(/\\s+$/,'')+(t.value.trim()?'\\n':'')+s);b.textContent='Added';});
+i.addEventListener('input',function(){clearTimeout(T);T=setTimeout(function(){var q=i.value.trim(),my=++n;if(q.length<2){l.innerHTML='';return}fetch('/studio/hangs/find.json?q='+encodeURIComponent(q),{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(my!==n)return;l.innerHTML=(j.works||[]).map(function(w){return '<li><code>'+e(w.slug)+'</code> '+e(w.title)+' <small>'+e(w.maker)+'</small> <button type="button" class="link" data-hg-add="'+e(w.slug)+'">Add</button></li>'}).join('')}).catch(function(){})},250)});})();</script></section></section>` });
 }
 
 module.exports = { hangHref, hangsDesk, mountHangs, hangsPage, hangPage, hangsBlock, hangIt, hangCard, CURATOR_PCT };

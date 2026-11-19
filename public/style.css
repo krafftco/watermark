@@ -5969,3 +5969,22 @@ main.st{overflow:clip}
 /* The easel's tools on a screen narrower than their row (an iPad upright): they wrap to a second line rather than
    run off the edge where the last ones (Hide) could not be reached (the reach walk in CI, 15 Nov). */
 @media (max-width:1000px){.ez-tools{flex-wrap:wrap;justify-content:center;overflow:visible;border-radius:18px;max-width:calc(100vw - 20px)}}
+/* The desks' lists at scale (#78–#93): a search that asks the house, and Newer / Older (deskpage.js). */
+.dkp{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 0 14px}
+.dkp-q{display:flex;align-items:center;gap:8px;margin:0}
+.dkp-q label{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mu)}
+.dkp-q input{min-height:32px;min-width:15em;padding:4px 8px;font:inherit;font-size:14px}
+.dkp-q button{min-height:32px;padding:4px 12px}
+.dkp-n{font-size:12.5px;color:var(--mu)}.dkp-n a{color:var(--ink)}
+.dkp-nav{display:flex;gap:16px;margin-left:auto}
+.dkp-nav a{display:inline-flex;align-items:center;min-height:32px;padding:0 4px;color:var(--ink)}
+@media (max-width:600px){.dkp-q,.dkp-q label{flex:1 1 100%}.dkp-q input{min-width:0;flex:1}}
+/* The Library past one page (#81): Newer / Older ask the house. */
+.lib-more{display:flex;justify-content:center;gap:24px;margin:18px 0 8px}.lib-more[hidden]{display:none}
+.lib-more button{min-height:32px;padding:4px 12px;color:#e8e4dc}.lib-more button:disabled{opacity:.35;cursor:default}
+/* (#91) The hangs desk: find a held photograph, add its slug. */
+.hg-find{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.hg-find label{display:flex;flex-direction:column;gap:4px;flex:1 1 20em}
+.hg-find input{min-height:32px;padding:4px 8px;font:inherit}.hg-find button{min-height:32px;padding:4px 12px}
+.hg-slugs [data-hg-add]{min-height:24px;min-width:24px;padding:0 6px}
+/* (#87) The licences desk: a find, and Live / Ended a page at a time. */
+.lg-find{margin:0 0 18px}.lg-more{margin:12px 0}

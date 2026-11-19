@@ -284,6 +284,9 @@ ${app.locals.commission ? app.locals.commission.artist(b, m) : ''}</section>` })
   const HOLD = Number(process.env.PAYOUT_HOLD_DAYS || 7);
   const earned = makerId => db.prepare(`SELECT COALESCE(SUM(a.fee_cents),0) s, COUNT(*) n FROM briefs b JOIN brief_answers a ON a.id=b.proposal_id WHERE a.maker_id=? AND b.status='done' AND b.paid=1`).get(makerId);
   const clearing = (makerId, since = `-${HOLD} days`) => db.prepare(`SELECT COALESCE(SUM(a.fee_cents),0) s, COUNT(*) n FROM briefs b JOIN brief_answers a ON a.id=b.proposal_id WHERE a.maker_id=? AND b.status='done' AND b.paid=1 AND b.approved_at > datetime('now', ?)`).get(makerId, since);
+  // (#85) The same two sums for many makers at once, keyed by maker.
+  const earnedBy = ids => { const GR = require('./grouped'); const f = GR.inList('a.maker_id', ids); return GR.byId(db.prepare(`SELECT a.maker_id id, COALESCE(SUM(a.fee_cents),0) s, COUNT(*) n FROM briefs b JOIN brief_answers a ON a.id=b.proposal_id WHERE ${f.sql} AND b.status='done' AND b.paid=1 GROUP BY a.maker_id`).all(...f.args)); };
+  const clearingBy = (ids, since = `-${HOLD} days`) => { const GR = require('./grouped'); const f = GR.inList('a.maker_id', ids); return GR.byId(db.prepare(`SELECT a.maker_id id, COALESCE(SUM(a.fee_cents),0) s, COUNT(*) n FROM briefs b JOIN brief_answers a ON a.id=b.proposal_id WHERE ${f.sql} AND b.status='done' AND b.paid=1 AND b.approved_at > datetime('now', ?) GROUP BY a.maker_id`).all(...f.args, since)); };
   // Approved by itself: BRIEF_APPROVE_DAYS after delivery with no word.
   const quiet = () => { for (const b of db.prepare(`SELECT * FROM briefs WHERE status='delivered' AND delivered_at < datetime('now', ?)`).all(`-${APPROVE_DAYS} days`)) approve(b, 'quiet'); };
   if (!app.locals.noTimers && require('./role').chores) setInterval(() => { try { quiet(); } catch (e) { console.error('[briefs]', e.message); } }, 3600e3).unref();
@@ -292,7 +295,7 @@ ${app.locals.commission ? app.locals.commission.artist(b, m) : ''}</section>` })
     const rows = db.prepare('SELECT b.*, (SELECT COUNT(*) FROM brief_answers a WHERE a.brief_id=b.id) answers FROM briefs b ORDER BY b.id DESC LIMIT 200').all();
     res.send(V.layout({ title: 'Briefs · The house', studio: true, body: `<section class="studio-wrap brf"><p class="k"><a href="/studio">The house</a></p><h1>Briefs.</h1><table class="tbl"><thead><tr><th>Ref</th><th>Brand</th><th>What</th><th>Answers</th><th>State</th><th>Fee</th></tr></thead><tbody>${rows.map(b => `<tr><td><a href="/b/${esc(b.token)}">${esc(b.ref)}</a></td><td>${esc(b.company)}</td><td>${esc(b.title)}</td><td>${b.answers}</td><td>${esc(b.status)}</td><td>${b.fee_cents ? money(b.fee_cents) : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">None yet.</td></tr>'}</tbody></table></section>` }));
   });
-  app.locals.briefs = { earned, clearing, approve, quiet, agreement, funded };
+  app.locals.briefs = { earned, clearing, earnedBy, clearingBy, approve, quiet, agreement, funded };
   return app.locals.briefs;
 }
 module.exports = { mountBriefs, USES, KINDS };

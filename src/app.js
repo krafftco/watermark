@@ -1932,7 +1932,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let rows = req.query.room ? [] : troveRows('w.maker_id=?', [maker.id], 2000);
     const room = req.query.room ? db.prepare('SELECT * FROM collections WHERE slug=?').get(String(req.query.room)) : null;
     if (room) rows = troveRows('w.id IN (SELECT cw.work_id FROM collection_works cw WHERE cw.collection_id=?)', [room.id], 2000);
-    const st = app.locals.standing ? app.locals.standing() : {}, cp = app.locals.capturesOf ? app.locals.capturesOf() : {}; rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
+    const shownIds = rows.map(w => w.id); const st = app.locals.standing ? app.locals.standing(shownIds) : {}, cp = app.locals.capturesOf ? app.locals.capturesOf(shownIds) : {}; /* (#86) the rows shown, not every work */ rows.forEach(w => { w.applause = st[w.id] || 0; w.standing = w.seen ? w.applause / w.seen : 0; w.captures = cp[w.id] || 0; });
     const sorts = { stars: (a, b) => (b.stars || 0) - (a.stars || 0) || b.earned - a.earned, standing: (a, b) => b.applause - a.applause || b.standing - a.standing || b.seen - a.seen, duds: (a, b) => (a.seen >= 20 ? a.standing : 9) - (b.seen >= 20 ? b.standing : 9) || b.seen - a.seen, earned: (a, b) => b.earned - a.earned || b.seen - a.seen, seen: (a, b) => b.seen - a.seen, newest: (a, b) => b.id - a.id, taken: (a, b) => String(b.taken_at || '').localeCompare(String(a.taken_at || '')), untapped: (a, b) => (b.licensed ? -1 : b.seen) - (a.licensed ? -1 : a.seen), unfinished: (a, b) => a.complete - b.complete };
     const sort = sorts[req.query.sort] ? req.query.sort : 'earned';
     rows.sort(sorts[sort]);
@@ -2527,11 +2527,20 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     })().finally(() => { crScan = null; });
     res.redirect('/studio/masters?ok=' + encodeURIComponent('Reading Content Credentials from every original. It runs in the background.'));
   });
-  app.get('/studio/masters', studioOnly, (req, res) => res.send(S.masters({
-    upgraded: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NOT NULL').get().n,
-    web: db.prepare('SELECT COUNT(*) n FROM works WHERE master_at IS NULL').get().n,
-    need: db.prepare("SELECT slug, title, width, height, status FROM works WHERE status='held' ORDER BY id").all().filter(w => !meets(w, 'campaign'))
-      .map(w => ({ ...w, mp: mpOf(w), waiting: Object.keys(MIN_MP).filter(k => !meets(w, k)) })), min: MIN_MP, ok: req.query.ok })));
+  // (#88, the scale gate) The list of every held work below full resolution was every held work read (98,000 rows, a
+  // 48 MB page at 100,000 works). Now the line (below MIN_MP.campaign, as `meets`) is asked in the database: a count,
+  // and a page of the newest 200 with a search (deskpage.js); a master is still uploaded row by row, or by the folder.
+  app.get('/studio/masters', studioOnly, (req, res) => {
+    const DP = require('./deskpage'); const at = DP.where(req.query);
+    const below = `w.status='held' AND COALESCE(w.width,0) * COALESCE(w.height,0) < ${Math.round(MIN_MP.campaign * 1e6)}`;
+    const total = db.prepare(`SELECT COUNT(*) n FROM works w WHERE ${below}`).get().n;
+    const pg = DP.page(db, { cols: 'w.id, w.slug, w.title, w.width, w.height, w.status', base: below, at });
+    const all = db.prepare('SELECT COUNT(*) n, COUNT(master_at) up FROM works').get();
+    res.send(S.masters({
+      upgraded: all.up, web: all.n - all.up, total, at, older: pg.older, newer: pg.newer,
+      need: pg.rows.map(w => ({ ...w, mp: mpOf(w), waiting: Object.keys(MIN_MP).filter(k => !meets(w, k)) })), min: MIN_MP, ok: req.query.ok,
+    }));
+  });
 
   app.post('/studio/works/:slug/toggle', studioOnly, (req, res) => {
     db.prepare("UPDATE works SET status = CASE status WHEN 'held' THEN 'hidden' ELSE 'held' END WHERE slug=?").run(req.params.slug);
@@ -2628,7 +2637,40 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.redirect('/studio/makers');
   });
 
-  app.get('/studio/licenses', studioOnly, (req, res) => res.send(S.licenses({ list: db.prepare('SELECT l.*, w.title, w.slug, u.name AS use_name FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id ORDER BY l.id DESC').all() })));
+  // (#87, the scale gate) Every licence on the register was read whole (8,000 rows, a 3.4 MB page at 100,000 works). Now
+  // the counts are grouped; what waits for the house (asked, awaiting payment, ending within thirty days) is listed, 200
+  // at most each; Live and Ended show their newest LG_N with 'See all', a page of 200 with Older / Newer by id; and a
+  // find by reference, licensee or email asks the database.
+  app.get('/studio/licenses', studioOnly, (req, res) => {
+    const LG_N = 60, COLS = 'l.id, l.ref, l.created_at, l.licensee_company, l.licensee_name, l.licensee_email, l.ends_at, l.status, l.price_cents, w.title, w.slug, u.name AS use_name';
+    const FROM = 'FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id';
+    const soon = new Date(Date.now() + 30 * 864e5).toISOString();
+    const ending = "l.status='active' AND l.ends_at IS NOT NULL AND l.ends_at < ?";
+    const live = "l.status='active' AND NOT (l.ends_at IS NOT NULL AND l.ends_at < ?)", ended = "l.status IN ('expired','declined')";
+    const list = (where, args, n) => db.prepare(`SELECT ${COLS} ${FROM} WHERE ${where} ORDER BY l.id DESC LIMIT ${n}`).all(...args);
+    const counts = Object.fromEntries(db.prepare('SELECT status, COUNT(*) n, COALESCE(SUM(price_cents),0) c FROM licenses GROUP BY status').all().map(r => [r.status, { n: Number(r.n), c: Number(r.c) }]));
+    const nOf = (where, args) => Number(db.prepare(`SELECT COUNT(*) n FROM licenses l WHERE ${where}`).get(...args).n);
+    const DP = require('./deskpage'); const at = DP.where(req.query);
+    const show = ['live', 'ended'].includes(req.query.show) ? req.query.show : null;
+    const q = String(req.query.q || '').trim().slice(0, 120);
+    let found = null, page = null;
+    if (q) found = db.prepare(`SELECT ${COLS} ${FROM} WHERE l.ref = ? OR lower(COALESCE(l.licensee_email,'')) LIKE ? OR lower(COALESCE(l.licensee_name,'')) LIKE ? OR lower(COALESCE(l.licensee_company,'')) LIKE ? ORDER BY l.id DESC LIMIT 200`).all(q, ...Array(3).fill(`%${q.toLowerCase().replace(/[%_\\]/g, '')}%`));
+    else if (show) {
+      const base = show === 'live' ? live : ended, args = show === 'live' ? [soon] : [];
+      const conds = [base], a = [...args]; if (at.before) { conds.push('l.id < ?'); a.push(at.before); } if (at.after) { conds.push('l.id > ?'); a.push(at.after); }
+      const rows = db.prepare(`SELECT ${COLS} ${FROM} WHERE ${conds.join(' AND ')} ORDER BY l.id ${at.after ? 'ASC' : 'DESC'} LIMIT 201`).all(...a);
+      const more = rows.length > 200; if (more) rows.length = 200; if (at.after) rows.reverse();
+      page = { show, rows, total: nOf(base, args), older: rows.length && (at.after || more) ? rows[rows.length - 1].id : null, newer: rows.length && (at.after ? more : at.before) ? rows[0].id : null };
+    }
+    res.send(S.licenses({
+      groups: show || q ? null : {
+        requested: list("l.status='requested'", [], 200), awaiting: list("l.status='awaiting_payment'", [], 200), ending: list(ending, [soon], 200),
+        live: list(live, [soon], LG_N), ended: list(ended, [], LG_N),
+      },
+      n: { requested: (counts.requested || {}).n || 0, awaiting: (counts.awaiting_payment || {}).n || 0, ending: nOf(ending, [soon]), live: nOf(live, [soon]), ended: ((counts.expired || {}).n || 0) + ((counts.declined || {}).n || 0), active: (counts.active || {}).n || 0, fees: (counts.active || {}).c || 0, all: Object.values(counts).reduce((s, x) => s + x.n, 0) },
+      q, found, page,
+    }));
+  });
   app.get('/studio/licenses/:ref', studioOnly, (req, res) => {
     const l = q.licFull.get(req.params.ref); if (!l) return res.sendStatus(404);
     res.send(S.licenseDetail({ l, notice: req.query.ok, payLink: req.query.pay }));

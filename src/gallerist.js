@@ -14,14 +14,28 @@ function mountGallerist(app, { db, V, makerOf, isStudio }) {
   const cnt = (sql, id) => { try { return db.prepare(sql).get(id).n; } catch (e) { return 0; } };
   const title = w => esc(V.tidy ? V.tidy(w.title) : w.title);
 
+  // (#80, the scale gate) Only a work that GALLERIST_FLOOR people stood before, or that has a bravo or a save, can have a
+  // note; the gallerist read every work of the maker to find them (60,000 rows for a museum). Now the database chooses
+  // them: the CAND most held by people (time, and the ones who came back), the CAND most bravoed and the CAND most saved;
+  // only those are read and counted. The weight that orders the notes is the same; a work outside all three lists
+  // could not reach the first notes.
+  const CAND = 300;
   function stats(m) {
+    const ids = new Set();
+    const pick = sql => { try { for (const r of db.prepare(sql).all(m.id)) ids.add(r.id); } catch (e) { /* a table a fresh house lacks: none */ } };
+    const mine = "w.maker_id=? AND w.status IN ('held','hidden')";
+    pick(`SELECT w.id FROM works w JOIN stood s ON s.work_id=w.id WHERE ${mine} GROUP BY w.id HAVING COUNT(*) >= ${FLOOR} ORDER BY SUM(COALESCE(s.seconds,0)) + 60 * SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) DESC, w.id DESC LIMIT ${CAND}`);
+    pick(`SELECT w.id FROM works w JOIN bravos x ON x.work_id=w.id WHERE ${mine} GROUP BY w.id ORDER BY COUNT(*) DESC, w.id DESC LIMIT ${CAND}`);
+    pick(`SELECT w.id FROM works w JOIN hang_works x ON x.work_id=w.id WHERE ${mine} GROUP BY w.id ORDER BY COUNT(*) DESC, w.id DESC LIMIT ${CAND}`);
+    if (!ids.size) return [];
+    const list = [...ids], marks = list.map(() => '?').join(',');
     const rows = db.prepare(`SELECT w.id, w.slug, w.title, w.status, w.keep_back, w.stars, w.curated, w.width, w.height, w.open,
         COUNT(s.id) people, SUM(COALESCE(s.seconds,0)) secs, SUM(CASE WHEN COALESCE(s.visits,1)>1 THEN 1 ELSE 0 END) back
-      FROM works w LEFT JOIN stood s ON s.work_id=w.id WHERE w.maker_id=? AND w.status IN ('held','hidden')
-      GROUP BY w.id, w.slug, w.title, w.status, w.keep_back, w.stars, w.curated, w.width, w.height, w.open`).all(m.id);
-    // (#8) The four counts for all the maker's works at once, one question each (they were asked work by work: 12,000
-    // questions for the house's 3,000 works, 240,000 for a museum's 60,000).
-    const per = (t, extra = '') => { const by = new Map(); try { for (const x of db.prepare(`SELECT x.work_id AS id, COUNT(*) AS n FROM ${t} x JOIN works w ON w.id=x.work_id WHERE w.maker_id=?${extra} GROUP BY x.work_id`).all(m.id)) by.set(x.id, Number(x.n) || 0); } catch (e) { /* a table a fresh house lacks: none */ } return by; };
+      FROM works w LEFT JOIN stood s ON s.work_id=w.id WHERE w.id IN (${marks})
+      GROUP BY w.id, w.slug, w.title, w.status, w.keep_back, w.stars, w.curated, w.width, w.height, w.open`).all(...list);
+    // (#8) The four counts at once, one question each (they were asked work by work: 12,000 questions for the house's
+    // 3,000 works, 240,000 for a museum's 60,000); (#80) for the chosen works only.
+    const per = (t, extra = '') => { const by = new Map(); try { for (const x of db.prepare(`SELECT x.work_id AS id, COUNT(*) AS n FROM ${t} x WHERE x.work_id IN (${marks})${extra} GROUP BY x.work_id`).all(...list)) by.set(x.id, Number(x.n) || 0); } catch (e) { /* a table a fresh house lacks: none */ } return by; };
     const hats = per('applause'), bravos = per('bravos'), saves = per('hang_works'), sold = per('licenses', " AND x.status='active' AND x.price_cents>0");
     for (const r of rows) {
       r.people = +r.people || 0; r.secs = +r.secs || 0; r.back = +r.back || 0;
