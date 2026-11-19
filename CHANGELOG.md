@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.2 · The numbers desk no longer stops the house · 18 November 2026
+
+- The Studio's numbers page asked for every visit of the day each time it was opened, and again every thirty seconds from every open tab. On the evening of 18 November that stopped the website. The page now asks the database for counts, keeps one answer for thirty seconds, and refreshes once a minute.
+
 ## 1.87.1 · Desks that answer quickly at any size · 16 November 2026
 
 - The Studio's vault lists the newest 2,000 works; the rest are found by Find. A maker's copyright page, the gallerist's notes and the Studio's front page answer in a fraction of the time on a large collection.
