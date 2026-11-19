@@ -132,6 +132,17 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
   const q = (sql, ...a) => db.prepare(sql).all(...a);
   const one = (sql, ...a) => db.prepare(sql).get(...a);
   const pct = (arr, p) => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+  const STEP = "CASE WHEN ms < 1000 THEN ms WHEN ms < 10000 THEN (ms / 50) * 50 ELSE (ms / 1000) * 1000 END";
+  function speedOf(since) {
+    const out = {}; for (const k of ['page', 'api']) out[k] = { n: 0, p50: 0, p95: 0, max: 0 };
+    const tot = q("SELECT kind, COUNT(*) n, MAX(ms) mx FROM hits WHERE at>=? AND bot=0 AND kind IN ('page','api') GROUP BY kind", since);
+    const steps = q(`SELECT kind, ${STEP} b, COUNT(*) n FROM hits WHERE at>=? AND bot=0 AND kind IN ('page','api') AND ms IS NOT NULL GROUP BY kind, ${STEP} ORDER BY kind, b`, since);
+    for (const t of tot) { const o = out[t.kind]; if (!o) continue; o.n = Number(t.n) || 0; o.max = Number(t.mx) || 0;
+      const mine = steps.filter(r => r.kind === t.kind); const all = mine.reduce((a, r) => a + Number(r.n), 0);
+      const at = p => { const i = Math.min(all - 1, Math.floor(p * all)); let c = 0; for (const r of mine) { c += Number(r.n); if (c > i) return Number(r.b); } return 0; };
+      if (all) { o.p50 = at(0.5); o.p95 = at(0.95); } }
+    return out;
+  }
   function counts(from, to) {
     const H = one('SELECT COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind=\'page\' AND bot=0 AND status<400 AND at>=? AND at<?', from, to);
     const A = one('SELECT COUNT(*) n FROM hits WHERE kind=\'api\' AND at>=? AND at<?', from, to).n;
@@ -170,8 +181,10 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
     const browsers = q("SELECT browser k, COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY browser ORDER BY n DESC", S.from);
     const countries = q("SELECT country k, COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND country IS NOT NULL AND at>=? GROUP BY country ORDER BY n DESC LIMIT 12", S.from);
     const stoodTop = q("SELECT w.slug, w.title, COUNT(*) n, SUM(s.seconds) secs FROM stood s JOIN works w ON w.id=s.work_id WHERE s.at>=? GROUP BY w.id ORDER BY secs DESC LIMIT 8", iso(S.from));
-    const speedRows = q("SELECT kind, ms FROM hits WHERE at>=? AND bot=0", Math.max(S.from, now - 86400));
-    const speed = {}; for (const k of ['page', 'api']) { const a = speedRows.filter(r => r.kind === k).map(r => r.ms); speed[k] = { n: a.length, p50: pct(a, .5), p95: pct(a, .95), max: a.length ? Math.max(...a) : 0 }; }
+    // (#92, the scale gate) The median and the 95th were read from every hit of the day (60,000 rows a visit); now the
+    // database counts the times in steps (exact under a second, 50 ms to ten seconds, then whole seconds: at most ~1,300
+    // rows a kind, whatever the traffic) and the percentile is read off the counts, as `pct` reads a sorted list.
+    const speed = speedOf(Math.max(S.from, now - 86400));
     const slow = q("SELECT path, COUNT(*) n, AVG(ms) avg, MAX(ms) max FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY path HAVING COUNT(*)>=3 ORDER BY AVG(ms) DESC LIMIT 8", Math.max(S.from, now - 86400));
     const errs = q("SELECT status, COUNT(*) n FROM hits WHERE status>=400 AND at>=? GROUP BY status ORDER BY n DESC", S.from);
     const bots = q("SELECT path, COUNT(*) n FROM hits WHERE bot=1 AND at>=? GROUP BY path ORDER BY n DESC LIMIT 6", S.from);
@@ -255,12 +268,17 @@ ${R.errors.length ? `<h3>Lately</h3>${list(R.errors, [r => `<b>${r.status}</b>`,
 </div></article>
 </div></section>`;
   }
+  // (18 Nov, the 502) The desk asked for the whole report again on every visit and every thirty seconds from every open
+  // tab; each asking holds the website's one thread. One report a span is kept for REPORT_KEEP_MS and shared.
+  // `report` itself stays fresh for the house's own callers (the digest, the tests); only the two doors below share.
+  const REPORT_KEEP_MS = 30000; const kept = new Map();
+  const reportKept = (span = 'today') => { const k = kept.get(span); if (k && Date.now() - k.at < REPORT_KEEP_MS) return k.R; const R = report(span); kept.set(span, { at: Date.now(), R }); return R; };
   app.get('/studio/analytics', studioOnly, (req, res) => {
-    const R = report(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
+    const R = reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
     if (req.query.frag) return res.set('Cache-Control', 'private, no-store').send(body(R));
-    res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';setInterval(function(){if(document.hidden)return;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){})},30000)})();</script>` }));
+    res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';var busy=false;setInterval(function(){if(document.hidden||busy)return;busy=true;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){}).then(function(){busy=false})},60000)})();</script>` }));
   });
-  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(report(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
+  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
   return { report, health, flush: tick };
 }
 module.exports = { mountAnalytics, page, device, browser };

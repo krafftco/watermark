@@ -111,3 +111,9 @@ Rule for every new room from here: say how it behaves at a million works before 
 - A museum's page /m/:slug (#76): beside the regard, the trips row and the sheets row read every frame (60,000 rows each), the edit line read every work for two counts. Now the trips are one grouped question over the newest 5,000 frames, the sheets the newest 2,000, the edit two counts; the open works counted through the new works_open.
 - /api/index.json (#77): every place in every room (30,000 rows) for an index of 1,200 works. Now the rooms of the works listed.
 Found with it: the contact sheets desk (/account/sheets) for a museum reads its whole archive (60,000 rows); it was hidden behind Wander's cache. #96, allowed in the gate until fixed.
+
+## 18 Nov 2026, about 21:30 New York: the house down (502) with the numbers desk open
+- What happened: /studio/analytics read every hit of the day (kind, ms) to work out the median and the 95th, beside some twenty other statements over the span, on each visit and again every 30 s from each open tab. On the synchronous bridge each asking holds the website's one thread; the watchdog's answers were missed and it ended the process, Render brought a new one, and the open tab stopped it again. The room was on the scale gate's allow-list (#92), fixed on the desks branch (PR #101) but not yet merged: an allowed room is a known outage waiting.
+- The repair (hotfix, on Will's word): the speed figures are counted by the database in steps (PR #101's change, taken alone); the two doors (/studio/analytics, /studio/analytics.json) share one report a span for 30 s; the page refreshes once a minute and never two at once.
+- Not yet proved on live: that this desk alone was the cause (the shell cannot read Render's log). Check the log for [watchdog] at that hour.
+- Rule: a room on the gate's allow-list is not shown to be safe by the gate; the desks branch goes in next, and no heavy desk is opened on live until it has.
