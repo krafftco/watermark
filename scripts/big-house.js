@@ -161,7 +161,7 @@ function build(dir) {
         const l0 = db.prepare('SELECT MIN(id) a FROM licenses').get().a;
         db.exec(R(5000, `INSERT INTO wall_letters (license_id, at) SELECT ${l0} + g, datetime('now', '-' || (g % 100) || ' day') FROM s`));
       });
-      step('hits', () => db.exec(R(60000, "INSERT INTO hits (at, path, kind, status, ms, visitor, device, browser, bot, bytes) SELECT datetime('now', '-' || (g % 43200) || ' minute'), CASE g % 4 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || g WHEN 2 THEN '/' ELSE '/look' END, 'page', 200, 20 + (g % 300), 'v' || (g % 9000), 'phone', 'safari', 0, 20000 FROM s")));
+      step('hits', () => db.exec(R(60000, "INSERT INTO hits (at, path, kind, status, ms, visitor, device, browser, bot, bytes) SELECT CAST(strftime('%s', datetime('now', '-' || (g % 43200) || ' minute')) AS INTEGER), CASE g % 4 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || g WHEN 2 THEN '/' ELSE '/look' END, 'page', 200, 20 + (g % 300), 'v' || (g % 9000), 'phone', 'safari', 0, 20000 FROM s")));
       step('texts', () => {
         db.exec(R(150, `INSERT INTO texts (slug, kind, title, author, maker_id, body, public, status, created_at, updated_at) SELECT 'text-' || g, CASE WHEN g % 3 = 0 THEN 'essay' ELSE 'book' END, 'A text ' || g, 'Author ' || g, CASE WHEN g % 10 = 0 THEN ${M} ELSE ${house} END, '## One\n\n' || 'A paragraph of the text, plain and short. ' || g || '\n\n## Two\n\nAnother.', 1, 'held', datetime('now'), datetime('now') FROM s`));
         db.prepare("INSERT INTO texts (slug, kind, title, author, body, public, status, source, terms) VALUES ('notes-book', 'book', 'A Book of Notes', 'An author of the past', ?, 1, 'held', 'https://example.org/notes', 'Public domain.')").run(notesBook());
@@ -293,6 +293,8 @@ async function walk(dir) {
       try {
         const r = await fetch(base + p, { redirect: 'manual', signal: AbortSignal.timeout(120000), headers: { cookie, accept: 'text/html,application/json;q=0.9,*/*;q=0.8', 'user-agent': 'Mozilla/5.0 (Macintosh) big-house' } });
         const buf = Buffer.from(await r.arrayBuffer()); rec.status = r.status; rec.bytes = buf.length; if (r.status >= 300 && r.status < 400) rec.to = r.headers.get('location');
+        // A 500 names its fault (the house keeps its last one), so the annotation says what broke and not only that it did.
+        if (r.status >= 500 && app.locals.lastFault) rec.err = `${app.locals.lastFault.message} ${String(app.locals.lastFault.stack || '').split('\n').slice(1, 3).join(' | ')}`.slice(0, 400);
       } catch (e) { rec.status = 'error'; rec.err = String(e.message).slice(0, 120); }
       rec.ms = Date.now() - t;
       await new Promise(r => setImmediate(r)); cur = null; // what a page left on the loop is its own
