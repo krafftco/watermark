@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.4 · The numbers desk is closed for repair · 20 November 2026
+
+- Opening the Studio's numbers page stopped the house a second time, on the night of 19 November. The page and the morning digest are shut on the website and say so; visits are still counted. They reopen when the figures are worked out away from the website.
+
 ## 1.87.3 · Every desk, a page at a time · 19 November 2026
 
 - A studio with tens of thousands of works opens at once. Your holdings, the Library and the Masters desk show the newest two hundred, with Older and Newer and a search that looks through everything you hold.
