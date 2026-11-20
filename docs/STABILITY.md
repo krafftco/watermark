@@ -172,3 +172,10 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - What the new line showed (Render's log, the worker on a9e2029): `[boot] anchor: 11384 ms, 254 to 267 MB` at 15:27:27, then no line for `warm albums`, and a new start at 15:28. So the process ends inside that chore, within a minute, from 267 MB.
 - Cause, as far as shown: 1.87.7 took the making of pictures out and left `worksOf(d)`, `SELECT w.*` of every work of every open album through the bridge. Not shown: how many works the largest open album holds (the repair logs it).
 - The repair (1.87.9): two small questions, no work read. Still to do: the album's own page and its other readers use `worksOf` too; if one album is very large they need paging (issue to be filed once the log gives the size).
+
+## 20 Nov 2026, 16:22 New York: the worker ended again on 1.87.9, twenty seconds into the shelves backfill
+- What the log showed: on 1.87.9 `warm albums` ended in 5 ms at 248 MB (337 album works without copies; the largest open album holds 118 works, so the albums were never large). `pictures resume` ended at 16:22:13; the process restarted at 16:22:34. The next chore in the chain is `shelves backfill`. The same at 16:29.
+- What this corrects: the album warm-up was not the cause either. Before 1.87.9 it was slow (a question of the bucket for each album work), so the end came one to three minutes after `anchor`; once it was quick the end came sooner. The end follows the chain, not the clock.
+- Cause, as far as shown: `shelves.js` `backfill()` reads `SELECT * FROM texts WHERE id=?` for each library book without subjects: the whole book, body and plates, through the bridge. It never finishes, so the same first book is read at every start. Not shown: which book, or its size.
+- The repair (1.87.10): five named columns. Each start-up chore also logs its beginning, so a chore the process does not survive is named.
+- Three wrong causes in one afternoon (the register read, the album pictures, the album rows), each from a coincidence in time. The lesson for the record: a line at the start and the end of every chore, with memory, before reasoning.
