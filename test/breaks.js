@@ -75,6 +75,10 @@ const B = require('../src/breaks');
   { const e = new Error('File too large'); e.code = 'LIMIT_FILE_SIZE'; e.name = 'MulterError';
     app.post('/__break/upload', () => { throw e; }); st.unshift(st.pop());
     r = await go('/__break/upload', nav, { method: 'POST' }); t = await r.text(); assert.strictEqual(r.status, 413); assert.ok(isSign(t) && t.includes(B.COPY.room.upload), 'too large: said so'); }
+  // The limiter on sign-in codes, met by a person: the sign, not 'Too many tries.' as text.
+  for (let i = 0; i < 9; i++) { r = await go('/signin/code', { ...nav, 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '10.9.9.9' }, { method: 'POST', body: 'email=a%40b.c' }); await r.text(); }
+  r = await go('/signin/code', { ...nav, 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '10.9.9.9' }, { method: 'POST', body: 'email=a%40b.c' }); t = await r.text();
+  assert.strictEqual(r.status, 429); assert.ok(isSign(t) && /There is time/.test(t), 'the limiter, to a person: the sign: ' + t.slice(0, 300));
   // The Studio's health carries the faults.
   assert.ok(Array.isArray(app.locals.recentFaults) && app.locals.recentFaults.length >= 8 && app.locals.recentFaults[0].at, 'the last faults kept');
   // And the house is still open after all of it.
