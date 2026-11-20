@@ -83,7 +83,7 @@ function mountShareBook(app, { db, V, C, mail, buyerOf, makerOf, ledger }) {
         png = await sharp(Buffer.from(svg)).png({ compressionLevel: 8 }).toBuffer();
         if (cards.size > 400) cards.delete(cards.keys().next().value);
         cards.set(key, png);
-      } catch (e) { console.error('[share-book]', e.message); return res.sendStatus(500); }
+      } catch (e) { console.error('[share-book]', e.message); return res.fault(e); }
     }
     res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' }).send(png);
   });

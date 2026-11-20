@@ -327,7 +327,7 @@ ${b0 && b1 && b1 > b0 ? `<path d="M${lx} ${ly}h${lw}" stroke="${INK}" stroke-opa
         png = await sharp(Buffer.from(svg)).composite(layers).png({ compressionLevel: 8 }).toBuffer();
         if (artCards.size > 300) artCards.delete(artCards.keys().next().value);
         artCards.set(key, png);
-      } catch (e) { console.error('[art-card]', e.message); return res.sendStatus(500); }
+      } catch (e) { console.error('[art-card]', e.message); return res.fault(e); }
     }
     res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' }).send(png);
   });

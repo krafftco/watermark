@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.6 · A break is the house's, not the host's · 20 November 2026
+
+- When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.
+- When the house cannot answer at all, the page you see is the house's own: a dark wall, one line, and it returns you to where you were as soon as the house answers. Visitors who have the app see the same page.
+
 ## 1.87.5 · No one page can stop the house · 20 November 2026
 
 - A page that asks too much of the house is now stopped after a few seconds, and only the person who asked is told to try again. Before, one slow page held everyone, and three times this month it stopped the house.

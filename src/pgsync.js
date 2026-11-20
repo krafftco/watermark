@@ -37,7 +37,7 @@ const HOLD_MS = +process.env.DB_HOLD_MS || 8000;
 const TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i; // a transaction's own words are never refused: a rollback must always go through
 const maxHold = () => (WEB ? HOLD_MS + LIMIT_MAX_MS + GRACE_MS : WAIT_MS);
 function limitError(msg, why) {
-  const e = new Error('database: ' + why); e.status = 503; e.limit = true; e.code = '57014';
+  const e = new Error('database: ' + why); e.status = 503; e.limit = true; e.code = '57014'; e.sql = String(msg && msg.sql || '').replace(/\s+/g, ' ').slice(0, 300); // the statement's text, never its values (#149: kept in lastFault)
   console.error(`[pg limit] ${why}: ${String(msg && msg.sql || '').replace(/\s+/g, ' ').slice(0, 300)}`);
   return e;
 }
@@ -86,7 +86,7 @@ function open(url) {
   function wait(msg, waitMs) {
     for (;;) {
       const r = Atomics.wait(ctl, STATUS, 0, waitMs);
-      if (r === 'timed-out') { console.error('[pg] no answer in ' + waitMs / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); const e = new Error('database: no answer in ' + waitMs / 1000 + ' s'); if (msg.limit) { e.status = 503; e.limit = true; } throw e; }
+      if (r === 'timed-out') { console.error('[pg] no answer in ' + waitMs / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); const e = new Error('database: no answer in ' + waitMs / 1000 + ' s'); if (msg.limit) { e.status = 503; e.limit = true; e.sql = String(msg.sql || '').replace(/\s+/g, ' ').slice(0, 300); } throw e; }
       const st = Atomics.load(ctl, STATUS);
       if (st === 2) { // the answer is bigger than the buffer: grow it and let the worker write again
         const need = Atomics.load(ctl, LENGTH);

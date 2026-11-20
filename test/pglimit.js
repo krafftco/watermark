@@ -61,6 +61,7 @@ const { createApp } = require('../src/app.js');
   // A page: the house's own words, not a bare status; then the next visitor and the front page are answered.
   r = await go('/__slow/3'); let t = await r.text();
   assert.strictEqual(r.status, 503, 'the page that ran over'); assert.ok(/took too long, so it was stopped/.test(t) && /<html/i.test(t), 'says so in the house\'s words');
+  { const F = app.locals.lastFault; assert.ok(F && F.kind === 'limit' && F.room === '/__slow/:s' && /pg_sleep\(3\)/.test(F.sql || ''), 'the fault kept with its room and statement (#149): ' + JSON.stringify(F)); }
   r = await go('/__slow/3', { accept: 'application/json' }); assert.ok(/took too long/.test((await r.json()).why), 'and in words to a script');
   r = await go('/'); assert.strictEqual(r.status, 200, 'the front page loads after it');
 

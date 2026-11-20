@@ -192,7 +192,7 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
       const name = `${tidy(w.title)}, ${mk(w).name} (${out.film.name}).jpg`.replace(/[\/:*?"<>|]/g, '');
       ledger.append(db, 'print.instax', l.ref, { film: out.film.name, w: out.W, h: out.H, look: String(req.query.look || 'film') });
       res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`, 'Cache-Control': 'private, no-store' }).send(out.buf);
-    } catch (e) { console.error('[instax]', e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[instax]', e.message); res.fault(e); }
   });
   const hits = new Map(), slow = k => { const now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 36e5); a.push(now); hits.set(k, a); return a.length > 6; };
   app.post('/yours/p/:ref/order', (req, res) => {

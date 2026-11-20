@@ -1174,11 +1174,12 @@ const SIGNS = {
   502: { k: 'Being attended to', h: 'The house is between rooms.', p: 'A new version is being hung. Give it a minute; everything you have walked is still here.' },
   503: { k: 'Closed for the moment', h: 'This gallery is closed for a short while.', p: 'It will open again shortly. The rest of the house is open.' },
 };
-function sign({ code = 404, cover = null, detail = null, next = null }) {
+function sign({ code = 404, cover = null, detail = null, next = null, back = null, retry = null }) {
   const S = SIGNS[code] || SIGNS[500];
   return layout({ title: `${S.h} · Watermark`, desc: S.p, bare: false, body: `<section class="nf">${cover ? `<a class="nf-im" href="/w/${esc(cover.slug)}" style="--r:${cover.width && cover.height ? (cover.width / cover.height).toFixed(3) : 1.5}"><img src="/img/${esc(cover.slug)}/screen" alt="${esc(tidy(cover.title))}" draggable="false"></a>` : '<span class="nf-im nf-blank"></span>'}
 <div class="nf-t"><p class="k nf-wil">${esc(S.k)}</p><h1>${esc(S.h)}</h1><p class="lede">${esc(detail || S.p)}${cover ? ` Meanwhile, this is <a href="/w/${esc(cover.slug)}"><i>${esc(tidy(cover.title))}</i></a>${cover.maker ? `, by ${esc(cover.maker)}` : ''}.` : ''}</p>
-<p class="nf-row">${S.signin ? '<a class="buy-btn" href="/signin">Sign in</a>' : next ? `<a class="buy-btn" href="${esc(next.href)}">${esc(next.label)}</a>` : '<a class="buy-btn" href="/wander/room">Wander on</a>'}<a class="nf-alt" href="/collection">The collection</a><a class="nf-alt" href="/artists">The artists</a><a class="nf-alt" href="/yours">Your gallery</a></p></div></section>` });
+<p class="nf-row">${S.signin ? '<a class="buy-btn" href="/signin">Sign in</a>' : next ? `<a class="buy-btn" href="${esc(next.href)}">${esc(next.label)}</a>` : '<a class="buy-btn" href="/wander/room">Wander on</a>'}${back ? `<a class="nf-alt" href="${esc(back.href)}">${esc(back.label)}</a>` : ''}<a class="nf-alt" href="/collection">The collection</a><a class="nf-alt" href="/artists">The artists</a><a class="nf-alt" href="/yours">Your gallery</a></p>${retry ? `<p class="nf-cold" data-cold aria-live="polite">${esc(retry)}</p>
+<script>(function(){var n=0,t0=Date.now();function wait(){if(Date.now()-t0>600000)return;setTimeout(go,Math.min(30000,4000*Math.pow(1.5,n))+Math.random()*1000)}function go(){n++;fetch(location.href,{cache:'no-store',credentials:'same-origin'}).then(function(r){if(r.status<500)location.replace(location.href);else wait()}).catch(wait)}wait()})();</script>` : ''}</div></section>` });
 }
 // Nothing hangs here.
 function notFound({ cover = null }) {

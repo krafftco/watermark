@@ -86,7 +86,7 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
       const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, size, fmt);
       res.set('Cache-Control', 'public, max-age=3600').set('Vary', 'Accept'); // an hour: an ended license stops showing the same day
       res.type(images.FORMATS[fmt][1]).sendFile(file);
-    } catch (e) { res.sendStatus(500); }
+    } catch (e) { res.fault(e); }
   });
 
   // The founding licensee (Will, 2 Nov: "I want him to be the first person to pay, like the founding licensee"; "don't be

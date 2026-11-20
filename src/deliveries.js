@@ -359,7 +359,7 @@ ${spare ? `<form method="post" action="/account/deliveries/${d.id}/add" class="d
       const K = require('./keep'); const out = await K.instaxFile(await originalPath(w), { film: String(req.query.film || 'mini'), mode: req.query.mode === 'fit' ? 'fit' : 'fill', look: String(req.query.look || 'film') });
       const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id); const name = `${tidy(w.title)}, ${m.name} (${out.film.name}).jpg`.replace(/[\/:*?"<>|]/g, '');
       res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`, 'Cache-Control': 'private, no-store' }).send(out.buf);
-    } catch (e) { console.error('[album instax]', e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[album instax]', e.message); res.fault(e); }
   });
   function albumPage(d, req, res, view) {
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
@@ -587,7 +587,7 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
     const full = req.query.full === '1' && can.full; const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
     try { const f = await fileOf(d, w, m, full); if (!f) return res.sendStatus(410);
       res.set('Content-Type', f.type); res.set('Content-Disposition', `attachment; filename="${f.ascii.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(f.name)}`); res.set('Cache-Control', 'private, no-store'); res.send(f.buf);
-    } catch (e) { console.error('[delivery file]', w.slug, e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[delivery file]', w.slug, e.message); res.fault(e); }
   });
   // All of it as one zip: the copies by default, the full files with ?full=1; each file marked and counted as a
   // download of its own licence; one file in memory at a time (the zip waits for each entry to be written).
@@ -651,7 +651,7 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
         try { fs.renameSync(tmp, out); } catch (er) { try { fs.unlinkSync(tmp); } catch (e2) { /* */ } }
       }
       res.set('Cache-Control', 'private, max-age=3600'); res.type('image/jpeg').sendFile(out);
-    } catch (er) { console.error('[story]', post ? 'post' : 'story', er.message); res.sendStatus(500); }
+    } catch (er) { console.error('[story]', post ? 'post' : 'story', er.message); res.fault(er); }
   });
   app.get('/deliver/:token/:slug', (req, res) => {
     const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
