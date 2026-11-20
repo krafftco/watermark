@@ -119,6 +119,21 @@ The CTO session keeps it honest.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 
+## The async path (#117, docs/SCALE.md stage 2)
+- `app.locals.adb.get/all/run(sql, ...params)` are promises: a `pg` Pool beside the bridge on Postgres, the same
+  better-sqlite3 connection on SQLite. Same SQL, same dialect, same row shape as the bridge. `scripts/sql-check.js`
+  checks `adb.` literals; `test/listreads.js` counts `adb.get(` as one row.
+- The bridge's Atomics.wait freezes the whole process: no request is read, on either path, while any statement waits
+  there. Moving a quick read does not protect anyone; moving the slow statement does. Measure with the client in a
+  child process: a client in the server's own process is frozen with it and reports nonsense (test/manyhands.js).
+- ADB_LIMIT_MS and ADB_POOL are read when adb is opened (the pool itself opens on the first question): set them
+  before `open`, not before the first query. On SQLite there is no limit (a statement cannot be ended from its thread).
+- To compare against `next`: `git worktree add <scratch>/base origin/next`, symlink this worktree's node_modules into
+  it, and run the same script there (big-house with BIG_TABLE, load.js, a walk house on another port).
+- `scripts/wander-walk.js` locally: preload a shim that launches with `channel: 'chrome'`, and give it a house of at
+  least 40 held works with pictures over 3,000 px (14 small ones fail sentences 2 and 9 on `next` too). Sentence 8
+  on the desk ("← opens nothing") fails on `next` as it stands (20 Nov, #121).
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.
