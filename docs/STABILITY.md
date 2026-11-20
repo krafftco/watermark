@@ -167,3 +167,8 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - The repair (1.87.7): the warm-up only looks and counts (WARM_ALBUMS=1 brings the making back); every start-up chore logs `[boot] <chore>: <ms>, <MB> to <MB>`. If the restarts go on, that line names the chore.
 - My error: I named the register read as the cause from one coincidence in the log (it was the one large read in each cycle and took the process to the governor's line), shipped it as the repair, and said it was not proven. It was not the cause. It stays as a repair in its own right (1.77 GB for one statement).
 - Why the gate missed it: no gate measures the worker; start-up chores do not run under test at all.
+
+## 20 Nov 2026, 15:28 New York: the worker ended again on 1.87.7, inside the album warm-up
+- What the new line showed (Render's log, the worker on a9e2029): `[boot] anchor: 11384 ms, 254 to 267 MB` at 15:27:27, then no line for `warm albums`, and a new start at 15:28. So the process ends inside that chore, within a minute, from 267 MB.
+- Cause, as far as shown: 1.87.7 took the making of pictures out and left `worksOf(d)`, `SELECT w.*` of every work of every open album through the bridge. Not shown: how many works the largest open album holds (the repair logs it).
+- The repair (1.87.9): two small questions, no work read. Still to do: the album's own page and its other readers use `worksOf` too; if one album is very large they need paging (issue to be filed once the log gives the size).
