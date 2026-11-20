@@ -22,7 +22,7 @@ if (!data) {
 }
 
 let head, rows;
-const dl = d => ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : ''].filter(Boolean).join('; ')}}`;
+const dl = d => ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : '', d.later || ''].filter(Boolean).join('; ')}}`;
 if (walk === 'reach') {
   const g = new Map(); const dg = new Map();
   for (const f of data.faults) {

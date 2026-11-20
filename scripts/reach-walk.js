@@ -145,7 +145,8 @@ function probe({ mode, edge }) {
     all.forEach((el, i) => {
       // An invisible thing that can be pressed (file, checkbox and radio inputs dressed by a visible label are the pattern).
       const op = opacityUp(el);
-      if (op < 0.05 && cs(el).pointerEvents !== 'none' && !(el.tagName === 'INPUT' && /^(file|checkbox|radio)$/.test(el.type))) push(el, 'invisible', { cover: { op: +op.toFixed(2), pe: cs(el).pointerEvents } });
+      // (#109) marked, so the walk can look at the same control again a moment later (still faded = held there; risen = mid-fade)
+      if (op < 0.05 && cs(el).pointerEvents !== 'none' && !(el.tagName === 'INPUT' && /^(file|checkbox|radio)$/.test(el.type))) { const mark = 'i' + i; el.setAttribute('data-reach-mark', mark); push(el, 'invisible', { mark, cover: { op: +op.toFixed(2), pe: cs(el).pointerEvents } }); }
       el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
       const t = hitTest(el); const r = t.r;
       if (r.right <= 0 || r.left >= vw || r.bottom <= 0 || r.top >= vh) { push(el, 'stranded', { box: [r.left, r.top, r.width, r.height].map(Math.round) }); return; }
@@ -306,7 +307,15 @@ let dir;
   };
   const scrollTo = (page, where) => page.evaluate(w => { const H = document.documentElement.scrollHeight - innerHeight; scrollTo({ top: w === 'top' ? 0 : w === 'mid' ? H / 2 : H, behavior: 'instant' }); }, where).then(() => scrollSettle(page));
   const walkHere = async (page, p, size, role, extra = '', edges = true, N = note) => {
-    for (const f of await page.evaluate(probe, { mode: 'centre' })) N({ page: p, size: size + extra, role, ...f });
+    const found = await page.evaluate(probe, { mode: 'centre' });
+    // An invisible control is looked at again 1.5 s later on the same page: still faded and pressable means it is held
+    // there (a person meets it); risen means the walk read a fade in passing. Either way it is said in the finding.
+    if (found.some(f => f.mark)) {
+      await page.waitForTimeout(1500);
+      const later = await page.evaluate(() => { const o = {}; for (const el of document.querySelectorAll('[data-reach-mark]')) { let op = 1; for (let e = el; e && e.nodeType === 1; e = e.parentElement) op *= +getComputedStyle(e).opacity; const c = getComputedStyle(el); o[el.getAttribute('data-reach-mark')] = { op: +op.toFixed(3), pe: c.pointerEvents, vis: c.visibility, cls: (document.querySelector('.st') || {}).className || '' }; el.removeAttribute('data-reach-mark'); } return o; }).catch(() => ({}));
+      for (const f of found) if (f.mark) { const l = later[f.mark]; if (f.diag) f.diag.later = l ? `${l.op < 0.05 && l.pe !== 'none' && l.vis !== 'hidden' ? 'STILL' : 'no longer'} invisible 1.5 s later (op ${l.op}, pe ${l.pe}, ${l.vis}; ${String(l.cls).slice(0, 60)})` : 'gone 1.5 s later'; delete f.mark; }
+    }
+    for (const f of found) N({ page: p, size: size + extra, role, ...f });
     if (edges) for (const edge of ['top', 'mid', 'foot']) {
       await scrollTo(page, edge); if (edge !== 'top') { await page.waitForTimeout(60); await still(page); }
       // A room that grows as its foot is reached (more tiles, late pictures) is not at its foot yet: go down again.
@@ -447,7 +456,7 @@ let dir;
   if (process.env.REACH_JSON) fs.writeFileSync(process.env.REACH_JSON, JSON.stringify({ faults, allowed, flaky }, null, 1));
   // (#109) What only one of two looks found: said, never dropped. With the moment's diagnostics, so the next worker can
   // tell a room that is sometimes wrong from a walk that read it too early.
-  const dline = d => d ? ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : ''].filter(Boolean).join('; ')}}` : '';
+  const dline = d => d ? ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : '', d.later || ''].filter(Boolean).join('; ')}}` : '';
   if (flaky.length) {
     const rows = flaky.map(f => `${f.page} · ${f.size}${f.role === 'out' ? '' : '/' + f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}” · ${f.cover ? (f.cover.sel || f.cover.tag || '') : ''} · ${f.seen}${dline(f.diag)}`);
     console.log(`flaky (${ENGINE.name}, ${flaky.length}: seen on one look of two, not called):\n` + rows.join('\n'));
