@@ -124,5 +124,6 @@ const free = () => new Promise(r => { const s = http.createServer().listen(0, '1
   await browser.close(); edge.close(); await stop(); fs.rmSync(dir, { recursive: true, force: true });
   fs.writeFileSync(path.join(shots, 'walk.json'), JSON.stringify({ engine: ENGINE.name, serviceWorker: sw, shots: said }, null, 2));
   console.log(`breaks walk (${ENGINE.name}): every break photographed in ${shots}; the service worker: ${sw}`);
+  if (process.env.CI) console.log(`::notice title=breaks ${ENGINE.name}::passed; the service worker step: ${sw}. ` + said.map(x => `${x.name}: ${x.text.slice(0, 90)}`).join(' | ').slice(0, 1500).replace(/%/g, '%25'));
   process.exit(0);
 })().catch(e => { console.log(`::error title=breaks ${ENGINE.name}::${String(e.message).slice(0, 900)}`); console.error(e); process.exit(1); });
