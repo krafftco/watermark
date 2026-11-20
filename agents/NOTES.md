@@ -169,6 +169,16 @@ The CTO session keeps it honest.
   BUFFERS) shows `Sort Method: external merge`. Roll it up by day instead.
 - `express` 5: a test-only route goes first with `app.router.stack.unshift(app.router.stack.pop())` (test/pglimit.js).
 
+- The visit log (#119): on Postgres `hits` is by month after the worker's move (src/hitslog.js). Watch it in the worker's log
+  by `[hits]`: `months: begun`, `copying, at id … of …`, `switched in … ms`, `done; N rows inside the keep-days on both
+  sides`. Finished when `settings.hits_switch` is `done` and `pg_class.relkind` of `hits` is `p`. A month is `hits_pYYYYMM`
+  (UTC), `hits_pdefault` takes anything else. The dialect turns LIKE into ILIKE everywhere, DDL too: never `CREATE TABLE
+  … (LIKE x)` through the bridge. An `INSERT … SELECT` through `prepare` gets `RETURNING id` added: every new id comes
+  back to the process; use `exec` for a bulk insert with no parameters.
+- The gate's worker round (`big-house.js worker`) now runs the shared rounds, the hits move, the prune, the numbers and
+  the register's check, each timed with its memory (`rssMB` after, `peakMB` the most so far); over BIG_WORKER_MB (1,024)
+  fails. At 100,000 works: 312 MB on Postgres, 377 MB on SQLite. The move of 3 M hits into months: 17 s, two rounds.
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.

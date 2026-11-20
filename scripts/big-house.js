@@ -66,6 +66,8 @@ const B = {
   // (#116; 20 Nov, live: 2,929 MB of 2,458 five seconds after one list read every book's body) what the database hands
   // the process for one page, summed over its statements (text by its length, a number 8): the website holds all of it.
   read: +process.env.BIG_READ || 4 * 1024 * 1024,
+  // (#119) the worker's round: the most the process reached (Render's worker has 2 GB; its governor's line is 1,741 MB).
+  workerMB: +process.env.BIG_WORKER_MB || 1024,
 };
 const SECRET = 'big-house';
 
@@ -205,13 +207,16 @@ function build(dir) {
         db.exec(R(5000, `INSERT INTO wall_letters (license_id, at) SELECT ${l0} + g, datetime('now', '-' || (g % 100) || ' day') FROM s`));
       });
       // A month of the visit log, evenly over thirty days (at in seconds, as the house writes it): of every twenty hits
-      // seven are people's pages, two the API, seven pictures, four bots (no visitor, as the house keeps them); one in
-      // 97 a 404 and one in 1,999 a 500; a tenth as many visitors as hits; referrers, devices, browsers, countries mixed.
+      // thirteen are people's pages, three the API, four bots (no visitor, as the house keeps them); one in 97 a 404 and
+      // one in 1,999 a 500; a tenth as many visitors as hits; referrers, devices, browsers, countries mixed. No pictures:
+      // the house counts a picture or a static file in memory and never writes it (analytics.js; #119 corrected #116).
+      // The shares of people, API and bots on live are not known here.
+      // On Postgres the walk sees the log as live will after #119: by month, moved by the worker's round below.
       step('hits', () => db.exec(R(HITS, `INSERT INTO hits (at, path, kind, status, ms, visitor, ref, device, browser, bot, country, bytes)
         SELECT CAST(strftime('%s', 'now') AS INTEGER) - (g * ${Math.max(1, Math.floor(2592000e3 / HITS))} / 1000),
-          CASE WHEN g % 20 < 7 OR g % 20 >= 16 THEN (CASE g % 5 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || ((g * 7919) % ${N}) WHEN 2 THEN '/' WHEN 3 THEN '/look' ELSE '/m/maker-' || (g % 300) END)
-            WHEN g % 20 < 9 THEN (CASE g % 3 WHEN 0 THEN '/api/stroll' WHEN 1 THEN '/api/find' ELSE '/api/v1/works' END) ELSE '/img/bh-' || (g % ${N}) || '-screen.webp' END,
-          CASE WHEN g % 20 < 7 OR g % 20 >= 16 THEN 'page' WHEN g % 20 < 9 THEN 'api' ELSE 'img' END,
+          CASE WHEN g % 20 < 13 OR g % 20 >= 16 THEN (CASE g % 5 WHEN 0 THEN '/wander' WHEN 1 THEN '/w/bh-' || ((g * 7919) % ${N}) WHEN 2 THEN '/' WHEN 3 THEN '/look' ELSE '/m/maker-' || (g % 300) END)
+            ELSE (CASE g % 3 WHEN 0 THEN '/api/stroll' WHEN 1 THEN '/api/find' ELSE '/api/v1/works' END) END,
+          CASE WHEN g % 20 < 13 OR g % 20 >= 16 THEN 'page' ELSE 'api' END,
           CASE WHEN g % 1999 = 0 THEN 500 WHEN g % 97 = 0 THEN 404 ELSE 200 END, 20 + (g % 300) + (CASE WHEN g % 50 = 0 THEN g % 2000 ELSE 0 END),
           CASE WHEN g % 20 >= 16 THEN NULL ELSE 'v' || (g % ${Math.max(1000, Math.round(HITS / 10))}) END,
           CASE WHEN g % 20 >= 16 THEN NULL WHEN g % 7 = 0 THEN 'https://www.instagram.com/' WHEN g % 11 = 0 THEN 'https://www.google.com/' ELSE NULL END,
@@ -276,14 +281,24 @@ function notesBook() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------- worker
-function worker(dir) {
+async function worker(dir) {
   const { createApp } = require(path.join(ROOT, 'src/app'));
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: SECRET, noTimers: true });
-  const built = []; const t = Date.now();
-  for (let i = 0; i < 40; i++) { const t1 = Date.now(); const k = app.locals.shared.round(); if (!k) break; built.push(`${k} ${Date.now() - t1} ms`); }
+  // (#119; 18–20 Nov the worker ran out of memory every seven minutes and no gate measured it) Each of the worker's chores
+  // is timed and its memory read: the process's size after it (rssMB) and the most it ever reached (peakMB).
+  const built = [], mem = []; const t = Date.now();
+  const mb = () => Math.round(process.memoryUsage().rss / 1048576), peak = () => Math.round(process.resourceUsage().maxRSS / 1024);
+  const chore = async (k, fn) => { const t1 = Date.now(); let note = ''; try { note = (await fn()) || ''; } catch (e) { note = 'failed: ' + String(e.message).slice(0, 120); } const ms = Date.now() - t1; built.push(`${k} ${ms} ms${note ? ' (' + note + ')' : ''}`); mem.push({ k, ms, rssMB: mb(), peakMB: peak() }); };
+  for (let i = 0; i < 40; i++) { let k = null; await chore('shared', () => { k = app.locals.shared.round(); return k || 'nothing left'; }); if (!k) break; built[built.length - 1] = built[built.length - 1].replace(/^shared/, k); mem[mem.length - 1].k = k; }
+  const A = app.locals.analytics;
+  // The visit log into months (Postgres), round after round until done, as the worker's timer does it.
+  if (A && A.hitsLog && process.env.DATABASE_URL) await chore('hits-months', async () => { let r, n = 0; do { r = await A.hitsLog.step(); n++; } while (!r.done && n < 400 && !(r.mismatch)); return `${n} rounds, ${r.done ? 'done' : 'NOT done ' + JSON.stringify(r)}`; });
+  if (A && A.prune) await chore('hits-prune', () => { A.prune(); return A.hitsLog ? A.hitsLog.shape().kind : ''; });
   // (#114) the worker's round of the numbers, so the walk finds the desk, the digest and the agents' desk open on the kept answer
-  if (app.locals.numbers) { const n = app.locals.numbers.makeAll(); built.push(`numbers ${n.ms} ms${n.failed.length ? ' (failed: ' + n.failed.join(', ') + ')' : ''}`); }
-  console.log('@@' + JSON.stringify({ ms: Date.now() - t, built }));
+  if (app.locals.numbers) await chore('numbers', () => { const n = app.locals.numbers.makeAll(); return n.failed.length ? 'failed: ' + n.failed.join(', ') : ''; });
+  // The register's full check (once an hour on the worker; the read that took it over 2 GB before PR #148).
+  await chore('register', () => { const r = require(path.join(ROOT, 'src/ledger')).verifyAll(app.locals.db); return r && r.ok ? 'ok' : 'BROKEN'; });
+  console.log('@@' + JSON.stringify({ ms: Date.now() - t, built, mem, peakMB: peak() }));
   process.exit(0);
 }
 
@@ -548,6 +563,7 @@ function gate() {
   const db = pgServer ? { DATABASE_URL: pgUrl } : {};
   const wk = again ? {} : child('worker', dir, { ...quiet, ...db, NODE_ENV: 'production', ROLE: 'worker', NO_SEED: '1' });
   if (!again) console.log(`big-house: the worker built ahead in ${wk.ms} ms: ${(wk.built || []).join(', ')}`);
+  if (!again && wk.mem) console.log(`big-house: the worker's memory, chore by chore (MB after · most so far): ${wk.mem.map(m => `${m.k} ${m.rssMB}·${m.peakMB}`).join(', ')}; at most ${wk.peakMB} MB (line ${B.workerMB})`);
   const t1 = Date.now();
   // The walk is the website as live runs it (ROLE=web, NUMBERS_DESK unset): since #114/#120 the numbers desk, its json
   // and the digest read the report the worker's round above made and kept. BIG_NUMBERS_DESK=1 walks them as the website
@@ -562,6 +578,9 @@ function gate() {
   const worst = [...rows].sort((a, b) => b.ms - a.ms).slice(0, 25);
   console.log('the slowest rooms:\n' + table(worst));
   const { faults, allowed, stale } = judge(rows, pgServer ? ALLOW_PG : ALLOW);
+  // (#119) The worker's round is judged like a page: its memory against its line, a chore that failed or left the log unmoved.
+  if (!again && wk.peakMB > B.workerMB) { const worst = [...(wk.mem || [])].sort((a, b) => b.peakMB - a.peakMB)[0] || {}; faults.push(`worker: memory ${wk.peakMB} MB over ${B.workerMB} (the most reached first by ${(wk.mem || []).find(m => m.peakMB === worst.peakMB)?.k || '?'})`); }
+  for (const b of (wk.built || [])) if (/failed|NOT done/.test(b)) faults.push(`worker: ${b}`);
   if (allowed.length) console.log(`allowed (${allowed.length}, each with its issue):\n  ` + allowed.join('\n  '));
   if (stale.length && !process.env.BIG_ONLY) console.log(`stale allow lines (nothing matched them; delete them): ${stale.join(', ')}`);
   if (plans.length) console.log(`plans of the statements over a line (EXPLAIN ANALYZE after the walk; the worst ${Math.min(plans.length, 5)} here${process.env.BIG_PLANS ? ', all in ' + process.env.BIG_PLANS : ''}):\n` + plans.slice(0, 5).map(p => `  ${p.room} · ${p.ms} ms · ${p.rows} rows · ${p.sql.slice(0, 200)}\n    ${p.plan.split('\n').slice(0, 8).join('\n    ')}`).join('\n'));
@@ -578,7 +597,7 @@ function gate() {
 
 const [mode, dir] = process.argv.slice(2);
 if (mode === 'build') build(dir).catch(e => { console.error(e); process.exit(1); });
-else if (mode === 'worker') worker(dir);
+else if (mode === 'worker') worker(dir).catch(e => { console.error(e); process.exit(1); });
 else if (mode === 'walk') walk(dir).catch(e => { console.error(e); process.exit(1); });
 else if (require.main === module) gate();
 module.exports = { judge, ALLOW, ALLOW_PG, B };
