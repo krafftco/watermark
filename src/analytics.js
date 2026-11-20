@@ -174,6 +174,38 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
       newWorks: t("SELECT COUNT(*) n FROM works WHERE created_at>=? AND created_at<?", f, g),
     };
   }
+  // (#114, docs/MEASURE.md) The four funnels, as counts from what the house already keeps; nobody is named. Each step is
+  // counted on the day its first step began, as it stands now (a maker who joined Monday and uploaded Friday is in
+  // Monday's "uploaded"). 1: makers who joined (kind maker, not a peephole reader) → those with any upload. 2: makers whose
+  // first upload was in the span → those with a work held and not kept back. 3: visitors who opened a work's page (each
+  // day's distinct visitors, added over days) beside the collects paid in the span: two counts, not one person followed.
+  // 4: checkouts started (a priced licence that reached awaiting_payment, created in the span) → those paid (active or
+  // expired). A licence asked of a maker first is counted from the day it was asked, not the day its checkout opened.
+  const FUN = {
+    joined: "SELECT COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works w WHERE w.maker_id=m.id) THEN 1 END) b FROM makers m WHERE m.kind='maker' AND COALESCE(m.door,'')<>'play' AND COALESCE(m.joined_at, m.created_at)>=? AND COALESCE(m.joined_at, m.created_at)<?",
+    first: "SELECT COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works h WHERE h.maker_id=f.maker_id AND h.status='held' AND h.keep_back=0) THEN 1 END) b FROM (SELECT maker_id, MIN(id) id FROM works GROUP BY maker_id) f JOIN works w ON w.id=f.id JOIN makers m ON m.id=f.maker_id WHERE m.kind='maker' AND w.created_at>=? AND w.created_at<?",
+    checkout: "SELECT COUNT(*) a, COUNT(CASE WHEN status IN ('active','expired') THEN 1 END) b FROM licenses WHERE price_cents>0 AND status IN ('awaiting_payment','active','expired') AND created_at>=? AND created_at<?",
+  };
+  const FUN_DAYS = {
+    joined: "SELECT substr(COALESCE(m.joined_at, m.created_at),1,10) d, COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works w WHERE w.maker_id=m.id) THEN 1 END) b FROM makers m WHERE m.kind='maker' AND COALESCE(m.door,'')<>'play' AND COALESCE(m.joined_at, m.created_at)>=? GROUP BY substr(COALESCE(m.joined_at, m.created_at),1,10) LIMIT 400",
+    first: "SELECT substr(w.created_at,1,10) d, COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works h WHERE h.maker_id=f.maker_id AND h.status='held' AND h.keep_back=0) THEN 1 END) b FROM (SELECT maker_id, MIN(id) id FROM works GROUP BY maker_id) f JOIN works w ON w.id=f.id JOIN makers m ON m.id=f.maker_id WHERE m.kind='maker' AND w.created_at>=? GROUP BY substr(w.created_at,1,10) LIMIT 400",
+    checkout: "SELECT substr(created_at,1,10) d, COUNT(*) a, COUNT(CASE WHEN status IN ('active','expired') THEN 1 END) b FROM licenses WHERE price_cents>0 AND status IN ('awaiting_payment','active','expired') AND created_at>=? GROUP BY substr(created_at,1,10) LIMIT 400",
+    collected: "SELECT substr(starts_at,1,10) d, COUNT(*) b FROM licenses WHERE status IN ('active','expired') AND price_cents>0 AND starts_at>=? GROUP BY substr(starts_at,1,10) LIMIT 400",
+  };
+  const pair = (sql, ...a) => { try { const r = one(sql, ...a) || {}; return { a: Number(r.a) || 0, b: Number(r.b) || 0 }; } catch (e) { return { a: 0, b: 0 }; } };
+  function funnels(from, to, collects) {
+    const f = iso(from), g = iso(to), f0 = D0(from), t0 = D0(to - 1) + 86400;
+    const opened = Number((one("SELECT COALESCE(SUM(u),0) n FROM hits_days WHERE dim='workv' AND day>=? AND day<?", f0, t0) || {}).n) || 0;
+    return { joined: pair(FUN.joined, f, g), first: pair(FUN.first, f, g), looked: { a: opened, b: collects || 0 }, checkout: pair(FUN.checkout, f, g) };
+  }
+  function funnelDays(from) {
+    const out = new Map(); const at = d => { if (!out.has(d)) out.set(d, { d, joined: { a: 0, b: 0 }, first: { a: 0, b: 0 }, looked: { a: 0, b: 0 }, checkout: { a: 0, b: 0 } }); return out.get(d); };
+    const f = iso(from); const t = (sql, ...a) => { try { return q(sql, ...a); } catch (e) { return []; } };
+    for (const k of ['joined', 'first', 'checkout']) for (const r of t(FUN_DAYS[k], f)) at(r.d)[k] = { a: Number(r.a) || 0, b: Number(r.b) || 0 };
+    for (const r of t(FUN_DAYS.collected, f)) at(r.d).looked.b = Number(r.b) || 0;
+    for (const r of t("SELECT day, u FROM hits_days WHERE dim='workv' AND day>=? ORDER BY day LIMIT 400", D0(from))) at(new Date(Number(r.day) * 1000).toISOString().slice(0, 10)).looked.a = Number(r.u) || 0;
+    return [...out.values()].sort((x, y) => (x.d < y.d ? -1 : 1));
+  }
   // The part of the report the database answers: made by the worker in a split house, in process otherwise.
   function fromDb(span = 'today') {
     const S = spanOf(span); const now = Math.floor(Date.now() / 1000); const f0 = D0(S.from);
@@ -195,7 +227,8 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
     const slow = q("SELECT path, COUNT(*) n, AVG(ms) avg, MAX(ms) max FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY path HAVING COUNT(*)>=3 ORDER BY AVG(ms) DESC LIMIT 8", Math.max(S.from, now - 86400));
     const errs = num(q("SELECT CAST(k AS INTEGER) status, SUM(n) n FROM hits_days WHERE dim='status' AND day>=? GROUP BY k ORDER BY SUM(n) DESC LIMIT 20", f0));
     const bots = num(q("SELECT k path, SUM(n) n FROM hits_days WHERE dim='botpath' AND day>=? GROUP BY k ORDER BY SUM(n) DESC LIMIT 6", f0));
-    return { span, label: S.label, days, cur, prev, hours, byDay, works, pages, refs, direct, devices, browsers, countries, stoodTop, speed, slow, errs, bots };
+    const fun = funnels(S.from, now + 1, cur.collects); const funDays = days > 1 ? funnelDays(S.from) : [];
+    return { span, label: S.label, days, cur, prev, hours, byDay, works, pages, refs, direct, devices, browsers, countries, stoodTop, speed, slow, errs, bots, funnels: fun, funnelDays: funDays };
   }
   // The part only this process knows (memory, no statement): who is on the site now, the last minutes, the last errors.
   function liveOf() {
@@ -288,6 +321,11 @@ ${R.now.where.length ? `<ul class="an-where">${R.now.where.map(w => `<li><span>$
 <div class="an-stats">${stat('people', c.people, p.people)}${stat('addresses that fetched pages', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('first-time collectors', c.firstTimers, p.firstTimers)}${stat('makers joined', c.newMakers, p.newMakers)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
 ${bars(hourRows, 'k', 'v', r => `${r.k}: ${r.v} views, ${r.u} visitors`)}<p class="an-axis"><span>${esc(hourRows[0] ? hourRows[0].k : '')}</span><span>${esc(hourRows[hourRows.length - 1] ? hourRows[hourRows.length - 1].k : '')}</span></p></article>
 
+${R.funnels ? `<article class="an-card an-wide"><h2>The four funnels<small> ${esc(R.label.toLowerCase())}, counts only</small></h2>${(() => { const F = R.funnels; const rate = (a, b) => (a ? ` (${Math.round(b / a * 1000) / 10}%)` : ''); return `<p class="an-line">Signed up, then uploaded: ${n(F.joined.a)} makers joined · ${n(F.joined.b)} have uploaded${rate(F.joined.a, F.joined.b)}</p>
+<p class="an-line">Uploaded, then hung: ${n(F.first.a)} first uploads · ${n(F.first.b)} of those makers have a work on view${rate(F.first.a, F.first.b)}</p>
+<p class="an-line">Looked, then collected: ${n(F.looked.a)} visitors opened a work${R.days > 1 ? ' (counted by the day)' : ''} · ${n(F.looked.b)} collected${rate(F.looked.a, F.looked.b)}</p>
+<p class="an-line">Checkout, then paid: ${n(F.checkout.a)} checkouts started · ${n(F.checkout.b)} paid${rate(F.checkout.a, F.checkout.b)}</p>
+<p class="an-none">Each is counted from the day its first step began, as it stands now. Nobody is named.</p>`; })()}</article>` : ''}
 <article class="an-card"><h2>Works, most seen</h2>${list(R.works, [r => `<a href="/w/${esc(r.slug || r.path.slice(3))}">${esc(r.title || r.path)}</a>`, r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>
 <article class="an-card"><h2>Works, longest stood before</h2>${list(R.stoodTop, [r => `<a href="/w/${esc(r.slug)}">${esc(r.title)}</a>`, r => `${Math.round((r.secs || 0) / 60)} min`, r => `<i>${n(r.n)} stood</i>`])}</article>
 <article class="an-card"><h2>Pages</h2>${list(R.pages, [r => esc(r.path), r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>

@@ -34,7 +34,7 @@ function mountRollup(db) {
     country: db.prepare(`INSERT INTO hits_days (day, dim, k, n, u) SELECT CAST(? AS BIGINT), 'country', country, COUNT(*), COUNT(DISTINCT visitor) ${W} AND kind='page' AND bot=0 AND country IS NOT NULL GROUP BY country`),
     botpath: db.prepare(`INSERT INTO hits_days (day, dim, k, n, u) SELECT CAST(? AS BIGINT), 'botpath', path, COUNT(*), 0 ${W} AND bot=1 GROUP BY path`),
     status: db.prepare(`INSERT INTO hits_days (day, dim, k, n, u) SELECT CAST(? AS BIGINT), 'status', CAST(status AS TEXT), COUNT(*), 0 ${W} AND status>=400 GROUP BY status`),
-    singles: db.prepare(`SELECT COUNT(CASE WHEN ${P} THEN 1 END) views, COUNT(DISTINCT CASE WHEN ${P} THEN visitor END) visitors, COUNT(CASE WHEN kind='page' AND bot=0 AND ref IS NULL THEN 1 END) dn, COUNT(DISTINCT CASE WHEN kind='page' AND bot=0 AND ref IS NULL THEN visitor END) du, COUNT(CASE WHEN kind='api' THEN 1 END) api, COUNT(CASE WHEN bot=1 THEN 1 END) bots, COUNT(CASE WHEN status>=500 THEN 1 END) e5, COUNT(CASE WHEN status=404 AND kind='page' THEN 1 END) nf ${W}`),
+    singles: db.prepare(`SELECT COUNT(CASE WHEN ${P} THEN 1 END) views, COUNT(DISTINCT CASE WHEN ${P} THEN visitor END) visitors, COUNT(CASE WHEN kind='page' AND bot=0 AND ref IS NULL THEN 1 END) dn, COUNT(DISTINCT CASE WHEN kind='page' AND bot=0 AND ref IS NULL THEN visitor END) du, COUNT(CASE WHEN kind='api' THEN 1 END) api, COUNT(CASE WHEN bot=1 THEN 1 END) bots, COUNT(CASE WHEN status>=500 THEN 1 END) e5, COUNT(CASE WHEN status=404 AND kind='page' THEN 1 END) nf, COUNT(DISTINCT CASE WHEN ${P} AND path LIKE '/w/%' THEN visitor END) wv ${W}`),
     put: db.prepare('INSERT INTO hits_days (day, dim, k, n, u) VALUES (?,?,?,?,?)'),
     rolled: db.prepare("SELECT day FROM hits_days WHERE dim='rolled' AND n=1 AND day>=? LIMIT 2000"),
     first: db.prepare('SELECT MIN(at) t FROM hits'),
@@ -47,7 +47,7 @@ function mountRollup(db) {
     S.vd.run(...a); S.hour.run(...a); S.path.run(...a); S.ref.run(...a); S.device.run(...a); S.browser.run(...a); S.country.run(...a); S.botpath.run(...a); S.status.run(...a);
     const x = S.singles.get(d, d + DAY) || {};
     S.put.run(d, 'page', '', +x.views || 0, +x.visitors || 0); S.put.run(d, 'direct', '', +x.dn || 0, +x.du || 0);
-    S.put.run(d, 'api', '', +x.api || 0, 0); S.put.run(d, 'bot', '', +x.bots || 0, 0); S.put.run(d, 'e5', '', +x.e5 || 0, 0); S.put.run(d, 'nf', '', +x.nf || 0, 0);
+    S.put.run(d, 'api', '', +x.api || 0, 0); S.put.run(d, 'bot', '', +x.bots || 0, 0); S.put.run(d, 'e5', '', +x.e5 || 0, 0); S.put.run(d, 'nf', '', +x.nf || 0, 0); S.put.run(d, 'workv', '', 0, +x.wv || 0); // visitors who opened a work's page that day (the third funnel)
     S.put.run(d, 'rolled', '', closed ? 1 : 0, 0);
   });
   // Today again; any closed day not yet rolled (BACKFILL at most), oldest first; a day is closed ten minutes after it ends

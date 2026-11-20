@@ -119,6 +119,21 @@ The CTO session keeps it honest.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 
+## The website's limits and the kept numbers (#115, #114)
+- On ROLE=web the bridge refuses a statement after 8 s without the event loop turning (DB_HOLD_MS) and Postgres stops any
+  statement at 4 s (DB_LIMIT_MS). A room that asks many quick statements in one synchronous stretch can now be cut with
+  a 503: an `await` or a page split does not help unless the loop actually turns (setImmediate). Look for `[pg limit]`.
+- A named long write on the website: `db.longer(ms, fn)` (SQLite runs fn as is). Never inside a request that already held the thread.
+- The worker's SET of statement_timeout inside a transaction is undone by its rollback: pgworker.js re-sets it after
+  such a transaction. Transaction words (BEGIN/COMMIT/ROLLBACK/SAVEPOINT/RELEASE) are never refused or limited.
+- Figures over the visit log come from the daily rollups (`hits_days` dims, `hits_vd`), never from `hits` on a page.
+  A list's visitors over several days are each day's distinct visitors added; the head's visitors are exact.
+- To test the website's kept path in one process: set `process.env.ROLE='web'` after createApp (the doors read it when
+  asked), call `app.locals.numbers.makeAll()` as the worker would. test/numbers-shut.js counts every SQLite statement.
+- On Postgres, COUNT(DISTINCT x) over millions of rows spills to disk under the default work_mem (4 MB): EXPLAIN (ANALYZE,
+  BUFFERS) shows `Sort Method: external merge`. Roll it up by day instead.
+- `express` 5: a test-only route goes first with `app.router.stack.unshift(app.router.stack.pop())` (test/pglimit.js).
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.

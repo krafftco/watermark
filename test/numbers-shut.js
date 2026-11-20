@@ -43,6 +43,19 @@ const { createApp } = require('../src/app.js');
     const old = db.prepare('SELECT COUNT(*) n FROM (SELECT work_id, ok FROM fixity f WHERE id=(SELECT MAX(id) FROM fixity WHERE work_id=f.work_id)) x WHERE ok=0').get().n;
     const S = app.locals.archive.summary(); assert.strictEqual(S.failing, Number(old), 'fixity: the one-pass summary agrees with the old'); assert.strictEqual(S.failing, 2, 'two works failing at their latest check'); assert.strictEqual(S.checked, 3, 'three checked'); }
 
+  // The four funnels (docs/MEASURE.md): counts from what the house keeps, each step moved by exactly what was added.
+  { const A = app.locals.analytics; const F0 = A.report('today').funnels;
+    const mk = (h, door) => db.prepare("INSERT INTO makers (handle, name, email, kind, joined_at, door) VALUES (?, ?, ?, 'maker', datetime('now'), ?)").run(h, h, h + '@example.com', door).lastInsertRowid;
+    const m1 = mk('fun-one', 'record'); mk('fun-two', 'record'); mk('fun-reader', 'play');
+    const w = db.prepare("INSERT INTO works (maker_id, slug, title, original_file, sha256, status, width, height) VALUES (?, 'fun-work', 'Fun', 'fun.jpg', 'f00d', 'held', 1000, 1000)").run(m1).lastInsertRowid;
+    const use = db.prepare('SELECT id FROM uses ORDER BY id LIMIT 1').get().id;
+    const lic = db.prepare("INSERT INTO licenses (ref, work_id, use_id, licensee_name, licensee_email, price_cents, status, starts_at) VALUES (?, ?, ?, 'A', 'a@example.com', 2500, ?, ?)");
+    lic.run('FUN-1', w, use, 'awaiting_payment', null); lic.run('FUN-2', w, use, 'active', new Date().toISOString().replace('T', ' ').slice(0, 19));
+    const F = A.report('today').funnels; const d = (k, x) => F[k][x] - F0[k][x];
+    assert.deepStrictEqual([d('joined', 'a'), d('joined', 'b'), d('first', 'a'), d('first', 'b'), d('checkout', 'a'), d('checkout', 'b'), d('looked', 'b')], [2, 1, 1, 1, 2, 1, 1], 'the funnels count what was added, and not the peephole reader: ' + JSON.stringify(F));
+    assert.ok(F.looked.a >= 1, 'visitors who opened a work today');
+    const R30 = A.report('30d'); assert.ok(R30.funnelDays.length >= 1 && R30.funnelDays.some(x => x.checkout.a >= 2), 'and day by day over thirty days'); }
+
   // The switch shuts it anywhere.
   process.env.NUMBERS_DESK = '0';
   let r = await go('/studio/analytics'); let t = await r.text();
@@ -68,6 +81,7 @@ const { createApp } = require('../src/app.js');
   for (const k of ['health', 'report:today', 'report:7d', 'report:30d', 'desk', 'owner']) assert.ok(app.locals.numbers.read(k), 'kept: ' + k);
   await audit('desk', async () => { r = await go('/studio/analytics'); t = await r.text(); });
   assert.ok(r.status === 200 && /their browsers answering/.test(t) && /as of \d/.test(t) && /back room/.test(t), 'the desk opens on the kept report and says when it was made');
+  assert.ok(/Checkout, then paid: \d+ checkouts started · \d+ paid/.test(t) && /Signed up, then uploaded/.test(t), 'the four funnels, as plain lines');
   clean('the desk'); if (!pg) assert.strictEqual(keptReads(), 1, 'the desk read the kept answer in one statement');
   await audit('json', async () => { r = await go('/studio/analytics.json?span=7d'); t = await r.json(); });
   assert.ok(t.span === '7d' && t.made && t.cur && t.cur.views > 0, 'the json door: the kept 7 days, with when'); clean('the json'); if (!pg) assert.strictEqual(keptReads(), 1, 'one statement');
