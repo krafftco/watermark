@@ -10,7 +10,7 @@ and its proof. It is changed when a stage is proved, never before.
   the answer comes (Atomics.wait). There are 3,796 such askings in 183 files.
 - A question may hold the thread for DB_WAIT_MS: 20 seconds on the website. The watchdog ends a process that misses
   three answers of eight seconds. So one slow question is an outage for every visitor (13, 18 and 20 Nov).
-- The live database is Render Postgres with 1 GB of memory.
+- The live database is Render Postgres with 2 CPU and 8 GB of memory (read from Render on 20 Nov; this page said 1 GB, which was stale).
 - The scale gate (`scripts/big-house.js`) walks the house on SQLite. A room quick there is not shown quick on Postgres
   through the bridge; that is how the numbers desk passed the gate and stopped the house.
 
@@ -33,7 +33,7 @@ A billion is not planned here. It is a different company's infrastructure and is
 
 ## What costs money (for Will; every figure is an estimate until checked against the bill)
 
-- The database: more memory is the cheapest speed there is. 1 GB is too small for what is asked of it now.
+- The database: more memory is the cheapest speed there is. At 8 GB the memory is not the present limit; the one thread of the website is.
 - The website: two or more copies from stage 2.
 - The pictures: storage grows with every master kept. At ten million objects, whether the house keeps a master of
   every open-access museum picture or keeps the record and its display copies is the largest cost decision in the plan.
@@ -235,7 +235,7 @@ is not frozen with the server). Every number here is from that machine, not from
   bridge's JSON makes it (a Date becomes its ISO string), so a moved statement returns what it returned before.
 - On SQLite (tests and the scale gate) `adb` runs the same statement on the same better-sqlite3 connection and
   resolves with it; an error rejects. Every test runs unchanged on both engines.
-- The limit: ADB_LIMIT_MS (5,000 on the website, 120,000 elsewhere) as `statement_timeout` on every connection of the
+- The limit: ADB_LIMIT_MS (4,000 on the website, 120,000 elsewhere) as `statement_timeout` on every connection of the
   pool. Postgres cancels a statement past it; that call rejects (code 57014); the connection is kept and serves the
   next. On SQLite a statement cannot be ended from its own thread: there is no limit, only the log.
 - The slow log: ADB_SLOW_MS (500): `[adb slow] <ms> ms: <sql>`, the worst twenty kept for /healthz `adbSlow`, apart
