@@ -168,27 +168,6 @@ jobs:
           name: webkit-findings
           path: /tmp/*-webkit.*
           if-no-files-found: ignore
-  # TEMPORARY (#109 lab; removed before merge): the suspect doors in WebKit, six times over, with every finding and
-  # every one-look finding raised as an annotation, and Wander's side tabs sampled through the turn.
-  reach-lab:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        run: [1, 2]
-    env:
-      WM_ENGINE: webkit
-      WM_WEBKIT_ADVISORY: '1'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: timeout 600 npx playwright install --with-deps webkit || timeout 600 npx playwright install --with-deps webkit
-      - run: NODE_ENV=test node scripts/lab-wander.js
   postgres:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

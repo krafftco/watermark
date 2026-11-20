@@ -15,6 +15,15 @@ The CTO session keeps it honest.
   (`scripts/engine.js`; iPad (gen 7), iPad Mini, iPhone 13 from Playwright's `devices`). Here `WM_ENGINE=webkit` prints
   one line and exits 0; in CI a missing WebKit fails. Its findings come back as annotations titled `… webkit`
   (`scripts/engine-findings.js`, ≤1500 chars each, 10 a level a step) and whole in the job's `webkit-findings` artifact.
+- The reach walk calls a finding only when a second look agrees (#109): each door (a page at a size as a person, or one
+  edge of the presses) found with anything is visited again once in a fresh page; what one look of two saw is `flaky`,
+  kept in REACH_JSON and raised as notices (`reach webkit flaky`), never an error. A door that throws (a navigation under
+  the walk, a press that cannot be brought into view in 8 s) is a finding of kind `error`, looked at twice the same way.
+  Each finding carries `diag` (Wander's classes, running animations, opacity, ms since load) and an invisible control is
+  re-read 1.5 s later (`STILL`/`no longer invisible`): read those before calling a WebKit finding a flake or a fault.
+  Playwright's WebKit is not on this machine: a lab is a temporary job in test.yml on your PR (dispatch more runs with
+  `gh api -X POST repos/krafftco/watermark/actions/workflows/test.yml/dispatches -f ref=<branch>`). A PR that conflicts
+  with `next` runs no CI at all: merge `next` in when `mergeable_state` is `dirty`.
 - WebKit in CI (#55): the job takes ~13 min (reach ~10). Playwright's WebKit does not let `route()` stand in for requests
   that go through the house's service worker, and the worker claims the page at once: a test that stubs answers runs
   with `serviceWorkers: 'block'`. WebKit likely holds Wander in its arrival state (bar hidden, pointer-events none,
