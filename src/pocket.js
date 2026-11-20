@@ -47,8 +47,14 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     } catch (e) { console.error('[pocket connect]', e.message); res.redirect('/yours?tab=settings&pocket=unavailable#pocket'); }
   });
   // Cash out what was earned: transferred when payouts are on and the bank is there; otherwise recorded and paid by hand.
-  app.post('/pocket/cashout', async (req, res) => {
+  app.post('/pocket/cashout', async (req, res, next) => {
     const b = buyerOf(req); if (!b) return res.redirect('/yours');
+    // (#123) One cash-out a person at a time across every copy of the website and the worker's Friday pay.
+    const I = app.locals.instances; const k = `pocket:buyer-${b.id}`;
+    if (I && !I.lease(k, 5 * 60e3)) return res.redirect('/yours?tab=settings&pocket=cashed#pocket');
+    try { await cashout(req, res, b); } catch (e) { next(e); } finally { if (I) I.release(k); }
+  });
+  async function cashout(req, res, b) {
     const cents = cashable(b); if (cents < 100) return res.redirect('/yours?tab=settings&pocket=small#pocket');
     const id = db.prepare("INSERT INTO pocket (buyer_id, cents, kind, status, note) VALUES (?,?,'cashout','pending','Cashed out')").run(b.id, -cents).lastInsertRowid;
     if (PAY_ON() && b.stripe_account) {
@@ -59,7 +65,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     ledger.append(db, 'pocket.cashed', `buyer-${b.id}`, { amount: cents, how: 'hand' });
     try { require('./mail').send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Cash out: ${money(cents)} to buyer ${b.id}`, text: `${b.name || 'A collector'} <${b.email || 'no email'}> asked to cash out ${money(cents)} from their pocket.${b.stripe_account ? ` Connect account ${b.stripe_account}.` : ' No bank on file yet.'}` }); } catch (e) { /* mail off */ }
     res.redirect('/yours?tab=settings&pocket=cashed#pocket');
-  });
+  }
   app.post('/pocket/add', async (req, res) => {
     const cents = Math.round(Number((req.body || {}).amount)); if (!TOPUPS.includes(cents)) return res.redirect('/yours?tab=settings#pocket');
     if (!stripe) return res.redirect('/yours?tab=settings&pocket=off#pocket');
@@ -78,7 +84,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
   function settle(id, s) {
     const row = db.prepare('SELECT * FROM pocket WHERE id=?').get(Number(id)); if (!row || row.status !== 'pending' || row.stripe_session !== s.id) return;
     if (s.payment_status !== 'paid') return;
-    db.prepare("UPDATE pocket SET status='posted', cents=? WHERE id=?").run(s.amount_total || row.cents, row.id);
+    if (!db.prepare("UPDATE pocket SET status='posted', cents=? WHERE id=? AND status='pending'").run(s.amount_total || row.cents, row.id).changes) return; // (#123) the claim
     if (s.customer) db.prepare("UPDATE buyers SET customer=COALESCE(NULLIF(customer,''), ?), email=COALESCE(email, ?) WHERE id=?").run(s.customer, (s.customer_details || {}).email || null, row.buyer_id);
     ledger.append(db, 'pocket.filled', `buyer-${row.buyer_id}`, { amount: s.amount_total || row.cents });
   }
@@ -94,7 +100,12 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
   const HOLD_DAYS = Math.max(0, Number(process.env.PAYOUT_HOLD_DAYS || 7));
   const clearedEarned = b => (b ? db.prepare(`SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status='posted' AND kind IN (${EARNED.map(() => '?').join(',')}) AND at <= datetime('now', ?)`).get(b.id, ...EARNED, `-${HOLD_DAYS} days`).s : 0);
   const cleared = b => Math.max(0, Math.min(cashable(b), clearedEarned(b) + db.prepare("SELECT COALESCE(SUM(cents),0) s FROM pocket WHERE buyer_id=? AND status IN ('posted','pending') AND kind='cashout'").get(b.id).s));
-  async function sweep(b, { by = 'friday' } = {}) {
+  async function sweep(b, opts = {}) {
+    const I = app.locals.instances; if (!I) return sweepNow(b, opts);
+    const r = await I.withLease(`pocket:buyer-${b.id}`, 5 * 60e3, () => sweepNow(b, opts)); // (#123) as cash-out
+    return r === I.BUSY ? { ok: false, why: 'busy', cents: 0 } : r;
+  }
+  async function sweepNow(b, { by = 'friday' } = {}) {
     const cents = cleared(b); if (!PAY_ON() || !b.stripe_account || cents < 100) return { ok: false, why: !PAY_ON() ? 'off' : !b.stripe_account ? 'nobank' : 'small', cents };
     const id = db.prepare("INSERT INTO pocket (buyer_id, cents, kind, status, note) VALUES (?,?,'cashout','pending',?)").run(b.id, -cents, by === 'friday' ? 'Friday pay' : 'Cashed out').lastInsertRowid;
     try {

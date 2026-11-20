@@ -83,8 +83,8 @@ function mountPatronage(app, { db, C, stripe, maker, slugify, buyerOf, setBuyer,
     const p = db.prepare('SELECT * FROM patrons WHERE id=?').get(id); if (!p || p.status !== 'pending' || p.stripe_session !== s.id) return p;
     if (s.status !== 'complete' && s.payment_status !== 'paid') return p;
     const d = s.customer_details || {};
-    db.prepare("UPDATE patrons SET status=?, stripe_sub=?, email=COALESCE(?, email), name=COALESCE(name, ?), started_at=datetime('now') WHERE id=?")
-      .run(p.recurring ? 'active' : 'given', s.subscription || null, d.email || null, d.name || null, id);
+    if (!db.prepare("UPDATE patrons SET status=?, stripe_sub=?, email=COALESCE(?, email), name=COALESCE(name, ?), started_at=datetime('now') WHERE id=? AND status='pending'")
+      .run(p.recurring ? 'active' : 'given', s.subscription || null, d.email || null, d.name || null, id).changes) return db.prepare('SELECT * FROM patrons WHERE id=?').get(id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, p.recurring ? 'patron.joined' : 'patron.gave', `patron-${id}`, { maker: db.prepare('SELECT handle FROM makers WHERE id=?').get(p.maker_id).handle, level: p.level });
     return db.prepare('SELECT * FROM patrons WHERE id=?').get(id);
   }

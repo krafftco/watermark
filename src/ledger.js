@@ -33,19 +33,24 @@ function digest(e) {
 const sigReady = new WeakSet();
 function ensureSig(db) { if (sigReady.has(db)) return; if (!db.prepare("SELECT 1 FROM pragma_table_info('ledger') WHERE name='sig'").get()) db.exec('ALTER TABLE ledger ADD COLUMN sig TEXT'); sigReady.add(db); }
 function append(db, type, subject, data) {
-  const last = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get();
-  const e = {
-    seq: last ? last.seq + 1 : 1,
-    at: new Date().toISOString(),
-    type, subject,
-    data: JSON.stringify(data || {}),
-    prev_hash: last ? last.hash : GENESIS,
-  };
-  e.hash = digest(e);
-  e.sig = sign(e.hash);
-  ensureSig(db);
-  db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash, sig) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash,@sig)').run(e);
-  return e;
+  // (#123) Several processes write the register (the copies of the website, the worker). The chain's next number is the
+  // claim: two that read the same head both try seq+1, the database keeps one, and the other reads the new head and
+  // links to it. So the chain never forks and an entry is never lost to a race.
+  for (let tries = 0; ; tries++) {
+    const last = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get();
+    const e = {
+      seq: last ? last.seq + 1 : 1,
+      at: new Date().toISOString(),
+      type, subject,
+      data: JSON.stringify(data || {}),
+      prev_hash: last ? last.hash : GENESIS,
+    };
+    e.hash = digest(e);
+    e.sig = sign(e.hash);
+    ensureSig(db);
+    try { db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash, sig) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash,@sig)').run(e); return e; }
+    catch (err) { if (tries < 8 && (err.code === '23505' || /UNIQUE|PRIMARYKEY|duplicate key/i.test(`${err.code} ${err.message}`))) continue; throw err; }
+  }
 }
 
 // Verifying the whole chain is linear; a large register would make every status check slow. So the
