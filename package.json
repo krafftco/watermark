@@ -1,6 +1,6 @@
 {
   "name": "watermark",
-  "version": "1.87.9",
+  "version": "1.87.10",
   "description": "Watermark: hold, show and license photographs at the source.",
   "main": "server.js",
   "scripts": {
