@@ -31,7 +31,7 @@ The CTO session keeps it honest.
 - `gh api` (REST) only. Issues, comments, pulls: `gh api -X POST repos/krafftco/watermark/…`. Bodies from a file: `-F body=@file`.
 - CI runs on pull requests, on `next` and on `main`. Its logs cannot be read; a failed job's reason is in
   `gh api repos/krafftco/watermark/check-runs/<job id>/annotations`. A job that fails must publish why as an annotation.
-- Jobs: `test`, `postgres`, `load`, `a11y` (also runs `test/wayback.js`), `reach`, `reach-webkit`. All must be green before `main` moves (promote.yml names each in `NEEDS`; rename one, rename it there).
+- Jobs: `test`, `postgres`, `load`, `scale`, `scale-postgres` (#116, about 3 min), `a11y` (also runs `test/wayback.js`), `reach`, `reach-webkit`. All must be green before `main` moves (promote.yml names each in `NEEDS`; rename one, rename it there).
 - `public/sw.js`'s `V` is bumped by almost every change, so it conflicts on merge almost every time. That is expected;
   the CTO session resolves it. Do not rebase to chase it.
 - `[skip render]` in a commit message stops the host deploying THAT push. If such a commit is the newest one when `main`
