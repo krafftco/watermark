@@ -8,8 +8,11 @@
 // are shared by every copy of the website; the website has no disk and gets none.
 //
 // Who is a stranger: a request with no house cookie that marks a person, no tenant and no query. The house's cookies are
-// all `wm_*`; only three say nothing about who is asking: `wm_in=1` (set by the layout's script), `wm_tz` (the clock's
-// zone: none of these doors reads it) and `wm_zone=all`. Every other `wm_*` cookie (a sign-in, the visitor's own looking
+// all `wm_*`; only three say nothing about who is asking: `wm_in=1` (set by the layout's script), `wm_tz` and
+// `wm_zone=all`. `wm_tz` is the visitor's own time zone, which the clock reads (clock.js `programme`, on /house's rows
+// when the house is not quiet, and the Keys): a copy whose making asked the clock is marked `zoned` (X-Wm-Zoned from the
+// worker's own request), and a visitor who carries a zone is built fresh for it; a zoned copy is never public to a cache
+// in front, which does not know the zone. Every other `wm_*` cookie (a sign-in, the visitor's own looking
 // `wm_v`, the basket, a walk `wm_in=<list>`, a show `wm_via`, the adult rooms…) is a person, whose page is built fresh
 // and sent `private, no-store`; on the hall's doors, which read none of the visitor's own cookies, see HALL_INERT. A copy is only ever made from the worker's own cookieless request, so no copy can hold
 // anything of a person. Rule: a new `wm_*` cookie is a person until it is added to INERT here.
@@ -72,7 +75,7 @@ function isPerson(req, kind = kindOfPath(req.path)) {
   return false;
 }
 // The doors a copy may answer, by path alone. `/m/<maker>/<slug>` is the work's own address; its copy is the work's.
-const FIXED = ['/', '/wander', '/collection', '/makers'];
+const FIXED = ['/', '/wander', '/house', '/collection', '/makers'];
 const SLUG = '[a-z0-9][a-z0-9-]{0,159}';
 const RX = { w: new RegExp(`^/w/(${SLUG})$`), m: new RegExp(`^/m/(${SLUG})/(${SLUG})$`), art: new RegExp(`^/art/(${SLUG})$`) };
 function doorOfPath(p) {
@@ -92,7 +95,8 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
   const test = process.env.NODE_ENV === 'test';
   // Off under test unless the test asks (cfg.prepared), and anywhere with PREPARED=0.
   const on = process.env.PREPARED === '0' ? false : (test ? !!cfg.prepared : true);
-  db.exec('CREATE TABLE IF NOT EXISTS prepared_pages (k TEXT PRIMARY KEY, body TEXT, at INTEGER NOT NULL, made INTEGER NOT NULL, work_id INTEGER, maker TEXT, cookies TEXT, etag TEXT, seen INTEGER, gone INTEGER NOT NULL DEFAULT 0)');
+  db.exec('CREATE TABLE IF NOT EXISTS prepared_pages (k TEXT PRIMARY KEY, body TEXT, at INTEGER NOT NULL, made INTEGER NOT NULL, work_id INTEGER, maker TEXT, cookies TEXT, etag TEXT, seen INTEGER, gone INTEGER NOT NULL DEFAULT 0, zoned INTEGER NOT NULL DEFAULT 0)');
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('prepared_pages') WHERE name='zoned'").get()) db.exec('ALTER TABLE prepared_pages ADD COLUMN zoned INTEGER NOT NULL DEFAULT 0');
   // the async path (#117) when it is there; else the bridge, from a timer, never a request
   const ask = () => app.locals.adb || { all: async (sql, ...a) => db.prepare(sql).all(...a), get: async (sql, ...a) => db.prepare(sql).get(...a), run: async (sql, ...a) => db.prepare(sql).run(...a) };
   const state = { served: 0, missed: 0, persons: 0, made: 0, refused: 0, forgot: 0, polls: 0, lastPoll: null, lastRound: null, error: null };
@@ -106,7 +110,7 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
   function keep(k, row) {
     drop(k);
     const body = String(row.body || ''); const gz = zlib.gzipSync(body, { level: 6 });
-    const h = { at: Number(row.at), made: Number(row.made), body, gz, etag: row.etag || `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`, maker: row.maker || null, workId: row.work_id ? Number(row.work_id) : null, cookies: (() => { try { return row.cookies ? JSON.parse(row.cookies) : []; } catch (e) { return []; } })(), bytes: body.length + gz.length };
+    const h = { at: Number(row.at), made: Number(row.made), body, gz, etag: row.etag || `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`, maker: row.maker || null, workId: row.work_id ? Number(row.work_id) : null, cookies: (() => { try { return row.cookies ? JSON.parse(row.cookies) : []; } catch (e) { return []; } })(), zoned: !!Number(row.zoned || 0), bytes: body.length + gz.length };
     mem.set(k, h); bytes += h.bytes;
     const cap = MEM_MB() * 1048576; for (const key of mem.keys()) { if (bytes <= cap) break; if (FIXED.includes(key)) continue; drop(key); }
   }
@@ -130,7 +134,7 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
       const all = [...want].filter(k => index.has(k)).sort((a, b) => FIXED.includes(b) - FIXED.includes(a)); want.clear();
       for (let i = 0; i < all.length && i < BODIES * 4; i += BODIES) {
         const ks = all.slice(i, i + BODIES);
-        const rows = await ask().all(`SELECT k, body, at, made, work_id, maker, cookies, etag FROM prepared_pages WHERE gone=0 AND k IN (${ks.map(() => '?').join(',')}) LIMIT ${BODIES}`, ...ks);
+        const rows = await ask().all(`SELECT k, body, at, made, work_id, maker, cookies, etag, zoned FROM prepared_pages WHERE gone=0 AND k IN (${ks.map(() => '?').join(',')}) LIMIT ${BODIES}`, ...ks);
         for (const r of rows) { const ix = index.get(r.k); if (ix && Number(r.at) >= ix.at && r.body) keep(r.k, r); }
         await new Promise(f => setImmediate(f)); // the loop turns between batches
       }
@@ -146,14 +150,15 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
     const d = doorOf(req); if (!d) return next();
     if (isPerson(req, d.who)) { state.persons++; res.set('Cache-Control', 'private, no-store'); return next(); }
     const h = mem.get(d.key); const now = Date.now();
-    if (!h || now - h.made > STALE_MS() || (d.maker && h.maker !== d.maker) || res.getHeader('set-cookie')) {
+    const ownZone = h && h.zoned && cookiesOf(req).some(([k, v]) => k === 'wm_tz' && v); // the hour in their own zone
+    if (!h || ownZone || now - h.made > STALE_MS() || (d.maker && h.maker !== d.maker) || res.getHeader('set-cookie')) {
       if (!h && index.has(d.key)) want.add(d.key);
       state.missed++; res.set('Cache-Control', 'private, no-store'); return next();
     }
     mem.delete(d.key); mem.set(d.key, h); // most recently used last
     state.served++; res.locals.fromCopy = true;
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.set('Cache-Control', `public, max-age=0, s-maxage=${EDGE_S()}, stale-while-revalidate=${SWR_S()}`);
+    res.set('Cache-Control', h.zoned ? 'private, max-age=0' : `public, max-age=0, s-maxage=${EDGE_S()}, stale-while-revalidate=${SWR_S()}`); // a cache in front cannot tell the zone
     res.set('ETag', h.etag); res.set('X-Prepared', String(Math.round((now - h.made) / 1000))); res.vary('Accept-Encoding');
     for (const c of h.cookies) res.cookie(c.name, c.value, c.opts || {});
     if (req.headers['if-none-match'] === h.etag) return res.status(304).end();
@@ -188,8 +193,8 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
   // from and how long the page took to arrive. First-party; sent once; nothing else.
   const SEEN = '<script>(function(){try{var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0],t=n?Math.round(n.responseEnd-n.requestStart):0,r="";try{r=document.referrer?new URL(document.referrer).hostname:""}catch(e){}navigator.sendBeacon&&navigator.sendBeacon("/api/arrived?p="+encodeURIComponent(location.pathname)+"&t="+t+"&r="+encodeURIComponent(r),"")}catch(e){}})()</script>';
   let lastAt = 0; const stamp = () => { lastAt = Math.max(Date.now(), lastAt + 1); return lastAt; };
-  const put = (k, row) => db.prepare('INSERT INTO prepared_pages (k, body, at, made, work_id, maker, cookies, etag, seen, gone) VALUES (?,?,?,?,?,?,?,?,?,0) ON CONFLICT(k) DO UPDATE SET body=excluded.body, at=excluded.at, made=excluded.made, work_id=excluded.work_id, maker=excluded.maker, cookies=excluded.cookies, etag=excluded.etag, seen=COALESCE(excluded.seen, prepared_pages.seen), gone=0')
-    .run(k, row.body, row.at, row.made, row.work_id, row.maker, row.cookies, row.etag, row.seen || null);
+  const put = (k, row) => db.prepare('INSERT INTO prepared_pages (k, body, at, made, work_id, maker, cookies, etag, seen, gone, zoned) VALUES (?,?,?,?,?,?,?,?,?,0,?) ON CONFLICT(k) DO UPDATE SET body=excluded.body, at=excluded.at, made=excluded.made, work_id=excluded.work_id, maker=excluded.maker, cookies=excluded.cookies, etag=excluded.etag, seen=COALESCE(excluded.seen, prepared_pages.seen), gone=0, zoned=excluded.zoned')
+    .run(k, row.body, row.at, row.made, row.work_id, row.maker, row.cookies, row.etag, row.seen || null, row.zoned ? 1 : 0);
   const tomb = k => db.prepare('UPDATE prepared_pages SET gone=1, body=NULL, at=? WHERE k=? AND gone=0').run(stamp(), k).changes;
   // Make one door's copy now. A work that is not held, or is kept back, is never copied (and loses any copy it had).
   async function make(key, { seen = null } = {}) {
@@ -206,7 +211,7 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
     let body = r.body; body = body.includes('</body>') ? body.replace(/<\/body>(?![\s\S]*<\/body>)/, SEEN + '</body>') : body + SEEN;
     const etag = `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 20)}"`; // weak: the same page sent plain or gzipped
     const now = Date.now();
-    put(key, { body, at: stamp(), made: now, work_id: workId, maker, cookies: cookies.length ? JSON.stringify(cookies) : null, etag, seen });
+    put(key, { body, at: stamp(), made: now, work_id: workId, maker, cookies: cookies.length ? JSON.stringify(cookies) : null, etag, seen, zoned: r.headers['x-wm-zoned'] === '1' });
     state.made++;
     return true;
   }
@@ -257,7 +262,7 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
       const old = db.prepare('SELECT k FROM prepared_pages WHERE gone=0 AND work_id IS NOT NULL AND (seen IS NULL OR seen < ?) LIMIT 500').all(seenNow - Math.round(KEEP_MS() / 1000));
       for (const r of old) out.gone += tomb(r.k);
       const live = db.prepare('SELECT COUNT(*) n FROM prepared_pages WHERE gone=0').get().n;
-      if (Number(live) > MAX()) for (const r of db.prepare('SELECT k FROM prepared_pages WHERE gone=0 AND k NOT IN (?,?,?,?) ORDER BY seen, made LIMIT ?').all(...FIXED, Number(live) - MAX())) out.gone += tomb(r.k);
+      if (Number(live) > MAX()) for (const r of db.prepare(`SELECT k FROM prepared_pages WHERE gone=0 AND k NOT IN (${FIXED.map(() => '?').join(',')}) ORDER BY seen, made LIMIT ?`).all(...FIXED, Number(live) - MAX())) out.gone += tomb(r.k);
       db.prepare('DELETE FROM prepared_pages WHERE gone=1 AND at < ?').run(now - 3600e3);
       state.lastRound = new Date().toISOString();
     } catch (e) { state.error = String(e.message || e).split('\n')[0]; console.error('[prepared] round', state.error); } finally { rounding = false; }

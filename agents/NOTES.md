@@ -156,6 +156,10 @@ The CTO session keeps it honest.
   under test it is off unless `createApp({ prepared: true })`; call `prepared.round()` then `prepared.sync()` yourself.
 - Who is a person is `isPerson(req)` there, also used by `minute()`. Any `wm_*` cookie not in INERT (or, on the hall's
   doors, HALL_INERT) is a person: a cookie you add is a person until you prove the doors do not read it and add it there.
+- `wm_tz` is the visitor's zone and the clock reads it (clock.js `programme`: /house's rows when not quiet, the Keys).
+  The worker's request marks a copy that asked the clock (`X-Wm-Zoned` → `prepared_pages.zoned`); a visitor with a
+  zone is built fresh for a zoned copy, and a zoned copy is `private, max-age=0`. Test anything that reads the hour with
+  `V.setQuiet(false)` too: quiet hides the clock's rows, so a quiet-only test proves nothing about them.
 - A page sent from a copy is not written to `hits` when sent: the copy's own line posts `/api/arrived` from the browser, and
   that is the visit (with the work's view, `app.locals.viewLater`). A test that counts hits flushes first
   (`app.locals.analytics.flush()`, `app.locals.flushViews()`).

@@ -7,7 +7,7 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 
 ## 1.87.7 · The open doors, made ahead · 20 November 2026
 
-- The front door, Wander's first page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
+- The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
 - A visit to one of those pages is still counted by the house itself, as every visit is.
 
 ## 1.87.6 · The back room stops running out of memory · 20 November 2026

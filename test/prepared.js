@@ -43,7 +43,7 @@ const { createApp } = require('../src/app.js');
   const made = await P.round({ all: true }); await P.sync(); await P.sync();
   assert.ok(made.made >= 5, `the doors and the two works asked for are made (${made.made})`);
   const rows = db.prepare('SELECT k FROM prepared_pages WHERE gone=0 ORDER BY k LIMIT 50').all().map(r => r.k);
-  for (const k of ['/', '/collection', '/makers', '/wander', '/w/prep-one', '/w/prep-two']) assert.ok(rows.includes(k), `a copy of ${k}`);
+  for (const k of ['/', '/house', '/collection', '/makers', '/wander', '/w/prep-one', '/w/prep-two']) assert.ok(rows.includes(k), `a copy of ${k}`);
   assert.ok(!rows.includes('/w/prep-three'), 'a work no stranger asked for is not made');
   for (const r of db.prepare('SELECT k, body FROM prepared_pages WHERE gone=0 LIMIT 50').all()) for (const x of personal) assert.ok(!r.body.includes(x), `the copy of ${r.k} holds nothing the Studio saw`);
 
@@ -84,6 +84,28 @@ const { createApp } = require('../src/app.js');
   { const r = await go('/w/prep-one', 'wm_s=forged'); assert.ok(!r.h.get('x-prepared'), 'a cookie that marks a person marks one even when it does not sign in'); }
   // The person's visits changed no copy.
   for (const r of db.prepare('SELECT k, body FROM prepared_pages WHERE gone=0 LIMIT 50').all()) for (const x of personal) assert.ok(!r.body.includes(x), `after the people: the copy of ${r.k} still holds nothing of theirs`);
+
+  // The visitor's own zone (wm_tz): the clock reads it (clock.js), and /house shows the hour's programme when the house
+  // is not quiet. Quiet (today): no door asks the clock, so a zone changes nothing and every copy serves it.
+  { const Z = db.prepare("SELECT k FROM prepared_pages WHERE gone=0 AND zoned=1 LIMIT 10").all(); assert.deepStrictEqual(Z, [], 'quiet: no copy asks the clock');
+    const r = await go('/house', 'wm_tz=Asia%2FTokyo'); assert.ok(r.h.get('x-prepared') !== null, 'quiet: a zone is served the copy'); }
+  { const V = require('../src/views'); const was = V.isQuiet(); V.setQuiet(false);
+    try {
+      await P.round({ all: true }); await P.sync(); await P.sync();
+      const z = Number(db.prepare("SELECT zoned FROM prepared_pages WHERE k='/house'").get().zoned); assert.strictEqual(z, 1, 'not quiet: /house asks the clock, and its copy says so');
+      const others = db.prepare("SELECT k FROM prepared_pages WHERE gone=0 AND zoned=1 LIMIT 10").all().map(r => r.k); assert.deepStrictEqual(others, ['/house'], 'and only /house');
+      const slotIn = zone => { const h = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: zone }).format(new Date()) % 24; return [[6, 11, 'Morning'], [11, 17, 'Midday'], [17, 21, 'Evening'], [21, 24, 'Late'], [0, 6, 'The small hours']].find(([a, b]) => h >= a && h < b)[2]; };
+      const plain = await go('/house'); assert.ok(plain.h.get('x-prepared') !== null, 'a stranger with no zone: the copy (the house’s own hour, New York)');
+      assert.strictEqual(plain.h.get('cache-control'), 'private, max-age=0', 'a zoned copy is never kept by a cache in front, which cannot see the zone');
+      assert.ok(plain.body.includes(`${slotIn('America/New_York')} in the Keys`), 'the copy shows New York’s hour');
+      for (const zone of ['Asia/Tokyo', 'America/Los_Angeles', 'Europe/Zurich']) {
+        const r = await go('/house', 'wm_in=1; wm_tz=' + encodeURIComponent(zone));
+        assert.ok(!r.h.get('x-prepared'), `${zone}: built fresh for the visitor's own hour`); assert.strictEqual(r.h.get('cache-control'), 'private, no-store');
+        assert.ok(r.body.includes(`${slotIn(zone)} in the Keys`), `${zone}: the programme of ${zone}'s hour`);
+      }
+      for (const p of ['/collection', '/makers', '/w/prep-one', '/']) { const r = await go(p, 'wm_tz=Asia%2FTokyo'); assert.ok(r.h.get('x-prepared') !== null, `not quiet: ${p} asks no clock, so a zone is served its copy`); }
+    } finally { V.setQuiet(was); }
+    await P.round({ all: true }); await P.sync(); }
 
   // The visit is counted, inside the house: the copy's line, then the batch.
   { app.locals.analytics.flush(); const before = Number(db.prepare("SELECT COUNT(*) n FROM hits WHERE path='/w/prep-one'").get().n);
