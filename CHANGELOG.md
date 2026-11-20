@@ -5,10 +5,19 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.87.6 · A break is the house's, not the host's · 20 November 2026
+## 1.87.8 · A break is the house's, not the host's · 20 November 2026
 
 - When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.
 - When the house cannot answer at all, the page you see is the house's own: a dark wall, one line, and it returns you to where you were as soon as the house answers. Visitors who have the app see the same page.
+
+## 1.87.7 · The back room, the real cause · 20 November 2026
+
+- 1.87.6 did not stop the worker running out of memory: the host ended it again seven minutes after that release went in. Watching it through a start showed the memory rise from about 260 MB to over 1,100 MB within thirty seconds of the album warm-up, a start-up chore that made album pictures from the originals by itself. That chore now only looks and counts; the scribes make the copies, as they do for every work.
+- Each start-up chore now writes how long it took and what it did to the memory, so the next fault of this kind names itself.
+
+## 1.87.6 · The back room stops running out of memory · 20 November 2026
+
+- The worker that does the house's chores was being restarted by the host about every seven minutes on 20 November. Its hourly check of the register read the whole register into memory at once. It now reads a page at a time; the check and its answer are the same.
 
 ## 1.87.5 · No one page can stop the house · 20 November 2026
 
