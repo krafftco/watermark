@@ -360,7 +360,10 @@ ${FACE && !plates.length ? `<nav class="rdr-fmenu" data-rd-fmenu hidden><p class
   // free; the house's editions and the work of its writers, priced or free as the author says; photo books, a maker's
   // sequence of held work with a line on each, made from a wall. Every word a draft for Will.
   app.get('/publishing', (req, res) => {
-    const all = db.prepare("SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.id DESC").all();
+    // (20 Nov) This page read every book whole (`t.*`: Leonardo's notebooks alone are a megabyte and a half) to print
+    // three rows of covers; on live it held the thread 7.8 s and took the website past its memory line (the restart of
+    // 07:16). It asks for what a card shows, and whether there is a body, never the body; and for the newest 600.
+    const all = db.prepare("SELECT t.id, t.slug, t.kind, t.title, t.author, t.file, t.price_cents, t.source, t.terms, CASE WHEN t.body IS NOT NULL AND t.body<>'' THEN 1 ELSE 0 END AS body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.id DESC LIMIT 600").all();
     const pd = all.filter(t => t.kind === 'book' && (!t.price_cents) && /gutenberg|public domain/i.test(`${t.source || ''} ${t.terms || ''}`)), pbs = all.filter(t => t.kind === 'photobook'), eds = all.filter(t => !pd.includes(t) && !pbs.includes(t));
     const FEE = require('./fee');
     const card = t => `<a class="pub-card" href="${t.kind === 'photobook' || (t.body && !t.file) ? `/read/${esc(t.slug)}` : `/library/${esc(t.slug)}`}">${t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : `<span class="pub-spine"><b>${esc(t.title)}</b></span>`}<span class="pub-t"><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<small>${t.price_cents ? V.money(t.price_cents) : 'Free'}</small></span></a>`;
