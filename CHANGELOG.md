@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.11 · The back room says what it holds · 20 November 2026
+
+- The worker is still being ended for memory, and four repairs have each fixed something real that was not the cause. This release repairs nothing: the house now writes a line whenever the database hands it a very large answer, and another the moment its memory rises sharply, with what was running. The next start names the cause.
+
 ## 1.87.10 · The back room, followed to the chore · 20 November 2026
 
 - With the album warm-up made harmless, the worker was ended twenty seconds into the next long chore instead: the one that asks for each library book's subjects, which read the whole book, body and plates, to shelve it. It now reads the five small fields it needs.
