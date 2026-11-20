@@ -22,6 +22,8 @@ const run = (cmd, args, { timeout = 600e3, encoding } = {}) => new Promise((reso
   });
 });
 const gzip = (buf, opts) => new Promise((resolve, reject) => zlib.gzip(buf, opts, (e, out) => e ? reject(e) : resolve(out)));
+const { pipeline } = require('stream/promises');
+const hashFile = file => new Promise((resolve, reject) => { const h = crypto.createHash('sha256'); fs.createReadStream(file).on('data', d => h.update(d)).on('error', reject).on('end', () => resolve(h.digest('hex'))); });
 const gunzip = buf => new Promise((resolve, reject) => zlib.gunzip(buf, (e, out) => e ? reject(e) : resolve(out)));
 
 // Postgres (27 Oct): the copy is pg_dump's archive (custom format, gzipped, sealed by the vault as before), and the
@@ -51,13 +53,21 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
   async function backup() {
     const pg = db.kind === 'postgres';
     const tmp = path.join(C.dataDir, `backup-${process.pid}.tmp.${pg ? 'pgdump' : 'db'}`);
+    const gzTmp = tmp + '.gz';
     try {
       if (pg) await run(pgTool('pg_dump'), ['--format=custom', '--no-owner', '--no-acl', '-f', tmp, db.url]);
       else await db.backup(tmp);
-      const raw = fs.readFileSync(tmp); fs.unlinkSync(tmp);
-      const gz = await gzip(raw, { level: 6 });
-      const key = `${PREFIX}watermark-${stamp()}.${pg ? 'pgdump' : 'db'}.gz`, sha256 = crypto.createHash('sha256').update(raw).digest('hex');
-      await store.put(key, gz, 'application/gzip');
+      // (20 Nov) The copy is never held whole in memory before it is sealed. It was: the dump read whole (about 500 MB on
+      // live), gzipped whole, hashed, then sealed (a third copy), on a worker with 2 GB. From about 18 Nov the worker
+      // was ended for memory at this line, 6 min 40 s after every start, and no backup was made (docs/STABILITY.md).
+      // Now the dump is hashed and gzipped from disk to disk; only the finished file is read, once, to be sealed.
+      // (pg_dump's archive is already compressed inside, so level 1 here: the .gz is kept so old and new copies open alike.)
+      const rawBytes = fs.statSync(tmp).size, sha256 = await hashFile(tmp);
+      await pipeline(fs.createReadStream(tmp), zlib.createGzip({ level: pg ? 1 : 6 }), fs.createWriteStream(gzTmp)); fs.unlinkSync(tmp);
+      const raw = { length: rawBytes }, gz = { length: fs.statSync(gzTmp).size };
+      const key = `${PREFIX}watermark-${stamp()}.${pg ? 'pgdump' : 'db'}.gz`;
+      console.log(`[backup] ${Math.round(rawBytes / 1048576)} MB copied, ${Math.round(gz.length / 1048576)} MB to seal`);
+      await store.put(key, gzTmp, 'application/gzip'); fs.unlinkSync(gzTmp);
       const head = db.prepare('SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1').get() || {};
       await store.put('backups/latest.json', Buffer.from(JSON.stringify({ key, at: new Date().toISOString(), bytes: gz.length, raw: raw.length, sha256, ledger: head, encrypted: !!store.encrypted })), 'application/json');
       const pd = path.join(C.dataDir, 'portraits');
@@ -65,7 +75,7 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
       const pruned = await prune();
       record('backup', { key, bytes: gz.length, sha256, ok: true, detail: `${raw.length} bytes raw; register at ${head.seq || 0}; pruned ${pruned}` });
       return { key, bytes: gz.length, sha256 };
-    } catch (e) { try { fs.unlinkSync(tmp); } catch (x) { /* */ } failed('backup', e); throw e; }
+    } catch (e) { for (const f of [tmp, gzTmp]) { try { fs.unlinkSync(f); } catch (x) { /* */ } } failed('backup', e); throw e; }
   }
   async function prune() {
     const keys = (await store.list(PREFIX)).filter(k => /watermark-\d{4}-\d{2}-\d{2}T/.test(k)).sort();
@@ -79,6 +89,11 @@ function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
     let tmp = null;
     try {
       if (!key) { const j = await store.get('backups/latest.json'); if (!j) throw new Error('no backup yet'); key = JSON.parse(j.toString()).key; }
+      // (20 Nov) The drill still opens the copy whole (sealed, opened, unzipped: three times its size). Until it reads
+      // from disk (#162), a copy over DRILL_MAX_MB (200) is not drilled on this box: said in the record, never mailed
+      // as a failure, and never a reason to end the worker.
+      try { const j = await store.get('backups/latest.json'); const L = j ? JSON.parse(j.toString()) : null; const maxMb = +process.env.DRILL_MAX_MB || 200;
+        if (L && L.key === key && L.bytes > maxMb * 1048576) { const detail = `${key}: not drilled here; the copy is ${Math.round(L.bytes / 1048576)} MB and the drill reads it whole (over ${maxMb} MB)`; record('drill', { key, bytes: L.bytes, ok: false, detail }); return { ok: false, key, detail }; } } catch (e) { /* drilled as before */ }
       const gz = await store.get(key); if (!gz) throw new Error(`backup ${key} not found`);
       const raw = await gunzip(gz);
       if (/\.pgdump\.gz$/.test(key)) { tmp = 'pg'; return await drillPg(key, raw); } // records its own outcome

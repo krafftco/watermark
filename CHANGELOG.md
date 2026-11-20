@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.12 · The back room: it was the backup · 20 November 2026
+
+- The line added in 1.87.11 named the cause at the first start: the nightly copy of the database. It was read whole into memory, compressed whole and sealed whole, on a machine too small for three copies of it. The worker was ended for memory at that step after every start from about 18 November, and in that time no backup was made.
+- The copy is now hashed and compressed from disk to disk and read once to be sealed. The weekly restore drill is not run on a copy over 200 MB until it too reads from disk; the record says so.
+
 ## 1.87.11 · The back room says what it holds · 20 November 2026
 
 - The worker is still being ended for memory, and four repairs have each fixed something real that was not the cause. This release repairs nothing: the house now writes a line whenever the database hands it a very large answer, and another the moment its memory rises sharply, with what was running. The next start names the cause.
