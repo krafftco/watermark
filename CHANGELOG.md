@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.5 · No one page can stop the house · 20 November 2026
+
+- A page that asks too much of the house is now stopped after a few seconds, and only the person who asked is told to try again. Before, one slow page held everyone, and three times this month it stopped the house.
+- The Studio's numbers are worked out in the back room every five minutes and kept. The numbers page and the morning digest open again and read what was kept.
+- Wander, the front page and a work's own page ask for what they need without holding the house while they wait.
+- The Publishing page no longer reads every book whole to list them. That reading caused the restart on the morning of 20 November.
+- A collector's "collecting since" now reads its date correctly.
+
 ## 1.87.4 · The numbers desk is closed for repair · 20 November 2026
 
 - Opening the Studio's numbers page stopped the house a second time, on the night of 19 November. The page and the morning digest are shut on the website and say so; visits are still counted. They reopen when the figures are worked out away from the website.

@@ -134,6 +134,25 @@ The CTO session keeps it honest.
   than rebuilding (generate_series; cast g to bigint before multiplying).
 - `BIG_READ` (4 MB a page, summed over statements) catches a list that reads whole text bodies; `rssMB` in BIG_JSON
   shows how far the process grew on a page (not judged: the garbage collector makes it noisy).
+- At 1,000,000 works: build 2 min (4.3 GB of SQLite), move 4.5–7 min (11.4 M rows), worker's round 25–76 s, walk
+  80–110 s; 17–27 min all told, about 13 GB of disk while it runs. Since #120 the walk reads the numbers the worker kept
+  (as live); `BIG_NUMBERS_DESK=1` walks the website making its own report. The gate times the bridge only: a question
+  on the async path (`adb`, #117) holds no thread and is not counted.
+
+## The async path (#117, docs/SCALE.md stage 2)
+- `app.locals.adb.get/all/run(sql, ...params)` are promises: a `pg` Pool beside the bridge on Postgres, the same
+  better-sqlite3 connection on SQLite. Same SQL, same dialect, same row shape as the bridge. `scripts/sql-check.js`
+  checks `adb.` literals; `test/listreads.js` counts `adb.get(` as one row.
+- The bridge's Atomics.wait freezes the whole process: no request is read, on either path, while any statement waits
+  there. Moving a quick read does not protect anyone; moving the slow statement does. Measure with the client in a
+  child process: a client in the server's own process is frozen with it and reports nonsense (test/manyhands.js).
+- ADB_LIMIT_MS and ADB_POOL are read when adb is opened (the pool itself opens on the first question): set them
+  before `open`, not before the first query. On SQLite there is no limit (a statement cannot be ended from its thread).
+- To compare against `next`: `git worktree add <scratch>/base origin/next`, symlink this worktree's node_modules into
+  it, and run the same script there (big-house with BIG_TABLE, load.js, a walk house on another port).
+- `scripts/wander-walk.js` locally: preload a shim that launches with `channel: 'chrome'`, and give it a house of at
+  least 40 held works with pictures over 3,000 px (14 small ones fail sentences 2 and 9 on `next` too). Sentence 8
+  on the desk ("← opens nothing") fails on `next` as it stands (20 Nov, #121).
 
 ## The website's limits and the kept numbers (#115, #114)
 - On ROLE=web the bridge refuses a statement after 8 s without the event loop turning (DB_HOLD_MS) and Postgres stops any
