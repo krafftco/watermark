@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.10 · The back room, followed to the chore · 20 November 2026
+
+- With the album warm-up made harmless, the worker was ended twenty seconds into the next long chore instead: the one that asks for each library book's subjects, which read the whole book, body and plates, to shelve it. It now reads the five small fields it needs.
+- A start-up chore now writes a line when it begins as well as when it ends.
+
 ## 1.87.9 · The back room, third time · 20 November 2026
 
 - 1.87.7 was not the whole of it either. The new start-up line showed the worker ended a minute into the album warm-up, which was still reading every work of every open album whole. The warm-up now asks two small questions and reads no work.
