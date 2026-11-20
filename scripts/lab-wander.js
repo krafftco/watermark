@@ -14,8 +14,14 @@ const ENGINE = require('./engine'); ENGINE.guard('lab');
     const ctx = await browser.newContext({ viewport: d.viewport, userAgent: d.userAgent, hasTouch: true, isMobile: true, deviceScaleFactor: d.deviceScaleFactor, screen: d.screen, serviceWorkers: 'block' });
     await ctx.addInitScript(() => { try { localStorage.setItem('wm_toured', '1'); } catch (e) {} });
     const page = await ctx.newPage(); await page.goto(H.base + '/wander', { waitUntil: 'load' }); await page.waitForTimeout(400 + run * 300);
+    // as the walk does first: every control scrolled into view (centre), then taps on the top bar (clicks held back)
+    await page.evaluate(() => { for (const el of document.querySelectorAll('a[href],button,summary,input:not([type=hidden]),select,textarea,[role=button]')) el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); scrollTo(0, 0); addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); }, true); });
+    await page.waitForTimeout(200);
+    for (const b of await page.evaluate(() => [...document.querySelectorAll('.tb a, .tb button, header.top a, .nv-float [data-nv-back]')].map(e => e.getBoundingClientRect()).filter(r => r.width > 2 && r.top >= 0 && r.top < innerHeight).map(r => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 })))) await page.touchscreen.tap(b.x, b.y);
+    await page.waitForTimeout(run * 150);
     await page.setViewportSize({ width: d.viewport.height, height: d.viewport.width }); await page.waitForTimeout(120);
     await page.setViewportSize(d.viewport);
+    await page.waitForTimeout(150);
     const s = await page.evaluate(() => new Promise(res => { const rows = []; const t0 = performance.now(); const f = () => { const t = document.querySelector('.st-tab-l'), m = document.querySelector('main'); const c = t && getComputedStyle(t);
       const a = t ? t.getAnimations().filter(x => x.playState === 'running').map(x => x.transitionProperty + ':' + Math.round(x.currentTime)).join('+') : '';
       rows.push(`${Math.round(performance.now() - t0)} ${m ? m.className.replace(/\bst\b/, '').trim() : '-'} op${c ? (+c.opacity).toFixed(2) : '-'} pe${c ? c.pointerEvents : '-'} ${c ? c.visibility : '-'} ${a}`);
