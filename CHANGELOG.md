@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.9 · The back room, third time · 20 November 2026
+
+- 1.87.7 was not the whole of it either. The new start-up line showed the worker ended a minute into the album warm-up, which was still reading every work of every open album whole. The warm-up now asks two small questions and reads no work.
+
 ## 1.87.7 · The back room, the real cause · 20 November 2026
 
 - 1.87.6 did not stop the worker running out of memory: the host ended it again seven minutes after that release went in. Watching it through a start showed the memory rise from about 260 MB to over 1,100 MB within thirty seconds of the album warm-up, a start-up chore that made album pictures from the originals by itself. That chore now only looks and counts; the scribes make the copies, as they do for every work.
