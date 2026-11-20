@@ -163,6 +163,10 @@ work, find, the collection), and how many answers in the 20 s. "Held": copy 0's 
 | 2 s in 10 | round-robin | 80–171 / 199–383 / ~2,350; 3,827 | | 46–170 / 237–510 / ~2,330; 3,977 |
 | 2 s in 10 | least in hand | | | 63–204 / 288–448 / ~2,330; 3,772 |
 
+Measured again after #120 and #122 landed (the limit and the pool in place), the same shape: hard hold, round-robin,
+95th of the page doors 2.0–2.8 s at N=1, 2 and 3; least in hand, N=2: 112–130 ms (a work's page 2.1 s), N=3:
+160–673 ms; nobody held, N=1: 98–386 ms.
+
 What it says:
 - Copies help only as much as the balancer avoids the held copy. A round-robin keeps handing it one request in N, and
   every visitor reaches it in turn: with a hard hold the 95th stays at the hold (2.1–3.6 s) whatever N. A balancer that
