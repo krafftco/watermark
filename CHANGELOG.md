@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.6 · The back room stops running out of memory · 20 November 2026
+
+- The worker that does the house's chores was being restarted by the host about every seven minutes on 20 November. Its hourly check of the register read the whole register into memory at once. It now reads a page at a time; the check and its answer are the same.
+
 ## 1.87.5 · No one page can stop the house · 20 November 2026
 
 - A page that asks too much of the house is now stopped after a few seconds, and only the person who asked is told to try again. Before, one slow page held everyone, and three times this month it stopped the house.
