@@ -35,9 +35,9 @@ function mountDeskApi(app, { db, C, ledger, stripe }) {
   // The owner's view (Will, 28 Oct: "what would Elon want eyes into"): one object a serious owner reads in a minute and
   // trusts. Every figure is the house's own, computed here, never typed in. The costs come from COSTS_MONTHLY (JSON,
   // dollars by vendor, in Render) so cost per thousand visitors is a line, not a guess.
-  function owner() {
+  function owner(given = {}) {
     const L = app.locals; const t = f => { try { return f(); } catch (e) { return null; } };
-    const A = L.analytics; const r7 = t(() => A.report('7d')), r30 = t(() => A.report('30d')), rt = t(() => A.report('today'));
+    const A = L.analytics; const r7 = given.r7 || t(() => A.report('7d')), r30 = given.r30 || t(() => A.report('30d')), rt = given.rt || t(() => A.report('today'));
     const ST = t(() => L.strangers()) || { week: 0, last: 0 }; const BZ = t(() => L.business()) || {};
     const FEE = require('./fee'); const d7 = day(7), d30 = day(30);
     const paid = (since) => db.prepare("SELECT l.*, u.key use_key FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?").all(since);
@@ -63,7 +63,7 @@ function mountDeskApi(app, { db, C, ledger, stripe }) {
       unvaulted: t(() => L.vaultState && L.vaultState().unvaulted) || 0, lost: t(() => (L.vaultState && L.vaultState().lost || []).length) || 0,
     };
     const register = { entries: db.prepare('SELECT COUNT(*) n FROM ledger').get().n, ok: t(() => ledger.verify(db).ok), anchors: t(() => L.anchor && L.anchor.latest()) || null };
-    const H = t(() => A.health()) || {};
+    const H = given.H || t(() => A.health()) || {};
     const live = { now: rt ? rt.now.people : null, lastHour: rt ? rt.now.lastHour : null, speed: r7 ? r7.speed : null, errors7d: r7 ? r7.cur.errors : null, faults: process.faults || null, up: Math.round(process.uptime()), ver: (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 8) || null, role: process.env.ROLE || 'all', worker: t(() => L.workerState && L.workerState()) || null, mem: H.mem || null, backup: H.backup || null, conservation: H.conservation || null, mail: H.mail || null, stripe: H.stripe || null };
     let costs = null; try { const c = JSON.parse(process.env.COSTS_MONTHLY || 'null'); if (c && typeof c === 'object') { const total = Object.values(c).reduce((a, v) => a + Number(v || 0), 0); const v30 = r30 ? r30.cur.visitors : 0; costs = { byVendor: c, monthly: total, per1kVisitors: v30 ? Math.round(100 * total * 1000 / v30) / 100 : null, visitors30d: v30, grossMargin: month.total ? Math.round(100 * (month.house - total * 100) / month.total) : null }; } } catch (e) { costs = null; }
     const releases = t(() => L.releases && L.releases.releases()) || []; const weekAgo = Date.now() - 7 * 864e5;
@@ -76,17 +76,31 @@ function mountDeskApi(app, { db, C, ledger, stripe }) {
       live, growth, vault, register, costs, velocity,
     };
   }
+  // (#114) On the website (ROLE=web) both views are the worker's, kept (numbers.js) and read in one statement, with the
+  // time they were made (`made`); what only the website knows (on the site now, the last hour, its faults, its uptime)
+  // is laid over the owner's. A house that is one process makes them when asked, as before. NUMBERS_DESK=1 does so anywhere.
+  const webNow = () => String(process.env.ROLE || '').toLowerCase() === 'web' && process.env.NUMBERS_DESK !== '1';
+  const keptOf = k => { const N = app.locals.numbers; const K = N ? N.read(k) : null; return K && K.fresh ? { ...K.v, made: new Date(K.at).toISOString() } : null; };
+  const WAIT = 'The desk\'s figures are worked out in the back room every few minutes, and there is no recent set. Try again in a few minutes.';
+  function ownerNow() {
+    if (!webNow()) return owner();
+    const O = keptOf('owner'); if (!O) return null;
+    const A = app.locals.analytics; const live = A && A.liveOf ? A.liveOf() : null;
+    O.live = { ...(O.live || {}), now: live ? live.now.people : null, lastHour: live ? live.now.lastHour : null, faults: process.faults || null, up: Math.round(process.uptime()), role: process.env.ROLE || 'all' };
+    return O;
+  }
+  const summaryNow = () => (webNow() ? keptOf('desk') : summary());
   app.get('/api/desk/owner', (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     if (!KEY || String(req.query.key || req.get('x-desk-key') || '') !== KEY) return res.status(403).json({ error: 'no' });
-    try { res.json(owner()); } catch (e) { console.error('[desk owner]', e.message); res.status(500).json({ error: 'desk' }); }
+    try { const O = ownerNow(); if (!O) return res.status(503).json({ error: 'not yet', why: WAIT }); res.json(O); } catch (e) { console.error('[desk owner]', e.message); res.status(500).json({ error: 'desk' }); }
   });
-  app.locals.deskOwner = owner;
+  ownerNow.make = owner; app.locals.deskOwner = ownerNow;
   app.get('/api/desk', (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     if (!KEY || String(req.query.key || req.get('x-desk-key') || '') !== KEY) return res.status(403).json({ error: 'no' });
-    try { res.json(summary()); } catch (e) { console.error('[desk]', e.message); res.status(500).json({ error: 'desk' }); }
+    try { const D = summaryNow(); if (!D) return res.status(503).json({ error: 'not yet', why: WAIT }); res.json(D); } catch (e) { console.error('[desk]', e.message); res.status(500).json({ error: 'desk' }); }
   });
-  app.locals.deskSummary = summary;
+  summaryNow.make = summary; app.locals.deskSummary = summaryNow;
 }
 module.exports = { mountDeskApi };

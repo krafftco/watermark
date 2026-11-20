@@ -12,6 +12,7 @@
 //   thirty seconds through /studio/analytics.json. Span: today | 7d | 30d.
 const crypto = require('crypto');
 const fs = require('fs');
+const ROLE = require('./role');
 const path = require('path');
 
 const KEEP_DAYS = +(process.env.HITS_KEEP_DAYS || 30); // 30 days (5 Nov: 90 made the nightly dump 150 MB)
@@ -99,8 +100,11 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
     for (const [k, t] of alive) if (t < cut) alive.delete(k);
   }, 60000); minuteTimer.unref();
   minute.ms = [];
-  const prune = () => { try { db.prepare('DELETE FROM hits WHERE at < ?').run(Math.floor(Date.now() / 1000) - KEEP_DAYS * 86400); } catch (e) { /* later */ } };
-  const pruneTimer = setInterval(prune, 86400000); pruneTimer.unref(); setTimeout(prune, 60000).unref();
+  // (#114) Pruned by the process that runs the chores (the worker in a split house), in batches, never by the website.
+  const pruneQ = db.prepare('DELETE FROM hits WHERE id IN (SELECT id FROM hits WHERE at < ? ORDER BY id LIMIT 20000)');
+  const prune = () => { try { const cut = Math.floor(Date.now() / 1000) - KEEP_DAYS * 86400; for (let i = 0; i < 100; i++) if (!pruneQ.run(cut).changes) break; } catch (e) { console.error('[analytics] prune', e.message); } };
+  if (ROLE.chores && !app.locals.noTimers) { const pruneTimer = setInterval(prune, 86400000); pruneTimer.unref(); setTimeout(prune, 60000).unref(); }
+  const rollup = require('./numbers').mountRollup(db);
 
   app.use((req, res, next) => {
     if (SKIP.test(req.path)) return next();
@@ -143,16 +147,19 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
       if (all) { o.p50 = at(0.5); o.p95 = at(0.95); } }
     return out;
   }
+  // (#114) Every span is read from the daily rollups (numbers.js): whole days from `spanOf`'s start, today included.
+  // Over 7 or 30 days the views and the visitors in the head are exact (hits_vd); a list's "people" (a page's, a device's,
+  // a referrer's) is each day's distinct visitors added, so a visitor on three days counts three times there.
+  const D0 = s => Math.floor(s / 86400) * 86400;
+  const num = rows => rows.map(r => { const o = { ...r }; for (const k of Object.keys(o)) if (!['k', 'path', 'ref', 'slug', 'title'].includes(k) && typeof o[k] === 'string' && /^-?\d+(\.\d+)?$/.test(o[k])) o[k] = Number(o[k]); return o; });
   function counts(from, to) {
-    const H = one('SELECT COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind=\'page\' AND bot=0 AND status<400 AND at>=? AND at<?', from, to);
-    const A = one('SELECT COUNT(*) n FROM hits WHERE kind=\'api\' AND at>=? AND at<?', from, to).n;
-    const B = one('SELECT COUNT(*) n FROM hits WHERE bot=1 AND at>=? AND at<?', from, to).n;
-    const E = one('SELECT COUNT(*) n FROM hits WHERE status>=500 AND at>=? AND at<?', from, to).n;
-    const N4 = one('SELECT COUNT(*) n FROM hits WHERE status=404 AND kind=\'page\' AND at>=? AND at<?', from, to).n;
+    const f0 = D0(from), t0 = D0(to - 1) + 86400;
+    const V = one("SELECT COALESCE(SUM(views),0) views, COUNT(DISTINCT CASE WHEN visitor<>'' THEN visitor END) visitors FROM hits_vd WHERE day>=? AND day<?", f0, t0) || {};
+    const by = {}; for (const r of q("SELECT dim, SUM(n) n FROM hits_days WHERE dim IN ('api','bot','e5','nf') AND day>=? AND day<? GROUP BY dim", f0, t0)) by[r.dim] = Number(r.n) || 0;
     const t = (sql, ...a) => { try { return one(sql, ...a).n; } catch (e) { return 0; } };
     const f = iso(from), g = iso(to);
     return {
-      visitors: H.visitors, views: H.views, people: t('SELECT COUNT(DISTINCT visitor) n FROM here WHERE at>=? AND at<?', from, to), api: A, bots: B, errors: E, notFound: N4,
+      visitors: Number(V.visitors) || 0, views: Number(V.views) || 0, people: t('SELECT COUNT(DISTINCT visitor) n FROM here WHERE at>=? AND at<?', from, to), api: by.api || 0, bots: by.bot || 0, errors: by.e5 || 0, notFound: by.nf || 0,
       stood: t('SELECT COUNT(*) n FROM stood WHERE at>=? AND at<?', f, g),
       hats: t('SELECT COUNT(*) n FROM applause WHERE at>=? AND at<?', f, g),
       bravos: t('SELECT COUNT(*) n FROM bravos WHERE at>=? AND at<?', f, g),
@@ -167,55 +174,120 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
       newWorks: t("SELECT COUNT(*) n FROM works WHERE created_at>=? AND created_at<?", f, g),
     };
   }
-  function report(span = 'today') {
-    const S = spanOf(span); const now = Math.floor(Date.now() / 1000);
+  // (#114, docs/MEASURE.md) The four funnels, as counts from what the house already keeps; nobody is named. Each step is
+  // counted on the day its first step began, as it stands now (a maker who joined Monday and uploaded Friday is in
+  // Monday's "uploaded"). 1: makers who joined (kind maker, not a peephole reader) → those with any upload. 2: makers whose
+  // first upload was in the span → those with a work held and not kept back. 3: visitors who opened a work's page (each
+  // day's distinct visitors, added over days) beside the collects paid in the span: two counts, not one person followed.
+  // 4: checkouts started (a priced licence that reached awaiting_payment, created in the span) → those paid (active or
+  // expired). A licence asked of a maker first is counted from the day it was asked, not the day its checkout opened.
+  const FUN = {
+    joined: "SELECT COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works w WHERE w.maker_id=m.id) THEN 1 END) b FROM makers m WHERE m.kind='maker' AND COALESCE(m.door,'')<>'play' AND COALESCE(m.joined_at, m.created_at)>=? AND COALESCE(m.joined_at, m.created_at)<?",
+    first: "SELECT COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works h WHERE h.maker_id=f.maker_id AND h.status='held' AND h.keep_back=0) THEN 1 END) b FROM (SELECT maker_id, MIN(id) id FROM works GROUP BY maker_id) f JOIN works w ON w.id=f.id JOIN makers m ON m.id=f.maker_id WHERE m.kind='maker' AND w.created_at>=? AND w.created_at<?",
+    checkout: "SELECT COUNT(*) a, COUNT(CASE WHEN status IN ('active','expired') THEN 1 END) b FROM licenses WHERE price_cents>0 AND status IN ('awaiting_payment','active','expired') AND created_at>=? AND created_at<?",
+  };
+  const FUN_DAYS = {
+    joined: "SELECT substr(COALESCE(m.joined_at, m.created_at),1,10) d, COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works w WHERE w.maker_id=m.id) THEN 1 END) b FROM makers m WHERE m.kind='maker' AND COALESCE(m.door,'')<>'play' AND COALESCE(m.joined_at, m.created_at)>=? GROUP BY substr(COALESCE(m.joined_at, m.created_at),1,10) LIMIT 400",
+    first: "SELECT substr(w.created_at,1,10) d, COUNT(*) a, COUNT(CASE WHEN EXISTS (SELECT 1 FROM works h WHERE h.maker_id=f.maker_id AND h.status='held' AND h.keep_back=0) THEN 1 END) b FROM (SELECT maker_id, MIN(id) id FROM works GROUP BY maker_id) f JOIN works w ON w.id=f.id JOIN makers m ON m.id=f.maker_id WHERE m.kind='maker' AND w.created_at>=? GROUP BY substr(w.created_at,1,10) LIMIT 400",
+    checkout: "SELECT substr(created_at,1,10) d, COUNT(*) a, COUNT(CASE WHEN status IN ('active','expired') THEN 1 END) b FROM licenses WHERE price_cents>0 AND status IN ('awaiting_payment','active','expired') AND created_at>=? GROUP BY substr(created_at,1,10) LIMIT 400",
+    collected: "SELECT substr(starts_at,1,10) d, COUNT(*) b FROM licenses WHERE status IN ('active','expired') AND price_cents>0 AND starts_at>=? GROUP BY substr(starts_at,1,10) LIMIT 400",
+  };
+  const pair = (sql, ...a) => { try { const r = one(sql, ...a) || {}; return { a: Number(r.a) || 0, b: Number(r.b) || 0 }; } catch (e) { return { a: 0, b: 0 }; } };
+  function funnels(from, to, collects) {
+    const f = iso(from), g = iso(to), f0 = D0(from), t0 = D0(to - 1) + 86400;
+    const opened = Number((one("SELECT COALESCE(SUM(u),0) n FROM hits_days WHERE dim='workv' AND day>=? AND day<?", f0, t0) || {}).n) || 0;
+    return { joined: pair(FUN.joined, f, g), first: pair(FUN.first, f, g), looked: { a: opened, b: collects || 0 }, checkout: pair(FUN.checkout, f, g) };
+  }
+  function funnelDays(from) {
+    const out = new Map(); const at = d => { if (!out.has(d)) out.set(d, { d, joined: { a: 0, b: 0 }, first: { a: 0, b: 0 }, looked: { a: 0, b: 0 }, checkout: { a: 0, b: 0 } }); return out.get(d); };
+    const f = iso(from); const t = (sql, ...a) => { try { return q(sql, ...a); } catch (e) { return []; } };
+    for (const k of ['joined', 'first', 'checkout']) for (const r of t(FUN_DAYS[k], f)) at(r.d)[k] = { a: Number(r.a) || 0, b: Number(r.b) || 0 };
+    for (const r of t(FUN_DAYS.collected, f)) at(r.d).looked.b = Number(r.b) || 0;
+    for (const r of t("SELECT day, u FROM hits_days WHERE dim='workv' AND day>=? ORDER BY day LIMIT 400", D0(from))) at(new Date(Number(r.day) * 1000).toISOString().slice(0, 10)).looked.a = Number(r.u) || 0;
+    return [...out.values()].sort((x, y) => (x.d < y.d ? -1 : 1));
+  }
+  // The part of the report the database answers: made by the worker in a split house, in process otherwise.
+  function fromDb(span = 'today') {
+    const S = spanOf(span); const now = Math.floor(Date.now() / 1000); const f0 = D0(S.from);
     const cur = counts(S.from, now + 1); const prev = counts(S.prev, S.from);
     const days = span === 'today' ? 1 : span === '7d' ? 7 : 30;
-    const hours = q("SELECT (at/3600)*3600 h, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND at>=? GROUP BY h ORDER BY h", S.from);
-    const byDay = days > 1 ? q("SELECT (at/86400)*86400 d, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND at>=? GROUP BY d ORDER BY d", S.from) : [];
-    const works = q("SELECT h.path, COUNT(*) views, COUNT(DISTINCT h.visitor) visitors, w.title, w.slug FROM hits h LEFT JOIN works w ON w.slug=substr(h.path,4) WHERE h.kind='page' AND h.bot=0 AND h.status<400 AND h.path LIKE '/w/%' AND h.at>=? GROUP BY h.path, w.title, w.slug ORDER BY views DESC LIMIT 12", S.from);
-    const pages = q("SELECT path, COUNT(*) views, COUNT(DISTINCT visitor) visitors FROM hits WHERE kind='page' AND bot=0 AND status<400 AND path NOT LIKE '/w/%' AND at>=? GROUP BY path ORDER BY views DESC LIMIT 14", S.from);
-    const refs = q("SELECT ref, COUNT(DISTINCT visitor) visitors, COUNT(*) views FROM hits WHERE kind='page' AND bot=0 AND ref IS NOT NULL AND at>=? GROUP BY ref ORDER BY visitors DESC LIMIT 12", S.from);
-    const direct = one("SELECT COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND ref IS NULL AND at>=?", S.from).n;
-    const devices = q("SELECT device k, COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY device ORDER BY n DESC", S.from);
-    const browsers = q("SELECT browser k, COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY browser ORDER BY n DESC", S.from);
-    const countries = q("SELECT country k, COUNT(DISTINCT visitor) n FROM hits WHERE kind='page' AND bot=0 AND country IS NOT NULL AND at>=? GROUP BY country ORDER BY n DESC LIMIT 12", S.from);
+    const hours = num(q("SELECT CAST(k AS BIGINT) h, n views, u visitors FROM hits_days WHERE dim='hour' AND day>=? ORDER BY CAST(k AS BIGINT) LIMIT 800", f0));
+    const byDay = days > 1 ? num(q("SELECT day d, n views, u visitors FROM hits_days WHERE dim='page' AND day>=? ORDER BY day LIMIT 400", f0)) : [];
+    const top = (where, lim) => num(q(`SELECT k path, SUM(n) views, SUM(u) visitors FROM hits_days WHERE dim='path' AND day>=? AND ${where} GROUP BY k ORDER BY SUM(n) DESC LIMIT ${lim}`, f0));
+    const works = top("k LIKE '/w/%'", 12); const pages = top("k NOT LIKE '/w/%'", 14);
+    { const slugs = works.map(r => r.path.slice(3)); const T = new Map(slugs.length ? q(`SELECT slug, title FROM works WHERE slug IN (${slugs.map(() => '?').join(',')}) LIMIT 12`, ...slugs).map(r => [r.slug, r.title]) : []);
+      for (const r of works) { const sl = r.path.slice(3); r.slug = T.has(sl) ? sl : null; r.title = T.get(sl) || null; } }
+    const refs = num(q("SELECT k ref, SUM(u) visitors, SUM(n) views FROM hits_days WHERE dim='ref' AND day>=? GROUP BY k ORDER BY SUM(u) DESC LIMIT 12", f0));
+    const direct = Number((one("SELECT COALESCE(SUM(u),0) n FROM hits_days WHERE dim='direct' AND day>=?", f0) || {}).n) || 0;
+    const dim = d => num(q("SELECT k, SUM(u) n FROM hits_days WHERE dim=? AND day>=? GROUP BY k ORDER BY SUM(u) DESC LIMIT 12", d, f0));
+    const devices = dim('device'), browsers = dim('browser'), countries = dim('country');
     const stoodTop = q("SELECT w.slug, w.title, COUNT(*) n, SUM(s.seconds) secs FROM stood s JOIN works w ON w.id=s.work_id WHERE s.at>=? GROUP BY w.id ORDER BY secs DESC LIMIT 8", iso(S.from));
-    // (#92, the scale gate) The median and the 95th were read from every hit of the day (60,000 rows a visit); now the
-    // database counts the times in steps (exact under a second, 50 ms to ten seconds, then whole seconds: at most ~1,300
-    // rows a kind, whatever the traffic) and the percentile is read off the counts, as `pct` reads a sorted list.
+    // (#92) the median and the 95th from the times counted in steps; the last 24 hours of hits, by their index.
     const speed = speedOf(Math.max(S.from, now - 86400));
     const slow = q("SELECT path, COUNT(*) n, AVG(ms) avg, MAX(ms) max FROM hits WHERE kind='page' AND bot=0 AND at>=? GROUP BY path HAVING COUNT(*)>=3 ORDER BY AVG(ms) DESC LIMIT 8", Math.max(S.from, now - 86400));
-    const errs = q("SELECT status, COUNT(*) n FROM hits WHERE status>=400 AND at>=? GROUP BY status ORDER BY n DESC", S.from);
-    const bots = q("SELECT path, COUNT(*) n FROM hits WHERE bot=1 AND at>=? GROUP BY path ORDER BY n DESC LIMIT 6", S.from);
+    const errs = num(q("SELECT CAST(k AS INTEGER) status, SUM(n) n FROM hits_days WHERE dim='status' AND day>=? GROUP BY k ORDER BY SUM(n) DESC LIMIT 20", f0));
+    const bots = num(q("SELECT k path, SUM(n) n FROM hits_days WHERE dim='botpath' AND day>=? GROUP BY k ORDER BY SUM(n) DESC LIMIT 6", f0));
+    const fun = funnels(S.from, now + 1, cur.collects); const funDays = days > 1 ? funnelDays(S.from) : [];
+    return { span, label: S.label, days, cur, prev, hours, byDay, works, pages, refs, direct, devices, browsers, countries, stoodTop, speed, slow, errs, bots, funnels: fun, funnelDays: funDays };
+  }
+  // The part only this process knows (memory, no statement): who is on the site now, the last minutes, the last errors.
+  function liveOf() {
     const sinceMin = minutes.slice(-60);
     const lastHour = { page: sinceMin.reduce((a, m) => a + m.page, 0) + minute.page, img: sinceMin.reduce((a, m) => a + m.img, 0) + minute.img, api: sinceMin.reduce((a, m) => a + m.api, 0) + minute.api, bot: sinceMin.reduce((a, m) => a + m.bot, 0) + minute.bot };
     const onNow = [...present.values()].sort((a, b) => b.at - a.at);
-    return { at: new Date().toISOString(), span, label: S.label, days, now: { people: alive.size, unconfirmed: [...present.keys()].filter(k => !alive.has(k)).length, where: onNow.filter(x => x.human || alive.size === 0).slice(0, 12), lastHour, minutes: sinceMin.map(m => ({ t: m.t, page: m.page, img: m.img, api: m.api, bot: m.bot })) },
-      cur, prev, hours, byDay, works, pages, refs, direct, devices, browsers, countries, stoodTop, speed, slow, errs, errors: errors.slice(0, 12), bots, health: health() };
+    return { now: { people: alive.size, unconfirmed: [...present.keys()].filter(k => !alive.has(k)).length, where: onNow.filter(x => x.human || alive.size === 0).slice(0, 12), lastHour, minutes: sinceMin.map(m => ({ t: m.t, page: m.page, img: m.img, api: m.api, bot: m.bot })) }, errors: errors.slice(0, 12) };
   }
-  function health() {
-    const mem = process.memoryUsage(); const dataDir = C.dataDir || process.env.DATA_DIR || '';
+  // The health the database answers (the worker's) and the health of this process (no statement).
+  function healthDb() {
+    const dataDir = C.dataDir || process.env.DATA_DIR || '';
     let dbBytes = null, disk = null; if (db.kind === 'postgres') { try { dbBytes = db.prepare('SELECT pg_database_size(current_database()) n').get().n; } catch (e) { dbBytes = null; } } else try { dbBytes = fs.statSync(path.join(dataDir, 'watermark.db')).size; } catch (e) { try { dbBytes = fs.statSync(db.name).size; } catch (e2) { dbBytes = null; } }
     try { const s = fs.statfsSync(dataDir || '.'); disk = { free: s.bavail * s.bsize, total: s.blocks * s.bsize }; } catch (e) { disk = null; }
     const hits = one('SELECT COUNT(*) n, MIN(at) first FROM hits');
     const L = app.locals; const t = f => { try { return f(); } catch (e) { return null; } };
     return {
-      uptime: Date.now() - started, node: process.version, pid: process.pid, mem: { rss: mem.rss, heap: mem.heapUsed, heapTotal: mem.heapTotal }, db: dbBytes, disk, hits: hits.n, hitsSince: hits.first ? iso(hits.first) : null,
-      register: t(() => ledger.verify(db).ok), mail: mailState ? mailState() : null, stripe: C.stripeKey ? (/^[sr]k_live_/.test(C.stripeKey) ? 'live' : 'test') : 'off',
-      closer: !!process.env.ANTHROPIC_API_KEY, speech: t(() => L.speech && L.speech.on() ? L.speech.provider() : false), signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY),
+      db: dbBytes, disk, hits: Number(hits.n) || 0, hitsSince: hits.first ? iso(hits.first) : null,
+      register: t(() => ledger.verify(db).ok),
       backup: t(() => L.backup && L.backup.summary()), fixity: t(() => L.archive && L.archive.summary()), conservation: t(() => L.conservation && L.conservation.summary()),
       works: one("SELECT COUNT(*) n FROM works WHERE status='held'").n, restoring: one("SELECT COUNT(*) n FROM works WHERE status='restoring'").n,
       waiting: { requests: one("SELECT COUNT(*) n FROM licenses WHERE status='requested'").n, unpaid: one("SELECT COUNT(*) n FROM licenses WHERE status='awaiting_payment' AND created_at >= datetime('now','-3 days')").n },
+      fiveHour: t(() => one('SELECT COUNT(*) n FROM hits WHERE status>=500 AND at>=?', Math.floor(Date.now() / 1000) - 3600).n) || 0, // the alarm's count (the hits keep seconds)
+    };
+  }
+  function healthLive() {
+    const mem = process.memoryUsage(); const L = app.locals; const t = f => { try { return f(); } catch (e) { return null; } };
+    return {
+      uptime: Date.now() - started, node: process.version, pid: process.pid, mem: { rss: mem.rss, heap: mem.heapUsed, heapTotal: mem.heapTotal },
+      mail: mailState ? mailState() : null, stripe: C.stripeKey ? (/^[sr]k_live_/.test(C.stripeKey) ? 'live' : 'test') : 'off',
+      closer: !!process.env.ANTHROPIC_API_KEY, speech: t(() => L.speech && L.speech.on() ? L.speech.provider() : false), signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY),
       loadavg: t(() => require('os').loadavg().map(x => +x.toFixed(2))), staging: !!C.staging,
     };
   }
-  // (20 Nov, the second 502) The report and the house's health ask some seventy questions of the whole house; on the live
-  // website each holds the one thread, and opening this desk has twice stopped the house. Until the report is made by
-  // the worker and only read here, the desk is shut on the website (ROLE=web). NUMBERS_DESK=1 opens it again.
-  const shut = () => process.env.NUMBERS_DESK === '0' || (process.env.NODE_ENV !== 'test' && String(process.env.ROLE || '').toLowerCase() === 'web' && process.env.NUMBERS_DESK !== '1'); // '0' shuts it anywhere (the test)
-  const SHUT_WORDS = 'The numbers are closed for repair. Opening this page has stopped the house twice, so it stays shut until the figures are worked out in the back room. Nothing is lost: every visit is still counted.';
-  app.locals.analytics = { report, health, present: () => alive.size, shut, SHUT_WORDS };
+  // On the website (ROLE=web, read when asked so a test can stand as one) the report and the health are the worker's,
+  // read in one statement; NUMBERS_DESK=1 makes them here as before (the switch of 20 Nov, for a house with no worker).
+  const webNow = () => String(process.env.ROLE || '').toLowerCase() === 'web' && process.env.NUMBERS_DESK !== '1';
+  const kept = k => (app.locals.numbers ? app.locals.numbers.read(k) : null);
+  function report(span = 'today') {
+    if (webNow()) {
+      const K = kept('report:' + span); if (!K || !K.fresh) return null;
+      return { ...K.v, at: new Date(K.at).toISOString(), made: K.at, ...liveOf(), health: { ...(K.v.health || {}), ...healthLive() } };
+    }
+    rollup.roll();
+    return { at: new Date().toISOString(), ...fromDb(span), ...liveOf(), health: health() };
+  }
+  function health() {
+    if (webNow()) { const K = kept('health'); return { ...(K && K.fresh ? K.v : {}), ...healthLive(), made: K && K.fresh ? K.at : null }; }
+    return { ...healthDb(), ...healthLive() };
+  }
+  // (20 Nov, the second 502; #114) Shut on the website while no fresh kept report exists for the span; open when the
+  // worker has made one. NUMBERS_DESK=0 shuts it anywhere, NUMBERS_DESK=1 opens it anywhere (and makes it in process).
+  const shut = (span = 'today') => {
+    if (process.env.NUMBERS_DESK === '0') return true;
+    if (process.env.NUMBERS_DESK === '1') return false;
+    if (!webNow()) return false;
+    const K = kept('report:' + span); return !(K && K.fresh);
+  };
+  const SHUT_WORDS = 'The numbers are worked out in the back room every few minutes, and there is no recent set to show. Nothing is lost: every visit is still counted. Try again in a few minutes.';
+  app.locals.analytics = { report, health, fromDb, healthDb, healthLive, liveOf, rollup, present: () => alive.size, shut, SHUT_WORDS };
 
   // ---- the page
   const { esc } = V;
@@ -236,7 +308,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
     const minuteRows = R.now.minutes.length ? R.now.minutes.map(m => ({ k: new Date(m.t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), v: m.page + m.api, u: m.img })) : [];
     const flag = ok => `<i class="an-dot ${ok === null || ok === undefined ? 'an-na' : ok ? 'an-ok' : 'an-bad'}"></i>`;
     return `<section class="studio-wrap an" data-an>
-<div class="an-head"><div><p class="k">Back office</p><h1>The numbers.</h1><p class="lede">${esc(R.label)} · ${new Date(R.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · refreshes every thirty seconds · nothing here names a person.</p></div>
+<div class="an-head"><div><p class="k">Back office</p><h1>The numbers.</h1><p class="lede">${esc(R.label)} · as of ${new Date(R.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })}${R.made ? ', worked out in the back room every few minutes' : ''} · nothing here names a person.</p></div>
 <nav class="an-span">${[['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']].map(([k, t]) => `<a href="/studio/analytics?span=${k}"${R.span === k ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav></div>
 
 <div class="an-grid">
@@ -249,6 +321,11 @@ ${R.now.where.length ? `<ul class="an-where">${R.now.where.map(w => `<li><span>$
 <div class="an-stats">${stat('people', c.people, p.people)}${stat('addresses that fetched pages', c.visitors, p.visitors)}${stat('page views', c.views, p.views)}${stat('stood before a work', c.stood, p.stood)}${stat('hats', c.hats, p.hats)}${stat('bravos', c.bravos, p.bravos)}${stat('collected & licensed', c.collects, p.collects)}${stat('first-time collectors', c.firstTimers, p.firstTimers)}${stat('makers joined', c.newMakers, p.newMakers)}${stat('taken', c.cents, p.cents, money)}${stat('asked the maker', c.asked, p.asked)}${stat('sign-ins', c.signins, p.signins)}${stat('guest-book lines', c.notes, p.notes)}${stat('works arrived', c.newWorks, p.newWorks)}${stat('API calls', c.api, p.api)}</div>
 ${bars(hourRows, 'k', 'v', r => `${r.k}: ${r.v} views, ${r.u} visitors`)}<p class="an-axis"><span>${esc(hourRows[0] ? hourRows[0].k : '')}</span><span>${esc(hourRows[hourRows.length - 1] ? hourRows[hourRows.length - 1].k : '')}</span></p></article>
 
+${R.funnels ? `<article class="an-card an-wide"><h2>The four funnels<small> ${esc(R.label.toLowerCase())}, counts only</small></h2>${(() => { const F = R.funnels; const rate = (a, b) => (a ? ` (${Math.round(b / a * 1000) / 10}%)` : ''); return `<p class="an-line">Signed up, then uploaded: ${n(F.joined.a)} makers joined · ${n(F.joined.b)} have uploaded${rate(F.joined.a, F.joined.b)}</p>
+<p class="an-line">Uploaded, then hung: ${n(F.first.a)} first uploads · ${n(F.first.b)} of those makers have a work on view${rate(F.first.a, F.first.b)}</p>
+<p class="an-line">Looked, then collected: ${n(F.looked.a)} visitors opened a work${R.days > 1 ? ' (counted by the day)' : ''} · ${n(F.looked.b)} collected${rate(F.looked.a, F.looked.b)}</p>
+<p class="an-line">Checkout, then paid: ${n(F.checkout.a)} checkouts started · ${n(F.checkout.b)} paid${rate(F.checkout.a, F.checkout.b)}</p>
+<p class="an-none">Each is counted from the day its first step began, as it stands now. Nobody is named.</p>`; })()}</article>` : ''}
 <article class="an-card"><h2>Works, most seen</h2>${list(R.works, [r => `<a href="/w/${esc(r.slug || r.path.slice(3))}">${esc(r.title || r.path)}</a>`, r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>
 <article class="an-card"><h2>Works, longest stood before</h2>${list(R.stoodTop, [r => `<a href="/w/${esc(r.slug)}">${esc(r.title)}</a>`, r => `${Math.round((r.secs || 0) / 60)} min`, r => `<i>${n(r.n)} stood</i>`])}</article>
 <article class="an-card"><h2>Pages</h2>${list(R.pages, [r => esc(r.path), r => n(r.views), r => `<i>${n(r.visitors)} people</i>`])}</article>
@@ -276,20 +353,22 @@ ${R.errors.length ? `<h3>Lately</h3>${list(R.errors, [r => `<b>${r.status}</b>`,
   // (18 Nov, the 502) The desk asked for the whole report again on every visit and every thirty seconds from every open
   // tab; each asking holds the website's one thread. One report a span is kept for REPORT_KEEP_MS and shared.
   // `report` itself stays fresh for the house's own callers (the digest, the tests); only the two doors below share.
-  const REPORT_KEEP_MS = 30000; const kept = new Map();
-  const reportKept = (span = 'today') => { const k = kept.get(span); if (k && Date.now() - k.at < REPORT_KEEP_MS) return k.R; const R = report(span); kept.set(span, { at: Date.now(), R }); return R; };
+  const REPORT_KEEP_MS = 30000; const kept_ = new Map();
+  // (#114) On the website the report is the worker's, read in one statement each time: nothing to share.
+  const reportKept = (span = 'today') => { if (webNow()) return report(span); const k = kept_.get(span); if (k && Date.now() - k.at < REPORT_KEEP_MS) return k.R; const R = report(span); kept_.set(span, { at: Date.now(), R }); return R; };
+  const spanQ = req => (['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
   app.get(['/studio/analytics', '/studio/analytics.json'], studioOnly, (req, res, next) => {
-    if (!shut()) return next();
+    const R = process.env.NUMBERS_DESK === '0' ? null : reportKept(spanQ(req)); if (R) { res.locals.numbers = R; return next(); } // on the website: the kept report or null, one statement
     res.set('Cache-Control', 'private, no-store');
     if (/\.json$/.test(req.path) || req.query.frag) return res.json({ ok: false, closed: true, why: SHUT_WORDS });
     res.send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: `<section class="an"><div class="an-head"><div><p class="k">Back office</p><h1>The numbers.</h1><p class="lede">${V.esc(SHUT_WORDS)}</p><p><a href="/studio">Back to the Studio</a></p></div></div></section>` }));
   });
   app.get('/studio/analytics', studioOnly, (req, res) => {
-    const R = reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
+    const R = res.locals.numbers || reportKept(spanQ(req));
     if (req.query.frag) return res.set('Cache-Control', 'private, no-store').send(body(R));
     res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';var busy=false;setInterval(function(){if(document.hidden||busy)return;busy=true;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){}).then(function(){busy=false})},60000)})();</script>` }));
   });
-  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
-  return { report, health, flush: tick, shut, SHUT_WORDS };
+  app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(res.locals.numbers || reportKept(spanQ(req))); });
+  return { report, health, fromDb, healthDb, healthLive, liveOf, rollup, present: () => alive.size, flush: tick, shut, SHUT_WORDS };
 }
 module.exports = { mountAnalytics, page, device, browser };
