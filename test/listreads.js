@@ -45,6 +45,7 @@ function offenders() {
       const t = top(s);
       const own = t.match(/\bFROM\s+(\w+)/i); if (!own || !/^(works|texts)$/i.test(own[1])) continue;
       if (/^\s*\)?\s*\.get\(/.test(after) || /^\s*\)\s*\.pluck\(\)\s*\.get\(/.test(after)) continue; // one row
+      if (/\badb\.get\(\s*$/.test(code.slice(Math.max(0, at - 24), at))) continue; // one row, on the async path (#117)
       const cols = (t.match(/^\s*SELECT\s+(DISTINCT\s+)?([\s\S]*?)\bFROM\b/i) || [])[2] || '';
       const star = /(^|,)\s*(\w+\.)?\*\s*(,|$)/.test(cols);
       const agg = /^\s*(COUNT|SUM|MAX|MIN|AVG|COALESCE|TOTAL)\b/i.test(cols) && !/\bGROUP\s+BY\b/i.test(t) && !/,\s*\w+\.?\w*\s*(,|$)/.test(cols.replace(/\b(COUNT|SUM|MAX|MIN|AVG|COALESCE|TOTAL)\s*/gi, ''));
