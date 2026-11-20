@@ -366,6 +366,21 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const day = new Date().toISOString().slice(0, 10);
     db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+1').run(workId, host || null, kind, day);
   }
+  // (20 Nov, #139) A view of a work seen from a prepared copy (POST /api/arrived) is counted the same way, a few seconds later,
+  // all of them in one transaction from a timer: the door that hears of it asks nothing of the database.
+  const viewsLater = new Map();
+  const flushViews = () => {
+    if (!viewsLater.size) return 0; const by = new Map(viewsLater); viewsLater.clear(); const slugs = [...by.keys()].slice(0, 500);
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      const ids = db.prepare(`SELECT id, slug FROM works WHERE slug IN (${slugs.map(() => '?').join(',')}) LIMIT 500`).all(...slugs);
+      const up = db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,?) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+excluded.count');
+      db.transaction(() => { for (const w of ids) up.run(w.id, null, 'view', day, by.get(w.slug) || 1); })();
+      return ids.length;
+    } catch (e) { console.error('[views later]', e.message.split('\n')[0]); return 0; }
+  };
+  const viewLater = slug => { if (viewsLater.size < 5000) viewsLater.set(slug, (viewsLater.get(slug) || 0) + 1); };
+  if (!cfg.noTimers) setInterval(flushViews, 5000).unref();
 
   async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind, artist, fallbackTitle }) {
     const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
@@ -576,6 +591,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   };
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, isStudio, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
+  // (20 Nov, #139) Prepared copies for strangers: a stranger's request for a public door is answered from the copy the
+  // worker made, shared by every copy of the website through `prepared_pages`, with no statement in the request. Anyone
+  // the house knows (a sign-in, their own looking, a basket, a walk, a tenant, a query) is built fresh, `private, no-store`.
+  app.use(require('./prepared').mountPrepared(app, { db, V, C, cfg }).serve);
+  app.locals.viewLater = viewLater; app.locals.flushViews = flushViews;
   require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
@@ -726,9 +746,15 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // the art, Wander's own first page at a shorter window), and only a true stranger is served from it: anyone with a
   // gallery (wm_b: the old test read a cookie that does not exist), the adult rooms open, the trade on, a guest key or
   // a welcome due is built fresh.
+  const PREP = require('./prepared');
   const minute = (handler, ttl = 60e3) => (req, res) => {
-    const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.wm_b && !c.wm_staff && !c.wm_as && !c.wm_trade && !c.wm_hi && !c.wm_gg && !c.wm_g && (!c.wm_zone || c.wm_zone === 'all') && !req.tenant;
-    if (!anon) return handler(req, res);
+    // (20 Nov, #139) A person is anyone prepared.js says is one: on Wander's doors the list here had missed the visitor's
+    // own looking (wm_v shapes its picks) and the basket, so one visitor's Wander could be kept and handed to the next;
+    // on the hall's doors (which read none of the visitor's own cookies) the rule is as it was, with every sign-in. A
+    // person's page is built fresh and never kept; the worker's own request is never served from here.
+    const c = req.cookies || {}; const anon = !PREP.isPerson(req);
+    if (!anon) { res.set('Cache-Control', 'private, no-store'); return handler(req, res); }
+    if (req.preparing) return handler(req, res);
     // (9 Nov) By the clock alone outside tests: with imports and visitors writing to the register all day the head moved every few seconds and the page was never kept.
     const key = req.originalUrl + '#' + (process.env.NODE_ENV === 'test' ? (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) : '') + '#' + (c.wm_tz || ''), hit = pageCache.get(key); // the visitor's zone shapes the clock's rooms // any entry on the register makes the page new
     if (hit && Date.now() - hit.at < ttl) { res.set('Cache-Control', 'public, max-age=' + Math.max(5, Math.round(ttl / 2000))); return res.send(hit.body); }
@@ -877,7 +903,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w); // the work's own maker
     if (w && w.status !== 'held' && !isStudio(req)) return res.redirect(onward(req, w.slug)); // no break: a photograph taken down leads on to the next
     if (!w) return res.status(404).send(V.sign({ code: 404, cover: coverFor() }));
-    countView(w.id, null, 'view');
+    if (!req.preparing) countView(w.id, null, 'view'); // the worker making a copy is not a visit; a copy's visit is counted by /api/arrived
     const rules = R.parse(w.rules);
     const [holders, shown, mktRows, byArtist] = await Promise.all([
       adb.get(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`, w.id).then(r => r.n),
@@ -2341,6 +2367,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
         EDGE.work(w.slug); // the edge drops its copies of the old picture (25 Oct)
+        if (app.locals.prepared) app.locals.prepared.forget(w.slug); // and the stranger's prepared page (#139): its size and record changed
         warmSoon(w.slug); // the new master's copies made at once (29 Oct)
     return w;
   }
@@ -2823,7 +2850,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const { unvaulted, works } = app.locals.kept('healthz-counts', 30e3, () => ({ unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works: db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n }));
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, prepared: app.locals.prepared ? app.locals.prepared.state() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.
