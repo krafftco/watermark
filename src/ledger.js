@@ -53,11 +53,21 @@ function append(db, type, subject, data) {
 // Any edit to an entry already verified is still caught: the full walk runs once an hour, and the
 // smoke test's tamper check runs it directly (verifyAll).
 const heads = new WeakMap();
+const WALK_PAGE = Math.max(1, +process.env.LEDGER_WALK_PAGE || 2000);
 function verifyAll(db) {
-  let prev = GENESIS, n = 0;
-  for (const e of db.prepare('SELECT * FROM ledger ORDER BY seq').iterate()) {
-    if (e.prev_hash !== prev || digest(e) !== e.hash) return { ok: false, broken_at: e.seq, checked: n };
-    prev = e.hash; n++;
+  // (20 Nov) A page at a time. On Postgres the bridge's `iterate` hands over every row at once, so the whole register
+  // (each entry with its payload) stood in memory: the worker (2 GB) reached 1.77 GB on this one statement five minutes
+  // after each start and was ended by the host about every seven minutes. The walk and its answer are unchanged.
+  let prev = GENESIS, n = 0, after = -1;
+  const page = db.prepare('SELECT * FROM ledger WHERE seq > ? ORDER BY seq LIMIT ' + WALK_PAGE);
+  for (;;) {
+    const rows = page.all(after);
+    for (const e of rows) {
+      if (e.prev_hash !== prev || digest(e) !== e.hash) return { ok: false, broken_at: e.seq, checked: n };
+      prev = e.hash; n++;
+    }
+    if (rows.length < WALK_PAGE) break;
+    after = rows[rows.length - 1].seq;
   }
   return { ok: true, checked: n, head: prev };
 }
