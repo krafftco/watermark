@@ -60,7 +60,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
   // the transfer it made, or makes it once. Only a refusal Stripe states (nothing was sent) lets a row go; an error that
   // may hide a sent transfer (no answer, Stripe's own fault) keeps it pending. A row pending past the key's day (Stripe
   // keeps a key 24 hours) is left for the house to look at, never paid again blind.
-  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit|Idempotency)Error$/.test(String((e && e.type) || ''));
+  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit)Error$/.test(String((e && e.type) || ''));
   const unsent = b => db.prepare("SELECT * FROM pocket WHERE buyer_id=? AND kind='cashout' AND status='pending' AND ref IS NULL AND at > datetime('now','-23 hours') ORDER BY id DESC LIMIT 1").get(b.id);
   async function cashout(req, res, b) {
     const again = PAY_ON() && b.stripe_account ? unsent(b) : null;

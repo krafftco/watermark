@@ -103,7 +103,8 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   // again with the same key and amount: Stripe answers with the transfer it made, or makes it once. Only a refusal Stripe
   // states (nothing was sent) removes the row; an error that may hide a sent transfer keeps it. A row pending past the
   // key's day (Stripe keeps a key 24 hours) is left for the house to look at, never paid again blind.
-  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit|Idempotency)Error$/.test(String((e && e.type) || ''));
+  // (CTO review) Not an idempotency error: that one means a request with this key already reached Stripe and may have paid, so the row stays.
+  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit)Error$/.test(String((e && e.type) || ''));
   async function payNow(m, { by = 'house' } = {}) {
     const again = ON() && m.stripe_account ? db.prepare("SELECT * FROM maker_payouts WHERE maker_id=? AND status='pending' AND how='stripe' AND at > datetime('now','-23 hours') ORDER BY id DESC LIMIT 1").get(m.id) : null;
     const st = statement(m); const amt = again ? Number(again.amount_cents) : st.cleared;
