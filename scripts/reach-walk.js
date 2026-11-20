@@ -117,7 +117,10 @@ function probe({ mode, edge }) {
   const belongs = (el, h) => !!h && (h === el || el.contains(h) || (el.labels && [...el.labels].some(l => l === h || l.contains(h))) || (h.closest && h.closest('label') && h.closest('label').control === el));
   const all = [...document.querySelectorAll(SEL)].filter(shown);
   const out = []; const seen = new Set();
-  const push = (el, kind, extra) => { const k = kind + '|' + short(el) + '|' + words(el); if (seen.has(k)) return; seen.add(k); out.push({ kind, sel: short(el), words: words(el), inBar: !!barOf(el), ...extra }); };
+  // (#109) What the page was doing at the moment of a finding, so a second look can tell a room from a walk read too early.
+  const diag = el => { const run = []; for (let e = el; e && e.nodeType === 1 && run.length < 6; e = e.parentElement) for (const a of e.getAnimations ? e.getAnimations() : []) if (a.playState === 'running') run.push((a.transitionProperty || a.animationName || 'anim') + '@' + short(e) + ':' + Math.round(a.currentTime || 0)); const m = document.querySelector('main');
+    return { main: m ? String(m.className).slice(0, 120) : '', t: Math.round(performance.now()), anims: run.join(' '), hover: matchMedia('(hover:hover)').matches, coarse: matchMedia('(pointer:coarse)').matches, vis: cs(el).visibility, op: +cs(el).opacity }; };
+  const push = (el, kind, extra) => { const k = kind + '|' + short(el) + '|' + words(el); if (seen.has(k)) return; seen.add(k); out.push({ kind, sel: short(el), words: words(el), inBar: !!barOf(el), ...extra, ...(/^(invisible|inert|covered|bar)$/.test(kind) ? { diag: diag(el) } : {}) }); };
   // Five points: the centre and four inset corners, a quarter of the way in (so a round button's corners are its own).
   // A link that runs over two lines is tested on the first of its boxes.
   const boxOf = el => { const rs = el.getClientRects(); return cs(el).display === 'inline' && rs.length > 1 ? [...rs].find(x => x.width >= 2 && x.height >= 2) || el.getBoundingClientRect() : el.getBoundingClientRect(); };
@@ -268,7 +271,7 @@ let dir;
   // A real press: a capture-phase listener on the window records where each click landed and stops it there (so the
   // walk does not leave the page); each press is a touch on a touch screen, a mouse on the desk. The bar's controls are
   // found and pressed in one pass.
-  const topbar = async (page, touch, p, size, role, edge) => {
+  const topbar = async (page, touch, p, size, role, edge, N = note) => {
     const boxes = await page.evaluate(sel => {
       window.__reachHits = [];
       if (!window.__reachArmed) { window.__reachArmed = 1; addEventListener('click', e => { if (!window.__reachTrap) return; if (window.__reachHits[window.__reachI] == null) window.__reachHits[window.__reachI] = e.target; e.preventDefault(); e.stopImmediatePropagation(); }, true); }
@@ -287,65 +290,96 @@ let dir;
       return window.__reachEls.map((el, i) => { const h = window.__reachHits[i]; const ok = h && (el === h || el.contains(h));
         return ok ? null : { sel: el.tagName.toLowerCase() + (c(el) ? '.' + c(el) : '') + (el.getAttribute('href') && !c(el) ? `[href="${el.getAttribute('href')}"]` : ''), words: (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40), tag: h ? 'landed on ' + h.tagName.toLowerCase() + (c(h) ? '.' + c(h) : '') : 'no click reached the page' }; }).filter(Boolean);
     });
-    for (const d of res) note({ page: p, size, role, kind: 'tap', at: edge, sel: d.sel, words: d.words, cover: { tag: d.tag } });
+    for (const d of res) N({ page: p, size, role, kind: 'tap', at: edge, sel: d.sel, words: d.words, cover: { tag: d.tag } });
   };
   // Wider than the screen: the document's width (scrollWidth) past its viewport (clientWidth + 1), or a layout viewport
   // the browser widened to fit it (innerWidth), so it zooms the whole page out or scrolls it sideways. Named by page and
   // size, with the first thing that runs past the edge outside a box that scrolls on its own.
-  const wideCheck = async (page, p, size, role) => {
+  const wideCheck = async (page, p, size, role, N = note) => {
     const wide = await page.evaluate(() => {
       const w = document.documentElement.scrollWidth, c = document.documentElement.clientWidth; if (innerWidth <= c + 1 && w <= c + 1) return null;
       const inBox = e => { for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o !== 'visible' && o !== 'clip') return true; } return false; };
       const e = [...document.querySelectorAll('body *')].find(e => { const r = e.getBoundingClientRect(); return r.right > c + 1 && r.width > 0 && getComputedStyle(e).position !== 'fixed' && !inBox(e); });
       return { w: Math.max(w, innerWidth), c, sel: e ? e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '') : '?' };
     });
-    if (wide) note({ page: p, size, role, kind: 'wide', sel: wide.sel, words: '', cover: { tag: `${p} is ${wide.w} wide on a ${wide.c} screen` } });
+    if (wide) N({ page: p, size, role, kind: 'wide', sel: wide.sel, words: '', cover: { tag: `${p} is ${wide.w} wide on a ${wide.c} screen` } });
   };
   const scrollTo = (page, where) => page.evaluate(w => { const H = document.documentElement.scrollHeight - innerHeight; scrollTo({ top: w === 'top' ? 0 : w === 'mid' ? H / 2 : H, behavior: 'instant' }); }, where).then(() => scrollSettle(page));
-  const walkHere = async (page, p, size, role, extra = '', edges = true) => {
-    for (const f of await page.evaluate(probe, { mode: 'centre' })) note({ page: p, size: size + extra, role, ...f });
+  const walkHere = async (page, p, size, role, extra = '', edges = true, N = note) => {
+    for (const f of await page.evaluate(probe, { mode: 'centre' })) N({ page: p, size: size + extra, role, ...f });
     if (edges) for (const edge of ['top', 'mid', 'foot']) {
       await scrollTo(page, edge); if (edge !== 'top') { await page.waitForTimeout(60); await still(page); }
       // A room that grows as its foot is reached (more tiles, late pictures) is not at its foot yet: go down again.
       if (edge === 'foot') for (let i = 0; i < 6 && !(await page.evaluate(() => scrollY + innerHeight >= document.documentElement.scrollHeight - 2)); i++) { await scrollTo(page, edge); await page.waitForTimeout(120); await still(page); }
-      for (const f of await page.evaluate(probe, { mode: 'here', edge })) note({ page: p, size: size + extra, role, ...f });
+      for (const f of await page.evaluate(probe, { mode: 'here', edge })) N({ page: p, size: size + extra, role, ...f });
     }
     await scrollTo(page, 'top');
   };
 
+  // (#109) A finding is called only when a second look agrees. Each door (a page at a size, as a person; or one edge of
+  // the presses below) is visited, and if it found anything, visited again once, fresh: a new page in the same context.
+  // What both looks found is a fault; what only one look found is `flaky`: kept in the findings file, raised as a notice,
+  // never dropped. A door that throws (a navigation under the walk's feet, a press that never came into view) is a
+  // finding of kind `error` like any other, and is looked at twice the same way. Nothing else is retried.
+  const flaky = [];
+  const keyOf = f => [f.page, f.size, f.role, f.kind, f.at || '', f.sel, f.words].join('|');
+  const twice = async (door, look) => {
+    const first = []; await look(f => first.push(f));
+    if (!first.length) return;
+    const second = []; await look(f => second.push(f));
+    const again = new Map(second.map(f => [keyOf(f), f]));
+    for (const f of first) { const g = again.get(keyOf(f)); if (g) note({ ...f, diag2: g.diag || g.cover && g.cover.err || null }); else flaky.push({ ...f, engine: ENGINE.name, door, seen: 'first look only' }); }
+    const once = new Set(first.map(keyOf));
+    for (const g of second) if (!once.has(keyOf(g))) flaky.push({ ...g, engine: ENGINE.name, door, seen: 'second look only' });
+  };
+  const errOf = e => String(e && e.message || e).split('\n')[0].replace(/\s+/g, ' ').slice(0, 160);
+
   const doesIt = async (ctx, size, role, touch) => {
     const p = DOES[role];
-    const press = async (page, sel) => { const el = page.locator(sel).first(); await el.scrollIntoViewIfNeeded(); const b = await el.boundingBox(); if (!b) return false; const x = b.x + b.width / 2, y = b.y + b.height / 2; if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); return true; };
-    for (const edge of ['top', 'mid']) {
+    // A press: brought into view (8 s at most; a control that cannot be is the finding, not a crash of the walk).
+    const press = async (page, sel, N, edge, words) => {
+      const el = page.locator(sel).first();
+      try { await el.scrollIntoViewIfNeeded({ timeout: 8000 }); }
+      catch (e) {
+        const why = await el.evaluate(x => { const r = x.getBoundingClientRect(), c = getComputedStyle(x), row = x.parentElement; return `box ${[r.left, r.top, r.width, r.height].map(Math.round).join(',')}, display ${c.display}, visibility ${c.visibility}, opacity ${c.opacity}${row ? `, its row scrolls ${row.scrollLeft}/${row.scrollWidth - row.clientWidth}` : ''}, at ${Math.round(performance.now())} ms, ${document.readyState}`; }, null, { timeout: 2000 }).catch(x => 'not in the page: ' + errOf(x));
+        N({ page: p, size, role, kind: 'does', at: edge, sel, words, cover: { tag: 'could not be brought into view (' + why + ')', err: errOf(e) } }); return false;
+      }
+      const b = await el.boundingBox(); if (!b) return false; const x = b.x + b.width / 2, y = b.y + b.height / 2; if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); return true;
+    };
+    const edgeOf = edge => async N => {
       const page = await ctx.newPage();
-      // A press that left a navigation (or Back's own fallback) still under way would abort the next one: try again.
-      const go = async u => { for (let i = 0; ; i++) { try { await page.waitForLoadState('load').catch(() => {}); return await page.goto(u, { waitUntil: 'load' }); } catch (e) { if (i >= 2) throw e; await page.waitForTimeout(600); } } };
-      // Back: a page before this one, then this page; Back must return.
-      await go(base + (role === 'studio' ? '/studio' : role === 'maker' ? '/account' : '/'));
-      await go(base + p); await settle(page);
-      if (edge === 'mid') await scrollTo(page, 'mid');
-      const backSel = '[data-nv-back]:not([hidden])';
-      if (await page.locator(backSel).count()) {
-        const was = page.url(); await press(page, backSel); await page.waitForURL(u => u.toString() !== was, { timeout: 3000 }).catch(() => {});
-        if (page.url() === was) note({ page: p, size, role, kind: 'does', at: edge, sel: 'button.nv-back', words: 'Back', cover: { tag: 'Back did not leave the page' } });
-      } else note({ page: p, size, role, kind: 'does', at: edge, sel: 'button.nv-back', words: 'Back', cover: { tag: 'no Back shown' } });
-      // The menu (All rooms) opens its sheet; Find opens its layer.
-      await go(base + p); await settle(page); if (edge === 'mid') await scrollTo(page, 'mid');
-      if (await page.locator('.rm-b:visible').count()) {
-        await press(page, '.rm-b:visible'); await page.waitForTimeout(150);
-        if (!(await page.evaluate(() => { const d = document.querySelector('[data-rm]'); return !!(d && d.open); }))) note({ page: p, size, role, kind: 'does', at: edge, sel: 'button.rm-b', words: 'All rooms', cover: { tag: 'the sheet did not open' } });
-        else { await page.locator('[data-rm-close]').first().click().catch(() => {}); }
-      }
-      // Each desk tab goes to its room.
-      const tabs = await page.evaluate(() => [...document.querySelectorAll('.dh-rooms > a')].map(a => a.getAttribute('href')));
-      for (const h of tabs) {
+      try {
+        // A press that left a navigation (or Back's own fallback) still under way would abort the next one: try again.
+        const go = async u => { for (let i = 0; ; i++) { try { await page.waitForLoadState('load').catch(() => {}); return await page.goto(u, { waitUntil: 'load' }); } catch (e) { if (i >= 2) throw e; await page.waitForTimeout(600); } } };
+        // Back: a page before this one, then this page; Back must return.
+        await go(base + (role === 'studio' ? '/studio' : role === 'maker' ? '/account' : '/'));
+        await go(base + p); await settle(page);
+        if (edge === 'mid') await scrollTo(page, 'mid');
+        const backSel = '[data-nv-back]:not([hidden])';
+        if (await page.locator(backSel).count()) {
+          const was = page.url(); await press(page, backSel, N, edge, 'Back'); await page.waitForURL(u => u.toString() !== was, { timeout: 3000 }).catch(() => {});
+          if (page.url() === was) N({ page: p, size, role, kind: 'does', at: edge, sel: 'button.nv-back', words: 'Back', cover: { tag: 'Back did not leave the page' } });
+        } else N({ page: p, size, role, kind: 'does', at: edge, sel: 'button.nv-back', words: 'Back', cover: { tag: 'no Back shown' } });
+        // The menu (All rooms) opens its sheet; Find opens its layer.
         await go(base + p); await settle(page); if (edge === 'mid') await scrollTo(page, 'mid');
-        const sel = `.dh-rooms > a[href="${h}"]`;
-        await press(page, sel); await page.waitForURL(u => new URL(u).pathname === h.split('?')[0], { timeout: 3000 }).catch(() => {});
-        if (new URL(page.url()).pathname !== h.split('?')[0]) note({ page: p, size, role, kind: 'does', at: edge, sel, words: h, cover: { tag: 'the tab did not go to ' + h + ' (at ' + new URL(page.url()).pathname + ')' } });
-      }
-      await page.close();
-    }
+        if (await page.locator('.rm-b:visible').count()) {
+          await press(page, '.rm-b:visible', N, edge, 'All rooms'); await page.waitForTimeout(150);
+          if (!(await page.evaluate(() => { const d = document.querySelector('[data-rm]'); return !!(d && d.open); }))) N({ page: p, size, role, kind: 'does', at: edge, sel: 'button.rm-b', words: 'All rooms', cover: { tag: 'the sheet did not open' } });
+          else { await page.locator('[data-rm-close]').first().click({ timeout: 5000 }).catch(() => {}); }
+        }
+        // Each desk tab goes to its room.
+        const tabs = await page.evaluate(() => [...document.querySelectorAll('.dh-rooms > a')].map(a => a.getAttribute('href')));
+        for (const h of tabs) {
+          await go(base + p); await settle(page); if (edge === 'mid') await scrollTo(page, 'mid');
+          const sel = `.dh-rooms > a[href="${h}"]`;
+          if (!(await press(page, sel, N, edge, h))) continue;
+          await page.waitForURL(u => new URL(u).pathname === h.split('?')[0], { timeout: 3000 }).catch(() => {});
+          if (new URL(page.url()).pathname !== h.split('?')[0]) N({ page: p, size, role, kind: 'does', at: edge, sel, words: h, cover: { tag: 'the tab did not go to ' + h + ' (at ' + new URL(page.url()).pathname + ')' } });
+        }
+      } catch (e) { N({ page: p, size, role, kind: 'error', at: edge, sel: '-', words: 'the presses', cover: { tag: 'the walk could not finish here: ' + errOf(e), err: errOf(e) } }); }
+      finally { await page.close().catch(() => {}); }
+    };
+    for (const edge of ['top', 'mid']) await twice(`${p} presses (${edge}) at ${size} as ${role}`, edgeOf(edge));
   };
 
   for (const size of sizesRun) {
@@ -364,38 +398,44 @@ let dir;
       // The tours and the first-visit sheets would sit over the page for a newcomer: they are part of what is walked
       // only on the front door; elsewhere the walk is someone who has been here before.
       await ctx.addInitScript(() => { try { localStorage.setItem('wm_toured', '1'); } catch (e) {} });
-      if (!only && DOES[role]) await doesIt(ctx, size, role, S.touch);
+      if ((!only || process.env.REACH_DOES) && DOES[role]) await doesIt(ctx, size, role, S.touch);
       if (S.touch) { const pg = await ctx.newPage(); await pg.goto(base + '/about'); const coarse = await pg.evaluate(() => matchMedia('(pointer:coarse)').matches); await pg.close(); if (!coarse) throw new Error('touch is not emulated: (pointer:coarse) does not match'); }
       // Each page in a fresh tab (a zoom left by one page must not lie over the next), POOL tabs at once.
       const queue = list.slice();
-      const one = async p => {
-        const page = await ctx.newPage();
+      const visit = p => async N => {
+        const page = await ctx.newPage(); let skip = false;
         try {
-          const resp = await page.goto(base + p, { waitUntil: 'load' }).catch(e => null);
+          let err = null; const resp = await page.goto(base + p, { waitUntil: 'load' }).catch(e => { err = e; return null; });
           // A room with nothing to show in a test house (the Met's open access with no Met works) answers 404: not walked.
-          if (resp && resp.status() === 404) { skipped.add(p); return; }
-          if (!resp || resp.status() >= 400) { note({ page: p, size, role, kind: 'status', sel: '-', words: '', cover: { tag: 'answered ' + (resp ? resp.status() : 'nothing') } }); return; }
+          if (resp && resp.status() === 404) { skip = true; return; }
+          if (!resp || resp.status() >= 400) { N({ page: p, size, role, kind: 'status', sel: '-', words: '', cover: { tag: 'answered ' + (resp ? resp.status() : 'nothing' + (err ? ': ' + errOf(err) : '')), err: err ? errOf(err) : null } }); return; }
           if (cookiesFor[role] && role !== 'trade' && /\/signin|\/studio\/(door|login)/.test(new URL(page.url()).pathname)) throw new Error(`${p} sent the signed-in visitor to ${page.url()}`);
           await settle(page);
-          const before = faults.length;
+          let n = 0; const M = f => { n++; N(f); };
           // Wider than the screen: the browser zooms the whole page out (or it scrolls sideways), and every control shrinks.
-          await wideCheck(page, p, size, role);
-          await walkHere(page, p, size, role);
+          await wideCheck(page, p, size, role, M);
+          await walkHere(page, p, size, role, '', true, M);
           // A control that moves on the press itself (on touchend, before the click the walk holds back) takes the page
           // away: said, and the rest of that page's presses left out.
-          if (S.touch) try { for (const edge of ['top', 'mid']) { await scrollTo(page, edge); await topbar(page, S.touch, p, size, role, edge); } }
+          if (S.touch) try { for (const edge of ['top', 'mid']) { await scrollTo(page, edge); await topbar(page, S.touch, p, size, role, edge, M); } }
           catch (e) { if (!/context was destroyed|navigation/i.test(String(e))) throw e; console.log(`left on a press: ${p} at ${size} (${role})`); await page.waitForLoadState('load').catch(() => {}); await page.goto(base + p, { waitUntil: 'load' }); await settle(page); }
           // Turn it: portrait → landscape → portrait, the page left open; walked again.
           if (size === 'ipadP') {
             await scrollTo(page, 'top');
             await page.setViewportSize({ width: S.viewport.height, height: S.viewport.width }); await page.waitForTimeout(120);
             await page.setViewportSize(S.viewport); await page.waitForTimeout(150); await still(page);
-            await wideCheck(page, p, size + '↻', role);
-            await walkHere(page, p, size, role, '↻', false);
+            await wideCheck(page, p, size + '↻', role, M);
+            await walkHere(page, p, size, role, '↻', false, M);
           }
-          if (shots && faults.length > before && !shotOnce.has(p + size)) { shotOnce.add(p + size); await page.screenshot({ path: path.join(shots, `${size}-${p.replace(/[^a-z0-9]+/gi, '_')}.png`) }).catch(() => {}); }
-          walked++; combos.add(`${p}|${size}|${role}`);
-        } finally { await page.close(); }
+          if (shots && n && !shotOnce.has(p + size)) { shotOnce.add(p + size); await page.screenshot({ path: path.join(shots, `${size}-${p.replace(/[^a-z0-9]+/gi, '_')}.png`) }).catch(() => {}); }
+        } catch (e) {
+          // The page moved under the walk, or a step could not finish: a finding of its own, looked at twice like any other.
+          N({ page: p, size, role, kind: 'error', sel: '-', words: '', cover: { tag: 'the walk could not finish this page: ' + errOf(e), err: errOf(e) } });
+        } finally { await page.close().catch(() => {}); if (skip) skipped.add(p); }
+      };
+      const one = async p => {
+        await twice(`${p} at ${size} as ${role}`, visit(p));
+        if (!skipped.has(p)) { walked++; combos.add(`${p}|${size}|${role}`); }
       };
       await Promise.all(Array.from({ length: POOL }, async () => { while (queue.length) await one(queue.shift()); }));
       await ctx.close();
@@ -403,10 +443,18 @@ let dir;
   }
   await browser.close(); srv.close();
   const secs = Math.round((Date.now() - t0) / 1000);
-  const line = f => `${f.page} · ${f.size} · ${f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}”${f.box ? ' [' + f.box.join(',') + ']' : ''}${f.cover ? ' · under ' + [f.cover.sel || f.cover.tag, f.cover.pe ? 'pe:' + f.cover.pe : '', f.cover.op != null ? 'op:' + f.cover.op : '', f.cover.z ? 'z:' + f.cover.z : '', f.cover.pos && f.cover.pos !== 'static' ? f.cover.pos : ''].filter(Boolean).join(' ') : ''}`;
-  if (process.env.REACH_JSON) fs.writeFileSync(process.env.REACH_JSON, JSON.stringify({ faults, allowed }, null, 1));
+  const line = f => `${f.page} · ${f.size} · ${f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}”${f.box ? ' [' + f.box.join(',') + ']' : ''}${f.cover ? ' · under ' + [f.cover.sel || f.cover.tag, f.cover.pe ? 'pe:' + f.cover.pe : '', f.cover.op != null ? 'op:' + f.cover.op : '', f.cover.z ? 'z:' + f.cover.z : '', f.cover.pos && f.cover.pos !== 'static' ? f.cover.pos : ''].filter(Boolean).join(' ') : ''}${dline(f.diag)}`;
+  if (process.env.REACH_JSON) fs.writeFileSync(process.env.REACH_JSON, JSON.stringify({ faults, allowed, flaky }, null, 1));
+  // (#109) What only one of two looks found: said, never dropped. With the moment's diagnostics, so the next worker can
+  // tell a room that is sometimes wrong from a walk that read it too early.
+  const dline = d => d ? ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : ''].filter(Boolean).join('; ')}}` : '';
+  if (flaky.length) {
+    const rows = flaky.map(f => `${f.page} · ${f.size}${f.role === 'out' ? '' : '/' + f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}” · ${f.cover ? (f.cover.sel || f.cover.tag || '') : ''} · ${f.seen}${dline(f.diag)}`);
+    console.log(`flaky (${ENGINE.name}, ${flaky.length}: seen on one look of two, not called):\n` + rows.join('\n'));
+    if (process.env.GITHUB_ACTIONS && !ENGINE.webkit) { let cur = ''; const packs = []; for (const r of rows) { if ((cur + r).length > 1400) { packs.push(cur); cur = ''; } cur += r.slice(0, 1400) + '\n'; } if (cur) packs.push(cur); packs.slice(0, 5).forEach((m, i) => console.log(`::notice title=reach flaky ${i + 1}/${packs.length}::${m.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`)); }
+  }
   if (skipped.size) console.log(`not walked (404 in the test house): ${[...skipped].join(' ')}`);
-  const summary = `reach (${ENGINE.name}): ${walked} page walks (${combos.size} page × size × person) in ${secs}s; ${faults.length} faults; ${allowed.length} on the allow-list`;
+  const summary = `reach (${ENGINE.name}): ${walked} page walks (${combos.size} page × size × person) in ${secs}s; ${faults.length} faults; ${allowed.length} on the allow-list; ${flaky.length} flaky (one look of two)`;
   if (allowed.length) console.log(`allowed (filed): ${[...new Set(allowed.map(a => '#' + a.issue))].join(' ')}`);
   if (faults.length) {
     const lines = faults.map(line);
