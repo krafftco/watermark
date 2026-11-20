@@ -16,6 +16,31 @@ const STATUS = 0, LENGTH = 1;
 // holds the line over DB_SLOW_MS (500) is logged [pg slow] and kept (the worst twenty) for /healthz `pgSlow`.
 const WAIT_MS = +process.env.DB_WAIT_MS || (process.env.ROLE === 'web' ? 20000 : 120000);
 const SLOW_MS = +process.env.DB_SLOW_MS || 500;
+// (20 Nov, #115, the guard) Render's log of the two 502s (18 and 20 Nov): the numbers desk asked about ten statements over
+// `hits` in a row, each 9–13 s, each under the 20 s above, so nothing cut them and the thread did not beat for 61–96 s.
+// So on the website (ROLE=web), once it begins to answer (`limitStart`, at the end of createApp; the boot's DDL keeps the
+// connection's two minutes), two limits:
+//   - a statement: DB_LIMIT_MS (4 s). Postgres itself enforces it (statement_timeout on the bridge's connection), so the
+//     database stops working on a question nobody waits for. A named long write asks for more with `db.longer(ms, fn)`,
+//     at most DB_LIMIT_MAX_MS (20 s) on the website. The thread waits the limit and DB_LIMIT_GRACE_MS (4 s) at most.
+//   - a hold: DB_HOLD_MS (8 s). The time since the event loop last turned, counted from the first statement of the run;
+//     past it the next statement is not asked and the request that holds the thread gets the house's own page. So ten
+//     statements of 3.9 s cannot stop the house: the longest the thread is held by statements is the hold and one more.
+// A statement over either is logged [pg limit] with its text (never its values), throws an error with status 503 and
+// `limit: true`, and the connection answers the next question (a cancelled statement leaves it clean; inside a
+// transaction the wrapper rolls back). The watchdog checks its own patience against `maxHold()` at start.
+const WEB = String(process.env.ROLE || '').toLowerCase() === 'web';
+const LIMIT_MS = +process.env.DB_LIMIT_MS || 4000;
+const LIMIT_MAX_MS = +process.env.DB_LIMIT_MAX_MS || 20000;
+const GRACE_MS = +process.env.DB_LIMIT_GRACE_MS || 4000;
+const HOLD_MS = +process.env.DB_HOLD_MS || 8000;
+const TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i; // a transaction's own words are never refused: a rollback must always go through
+const maxHold = () => (WEB ? HOLD_MS + LIMIT_MAX_MS + GRACE_MS : WAIT_MS);
+function limitError(msg, why) {
+  const e = new Error('database: ' + why); e.status = 503; e.limit = true; e.code = '57014';
+  console.error(`[pg limit] ${why}: ${String(msg && msg.sql || '').replace(/\s+/g, ' ').slice(0, 300)}`);
+  return e;
+}
 const slow = []; // {ms, sql, at, n}
 function noteSlow(ms, sql) {
   const key = String(sql || '').replace(/\s+/g, ' ').slice(0, 200);
@@ -40,19 +65,28 @@ function open(url) {
   const cache = new Map(); // translated SQL by source text
   const idCols = new Map(); // table → the column an INSERT should return (id or seq)
   let depth = 0, closed = false;
+  let limiting = false, longerMs = 0, run = null; // run: { at } while the event loop has not turned since its first statement
   spawn();
 
+  // The statement's limit: null while not limiting (the connection keeps its own two minutes).
+  const limitNow = () => (limiting ? (longerMs || LIMIT_MS) : null);
   function call(msg) {
     if (closed) throw new Error('database closed');
+    const lim = limitNow();
+    if (lim && !TXN.test(msg.sql || '')) {
+      if (!run) { run = { at: Date.now() }; setImmediate(() => { run = null; }); }
+      else if (Date.now() - run.at >= HOLD_MS) throw limitError(msg, `the thread held ${Date.now() - run.at} ms without a turn (the hold is ${HOLD_MS} ms); not asked`);
+    }
+    msg.limit = lim;
     Atomics.store(ctl, STATUS, 0);
     const t0 = Date.now();
     worker.postMessage(msg);
-    try { return wait(msg); } finally { const ms = Date.now() - t0; if (ms > SLOW_MS) noteSlow(ms, msg.sql); }
+    try { return wait(msg, lim ? lim + GRACE_MS : WAIT_MS); } finally { const ms = Date.now() - t0; if (ms > SLOW_MS) noteSlow(ms, msg.sql); }
   }
-  function wait(msg) {
+  function wait(msg, waitMs) {
     for (;;) {
-      const r = Atomics.wait(ctl, STATUS, 0, WAIT_MS);
-      if (r === 'timed-out') { console.error('[pg] no answer in ' + WAIT_MS / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); throw new Error('database: no answer in ' + WAIT_MS / 1000 + ' s'); }
+      const r = Atomics.wait(ctl, STATUS, 0, waitMs);
+      if (r === 'timed-out') { console.error('[pg] no answer in ' + waitMs / 1000 + ' s; the connection is made again. In: ' + String(msg.sql || '').slice(0, 160)); spawn(); const e = new Error('database: no answer in ' + waitMs / 1000 + ' s'); if (msg.limit) { e.status = 503; e.limit = true; } throw e; }
       const st = Atomics.load(ctl, STATUS);
       if (st === 2) { // the answer is bigger than the buffer: grow it and let the worker write again
         const need = Atomics.load(ctl, LENGTH);
@@ -61,7 +95,10 @@ function open(url) {
       }
       const len = Atomics.load(ctl, LENGTH);
       const obj = JSON.parse(Buffer.from(data.buffer, data.byteOffset, len).toString());
-      if (st === 3) { const e = new Error(obj.message + (obj.sql ? '\n  in: ' + obj.sql.slice(0, 300) : '')); e.code = obj.code; e.detail = obj.detail; e.position = obj.position; throw e; }
+      if (st === 3) {
+        if (obj.code === '57014' && msg.limit) throw limitError(msg, `over the limit of ${msg.limit} ms, stopped by the database`);
+        const e = new Error(obj.message + (obj.sql ? '\n  in: ' + obj.sql.slice(0, 300) : '')); e.code = obj.code; e.detail = obj.detail; e.position = obj.position; throw e;
+      }
       return obj;
     }
   }
@@ -120,6 +157,12 @@ function open(url) {
   exec(D.PRELUDE);
   return {
     kind: 'postgres', url, prepare, exec, transaction,
+    // The website's limits begin (ROLE=web only; elsewhere nothing changes).
+    limitStart() { if (WEB && !limiting) { limiting = true; console.log(`[pg] the website's limits: ${LIMIT_MS} ms a statement, ${HOLD_MS} ms a hold`); } return limiting; },
+    limits: () => ({ on: limiting, statementMs: LIMIT_MS, maxMs: LIMIT_MAX_MS, holdMs: HOLD_MS, graceMs: GRACE_MS }),
+    // A named long write: more time for the statements inside fn (at most DB_LIMIT_MAX_MS on the website). The hold still
+    // applies at each statement's start, so the longest hold is the hold, one long statement and the grace (maxHold).
+    longer(ms, fn) { if (!limiting) return fn(); const was = longerMs; longerMs = Math.max(LIMIT_MS, Math.min(+ms || LIMIT_MS, LIMIT_MAX_MS)); try { return fn(); } finally { longerMs = was; } },
     pragma: () => [],
     close() { if (closed) return; closed = true; try { call({ kind: 'close' }); } catch (e) {} },
     backup() { throw new Error('backup: use pg_dump for a Postgres house'); },
@@ -139,4 +182,4 @@ function splitStatements(sql) {
   return out.map(s => s.trim()).filter(s => s && !/^(--.*\n?)+$/.test(s));
 }
 
-module.exports = { open, splitStatements, slow: () => slow.slice() };
+module.exports = { open, splitStatements, slow: () => slow.slice(), maxHold };

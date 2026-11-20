@@ -86,7 +86,6 @@
   {"file":"press.js","sql":"SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t","why":"no LIMIT, SELECT *","issue":94},
   {"file":"reading.js","sql":"SELECT slug, title, author FROM texts WHERE status='held'","why":"no LIMIT","issue":94},
   {"file":"reading.js","sql":"SELECT t.slug, t.title, t.author, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t","why":"no LIMIT","issue":94},
-  {"file":"reading.js","sql":"SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t","why":"no LIMIT, SELECT *","issue":94},
   {"file":"reading.js","sql":"SELECT slug, title, author, source FROM texts WHERE source LIKE '%gutenberg.org%' ORDER BY","why":"no LIMIT","issue":94},
   {"file":"ready.js","sql":"SELECT id, slug, title, place, caption, note, stars, width, height, camera, taken_at, stat","why":"no LIMIT","issue":94},
   {"file":"regard.js","sql":"SELECT id, stars, curated FROM works WHERE stars>0 OR curated=1","why":"no LIMIT","issue":94},

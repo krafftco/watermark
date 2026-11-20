@@ -21,7 +21,7 @@ function mountDigest(app, { db, C, mail, ledger }) {
 
   // The letter's body, as plain words a person reads in a minute.
   function compose({ span = '7d' } = {}) {
-    const A = app.locals.analytics; const R = A ? A.report(span) : null; const H = R ? R.health : (A ? A.health() : {});
+    const A = app.locals.analytics; const R = A ? A.report(span) : null; const H = R ? R.health : (A ? A.health() : {}); // on the website, the worker's kept report (#114)
     const F = process.faults || { rejections: 0, exceptions: 0, last: null };
     const yesterday = R && R.byDay && R.byDay.length >= 2 ? R.byDay[R.byDay.length - 2] : null;
     const cur = R ? R.cur : {};
@@ -84,7 +84,9 @@ function mountDigest(app, { db, C, mail, ledger }) {
   function wrongs() {
     const A = app.locals.analytics; const H = A ? A.health() : {}; const F = process.faults || {}; const V = app.locals.vaultState || {};
     const out = [];
-    const five = t(() => db.prepare("SELECT COUNT(*) n FROM hits WHERE status>=500 AND at>=?").get(Date.now() - 3600e3).n) || 0;
+    // (#114) The hour's server errors: the kept health's count on the website (no statement over hits there); asked here
+    // elsewhere. The hits keep seconds (this asked with milliseconds before, and always counted none).
+    const five = H.fiveHour != null ? H.fiveHour : (t(() => db.prepare('SELECT COUNT(*) n FROM hits WHERE status>=500 AND at>=?').get(Math.floor(Date.now() / 1000) - 3600).n) || 0);
     if (five > ALARM_5XX) out.push(`${five} server errors in the last hour`);
     const lastFault = F.last && F.last.at && Date.now() - new Date(F.last.at).getTime() < 3600e3 ? F.last : null;
     if (lastFault) out.push(`a ${lastFault.kind} at ${when(lastFault.at)}: ${String(lastFault.message).slice(0, 160)}`);

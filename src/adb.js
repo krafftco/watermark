@@ -8,7 +8,7 @@
 const D = require('./dialect');
 
 const isWeb = () => process.env.ROLE === 'web';
-const LIMIT_MS = () => +process.env.ADB_LIMIT_MS || (isWeb() ? 5000 : 120000);
+const LIMIT_MS = () => +process.env.ADB_LIMIT_MS || (isWeb() ? 4000 : 120000);
 const SLOW_MS = () => +process.env.ADB_SLOW_MS || 500;
 const POOL_N = () => Math.max(1, +process.env.ADB_POOL || 4);
 
