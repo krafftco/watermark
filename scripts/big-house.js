@@ -210,6 +210,8 @@ function worker(dir) {
   const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: SECRET, noTimers: true });
   const built = []; const t = Date.now();
   for (let i = 0; i < 40; i++) { const t1 = Date.now(); const k = app.locals.shared.round(); if (!k) break; built.push(`${k} ${Date.now() - t1} ms`); }
+  // (#114) the worker's round of the numbers, so the walk finds the desk, the digest and the agents' desk open on the kept answer
+  if (app.locals.numbers) { const n = app.locals.numbers.makeAll(); built.push(`numbers ${n.ms} ms${n.failed.length ? ' (failed: ' + n.failed.join(', ') + ')' : ''}`); }
   console.log('@@' + JSON.stringify({ ms: Date.now() - t, built }));
   process.exit(0);
 }

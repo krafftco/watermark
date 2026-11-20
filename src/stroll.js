@@ -10,13 +10,17 @@ let HOUSE = null; // the app, for the page's screens (strollPage is outside the 
 function mountStroll(app, { db, V, wanderJSON, I }) {
   HOUSE = app;
   const PAGE = 8;
+  // (20 Nov, #117) Wander's data doors and pages ask through the async path (src/adb.js, docs/SCALE.md stage 2): the
+  // thread serves others while the database answers. Helpers from other modules (wanderJSON, buyerOf, the bench, the
+  // pocket, looking) still ask on the bridge until their own modules move.
+  const adb = app.locals.adb || require('./adb').open(db);
   // What comes next: never what this stroll has shown (up to 300 slugs carried by the client), the best first with a
   // little chance in it, and when there is a word, only what matches it (place, title, maker, keywords).
   // (9 Nov) By handle first, one row; a page slug that is not the handle is found in a light list kept a minute.
-  let mkList = { at: 0, rows: [] };
-  const makerBy = key => { if (!key) return null; const h = db.prepare('SELECT * FROM makers WHERE handle=?').get(String(key)); if (h) return h;
-    if (Date.now() - mkList.at > (process.env.NODE_ENV === 'test' ? 0 : 60e3)) mkList = { at: Date.now(), rows: db.prepare('SELECT id, name, handle FROM makers').all() };
-    const m = mkList.rows.find(x => V.makerSlug(x) === key); return m ? db.prepare('SELECT * FROM makers WHERE id=?').get(m.id) : null; };
+  let mkList = { at: 0, rows: Promise.resolve([]) };
+  const makerBy = async key => { if (!key) return null; const h = await adb.get('SELECT * FROM makers WHERE handle=?', String(key)); if (h) return h;
+    if (Date.now() - mkList.at > (process.env.NODE_ENV === 'test' ? 0 : 60e3)) mkList = { at: Date.now(), rows: adb.all('SELECT id, name, handle FROM makers').catch(() => []) };
+    const m = (await mkList.rows).find(x => V.makerSlug(x) === key); return m ? adb.get('SELECT * FROM makers WHERE id=?', m.id) : null; };
   // (16 Nov, #70) POOL_MAX 4,000 (it was 20,000: a slice of 16,000 rows read on the website every two minutes at the
   // scale gate's size). The open wander's pool, the one every stranger draws from, is built by the worker (shared.js)
   // and read here as one kept row; a word's or a maker's pool is built here, its POOL_MAX best.
@@ -32,17 +36,17 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   }
   const openWhere = zoneOpen => "w.status='held'" + (zoneOpen ? '' : " AND COALESCE(w.zone,'all')='all'") + (app.locals.editSql ? app.locals.editSql('w') : '');
   if (app.locals.shared) for (const zoneOpen of [false, true]) app.locals.shared.register(`wander-pool${zoneOpen ? '-open' : ''}`, { ms: POOL_MS || 120e3, build: () => poolRows(openWhere(zoneOpen), [], true) });
-  function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
+  async function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : '');
     // A word (5 Nov: a place, a title, a maker, an artist, a movement or a year). (9 Nov) Asked of the work's own words
     // under the search index, and of the makers and artists by their ids: seven LIKEs across every row took 1.7 s at
     // 500,000 works.
     if (q) { const t = q.replace(/[%_]/g, ''); const like = `%${t}%`; const W = app.locals.find && app.locals.find.WORDS ? app.locals.find.WORDS : "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,''))";
-      let mids = [], aids = []; try { mids = db.prepare('SELECT id FROM makers WHERE name LIKE ? LIMIT 60').all(like).map(x => Number(x.id)); } catch (e) { mids = []; } try { aids = db.prepare('SELECT id FROM artists WHERE name LIKE ? OR movement LIKE ? LIMIT 300').all(like, like).map(x => Number(x.id)); } catch (e) { aids = []; }
+      const [mids, aids] = await Promise.all([adb.all('SELECT id FROM makers WHERE name LIKE ? LIMIT 60', like).then(r => r.map(x => Number(x.id)), () => []), adb.all('SELECT id FROM artists WHERE name LIKE ? OR movement LIKE ? LIMIT 300', like, like).then(r => r.map(x => Number(x.id)), () => [])]);
       const lit = t.toLowerCase().replace(/[^\p{L}\p{N} .,&-]/gu, ' ').trim(); // set into the question itself (no quote, no wildcard can remain), so the planner sees the word: a parameter gave a common word a blind plan
       where += ` AND (${W} LIKE '%${lit}%'${mids.length ? ` OR w.maker_id IN (${mids.join(',')})` : ''}${aids.length ? ` OR w.artist_id IN (${aids.join(',')})` : ''})`; }
-    const mk = makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
+    const mk = await makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
     // The pool (28 Oct; light since 9 Nov): id, slug and the two weights, kept two minutes, for the open wander and now
     // for a word or a maker too. Never more than POOL_MAX rows: past that the open wander takes every Kth work, a
     // different slice each time the pool is remade, so the whole collection comes round and the website holds a
@@ -50,15 +54,19 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const key = where + '|' + JSON.stringify(params); let pool = POOL.get(key);
     const zs = app.locals.zone ? app.locals.zone.sql(req) : '';
     if (!q && !mk && app.locals.shared && where === openWhere(!zs)) pool = { rows: app.locals.shared.get(`wander-pool${zs ? '' : '-open'}`) }; // the open wander: built ahead
-    else if (!pool || Date.now() - pool.at > POOL_MS) { pool = { at: Date.now(), rows: poolRows(where, params, false) }; POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value); }
-    const notSet0 = new Set(not); const cands = []; for (const r of pool.rows) if (!notSet0.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
+    else if (!pool || Date.now() - pool.at > POOL_MS) { // the promise is kept, so everyone arriving while it is asked shares one question
+      const p = adb.all(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${POOL_MAX}`, ...params);
+      pool = { at: Date.now(), rows: p }; const mine0 = pool; p.catch(() => { if (POOL.get(key) === mine0) POOL.delete(key); });
+      POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value); }
+    const poolRowsNow = await pool.rows;
+    const notSet0 = new Set(not); const cands = []; for (const r of poolRowsNow) if (!notSet0.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
     cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
-    const full = ids.length ? db.prepare(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`).all(...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
+    const full = ids.length ? await adb.all(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`, ...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
     const rows = ids.map(i => byId.get(Number(i))).filter(Boolean);
     // For you: when the house knows what held this visitor, a few of the eye's picks are set among the rest.
     let picks = [];
     if (!q && !mk && app.locals.looking && app.locals.buyerOf) {
-      try { const b = app.locals.buyerOf(req), v = req.cookies && req.cookies.wm_v; if (b || v) { const c = app.locals.looking.candidates(b, v, 24, 8); const notSet = new Set(not); picks = c.picks.filter(x => !notSet.has(x.slug) && !rows.find(r => r.slug === x.slug)).slice(0, 3).map(x => db.prepare('SELECT * FROM works WHERE id=?').get(x.id)).filter(Boolean); } } catch (e) { picks = []; }
+      try { const b = app.locals.buyerOf(req), v = req.cookies && req.cookies.wm_v; if (b || v) { const c = app.locals.looking.candidates(b, v, 24, 8); const notSet = new Set(not); const pk = c.picks.filter(x => !notSet.has(x.slug) && !rows.find(r => r.slug === x.slug)).slice(0, 3).map(x => Number(x.id)); const got = pk.length ? await adb.all(`SELECT * FROM works WHERE id IN (${pk.map(() => '?').join(',')})`, ...pk) : []; const gotBy = new Map(got.map(w => [Number(w.id), w])); picks = pk.map(i => gotBy.get(i)).filter(Boolean); } } catch (e) { picks = []; }
     }
     const out = []; let pi = 0;
     for (let i = 0; i < rows.length && out.length < n; i++) { if (pi < picks.length && i % 3 === 1) out.push(picks[pi++]); out.push(rows[i]); }
@@ -66,15 +74,15 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const items = out.slice(0, n).map(w => wanderJSON(w, req));
     // Wander across everything (Will, 24 Oct, after StumbleUpon): in the open wander, every sixth screen or so is a
     // page from the shelf, a chapter's opening set on the wall, with Read on. Never in a set, a word or a maker's walk.
-    if (!q && !mk && items.length >= 4 && !require('./views').isQuiet()) { const r0 = Math.random(); let t = null; try { t = (r0 < 0.3 && app.locals.sheets && process.env.SHEETS_IN_WANDER === '1' ? app.locals.sheets.screen(seen) : null) || (r0 < 0.65 ? textScreen(seen) : recordScreen(seen)); } catch (e) { screenFault(e); } if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
+    if (!q && !mk && items.length >= 4 && !require('./views').isQuiet()) { const r0 = Math.random(); let t = null; try { t = (r0 < 0.3 && app.locals.sheets && process.env.SHEETS_IN_WANDER === '1' ? app.locals.sheets.screen(seen) : null) || (r0 < 0.65 ? await textScreen(seen) : await recordScreen(seen)); } catch (e) { screenFault(e); } if (t) items.splice(3 + Math.floor(Math.random() * Math.min(3, items.length - 3)), 0, t); }
     return items;
   }
   // A page from the shelf: a public book with a body, a chapter at random, its first paragraphs.
   const byName = a => { const x = String(a || '').trim(); const m = x.match(/^([^,]+),\s*([^,(]+)(.*)$/); return m ? `${m[2].trim()} ${m[1].trim()}` : x; };
   const CLOTH = ['#2f4a3a', '#5a1f22', '#23304d', '#6b4b2a', '#8a7a52', '#3b4a5a', '#4a3350', '#7a5a2a']; const hashOf = x => { let h = 7; for (const ch of String(x)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
   // A record from the Listening Room (Will, 24 Oct: Wander across everything): the disc on the wall, one side to play here.
-  function recordScreen(seen) {
-    let r; try { r = db.prepare("SELECT slug, title, performer, composer, year, line, files, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY RANDOM() LIMIT 1").get(); } catch (e) { return null; }
+  async function recordScreen(seen) {
+    let r; try { r = await adb.get("SELECT slug, title, performer, composer, year, line, files, cover_slug, cover_url FROM recordings WHERE status='playing' ORDER BY RANDOM() LIMIT 1"); } catch (e) { return null; }
     if (!r) return null; const slug = `r:${r.slug}`; if (seen.includes(slug)) return null;
     let files = []; try { files = JSON.parse(r.files || '[]'); } catch (e) { /* */ } if (!files.length) return null;
     const img = r.cover_slug ? `/img/${r.cover_slug}/screen` : r.cover_url || `/listening/${encodeURIComponent(r.slug)}/label.svg`;
@@ -83,11 +91,12 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // The shelf is read once in five minutes (28 Oct, for an audience: each feed page had sorted every book at random and
   // read a whole body); one book's chapters are cut once and kept, the first two hundred books at a time.
   const SHELF = { at: 0, ids: [] }; const CHAPTERS = new Map();
-  function shelfBook() {
-    if (Date.now() - SHELF.at > 300e3) { try { SHELF.ids = db.prepare("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY t.id DESC LIMIT 2000").all().map(r => r.id); } catch (e) { SHELF.ids = []; } SHELF.at = Date.now(); }
+  async function shelfBook() {
+    if (Date.now() - SHELF.at > 300e3) { SHELF.at = Date.now(); SHELF.ask = adb.all("SELECT t.id FROM texts t WHERE t.status='held' AND t.public=1 AND COALESCE(t.subscribers_only,0)=0 AND t.kind IN ('book','essay') AND t.body IS NOT NULL AND length(t.body) > 3000 ORDER BY t.id DESC LIMIT 2000").then(r => r.map(x => x.id), () => []); }
+    if (SHELF.ask) SHELF.ids = await SHELF.ask;
     if (!SHELF.ids.length) return null;
     const id = SHELF.ids[Math.floor(Math.random() * SHELF.ids.length)]; const kept = CHAPTERS.get(id); if (kept && Date.now() - kept.at < 3600e3) return kept;
-    const t = db.prepare("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.id=?").get(id); if (!t) return null;
+    const t = await adb.get("SELECT t.slug, t.title, t.author, t.body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.id=?", id); if (!t) return null;
     const chs = []; let cur = { head: null, paras: [] };
     for (const p of String(t.body).split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)) { if (/^##?\s/.test(p)) { if (cur.head || cur.paras.length) chs.push(cur); cur = { head: p.replace(/^#+\s*/, ''), paras: [] }; } else if (p !== '* * *') cur.paras.push(p); }
     if (cur.head || cur.paras.length) chs.push(cur);
@@ -96,8 +105,8 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     CHAPTERS.set(id, out); if (CHAPTERS.size > 200) CHAPTERS.delete(CHAPTERS.keys().next().value); return out;
   }
   app.locals.shelfDirty = () => { SHELF.at = 0; CHAPTERS.clear(); };
-  function textScreen(seen) {
-    const book = shelfBook(); if (!book) return null; const { t, chs, n } = book;
+  async function textScreen(seen) {
+    const book = await shelfBook(); if (!book) return null; const { t, chs, n } = book;
     const good = chs; if (!good.length) return null;
     const c = good[Math.floor(Math.random() * good.length)]; const slug = `t:${t.slug}:${c.i}`; if (seen.includes(slug)) return null;
     const ex = []; let len = 0; for (const p of c.paras) { if (len > 520) break; ex.push(p); len += p.length; }
@@ -126,22 +135,25 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     return setOf(key);
   }
   const isDelivery = key => /^(delivery|album):/.test(String(key || ''));
-  function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
+  async function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
     const v = mine(req, key); if (!v || !v.works.length) return null;
     const slugs = v.works.map(w => w.slug), not = new Set(seen);
     let i = slugs.indexOf(at || seen[seen.length - 1]); if (i < 0) i = -1;
     const out = [];
     for (let k = 1; k <= slugs.length && out.length < n; k++) { const sl = slugs[(i + k) % slugs.length]; if (!not.has(sl) && sl !== at) { out.push(sl); not.add(sl); } }
-    const rows = out.map(sl => db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(sl)).filter(Boolean);
+    // One question for the page's few (it was one a slug), set back in the set's order.
+    const got = out.length ? await adb.all(`SELECT * FROM works WHERE slug IN (${out.map(() => '?').join(',')}) AND ${isDelivery(key) ? "status IN ('held','hidden')" : "status='held'"}`, ...out) : [];
+    const bySlug = new Map(got.map(w => [w.slug, w])); const rows = out.map(sl => bySlug.get(sl)).filter(Boolean);
     return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, files: v.files || null, items: rows.map(w => wanderJSON(w, req)) };
   }
-  app.get('/api/stroll', (req, res) => {
+  app.get('/api/stroll', async (req, res) => {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const n = Math.max(1, Math.min(16, parseInt(req.query.n, 10) || PAGE));
     if (req.query.in === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages(seen, n) : []; return res.set('Cache-Control', 'no-store').json({ items, end: items.length < n, label: 'The shelf', href: '/library' }); }
-    if (req.query.in) { const r = inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
-    res.set('Cache-Control', 'no-store').json({ items: next(req, { seen, q, maker, n }), q, maker });
+    if (req.query.in) { const r = await inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
+    const items = await next(req, { seen, q, maker, n });
+    res.set('Cache-Control', 'no-store').json({ items, q, maker });
   });
   // The ways in (18 Oct: Find should never be an empty box): the places, the makers and the series held, with counts.
   app.get('/api/stroll/ways', (req, res) => {
@@ -153,9 +165,10 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
   // The doors beside the stroll (Will, 19 Oct: swipe left and right must bring you somewhere meaningful: into the Keys,
   // and from there your gallery and the collection; and into your wallet, as a maker or a collector, with a switch).
   // One answer per work, rendered for whoever is signed in: `keys` (the right-hand door) and `yours` (the left-hand).
-  app.get('/stroll/side/:slug', (req, res) => {
+  app.get('/stroll/side/:slug', async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
-    const w = db.prepare("SELECT w.*, m.name AS maker_name, m.handle AS maker_handle, m.portrait AS maker_portrait FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.slug=? AND w.status='held'").get(String(req.params.slug));
+    const w = await adb.get("SELECT w.*, m.name AS maker_name, m.handle AS maker_handle, m.portrait AS maker_portrait, m.kind AS maker_kind FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.slug=? AND w.status='held'", String(req.params.slug));
+    const isInst = !!w && ['institution', 'company'].includes(String(w.maker_kind || '')); // once, from the work's own row (it was asked three times)
     const b = app.locals.buyerOf ? app.locals.buyerOf(req) : null, m = app.locals.accounts ? app.locals.accounts.makerOf(req) : null;
     const K = app.locals.keys, B = app.locals.bench, R = app.locals.balcony, P = app.locals.pocket;
     const held = K ? K.holds(req) : {}; const kinds = Object.keys(held).filter(k => k !== 'house');
@@ -177,9 +190,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     if (!b && !m) yours = `<header class="sd-h"><p class="k">Yours</p><h3>Your gallery, your wallet.</h3><p class="sd-m">Sign in and what you hold, your pocket and your walls are one swipe away.</p><a class="buy-btn" href="/signin?next=/wander">Sign in</a></header>`;
     else {
       const bal = P && b ? P.balance(b) : 0, cash = P && b ? P.cashable(b) : 0;
-      const pieces = b ? db.prepare("SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.buyer_id=? AND l.status='active' AND w.status='held' ORDER BY l.id DESC LIMIT 6").all(b.id) : [];
-      const nHeld = b ? db.prepare("SELECT COUNT(*) n FROM licenses WHERE buyer_id=? AND status='active'").get(b.id).n : 0;
-      const walls = b ? db.prepare('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?').get(b.id).n : 0;
+      const [pieces, nHeld, walls] = b ? await Promise.all([adb.all("SELECT w.slug, w.title FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.buyer_id=? AND l.status='active' AND w.status='held' ORDER BY l.id DESC LIMIT 6", b.id), adb.get("SELECT COUNT(*) n FROM licenses WHERE buyer_id=? AND status='active'", b.id).then(r => r.n), adb.get('SELECT COUNT(*) n FROM hangs WHERE buyer_id=?', b.id).then(r => r.n)]) : [[], 0, 0];
       const basket = String((req.cookies && req.cookies.wm_bk) || '').split(',').filter(Boolean).length;
       const collector = `<div class="sd-pane" data-sd-as="collector">
 <section class="sd-wallet"><p class="k">Your pocket</p><p class="sd-sum">${money(bal)}</p><p class="sd-m">${cash >= 100 ? `${money(cash)} earned, yours to cash out.` : 'One tap collects from it.'}</p><div class="sd-row"><a href="/yours?tab=settings#pocket">Top up</a>${cash >= 100 ? '<a href="/yours?tab=settings#pocket">Cash out</a>' : ''}</div></section>
@@ -188,9 +199,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
       let maker = '';
       if (m) {
         const st = app.locals.payouts ? app.locals.payouts.statement(m) : null;
-        const waiting = db.prepare("SELECT COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status='requested'").get(m.id).n;
-        const nw = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id).n, np = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(m.id).n;
-        const month = db.prepare("SELECT COALESCE(SUM(price_cents),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND l.starts_at >= date('now','start of month')").get(m.id);
+        const [waiting, nw, np, month] = await Promise.all([adb.get("SELECT COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status='requested'", m.id).then(r => r.n), adb.get("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden')", m.id).then(r => r.n), adb.get("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'", m.id).then(r => r.n), adb.get("SELECT COALESCE(SUM(price_cents),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND l.starts_at >= date('now','start of month')", m.id)]);
         maker = `<div class="sd-pane" data-sd-as="maker" hidden>
 <section class="sd-wallet"><p class="k">Owed to you</p><p class="sd-sum">${money(st ? st.owed : 0)}</p><p class="sd-m">${month.n ? `${month.n} sale${month.n === 1 ? '' : 's'} this month, ${money(Math.round(month.s * (st ? st.pct : 85) / 100))} yours.` : 'No sales yet this month.'}${m.stripe_account ? '' : ' Add a bank to be paid.'}</p><div class="sd-row"><a href="/account/payouts">The statement</a>${m.stripe_account ? '' : '<a href="/account/payouts">Your bank</a>'}</div></section>
 <div class="sd-doors">${door('/account/requests', 'Your desk', waiting ? `${waiting} waiting` : 'Requests', waiting ? 'Answer them in a minute each' : 'All clear')}${door('/account', 'Your studio', `${np} of ${nw} shown`, 'The edit is the work')}${door('/account/upload', 'The vault', 'Add work', 'Put work in')}${door('/m/' + m.handle, 'Your page', m.name, 'As the house shows you')}</div></div>`;
@@ -198,7 +207,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
       yours = `<header class="sd-h"><p class="k">Yours</p><h3>${esc((m && m.name) || (b && b.name) || 'Your wallet')}</h3>${m ? `<div class="sd-sw" role="tablist"><button type="button" data-sd-switch="collector" aria-selected="true">Collector</button><button type="button" data-sd-switch="maker" aria-selected="false">Maker</button></div>` : ''}</header>${collector}${maker}`;
     }
     // The house, from inside Wander (Will, 26 Oct: "you have to be able to access Read and Listen"): the five verbs at the top of the Yours door.
-    let reading = 0; try { reading = b ? db.prepare("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'").get(b.id).n : 0; } catch (e) { reading = 0; }
+    let reading = 0; try { reading = b ? (await adb.get("SELECT COUNT(*) n FROM reading_list WHERE buyer_id=? AND status='reading'", b.id)).n : 0; } catch (e) { reading = 0; }
     const verbs = `<nav class="sd-verbs" aria-label="The house">${[
       ...(() => { const F = app.locals.museums; const n = F && F.meOf(req) ? F.followed(req).length : 0; return [n ? ['/wander?in=following', 'Look', `Following · ${n}`, I.wave || ''] : ['/wander', 'Look', 'Wander everything', I.wave || '']]; })(),
       ...(require('./views').isQuiet() ? [] : [[reading ? '/yours/reading' : '/wander?in=shelf', 'Read', reading ? `${reading} book${reading === 1 ? '' : 's'} open` : 'Wander the shelf', I.facing || I.page || ''],
@@ -212,13 +221,11 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
     let who = '';
     if (w) {
       const A = app.locals.art; const LL = app.locals.lifeline;
-      const art = w.artist_id && A ? db.prepare('SELECT * FROM artists WHERE id=?').get(w.artist_id) : null;
-      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
+      const art = w.artist_id && A ? await adb.get('SELECT * FROM artists WHERE id=?', w.artist_id) : null;
       const strip = (ws, key) => ws.length ? `<div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${esc(key)}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div>` : '';
       const first = t => { const p = String(t || '').split(/\n{2,}/)[0].trim(); return p.length > 280 ? p.slice(0, 277).replace(/\s\S*$/, '') + '…' : p; };
       if (art && isInst) {
-        const ws = db.prepare("SELECT slug, title FROM works WHERE artist_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id LIMIT 9").all(art.id, w.slug);
-        const n = db.prepare("SELECT COUNT(*) n FROM works WHERE artist_id=? AND status='held'").get(art.id).n;
+        const [ws, n] = await Promise.all([adb.all("SELECT slug, title FROM works WHERE artist_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id LIMIT 9", art.id, w.slug), adb.get("SELECT COUNT(*) n FROM works WHERE artist_id=? AND status='held'", art.id).then(r => r.n)]);
         const dates = LL ? LL.dateWords(art) : null;
         const face = ws[0] ? `/img/${ws[0].slug}/thumb` : `/img/${w.slug}/thumb`;
         who = `<header class="whp-h"><img class="whp-face whp-face-w" src="${esc(face)}" alt=""><div><p class="k">The artist</p><h3>${esc(art.name)}</h3><p class="whp-l">${[dates, art.nationality, art.movement].filter(Boolean).map(esc).join(' · ')}</p></div></header>
@@ -227,10 +234,9 @@ ${art.bio ? `<p class="whp-bio">${esc(first(art.bio))}</p>` : ''}
 <div class="whp-acts"><a class="whp-go" href="/wander/art/${esc(art.slug)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/art/${esc(art.slug)}">Their page ${I.next}</a></div>
 ${isInst ? `<p class="whp-by">Photographed for the house by ${esc(w.maker_name)}.</p>` : ''}`;
       } else {
-        const mk = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id);
+        const mk = await adb.get('SELECT * FROM makers WHERE id=?', w.maker_id);
         const slugM = V.makerSlug(mk);
-        const ws = db.prepare("SELECT slug, title FROM works WHERE maker_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id DESC LIMIT 9").all(mk.id, w.slug);
-        const n = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'").get(mk.id).n;
+        const [ws, n] = await Promise.all([adb.all("SELECT slug, title FROM works WHERE maker_id=? AND status='held' AND slug<>? ORDER BY curated DESC, stars DESC, id DESC LIMIT 9", mk.id, w.slug), adb.get("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'", mk.id).then(r => r.n)]);
         const lt = LL ? LL.text(mk) : null;
         const line = lt ? [lt.years, lt.atWork ? 'at work' : null, lt.verified ? 'Verified' : null].filter(Boolean).join(' · ') : (mk.place || '');
         const fol = app.locals.museums && !isInst ? app.locals.museums.button('maker:' + mk.id) : '';
@@ -245,7 +251,6 @@ ${mk.bio ? `<p class="whp-bio">${esc(first(mk.bio))}</p>` : ''}
     let about = '';
     if (w) {
       const A = app.locals.art; const art = A && A.ofWork ? (() => { try { return A.ofWork(w); } catch (e) { return null; } })() : null;
-      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
       const by = art && isInst ? art.name : w.maker_name;
       const year = String(w.obj_made || '').match(/\b(1[0-9]{3}|20[0-9]{2})\b/)?.[1] || (w.taken_at || '').slice(0, 4) || '';
       const c = app.locals.closerOf ? app.locals.closerOf(w) : null;
@@ -274,10 +279,10 @@ ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. 
       // (9 Nov) The strip and its count are the same for every picture of a place, a hand or a decade: kept ten minutes
       // by the group, this picture taken out of the strip here.
       const kept = app.locals.kept || ((k, ms, f) => f()); const SAFE0 = "status='held' AND COALESCE(zone,'all')!='mature'";
-      const rows = (where, ...a) => { try { return kept('like-r|' + where + '|' + a.join('|'), 600e3, () => db.prepare(`SELECT slug, title FROM works WHERE ${SAFE0} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 9`).all(...a)).filter(x => x.slug !== w.slug).slice(0, 8); } catch (e) { return []; } };
-      const count = (where, ...a) => { try { return Math.max(0, Number(kept('like-n|' + where + '|' + a.join('|'), 600e3, () => db.prepare(`SELECT COUNT(*) n FROM works WHERE ${SAFE0} AND ${where}`).get(...a).n)) - 1); } catch (e) { return 0; } };
-      const art = w.artist_id ? db.prepare('SELECT id, slug, name, movement FROM artists WHERE id=?').get(w.artist_id) : null;
-      const isInst = ['institution', 'company'].includes(String(db.prepare('SELECT kind FROM makers WHERE id=?').get(w.maker_id)?.kind || ''));
+      // The kept value is the promise: one question for everyone who arrives while it is asked; a fault is kept as empty.
+      const rows = async (where, ...a) => (await kept('like-r|' + where + '|' + a.join('|'), 600e3, () => adb.all(`SELECT slug, title FROM works WHERE ${SAFE0} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 9`, ...a).catch(() => []))).filter(x => x.slug !== w.slug).slice(0, 8);
+      const count = async (where, ...a) => Math.max(0, Number(await kept('like-n|' + where + '|' + a.join('|'), 600e3, () => adb.get(`SELECT COUNT(*) n FROM works WHERE ${SAFE0} AND ${where}`, ...a).then(r => r.n, () => 0))) - 1);
+      const art = w.artist_id ? await adb.get('SELECT id, slug, name, movement FROM artists WHERE id=?', w.artist_id) : null;
       const yr = String(w.taken_at || '').match(/^(\d{3})\d/);
       const groups = [];
       if (art) groups.push(['By the same hand', art.name, 'artist:' + art.slug, 'artist_id=?', art.id]);
@@ -285,11 +290,11 @@ ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. 
       if (w.place) groups.push(['The same place', w.place, 'place:' + w.place, 'place=?', w.place]);
       if (art && art.movement) groups.push(['The same movement', art.movement, 'movement:' + art.movement, 'artist_id IN (SELECT id FROM artists WHERE movement=?)', art.movement]);
       if (yr) groups.push(['The same time', `The ${yr[1]}0s`, 'decade:' + yr[1] + '0', 'taken_at >= ? AND taken_at < ?', `${yr[1]}0-`, `${+yr[1] + 1}0-`]);
-      const secs = groups.map(([k, name, key, where, ...a]) => {
-        const ws = rows(where, ...a); if (!ws.length) return '';
-        const n = count(where, ...a);
+      const secs = (await Promise.all(groups.map(async ([k, name, key, where, ...a]) => {
+        const ws = await rows(where, ...a); if (!ws.length) return '';
+        const n = await count(where, ...a);
         return `<section class="lk-s"><p class="k">${esc(k)}</p><h3>${esc(name)}</h3><div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${encodeURIComponent(key)}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div><a class="sd-go" href="/wander?in=${encodeURIComponent(key)}">Wander ${n > 8 ? `all ${n}` : 'these'} →</a></section>`;
-      }).filter(Boolean);
+      }))).filter(Boolean);
       like = `<header class="wka-h"><p class="k">More like this</p><h3>Where to next</h3><p class="wka-by">From ${esc(V.tidy(w.title))}</p></header>${secs.join('') || '<p class="sd-m">Nothing beside it yet. <a href="/look">Look around</a></p>'}<p class="whp-x">Swipe left to go back to the picture.</p>`;
     }
     res.json({ keys, yours, who, like });
@@ -363,18 +368,18 @@ ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. 
   app.get('/found/:token', (req, res, next) => { const s = db.prepare('SELECT * FROM sendings WHERE token=?').get(String(req.params.token).slice(0, 40)); if (!s) return next(); return openSent(req, res, next, s); });
   // The first links of 5 Nov: /flower/<slug>?from=<name> still opens the same way.
   app.get('/flower/:slug', (req, res, next) => { const w = db.prepare("SELECT id FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return next(); return openSent(req, res, next, { work_id: w.id, from_name: okName(req.query.from) }); });
-  function wander(req, res, { front = false, key: keyIn = null, share = null, as = null, gift = null, at: atIn = null }) {
+  async function wander(req, res, { front = false, key: keyIn = null, share = null, as = null, gift = null, at: atIn = null }) {
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);
     const atSlug = atIn || req.query.at;
-    const at = atSlug ? db.prepare(isDelivery(key) ? "SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')" : "SELECT * FROM works WHERE slug=? AND status='held'").get(String(atSlug)) : null;
+    const at = atSlug ? await (isDelivery(key) ? adb.get("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')", String(atSlug)) : adb.get("SELECT * FROM works WHERE slug=? AND status='held'", String(atSlug))) : null;
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
-    const set = key ? inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
+    const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
-    let items = set ? set.items : next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
+    let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (at) items = [wanderJSON(at, req), ...items];
-    const mk = set ? null : makerBy(maker);
+    const mk = set ? null : await makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
     const sh = share || (set && SHAREABLE(key) ? { url: `/wander?in=${encodeURIComponent(key)}`, title: `${set.label} · Wander`, text: `${set.label}: one work at a time, on Watermark.` } : null);
     // A flower (Will, 5 Nov: "when we send someone a link it opens like a present; here, I found something for you"):

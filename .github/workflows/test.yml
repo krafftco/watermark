@@ -201,4 +201,4 @@ jobs:
           run node test/smoke.js test/fixture.jpg
           psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two copies of the website, one database; it leaves the schema sql-check reads
           run node scripts/sql-check.js
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

@@ -25,6 +25,8 @@ function open(file) {
     db.pragma('busy_timeout = 5000'); // a chore writing while a visitor writes waits, never throws SQLITE_BUSY (27 Oct)
     db.pragma('synchronous = NORMAL'); // safe under WAL: a crash loses at most the last transactions, never corrupts
     db.pragma('foreign_keys = ON');
+    // (#115) The website's limits are the Postgres bridge's (pgsync.js); SQLite has no statement timeout. Same shape.
+    db.limitStart = () => false; db.limits = () => ({ on: false }); db.longer = (ms, fn) => fn();
   }
   db.exec(`
   CREATE TABLE IF NOT EXISTS makers (
