@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.8 · Ready to run as more than one · 20 November 2026
+
+- The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
+- Getting there found places where two copies acting at the same moment could have done one thing twice: grant a licence, settle a sale, send a payment. Each now claims its row first, and every transfer to a maker or a collector carries a key so that it is made once.
+- A payment to a maker is written down before it is sent, and counted as paid from that moment.
+
 ## 1.87.7 · The back room, the real cause · 20 November 2026
 
 - 1.87.6 did not stop the worker running out of memory: the host ended it again seven minutes after that release went in. Watching it through a start showed the memory rise from about 260 MB to over 1,100 MB within thirty seconds of the album warm-up, a start-up chore that made album pictures from the originals by itself. That chore now only looks and counts; the scribes make the copies, as they do for every work.
