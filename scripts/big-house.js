@@ -77,16 +77,10 @@ const ALLOW = [
   // Counts (rows, bytes, statements) are allowed to a quarter above what was measured; times to three times it (CI's
   // runner is slower and shared), and a time is listed when it reached half its line, so a slow run does not flake.
   { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // measured 60,000 (hidden under #70's Wander cache until #70)
-  // 20 Nov (#116): the fixture gained a month of the visit log (3 M hits), the numbers desk and the digest walked open, four
-  // books of 1–2 MB and the read budget. Measured on SQLite on the workers' machine; times allowed to three times it.
-  { room: 'studio /studio/analytics?span=30d', budget: 'pageMs', max: 36000, issue: 125 }, // 11,872
-  { room: 'studio /studio/analytics?span=30d', budget: 'stmtMs', max: 8200, issue: 125, sql: 'FROM hits' }, // 2,708
-  { room: 'studio /studio/analytics?span=7d', budget: 'pageMs', max: 14000, issue: 125 }, // 4,648
-  { room: 'studio /studio/analytics?span=7d', budget: 'stmtMs', max: 1300, issue: 125, sql: 'FROM hits' }, // 407
-  { room: 'studio /studio/digest', budget: 'pageMs', max: 14500, issue: 125 }, // 4,770
-  { room: 'studio /studio/digest', budget: 'stmtMs', max: 1500, issue: 125, sql: 'FROM hits' }, // 496
+  // 20 Nov (#116): the fixture gained a month of the visit log (3 M hits), four books of 1–2 MB and the read budget.
+  // Measured on SQLite on the workers' machine. (/publishing read 6.9 MB until next's reading.js change; the numbers desk
+  // over `hits` 11.9 s at 30 days until #114/#120, #125.)
   { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832: every book's body
-  { room: 'visitor /publishing', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
   { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
   { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
   { room: 'museum /account/sheets', budget: 'read', max: 10000000, issue: 96 }, // 7,972,307
@@ -101,18 +95,10 @@ const ALLOW_PG = [
   { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // 60,000
   { room: 'museum /account/sheets', budget: 'stmtMs', max: 800, issue: 96 }, // 268
   { room: 'museum /account/sheets', budget: 'read', max: 10000000, issue: 96 }, // 7,972,307
-  { room: 'studio /studio/analytics?span=30d', budget: 'pageMs', max: 36000, issue: 125 }, // 11,873
-  { room: 'studio /studio/analytics?span=30d', budget: 'stmtMs', max: 6200, issue: 125, sql: 'FROM hits' }, // 2,038
-  { room: 'studio /studio/analytics?span=7d', budget: 'pageMs', max: 11500, issue: 125 }, // 3,770
-  { room: 'studio /studio/analytics?span=7d', budget: 'stmtMs', max: 1300, issue: 125, sql: 'FROM hits' }, // 414
-  { room: 'studio /studio/analytics', budget: 'pageMs', max: 2000, issue: 125 }, // 648
-  { room: 'studio /studio/digest', budget: 'pageMs', max: 12000, issue: 125 }, // 3,961
-  { room: 'studio /studio/digest', budget: 'stmtMs', max: 1500, issue: 125, sql: 'FROM hits' }, // 489
   { room: 'studio /studio/fixity', budget: 'stmtMs', max: 450, issue: 128, sql: 'FROM fixity' }, // 143
   { room: 'studio /studio', budget: 'stmtMs', max: 400, issue: 129 }, // 131: the month's most viewed
   { room: 'visitor /house', budget: 'stmtMs', max: 600, issue: 130 }, // 196
   { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832
-  { room: 'visitor /publishing', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
   { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
   { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
 ];
@@ -439,7 +425,7 @@ async function walk(dir) {
     ['visitor', '', [...rooms(V.DOORS), ...extra]],
     ['maker', `${makerCookie(mk)}; ${buyerCookie(mkb)}`, [...rooms(V.ROOMS.maker), ...rooms(V.ROOMS.yours), '/account/table?all=1']],
     ['museum', makerCookie(museum), [...rooms(V.ROOMS.institution), ...rooms(V.ROOMS.maker)]],
-    // (#116) the numbers desk at every span, its json door and the digest, walked open (NUMBERS_DESK=1), and the full /healthz
+    // (#116) the numbers desk at every span, its json door and the digest, and the full /healthz
     ['studio', studio, [...rooms(V.ROOMS.house), ...rooms(V.ROOMS.maker), '/studio/trove?sort=unfinished', `/studio/volumes?show=open&pages=${one("SELECT id FROM volumes WHERE slug='codex-big'").id}`, '/volume/codex-big',
       '/studio/analytics?span=7d', '/studio/analytics?span=30d', '/studio/analytics.json?span=30d', '/studio/digest', '/healthz']],
   ];
@@ -563,8 +549,10 @@ function gate() {
   const wk = again ? {} : child('worker', dir, { ...quiet, ...db, NODE_ENV: 'production', ROLE: 'worker', NO_SEED: '1' });
   if (!again) console.log(`big-house: the worker built ahead in ${wk.ms} ms: ${(wk.built || []).join(', ')}`);
   const t1 = Date.now();
-  // The walk is the website (ROLE=web), with the numbers desk and the digest open (NUMBERS_DESK=1), as they would be.
-  child('walk', dir, { ...quiet, ...db, NODE_ENV: 'production', ROLE: 'web', NO_SEED: '1', NUMBERS_DESK: '1' });
+  // The walk is the website as live runs it (ROLE=web, NUMBERS_DESK unset): since #114/#120 the numbers desk, its json
+  // and the digest read the report the worker's round above made and kept. BIG_NUMBERS_DESK=1 walks them as the website
+  // making its own report (the path that stopped the house on 18 and 20 Nov), to measure that path.
+  child('walk', dir, { ...quiet, ...db, NODE_ENV: 'production', ROLE: 'web', NO_SEED: '1', NUMBERS_DESK: process.env.BIG_NUMBERS_DESK || '' });
   const rows = JSON.parse(fs.readFileSync(dir + '.walk.json', 'utf8'));
   const plans = pgServer && fs.existsSync(dir + '.plans.json') ? JSON.parse(fs.readFileSync(dir + '.plans.json', 'utf8')) : [];
   console.log(`big-house: walked ${rows.length} rooms${pgServer ? ' on Postgres through the bridge' : ''} in ${((Date.now() - t1) / 1000).toFixed(1)} s (all told ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
