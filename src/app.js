@@ -1411,6 +1411,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // After a boot the edge may still be handing out the cold page it cached during the restart: clear it once the house is up (27 Oct).
   if (!cfg.noTimers && EDGE.on()) setTimeout(() => EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
   // The digest, read now (27 Oct): the morning letter as it would go, and the alarm sent by hand.
+  // (20 Nov) The digest is composed from the same report as the numbers desk: shut on the website with it.
+  app.use(['/studio/digest', '/studio/digest/send', '/studio/digest/alarm'], studioOnly, (req, res, next) => { const A = app.locals.analytics; if (!A || !A.shut || !A.shut()) return next(); if (req.method === 'GET') return res.type('text/plain').send(A.SHUT_WORDS); res.redirect('/studio?ok=' + encodeURIComponent('The digest is closed for repair with the numbers.')); });
   app.get('/studio/digest', studioOnly, (req, res) => { res.type('text/plain').send(app.locals.digest ? app.locals.digest.compose() : 'no digest'); });
   app.post('/studio/digest/send', studioOnly, async (req, res) => { if (app.locals.digest) await app.locals.digest.digest({ force: true }); res.redirect('/studio?ok=' + encodeURIComponent('The digest went to the house.')); });
   app.post('/studio/digest/alarm', studioOnly, async (req, res) => { const w = app.locals.digest ? await app.locals.digest.alarm({ force: true }) : []; res.redirect('/studio?ok=' + encodeURIComponent(w && w.length ? `The alarm went: ${w[0]}` : 'The alarm went: nothing is wrong.')); });

@@ -210,7 +210,12 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
       loadavg: t(() => require('os').loadavg().map(x => +x.toFixed(2))), staging: !!C.staging,
     };
   }
-  app.locals.analytics = { report, health, present: () => alive.size };
+  // (20 Nov, the second 502) The report and the house's health ask some seventy questions of the whole house; on the live
+  // website each holds the one thread, and opening this desk has twice stopped the house. Until the report is made by
+  // the worker and only read here, the desk is shut on the website (ROLE=web). NUMBERS_DESK=1 opens it again.
+  const shut = () => process.env.NUMBERS_DESK === '0' || (process.env.NODE_ENV !== 'test' && String(process.env.ROLE || '').toLowerCase() === 'web' && process.env.NUMBERS_DESK !== '1'); // '0' shuts it anywhere (the test)
+  const SHUT_WORDS = 'The numbers are closed for repair. Opening this page has stopped the house twice, so it stays shut until the figures are worked out in the back room. Nothing is lost: every visit is still counted.';
+  app.locals.analytics = { report, health, present: () => alive.size, shut, SHUT_WORDS };
 
   // ---- the page
   const { esc } = V;
@@ -273,12 +278,18 @@ ${R.errors.length ? `<h3>Lately</h3>${list(R.errors, [r => `<b>${r.status}</b>`,
   // `report` itself stays fresh for the house's own callers (the digest, the tests); only the two doors below share.
   const REPORT_KEEP_MS = 30000; const kept = new Map();
   const reportKept = (span = 'today') => { const k = kept.get(span); if (k && Date.now() - k.at < REPORT_KEEP_MS) return k.R; const R = report(span); kept.set(span, { at: Date.now(), R }); return R; };
+  app.get(['/studio/analytics', '/studio/analytics.json'], studioOnly, (req, res, next) => {
+    if (!shut()) return next();
+    res.set('Cache-Control', 'private, no-store');
+    if (/\.json$/.test(req.path) || req.query.frag) return res.json({ ok: false, closed: true, why: SHUT_WORDS });
+    res.send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: `<section class="an"><div class="an-head"><div><p class="k">Back office</p><h1>The numbers.</h1><p class="lede">${V.esc(SHUT_WORDS)}</p><p><a href="/studio">Back to the Studio</a></p></div></div></section>` }));
+  });
   app.get('/studio/analytics', studioOnly, (req, res) => {
     const R = reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today');
     if (req.query.frag) return res.set('Cache-Control', 'private, no-store').send(body(R));
     res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';var busy=false;setInterval(function(){if(document.hidden||busy)return;busy=true;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){}).then(function(){busy=false})},60000)})();</script>` }));
   });
   app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(reportKept(['today', '7d', '30d'].includes(req.query.span) ? req.query.span : 'today')); });
-  return { report, health, flush: tick };
+  return { report, health, flush: tick, shut, SHUT_WORDS };
 }
 module.exports = { mountAnalytics, page, device, browser };

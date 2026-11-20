@@ -137,3 +137,10 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - Not yet proved on live: that this desk alone was the cause (the shell cannot read Render's log). Check the log for [watchdog] at that hour.
 - Rule: a room on the gate's allow-list is not shown to be safe by the gate; the desks branch goes in next, and no heavy desk is opened on live until it has.
 - Correction (19 Nov): the 60,000-row read the gate measured on this desk was the gate's own fixture (hits.at written as text, #100), not the house: on live the desk reads the day's hits. So this desk is NOT shown to be the cause of the 502. Open until Render's log for 18 Nov, about 21:30 New York, is read.
+
+## 20 Nov 2026, about 00:25 New York: the house down (502) again, with the numbers desk open
+- What happened: Will opened /studio/analytics and the house stopped, the second time in two nights; he reports it does so each time. The hotfix of 18 Nov (speed figures counted, one kept report, a slower refresh) did not cure it, so the cause is elsewhere in the desk's report or health (some seventy statements: the hits table whole, fixity's and conservation's summaries with a correlated subquery each, the database's size). Not measured on live: the shell cannot read Render's log or ask live Postgres.
+- The repair (hotfix, on Will's word): the desk, its json door, its own refresh and the digest's three doors are shut on the website (ROLE=web) and say so in words; NUMBERS_DESK=1 opens them. test/numbers-shut.js.
+- Why the gate missed it: the gate's house is SQLite with a small fixity table and a fixture of hits; it measured the desk at 100 ms. A desk that is quick on SQLite at 100,000 works is not shown to be quick on live Postgres through the synchronous bridge.
+- Still to do: the report and the health made by the worker and kept; the website only reads the kept answer (#110). A time limit on every statement from the website (#111). The desk stays shut until #110.
+
