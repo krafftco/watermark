@@ -505,10 +505,10 @@ function child(mode, dir, env, args = []) {
 }
 // (#116) A statement on the Postgres server outside any house (make or drop the walk's database, VACUUM), synchronously,
 // in a child, so it can run in an exit handler too.
+const PGJS = `const { Client } = require('pg'); const c = new Client({ connectionString: process.argv[1] }); c.connect().then(() => c.query(process.argv[2])).then(() => c.end()).then(() => process.exit(0), e => { console.error(e.message); process.exit(1); });`;
 function pgAdmin(url, sql) {
-  const js = `const { Client } = require('pg'); const c = new Client({ connectionString: process.argv[1] }); c.connect().then(() => c.query(process.argv[2])).then(() => c.end()).then(() => process.exit(0), e => { console.error(e.message); process.exit(1); });`;
-  const r = spawnSync(process.execPath, ['-e', js, url, sql], { cwd: ROOT, encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`${sql.slice(0, 60)}: ${(r.stderr || '').trim().slice(0, 300)}`);
+  const r = spawnSync(process.execPath, ['-e', PGJS, url, sql], { cwd: ROOT, encoding: 'utf8' });
+  if (r.status !== 0) { const why = `${sql.slice(0, 60)}: ${(r.stderr || '').trim().slice(0, 300)}`; console.log('big-house: the Postgres server refused ' + why); annotate(`${TITLE} (server)`, why); process.exit(1); }
 }
 const withDb = (url, name) => { const u = new URL(url); u.pathname = '/' + name; return u.toString(); };
 const safeUrl = url => { try { const u = new URL(url); u.password = u.password ? '***' : ''; return u.toString(); } catch (e) { return '(a Postgres url)'; } };
@@ -521,7 +521,7 @@ function gate() {
   const pgName = `wm_big_${process.pid}`;
   if (!process.env.BIG_KEEP && !again) process.on('exit', () => {
     try { fs.rmSync(dir, { recursive: true, force: true }); for (const f of ['.walk.json', '.plans.json']) fs.rmSync(dir + f, { force: true }); fs.rmSync(dir + '-migrate', { recursive: true, force: true }); } catch (e) { /* */ }
-    if (pgServer) { try { pgAdmin(pgServer, `DROP DATABASE IF EXISTS ${pgName} WITH (FORCE)`); } catch (e) { console.log('big-house: could not drop ' + pgName + ': ' + e.message); } }
+    if (pgServer) { const r = spawnSync(process.execPath, ['-e', PGJS, pgServer, `DROP DATABASE IF EXISTS ${pgName} WITH (FORCE)`], { cwd: ROOT, encoding: 'utf8' }); if (r.status !== 0) console.log('big-house: could not drop ' + pgName + ': ' + (r.stderr || '').trim().slice(0, 200)); }
   });
   const quiet = { DB_SLOW_MS: '999999', LOOP_LAG: '0', CHORES: '0', NO_SEED: '', WATCHDOG: '0', MALLOC_ARENA_MAX: '2', DATABASE_URL: '' };
   const t0 = Date.now();
