@@ -83,7 +83,11 @@ Claimed before acting (a conditional UPDATE whose count decides, or a lease):
 - Money out: an owed share (market `payOwed`: lease `payout:<id>`, the row read again, Stripe idempotency key
   `wm-payout-<id>`), a maker's pay (lease `pay:maker-<id>`, the statement read after it), a person's cash-out and
   Friday pay (lease `pocket:buyer-<id>`), the host's pay (the shift's row). The market's refund carries
-  `wm-refund-<session>`.
+  `wm-refund-<session>`. A maker's pay writes a `maker_payouts` row as 'pending' before Stripe is asked and asks with
+  `wm-maker-pay-<id>`; a cash-out or Friday pay asks with its pending pocket row's `wm-pocket-<id>`. A pending row counts
+  as paid. If a process ends after Stripe sends and before the row says so, the next attempt within 23 hours asks again
+  with the same key (Stripe keeps a key 24 hours); only a refusal Stripe states removes the row; a row pending longer is
+  left for the house to look at (in the maker's rows on /account/payouts, status 'pending').
 - The register: `ledger.append` takes `seq = head + 1`; two writers that read the same head collide on the key and the
   second reads the new head and links to it, so the chain never forks (before, the second append threw mid-grant).
 - Sign-in: a code and a link are used once (`used_at IS NULL` in the UPDATE).

@@ -47,7 +47,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const L = ask('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${MK}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE {F} AND ${paid} GROUP BY w.maker_id`);
     const T = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE {F} AND status='paid' GROUP BY maker_id");
     const R = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE {F} AND kind='royalty' AND status IN ('owed','paid','house') GROUP BY maker_id");
-    const P = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE {F} AND status='paid' GROUP BY maker_id");
+    const P = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE {F} AND status IN ('paid','pending') GROUP BY maker_id");
     const W = tryAsk('t.maker_id', `SELECT t.maker_id id, COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FON}=1 THEN t.price_cents ELSE CAST(o.price_cents * ${PCT} / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id JOIN makers mk ON mk.id=t.maker_id WHERE {F} AND o.status='paid' AND o.price_cents>0 GROUP BY t.maker_id`);
     const Cp = tryAsk('c.seller_id', "SELECT c.seller_id id, COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE {F} AND c.seller_kind='maker' AND o.paid=1 GROUP BY c.seller_id");
     // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
@@ -97,17 +97,27 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const r = await I.withLease(`pay:maker-${m.id}`, 5 * 60e3, () => payNow(m, opts));
     return r === I.BUSY ? { ok: false, why: 'busy' } : r;
   }
+  // (#123) The claim row: a payment to a maker is written as 'pending' before Stripe is asked, and asked with that row's
+  // key (wm-maker-pay-<id>). A pending row counts as paid in the statement (the money may have gone). If the process
+  // ends after Stripe sends and before the row says 'paid', the next payment within 23 hours finds the row and asks
+  // again with the same key and amount: Stripe answers with the transfer it made, or makes it once. Only a refusal Stripe
+  // states (nothing was sent) removes the row; an error that may hide a sent transfer keeps it. A row pending past the
+  // key's day (Stripe keeps a key 24 hours) is left for the house to look at, never paid again blind.
+  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit|Idempotency)Error$/.test(String((e && e.type) || ''));
   async function payNow(m, { by = 'house' } = {}) {
-    const st = statement(m); const amt = st.cleared;
+    const again = ON() && m.stripe_account ? db.prepare("SELECT * FROM maker_payouts WHERE maker_id=? AND status='pending' AND how='stripe' AND at > datetime('now','-23 hours') ORDER BY id DESC LIMIT 1").get(m.id) : null;
+    const st = statement(m); const amt = again ? Number(again.amount_cents) : st.cleared;
     if (!ON() || !m.stripe_account || amt < 100) return { ok: false, why: !ON() ? 'off' : !m.stripe_account ? 'nobank' : st.owed >= 100 ? 'clearing' : 'small', owed: st.owed, cleared: amt };
+    let id = again ? again.id : null;
     try {
       const a = await stripe.accounts.retrieve(m.stripe_account); if (!a.payouts_enabled) return { ok: false, why: 'notready', owed: st.owed };
-      const tr = await stripe.transfers.create({ amount: amt, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by } });
-      const id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, stripe_transfer, note) VALUES (?,?,'paid','stripe',?,?)").run(m.id, amt, tr.id, by === 'friday' ? 'Friday pay' : null).lastInsertRowid;
+      if (!id) id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, note) VALUES (?,?,'pending','stripe',?)").run(m.id, amt, by === 'friday' ? 'Friday pay' : null).lastInsertRowid;
+      const tr = await stripe.transfers.create({ amount: amt, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by, payout: String(id) } }, { idempotencyKey: `wm-maker-pay-${id}` });
+      db.prepare("UPDATE maker_payouts SET status='paid', stripe_transfer=? WHERE id=?").run(tr.id, id);
       ledger.append(db, 'maker.paid', m.handle, { amount: amt, transfer: tr.id, by });
       if (m.email) mail.send({ to: m.email, subject: by === 'friday' ? `Friday pay: ${money(amt)} is on its way` : `${money(amt)} on its way to you`, text: `${m.name.split(' ')[0]},\n\n${money(amt)} has been sent to your bank through Stripe${by === 'friday' ? ': every Friday, every dollar that has cleared' : ''}. The statement is at ${C.base}/account/payouts.\n\nThank you for making work worth keeping.\n\nWatermark` });
       return { ok: true, amount: amt, id };
-    } catch (e) { console.error('[payouts]', m.handle, e.message); return { ok: false, why: 'failed', owed: st.owed }; }
+    } catch (e) { console.error('[payouts]', m.handle, e.message); if (id && refused(e)) db.prepare("DELETE FROM maker_payouts WHERE id=? AND status='pending'").run(id); return { ok: false, why: 'failed', owed: st.owed }; }
   }
   // Paid by hand (the Studio records it): the statement stays exact either way.
   function record(m, cents, note) {

@@ -149,6 +149,10 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
   on every settle path and on sign-in codes and links; leases with the row read again on every transfer, and Stripe's
   idempotency key on the market's; `works.vault_on` and `arrivals.host`; the register's key as the claim with a retry;
   `passkey_challenges`. docs/SCALE.md "Stage 2: several copies" lists every piece of state and its disposition.
+- Found in review (#123): a maker's pay and the pocket's transfers asked Stripe without an idempotency key, and the
+  maker's payment row was written only after Stripe answered: a process ending between the two would pay again on the
+  next run. Now the claim row comes first and keys the transfer; test/instances.js ends a copy right after Stripe sends
+  and shows the next attempt, on another copy, asks with the same key and records one payment.
 - Not verified: anything on the test house or live; Render's own balancer (the local measure uses a round-robin and a
   least-in-hand proxy).
 - Rule: a timer or a door that acts on a row claims it first (UPDATE … WHERE <state> and read the count) or holds a

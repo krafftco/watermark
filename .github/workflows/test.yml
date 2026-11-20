@@ -199,6 +199,6 @@ jobs:
           set -o pipefail
           run() { "$@" 2>&1 | tee /tmp/out.txt || { echo "::error title=$1 $2::$(tail -c 1500 /tmp/out.txt | tr '\n' ' ' | tr -d '%')"; exit 1; }; }
           run node test/smoke.js test/fixture.jpg
-          psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two copies of the website, one database; it leaves the schema sql-check reads
           run node scripts/sql-check.js
+          psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
           for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

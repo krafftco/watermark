@@ -18,7 +18,9 @@ stripeClient.checkout.sessions.create = async o => { const id = 'cs_' + crypto.r
 stripeClient.checkout.sessions.retrieve = async id => { await nap(40); return JSON.parse(fs.readFileSync(sfile(id))); }; // a round trip, so two copies interleave
 stripeClient.paymentIntents.retrieve = async id => { await nap(40); return { id, status: 'succeeded', latest_charge: 'ch_' + id, amount_received: 0 }; };
 stripeClient.accounts.retrieve = async id => { await nap(40); return { id, payouts_enabled: true }; };
-stripeClient.transfers.create = async (o, opts) => { await nap(60); log('money.log', { kind: 'transfer', amount: o.amount, destination: o.destination, metadata: o.metadata || null, key: (opts && opts.idempotencyKey) || null }); return { id: 'tr_' + crypto.randomBytes(6).toString('hex') }; };
+stripeClient.transfers.create = async (o, opts) => { await nap(60); log('money.log', { kind: 'transfer', amount: o.amount, destination: o.destination, metadata: o.metadata || null, key: (opts && opts.idempotencyKey) || null });
+  if (fs.existsSync(path.join(SHARE, 'die-after-transfer'))) { fs.unlinkSync(path.join(SHARE, 'die-after-transfer')); process.exit(9); } // Stripe sent it; the process ends before the answer is written
+  return { id: 'tr_' + crypto.randomBytes(6).toString('hex') }; };
 stripeClient.refunds.create = async (o, opts) => { await nap(40); log('money.log', { kind: 'refund', payment_intent: o.payment_intent, key: (opts && opts.idempotencyKey) || null }); return { id: 're_' + crypto.randomBytes(6).toString('hex') }; };
 
 // The bucket, as one bucket seen by every copy (a folder); a put takes 300 ms so a second copy can look while it lands.

@@ -186,7 +186,37 @@ async function twoCopies() {
   const row = await A.sql('SELECT host FROM arrivals WHERE id=?', [st.id], 'get'); assert.equal(row.host, B.me, 'by B, the copy that holds the file');
   console.log(`instances: an upload begun on A and sent through B, taken in once by B (${done.outcome}) while A's pump and both sweeps ran`);
 
-  A.send({ op: 'exit' }); B.send({ op: 'exit' }); await nap(300);
+  // 6. A crash between Stripe sending and the row being written: the next attempt, on another copy, asks Stripe with the
+  //    same key (real Stripe then answers with the transfer it made), and the house records one payment.
+  const keysTo = acct => money().filter(x => x.kind === 'transfer' && x.destination === acct).map(x => x.key);
+  const died = c => new Promise(res => { if (c.exitCode !== null) return res(c.exitCode); c.on('exit', code => res(code)); });
+  { const rr = await post(B, `/buy/${ws[0].slug}`, { use: 'social' }); const id = rr.headers.get('location').split('/').pop(); const f = path.join(share, 'stripe', id + '.json'); const s0 = JSON.parse(fs.readFileSync(f));
+    Object.assign(s0, { payment_status: 'paid', status: 'complete', amount_total: s0.line_items[0].price_data.unit_amount, customer_details: { email: 'late@example.com', name: 'Late' } }); fs.writeFileSync(f, JSON.stringify(s0));
+    const pl = JSON.stringify({ id: 'evt_' + id, type: 'checkout.session.completed', livemode: false, data: { object: s0 } }); await fetch(B.base + '/stripe/webhook', { method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': stripe.webhooks.generateTestHeaderString({ payload: pl, secret: 'whsec_test' }) }, body: pl }); }
+  const before = keysTo('acct_maker').length; const owed2 = (await B.call('payouts.statement', m)).cleared; assert.ok(owed2 >= 100, 'a second sale to pay');
+  fs.writeFileSync(path.join(share, 'die-after-transfer'), '1');
+  A.call('payouts.pay', m).catch(() => {}); assert.equal(await died(A), 9, 'A ended after Stripe sent the maker\'s pay');
+  const pend = await B.sql("SELECT id, status, amount_cents FROM maker_payouts WHERE maker_id=? ORDER BY id DESC LIMIT 1", [m.id], 'get');
+  assert.equal(pend.status, 'pending', 'the claim row was written before Stripe was asked'); assert.equal(Number(pend.amount_cents), owed2);
+  assert.equal((await B.call('payouts.statement', m)).cleared, 0, 'a pending payment counts as paid: nothing is cleared to pay again');
+  assert.equal((await B.call('payouts.pay', m)).why, 'busy', 'while the dead copy\'s lease lasts (five minutes) no one pays');
+  await B.sql("UPDATE leases SET until_ms=0 WHERE k=?", [`pay:maker-${m.id}`], 'run'); // five minutes on
+  const again = await B.call('payouts.pay', m); assert.ok(again.ok, 'B finishes it: ' + JSON.stringify(again));
+  const mk2 = keysTo('acct_maker').slice(before); assert.equal(mk2.length, 2, 'Stripe was asked twice'); assert.equal(mk2[0], `wm-maker-pay-${pend.id}`); assert.equal(mk2[1], mk2[0], 'with the same key both times');
+  const rowsAfter = await B.sql("SELECT status FROM maker_payouts WHERE maker_id=? AND id>=?", [m.id, pend.id]); assert.deepEqual(rowsAfter.map(r => r.status), ['paid'], 'one payment recorded');
+  // The pocket: Friday pay on B ends after Stripe sends; a new copy C finishes it with the same key.
+  await B.call('pocket.credit', curator, 700, 'thanks_in', 'hang-2', 'Another card');
+  const pb = keysTo('acct_cur').length; fs.writeFileSync(path.join(share, 'die-after-transfer'), '1');
+  B.call('pocket.sweep', curator, { by: 'friday' }).catch(() => {}); assert.equal(await died(B), 9, 'B ended after Stripe sent Friday pay');
+  const C = start('C'); await C.ready; C.base = `http://127.0.0.1:${C.port}`;
+  const prow = await C.sql("SELECT id, status, cents FROM pocket WHERE buyer_id=? AND kind='cashout' ORDER BY id DESC LIMIT 1", [curator.id], 'get'); assert.equal(prow.status, 'pending');
+  await C.sql("UPDATE leases SET until_ms=0 WHERE k=?", [`pocket:buyer-${curator.id}`], 'run'); // the dead copy's lease, five minutes on
+  const pr = await C.call('pocket.sweep', curator, { by: 'friday' }); assert.ok(pr.ok, 'C finishes it: ' + JSON.stringify(pr));
+  const pk = keysTo('acct_cur').slice(pb); assert.deepEqual(pk, [`wm-pocket-${prow.id}`, `wm-pocket-${prow.id}`], 'the same key both times');
+  assert.equal((await C.sql('SELECT status FROM pocket WHERE id=?', [prow.id], 'get')).status, 'posted'); assert.equal(Number((await C.sql("SELECT COUNT(*) n FROM pocket WHERE buyer_id=? AND kind='cashout' AND id>?", [curator.id, prow.id], 'get')).n), 0, 'no second cash-out row');
+  console.log(`instances: a process ended after Stripe sent (maker pay on A, Friday pay on B): the next attempt on another copy asked with the same key (${mk2[0]}, ${pk[0]}) and one payment was recorded`);
+
+  C.send({ op: 'exit' }); await nap(300);
   fs.rmSync(root, { recursive: true, force: true });
 }
 
