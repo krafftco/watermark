@@ -77,11 +77,44 @@ const ALLOW = [
   // Counts (rows, bytes, statements) are allowed to a quarter above what was measured; times to three times it (CI's
   // runner is slower and shared), and a time is listed when it reached half its line, so a slow run does not flake.
   { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // measured 60,000 (hidden under #70's Wander cache until #70)
+  // 20 Nov (#116): the fixture gained a month of the visit log (3 M hits), the numbers desk and the digest walked open, four
+  // books of 1–2 MB and the read budget. Measured on SQLite on the workers' machine; times allowed to three times it.
+  { room: 'studio /studio/analytics?span=30d', budget: 'pageMs', max: 36000, issue: 125 }, // 11,872
+  { room: 'studio /studio/analytics?span=30d', budget: 'stmtMs', max: 8200, issue: 125, sql: 'FROM hits' }, // 2,708
+  { room: 'studio /studio/analytics?span=7d', budget: 'pageMs', max: 14000, issue: 125 }, // 4,648
+  { room: 'studio /studio/analytics?span=7d', budget: 'stmtMs', max: 1300, issue: 125, sql: 'FROM hits' }, // 407
+  { room: 'studio /studio/digest', budget: 'pageMs', max: 14500, issue: 125 }, // 4,770
+  { room: 'studio /studio/digest', budget: 'stmtMs', max: 1500, issue: 125, sql: 'FROM hits' }, // 496
+  { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832: every book's body
+  { room: 'visitor /publishing', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+  { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
+  { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+  { room: 'museum /account/sheets', budget: 'read', max: 10000000, issue: 96 }, // 7,972,307
 ];
 
 // (#116) The allow-list of the Postgres gate (BIG_PG): the same shape, its own lines, each with its own issue. A room
 // can be within its budgets on SQLite and over them through the bridge; that is what this list records.
 const ALLOW_PG = [
+  // 20 Nov, the first walk through the bridge at 100,000 works (#116), on the workers' machine (2 cores, Postgres 16
+  // with its defaults). Counts to a quarter above what was measured; times to three times it (CI's runner and its
+  // server in a container are slower), listed when they reached half their line.
+  { room: 'museum /account/sheets', budget: 'rows', max: 75000, issue: 96 }, // 60,000
+  { room: 'museum /account/sheets', budget: 'stmtMs', max: 800, issue: 96 }, // 268
+  { room: 'museum /account/sheets', budget: 'read', max: 10000000, issue: 96 }, // 7,972,307
+  { room: 'studio /studio/analytics?span=30d', budget: 'pageMs', max: 36000, issue: 125 }, // 11,873
+  { room: 'studio /studio/analytics?span=30d', budget: 'stmtMs', max: 6200, issue: 125, sql: 'FROM hits' }, // 2,038
+  { room: 'studio /studio/analytics?span=7d', budget: 'pageMs', max: 11500, issue: 125 }, // 3,770
+  { room: 'studio /studio/analytics?span=7d', budget: 'stmtMs', max: 1300, issue: 125, sql: 'FROM hits' }, // 414
+  { room: 'studio /studio/analytics', budget: 'pageMs', max: 2000, issue: 125 }, // 648
+  { room: 'studio /studio/digest', budget: 'pageMs', max: 12000, issue: 125 }, // 3,961
+  { room: 'studio /studio/digest', budget: 'stmtMs', max: 1500, issue: 125, sql: 'FROM hits' }, // 489
+  { room: 'studio /studio/fixity', budget: 'stmtMs', max: 450, issue: 128, sql: 'FROM fixity' }, // 143
+  { room: 'studio /studio', budget: 'stmtMs', max: 400, issue: 129 }, // 131: the month's most viewed
+  { room: 'visitor /house', budget: 'stmtMs', max: 600, issue: 130 }, // 196
+  { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832
+  { room: 'visitor /publishing', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+  { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
+  { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
 ];
 
 // ---------------------------------------------------------------------------------------------------------------- build

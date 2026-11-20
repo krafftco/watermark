@@ -119,6 +119,22 @@ The CTO session keeps it honest.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 
+- The gate on Postgres (#116): `BIG_PG='postgres://postgres@localhost:5433/postgres?host=/tmp' node scripts/big-house.js`
+  (start the local server first: "This machine"). It builds on SQLite, moves the house into a fresh `wm_big_<pid>` by
+  `scripts/to-postgres.js`, VACUUM ANALYZEs, runs the worker's round and walks through the bridge, then EXPLAINs every
+  statement over a line (`BIG_PLANS=x.md`) and drops the database. At 100,000 works here: build 19 s, move 70 s
+  (3.95 M rows), walk 46 s, about 3.5 min all told. `BIG_KEEP=1` keeps folder and database (drop it yourself).
+  Judged by `ALLOW_PG`, apart from the SQLite `ALLOW`. The fixture needs BIG_WORKS ≥ 90,000 (its rooms and applause
+  assume it); below that the build fails on a key.
+- Times through the bridge are the time the thread was held (round trip and JSON included): expect 2–5× the SQLite
+  figure for the same statement, and far more for anything that sorts or counts DISTINCT over many rows.
+- The visit log decides the numbers desk's cost. Its statements (COUNT(DISTINCT visitor) by device, browser, country,
+  path; the /w/ paths joined on substr) at 30 days, Postgres 16 defaults here: 3 M hits a month 1.3–1.6 s each,
+  10 M 3.4–5.6 s, 30 M about 12 s (live measured 9–13 s, 20 Nov). Growing `hits` in a kept database by SQL is faster
+  than rebuilding (generate_series; cast g to bigint before multiplying).
+- `BIG_READ` (4 MB a page, summed over statements) catches a list that reads whole text bodies; `rssMB` in BIG_JSON
+  shows how far the process grew on a page (not judged: the garbage collector makes it noisy).
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.
