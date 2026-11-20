@@ -137,12 +137,12 @@ Not safe yet, said plainly:
 
 | Process | Opens | Each |
 |---|---|---|
-| a website copy | the bridge (1; a second for a moment when it is remade after a statement that never answered); the async pool if #122 lands (ADB_POOL, 4, opened on first use) | 1 today, 5 with #122 (6 at a remake) |
+| a website copy | the bridge (1; a second for a moment when it is remade after a statement that never answered); the async pool (#122: ADB_POOL, 4, opened on first use) | 5 (6 at a remake) |
 | the worker | the bridge (1); pg_dump at the nightly backup (1); the Sunday restore drill (pg_restore into a scratch database, 1) | 1, 3 at most |
 | a scribe | the bridge (1) | 1 |
 | the test house | its own database | none here |
 
-N copies need N × 5 (with #122) + 3 (worker) + scribes + a few for Will's shell, the Render dashboard and backups:
+N copies need N × 5 + 3 (worker) + scribes + a few for Will's shell, the Render dashboard and backups:
 3 copies and 2 scribes ≈ 15 + 3 + 2 + 5 = 25; 10 copies ≈ 60. Render's documentation (render.com/docs/databases, read
 20 Nov) gives 200 connections for a database of 8 GB to under 16 GB (197 on a legacy instance type), 100 under 8 GB.
 Assumed, not read on live: `SHOW max_connections` cannot be asked of live from here. Will reads the real number in
@@ -189,7 +189,7 @@ What it says:
    - Render → watermark → Logs: `[boot] waited … for another process's boot` once per deploy (normal);
      `[pg limit]` (#115) and `[pg slow]` (which copy and which statement); any `[instances]`, `[payout]`, `[settle]` error.
    - Render → watermark → Metrics: both instances' CPU and memory; the database's connections (Render →
-     watermark-db → Metrics) under 200 (expected about 12 with #122: 2 × 5 + the worker and the scribe).
+     watermark-db → Metrics) under 200 (expected about 12: 2 × 5 + the worker and the scribe).
    - If he wants the money path seen on live: one Collect paid with a real card and refunded: one letter, one line on the
      register, the work's page names the collector once.
 3. To go back to one: the same page, set 1, Save. Nothing in the database depends on the number: leases run out, and
@@ -287,6 +287,8 @@ const n = (await adb.get("SELECT COUNT(*) n FROM works WHERE maker_id=? AND stat
    for throughput. Then the collection, the hall, Find, `/m/:maker`.
 
 ### Several copies of the website: what is kept in the process today
+
+(#123 took this list further: "Stage 2: several copies" above gives every piece of state and what each needs.)
 
 Sessions are signed cookies (wm_s, wm_b, wm_m), read from the database or the secret: they work on any copy. What
 does not:
