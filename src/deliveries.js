@@ -60,7 +60,26 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
   if (ROLE.chores) { setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref(); }
   // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
-  const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
+  // (20 Nov) The album warm-up made each album's large copy itself, from the master, outside the scribes' queue and the
+  // governor's lane. On the worker (2 GB) memory went from about 260 MB to over 1,100 MB within thirty seconds of this
+  // chore, at every start, and the host ended the process a minute later: about every seven minutes for at least three
+  // days (docs/STABILITY.md). Every work's copies are made by the scribes when it arrives (8 Nov, copies.js), so the
+  // warm-up now only looks: it counts the album works whose large copy is not made and says so; it never opens a master.
+  // WARM_ALBUMS=1 brings the old making back.
+  const warmAlbums = async () => {
+    let looked = 0, missing = 0;
+    for (const d of db.prepare("SELECT id, status, expires_at FROM deliveries WHERE status='open' ORDER BY id LIMIT 2000").all()) {
+      if (!live(d)) continue;
+      for (const w of worksOf(d)) {
+        looked++;
+        if (process.env.WARM_ALBUMS === '1') { try { await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } continue; }
+        let has = false; try { has = await images.has(cache, w.slug, ['large'], ['jpg']); } catch (e) { /* counted as missing */ }
+        if (!has) missing++;
+      }
+    }
+    if (missing) console.log(`[albums] ${missing} of ${looked} album works have no large copy yet; the scribes make them`);
+    return { looked, missing };
+  };
   if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') app.locals.governor.boot('warm albums', () => warmAlbums());
   const first = s => String(s || '').trim().split(/\s+/)[0] || '';
   // By text, from the maker's own phone (Will, 1 Nov: "instead of just their email, an option to send it to their phone
