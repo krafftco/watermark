@@ -179,3 +179,9 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - Cause, as far as shown: `shelves.js` `backfill()` reads `SELECT * FROM texts WHERE id=?` for each library book without subjects: the whole book, body and plates, through the bridge. It never finishes, so the same first book is read at every start. Not shown: which book, or its size.
 - The repair (1.87.10): five named columns. Each start-up chore also logs its beginning, so a chore the process does not survive is named.
 - Three wrong causes in one afternoon (the register read, the album pictures, the album rows), each from a coincidence in time. The lesson for the record: a line at the start and the end of every chore, with memory, before reasoning.
+
+## 20 Nov 2026, 17:37 New York: the worker ended again on 1.87.10; the rise is between chores
+- What the log showed on 1.87.10: `listening seed` ended at 17:37:06 at 275 MB; `pictures resume` began at 17:37:07 at 769 MB. Five hundred megabytes in one second, between two chores. `shelves backfill begins at 769 MB`; the process restarted at 17:37:40. Nothing else was logged in that minute. The cycle before: the same, 6 min 40 s after the start.
+- What this corrects: the shelves backfill was not the cause either (its whole-row read is repaired and stays repaired). The rise is not in any start-up chore. It comes about 21 s after `copies backfill` ends and about 400 s after the start, from something that logs nothing.
+- Not known: what. Candidates not yet excluded: something set off by the copies gate turning on at the end of the backfill; a timer near 400 s; a single very large answer from the database.
+- 1.87.11 (no repair): `[pg big] <MB>: <statement>` for any answer over 20 MB on every process; `[mem] a to b MB in n s; heap, outside, buffers; lane; chore; large answers` once a second on a process that does the chores when memory rises 150 MB inside five seconds.
