@@ -14,7 +14,7 @@ function head(o) {
   const best = hand[0] || items[0]; if (!best) return '';
   const works = items.length, makers = o.makers || 0;
   const earliest = items.reduce((a, i) => (i.collector_no && (!a || i.collector_no < a) ? i.collector_no : a), null);
-  const since = items.map(i => String(i.starts_at || '').slice(0, 4)).filter(Boolean).sort()[0] || null;
+  const since = items.map(i => i.starts_at instanceof Date ? String(i.starts_at.getUTCFullYear()) : String(i.starts_at || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y)).sort()[0] || null;
   const key = (o.keys || []).find(k => k.kind === 'collector');
   const plate = [
     o.first && o.first.is ? `The first collector${o.first.note ? `: ${esc(o.first.note)}` : ''}` : o.founding ? `Founding Collector, No.&nbsp;${o.founding} of 100` : null,

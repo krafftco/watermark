@@ -90,7 +90,9 @@ function mountYou({ db, V, app }) {
     // The piece you put first (your order) or, for a maker with nothing collected, their best work, large.
     const heroT = k === 'all' ? (lib.collected[0] || lib.work.find(t => !t.book) || null) : null;
     const since = col.items.reduce((a, i) => (i.starts_at && (!a || i.starts_at < a) ? i.starts_at : a), null);
-    const sinceS = since ? new Date(String(since).replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    // The date arrives as text from one engine and as a Date (or text with its zone) from the other: read all three.
+    const sinceD = !since ? null : since instanceof Date ? since : new Date(/[zZ]|[+-]\d\d(:?\d\d)?$/.test(String(since)) ? String(since).replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00') : String(since).replace(' ', 'T') + 'Z');
+    const sinceS = sinceD && !isNaN(sinceD) ? sinceD.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
     const stat = [col.items.length ? `${col.items.length} work${col.items.length === 1 ? '' : 's'} by ${col.makers} maker${col.makers === 1 ? '' : 's'}` : null, sinceS ? `collecting since ${sinceS}` : null, counts.reading ? `${counts.reading} on your shelf` : null].filter(Boolean).join(' · ');
     const going = lib.reading.find(t => t.pct != null);
     const sort = ['new', 'maker'].includes(req.query.sort) ? req.query.sort : 'yours';
