@@ -40,6 +40,161 @@ A billion is not planned here. It is a different company's infrastructure and is
 - The reading of each arrival by a model (the guide, the bag check): a cost per work, met by `src/spend.js`.
 - The workers who build this: sessions on Will's plan.
 
+## Stage 2: several copies
+
+20 November 2026, #123. The bridge holds the website's one thread for every answer, so a slow statement holds every
+visitor of that process. Several copies of the website side by side (Render: service `watermark` → Instances) make one
+held thread one copy in N. This is what a copy keeps in its own process, and what each piece needs for N copies to be
+one house. Proved by `test/instances.js` (two `ROLE=web` processes, one Postgres, CI's `postgres` job) and measured by
+`scripts/copies.js` (N copies behind a round-robin, `scripts/load.js` through it). Nothing here was run on the test
+house or live.
+
+### How the copies know each other (src/instances.js)
+
+- `ME`: Render's `RENDER_INSTANCE_ID`, else host and process. `/healthz` says `instance` (which copy answered) and
+  `instances` (how many website copies were seen in the last 90 s).
+- `house_instances`: each process (web, worker, scribe) writes a row every 15 s (INSTANCE_BEAT_S); unseen for 90 s
+  (INSTANCE_STALE_S) is gone.
+- `leases`: `lease(k, ms)` is one statement on both engines (INSERT … ON CONFLICT (k) DO UPDATE … WHERE the lease ran
+  out or is mine), so two processes cannot both take it. `pinned(name, every, fn)` is a timer that runs only where its
+  lease is held (renewed each run; a dead holder's lease runs out in three rounds). `withLease(k, ms, fn)`.
+- Boot: on Postgres each process takes `pg_try_advisory_lock` before its DDL (CREATE TABLE IF NOT EXISTS, ADD COLUMN)
+  and gives it back when createApp returns; the bridge's own CREATE OR REPLACE FUNCTION (before any lock can be asked)
+  is tried again on 'duplicate key' / 'tuple concurrently updated'. Measured: two copies on an empty database, the
+  second waited 1.5–2.3 s and both came up; before this, the second died on `pg_proc_proname_args_nsp_index`.
+
+### Every piece of state a copy keeps, and what it needs
+
+Moved to the database (this PR):
+- Passkey challenges (auth.js, was a Map): `passkey_challenges`, taken once by a DELETE. The options and the answer may
+  reach different copies.
+- Which copy holds an original not yet in the bucket: `works.vault_on`. The vault queue (vaultPending, every 30 s on
+  every copy) skips a work whose holder is alive; before this, a second copy would have called every new arrival
+  "lost" and taken it off view for conservation (the test shows it, with the fix removed).
+- Which copy took an arrival in hand, or holds a file sent through it (the whole-file PUT, via 'house'):
+  `arrivals.host`. Only that copy takes such a file in; if that copy is gone the arrival fails in words and is sent again.
+- The host's chair on the balcony: `host_shifts.sat_at`, so the copy that closes the night pays a host who sat on another.
+
+Claimed before acting (a conditional UPDATE whose count decides, or a lease):
+- Money in: `grant` (licences; the webhook on one copy, the buyer's return on another, the settling timer), the market's
+  settle (the listing moves to sold once; a session that sold it a moment ago on another copy is not refunded), and
+  every webhook settle: the pocket, the bookshop, briefs, client bills, the franchise, friends, the Gazette, a hang's
+  thanks, a proof, the Library, the copyright ask, patrons, the Club, seats, standing orders, tips.
+- Money out: an owed share (market `payOwed`: lease `payout:<id>`, the row read again, Stripe idempotency key
+  `wm-payout-<id>`), a maker's pay (lease `pay:maker-<id>`, the statement read after it), a person's cash-out and
+  Friday pay (lease `pocket:buyer-<id>`), the host's pay (the shift's row). The market's refund carries
+  `wm-refund-<session>`.
+- The register: `ledger.append` takes `seq = head + 1`; two writers that read the same head collide on the key and the
+  second reads the new head and links to it, so the chain never forks (before, the second append threw mid-grant).
+- Sign-in: a code and a link are used once (`used_at IS NULL` in the UPDATE).
+- Arrivals: the pump claims `arrived → working`; the sweep puts back only rows whose copy is gone or this copy's own
+  that it is not working on (before, any copy's hourly sweep re-queued every other copy's work in hand).
+- Imports: finished and told once.
+
+Run on one process of the house (a lease, first to ask holds it):
+- `settleAll` (every 5 min; it ran on the website and the worker alike): `timer:settle`. Grant's claim makes a second
+  run harmless; the lease saves the Stripe calls.
+- The screening's "told" pass and the sitters' sync (both ran on every process): `timer:screening-tell`, `timer:sitters-sync`.
+- At boot: clearing the edge (`edge-boot`, once a deploy, not once a copy) and the Stripe domain (`stripe-domain`).
+- Al's edit, per maker (`job:aledit:<id>`): a press on another copy finds it running and spends nothing.
+
+Safe per copy, and why:
+- Sessions and the visitor's own things are cookies: wm_s, wm_b, wm_m (signed with SESSION_SECRET, the same on every
+  instance), the basket (wm_bk), a private gallery's tokens, wm_room, wm_v. Checked against the database where they name a row.
+- Caches, each with its window: `kept`, pageCache and wanderBase (60 s), Wander's pools (120 s), the shelf, the find
+  index (FIND_KEEP_S, 300 s), the hall's pages, walk (60 s), tenants (60 s), regard, sheets, scout, served files,
+  pictures' rights and gamut. A dirty call (`wanderPoolDirty`, `shelfDirty`, `wanderBaseDirty`, `findIndexDirty`,
+  `art.uncache`) reaches only the copy that made the change; the others show it late, by at most their window.
+- Limiters (guardrails, the sending limit, resend, bench, Gazette, keep, opening, own, rights, season, sharebook,
+  deliveries, editions, details, copies' picture reports, beta, the agents' door): a count per copy, so N copies allow
+  up to N times as much. Looser, never stricter: people are never refused. The sign-in code limit counts rows in
+  `signins`, so it is one count for the house.
+- The hits buffer: each copy writes its own every 5 s. The kept numbers (#114): made by the worker, read from the table.
+- The governor (memory line, lane, visitors a second) and the heavy lanes: per copy, which is what they guard (one
+  copy's memory); N copies allow N masters at once.
+- The watchdog: each copy restarts itself. Its slow logs (`pgSlow`, `adbSlow`), `lastFault`, `vaultState`, `faults`:
+  /healthz reports the copy that answered.
+- Disks: display copies, the originals' cache, `incoming`, clearDisk, the renditions pushed at boot: each copy's own.
+- Mail: the daily count of automatic letters is in `settings` (shared); the in-memory state is only what /healthz shows.
+- Uploads in parts: on live the parts go straight to the bucket (S3 multipart), so any copy signs a part and any copy
+  completes it. The whole-file fallback is one request, on one copy, taken in by that copy (above).
+- Service worker and version: `VER` is the commit (RENDER_GIT_COMMIT), the same on every instance of a deploy.
+
+Not safe yet, said plainly:
+- The balcony (balcony.js): the room (who is present, the lines, a word, the wall, the piano) lives in one process.
+  With N copies there are N rooms; a visitor sees only those on the same copy. Its money is safe (the host is paid
+  once); each copy also opens and closes its own night (a row in balcony_nights and a line on the register each).
+  Needs LISTEN/NOTIFY between copies (what is said is not kept, so not a table): #141.
+- Who is here now (analytics.js `present`, `alive`) is per copy, so the desk's live count is one copy's. The day's salt
+  for a visitor without a cookie is per process, so such a visitor is counted once per copy reached. analytics.js is
+  #120's: #142.
+- Progress of the Studio's own long passes (frick, tidy, hands, hang your best): kept per copy; a press on another copy
+  can start a second pass. Studio-only, bounded (hang your best reads at most forty): #143.
+- During a deploy old and new instances overlap (true with one instance too, since the disk came off): an old copy can
+  answer `/static/…?v=<new>` with old bytes, kept an hour.
+
+### The database's connections
+
+| Process | Opens | Each |
+|---|---|---|
+| a website copy | the bridge (1; a second for a moment when it is remade after a statement that never answered); the async pool if #122 lands (ADB_POOL, 4, opened on first use) | 1 today, 5 with #122 (6 at a remake) |
+| the worker | the bridge (1); pg_dump at the nightly backup (1); the Sunday restore drill (pg_restore into a scratch database, 1) | 1, 3 at most |
+| a scribe | the bridge (1) | 1 |
+| the test house | its own database | none here |
+
+N copies need N × 5 (with #122) + 3 (worker) + scribes + a few for Will's shell, the Render dashboard and backups:
+3 copies and 2 scribes ≈ 15 + 3 + 2 + 5 = 25; 10 copies ≈ 60. Render's documentation (render.com/docs/databases, read
+20 Nov) gives 200 connections for a database of 8 GB to under 16 GB (197 on a legacy instance type), 100 under 8 GB.
+Assumed, not read on live: `SHOW max_connections` cannot be asked of live from here. Will reads the real number in
+Render → watermark-db → Info (or `SHOW max_connections;` in its shell). Connection pooling stays off; it is not needed
+below about 30 copies.
+
+### What a visitor feels (scripts/copies.js, this machine: 2 CPUs shared by every copy, the load client and Postgres 16)
+
+load.js through the proxy, 20 visitors for 20 s over 30 works; p50 / p95 / max in ms of the page doors (wander, a
+work, find, the collection), and how many answers in the 20 s. "Held": copy 0's bridge asks `pg_sleep(2)` every 3 s
+(a hard case: the thread held two seconds in three) or every 10 s. Every answer was a 2xx.
+
+| Held | Balancer | N=1 | N=2 | N=3 |
+|---|---|---|---|---|
+| nobody | round-robin | 91–175 / 220–315 / ~580; 4,298 answers | | 65–190 / 277–495 / ~760; 4,136 |
+| 2 s in 3 | round-robin | 80–155 / 2,130–2,210 / ~2,290; 2,586 | 77–157 / 2,070–2,220 / ~2,440; 2,130 | 56–172 / 2,270–3,560 / ~5,760; 1,664 |
+| 2 s in 3 | least in hand | 91–159 / 190–2,230 / ~2,370; 2,226 | 52–116 / 176–442 / ~2,330; 4,209 | 44–118 / 175–261 / ~2,450; 5,249 |
+| 2 s in 10 | round-robin | 80–171 / 199–383 / ~2,350; 3,827 | | 46–170 / 237–510 / ~2,330; 3,977 |
+| 2 s in 10 | least in hand | | | 63–204 / 288–448 / ~2,330; 3,772 |
+
+What it says:
+- Copies help only as much as the balancer avoids the held copy. A round-robin keeps handing it one request in N, and
+  every visitor reaches it in turn: with a hard hold the 95th stays at the hold (2.1–3.6 s) whatever N. A balancer that
+  sends to the copy with least in hand passes the held copy over: with two copies the 95th fell from 2.2 s to under
+  0.45 s and the house answered almost twice as many. The worst single answer is still the hold (~2.3 s): the visitors
+  already waiting on that copy wait it out.
+- With three copies on two CPUs the copies compete for the machine (nobody held: the 95th rose from ~0.3 s to ~0.5 s);
+  on Render each instance has its own CPU.
+- How Render's balancer chooses an instance is not documented (render.com/docs/health-checks, read 20 Nov: checks
+  "every few seconds", a check failing past five seconds; an unresponsive instance is restarted; the page does not say
+  how requests are spread). So the safety is two things together: copies, and the website's statement limit (#115,
+  4 s a statement, 8 s a hold) so no copy is held long enough to matter; and /healthz, which asks the database, fails
+  on a held copy so Render takes it out of rotation.
+- Boot: N copies started together came up in 1.6–2.2 s (1), 3.2–3.4 s (2), 4.4–5.5 s (3): the boot lock lines them up.
+
+### What Will presses (draft)
+
+1. Render → service `watermark` → Scaling (left menu; the instance count) → Manual scaling → Instances: 2 →
+   Save. Render starts a second instance from the same deploy; no new deploy is needed. Cost: two instances of the
+   `watermark` plan (Pro) instead of one; nothing changes on the worker, the scribes or the database.
+2. In the first hour, watch:
+   - `https://watermark.krafftco.com/healthz` a few times: `instance` changes between answers (two copies answering),
+     `instances` says 2, `worker.stale` false.
+   - Render → watermark → Logs: `[boot] waited … for another process's boot` once per deploy (normal);
+     `[pg limit]` (#115) and `[pg slow]` (which copy and which statement); any `[instances]`, `[payout]`, `[settle]` error.
+   - Render → watermark → Metrics: both instances' CPU and memory; the database's connections (Render →
+     watermark-db → Metrics) under 200 (expected about 12 with #122: 2 × 5 + the worker and the scribe).
+   - If he wants the money path seen on live: one Collect paid with a real card and refunded: one letter, one line on the
+     register, the work's page names the collector once.
+3. To go back to one: the same page, set 1, Save. Nothing in the database depends on the number: leases run out, and
+   a copy that is gone is seen as gone in 90 s (an arrival sent through it, if any, asks to be sent again).
+
 ## Lanes open now
 
 - Guard: #115 (the limit), #114 (the numbers by the worker).

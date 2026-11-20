@@ -128,6 +128,21 @@ The CTO session keeps it honest.
 - Changes on a visitor's path, to pictures, to sign-in or to money are read by the `reviewer` seat before they merge.
   Expect it to try the case you did not test.
 
+## Several copies of the website (#123, docs/SCALE.md "Stage 2: several copies")
+- The website runs as N instances on Render. Anything a request starts must finish on any copy; anything a timer does
+  must be done once. A new timer on the web role: `app.locals.instances.pinned(name, every, fn)`, or claim each row
+  (`UPDATE … WHERE status=<from>` and act only when `.changes` is 1). Money also gets a lease (`withLease`) and a
+  Stripe idempotency key. A Map in the process is a cache, a limiter or a bug: say which in docs/SCALE.md.
+- A file on a copy's disk is that copy's alone (no shared disk): record the copy (`IN.ME`) on the row, and let other
+  copies skip it while `alive(holder)`.
+- `test/instances.js` (CI's postgres job) forks two `ROLE=web` processes (test/instances-copy.js) that share Stripe and
+  the bucket through files; ask a copy over IPC (`c.call('payouts.pay', row)`, `c.sql(...)`). Locally it needs a fresh
+  database each run (`CREATE DATABASE`), about a minute. Negative proof: remove a claim and it fails in words.
+- `scripts/copies.js` (needs an empty Postgres): N copies of server.js behind a round-robin (or `COPIES_BALANCE=least`)
+  with load.js through it; `COPIES_HOLD=1` holds copy 0 with pg_sleep through a preload (scripts/copies-hold.js).
+  Never `spawnSync` a client of a server that lives in your own process: the server stops answering.
+- An INSERT through the bridge gets its RETURNING from dialect.js: take the id from `.run(...).lastInsertRowid` (the same on both engines).
+
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
   go through `src/outline.js` (and `outline-n1.js` for one day's old places). `app.locals.bookNotes.note(slug, n)`.
