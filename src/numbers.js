@@ -61,7 +61,10 @@ function mountRollup(db) {
     rollDay(today, false);
     return { days: n + 1, ms: Date.now() - t0 };
   }
-  function prune(now = Math.floor(Date.now() / 1000)) { const cut = Math.floor(now / DAY) * DAY - KEEP * DAY; S.pruneD.run(cut); S.pruneV.run(cut); }
+  // hits_days holds no visitor's code and is kept ROLLUP_KEEP_DAYS; hits_vd holds the day's codes and goes with the raw
+  // hits (HITS_KEEP_DAYS, as analytics.js prunes them): the rollup never keeps a visitor longer than the log does.
+  const KEEP_V = +(process.env.HITS_KEEP_DAYS || 30);
+  function prune(now = Math.floor(Date.now() / 1000)) { const d0 = Math.floor(now / DAY) * DAY; S.pruneD.run(d0 - KEEP * DAY); S.pruneV.run(d0 - KEEP_V * DAY); }
   return { roll, rollDay, prune };
 }
 
