@@ -84,7 +84,7 @@ const { createApp } = require('../src/app');
   assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='print.sold' AND subject=?").get(w.slug), 'the register records the sale');
   // ---- 5. Roland is told at once, and sees it on his studio ----------------------------------------------------------
   const n = db.prepare("SELECT * FROM notices WHERE maker_id=? AND kind='sold' ORDER BY id DESC").get(M.id); assert.ok(n && /takes it from you by hand/.test(n.body) && /\$300 to you/.test(n.body), 'the notice: ' + (n && n.body));
-  const told = letters('roland@example.com').find(m => /was acquired/.test(m.subject)); assert.ok(told && /No\. 1\/1/.test(told.text) && /takes it from you by hand/.test(told.text), 'the letter to Roland: the pencil line and the hand-over');
+  const told = letters('roland@example.com').find(m => /was acquired/.test(m.subject)); assert.ok(told && /No\. 1\/1/.test(told.text) && /takes it from you by hand/.test(told.text) && /You may keep the print until it has reached you/.test(told.text), 'the letter to Roland: the pencil line, the hand-over, and that he may keep it till paid');
   assert.ok(!letters('roland@example.com').some(m => /has been licensed/.test(m.subject)), 'no letter tells Roland the print was "licensed" and there is nothing for him to do');
   const rec = letters('will@example.com').find(m => /^Your print of/.test(m.subject)); assert.ok(rec && /you take it from them by hand/.test(rec.text), 'Will’s letter names the print and where it is: ' + (rec && rec.subject));
   assert.equal(app.locals.printShops.sweep(), 0, 'the print is never offered to a print shop'); assert.equal(db.prepare('SELECT COUNT(*) n FROM print_jobs').get().n, 0);
