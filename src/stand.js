@@ -58,7 +58,7 @@ ${ws.length ? `<h2>Today</h2><div class="sd2-g">${ws.map(tile).join('')}</div>` 
       const src = await originalPath(w); const out = await KEEP.instaxFile(src, { film: String(req.query.film || 'mini'), look: String(req.query.look || 'film') });
       const name = `${tidy(w.title).replace(/[^\w ,.'-]+/g, '').slice(0, 60) || 'Watermark'} (${out.film.name}).jpg`;
       res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'private, no-store').set('Content-Disposition', `attachment; filename="${name.replace(/"/g, '')}"`).send(out.buf);
-    } catch (e) { console.error('[stand]', e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[stand]', e.message); res.fault(e); }
   });
 }
 module.exports = { mountStand };
