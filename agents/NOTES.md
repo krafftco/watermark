@@ -281,3 +281,14 @@ The CTO session keeps it honest.
 - A page's own rules restyle a bare `<b>` or `<p>` (the work page made the label 30 px): look at a new block on each
   page at 390 wide, do not trust one.
 
+
+## A license written from the use (#183)
+- `licenses.rights` (JSON) is the order's terms. An optional field must be absent, not null, when unset, or every old
+  fingerprint (`rights.hash`, a sha256 of `K.assemble`) changes: `terms()` spreads `territory`/`limit` in only when
+  set. `test/licence-by-use.js` holds today's text to fingerprints taken before #183; never regenerate them to pass.
+- `rights.size` already means a kept album picture's file size (src/deliveries.js); the size of use is `rights.limit`.
+- A narrowed license (territory or limit) has no price: `t.ask` is true, `/buy` shows the ask page with the answers
+  as hidden fields, `POST /license` stores the narrowed terms with `price_cents` null and `requested`, and the Studio's
+  quote sets the fee. A request that narrows nothing is stored exactly as before (`rights` null).
+- The license page may carry selects and inputs about the use; the smoke forbids a field for the buyer (`name="email"`)
+  before payment. The answers refresh the statement through `/contract/:slug?holds=1` (no new route).

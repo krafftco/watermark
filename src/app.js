@@ -1081,6 +1081,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
 
   // --- licensing ---
+  // (#183) The two plain answers a license can carry beside its use: where (a place's code; none is worldwide) and
+  // how many (a number of copies, of circulation or of audience; none is unlimited). src/contract.js decides what is
+  // a place and what is a number; anything else is read as the default.
+  const askedOf = b => ({ territory: String((b && b.where) || '').slice(0, 4) || null, limit: b && b.of ? { n: String(b.many || '').slice(0, 16), of: String(b.of).slice(0, 16) } : null });
+  const narrowSays = t => [t.territory ? `Where: ${t.territory.name} only.` : '', t.limit ? `How many: no more than ${t.limit.n.toLocaleString('en-US')} ${(K.SIZES.find(z => z.key === t.limit.of) || {}).q}.` : ''].filter(Boolean).join(' ');
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -1106,11 +1111,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
-    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
+    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(req.body) });
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
-    const noteAll = [wants, note].filter(Boolean).join('\n') || null;
-    if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
-    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
+    const noteAll = [wants, narrowSays(t), note].filter(Boolean).join('\n') || null;
+    if (rules.approve) return res.send(V.ask({ w, maker, u, t, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
+    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, t, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
     u.price_cents = t.price; t.house = u.house_cents || 0; t.maker = t.price - t.house;
     const ref = nextRef();
     // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
@@ -1740,9 +1745,14 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, renews: b.renews, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
     }
     const ref = nextRef();
-    const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key);
-    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null);
+    // (#183) A license narrowed to a territory or to a number has no price of its own: it is always the maker's to
+    // name (no fee is carried, nothing goes to payment here), and the request keeps the narrowed terms, so the
+    // agreement of the license the maker then quotes reads with them. Any other request is stored as it always was.
+    const nt = K.terms({ use: u, never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(b) });
+    const narrowed = !!(nt.territory || nt.limit);
+    const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key) || narrowed;
+    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, narrowed ? null : u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null, narrowed ? JSON.stringify(nt) : null);
     ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key });
     const renews = /^WM-\d{4}-\d{6}$/.test(String(b.renews || '')) ? String(b.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
@@ -1829,7 +1839,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w);
     if (!u || !offered(rules, u.key, w)) { const on = q.uses.all(maker.id).filter(x => offered(rules, x.key, w)); u = (on.find(x => x.key !== 'social') || on[0] || null) && priced(on.find(x => x.key !== 'social') || on[0], w); } // the first use on offer
     if (!u) return res.sendStatus(404);
-    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
+    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(req.query) });
+    // (#183) The one statement for these answers, for the license page to show before anything is pressed (src/holds.js).
+    if (req.query.holds) return res.send(require('./holds').block({ use: u, t, maker: maker.name, edition: !!w.edition_size, will: true }));
     const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
     res.send(req.query.frag ? V.contractBody(sections) : V.contractPage({ sections, w, maker, u, t, preview: true }));
   });

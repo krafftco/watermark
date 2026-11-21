@@ -854,9 +854,16 @@ ${contractBody(sections)}
 function rightsPanel(uses, rules) {
   const C = require('./contract');
   const data = {};
-  for (const u of uses) { const t = C.terms({ use: u, never: rules.never, base: u.price_cents }); data[u.key] = { has: t.rights, addable: t.addable, personal: t.personal, print: u.kind === 'print', base: u.price_cents }; }
+  for (const u of uses) { const t = C.terms({ use: u, never: rules.never, base: u.price_cents }); data[u.key] = { has: t.rights, addable: t.addable, personal: t.personal, print: u.kind === 'print', base: u.price_cents, term: termText(u) }; }
   const noAdapt = rules.never.includes('alter');
-  return `<div class="rt" data-rt hidden><p class="rt-h">The rights in your contract <a href="#" data-rt-read>Read the agreement</a></p>
+  // (#183) Asked as a person would be asked: where it will appear, how many, for how long. Worldwide and unlimited
+  // unless the licensee says otherwise; either answer makes it a request to the maker, never a new price. Drafts for Will.
+  const asks = `<div class="aq" data-aq>
+<label class="aq-q"><span>Where will it appear?</span><select name="where" data-aq-where><option value="">Anywhere in the world</option>${C.PLACES().map(p => `<option value="${esc(p.code)}">${esc(p.region ? p.name : 'Only in ' + p.name)}</option>`).join('')}</select></label>
+<div class="aq-q"><span id="aq-many">How many?</span><div class="aq-n" role="group" aria-labelledby="aq-many"><select name="of" data-aq-of aria-label="Counted as"><option value="">No set number</option>${C.SIZES.map(z => `<option value="${esc(z.key)}">${esc(z.q[0].toUpperCase() + z.q.slice(1))}, no more than</option>`).join('')}</select><input name="many" inputmode="numeric" pattern="[0-9,]*" maxlength="13" aria-label="How many" placeholder="5,000" data-aq-many hidden></div></div>
+<p class="aq-q"><span>For how long?</span><b data-aq-term></b></p>
+<p class="aq-say" data-aq-say hidden>A license for one place, or for a set number, is agreed with the maker: they reply with the fee.</p></div>`;
+  return `<div class="rt" data-rt hidden>${asks}<p class="rt-h">The rights in your contract <a href="#" data-rt-read>Read the agreement</a></p>
 <div class="rt-g" role="group" aria-label="Permitted uses">${C.RIGHTS.map(r => `<label class="rt-c" data-r="${r.key}"><input type="checkbox" name="add" value="${r.key}"><span>${esc(r.label)}</span><em></em></label>`).join('')}</div>
 <div class="rt-x" role="group" aria-label="Extended rights">${C.EXTRAS.map(e => { const off = e.key === 'derivative' && noAdapt; return `<label class="rt-e${off ? ' is-never' : ''}" title="${esc(e.note)}"><input type="checkbox" name="x" value="${e.key}"${off ? ' disabled' : ''}><span><b>${esc(e.label)}</b>${esc(e.note)}</span><em>${off ? 'The maker says never' : e.price == null ? 'Ask the maker' : '+' + money(e.price)}</em></label>`; }).join('')}</div>
 <dialog class="rt-d" data-rt-d><button type="button" class="rt-close" aria-label="Close" data-rt-close>&times;</button><div data-rt-body></div></dialog>
@@ -891,7 +898,7 @@ ${scenes(w, maker)}</div>
 <form method="post" action="/buy/${esc(w.slug)}" class="buy-form">
 <p class="k">Held on Watermark</p><h1>${pick && pick.key === 'social' ? 'Collect it.' : 'Give it somewhere to live.'}</h1>
 ${renews ? `<p class="ok">Renewing ${esc(renews)}.</p><input type="hidden" name="renews" value="${esc(renews)}">` : ''}
-${simply ? `<p class="own-say">${esc(simply)}</p>` : ''}<fieldset class="bus"><legend class="vh">How it will be used</legend>${rows}</fieldset>
+${simply ? `<p class="own-say">${esc(simply)}</p>` : ''}<fieldset class="bus"><legend class="aq-l">What is it for?</legend>${rows}</fieldset>
 ${rightsPanel(uses, rules)}
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 ${open.map(u => HOLDS.block({ use: u, t: require('./contract').terms({ use: u, never: rules.never, base: u.price_cents, transfer: rules.transfer || null }), maker: maker.name, edition: !!w.edition_size, will: true }, { attrs: `data-holds-for="${esc(u.key)}"${u === pick ? '' : ' hidden'}` })).join('')}
@@ -915,7 +922,7 @@ var a=document.querySelector('[data-ask]');a&&a.addEventListener('click',functio
 }
 
 // For anything bespoke: three fields, then the maker answers.
-function ask({ w, maker, u, note, renews, error, approve, uses = [] }) {
+function ask({ w, maker, u, t = null, note, renews, error, approve, uses = [] }) {
   // The menu stays with the buyer: every other use the work allows, a tap away, instant ones marked by price, the rest as Ask.
   const menu = uses.length > 1 ? `<nav class="buy-menu" aria-label="Other uses"><p class="k">Or another use</p><ul>${uses.map(x => `<li${x.key === u.key ? ' class="now"' : ''}><a href="${x.needsMaster || x.price_cents == null ? `/buy/${esc(w.slug)}?use=${esc(x.key)}` : `/license/${esc(w.slug)}?use=${esc(x.key)}`}"><b>${esc(x.name)}</b><span>${x.needsMaster || x.price_cents == null ? 'Ask the maker' : money(x.price_cents) + ' · at once'}</span></a></li>`).join('')}</ul><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></nav>` : `<p class="buy-back-p"><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></p>`;
   return layout({
@@ -927,6 +934,8 @@ function ask({ w, maker, u, note, renews, error, approve, uses = [] }) {
 <p class="k">${esc(u.name)}${approve && u.price_cents != null ? ` &middot; ${money(u.price_cents)}` : ''}</p><h1>${approve ? 'This maker approves each license personally.' : 'Tell the maker what you have in mind.'}</h1>
 ${error ? `<p class="err">${esc(error)}</p>` : ''}
 <input type="hidden" name="use" value="${esc(u.key)}"><input type="hidden" name="agree" value="1">
+${t && t.territory ? `<input type="hidden" name="where" value="${esc(t.territory.code)}">` : ''}${t && t.limit ? `<input type="hidden" name="of" value="${esc(t.limit.of)}"><input type="hidden" name="many" value="${esc(String(t.limit.n))}">` : ''}
+${t && (t.territory || t.limit) ? HOLDS.block({ use: u, t, maker: maker.name, will: true }) : ''}
 ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <label>Your name<input name="name" required autocomplete="name" autofocus></label>
 <label>Email<input name="email" type="email" required autocomplete="email"></label>

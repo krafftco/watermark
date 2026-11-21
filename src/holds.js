@@ -30,6 +30,15 @@ function termsOf(use, t) {
     personal: typeof t.personal === 'boolean' ? t.personal : base.personal, transferable: typeof t.transferable === 'boolean' ? t.transferable : base.transferable,
     term_months: t.term_months !== undefined ? t.term_months : base.term_months };
 }
+// (#183) Where and how many, for a working license that carries them (SCL "Territory", "Size of Use"): one clause in
+// the "may" sentence, and nothing at all when the license is worldwide and unlimited. A draft for Will.
+function within(tt) {
+  const where = K.place(tt.territory), many = K.limitOf(tt.limit);
+  const n = many ? many.n.toLocaleString('en-US') : '';
+  const parts = [where ? `in one territory (${where.name})` : null,
+    many ? (many.of === 'copies' ? `in no more than ${n} copies` : many.of === 'circulation' ? `with a circulation of no more than ${n}` : `before an audience of no more than ${n} people`) : null].filter(Boolean);
+  return parts.length ? `, ${parts.join(' and ')}` : '';
+}
 // Which kind of holding this is: an open print (an object made from a free picture), a print, a collected personal
 // piece, or a licence for a use.
 function kindOf(use, t, open) {
@@ -80,10 +89,11 @@ function statement({ use, t = null, maker = 'the maker', open = null, no = null,
     stays = `The copyright stays with ${maker}, with every right not named here.`;
     pass = passLine(tt, maker, edition);
   } else {
-    // SCL 1 (term, rights reserved), 2.1 (the uses paid for), 2.3 (credit), 2.4 (one company or client), 7.1, 9.3.
+    // SCL 1 (term, rights reserved), 2.1 (the uses paid for), 2.3 (credit), 2.4 (one company or client), 7.1, 9.3;
+    // and, when the order carries them, its Territory and Size of Use clauses (#183).
     const uses = K.RIGHTS.filter(r => tt.rights.includes(r.key)).map(r => r.phrase);
     hold = `${You} a license to use this work${use && use.name ? ` (${use.name})` : ''}, ${tt.term_months ? `for ${dur(tt.term_months)} from the day of your order` : 'with no end date'}.`;
-    may = `You may use it ${uses.length ? `on ${list(uses)}` : 'as the agreement names'}, for ${tt.extras.includes('entities') ? 'more than one company or client' : 'yourself or one company or client'}, credited to ${maker}.`;
+    may = `You may use it ${uses.length ? `on ${list(uses)}` : 'as the agreement names'}${within(tt)}, for ${tt.extras.includes('entities') ? 'more than one company or client' : 'yourself or one company or client'}, credited to ${maker}.`;
     stays = `The copyright stays with ${maker}, with every use not named here.`;
     pass = passLine(tt, maker, false);
   }
@@ -118,4 +128,4 @@ function offering(maker = 'the maker') {
 // Words a visitor never reads at these moments (Will's rule; test/holds.js holds the pages to it).
 const NEVER = ['blockchain', 'token', 'nft', 'ledger', 'hash', 'cryptographic', 'on-chain', 'mint', 'wallet', 'bitcoin', 'opentimestamps'];
 
-module.exports = { statement, block, ofLicense, offering, marketLine, kindOf, termsOf, NEVER };
+module.exports = { statement, block, ofLicense, offering, marketLine, kindOf, termsOf, within, NEVER };

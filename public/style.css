@@ -1219,6 +1219,17 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .lc-acts .link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--mu);text-decoration:underline;cursor:pointer}
 /* The rights in the contract (license page). */
 .rt{margin:18px 0 6px;padding:18px 0 4px;border-top:1px solid var(--ln)}
+/* (#183) the plain questions: what is it for, where, how many, for how long */
+.aq-l{padding:0;margin:0 0 2px;font-size:13px;font-weight:500;color:var(--ink)}
+.aq{display:grid;gap:0;margin:0 0 18px;border-bottom:1px solid var(--ln)}
+.aq-q{display:grid;grid-template-columns:minmax(120px,38%) 1fr;gap:12px;align-items:center;margin:0;padding:9px 0;border-top:1px solid var(--ln);font-size:13px}
+.aq-q:first-child{border-top:0;padding-top:0}
+.aq-q>span{color:var(--ink);font-weight:500}.aq-q b{font-weight:400}
+.aq-q select,.aq-n input{width:100%;min-height:44px;border:0;border-bottom:1px solid var(--ln);border-radius:0;background:transparent;font:inherit;font-size:15px;color:var(--ink);padding:8px 0}
+.aq-n{display:grid;grid-template-columns:1fr;gap:6px}
+.aq-n input[hidden]{display:none}
+.aq-say{margin:0;padding:0 0 10px;font-size:13px;color:var(--mu);line-height:1.5}
+@media (max-width:520px){.aq-q{grid-template-columns:1fr;gap:4px}}
 .rt-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 12px;font-size:13px;font-weight:500;color:var(--ink)}
 .rt-h a{font-weight:400;color:var(--mu)}
 .rt-g{display:flex;flex-wrap:wrap;gap:6px}
