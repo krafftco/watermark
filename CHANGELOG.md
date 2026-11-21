@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.2 · Search that reads the question · 21 November 2026
+
+- Search now reads a question the way it is asked: a title "by" its maker, a place with a year or a decade ("paris 1962", "paris 1960s"), an artist with a kind of work and where it is held ("seurat drawings at the art institute"), a phrase in quotes, and an accession number or a Watermark number typed exactly, which goes straight to that work.
+- When no work carries every word, the page no longer comes back empty. It shows what the most telling words find and says which word it set aside; a slip in a known name is read as the name, and said.
+- The order is a curator's: the exact title first, then a title with its maker, then the maker's chosen and starred work. At the same closeness of match a maker's own work stands ahead of a museum's object; a closer match still comes first, whoever made it.
+- Wander by a word reads the words the same way.
+- Words that found nothing are kept for ninety days so the house can read what people looked for: the words, the day and a count, and nothing about who asked.
+
 ## 1.89.1 · Search, asked the way a person asks · 20 November 2026
 
 - "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.

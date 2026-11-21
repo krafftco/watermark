@@ -1869,9 +1869,11 @@ ${err ? `<p class="err">${esc(err)}</p>` : ''}<form method="post" action="/feedb
 <input name="website" tabindex="-1" autocomplete="off" class="hpot" aria-hidden="true">
 <button class="btn">Send</button></form>`}</section>` });
 }
-function feedbackDesk({ rows, ok }) {
+function feedbackDesk({ rows, ok, misses = [] }) {
   const label = { broke: 'Broke', confusing: 'Confusing', idea: 'Idea', loved: 'Loved' };
   return layout({ studio: true, path: '/studio/feedback', title: 'Feedback · Watermark', body: `<section class="studio-wrap"><p class="k">The beta</p><h1>Feedback.</h1>${ok ? `<p class="ok">${esc(ok)}</p>` : ''}
 <p class="lede">What testers and visitors told the house, newest first. Mark each one done when it is answered or fixed.</p>
-${rows.length ? `<ol class="fb-l">${rows.map(r => `<li class="${r.done ? 'fb-done' : ''}"><p class="fb-m"><b>${label[r.kind] || 'Note'}</b> &middot; ${esc(String(r.at).slice(0, 16).replace('T', ' '))} UTC${r.page ? ` &middot; <a href="${esc(r.page)}">${esc(r.page)}</a>` : ''}${r.email ? ` &middot; <a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ''}${r.device ? ` &middot; <small>${esc(r.device)}</small>` : ''}</p><p class="fb-b">${esc(r.body).replace(/\n/g, '<br>')}</p><form method="post" action="/studio/feedback/${r.id}" class="inline"><button class="link">${r.done ? 'Open again' : 'Done'}</button></form></li>`).join('')}</ol>` : '<p>Nothing yet.</p>'}</section>` });
+${rows.length ? `<ol class="fb-l">${rows.map(r => `<li class="${r.done ? 'fb-done' : ''}"><p class="fb-m"><b>${label[r.kind] || 'Note'}</b> &middot; ${esc(String(r.at).slice(0, 16).replace('T', ' '))} UTC${r.page ? ` &middot; <a href="${esc(r.page)}">${esc(r.page)}</a>` : ''}${r.email ? ` &middot; <a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ''}${r.device ? ` &middot; <small>${esc(r.device)}</small>` : ''}</p><p class="fb-b">${esc(r.body).replace(/\n/g, '<br>')}</p><form method="post" action="/studio/feedback/${r.id}" class="inline"><button class="link">${r.done ? 'Open again' : 'Done'}</button></form></li>`).join('')}</ol>` : '<p>Nothing yet.</p>'}
+<h2 id="searches">Searches that found nothing</h2><p class="lede">The last thirty days: the words, how often, and the last day. No person is kept with them; they are let go after ninety days.</p>
+${misses.length ? `<ol class="fb-l">${misses.map(m => `<li><p class="fb-m"><b>${esc(m.words)}</b> &middot; ${Number(m.n)} time${Number(m.n) === 1 ? '' : 's'} &middot; ${esc(String(m.last))} &middot; <a href="/find?q=${encodeURIComponent(m.words)}">Try it</a></p></li>`).join('')}</ol>` : '<p>Nothing yet.</p>'}</section>` });
 }
