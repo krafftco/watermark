@@ -3041,6 +3041,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/yours?tab=market', { cookie: ick }); assert.ok(r.body.toString().includes('Offers for your pieces') && r.body.toString().includes('$70'), 'the collector sees the offer');
   const ofr = db.prepare("SELECT id FROM offers WHERE status='open'").get().id;
   r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('offer=held'), 'a trade starts the holding time again (#165)');
+  db.prepare("UPDATE trades SET at=datetime('now','-1 minute') WHERE license_id=(SELECT id FROM licenses WHERE ref=?)").run(held2.ref); // the register keeps seconds: a lift in the trade's own second would count as before it
   r = await req(port, 'POST', '/studio/market/hold', { cookie: ck, body: { ref: held2.ref, reason: 'A test of the market, again' } });
   r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('accepted=1'));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM bids WHERE status='new' AND offer_cents=7000").get().n, 1, 'accepted offers go to the Studio');

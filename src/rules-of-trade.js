@@ -24,7 +24,7 @@ const when = s => { if (!s) return null; const t = String(s); const d = new Date
 // soldAt: when the piece was last sold (its issue, or its last trade). liftedAt: when the Studio lifted its hold.
 function heldUntil(soldAt, liftedAt, now = new Date()) {
   const s = when(soldAt); if (!s) return null;
-  const l = when(liftedAt); if (l && l >= s) return null;
+  const l = when(liftedAt); if (l && l > s) return null; // a lift counts for the sale before it (times are to the second: a sale in the same second as a lift is a new sale)
   const until = new Date(s.getTime() + holdDays() * 864e5);
   return until > now ? until : null;
 }
