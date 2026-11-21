@@ -1621,7 +1621,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
     r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
     r = await req(port, 'GET', `/portrait/${hm.handle}?tall=1`); const tl = await require('sharp')(r.body).metadata(); assert.ok(tl.height > tl.width, 'the whole portrait, its own shape');
-    r = await req(port, 'GET', '/director'); assert.ok(/tall=1/.test(r.body), 'the director stands in the whole portrait'); }
+    r = await req(port, 'GET', '/director', { cookie: ck }); assert.ok(/tall=1/.test(r.body), 'the director stands in the whole portrait'); }
   console.log('ok: the portrait');
 
 
@@ -1692,7 +1692,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const dm = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get(); assert.ok(dm && dm.kind === 'institution' && dm.rights_open === 1 && db.prepare('SELECT COUNT(*) n FROM uses WHERE maker_id=?').get(dm.id).n > 0, 'the demo institution with its uses');
     for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
     const dj = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(dj.status === 'done' && dj.max === 1 && dj.n <= 1, 'capped at one for the test: ' + JSON.stringify(dj));
-    r = await req(port, 'GET', '/rights/museum-demo'); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
+    r = await req(port, 'GET', '/rights/museum-demo'); assert.equal(r.headers.location, '/about', 'the demonstration desk is not public until a museum claims a desk (#188)');
+    r = await req(port, 'GET', '/rights/museum-demo', { cookie: ck }); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
     // The scout: look before bringing. The search shows what the house holds; a tick brings one in through the feeds.
     r = await req(port, 'GET', '/studio/scout'); assert.ok(r.status === 302 || r.status === 401 || r.status === 403, 'the scout is the Studio\'s');
     r = await req(port, 'GET', '/studio/scout', { cookie: ck }); assert.ok(r.status === 200 && /The scout\./.test(r.body) && /data-sct-go/.test(r.body), 'the scout');
@@ -2676,7 +2677,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   }
   console.log('ok: the house’s edition');
   console.log('ok: the rights desk');
-  { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
+  { r = await req(port, 'GET', '/director'); assert.ok(r.status === 302 && r.headers.location === '/about', 'the director’s page is the Studio’s (#188)');
+    r = await req(port, 'GET', '/director', { cookie: ck }); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
   console.log('ok: the director');
   // Studio-only since #188: a stranger is sent to /about; the Studio still reads the page.

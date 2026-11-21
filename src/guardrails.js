@@ -16,8 +16,8 @@ function securityHeaders(base) {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https://archive.org https://*.archive.org",
     "script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdnjs.cloudflare.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:", // the house's own fonts (#188): no other host is asked for a font or a stylesheet
     // the vault, for arrivals put straight into the bucket from the Masters desk (S3, or an S3-compatible endpoint)
     `connect-src 'self' https://api.stripe.com https://studios.krafftco.com https://*.krafftco.com${process.env.S3_BUCKET ? ' https://*.amazonaws.com' : ''}${process.env.S3_ENDPOINT ? ' ' + String(process.env.S3_ENDPOINT).replace(/\/$/, '') + ' https://*.' + String(process.env.S3_ENDPOINT).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : ''}`,
     "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",

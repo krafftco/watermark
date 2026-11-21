@@ -163,7 +163,7 @@ function mountSheets(app, { db, V, images, cache, originalPath, ledger, makerOf,
     const day = s.from ? fmtDay(s.from) : ''; const span = s.from && s.to ? `${hour(s.from)} to ${hour(s.to)}` : '';
     const data = JSON.stringify({ frames: fr, mine, slug: s.pick.slug, maker: m.name, place: s.place, back, open: s.open }).replace(/</g, '\\u003c');
     res.send(V.layout({ title: `Contact sheet · ${tidy(s.pick.title)} · ${m.name}`, path: '/wander', bare: true, body: `<main class="ctc" data-ctc>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap">
+
 <header class="ctc-top"><a class="ctc-back" href="${esc(back)}" aria-label="Back">←</a><span>Contact sheet</span><button type="button" class="ctc-silver-b" data-ctc-silver aria-pressed="false">Print in silver</button></header>
 <div class="ctc-desk">
 <article class="ctc-paper" aria-label="Contact sheet: ${esc(m.name)}${s.place ? ', ' + esc(s.place) : ''}">
@@ -235,7 +235,7 @@ ${closed ? `<form method="post" action="/account/sheets/all"><input type="hidden
     return null;
   }
   const card = w => `<section class="st-i st-sheet" data-slug="${esc(w.slug)}" data-kind="sheet"><article class="st-sh"><a class="ctc-paper ctc-mini" href="${esc(w.href)}">${w.film}</a><p class="k">From the contact sheet</p><h2>${esc(w.title)}</h2><p class="st-shby">${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${w.day ? ` · ${esc(w.day)}` : ''}</p><a class="st-shgo" href="${esc(w.href)}">See the whole roll · ${w.n} frames</a></article></section>`;
-  const STYLE = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap">';
+  const STYLE = '';
 
   app.locals.sheets = { of, list, latest, screen, card, film, runsOf, forget, STYLE };
   return app.locals.sheets;

@@ -753,7 +753,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
   // Kept five minutes (9 Nov: a grouping over every held work and a standing a maker, 1.7 s on the live house).
   app.locals.shared.register('artists', { ms: 300e3, build: () => {
-    const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') GROUP BY m.id ORDER BY n DESC, m.id`).all();
+    const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') AND COALESCE(m.house_desk,0)=0 GROUP BY m.id ORDER BY n DESC, m.id`).all();
     const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
       collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
     artists.forEach(a => { const st = RG.standing(db, a.id); a.regard = st.standing; a.shown = st.n; a.held = st.held; }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
@@ -873,7 +873,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.send(V.reported({ w }));
   });
   app.get('/about', (req, res) => res.send(V.about()));
-  require('./director').mountDirector(app, { db, V, C });
+  require('./director').mountDirector(app, { db, V, C, isStudio });
   require('./promises').mountPromises(app, { V, C }); // the country store: the house's promises (/promises)
   require('./owners').mountOwners(app, { db, V, C, isStudio }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
@@ -1336,7 +1336,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C, ledger });
-  require('./releases').mountReleases(app, { V }); // what's new: the shipped product's record (27 Oct)
+  require('./releases').mountReleases(app, { V, isStudio }); // what's new: the shipped product's record (27 Oct)
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
   require('./museums').mountMuseums(app, { db, C, V, studioOnly }); // a museum for everyone (29 Oct): the open door, the limited wall, the halls earned, following
@@ -2227,7 +2227,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
     if ('note' in b) db.prepare('UPDATE works SET note=? WHERE id=?').run(t(b.note, 2000), w.id);
-    db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
+    // (#188) Only the Studio's form carries the registration (the plate's 'U.S. Registered'); a maker's save leaves it as it was.
+    if ('copyright_reg' in b && isStudio(req)) db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
     // Edition size: blank for an open edition. It can never be set below what has already been collected.
     // (#165) Once one is collected it may stay or come down to what is sold, never go up, and is never opened again.
     const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });
