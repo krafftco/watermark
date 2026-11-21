@@ -86,6 +86,16 @@ The CTO session keeps it honest.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 
+- **A bare status a person met** (20 Nov, #149). `res.sendStatus` is the house's own for every room (`app.response` in
+  `src/breaks.js`, so order of mounting does not matter): a navigation (`Sec-Fetch-Mode: navigate`, any method) gets the
+  sign, a script (`/api/`, `Sec-Fetch-Dest: empty`, JSON asked) gets `{ok:false, code, why, error}`, an image or file its
+  status. A room that catches its own error answers `res.fault(e)` / `res.fault(e, 503)`, never `sendStatus(500)`: the
+  fault is kept with its room and its copy (`instance`, src/instances.js ME) in `app.locals.lastFault` and `recentFaults`
+  (Studio's /healthz; per process, so ask each copy) and a `[break] <instance> …` line. src/adb.js marks its 57014 like
+  the bridge does (`status 503`, `limit`, `sql`).
+  Every word on a break page is in `COPY` there. The one-moment page is `/static/cold.html` (self-contained; the edge's
+  copy is uploaded by `scripts/edge-page.js`); `scripts/breaks-walk.js` stops a house mid-visit behind a stand-in edge.
+
 ## The scale gate (#8)
 - `node scripts/big-house.js` builds a house of 100,000 works from rows (about 10 s here: real pictures for six works,
   every other row a clone pointing at their files) and walks every room once as visitor, maker `mk`, museum `museum-a`
@@ -177,6 +187,25 @@ The CTO session keeps it honest.
 - On Postgres, COUNT(DISTINCT x) over millions of rows spills to disk under the default work_mem (4 MB): EXPLAIN (ANALYZE,
   BUFFERS) shows `Sort Method: external merge`. Roll it up by day instead.
 - `express` 5: a test-only route goes first with `app.router.stack.unshift(app.router.stack.pop())` (test/pglimit.js).
+
+## Prepared copies (#139)
+- `src/prepared.js`: the worker asks its own house (a port of its own on 127.0.0.1, header `x-wm-prepare` with a key made
+  per process) for each stranger door and writes the page to `prepared_pages`; every website mirrors the rows in memory
+  by a poll on the async path; a stranger's door is answered from memory with no statement. `PREPARED=0` turns it off;
+  under test it is off unless `createApp({ prepared: true })`; call `prepared.round()` then `prepared.sync()` yourself.
+- Who is a person is `isPerson(req)` there, also used by `minute()`. Any `wm_*` cookie not in INERT (or, on the hall's
+  doors, HALL_INERT) is a person: a cookie you add is a person until you prove the doors do not read it and add it there.
+- `wm_tz` is the visitor's zone and the clock reads it (clock.js `programme`: /house's rows when not quiet, the Keys).
+  The worker's request marks a copy that asked the clock (`X-Wm-Zoned` → `prepared_pages.zoned`); a visitor with a
+  zone is built fresh for a zoned copy, and a zoned copy is `private, max-age=0`. Test anything that reads the hour with
+  `V.setQuiet(false)` too: quiet hides the clock's rows, so a quiet-only test proves nothing about them.
+- A page sent from a copy is not written to `hits` when sent: the copy's own line posts `/api/arrived` from the browser, and
+  that is the visit (with the work's view, `app.locals.viewLater`). A test that counts hits flushes first
+  (`app.locals.analytics.flush()`, `app.locals.flushViews()`).
+- Counting Postgres statements in process: patch `require('src/pgsync').open` before `createApp` to wrap each statement's
+  get/all/run (the async path's statements are not counted that way; on SQLite the prototype wrap counts both).
+- Two processes booting at once against one Postgres can fail with `tuple concurrently updated` on the dialect's
+  `CREATE OR REPLACE FUNCTION wm_mod`: start the second when the first answers /healthz.
 
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as

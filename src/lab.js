@@ -157,7 +157,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const a = db.prepare("SELECT * FROM lab_assets WHERE token=? AND expires > datetime('now')").get(String(req.params.token)); if (!a || a.takes >= 5) return res.sendStatus(404);
     const j = jobOf(a.job_id); if (!j || j.status === 'declined') return res.sendStatus(404);
     const o = orderOf(j.order_id); const w = db.prepare('SELECT * FROM works WHERE id=?').get(o.work_id2);
-    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.fault(e, 503); }
     db.prepare('UPDATE lab_assets SET takes=takes+1 WHERE token=?').run(a.token); db.prepare('UPDATE print_jobs SET downloads=downloads+1 WHERE id=?').run(j.id);
     try { ledger.append(db, 'print.file', o.ref, { job: j.id, by: 'lab', hidden: true }); } catch (e) { /* */ }
     const ext = path.extname(w.original_file || file).toLowerCase() || '.jpg'; const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.tif': 'image/tiff', '.tiff': 'image/tiff' }[ext] || 'application/octet-stream';

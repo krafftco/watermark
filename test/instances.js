@@ -186,6 +186,31 @@ async function twoCopies() {
   const row = await A.sql('SELECT host FROM arrivals WHERE id=?', [st.id], 'get'); assert.equal(row.host, B.me, 'by B, the copy that holds the file');
   console.log(`instances: an upload begun on A and sent through B, taken in once by B (${done.outcome}) while A's pump and both sweeps ran`);
 
+  // 7. (#139) Prepared copies with two copies of the website: the round runs on one process (its lease), each copy's
+  //    poll reads the one table, a stranger gets the same copy from either, and a person is built fresh on either.
+  { const t = Math.floor(Date.now() / 1000);
+    for (const w of ws.slice(0, 2)) await A.sql("INSERT INTO hits (at, path, kind, status, ms, visitor, bot) VALUES (?, ?, 'page', 200, 5, 'v', 0)", [t, '/w/' + w.slug], 'run');
+    const [ra, rb] = await Promise.all([A.call('prepared.tick'), B.call('prepared.tick')]);
+    assert.ok((ra === null) !== (rb === null), `the round ran on one copy only (A ${JSON.stringify(ra)}, B ${JSON.stringify(rb)})`);
+    const made = ra || rb; assert.ok(made.made >= 6, `the doors and the two works asked for are made (${made.made})`);
+    await Promise.all([A.call('prepared.sync'), B.call('prepared.sync')]);
+    const holder = await A.sql("SELECT holder FROM leases WHERE k='timer:prepared'", [], 'get'); assert.ok([A.me, B.me].includes(holder.holder), 'the lease names the copy that ran it');
+    for (const p of [`/w/${ws[0].slug}`, `/w/${ws[1].slug}`, '/', '/wander', '/collection', '/makers', '/house']) {
+      const [x, y] = await Promise.all([get(A, p), get(B, p)]);
+      assert.ok(x.headers.get('x-prepared') !== null && y.headers.get('x-prepared') !== null, `${p}: a stranger is served the prepared copy on both copies`);
+      assert.equal(x.headers.get('etag'), y.headers.get('etag'), `${p}: the same copy from A and from B`); assert.equal(x.text, y.text, `${p}: byte for byte`);
+    }
+    for (const cookie of [ck, 'wm_v=0123456789abcdef', 'wm_b=1.forged']) for (const c of [A, B]) {
+      const r2 = await get(c, `/w/${ws[0].slug}`, { cookie }); assert.ok(!r2.headers.get('x-prepared'), `a person on ${c === A ? 'A' : 'B'}: built fresh`);
+      assert.equal(r2.headers.get('cache-control'), 'private, no-store', 'and private');
+    }
+    // Kept back on A: both copies stop serving it after the next round and their polls.
+    await A.sql("UPDATE works SET keep_back=1, status='hidden' WHERE id=?", [ws[1].id], 'run');
+    await (ra ? A : B).call('prepared.tick'); await Promise.all([A.call('prepared.sync'), B.call('prepared.sync')]);
+    for (const c of [A, B]) { const r2 = await get(c, `/w/${ws[1].slug}`); assert.ok(!r2.headers.get('x-prepared'), 'a kept-back work: no copy on either'); }
+    await A.sql("UPDATE works SET keep_back=0, status='held' WHERE id=?", [ws[1].id], 'run');
+    console.log(`instances: prepared copies on two copies: the round ran once (on ${ra ? 'A' : 'B'}), a stranger got the same copy from both, a person was built fresh on both, a kept-back work left both`); }
+
   // 6. A crash between Stripe sending and the row being written: the next attempt, on another copy, asks Stripe with the
   //    same key (real Stripe then answers with the transfer it made), and the house records one payment.
   const keysTo = acct => money().filter(x => x.kind === 'transfer' && x.destination === acct).map(x => x.key);

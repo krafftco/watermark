@@ -180,7 +180,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     if (j.status === 'offered' || j.status === 'declined') return res.sendStatus(403);
     if (j.downloads >= 3 && !isStudio(req)) return res.status(410).send(V.layout({ title: 'The file · Watermark', body: '<section class="narrow"><h1>Three takes, used.</h1><p class="lede">Write to the house if the file was lost on the way.</p></section>' }));
     const o = orderOf(j.order_id); const w = db.prepare('SELECT * FROM works WHERE id=?').get(o.work_id2);
-    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = app.locals.printFile ? await app.locals.printFile(w, o) : await originalPath(w); } catch (e) { return res.fault(e, 503); }
     db.prepare('UPDATE print_jobs SET downloads=downloads+1 WHERE id=?').run(j.id);
     try { ledger.append(db, 'print.file', o.ref, { job: j.id, hidden: true }); } catch (e) { /* */ }
     const ext = path.extname(w.original_file || file).toLowerCase() || '.jpg';
@@ -191,7 +191,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
   app.get('/account/printing/:id/ticket.pdf', (req, res) => {
     const x = asShop(req, res); if (!x) return; const j = jobOf(+req.params.id); if (!j || (j.shop_id !== x.s.id && !isStudio(req))) return res.sendStatus(404);
     const o = orderOf(j.order_id); const shop = shopById(j.shop_id);
-    let PDFDocument; try { PDFDocument = require('pdfkit'); } catch (e) { return res.sendStatus(503); }
+    let PDFDocument; try { PDFDocument = require('pdfkit'); } catch (e) { return res.fault(e, 503); }
     const doc = new PDFDocument({ size: [396, 612], margins: { top: 36, bottom: 36, left: 36, right: 36 } });
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="ticket-${o.ref}.pdf"`, 'Cache-Control': 'private, no-store' }); doc.pipe(res);
     doc.font('Helvetica').fontSize(8).fillColor('#777').text('WATERMARK · THE PRESS · PRINT TICKET', { characterSpacing: 2 }); doc.moveDown(0.8);

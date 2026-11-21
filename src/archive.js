@@ -119,7 +119,7 @@ Or drop the file on ${m.verify}.
     res.set('Content-Type', 'application/vnd.watermark.archive+zip');
     res.set('Content-Disposition', `attachment; filename="${w.accession || w.slug}.wmark"`);
     ledger.append(db, 'archive.issued', w.slug, { to: isStudio(req) ? 'studio' : (makerOf(req) || {}).id === w.maker_id ? 'maker' : 'reference-holder' });
-    try { await write(w, maker, res); } catch (e) { console.error('[archive]', e.message); if (!res.headersSent) res.status(500).send('The original could not be read from the vault.'); }
+    try { await write(w, maker, res); } catch (e) { console.error('[archive]', e.message); res.fault(e, 503); }
   });
 
   // Verification: a .wmark, or any image file, dropped on the house.

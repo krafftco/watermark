@@ -208,11 +208,16 @@ jobs:
           NODE_ENV=test WAYBACK_JSON=/tmp/wayback-webkit.json node test/wayback.js > /tmp/wayback-webkit.txt 2>&1 || rc=$?
           sed 's/^::/: :/' /tmp/wayback-webkit.txt
           node scripts/engine-findings.js wayback /tmp/wayback-webkit.json /tmp/wayback-webkit.txt $rc
+      # The breaks walk (#149): a room throws, a limit fires, the house stops mid-visit; photographs in the artifact.
+      - if: (success() || failure()) && steps.install.outcome == 'success'
+        run: NODE_ENV=test BREAKS_SHOTS=/tmp/breaks-webkit node scripts/breaks-walk.js
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: webkit-findings
-          path: /tmp/*-webkit.*
+          path: |
+            /tmp/*-webkit.*
+            /tmp/breaks-webkit/
           if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-24.04
@@ -253,4 +258,4 @@ jobs:
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
           psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk market-rules; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared market-rules; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
