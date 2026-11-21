@@ -4,7 +4,7 @@ const assert = require('assert'); const fs = require('fs'); const path = require
 const { createApp } = require('../src/app');
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-ovw-'));
-  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 'ovw', noTimers: true, vaultNow: true });
+  const app = createApp({ dataDir: dir, base: 'http://localhost', adminPassword: 'pw', secret: 'ovw', noTimers: true, vaultNow: true, prepared: true });
   const { db } = app.locals; const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
   const go = (p, o = {}, j) => fetch(base + p, { redirect: 'manual', ...o, headers: { origin: base, cookie: Object.entries(j).map(([k, v]) => `${k}=${v}`).join('; '), ...(o.headers || {}) } }).then(r => { for (const c of r.headers.getSetCookie()) j[c.split('=')[0]] = c.split('=')[1].split(';')[0]; return r; });
   const form = b => ({ method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(b).toString() });
@@ -15,7 +15,7 @@ const { createApp } = require('../src/app');
   db.prepare('INSERT INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) SELECT ?,key,name,description,term_months,kind,sort,price_cents FROM uses WHERE maker_id=(SELECT MIN(id) FROM makers)').run(mid);
   await go('/account?maker=ph', {}, me);
   const put = async n => { const buf = await sharp({ create: { width: 1600, height: 2000, channels: 3, background: { r: 40 * n, g: 90, b: 120 } } }).jpeg().toBuffer(); const fd = new FormData(); fd.append('file', new Blob([buf], { type: 'image/jpeg' }), `s${n}.jpg`); const j = await (await go('/account/works/one', { method: 'POST', body: fd }, me)).json(); return j.slug; };
-  const a = await put(1), b = await put(2), c = await put(3), d = await put(4);
+  const a = await put(1), b = await put(2), c = await put(3), d = await put(4), e = await put(5), f = await put(6), g = await put(7);
   db.prepare("UPDATE works SET status='held', width=6000, height=7500 WHERE maker_id=?").run(mid);
   const W = s => db.prepare('SELECT * FROM works WHERE slug=?').get(s);
   const year = new Date().getUTCFullYear(); const later = `${year + 1}-03-14`, past = `${year - 1}-02-01`, pastEnd = `${year - 1}-04-30`;
@@ -92,6 +92,38 @@ const { createApp } = require('../src/app');
   r = await go(`/account/works/${d}/onview`, form({ do: 'save', venue: 'Somewhere', city: 'Oslo', country: 'Norway', represents: '1' }), me); assert.ok(/ov=how/.test(r.headers.get('location')), 'represented needs a way to enquire');
   r = await go(`/account/works/${d}/onview`, form({ do: 'save', venue: 'Somewhere', city: 'Oslo', country: 'Norway', opens_on: later, until_on: past }), me); assert.ok(/ov=dates/.test(r.headers.get('location')), 'dates');
   t = await page(`/account/works/${d}?ov=how`, me); assert.ok(/A represented work needs a way to enquire/.test(t), 'told in words');
+
+  // 8. Prepared copies (#139): a stranger's copy of a work's page follows the line on the worker's next round, and a copy
+  // made before the change is never served after it (it is told at once, as when the picture copies are told).
+  { const P = app.locals.prepared; assert.ok(P && P.round, 'prepared copies are on in this house');
+    const now = () => Math.floor(Date.now() / 1000);
+    for (const s of [e, f, g]) db.prepare("INSERT INTO hits (at, path, kind, status, ms, visitor, bot) VALUES (?, ?, 'page', 200, 5, 'v1', 0)").run(now(), '/w/' + s);
+    const turn = async (o = {}) => { await P.round(o); await P.sync(); await P.sync(); };
+    const stranger = async s => { const r = await fetch(base + '/w/' + s); return { copy: r.headers.get('x-prepared') !== null, body: await r.text() }; };
+    await turn({ all: true });
+    let x = await stranger(e); assert.ok(x.copy && !/class="ovw"/.test(x.body) && /action="\/buy\//.test(x.body), 'a copy, before any line, selling as the house');
+    // 1. The line, after one round.
+    await go(`/account/works/${e}/onview`, form({ do: 'save', venue: 'Galerie Est', street: '3 Bowery', city: 'New York', country: 'United States', url: 'https://est.example', enquire: 'desk@est.example', until_on: later, afterwards: 'history' }), me);
+    x = await stranger(e); assert.ok(!x.copy || /Galerie Est/.test(x.body), 'between the write and the round: never the old copy');
+    await turn(); x = await stranger(e); assert.ok(x.copy && /On view at <a href="https:\/\/est.example"/.test(x.body), 'the copy carries the line after one round');
+    // 2. Represented: no stale copy goes on offering Collect; after one round the copy enquires with the gallery.
+    const pid = db.prepare("SELECT id FROM onview_places WHERE venue='Galerie Est'").get().id;
+    await go(`/account/works/${e}/onview`, form({ do: 'save', place: String(pid), venue: 'Galerie Est', street: '3 Bowery', city: 'New York', country: 'United States', url: 'https://est.example', enquire: 'desk@est.example', until_on: later, represents: '1', afterwards: 'history' }), me);
+    x = await stranger(e); assert.ok(!/action="\/buy\//.test(x.body) && !/data-collect-now/.test(x.body), 'before the round: no Collect from any copy');
+    await turn(); x = await stranger(e); assert.ok(x.copy && !/action="\/buy\//.test(x.body) && !/data-collect-now/.test(x.body) && /Enquire with Galerie Est/.test(x.body), 'the copy enquires, no Collect');
+    // 3. Removed by the Studio: the copy loses the line after one round.
+    await go(`/studio/works/${e}/onview`, form({ do: 'remove' }), me);
+    x = await stranger(e); assert.ok(!/Galerie Est/.test(x.body), 'before the round: the line is not served');
+    await turn(); x = await stranger(e); assert.ok(x.copy && !/Galerie Est/.test(x.body) && /action="\/buy\//.test(x.body), 'the copy without the line, the house selling again');
+    // 4. A whole hang at once: each work named, each copy remade.
+    db.prepare("INSERT INTO hangs (buyer_id, slug, title, public) VALUES (?, 'rooms-two', 'Rooms Two', 1)").run(bid); const h2 = db.prepare("SELECT id FROM hangs WHERE slug='rooms-two'").get().id;
+    [f, g].forEach((s, i) => db.prepare('INSERT INTO hang_works (hang_id, work_id, pos) VALUES (?,?,?)').run(h2, W(s).id, i));
+    for (const s of [f, g]) { x = await stranger(s); assert.ok(x.copy && /action="\/buy\//.test(x.body), 'copies before'); }
+    await go(`/account/works/${f}/onview`, form({ do: 'save', venue: 'Galerie West', city: 'Berlin', country: 'Germany', url: 'https://west.example', until_on: later, represents: '1', afterwards: 'history', hang: String(h2) }), me);
+    for (const s of [f, g]) assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='onview.stated' AND subject=?").get(s), 'the register names ' + s);
+    await turn();
+    for (const s of [f, g]) { x = await stranger(s); assert.ok(x.copy && /Enquire with Galerie West/.test(x.body) && !/action="\/buy\//.test(x.body), 'each copy of the hang, after one round: ' + s); }
+  }
 
   console.log('onview: all hold'); srv.close(); fs.rmSync(dir, { recursive: true, force: true }); process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

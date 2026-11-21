@@ -50,7 +50,11 @@ function mountOnView(app, { db, V, ledger, studioOnly, makerOf }) {
   // works.onview (0 none, 1 a line, 2 a represented line), kept with each change, so a page that lists many works asks
   // nothing for the many that have no line (the scale gate's /trade: one question a work had taken it over 300).
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='onview'").get()) db.exec('ALTER TABLE works ADD COLUMN onview INTEGER NOT NULL DEFAULT 0');
-  const mark = ids => { for (const id of ids) db.prepare("UPDATE works SET onview=COALESCE((SELECT MAX(CASE WHEN s.represents=1 THEN 2 ELSE 1 END) FROM onview_works sw JOIN onview_places s ON s.id=sw.showing_id WHERE sw.work_id=? AND s.removed_at IS NULL), 0) WHERE id=?").run(id, id); };
+  const mark = ids => { for (const id of ids) { db.prepare("UPDATE works SET onview=COALESCE((SELECT MAX(CASE WHEN s.represents=1 THEN 2 ELSE 1 END) FROM onview_works sw JOIN onview_places s ON s.id=sw.showing_id WHERE sw.work_id=? AND s.removed_at IS NULL), 0) WHERE id=?").run(id, id);
+    // (#139) A stranger's prepared copy of the page stops being served at once (as when the picture copies are told), so a
+    // copy made before the change never goes on offering the house's own sale; the register entry below has the worker
+    // make it again on its next round.
+    const P = app.locals.prepared; if (P && P.forget) { const r = db.prepare('SELECT slug FROM works WHERE id=?').get(id); if (r) try { P.forget(r.slug); } catch (e) { /* the round still remakes it */ } } } };
   const COLS = 's.id, s.maker_id, s.venue, s.street, s.city, s.country, s.url, s.enquire, s.opens_on, s.until_on, s.represents, s.afterwards, s.stated_by';
   const ONE = `SELECT ${COLS}, sw.licence, sw.prints FROM onview_works sw JOIN onview_places s ON s.id=sw.showing_id WHERE sw.work_id=? AND s.removed_at IS NULL ORDER BY s.id DESC LIMIT 1`;
   const today = () => new Date().toISOString().slice(0, 10);
