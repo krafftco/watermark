@@ -25,6 +25,15 @@ Every sentence below is a draft for Will; nothing new is granted or promised, an
 ## 1.89.1 · Search, asked the way a person asks · 20 November 2026
 
 - "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.
+## 1.89.2 · The house is not a stock library · 20 November 2026
+
+_A draft for Will: the words here and on the pages are his to confirm._
+
+- The page called "For the trade" is retired. It listed every photograph in rows with its file size and its prices, a search by megapixels, a watermarked sample to download and a quote for a set. The house does not read that way any more. Its address now leads to the collection.
+- Licensing itself has not changed. Each work's own licence page still shows what it may be used for and what each use costs, or "Ask".
+- New on that page: the size of the file, and "Ask about using this work", a short letter to the house (your email, your company, the use). The house answers in writing within one working day; the maker is told as well.
+- The switch that turned the trade side on for a device is gone with it: no "Trade" mark in the header and no added panel on a work's page, for anyone. A device that still carries the old switch sees the same house as everyone else, and the switch is forgotten the next time it follows an old trade link.
+- "For the trade" is out of the menus, the footer, the list of every room and the suggestions by time of day. The agencies' API page is as it was.
 
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
