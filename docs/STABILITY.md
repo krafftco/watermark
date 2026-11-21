@@ -235,4 +235,4 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 
 ## 21 Nov 2026: a made-up collector's cookie was a 500 on Postgres (#182)
 - What was found: `buyerOf` in `src/app.js` read the id in `wm_b` with `+id`; a cookie that is not `<number>.<mac>` asked Postgres for `id = NaN` ("invalid input syntax for type bigint") and the room answered 500. SQLite answered no one. Every room that asks who the collector is (the hang's labels, sales and checklist among them) was open to it. Found by `test/papers.js` on Postgres.
-- The repair (1.89.2): an id that is not a whole number is no one (`buyerOf` returns null before asking).
+- The repair (1.89.3): an id that is not a whole number is no one (`buyerOf` returns null before asking).

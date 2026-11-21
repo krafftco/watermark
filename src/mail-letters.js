@@ -74,6 +74,7 @@ function collected(c) {
     c.proof ? proof(c) : '',
     rule(),
     section('What you hold'),
+    c.holds ? para(esc(c.holds)) : '',
     rights(c.can, c.cannot),
     section('The particulars'),
     ledgerRows([
@@ -99,6 +100,7 @@ function collected(c) {
     c.printUrl ? `Print it (the sizes it holds, how, or the house prints it): ${c.printUrl}` : '',
     c.proof ? `Hold it in your hand: the proof, a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, your number in pencil, posted, ${c.proof.price}: ${c.proof.url}` : '',
     `The certificate: ${c.certUrl}\nThe agreement: ${c.contractUrl}`,
+    c.holds ? `What you hold. ${c.holds}` : '',
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
     `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
     `Watermark number: ${c.number}. Anyone can check it: ${c.checkUrl}`,

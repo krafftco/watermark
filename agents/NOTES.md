@@ -269,6 +269,17 @@ The CTO session keeps it honest.
   (test/sources.js has one from the Gallery and one from the Met).
 - A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.
 
+## What you hold (#176)
+- What a collector holds is said in one place: `src/holds.js` (`statement`, `block`, `ofLicense`, `offering`). A page that
+  offers, confirms or resells a work calls it; never write a sentence about a right into a page. Each clause names its
+  source in the license (src/contract.js) or the terms (src/legal.js); a clause with no source is a question for
+  docs/COUNSEL.md, not a sentence. `test/holds.js` walks collect, a license, a print, an open print and a resale.
+- `H.NEVER` is the list of words a visitor never reads; `test/holds.js` checks the words between the tags and in
+  alt/title/aria-label/placeholder on every page it walks. Still said elsewhere (not walked): "wallet" in the gallery's
+  files tab and in the terms of the house, "token" and "hashed" in the terms (their text is fingerprinted: a change is
+  Will's and counsel's).
+- A page's own rules restyle a bare `<b>` or `<p>` (the work page made the label 30 px): look at a new block on each
+  page at 390 wide, do not trust one.
 ## A maker's papers (#182)
 - `src/papers.js`: printable views off the Library (`/account/table/inventory|prices|consignment|checklist|exhibitions`) and a hang (`/hang/:id/checklist`); the wall labels stay in editions.js (`?prices=0` drops prices). Each paper is a self-contained page (its own CSS, `ppr-*`), like the labels, so the house's shell is never printed. A selection is `?from=hang:<id>`, `?q=<word>`, or the maker's picks (`works.flag='pick'`); 200 works a sheet.
 - No paper writes: inputs on a sheet are for printing only (no form posts). Keep it so; a stored price list is a new promise.
