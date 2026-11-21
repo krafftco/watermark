@@ -252,13 +252,11 @@ The CTO session keeps it honest.
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
-<<<<<<< HEAD
 - **On view at** (#166, `src/onview.js`): `onview_places` (a place stated once) and `onview_works` (one line a work).
   `showings` is already cabinet.js's table (a collector's showings): grep `CREATE TABLE IF NOT EXISTS <name>` before
   naming one; a clash shows only as a 500 on another room (test/menus.js found it). What the house offers on a work is
   decided in one place, `listed()`/`offered()` in app.js: a key closed there (as `viewClosed`, `clearClosed`) closes
   the page, /buy, /license, the print editions and Wander's Collect at once.
-=======
 
 ## The sources (#170, docs/SOURCES.md)
 - WebFetch reaches a museum's terms page only if a WebSearch result named that address first; search, then fetch the
@@ -270,4 +268,3 @@ The CTO session keeps it honest.
   card, the guest book, the JSON-LD, the file's XMP). Any change to those forms: check an open museum work too
   (test/sources.js has one from the Gallery and one from the Met).
 - A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.
->>>>>>> origin/w/170-sources-doc
