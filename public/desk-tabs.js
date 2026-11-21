@@ -25,8 +25,11 @@
   }
   nav.addEventListener('click', function (e) { var a = e.target.closest('a[data-tab]'); if (!a) return; e.preventDefault(); show(a.dataset.tab, true); window.scrollTo({ top: nav.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' }); });
   // A notice (?ok=) about terms or the master belongs with its tab; a hash picks a tab; else the first.
-  var want = (location.hash || '').slice(1);
+  // (#193) A hash may name a place inside a panel (#prints, #editions: a notice's and a letter's link): its panel opens.
+  var inside = function (h) { var el = h && document.getElementById(h); var p = el && el.closest && el.closest('.wk-panel'); return p ? p.id : h; };
+  var want = inside((location.hash || '').slice(1));
   var ok = document.querySelector('.ok, .err'); if (!want && ok) { var p = ok.closest('.wk-panel'); if (p) want = p.id; }
   show(want || tabs[0].id, false);
-  window.addEventListener('hashchange', function () { show((location.hash || '').slice(1), false); });
+  var mark = (location.hash || '').slice(1); if (mark && mark !== want && document.getElementById(mark)) setTimeout(function () { document.getElementById(mark).scrollIntoView(); }, 0);
+  window.addEventListener('hashchange', function () { show(inside((location.hash || '').slice(1)), false); });
 })();

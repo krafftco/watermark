@@ -7,7 +7,9 @@ const ROLE = require('./role');
 // Southwest's bags-fly-free: one plain promise, named, kept): every Friday, every dollar that has cleared goes
 // to the maker's bank, from a dollar up, no fee, no minimum to wait for. A sale clears HOLD_DAYS (7) after it is
 // paid, the window in which almost every refund or dispute lands, so the house never pays out money it then
-// returns; a print's share clears when the print is delivered, since the house carries the printing. 'Send it
+// returns; a print's share clears when the print is sent, since the house carries the printing. (#193) A print the
+// collector takes from the maker by hand clears like a sale, HOLD_DAYS after it is paid: the maker may keep the print
+// until the money has reached them, so its clearing never waits on the hand-over. 'Send it
 // now' pays the cleared amount any day. Until Stripe pays, the house pays by hand from the same statement.
 const { layout, esc, money, date, setDeskPath } = require('./views');
 
@@ -52,8 +54,8 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const Cp = tryAsk('c.seller_id', "SELECT c.seller_id id, COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE {F} AND c.seller_kind='maker' AND o.paid=1 GROUP BY c.seller_id");
     // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
     const clear = [
-      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND u.key<>'print' AND l.created_at > datetime('now', ?) GROUP BY w.maker_id`, since),
-      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.status IN ('sent','done','delivered')) GROUP BY w.maker_id`),
+      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND (u.key<>'print' OR EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.by_maker=1 AND o.pickup=1)) AND l.created_at > datetime('now', ?) GROUP BY w.maker_id`, since),
+      tryAsk('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(${MK}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id JOIN uses u ON u.id=l.use_id WHERE {F} AND ${paid} AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND (o.status IN ('sent','done','delivered') OR (o.by_maker=1 AND o.pickup=1))) GROUP BY w.maker_id`),
       tryAsk('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE {F} AND status='paid' AND COALESCE(paid_at, created_at) > datetime('now', ?) GROUP BY maker_id", since),
       tryAsk('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE {F} AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?) GROUP BY maker_id", since),
       tryAsk('t.maker_id', `SELECT t.maker_id id, COALESCE(SUM(CASE WHEN ${FON}=1 THEN t.price_cents ELSE CAST(o.price_cents * ${PCT} / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id JOIN makers mk ON mk.id=t.maker_id WHERE {F} AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?) GROUP BY t.maker_id`, since),

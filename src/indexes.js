@@ -38,6 +38,8 @@ const LIST = [
   ['reading_list_buyer', 'reading_list (buyer_id)'],
   ['work_releases_work', 'work_releases (work_id)'],
   ['print_orders_status', 'print_orders (status)'],
+  ['print_orders_work', 'print_orders (work_id, by_maker)'], // (#193) a work's prints the maker makes, on the maker's desk
+  ['print_orders_waiting', 'print_orders (by_maker, status)'], // (#193) the prints waiting with makers, on each studio's front
   ['tips_post', 'tips (post_slug)'],
   // the agents' door (#28): each of its lists reads only its window, by the day
   ['feedback_at', 'feedback (at)'],

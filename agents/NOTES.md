@@ -316,3 +316,10 @@ The CTO session keeps it honest.
 - Taking a page off the public house: Studio-only, a stranger 302 to /about, `noindex`, its links out of DOORS, FOOT, /about and the peephole; nothing deleted.
 - The repository krafftco/watermark is public (`gh api repos/krafftco/watermark --jq .private` is false): comments, docs and HISTORY are readable by anyone.
 
+## The first sale (#193)
+- Who makes a print is per edition: `print_editions.made_by` ('house' | 'maker' | 'hand'); the order carries `print_orders.by_maker` (and `pickup` for 'hand'). The press's `sweep()` never offers a `by_maker` order to a shop. `t.print.made` is set only when not the house's, so the house's terms (and their fingerprints) read as before.
+- A print's money clears when its order is sent; a print taken by hand (`by_maker=1 AND pickup=1`) clears on the hold from payment like any sale. Change that in `src/payouts.js` and in `test/statements.js`'s per-maker questions together.
+- Checkout sessions: Stripe v23's API keeps the address at `collected_information.shipping_details`. A grant from `/thanks` must pass `session: s`, or the print's address is lost.
+- `.cat` is two things (the Studio's works table and the record's catalogue grid): scope a table rule to `table.cat`. A work's record at 390: probe without `isMobile` too; with it, Chrome widens the layout to the widest thing and every box looks guilty.
+- `public/desk-tabs.js`: a hash naming an element inside a panel opens that panel (`#prints`, `#editions`); tab ids come from heading text, so never link to `#t-…`.
+- `test/firstsale.js` uploads through the vault's own doors; two test pictures that differ only in size or hue are the same picture to the fingerprint (flip, negate or greyscale one).
