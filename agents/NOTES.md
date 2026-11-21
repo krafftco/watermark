@@ -264,3 +264,8 @@ The CTO session keeps it honest.
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
+- **On view at** (#166, `src/onview.js`): `onview_places` (a place stated once) and `onview_works` (one line a work).
+  `showings` is already cabinet.js's table (a collector's showings): grep `CREATE TABLE IF NOT EXISTS <name>` before
+  naming one; a clash shows only as a 500 on another room (test/menus.js found it). What the house offers on a work is
+  decided in one place, `listed()`/`offered()` in app.js: a key closed there (as `viewClosed`, `clearClosed`) closes
+  the page, /buy, /license, the print editions and Wander's Collect at once.
