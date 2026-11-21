@@ -72,7 +72,7 @@ function mountOnView(app, { db, V, ledger, studioOnly, makerOf }) {
   // The line itself, as the house says it for a museum's object.
   function line(s, loc) {
     if (s.state === 'past') return `${W.shownAt} ${name(s)}${s.city || s.country ? ', ' + place(s, false) : ''}, ${esc(String(s.until_on).slice(0, 4))}.`;
-    const when = s.state === 'coming' && s.opens_on ? ` ${W.from} ${t(s.opens_on, loc)}${s.until_on ? ` ${W.until} ${t(s.until_on, loc)}` : ''}` : s.until_on ? ` ${W.until} ${t(s.until_on, loc)}` : '';
+    const when = s.state === 'coming' && s.opens_on ? `, ${W.from} ${t(s.opens_on, loc)}${s.until_on ? ` ${W.until} ${t(s.until_on, loc)}` : ''}` : s.until_on ? `, ${W.until} ${t(s.until_on, loc)}` : '';
     return `${W.onView} ${name(s)}, ${place(s)}${when}.`;
   }
   const who = s => (s.stated_by === 'studio' ? W.byStudio : W.byMaker);
