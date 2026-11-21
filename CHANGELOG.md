@@ -13,6 +13,23 @@ Every word and clause below is a draft: the words for Will, the clauses for coun
 - A license can now be for one country (or the European Union) and for a stated number of copies, of circulation or of audience. Each adds its own clause to the agreement and changes nothing else in it.
 - Such a license is agreed with the maker: the page says so, the request carries the answers, the maker names the fee, and the agreement and the papers then say the place and the number.
 - What you will hold says it in one breath before you pay: "in one territory (France) and in no more than 5,000 copies".
+## 1.89.3 · Search that reads the question, and the house is not a stock library · 21 November 2026
+
+Search that reads the question:
+- Search now reads a question the way it is asked: a title "by" its maker, a place with a year or a decade ("paris 1962", "paris 1960s"), an artist with a kind of work and where it is held ("seurat drawings at the art institute"), a phrase in quotes, and an accession number or a Watermark number typed exactly, which goes straight to that work.
+- When no work carries every word, the page no longer comes back empty. It shows what the most telling words find and says which word it set aside; a slip in a known name is read as the name, and said.
+- The order is a curator's: the exact title first, then a title with its maker, then the maker's chosen and starred work. At the same closeness of match a maker's own work stands ahead of a museum's object; a closer match still comes first, whoever made it.
+- Wander by a word reads the words the same way.
+- Words that found nothing are kept for ninety days so the house can read what people looked for: the words, the day and a count, and nothing about who asked.
+
+The house is not a stock library:
+_A draft for Will: the words here and on the pages are his to confirm._
+
+- The page called "For the trade" is retired. It listed every photograph in rows with its file size and its prices, a search by megapixels, a watermarked sample to download and a quote for a set. The house does not read that way any more. Its address now leads to the collection.
+- Licensing itself has not changed. Each work's own licence page still shows what it may be used for and what each use costs, or "Ask".
+- New on that page: the size of the file, and "Ask about using this work", a short letter to the house (your email, your company, the use). The house answers in writing within one working day; the maker is told as well.
+- The switch that turned the trade side on for a device is gone with it: no "Trade" mark in the header and no added panel on a work's page, for anyone. A device that still carries the old switch sees the same house as everyone else, and the switch is forgotten the next time it follows an old trade link.
+- "For the trade" is out of the menus, the footer, the list of every room and the suggestions by time of day. The agencies' API page is as it was.
 
 ## 1.89.2 · What you hold, said one way · 20 November 2026
 
@@ -26,7 +43,6 @@ Every sentence below is a draft for Will; nothing new is granted or promised, an
 ## 1.89.1 · Search, asked the way a person asks · 20 November 2026
 
 - "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.
-
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
 The trade's rules, kept by the house:
