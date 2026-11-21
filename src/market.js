@@ -234,26 +234,32 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     if (cs.payment_status !== 'paid') return null;
     const s = db.prepare('SELECT * FROM listings WHERE id=?').get(listingId);
     const pi = typeof cs.payment_intent === 'string' ? cs.payment_intent : cs.payment_intent && cs.payment_intent.id;
-    if (!s || s.status !== 'open') { // sold to someone else first: refund in full
-      try { await stripe.refunds.create({ payment_intent: pi }); ledger.append(db, 'market.refunded', `listing-${listingId}`, { amount: cs.amount_total }); } catch (e) { console.error('[market] refund', e.message); }
+    // Sold to someone else first: refund in full. (#123) Unless this very session sold it, on another copy, a moment ago.
+    const refund = async () => {
+      const same = db.prepare('SELECT * FROM trades WHERE stripe_session=?').get(cs.id); if (same) return same;
+      try { await stripe.refunds.create({ payment_intent: pi }, { idempotencyKey: `wm-refund-${cs.id}` }); ledger.append(db, 'market.refunded', `listing-${listingId}`, { amount: cs.amount_total }); } catch (e) { console.error('[market] refund', e.message); }
       return null;
-    }
+    };
+    if (!s || s.status !== 'open') return refund();
     const l = lic(s.license_id), d = cs.customer_details || {}, price = cs.amount_total;
     const b = buyerByEmail(d.email, typeof cs.customer === 'string' ? cs.customer : '');
     const sp = split(price), token = nanoid(32);
-    const tid = db.transaction(() => {
+    const tx = db.transaction(() => {
       db.prepare("INSERT INTO transfers (license_id, token, from_buyer, to_buyer, claimed_at) VALUES (?,?,?,?,datetime('now'))").run(l.id, nanoid(24), s.seller, b.id);
       const id = db.prepare("INSERT INTO trades (license_id, listing_id, bid_id, seller, price_cents, royalty_cents, fee_cents, settled, buyer_id, stripe_session, payment_intent) VALUES (?,?,?,?,?,?,?,'stripe',?,?,?)")
         .run(l.id, s.id, cs.metadata && cs.metadata.bid ? Number(cs.metadata.bid) : null, s.seller, price, sp.royalty, sp.fee, b.id, cs.id, pi || null).lastInsertRowid;
       db.prepare("UPDATE licenses SET buyer_id=?, download_token=?, licensee_name=COALESCE(?, licensee_name), licensee_email=COALESCE(?, licensee_email), updated_at=datetime('now') WHERE id=?").run(b.id, token, d.name || null, d.email || null, l.id);
-      db.prepare("UPDATE listings SET status='sold', closed_at=datetime('now'), held_until=NULL WHERE id=?").run(s.id);
+      // (#123) The claim: the listing moves to sold once. A second settle of the same session (the webhook on one copy of
+      // the website, the buyer's return on another) finds it sold and undoes nothing it began.
+      if (!db.prepare("UPDATE listings SET status='sold', closed_at=datetime('now'), held_until=NULL WHERE id=? AND status='open'").run(s.id).changes) throw Object.assign(new Error('settled elsewhere'), { settledElsewhere: true });
       db.prepare("UPDATE bids SET status=CASE WHEN id=? THEN 'settled' ELSE 'closed' END WHERE listing_id=? AND status='new'").run(cs.metadata && cs.metadata.bid ? Number(cs.metadata.bid) : 0, s.id);
       db.prepare("UPDATE offers SET status='closed', closed_at=datetime('now') WHERE license_id=? AND status='open'").run(l.id);
       db.prepare("INSERT INTO payouts (trade_id, kind, buyer_id, amount_cents) VALUES (?,?,?,?)").run(id, 'seller', s.seller, sp.seller);
       // The house keeps its own royalty; any other photographer is paid out.
       db.prepare("INSERT INTO payouts (trade_id, kind, maker_id, amount_cents, status) VALUES (?,?,?,?,?)").run(id, 'royalty', l.maker_id, sp.royalty, l.maker_id === maker.id ? 'house' : 'owed');
       return id;
-    })();
+    });
+    let tid; try { tid = tx(); } catch (e) { if (e.settledElsewhere) return refund(); throw e; }
     ledger.append(db, 'market.traded', l.ref, { work: l.slug, collector_no: l.collector_no, price, royalty: sp.royalty, fee: sp.fee, settled: 'stripe' });
     ledger.append(db, 'license.transferred', l.ref, { work: l.slug, collector_no: l.collector_no });
     if (mail && d.email) mail.send({ to: d.email, subject: `Yours: ${tidy(l.title)}, No. ${l.collector_no}`, text: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}, is now in your gallery.\n\nThe full file: ${C.base}/d/${token}\nIts certificate: ${C.base}/c/${l.ref}?k=${token}\nIts history: ${C.base}/w/${l.slug}/life` });
@@ -267,17 +273,26 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   // Pay every owed share whose recipient can be paid (a Connect account that can receive transfers).
   async function payOwed() {
     if (!stripe) return 0; let n = 0;
-    for (const p of db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.status='owed'").all()) {
-      const acct = p.buyer_id ? (db.prepare('SELECT stripe_account FROM buyers WHERE id=?').get(p.buyer_id) || {}).stripe_account : (db.prepare('SELECT stripe_account FROM makers WHERE id=?').get(p.maker_id) || {}).stripe_account;
-      if (!acct) continue;
-      try {
-        let charge; if (p.payment_intent) { const pi = await stripe.paymentIntents.retrieve(p.payment_intent); charge = pi.latest_charge; }
-        const tr = await stripe.transfers.create({ amount: p.amount_cents, currency: 'usd', destination: acct, transfer_group: `listing-${p.listing_id}`, ...(charge ? { source_transaction: charge } : {}), metadata: { payout: String(p.id) } });
-        db.prepare("UPDATE payouts SET status='paid', stripe_transfer=?, paid_at=datetime('now') WHERE id=?").run(tr.id, p.id);
-        ledger.append(db, 'payout.sent', `payout-${p.id}`, { kind: p.kind, amount: p.amount_cents }); n++;
-      } catch (e) { console.error('[payout]', p.id, e.message); }
+    const I = app.locals.instances;
+    for (const p0 of db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.status='owed'").all()) {
+      // (#123) One payer for a payout: the lease on it, then its row read again (another copy may have paid it and let go).
+      const k = `payout:${p0.id}`; if (I && !I.lease(k, 5 * 60e3)) continue;
+      try { const p = db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.id=? AND p.status='owed'").get(p0.id); if (p && await payOne(p)) n++; } finally { if (I) I.release(k); }
     }
     return n;
+  }
+  async function payOne(p) {
+    {
+      const acct = p.buyer_id ? (db.prepare('SELECT stripe_account FROM buyers WHERE id=?').get(p.buyer_id) || {}).stripe_account : (db.prepare('SELECT stripe_account FROM makers WHERE id=?').get(p.maker_id) || {}).stripe_account;
+      if (!acct) return false;
+      try {
+        let charge; if (p.payment_intent) { const pi = await stripe.paymentIntents.retrieve(p.payment_intent); charge = pi.latest_charge; }
+        // Stripe's own guard beside the lease: the same payout asked twice is one transfer.
+        const tr = await stripe.transfers.create({ amount: p.amount_cents, currency: 'usd', destination: acct, transfer_group: `listing-${p.listing_id}`, ...(charge ? { source_transaction: charge } : {}), metadata: { payout: String(p.id) } }, { idempotencyKey: `wm-payout-${p.id}` });
+        if (!db.prepare("UPDATE payouts SET status='paid', stripe_transfer=?, paid_at=datetime('now') WHERE id=? AND status='owed'").run(tr.id, p.id).changes) return false;
+        ledger.append(db, 'payout.sent', `payout-${p.id}`, { kind: p.kind, amount: p.amount_cents }); return true;
+      } catch (e) { console.error('[payout]', p.id, e.message); return false; }
+    }
   }
   app.locals.payOwed = payOwed;
 

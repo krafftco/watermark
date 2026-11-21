@@ -64,7 +64,7 @@ function mountSitters(app, { db, C, V, mail, ledger, grant, nextRef, q, makerOf,
     } catch (e) { console.error('[sitters] sync', e.message); }
     return n;
   }
-  if (!app.locals.noTimers) { setTimeout(sync, 20e3).unref(); setInterval(sync, 10 * 60e3).unref(); }
+  if (!app.locals.noTimers) { const one = app.locals.instances ? app.locals.instances.pinned('sitters-sync', 10 * 60e3, sync) : sync; setTimeout(one, 20e3).unref(); setInterval(one, 10 * 60e3).unref(); } // (#123) one process of the house
 
   // The house's gate on commercial use, one read a turn of the loop: a work's strictest sitter word.
   let gTick = null;

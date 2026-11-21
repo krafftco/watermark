@@ -34,7 +34,7 @@ function mountSeats(app, { db, C, buyerOf, setBuyer, ledger, V, mail, stripe = n
   });
   function addSeats(cs) {
     const o = db.prepare("SELECT * FROM seat_orders WHERE stripe_session=?").get(cs.id); if (!o || o.status !== 'pending' || cs.payment_status !== 'paid') return o;
-    db.prepare("UPDATE seat_orders SET status='paid', paid_at=datetime('now') WHERE id=?").run(o.id);
+    if (!db.prepare("UPDATE seat_orders SET status='paid', paid_at=datetime('now') WHERE id=? AND status='pending'").run(o.id).changes) return o; // (#123) the claim: once, whichever copy of the website comes first
     db.prepare('UPDATE licenses SET extra_seats=extra_seats+? WHERE id=?').run(o.n, o.license_id);
     const l = db.prepare('SELECT ref FROM licenses WHERE id=?').get(o.license_id);
     ledger.append(db, 'license.seats.added', l.ref, { n: o.n, amount: o.amount_cents });

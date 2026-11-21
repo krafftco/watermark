@@ -139,7 +139,7 @@ function mountTips(app, { db, C, stripe, maker, slugify, ledger, V, ghost = {}, 
     const rows = db.prepare('SELECT * FROM tips WHERE grp=?').all(grp); if (!rows.length || rows[0].stripe_session !== s.id || rows[0].status !== 'pending') return rows;
     if (s.status !== 'complete' && s.payment_status !== 'paid') return rows;
     const d = s.customer_details || {};
-    db.prepare("UPDATE tips SET status='paid', name=?, email=?, paid_at=datetime('now') WHERE grp=?").run(d.name || null, d.email || null, grp);
+    if (!db.prepare("UPDATE tips SET status='paid', name=?, email=?, paid_at=datetime('now') WHERE grp=? AND status='pending'").run(d.name || null, d.email || null, grp).changes) return db.prepare('SELECT * FROM tips WHERE grp=?').all(grp); // (#123) the claim: once, whichever copy of the website comes first
     for (const t of rows) ledger.append(db, t.role === 'thanks' ? 'thanks.given' : 'tip.given', `tip-${t.id}`, { story: t.post_slug, work: t.role === 'thanks' ? String(t.post_slug).replace(/^work:/, '') : undefined, to: db.prepare('SELECT handle FROM makers WHERE id=?').get(t.maker_id).handle, role: t.role, amount: t.amount_cents });
     return db.prepare('SELECT * FROM tips WHERE grp=?').all(grp);
   }
