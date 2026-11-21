@@ -47,6 +47,10 @@ function mountOnView(app, { db, V, ledger, studioOnly, makerOf }) {
     CREATE TABLE IF NOT EXISTS onview_works (showing_id INTEGER NOT NULL, work_id INTEGER NOT NULL, licence INTEGER NOT NULL DEFAULT 0, prints INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (showing_id, work_id));
     CREATE INDEX IF NOT EXISTS onview_works_work ON onview_works (work_id);
     CREATE INDEX IF NOT EXISTS onview_places_maker ON onview_places (maker_id, id)`);
+  // works.onview (0 none, 1 a line, 2 a represented line), kept with each change, so a page that lists many works asks
+  // nothing for the many that have no line (the scale gate's /trade: one question a work had taken it over 300).
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='onview'").get()) db.exec('ALTER TABLE works ADD COLUMN onview INTEGER NOT NULL DEFAULT 0');
+  const mark = ids => { for (const id of ids) db.prepare("UPDATE works SET onview=COALESCE((SELECT MAX(CASE WHEN s.represents=1 THEN 2 ELSE 1 END) FROM onview_works sw JOIN onview_places s ON s.id=sw.showing_id WHERE sw.work_id=? AND s.removed_at IS NULL), 0) WHERE id=?").run(id, id); };
   const COLS = 's.id, s.maker_id, s.venue, s.street, s.city, s.country, s.url, s.enquire, s.opens_on, s.until_on, s.represents, s.afterwards, s.stated_by';
   const ONE = `SELECT ${COLS}, sw.licence, sw.prints FROM onview_works sw JOIN onview_places s ON s.id=sw.showing_id WHERE sw.work_id=? AND s.removed_at IS NULL ORDER BY s.id DESC LIMIT 1`;
   const today = () => new Date().toISOString().slice(0, 10);
@@ -55,8 +59,8 @@ function mountOnView(app, { db, V, ledger, studioOnly, makerOf }) {
   // Read once a turn of the loop per work: a page that asks about every use asks the table once.
   let tick = null;
   const ofId = id => { if (!tick) { tick = new Map(); setImmediate(() => { tick = null; }); } if (!tick.has(id)) tick.set(id, shape(db.prepare(ONE).get(id) || null)); return tick.get(id); };
-  const of = w => (w && w.id ? ofId(w.id) : null);
-  const represented = w => { const s = of(w); return s && Number(s.represents) === 1 ? s : null; };
+  const of = w => (w && w.id && !(w.onview !== undefined && Number(w.onview) === 0) ? ofId(w.id) : null);
+  const represented = w => { if (w && w.onview !== undefined && Number(w.onview) !== 2) return null; const s = of(w); return s && Number(s.represents) === 1 ? s : null; };
   // The offer gate: Collect and the full original are the place's while it represents the work; a licence and prints
   // only if the maker keeps them.
   const blocks = (w, key) => { const s = represented(w); if (!s) return false; if (key === 'social' || key === 'reference') return true; if (key === 'print') return Number(s.prints) !== 1; return Number(s.licence) !== 1; };
@@ -95,7 +99,7 @@ function mountOnView(app, { db, V, ledger, studioOnly, makerOf }) {
   }
   // Wander's "about the work": the same line, asked on the async path.
   async function plate(w, req) {
-    const adb = app.locals.adb; if (!adb || !w || !w.id) return '';
+    const adb = app.locals.adb; if (!adb || !w || !w.id || (w.onview !== undefined && Number(w.onview) === 0)) return '';
     const s = shape(await adb.get(ONE, w.id).catch(() => null)); if (!s) return '';
     const rep = Number(s.represents) === 1, href = rep ? enquireHref(s, w) : null;
     return `<p class="wka-m ovw-wk">${line(s, localeOf(req))} <small>${who(s)}</small>${rep && href ? ` <a href="${esc(href)}" rel="noopener"${/^https?:/.test(href) ? ' target="_blank"' : ''}>${esc(W.enquire(s.venue))}</a>` : ''}</p>`;
@@ -133,9 +137,9 @@ ${hangs.length ? `<label>${W.allL}<select name="hang"><option value="">${W.allNo
   function act(req, res, w, back, by) {
     const x = req.body || {}; const go = said => res.redirect(`${back}?ov=${encodeURIComponent(said)}#on-view`);
     const cur = db.prepare(ONE).get(w.id) || null;
-    if (x.do === 'unlink') { if (cur) { db.prepare('DELETE FROM onview_works WHERE work_id=?').run(w.id); told(w, 'onview.removed', cur); } return go('ok-unlinked'); }
+    if (x.do === 'unlink') { if (cur) { db.prepare('DELETE FROM onview_works WHERE work_id=?').run(w.id); mark([w.id]); tick = null; told(w, 'onview.removed', cur); } return go('ok-unlinked'); }
     if (x.do === 'remove') {
-      if (cur) { db.prepare("UPDATE onview_places SET removed_at=datetime('now'), removed_by=? WHERE id=?").run(by, cur.id); for (const r of db.prepare('SELECT w.slug FROM onview_works sw JOIN works w ON w.id=sw.work_id WHERE sw.showing_id=? LIMIT 500').all(cur.id)) told({ slug: r.slug }, 'onview.removed', cur); }
+      if (cur) { db.prepare("UPDATE onview_places SET removed_at=datetime('now'), removed_by=? WHERE id=?").run(by, cur.id); const named = db.prepare('SELECT w.id, w.slug FROM onview_works sw JOIN works w ON w.id=sw.work_id WHERE sw.showing_id=? LIMIT 5000').all(cur.id); mark(named.map(r => r.id)); tick = null; for (const r of named) told(r, 'onview.removed', cur); }
       return go('ok-removed');
     }
     const url = clean(x.url, 300), enquire = clean(x.enquire, 300);
@@ -155,6 +159,8 @@ ${hangs.length ? `<label>${W.allL}<select name="hang"><option value="">${W.allNo
     if (x.hang && db.prepare('SELECT 1 FROM hang_works WHERE hang_id=? AND work_id=?').get(+x.hang, w.id)) works = db.prepare('SELECT w.id, w.slug FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.maker_id=? ORDER BY hw.pos, w.id LIMIT 500').all(+x.hang, w.maker_id);
     const lic = x.licence === '1' ? 1 : 0, pr = x.prints === '1' ? 1 : 0; const s = { venue: f.venue, stated_by: by };
     for (const k of works) { db.prepare('DELETE FROM onview_works WHERE work_id=?').run(k.id); db.prepare('INSERT INTO onview_works (showing_id, work_id, licence, prints) VALUES (?,?,?,?)').run(id, k.id, lic, pr); told(k, 'onview.stated', s); }
+    // A place brought up to date changes every work it names (represents may have changed): their marks too.
+    mark([...new Set([...works.map(k => k.id), ...db.prepare('SELECT work_id FROM onview_works WHERE showing_id=? LIMIT 5000').all(id).map(r => r.work_id)])]);
     tick = null;
     return go('ok-' + works.length);
   }
@@ -164,7 +170,7 @@ ${hangs.length ? `<label>${W.allL}<select name="hang"><option value="">${W.allNo
   app.post('/studio/works/:slug/onview', studioOnly, (req, res) => { const w = findWork(req.params.slug); if (!w) return res.redirect('/studio'); act(req, res, w, `/studio/works/${encodeURIComponent(w.slug)}`, 'studio'); });
 
   // The Studio's answer to a place that asked (the claim door, kind 'venue'): the line comes off the work at once.
-  const takeOff = (w, by) => { const cur = db.prepare(ONE).get(w.id) || null; if (!cur) return false; db.prepare('DELETE FROM onview_works WHERE work_id=?').run(w.id); tick = null; told(w, 'onview.removed', { venue: cur.venue, stated_by: by }); return true; };
+  const takeOff = (w, by) => { const cur = db.prepare(ONE).get(w.id) || null; if (!cur) return false; db.prepare('DELETE FROM onview_works WHERE work_id=?').run(w.id); mark([w.id]); tick = null; told(w, 'onview.removed', { venue: cur.venue, stated_by: by }); return true; };
   app.locals.onview = { takeOff, of, represented, blocks, forWork, strip, plate, block, W };
   return app.locals.onview;
 }
