@@ -117,7 +117,7 @@ ${mine ? `<section class="cr-mine"><p class="k">Yours</p><h2>You are a member of
   function activate(id, s) {
     const c = db.prepare('SELECT * FROM circle WHERE id=?').get(id); if (!c || c.status !== 'pending' || c.stripe_session !== s.id) return c;
     if (s.status !== 'complete' && s.payment_status !== 'paid') return c;
-    db.prepare("UPDATE circle SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=?").run(s.subscription || null, id);
+    if (!db.prepare("UPDATE circle SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=? AND status='pending'").run(s.subscription || null, id).changes) return db.prepare('SELECT * FROM circle WHERE id=?').get(id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, 'circle.joined', `circle-${id}`, { level: c.level, amount: c.cents });
     // A key comes with it: the collector's, if none is held.
     try { if (app.locals.keys && c.buyer_id) app.locals.keys.issue('collector', { buyer_id: c.buyer_id }, 'circle'); } catch (e) { /* keys may be issued later by the backfill */ }

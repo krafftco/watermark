@@ -41,14 +41,19 @@ if (!file || !url) { console.error('usage: DATABASE_URL=postgres://… node scri
     const cols = pgCols(t); const srcCols = new Set(src.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name));
     const use = cols.filter(c => srcCols.has(c.c)); if (!use.length) continue;
     const names = use.map(c => c.c).join(', ');
-    const rows = src.prepare(`SELECT ${names} FROM ${t}`).all(); let n = 0;
-    const CH = 200;
-    for (let i = 0; i < rows.length; i += CH) {
-      const chunk = rows.slice(i, i + CH);
-      const values = chunk.map((r, ri) => '(' + use.map((c, ci) => '$' + (ri * use.length + ci + 1)).join(',') + ')').join(',');
-      const params = []; for (const r of chunk) for (const c of use) { let v = r[c.c]; if (v instanceof Buffer && c.d !== 'bytea') v = v.toString(); if (typeof v === 'bigint') v = Number(v); params.push(v === undefined ? null : v); }
-      pg.prepare(`INSERT INTO ${t} (${names}) VALUES ${values}`).run(params); n += chunk.length;
+    // (#116) Read a row at a time and send in chunks: a table of millions (the visit log) is never held whole. A chunk is
+    // as many rows as fit 30,000 parameters (Postgres takes 65,535), at most 1,000, and under about 4 MB of text.
+    let n = 0;
+    const CH = Math.max(1, Math.min(1000, Math.floor(30000 / use.length)));
+    const insertOf = k => { const values = Array.from({ length: k }, (x, ri) => '(' + use.map((c, ci) => '$' + (ri * use.length + ci + 1)).join(',') + ')').join(','); return `INSERT INTO ${t} (${names}) VALUES ${values}`; };
+    const full = insertOf(CH);
+    let chunk = [], size = 0;
+    const send = () => { if (!chunk.length) return; const params = []; for (const r of chunk) for (const c of use) { let v = r[c.c]; if (v instanceof Buffer && c.d !== 'bytea') v = v.toString(); if (typeof v === 'bigint') v = Number(v); params.push(v === undefined ? null : v); } pg.prepare(chunk.length === CH ? full : insertOf(chunk.length)).run(params); n += chunk.length; chunk = []; size = 0; };
+    for (const r of src.prepare(`SELECT ${names} FROM ${t}`).iterate()) {
+      chunk.push(r); for (const c of use) { const v = r[c.c]; if (typeof v === 'string' || v instanceof Buffer) size += v.length; }
+      if (chunk.length >= CH || size > 4e6) send();
     }
+    send();
     counts[t] = n; console.log(`  ${t}: ${n}`);
   }
   // 3. The identity sequences, past the highest id or seq in each table.

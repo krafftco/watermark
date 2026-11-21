@@ -148,7 +148,7 @@ ${b.status === 'done' ? `<p>The licence: ${esc(said(b))}, from ${esc(String(b.ap
   });
   function funded(b, sessId) {
     if (!b || b.paid) return;
-    db.prepare("UPDATE briefs SET paid=1, status='commissioned', funded_at=datetime('now'), stripe_session=COALESCE(stripe_session, ?) WHERE id=?").run(sessId || null, b.id);
+    if (!db.prepare("UPDATE briefs SET paid=1, status='commissioned', funded_at=datetime('now'), stripe_session=COALESCE(stripe_session, ?) WHERE id=? AND COALESCE(paid,0)=0").run(sessId || null, b.id).changes) return; // (#123) the claim: once, whichever copy of the website comes first
     db.prepare("UPDATE brief_answers SET status=CASE WHEN id=? THEN 'accepted' ELSE 'declined' END WHERE brief_id=?").run(b.proposal_id, b.id);
     const a = db.prepare('SELECT * FROM brief_answers WHERE id=?').get(b.proposal_id); const m = a && maker(a.maker_id);
     if (m) { send(m.email, `Commissioned: ${b.title}`, `${first(m.name)},\n\n${b.company} chose you, and has paid. The fee, ${money(a.fee_cents)}, is held by the house until they approve.\n\nThe brief and the place to deliver:\n${base}/account/briefs/${b.ref}`); tell(m, `Commissioned by ${b.company}`, `/account/briefs/${b.ref}`); }

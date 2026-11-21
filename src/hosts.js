@@ -15,6 +15,9 @@ const TZ = process.env.BALCONY_TZ || 'America/New_York';
 function mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf, notify = null }) {
   const { esc, date } = V;
   db.exec(`CREATE TABLE IF NOT EXISTS host_shifts (id INTEGER PRIMARY KEY, scope TEXT NOT NULL DEFAULT 'house', night TEXT NOT NULL, owner TEXT, name TEXT, status TEXT NOT NULL DEFAULT 'offered', cents INTEGER NOT NULL DEFAULT ${HOST_CENTS}, note TEXT, reminded INTEGER NOT NULL DEFAULT 0, at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT, UNIQUE (scope, night))`);
+  // (#123) The chair, when taken, is written down: with several copies of the website each keeps its own balcony room,
+  // and the copy that closes the night may not be the one the host sat in.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('host_shifts') WHERE name='sat_at'").get()) db.exec('ALTER TABLE host_shifts ADD COLUMN sat_at TEXT');
   const nightOf = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d);
   const K = () => app.locals.keys;
   const ownerOf = req => { const m = makerOf(req), b = buyerOf(req); return m ? { id: `m:${m.id}`, name: m.name, kinds: ['maker'], m, b } : b ? { id: `b:${b.id}`, name: b.name, m: null, b } : null; };
@@ -28,9 +31,10 @@ function mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf, n
   // When a room closes: done or missed, and the pocket.
   function settle(scope, night, hostId, came) {
     const s = db.prepare("SELECT * FROM host_shifts WHERE scope=? AND night=? AND status='taken'").get(scope, night); if (!s) return;
-    const sat = hostId && s.owner === hostId;
-    if (!sat) { db.prepare("UPDATE host_shifts SET status='missed' WHERE id=?").run(s.id); mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `The host did not come: ${s.name}, ${s.night}`, text: `${s.name} had the chair on ${s.night} (${scope}) and did not take it. ${came} came.` }); return; }
-    db.prepare("UPDATE host_shifts SET status='done' WHERE id=?").run(s.id);
+    const sat = (hostId && s.owner === hostId) || !!s.sat_at;
+    // (#123) Each step claims the shift's row, so a night is settled once, whichever copy closes it first.
+    if (!sat) { if (!db.prepare("UPDATE host_shifts SET status='missed' WHERE id=? AND status='taken' AND sat_at IS NULL").run(s.id).changes) return; mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `The host did not come: ${s.name}, ${s.night}`, text: `${s.name} had the chair on ${s.night} (${scope}) and did not take it. ${came} came.` }); return; }
+    if (!db.prepare("UPDATE host_shifts SET status='done' WHERE id=? AND status='taken'").run(s.id).changes) return;
     const b = buyerOfOwner(s.owner);
     if (b && app.locals.pocket && s.cents > 0) { app.locals.pocket.credit(b, s.cents, 'hosting', `host-${s.id}`, `Hosting the balcony, ${s.night}`); db.prepare("UPDATE host_shifts SET status='paid', paid_at=datetime('now') WHERE id=?").run(s.id); }
     try { ledger.append(db, 'host.paid', s.night, { scope, cents: s.cents, came }); } catch (e) { /* */ }
@@ -85,7 +89,8 @@ ${!can ? '<section class="cx-intro"><p class="note">Taking a night needs a maker
     }
   }
   if (!app.locals.noTimers && ROLE.chores) setInterval(remind, 30 * 60e3).unref();
-  app.locals.hosts = { tonight, isTonightsHost, settle, remind, HOST_CENTS, nightOf };
+  const sat = (scope, hostId) => { if (hostId) db.prepare("UPDATE host_shifts SET sat_at=COALESCE(sat_at, datetime('now')) WHERE scope=? AND night=? AND status='taken' AND owner=?").run(scope, nightOf(), String(hostId).replace(/^([mb])(?=\d)/, '$1:')); };
+  app.locals.hosts = { tonight, isTonightsHost, settle, sat, remind, HOST_CENTS, nightOf };
   return app.locals.hosts;
 }
 module.exports = { mountHosts, HOST_CENTS };

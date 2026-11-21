@@ -41,6 +41,13 @@ function limitError(msg, why) {
   console.error(`[pg limit] ${why}: ${String(msg && msg.sql || '').replace(/\s+/g, ' ').slice(0, 300)}`);
   return e;
 }
+const BIG_BYTES = 1048576 * (+process.env.DB_BIG_MB || 20);
+const big = []; // the last ten large answers: {mb, sql, at}
+function noteBig(len, sql) {
+  const mb = Math.round(len / 1048576), text = String(sql || '').replace(/\s+/g, ' ').slice(0, 300);
+  console.error(`[pg big] ${mb} MB: ${text}`);
+  big.push({ mb, sql: text.slice(0, 160), at: Date.now() }); if (big.length > 10) big.shift();
+}
 const slow = []; // {ms, sql, at, n}
 function noteSlow(ms, sql) {
   const key = String(sql || '').replace(/\s+/g, ' ').slice(0, 200);
@@ -94,6 +101,10 @@ function open(url) {
         Atomics.store(ctl, STATUS, 0); worker.postMessage({ kind: 'grow', sab }); continue;
       }
       const len = Atomics.load(ctl, LENGTH);
+      // (20 Nov) A large answer is said: the worker was ended for memory for three days and four repairs guessed at the
+      // read. Over DB_BIG_MB (20) the statement's text (never its values) and its size are logged, and the last few
+      // are kept for the governor's memory line.
+      if (len > BIG_BYTES) noteBig(len, msg.sql);
       const obj = JSON.parse(Buffer.from(data.buffer, data.byteOffset, len).toString());
       if (st === 3) {
         if (obj.code === '57014' && msg.limit) throw limitError(msg, `over the limit of ${msg.limit} ms, stopped by the database`);
@@ -182,4 +193,4 @@ function splitStatements(sql) {
   return out.map(s => s.trim()).filter(s => s && !/^(--.*\n?)+$/.test(s));
 }
 
-module.exports = { open, splitStatements, slow: () => slow.slice(), maxHold };
+module.exports = { open, splitStatements, slow: () => slow.slice(), big: () => big.slice(), maxHold };

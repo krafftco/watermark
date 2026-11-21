@@ -42,6 +42,8 @@ const COPY = {
   },
 };
 
+// (#123) Several copies of the website: each fault says which copy it came from (faults are kept per process).
+const { ME } = require('./instances');
 const PASSING = new Set([502, 503, 504]); // a fault that passes by itself: the page tries again
 const isLimit = e => !!(e && (e.limit || e.code === '57014')); // 57014: Postgres's own "statement timeout" (the async path, src/adb.js)
 // The statement a limit stopped, as text, never its values (the bridge's error carries it; the async path's message ends "in: <sql>").
@@ -71,11 +73,11 @@ function mountBreaks(app, { V, coverFor = () => null }) {
   const recent = []; app.locals.recentFaults = recent;
   // Keep the fault: the room (the route as written), the address, the error, and for a limit the statement's text.
   function record(req, err, code, kind) {
-    const f = { at: new Date().toISOString(), code, kind: kind || (isLimit(err) ? 'limit' : err ? 'error' : 'status'), room: roomOf(req), path: req.path, method: req.method,
+    const f = { at: new Date().toISOString(), instance: ME, code, kind: kind || (isLimit(err) ? 'limit' : err ? 'error' : 'status'), room: roomOf(req), path: req.path, method: req.method,
       message: err ? String(err.message || err).split('\n')[0].slice(0, 300) : null, sql: isLimit(err) ? sqlOf(err) : null,
       stack: err && err.stack ? String(err.stack).split('\n').slice(1, 6).map(x => x.trim()).join(' | ') : null };
     app.locals.lastFault = f; recent.unshift(f); if (recent.length > 20) recent.length = 20;
-    console.error(`[break] ${code} ${f.kind} ${req.method} ${f.room}${f.room !== req.path ? ` (${req.path})` : ''}: ${f.message || '(no message)'}${f.sql ? ` | sql: ${f.sql}` : ''}`);
+    console.error(`[break] ${ME} ${code} ${f.kind} ${req.method} ${f.room}${f.room !== req.path ? ` (${req.path})` : ''}: ${f.message || '(no message)'}${f.sql ? ` | sql: ${f.sql}` : ''}`);
     return f;
   }
   const jsonWords = (code, err) => isLimit(err) ? COPY.room.limit : code >= 500 ? (PASSING.has(code) ? COPY.json.passing : COPY.json[500]) : ((V.SIGNS[code] || {}).h || 'That could not be done.');

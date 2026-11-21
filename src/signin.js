@@ -97,7 +97,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
     if (!row || Date.now() - row.created_at > LIFE) return res.status(400).json({ ok: false, why: 'That code has expired. We can send another.', again: true });
     if (row.tries >= TRIES) return res.status(400).json({ ok: false, why: 'Too many tries. We can send a new code.', again: true });
     if (code.length !== 6 || hash(code, row.salt) !== row.code_hash) { db.prepare('UPDATE signins SET tries=tries+1 WHERE id=?').run(row.id); return res.status(400).json({ ok: false, why: 'Not that one. Look again.' }); }
-    db.prepare('UPDATE signins SET used_at=? WHERE id=?').run(Date.now(), row.id);
+    if (!db.prepare('UPDATE signins SET used_at=? WHERE id=? AND used_at IS NULL').run(Date.now(), row.id).changes) return res.status(400).json({ ok: false, why: 'That code has been used. We can send another.', again: true }); // (#123) once, on any copy
     const r = admit(req, res, email);
     res.json({ ok: true, ...r, to: safeNext(x.next) || r.to });
   });
@@ -125,7 +125,7 @@ function mountSignin(app, { db, C, buyerOf, setBuyer, makerOf, setMaker, mail, l
   app.get('/signin/:link', (req, res) => {
     const row = db.prepare('SELECT * FROM signins WHERE link=?').get(String(req.params.link));
     if (!row || row.used_at || Date.now() - row.created_at > LIFE) return res.status(410).send(V.signin({ b: buyerOf(req), m: makerOf(req), has: false, mailOn: mail.on(), gone: true }));
-    db.prepare('UPDATE signins SET used_at=? WHERE id=?').run(Date.now(), row.id);
+    if (!db.prepare('UPDATE signins SET used_at=? WHERE id=? AND used_at IS NULL').run(Date.now(), row.id).changes) return res.status(410).send(V.signin({ b: buyerOf(req), m: makerOf(req), has: false, mailOn: mail.on(), gone: true })); // (#123) once, on any copy
     const r = admit(req, res, row.email, 'a link');
     res.redirect(r.to);
   });

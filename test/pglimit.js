@@ -3,7 +3,7 @@
 // without the event loop turning is refused, the page says so in words, the fault is logged with the statement, and the
 // next question and the front page are answered. Without DATABASE_URL only the watchdog's arithmetic is checked.
 // Run: NODE_ENV=test DATABASE_URL=postgres://… node test/pglimit.js
-process.env.ROLE = 'web'; process.env.DB_LIMIT_MS = '1000'; process.env.DB_HOLD_MS = '2500'; process.env.DB_LIMIT_MAX_MS = '5000'; process.env.DB_LIMIT_GRACE_MS = '2000';
+process.env.ROLE = 'web'; process.env.DB_LIMIT_MS = '1000'; process.env.DB_HOLD_MS = '2500'; process.env.DB_LIMIT_MAX_MS = '5000'; process.env.DB_LIMIT_GRACE_MS = '2000'; process.env.ADB_LIMIT_MS = '1000';
 const assert = require('assert'); const fs = require('fs'); const os = require('os'); const path = require('path');
 const W = require('../src/watchdog');
 
@@ -25,8 +25,9 @@ const { createApp } = require('../src/app.js');
   assert.strictEqual(db.prepare('SHOW statement_timeout').pluck().get(), '1s', 'and the database holds the limit itself');
   // A test door that asks what the caller says, set first in the router so nothing else answers it.
   app.get('/__slow/:s', (req, res) => { const n = db.prepare(`SELECT pg_sleep(${+req.params.s}) AS s, 1 AS n`).get(); res.send('answered ' + n.n); });
+  app.get('/__aslow', async (req, res) => { const n = await app.locals.adb.get('SELECT pg_sleep(3) AS s, 1 AS n'); res.send('answered ' + n.n); }); // (#149) the async path's limit
   app.get('/__many', (req, res) => { for (let i = 0; i < 6; i++) db.prepare('SELECT pg_sleep(0.8) AS s').get(); res.send('all six'); });
-  const stack = app.router.stack; stack.unshift(stack.pop()); stack.unshift(stack.pop());
+  const stack = app.router.stack; stack.unshift(stack.pop()); stack.unshift(stack.pop()); stack.unshift(stack.pop());
   const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
   const go = (p, h = {}) => fetch(base + p, { redirect: 'manual', headers: { accept: 'text/html', ...h } });
 
@@ -65,6 +66,11 @@ const { createApp } = require('../src/app.js');
   r = await go('/__slow/3', { accept: 'application/json' }); assert.ok(/took too long/.test((await r.json()).why), 'and in words to a script');
   r = await go('/'); assert.strictEqual(r.status, 200, 'the front page loads after it');
 
+  // (#149) The async path over its limit: the same house page, and the fault kept with its statement.
+  r = await go('/__aslow'); t = await r.text();
+  assert.strictEqual(r.status, 503, 'the async path over its limit'); assert.ok(/took too long/.test(t) && /<html/i.test(t), 'in the house\'s words');
+  { const F = app.locals.lastFault; assert.ok(F && F.kind === 'limit' && F.room === '/__aslow' && /pg_sleep\(3\)/.test(F.sql || '') && F.instance, 'kept with its statement and its copy: ' + JSON.stringify(F)); }
+  { let ae = null; try { await app.locals.adb.get('SELECT pg_sleep(3) AS s'); } catch (x) { ae = x; } assert.ok(ae && ae.limit === true && ae.status === 503 && /pg_sleep\(3\)/.test(ae.sql), 'adb\'s own error says limit, 503 and the statement'); }
   // The hold: six statements of 0.8 s each are each under the limit, but past 2.5 s the next is not asked.
   t0 = Date.now(); r = await go('/__many'); t = await r.text(); const held = Date.now() - t0;
   assert.strictEqual(r.status, 503, 'a run of statements past the hold is stopped'); assert.ok(/took too long/.test(t), 'in words');

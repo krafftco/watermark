@@ -52,9 +52,9 @@ function mountImports(app, { db, studioOnly, makerOf }) {
     const { c } = summary(imp);
     const old = db.prepare("SELECT 1 FROM imports WHERE id=? AND created_at < datetime('now','-1 day')").get(imp.id);
     if (!c.done && !(old && c.uploading + c.arrived + c.working === 0)) return;
-    db.prepare("UPDATE imports SET finished_at=datetime('now') WHERE id=? AND finished_at IS NULL").run(imp.id);
+    if (!db.prepare("UPDATE imports SET finished_at=datetime('now') WHERE id=? AND finished_at IS NULL").run(imp.id).changes) return; // (#123) the claim: once, whichever copy of the website comes first
     if (imp.maker_id && imp.purpose !== 'master' && app.locals.pairs) app.locals.pairs.soon(imp.maker_id); // the second look: masters to their web copies
-    if (imp.told_at) return; db.prepare("UPDATE imports SET told_at=datetime('now') WHERE id=?").run(imp.id);
+    if (imp.told_at) return; if (!db.prepare("UPDATE imports SET told_at=datetime('now') WHERE id=? AND told_at IS NULL").run(imp.id).changes) return;
     const title = `${imp.label || 'Your import'}: ${c.held + c.already} of ${c.chosen} in the vault${c.need ? `; ${c.need} need${c.need === 1 ? 's' : ''} you` : ''}${c.none ? `; ${c.none} not sent` : ''}.`;
     const href = (imp.purpose === 'master' ? '/studio' : '/account') + '/imports/' + imp.id;
     try { if (imp.maker_id && app.locals.notify) await app.locals.notify.tell({ maker_id: imp.maker_id, kind: 'import', title, body: c.verified ? `Every file held was checked against the fingerprint taken on your computer: ${c.verified} verified.` : '', href }); } catch (e) { console.error('[imports] tell', e.message); }

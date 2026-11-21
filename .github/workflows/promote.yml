@@ -37,7 +37,7 @@ jobs:
       DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
       # Every job of test.yml; a promotion needs each of them green on next's own push of the commit. Rename one there,
       # rename it here.
-      NEEDS: test load scale a11y reach reach-webkit postgres
+      NEEDS: test load scale a11y reach reach-webkit postgres scale-postgres
     steps:
       - uses: actions/checkout@v4
         with:

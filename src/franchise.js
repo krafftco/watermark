@@ -16,7 +16,7 @@ function mountFranchise(app, { db, V, C, ledger, stripe, makerOf, mail }) {
   function activate(id, sess) {
     const f = byId(id); if (!f || f.status !== 'pending' || (sess.id && f.stripe_session && f.stripe_session !== sess.id)) return f;
     if (sess.status !== 'complete' && sess.payment_status !== 'paid') return f;
-    db.prepare("UPDATE franchises SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=?").run(sess.subscription || null, id);
+    if (!db.prepare("UPDATE franchises SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=? AND status='pending'").run(sess.subscription || null, id).changes) return byId(id); // (#123) the claim: once, whichever copy of the website comes first
     db.prepare("UPDATE franchises SET status='ended', ended_at=datetime('now') WHERE maker_id=? AND id<>? AND status IN ('active','ending')").run(f.maker_id, id);
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(f.maker_id);
     try { ledger.append(db, 'franchise.begun', m ? m.handle : `maker-${f.maker_id}`, { amount: f.cents, hidden: true }); } catch (e) { /* */ }

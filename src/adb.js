@@ -94,7 +94,11 @@ function postgres(db, url) {
       const t = await translate(sql);
       const params = bind(t, a).map(p => (p === undefined ? null : p));
       let r; try { r = await open().query(t.sql, params); } catch (e) {
-        const err = new Error(e.message + '\n  in: ' + t.sql.slice(0, 300)); err.code = e.code; err.detail = e.detail; err.position = e.position; throw err;
+        const err = new Error(e.message + '\n  in: ' + t.sql.slice(0, 300)); err.code = e.code; err.detail = e.detail; err.position = e.position;
+        // (#149) Over the limit (Postgres's own statement timeout): an error the house knows, as the bridge's is: 503, `limit`,
+        // and the statement's text (never its values) for lastFault and the [break] line.
+        if (e.code === '57014') { err.status = 503; err.limit = true; err.sql = String(sql).replace(/\s+/g, ' ').slice(0, 300); console.error(`[pg limit] async, over the limit: ${err.sql}`); }
+        throw err;
       }
       if (how === 'get') return plainRow(r.rows[0]);
       if (how === 'all') { for (const row of r.rows) plainRow(row); return r.rows; }

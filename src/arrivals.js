@@ -29,7 +29,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   db.exec(`CREATE TABLE IF NOT EXISTS arrivals (id INTEGER PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT, folder TEXT, upload_id TEXT, parts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'uploading', outcome TEXT, slug TEXT, title TEXT, error TEXT, by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), arrived_at TEXT, done_at TEXT,
     purpose TEXT NOT NULL DEFAULT 'master', place TEXT, kind TEXT, maker_id INTEGER, result TEXT)`);
-  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT'], ['sha256', 'TEXT'], ['verified', 'INTEGER'], ['import_id', 'INTEGER'], ['replaces', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
+  for (const [c, t] of [['purpose', "TEXT NOT NULL DEFAULT 'master'"], ['place', 'TEXT'], ['kind', 'TEXT'], ['artist', 'TEXT'], ['maker_id', 'INTEGER'], ['result', 'TEXT'], ['via', 'TEXT'], ['sha256', 'TEXT'], ['verified', 'INTEGER'], ['import_id', 'INTEGER'], ['replaces', 'TEXT'], ['host', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('arrivals') WHERE name=?").get(c)) db.exec(`ALTER TABLE arrivals ADD COLUMN ${c} ${t}`);
   db.exec('CREATE INDEX IF NOT EXISTS arrivals_status ON arrivals (status, id)');
   fs.mkdirSync(incoming, { recursive: true });
   const direct = !!(store.kind === 's3' && store.multipart);
@@ -37,6 +37,11 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   const row = id => db.prepare('SELECT * FROM arrivals WHERE id=?').get(+id);
   const safe = n => String(n || 'file').replace(/[^\w.\-]+/g, '_').slice(0, 120);
   const localFile = a => path.join(incoming, `arrival-${a.id}-${safe(a.name)}`);
+  // (#123) Several copies of the website: `arrivals.host` is the copy that took the arrival in hand (or holds the file a
+  // person sent through it, via 'house'). The pump claims a row before it works on it, so two copies never take one file.
+  const IN = () => app.locals.instances;
+  const ME = () => (IN() ? IN().ME : 'one');
+  const inHand = new Set(); // the arrivals this copy is working on now
 
   const maker = req => (makerOf ? makerOf(req) : null);
   // Imports: the batch a person sends, with its receipt (src/imports.js).
@@ -98,7 +103,7 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     const a = mine(req, base); if (!a || a.status !== 'uploading') return res.status(404).json({ ok: false });
     const f = localFile(a); const w = fs.createWriteStream(f); let n = 0;
     req.on('data', d => { n += d.length; if (n > a.size + 1024) req.destroy(); }); req.pipe(w);
-    w.on('finish', () => { if (n < a.size) { try { fs.unlinkSync(f); } catch (e) { /* */ } return res.status(400).json({ ok: false, error: 'The file arrived short; send it again.' }); } if (direct && a.upload_id) store.multipart.abort(a.key, a.upload_id).catch(() => {}); db.prepare("UPDATE arrivals SET status='arrived', via='house', arrived_at=datetime('now') WHERE id=?").run(a.id); res.json({ ok: true }); setImmediate(pump); });
+    w.on('finish', () => { if (n < a.size) { try { fs.unlinkSync(f); } catch (e) { /* */ } return res.status(400).json({ ok: false, error: 'The file arrived short; send it again.' }); } if (direct && a.upload_id) store.multipart.abort(a.key, a.upload_id).catch(() => {}); db.prepare("UPDATE arrivals SET status='arrived', via='house', host=?, arrived_at=datetime('now') WHERE id=?").run(ME(), a.id); res.json({ ok: true }); setImmediate(pump); });
     w.on('error', e => { res.status(500).json({ ok: false, error: e.message }); });
   });
   app.post(`${base}/arrivals/:id/done`, guard, async (req, res) => {
@@ -178,10 +183,12 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
     pumping = true;
     try {
       for (;;) {
-        while (running < PARALLEL) {
-          const a = db.prepare("SELECT * FROM arrivals WHERE status='arrived' ORDER BY id LIMIT 1").get(); if (!a) break;
-          db.prepare("UPDATE arrivals SET status='working' WHERE id=?").run(a.id);
-          running++; takeOne(a).finally(() => { running--; setImmediate(pump); });
+        let tries = 0;
+        while (running < PARALLEL && tries++ < 8) {
+          // A file sent through a copy (via 'house') is on that copy's disk: only it takes it in.
+          const a = db.prepare("SELECT * FROM arrivals WHERE status='arrived' AND (COALESCE(via,'')<>'house' OR host=?) ORDER BY id LIMIT 1").get(ME()); if (!a) break;
+          if (!db.prepare("UPDATE arrivals SET status='working', host=? WHERE id=? AND status='arrived'").run(ME(), a.id).changes) continue; // another copy took it first
+          running++; inHand.add(a.id); takeOne(a).finally(() => { running--; inHand.delete(a.id); setImmediate(pump); });
         }
         break;
       }
@@ -189,8 +196,15 @@ function mountArrivals(app, { db, C, store, studioOnly, incoming, makerOf, takeW
   }
   // Stale uploads are aborted after a day; a failed arrival can be retried from the desk.
   const sweep = async () => { for (const a of db.prepare("SELECT * FROM arrivals WHERE status='uploading' AND created_at < datetime('now','-1 day')").all()) { if (direct && a.upload_id) await store.multipart.abort(a.key, a.upload_id); try { fs.unlinkSync(localFile(a)); } catch (e) { /* none */ } db.prepare('DELETE FROM arrivals WHERE id=?').run(a.id); }
-    // a server that restarted mid-work: those go back to the queue
-    db.prepare("UPDATE arrivals SET status='arrived' WHERE status='working'").run();
+    // a server that restarted mid-work: those go back to the queue. (#123) Only those whose copy is gone, or this copy's
+    // own that it is not working on: another live copy's work is its own. A file sent through a copy that is gone (via
+    // 'house') went with that copy's disk: it is said, and sent again.
+    const I = IN();
+    for (const a of db.prepare("SELECT id, host, via FROM arrivals WHERE status IN ('working','arrived') AND (status='working' OR COALESCE(via,'')='house') ORDER BY id LIMIT 500").all()) {
+      const mine = !a.host || a.host === ME(); const gone = !mine && !(I && I.alive(a.host));
+      if (a.via === 'house' && gone) { db.prepare("UPDATE arrivals SET status='failed', error=?, done_at=datetime('now') WHERE id=? AND host=?").run('The copy of the house that received this file restarted before taking it in. Nothing was kept: send this file again.', a.id, a.host); continue; }
+      if ((mine && !inHand.has(a.id)) || gone) db.prepare("UPDATE arrivals SET status='arrived' WHERE id=? AND status='working' AND COALESCE(host,'')=?").run(a.id, a.host || '');
+    }
     if (direct) db.prepare("UPDATE arrivals SET status='arrived', error=NULL, done_at=NULL WHERE status='failed' AND (error LIKE '%ENOSPC%' OR error LIKE '%no space left%') AND COALESCE(via,'')<>'house' AND created_at > datetime('now','-3 days')").run();
     pump(); };
   if (process.env.NODE_ENV !== 'test' && ROLE.web) { setTimeout(() => sweep().catch(e => console.error('[arrivals] sweep', e.message)), 30000).unref(); setInterval(() => sweep().catch(() => {}), 3600000).unref(); }

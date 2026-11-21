@@ -38,8 +38,8 @@ const B = require('../src/breaks');
   assert.ok(t.includes(`href="/__break/throw">${B.COPY.room.retry}`), 'Try again, to the same address');
   assert.ok(t.includes(`href="/collection?q=sea">${B.COPY.room.back}`), 'and back to where they were');
   assert.ok(!t.includes('data-cold'), 'a room that gave way is not tried again by itself (it would give way again)');
-  let F = app.locals.lastFault; assert.ok(F && F.room === '/__break/throw' && F.code === 500 && F.kind === 'error' && /gave way/.test(F.message) && F.stack, 'kept: ' + JSON.stringify(F));
-  assert.ok(said.some(l => /^\[break\] 500 error GET \/__break\/throw: the room gave way/.test(l)), 'and logged');
+  let F = app.locals.lastFault; assert.strictEqual(F.instance, require('../src/instances').ME, 'the fault names the copy it came from (#123)'); assert.ok(F && F.room === '/__break/throw' && F.code === 500 && F.kind === 'error' && /gave way/.test(F.message) && F.stack, 'kept: ' + JSON.stringify(F));
+  assert.ok(said.some(l => new RegExp('^\\[break\\] ' + require('../src/instances').ME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' 500 error GET /__break/throw: the room gave way').test(l)), 'and logged');
 
   r = await go('/__break/async'); t = await r.text(); assert.strictEqual(r.status, 500); assert.ok(isSign(t), 'an async room that rejects: the same');
   assert.strictEqual(app.locals.lastFault.room, '/__break/async');
@@ -49,7 +49,7 @@ const B = require('../src/breaks');
   assert.strictEqual(r.status, 503); assert.strictEqual(r.headers.get('retry-after'), '60'); assert.ok(isSign(t) && t.includes('took too long, so it was stopped'), 'a limit, in words');
   assert.ok(t.includes('data-cold') && t.includes(B.COPY.room.trying), 'tried again by itself');
   F = app.locals.lastFault; assert.ok(F.kind === 'limit' && F.room === '/__break/limit' && F.sql === limitErr().sql, 'the statement kept: ' + JSON.stringify(F));
-  assert.ok(said.some(l => /^\[break\] 503 limit GET \/__break\/limit: .*\| sql: SELECT slug FROM works/.test(l)), 'and logged with it');
+  assert.ok(said.some(l => /^\[break\] \S+ 503 limit GET \/__break\/limit: .*\| sql: SELECT slug FROM works/.test(l)), 'and logged with it');
   // The async path's limit (Postgres's own 57014, src/adb.js): the same page, the statement read from its message.
   r = await go('/__break/adb'); t = await r.text(); assert.strictEqual(r.status, 503); assert.ok(isSign(t) && /took too long/.test(t));
   assert.strictEqual(app.locals.lastFault.sql, 'SELECT id FROM hits WHERE at > $1 LIMIT 50');
@@ -79,6 +79,16 @@ const B = require('../src/breaks');
   for (let i = 0; i < 9; i++) { r = await go('/signin/code', { ...nav, 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '10.9.9.9' }, { method: 'POST', body: 'email=a%40b.c' }); await r.text(); }
   r = await go('/signin/code', { ...nav, 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '10.9.9.9' }, { method: 'POST', body: 'email=a%40b.c' }); t = await r.text();
   assert.strictEqual(r.status, 429); assert.ok(isSign(t) && /There is time/.test(t), 'the limiter, to a person: the sign: ' + t.slice(0, 300));
+  // /ledger.json reads the whole register in one question; on live the limit can cut it. A person, a script and a bare
+  // client each get the house's answer, never a trace (a known door: not paged here).
+  { const { db } = app.locals; const prep = db.prepare.bind(db);
+    db.prepare = sql => (/FROM ledger/i.test(sql) ? { all: () => { throw limitErr(); }, get: () => { throw limitErr(); }, iterate: () => { throw limitErr(); } } : prep(sql));
+    try {
+      r = await go('/ledger.json'); t = await r.text(); assert.strictEqual(r.status, 503); assert.ok(isSign(t) && /took too long/.test(t), 'the register over the limit, to a person: the page');
+      r = await go('/ledger.json', { accept: 'application/json' }); j = await r.json(); assert.ok(r.status === 503 && /took too long/.test(j.why), 'to a script: words');
+      r = await go('/ledger.json', { accept: '*/*' }); t = await r.text(); assert.ok(r.status === 503 && (/took too long/.test(t)), 'to a bare client: words, not a bare status');
+      assert.strictEqual(app.locals.lastFault.room, '/ledger.json');
+    } finally { db.prepare = prep; } }
   // The Studio's health carries the faults.
   assert.ok(Array.isArray(app.locals.recentFaults) && app.locals.recentFaults.length >= 8 && app.locals.recentFaults[0].at, 'the last faults kept');
   // And the house is still open after all of it.
