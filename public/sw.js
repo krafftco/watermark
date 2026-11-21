@@ -2,14 +2,17 @@
 // house and the last copy of each is kept so the rooms you have walked are there when the connection is
 // not; photographs are kept as you see them, up to a few hundred, oldest out first. Nothing private is
 // cached: the studio, your gallery, the Studio, sign-in and anything with a key go straight to the house.
-const V = 'wm-2026-11-19desks';
-const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline'];
+const V = 'wm-2026-11-20breaks2';
+const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline', '/static/cold.html'];
 const PRIVATE = /^\/(join$|own$|notices|api\/notices|basket|api\/basket|stroll|wander|api\/stroll|frame\/|tv$|show\/|cab\/|cabinet|showings|hang\/.*\/g\/|account|yours|studio|signin|signout|auth|api\/me|c\/|d\/|seat\/|k\/|collector\/|swap|market\/.*\/bid|library\/d\/|w\/[^/]+\/archive)/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== V + '-img' && k !== V + '-pages').map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 // Does the answer fit the file asked for? A stylesheet is text/css, a script is JavaScript, a picture is an image, a font a font; an HTML page is never any of them.
 const KIND = { css: /^text\/css/, js: /javascript|ecmascript/, mjs: /javascript|ecmascript/, svg: /^image\/svg/, png: /^image\//, jpg: /^image\//, jpeg: /^image\//, webp: /^image\//, gif: /^image\//, ico: /^image\//, json: /json/, webmanifest: /json|manifest/, woff: /font|octet/, woff2: /font|octet/, mp3: /^audio\//, html: /^text\/html/ };
 const fits = (path, res) => { if (!res.ok || res.type !== 'basic') return false; const t = (res.headers.get('content-type') || '').toLowerCase(); const ext = (path.match(/\.([a-z0-9]+)$/) || [])[1]; const k = ext && KIND[ext]; return k ? k.test(t) : !/^text\/html/.test(t); };
+// (#149) When the house cannot answer and no copy of the page is kept: the one-moment page (the same file the edge
+// serves), as 503, which tries the address again by itself and returns there; the offline room if it is not kept yet.
+const cold = async () => { const c = await caches.match('/static/cold.html'); if (c) return new Response(await c.text(), { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-WM-Moment': '1', 'Retry-After': '5' } }); return caches.match('/offline'); };
 const trim = async (name, max) => { const c = await caches.open(name); const ks = await c.keys(); if (ks.length > max) await Promise.all(ks.slice(0, ks.length - max).map(k => c.delete(k))); };
 // The installed app never stranded on a file (#43; Will, 15 Nov: "it opens this black screen viewer… you can't get out").
 // The app has no browser bar: a navigation that lands on a file (or on a bare error) would replace the house with it, and
@@ -35,13 +38,16 @@ function landing(url, res) {
 }
 // A navigation in the app: the answer (kept as any page is), unless it is a file or a bare status; a failed one is the
 // last copy or the cold page, never blank. An opaque redirect is the browser's to follow, never a file.
-const wrap = (r, res) => res.type === 'basic' && isFileAnswer(res) ? landing(r.url, res) : res;
+// (#149) A file's address that failed answers the house's sign now, not a bare status; in the app it is still the
+// landing (its Back and the front door), since the app has no browser bar.
+const FILEURL = /\.[a-z0-9]{2,5}$|\/(file|take|instax|save)$/i;
+const wrap = (r, res) => res.type === 'basic' && (isFileAnswer(res) || (!res.ok && FILEURL.test(new URL(r.url).pathname))) ? landing(r.url, res) : res;
 const keepable = u => !PRIVATE.test(u.pathname) && !u.searchParams.has('k');
 const appNav = (e, r, u) => e.respondWith(fetch(r).then(async res => {
   if (res.ok && res.type === 'basic' && keepable(u) && /text\/html/.test(res.headers.get('content-type') || '') && !res.headers.get('content-disposition')) caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); });
-  if (res.status >= 502 && res.status <= 504) return (keepable(u) && await caches.match(r)) || (await caches.match('/offline')) || wrap(r, res);
+  if (res.status >= 502 && res.status <= 504) return (keepable(u) && await caches.match(r)) || (await cold()) || wrap(r, res);
   return wrap(r, res);
-}).catch(async () => (keepable(u) && await caches.match(r)) || (await caches.match('/offline')) || landing(r.url, null)));
+}).catch(async () => (keepable(u) && await caches.match(r)) || (await cold()) || landing(r.url, null)));
 self.addEventListener('fetch', e => {
   const r = e.request; if (r.method !== 'GET') return;
   const u = new URL(r.url); if (u.origin !== location.origin) return;
@@ -49,15 +55,15 @@ self.addEventListener('fetch', e => {
     if (isApp) return appNav(e, r, u);
     if (isApp === null) {
       // Not yet known since the worker woke: a navigation that may be a file waits on one cache read; the rest go on.
-      if (PRIVATE.test(u.pathname) || u.searchParams.has('k') || /\.[a-z0-9]{2,5}$|\/(file|take|instax|save)$/i.test(u.pathname)) return e.respondWith(appNow().then(a => fetch(r).then(res => a ? wrap(r, res) : res).catch(async () => a ? (await caches.match('/offline')) || landing(r.url, null) : Response.error())));
+      if (PRIVATE.test(u.pathname) || u.searchParams.has('k') || /\.[a-z0-9]{2,5}$|\/(file|take|instax|save)$/i.test(u.pathname)) return e.respondWith(appNow().then(a => fetch(r).then(res => a ? wrap(r, res) : res).catch(async () => a ? (await cold()) || landing(r.url, null) : Response.error())));
       e.waitUntil(appNow());
     }
   }
   // Wander in the subway (Will, 23 Oct): the room itself is kept, one copy, so it opens with no signal; what hangs in
   // it then comes from the pack the page keeps (stroll.js). Only the room, never the feed and never a drawer.
   if (u.pathname === '/wander' && (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html'))) {
-    e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic') caches.open(V + '-pages').then(c => c.put('/wander', res.clone())); if (res.status >= 502 && res.status <= 504) return (await caches.match('/wander')) || (await caches.match('/offline')) || res; return res; })
-      .catch(async () => (await caches.match('/wander')) || (await caches.match('/offline')) || landing(r.url, null)));
+    e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic') caches.open(V + '-pages').then(c => c.put('/wander', res.clone())); if (res.status >= 502 && res.status <= 504) return (await caches.match('/wander')) || (await cold()) || res; return res; })
+      .catch(async () => (await caches.match('/wander')) || (await cold()) || landing(r.url, null)));
     return;
   }
   if (PRIVATE.test(u.pathname) || u.searchParams.has('k')) return;
@@ -70,8 +76,8 @@ self.addEventListener('fetch', e => {
   if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/') && !res.headers.get('x-making')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
   // Pages: the house first; the last copy if the house cannot be reached; the offline room if there is none.
   if (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html')) {
-    e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic' && (res.headers.get('content-type') || '').includes('text/html') && !res.headers.get('content-disposition')) caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); }); /* a download is never kept as a page */ if (res.status >= 502 && res.status <= 504) return (await caches.match(r)) || (await caches.match('/offline')) || res; return res; })
-      .catch(async () => (await caches.match(r)) || (await caches.match('/offline')) || landing(r.url, null)));
+    e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic' && (res.headers.get('content-type') || '').includes('text/html') && !res.headers.get('content-disposition')) caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); }); /* a download is never kept as a page */ if (res.status >= 502 && res.status <= 504) return (await caches.match(r)) || (await cold()) || res; return res; })
+      .catch(async () => (await caches.match(r)) || (await cold()) || landing(r.url, null)));
   }
 });
 // Notifications from the house: shown on the lock screen; a tap opens the right room (or brings an open one forward).

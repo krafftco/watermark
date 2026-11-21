@@ -86,6 +86,16 @@ The CTO session keeps it honest.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 
+- **A bare status a person met** (20 Nov, #149). `res.sendStatus` is the house's own for every room (`app.response` in
+  `src/breaks.js`, so order of mounting does not matter): a navigation (`Sec-Fetch-Mode: navigate`, any method) gets the
+  sign, a script (`/api/`, `Sec-Fetch-Dest: empty`, JSON asked) gets `{ok:false, code, why, error}`, an image or file its
+  status. A room that catches its own error answers `res.fault(e)` / `res.fault(e, 503)`, never `sendStatus(500)`: the
+  fault is kept with its room and its copy (`instance`, src/instances.js ME) in `app.locals.lastFault` and `recentFaults`
+  (Studio's /healthz; per process, so ask each copy) and a `[break] <instance> …` line. src/adb.js marks its 57014 like
+  the bridge does (`status 503`, `limit`, `sql`).
+  Every word on a break page is in `COPY` there. The one-moment page is `/static/cold.html` (self-contained; the edge's
+  copy is uploaded by `scripts/edge-page.js`); `scripts/breaks-walk.js` stops a house mid-visit behind a stand-in edge.
+
 ## The scale gate (#8)
 - `node scripts/big-house.js` builds a house of 100,000 works from rows (about 10 s here: real pictures for six works,
   every other row a clone pointing at their files) and walks every room once as visitor, maker `mk`, museum `museum-a`
@@ -186,7 +196,17 @@ The CTO session keeps it honest.
   back to the process; use `exec` for a bulk insert with no parameters.
 - The gate's worker round (`big-house.js worker`) now runs the shared rounds, the hits move, the prune, the numbers and
   the register's check, each timed with its memory (`rssMB` after, `peakMB` the most so far); over BIG_WORKER_MB (1,024)
-  fails. At 100,000 works: 312 MB on Postgres, 377 MB on SQLite. The move of 3 M hits into months: 17 s, two rounds.
+  fails; the backup and the drill are also judged by their growth against the copy they handle (BIG_COPY_X 1 ×, plus
+  BIG_COPY_PLUS_MB 64), because the gate's copy (60 MB on Postgres) is an eighth of live's and the fault of 18–20 Nov
+  grew with the copy: replayed on the gate's house, the pre-1.87.12 backup grew 167 MB for a 63 MB copy (caught), the
+  repaired one 15–56 MB. The drill still reads its copy whole (#162; allowed in ALLOW_WORKER). With all of it the worker
+  reaches about 480 MB on Postgres and 1.7 GB on SQLite (the drill of a 160 MB copy). A chore's growth is sampled every
+  50 ms and also counts a rise of maxRSS, since a synchronous burst never lets the sampler run.
+- `app.locals.noTimers` is set by app.js AFTER most rooms mount: a room that reads it at mount arms its timers even in a
+  test or in scripts/to-postgres.js. Read it when the timer fires (analytics.js `ours`). Found when the hits move began
+  inside a 96 s to-postgres copy.
+- Timers that must run once across copies take a lease (`app.locals.instances.withLease`, #150); a lease does not stop
+  the SAME process overlapping itself (it renews its own), so chain the next run from the end of the last.
 
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as

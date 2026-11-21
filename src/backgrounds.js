@@ -71,7 +71,7 @@ function mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf, makerO
       res.set('Cache-Control', open(w) ? 'public, max-age=86400' : 'private, no-store');
       try { ledger.append(db, 'work.background', w.slug, { screen: sc[0], mode }); } catch (e) { /* */ }
       res.type('image/jpeg').sendFile(f);
-    } catch (e) { console.error('[backgrounds]', w.slug, e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[backgrounds]', w.slug, e.message); res.fault(e); }
   });
   // On the work page: the screens, the two ways, and who may take one.
   function block(w, req) {

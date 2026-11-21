@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.15 · The visit log by month · 20 November 2026
+
+- On the house's database the log of visits is now kept a month to a table, and a month past the keeping time is let go whole instead of row by row. The worker moves the existing log over a few minutes at a time, under one short hold that no visitor waits on; nothing inside the thirty days is lost, and the old table is let go only when both sides count the same. How long visits are kept is unchanged.
+- The test of the house at scale now runs the worker's night as well: the moves, the counts, the register's check, the backup and its drill, and fails if the worker would grow past its line, or if a backup grows the worker by more than the copy it is making. The backup that ended the worker on 18 to 20 November would have failed it.
+
+## 1.87.14 · A break is the house's, not the host's · 20 November 2026
+
+- When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.
+- When the house cannot answer at all, the page you see is the house's own: a dark wall, one line, and it returns you to where you were as soon as the house answers. Visitors who have the app see the same page.
+
 ## 1.87.13 · Ready to run as more than one · 20 November 2026
 
 - The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
