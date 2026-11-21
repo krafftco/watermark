@@ -8,6 +8,12 @@
 // Text: counsel's draft, verbatim except where marked FIX (obvious drafting slips) or ADDED (Watermark v0
 // additions: term, exclusivity, the maker's restrictions, AI training, Content Credentials). Every FIX and
 // ADDED item is listed in REVIEW for counsel. Prices for added rights are drafts until Will confirms.
+//
+// (#183; Will, 21 Nov 2026) Two more things an order can carry, in the same pattern: where the work may be used
+// (worldwide unless a territory is named) and how much (unlimited unless a number is stated). Each only narrows:
+// a named territory or a stated size adds its own clause to Section 2 and changes nothing else; an order without
+// them is assembled exactly as before (test/licence-by-use.js holds today's text to its fingerprints). Neither
+// has a price: a narrower license is asked of the maker. The wording is a first draft for counsel (REVIEW).
 
 // The nine permitted uses from counsel's clause 2.1, in its order.
 const RIGHTS = [
@@ -42,6 +48,43 @@ const BUNDLES = {
 const PERSONAL = new Set(['social', 'reference']); // personal, not for a business: no rights may be added
 const ADD_RIGHT = 15000; // draft: each permitted use added beyond the bundle
 
+// Where: one named place. Countries are ISO 3166-1's (a public standard), named in English by the platform's own
+// CLDR data (Intl.DisplayNames); one region, the European Union. The name is stored with the order, so an agreement
+// reads the same for good whatever a later list calls the place. Free text is never written into the agreement.
+const ISO = 'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ');
+const REGIONS = { EU: 'European Union' };
+let places = null;
+function PLACES() {
+  if (places) return places;
+  let dn = null; try { dn = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { dn = null; }
+  const named = ISO.map(code => { let name = null; try { name = dn ? dn.of(code) : null; } catch (e) { name = null; } return name && name !== code ? { code, name } : null; }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  places = [...Object.entries(REGIONS).map(([code, name]) => ({ code, name, region: true })), ...named];
+  return places;
+}
+// A territory as the order carries it: { code, name }, or null for worldwide. Takes a code ("FR") from a form, or
+// what an order already stores (its own name is kept).
+function place(v) {
+  if (!v) return null;
+  if (typeof v === 'object') return /^[A-Z]{2}$/.test(String(v.code || '')) && typeof v.name === 'string' && v.name && v.name.length <= 80 && !/[<>“”"]/.test(v.name) ? { code: v.code, name: v.name } : null;
+  const hit = PLACES().find(p => p.code === String(v).trim().toUpperCase());
+  return hit ? { code: hit.code, name: hit.name } : null;
+}
+// How much: a whole number of one of three things. `q` is how it is asked; `says` is the Section 2 sentence.
+const SIZES = [
+  { key: 'copies', q: 'copies printed', says: n => `You may reproduce the Content in no more than ${n} copies in total, counting every copy, in any form, of every work or material in which the Content appears (the “Limit”).` },
+  { key: 'circulation', q: 'copies in circulation', says: n => `You may use the Content only in works or materials whose combined circulation does not exceed ${n} in total (the “Limit”).` },
+  { key: 'audience', q: 'people in the audience', says: n => `You may use the Content only before a combined audience that does not exceed ${n} people in total (the “Limit”).` },
+];
+const num = n => Number(n).toLocaleString('en-US');
+// A size of use as the order carries it (its `limit`): { n, of }, or null for unlimited. (Not `size`: a kept album
+// picture's stored terms already use that word for its file, src/deliveries.js.)
+function limitOf(v) {
+  if (!v || typeof v !== 'object') return null;
+  const n = typeof v.n === 'number' ? v.n : Number(String(v.n == null ? '' : v.n).replace(/[,\s]/g, ''));
+  if (!Number.isInteger(n) || n < 1 || n > 1e9 || !SIZES.some(z => z.key === v.of)) return null;
+  return { n, of: v.of };
+}
+
 const NEVER_TEXT = {
   ai: 'You shall not use the Content, or allow it to be used, to train, fine-tune, test or otherwise develop any artificial intelligence or machine learning system, or as input for generating synthetic media;',
   political: 'You shall not use the Content in connection with any political campaign, candidate, party or advocacy;',
@@ -50,7 +93,7 @@ const NEVER_TEXT = {
 };
 
 // Normalise a request into the rights the contract will carry, and price it.
-function terms({ use, add = [], extras = [], never = [], base, transfer = null }) {
+function terms({ use, add = [], extras = [], never = [], base, transfer = null, territory = null, limit = null }) {
   const bundle = BUNDLES[use.key] || [];
   const personal = PERSONAL.has(use.key);
   const addable = personal || use.kind === 'print' ? [] : RIGHTS.filter(r => !bundle.includes(r.key)).map(r => r.key);
@@ -59,13 +102,18 @@ function terms({ use, add = [], extras = [], never = [], base, transfer = null }
   if (never.includes('alter')) ex = ex.filter(k => k !== 'derivative');
   const rights = RIGHTS.filter(r => bundle.includes(r.key) || added.includes(r.key)).map(r => r.key);
   const priced = ex.map(k => EXTRAS.find(e => e.key === k));
-  const ask = priced.some(e => e.price == null);
-  const price = base == null ? null : base + added.length * ADD_RIGHT + priced.reduce((s, e) => s + (e.price || 0), 0);
+  // (#183) Where and how many: for a working license only (a personal piece lives on its holder's own accounts; a
+  // print is an object). Either one narrows the license and has no price of its own: it is asked of the maker.
+  const working = !personal && use.kind !== 'print';
+  const where = working ? place(territory) : null, many = working ? limitOf(limit) : null;
+  const narrowed = !!(where || many);
+  const ask = priced.some(e => e.price == null) || narrowed;
+  const price = base == null || narrowed ? null : base + added.length * ADD_RIGHT + priced.reduce((s, e) => s + (e.price || 0), 0);
   // Transferable: a numbered personal piece (Collect, the Reference, a print) may pass to another person, whole,
   // through a transfer recorded on the register; a working license (story, company, campaign) may not,
   // unless the maker's terms for the work say so. Counsel reviews the wording (docs/CONTRACT.md).
   const transferable = transfer != null ? !!transfer : (personal || use.kind === 'print');
-  return { use: use.key, kind: use.kind, personal, rights, added, extras: ex, never, ask, price, addable, term_months: use.term_months, transferable };
+  return { use: use.key, kind: use.kind, personal, rights, added, extras: ex, never, ask, price, addable, term_months: use.term_months, transferable, ...(where ? { territory: where } : {}), ...(many ? { limit: many } : {}) };
 }
 
 const list = a => (a.length <= 1 ? a.join('') : a.length === 2 ? a.join(' and ') : `${a.slice(0, -1).join(', ')}, and ${a[a.length - 1]}`);
@@ -108,6 +156,10 @@ function assemble({ t, work, maker, licensee, ref, price, date, entity = 'Waterm
     { n: '2.6', h: 'Content Credentials', p: ['The Content may carry embedded provenance information (Content Credentials) identifying Licensor and this license. You shall not remove or alter such information except as the ordinary result of resizing or format conversion.'] },
   ] });
   if (t.extras.includes('exclusive')) s[s.length - 1].sub.push({ n: '2.7', h: 'Exclusivity', p: ['During the term, Licensor shall not grant any other person a license to use the Content for the uses permitted in Section 2.1. Exclusivity does not limit Licensor’s own use of the Content, licenses granted before the date of your order, or uses not listed in Section 2.1.'] });
+  // (#183) ADDED, each only when the order carries it; numbered after whatever Section 2 already holds.
+  { const sub = s[s.length - 1].sub; const where = place(t.territory), many = limitOf(t.limit);
+    if (where) sub.push({ n: `2.${sub.length + 1}`, h: 'Territory', p: [`You may use the Content only within the following territory: ${where.name} (the “Territory”). No right is granted to reproduce, perform publicly, display, transmit or distribute the Content outside the Territory. The Content being accessible from outside the Territory on a website or social media account that you direct to an audience in the Territory is not, of itself, a use outside the Territory.`] });
+    if (many) sub.push({ n: `2.${sub.length + 1}`, h: 'Size of Use', p: [`${SIZES.find(z => z.key === many.of).says(num(many.n))} The Limit applies to all of your uses of the Content under this Agreement taken together, for the whole of the Term. No use of the Content beyond the Limit is permitted without an additional license from Licensor.`] }); }
   s.push({ n: '3', h: 'Payment', p: [`As consideration in full for the rights granted herein, you shall pay Licensor the one-time fee identified in the order${price ? ` (${price})` : ''} using the Watermark platform, prior to downloading or copying the Content.`] });
   s.push({ n: '4', h: 'Company Use', p: ['If you are licensing the Content on behalf of your employer or company, you hereby: (a) represent and warrant that you have the full legal authority to bind your employer or company; (b) agree that you remain responsible for the use of the Content by your employer or company; (c) agree that the entity that uses the Content agrees to be bound by the terms of this Agreement; and (d) agree to purchase additional licenses of the same Content if it is used by or for multiple entities' + (t.extras.includes('entities') ? ', except as permitted by this order' : '') + '.'] });
   s.push({ n: '5', h: 'Protection of the Content', p: ['You shall immediately notify Watermark of any: (a) actual, suspected, or threatened infringement of the Content; (b) actual, suspected, or threatened claim that use of the Content infringes the rights of any third party; or (c) any other actual, suspected, or threatened claim to which the Content may be subject. With respect to any of the matters listed in this Section as between you and Licensor: (i) Licensor has exclusive control over, and conduct of, all claims and proceedings; (ii) you shall provide Licensor with all assistance that Licensor may reasonably require; and (iii) Licensor shall bear the cost of any proceedings and will be entitled to retain all sums recovered in any action. Licensor or Watermark may discontinue licensing any piece of Content at any time in its sole discretion. Upon notice from Watermark that any content may be subject to a claim of infringement of a third party’s right, Watermark may require you to immediately, and at your own expense, cease using the Content and delete any copies.'] });
@@ -151,13 +203,18 @@ const REVIEW = [
   ['ADDED', '2.4(e), (g), 2.5, 4', 'Lifted or changed only when the licensee pays for More than one company, On merchandise, or Adapt it.'],
   ['ADDED', '2.6', 'Content Credentials: the licensee may not strip the embedded provenance.'],
   ['ADDED', '2.7', 'Exclusivity, when agreed with the maker.'],
+  ['ADDED', 'Territory (2.7, or 2.8 after Exclusivity)', 'Only when the order names a territory (one country, or the European Union); an order that names none has no such clause and stays worldwide, as before. First draft, not counsel\'s words: "You may use the Content only within the following territory: [name] (the “Territory”). No right is granted to reproduce, perform publicly, display, transmit or distribute the Content outside the Territory. The Content being accessible from outside the Territory on a website or social media account that you direct to an audience in the Territory is not, of itself, a use outside the Territory."'],
+  ['ADDED', 'Size of Use (the next number in Section 2)', 'Only when the order states a number; an order that states none has no such clause and stays unlimited, as before. One of three first sentences: "You may reproduce the Content in no more than [n] copies in total, counting every copy, in any form, of every work or material in which the Content appears (the “Limit”)."; or "You may use the Content only in works or materials whose combined circulation does not exceed [n] in total (the “Limit”)."; or "You may use the Content only before a combined audience that does not exceed [n] people in total (the “Limit”)." Then, always: "The Limit applies to all of your uses of the Content under this Agreement taken together, for the whole of the Term. No use of the Content beyond the Limit is permitted without an additional license from Licensor."'],
   ['ADDED', '7.4', 'Draft would end the license the moment a buyer posts to Instagram (platforms take a license to host posts). Narrowed to use beyond the ordinary hosting license.'],
   ['OPEN', 'Parties', 'Licensing platform named as Watermark Ventures, Inc. Confirm the entity, and whether Krafft is Licensor for the Krafft Collection.'],
   ['OPEN', '9.4', 'Texas law, Dallas courts. Confirm, given New York.'],
   ['OPEN', '8.2', 'Liability cap $1,000 is below some fees ($2,500). Consider "the fees paid under this order".'],
   ['OPEN', '6', 'No statement on model or property releases, and no indemnity. Getty-style tiers offer indemnity; decide what Watermark offers.'],
   ['DRAFTED', '9.3', 'Numbered personal licenses (Collect, Reference, print) are transferable in whole through a register-recorded transfer, with Licensor\'s advance consent; working licenses stay non-transferable unless the maker\'s terms say so. Wording for counsel.'],
+  ['OPEN', 'Territory', 'Section 1 still grants use "in all media"; the Territory clause relies on Section 2\'s opening words ("Notwithstanding any other provision") to narrow it. Is that enough, or should the grant itself name the territory? The last sentence (a site directed to the Territory may be reached from elsewhere) is ours: without it a website could not keep the clause; with it, is "direct to an audience" certain enough? Countries are named as the ISO 3166-1 list names them in English, and "European Union" is not tied to a date: should it be its members at the date of the order? With Exclusivity (2.7), is the exclusivity only within the Territory?'],
+  ['OPEN', 'Size of Use', 'How a copy, a circulation and an audience are counted online (a page view, a follower, a reader) is not said; nor is who counts, or what the licensee must report. Should the clause be offered for websites and social media at all, or only for printed and broadcast uses? The remedy for going over is the general one (7.2); should it be a further fee instead?'],
+  ['OPEN', 'Territory, Size of Use: the asking', 'A license narrowed in either way is never sold at once: the request goes to the maker with the narrowed terms attached, the maker names the fee, and the licensee pays by the link sent. The licensee is not shown the click-through line at that payment. Confirm what acceptance a narrowed license needs.'],
   ['OPEN', 'Acceptance', 'Click-through acceptance at checkout; confirm this is enough for exclusivity and merchandise orders, or require a signature.'],
 ];
 
-module.exports = { RIGHTS, EXTRAS, BUNDLES, ADD_RIGHT, terms, assemble, REVIEW };
+module.exports = { RIGHTS, EXTRAS, BUNDLES, ADD_RIGHT, SIZES, PLACES, place, limitOf, terms, assemble, REVIEW };

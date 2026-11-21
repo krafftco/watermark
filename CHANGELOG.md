@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.0 · A license written from the use · 21 November 2026
+
+Every word and clause below is a draft: the words for Will, the clauses for counsel. No price was added or changed.
+
+- The license page now asks as a person would: what is it for, where will it appear, how many, and for how long. Anywhere in the world and no set number stay the answers unless you change them, and a license that answers them so reads exactly as it did.
+- A license can now be for one country (or the European Union) and for a stated number of copies, of circulation or of audience. Each adds its own clause to the agreement and changes nothing else in it.
+- Such a license is agreed with the maker: the page says so, the request carries the answers, the maker names the fee, and the agreement and the papers then say the place and the number.
+- What you will hold says it in one breath before you pay: "in one territory (France) and in no more than 5,000 copies".
 ## 1.89.3 · Search that reads the question, and the house is not a stock library · 21 November 2026
 
 Search that reads the question:

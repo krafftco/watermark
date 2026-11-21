@@ -58,6 +58,14 @@ const H = require('../src/holds');
   assert.ok(S.openWill.stays.includes('public domain') && !S.openWill.text.includes('copyright stays'), 'a print of an open work: ' + S.openWill.text);
   // The statement follows the order's own terms, never the other way: a working license the maker made transferable says so.
   assert.ok(H.statement({ use: use('editorial'), t: { transferable: true }, maker: M }).pass.includes('whole to one other person'), 'a license its terms make transferable');
+  // (#183) A working license narrowed to a territory or a size says so in its "may" sentence, in one clause; one that is not says nothing of it.
+  { const K = require('../src/contract'); const nt = K.terms({ use: use('editorial'), territory: 'FR', limit: { n: 5000, of: 'copies' } });
+    const ns = H.statement({ use: use('editorial'), t: nt, maker: M, will: true }); four(ns, 'a narrowed license');
+    assert.ok(ns.may.includes(', in one territory (France) and in no more than 5,000 copies, for yourself') && ns.hold === S.licenseWill.hold && ns.stays === S.licenseWill.stays && ns.pass === S.licenseWill.pass, 'narrowed: ' + ns.text);
+    assert.ok(H.statement({ use: use('editorial'), t: K.terms({ use: use('editorial'), territory: 'EU' }), maker: M }).may.includes(', in one territory (European Union), for'), 'a territory alone');
+    assert.ok(H.statement({ use: use('editorial'), t: K.terms({ use: use('editorial'), limit: { n: 300, of: 'audience' } }), maker: M }).may.includes(', before an audience of no more than 300 people, for'), 'a size alone');
+    assert.equal(H.statement({ use: use('editorial'), t: K.terms({ use: use('editorial') }), maker: M }).text, H.statement({ use: use('editorial'), maker: M }).text, 'worldwide and unlimited: the statement of today');
+    assert.ok(!/territory|no more than/.test(H.statement({ use: use('social'), t: K.terms({ use: use('social'), territory: 'FR', limit: { n: 9, of: 'copies' } }), maker: M }).text), 'a collected piece is never narrowed'); }
   process.env.MARKET_HOLD_DAYS = '0'; assert.ok(!H.statement({ use: use('social'), maker: M, edition: true }).pass.includes('days'), 'no holding time, nothing said of it'); delete process.env.MARKET_HOLD_DAYS;
   console.log('ok: one statement, four kinds');
 
