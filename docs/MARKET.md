@@ -21,6 +21,25 @@ So the house is three things, in this order:
 The house is not a dealer and does not compete with one. It earns when a sale is made through it and when the trade
 uses its record.
 
+## What the house is measured on (a draft for Will, #176)
+
+Three numbers, and no others: **works placed** (a work that has found its holder), **makers paid** (what reached them,
+and how many of them), and **collectors who return** (who collects a second time, and a third). Never trading volume:
+the house does not count, show or celebrate how much has changed hands, to the public or to itself as a goal. A resale
+is recorded because the record must be whole, and the maker is paid on it; it is not what the house is for.
+
+**The right first, the trade after.** The record is of rights: who made a work, who may use it and how, who holds a
+numbered piece. Ownership is one of those rights, not the whole of them. So every page that offers a work says first
+what is held, what may be done with it and what stays with the maker, and only then what it costs or how it may pass
+on. The one statement is built in `src/holds.js` and read before paying, on the papers and at resale
+(`test/holds.js`); its open questions are counsel's (docs/COUNSEL.md, 44 to 49).
+
+What this changed on the market's pages (#176): a stranger is shown what is offered and what is asked, and no count or
+sum of what has sold (the maker and the Studio still see their own, as #165 set); the pages say "the maker" and "the
+register", and say what the house does in a resale (it takes the payment, moves the piece with its number, pays its
+collector and its maker) in place of the language of an exchange. The Studio's and the maker's own views keep their
+older words ("traded", "last traded") until Will says what they should be.
+
 ## The rules the house keeps (the trade's own, kept by the machine)
 
 | The rule | What the house does | Today |

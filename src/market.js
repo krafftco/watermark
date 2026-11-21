@@ -9,6 +9,7 @@
 // each trade and records it from the Studio. Nothing here is investment advice; values are prices paid.
 const { nanoid } = require('nanoid');
 const TR = require('./rules-of-trade');
+const HOLDS = require('./holds'); // (#176) what you hold, said one way everywhere
 
 const ROYALTY = 0.10; // to the maker, on every resale (draft)
 const FEE = 0.05;     // to Watermark (draft)
@@ -260,7 +261,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     try {
       const cs = await stripe.checkout.sessions.create({
         mode: 'payment', submit_type: 'pay', customer_creation: 'always', ...(d && d.email ? { customer_email: d.email } : {}),
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}`, description: `From its collector, through Watermark. Photograph by ${m.name}; ${Math.round(ROYALTY * 100)}% goes to the photographer.`, images: [`${C.base}/img/${l.slug}/thumb`] } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}`, description: `From its collector, through Watermark. By ${m.name}; ${Math.round(ROYALTY * 100)}% goes to the maker.`, images: [`${C.base}/img/${l.slug}/thumb`] } } }],
         metadata: { market: String(s.id), ...(d ? { bid: String(d.id) } : {}) }, payment_intent_data: { transfer_group: `listing-${s.id}`, metadata: { market: String(s.id) } },
         expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
         success_url: `${C.base}/market/${s.id}/done?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${C.base}/market/${s.id}`,
@@ -380,7 +381,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   const page = {
     exchange: ({ open, recent, vol, whose = null }) => layout({ title: 'The market · Watermark', desc: 'Numbered works offered by their collectors, at the prices they ask.', path: '/market', body: `<section class="cx-intro mk">
 <p class="k">The market</p><h1>Where collectors pass the work on.</h1>
-<p class="lede">Limited editions are numbered, and when an edition is complete the only way to own one is from a collector who holds it. Pieces offered here are offered by their collectors, at prices they set. Every trade is recorded on the register; what a piece sold for is shown to its maker, to its holder and to the house, never as a public list.</p>
+<p class="lede">Limited editions are numbered, and when an edition is complete the only way to hold one is from a collector who holds it. Pieces offered here are offered by their collectors, at prices they set. Each time a piece passes on, the register records it; what it sold for is shown to its maker, to its holder and to the house, never as a public list.</p>
 <p class="mk-stats"><span><b>${open.length}</b> offered</span>${vol ? `<span><b>${vol.n}</b> traded${whose === 'yours' ? ' of your work' : ''}</span><span><b>${money(vol.v)}</b> traded in all</span>` : ''}</p></section>
 <section class="gal"><header class="gh"><h2>Offered now</h2><span>by their collectors</span></header>
 ${open.length ? `<div class="mk-grid">${open.map(r => `<a class="mk-c" href="/market/${r.id}"><span class="mk-im" style="--r:${ratio(r)}"><img src="/img/${esc(r.slug)}/thumb" alt="${esc(tidy(r.title))}" loading="lazy" draggable="false"></span>
@@ -389,24 +390,26 @@ ${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>
 <section class="gal mk-how"><header class="gh"><h2>How it works</h2></header><ol class="mk-steps">
 <li><b>A collector offers a piece.</b> From their gallery, at a price they choose. They can withdraw it at any time.</li>
 <li><b>You ask to buy it.</b> At the asking price, or with an offer of your own.</li>
-<li><b>Watermark settles it.</b> You pay Watermark; the piece moves to you with its number; the collector is paid out, and the photographer receives ${Math.round(ROYALTY * 100)}% of every resale. Watermark keeps ${Math.round(FEE * 100)}%. Neither side has to trust the other.</li>
-<li><b>It hangs on your wall.</b> With its number, its certificate and its history, written to the ledger.</li></ol>
+<li><b>The house sees it through.</b> The house takes the payment, moves the piece to you with its number, and pays its collector and its maker: the maker receives ${Math.round(ROYALTY * 100)}% each time a piece is sold again, and Watermark keeps ${Math.round(FEE * 100)}%.</li>
+<li><b>It hangs on your wall.</b> With its number, its certificate and its history, recorded on the register.</li></ol>
+${HOLDS.block({ use: { key: 'social', kind: 'license' }, maker: 'its maker', edition: true, will: true })}
 <p class="note">Prices here are what collectors ask. They are not valuations or advice.</p></section>` }),
 
     listing: ({ s, l, m, p, mine, sent, auto, bid, held }) => layout({ title: `${tidy(l.title)}, No. ${l.collector_no} · The market · Watermark`, body: `<section class="mk-l">
 <a class="mk-im mk-big" href="/w/${esc(l.slug)}" style="--r:${ratio(l)}"><img src="/img/${esc(l.slug)}/large" alt="${esc(tidy(l.title))}" draggable="false"></a>
 <div class="mk-side"><p class="k">Offered by its collector</p><h1>${esc(tidy(l.title))}</h1><p class="mk-no mk-no-big">${no(l)}</p><p class="mk-by"><a href="/m/${esc(V.makerSlug ? V.makerSlug(m) : '')}">${esc(m.name)}</a>${l.place ? ` &middot; ${esc(l.place)}` : ''}</p>
-<dl class="sh-dl mk-dl"><div><dt>Asking</dt><dd class="mk-ask">${money(s.ask_cents)}</dd></div>${p.issue != null ? `<div><dt>Issued at</dt><dd>${money(p.issue)}</dd></div>` : ''}${p.last != null ? `<div><dt>Last traded</dt><dd>${money(p.last)}, ${date(p.lastAt)}</dd></div>` : ''}<div><dt>To the photographer</dt><dd>${Math.round(ROYALTY * 100)}% of the price, ${money(Math.round(s.ask_cents * ROYALTY))} at the asking price</dd></div></dl>
+<dl class="sh-dl mk-dl"><div><dt>Asking</dt><dd class="mk-ask">${money(s.ask_cents)}</dd></div>${p.issue != null ? `<div><dt>Issued at</dt><dd>${money(p.issue)}</dd></div>` : ''}${p.last != null ? `<div><dt>Last traded</dt><dd>${money(p.last)}, ${date(p.lastAt)}</dd></div>` : ''}<div><dt>To the maker</dt><dd>${Math.round(ROYALTY * 100)}% of the price, ${money(Math.round(s.ask_cents * ROYALTY))} at the asking price</dd></div></dl>
 ${s.status !== 'open' ? '<p class="note">This piece is no longer offered.</p>' : mine ? '<p class="note">This is your offer. Change or withdraw it from <a href="/yours#files">your gallery</a>.</p>'
   : auto ? (sent === '1' ? '<p class="ok">Your offer is with the collector. If they accept, you will have a link to pay, and the piece moves to your gallery the moment you do.</p>' : '')
     + (sent === 'held' ? '<p class="note">Someone is paying for this piece right now. If they do not finish, it is offered again within half an hour.</p>' : sent === 'pending' ? '<p class="note">Your payment is being confirmed. The piece appears in your gallery within a minute.</p>' : sent === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : sent === 'offer' || sent === 'email' ? '<p class="err">An email address and an offer, so the collector can answer.</p>' : '')
-    + `<form method="post" action="/market/${s.id}/buy" class="mk-buy">${bid ? `<input type="hidden" name="bid" value="${esc(bid.token)}"><p class="ok">The collector accepted your offer.</p>` : ''}<button class="jewel"${held && !bid ? ' disabled' : ''}><span>${bid ? 'Pay and take it' : 'Buy it now'}</span><b>${money(bid ? bid.offer_cents : s.ask_cents)}</b></button>
-<p class="note">Apple Pay, Google Pay or card. The piece moves to your gallery with its number the moment you pay; the collector is paid, and the photographer receives ${Math.round(ROYALTY * 100)}%.</p></form>`
+    + `<form method="post" action="/market/${s.id}/buy" class="mk-buy">${bid ? `<input type="hidden" name="bid" value="${esc(bid.token)}"><p class="ok">The collector accepted your offer.</p>` : ''}<button class="jewel"${held && !bid ? ' disabled' : ''}><span>${bid ? 'Pay and take it' : 'Collect this piece'}</span><b>${money(bid ? bid.offer_cents : s.ask_cents)}</b></button>
+<p class="note">Apple Pay, Google Pay or card. The piece moves to your gallery with its number the moment you pay; its collector is paid, and the maker receives ${Math.round(ROYALTY * 100)}%.</p></form>`
     + (bid ? '' : `<details class="mk-off"><summary>Make an offer</summary><form method="post" action="/market/${s.id}/bid" class="form mk-f"><label>Your name<input name="name" autocomplete="name"></label><label>Email<input name="email" type="email" required autocomplete="email"></label><label>Your offer<input name="offer" inputmode="decimal" required placeholder="${esc(money(Math.round(s.ask_cents * 0.85 / 100) * 100))}"></label><button class="btn">Send it to the collector</button><p class="note">Nothing is charged unless they accept and you pay.</p></form></details>`)
-  : sent === '1' ? '<p class="ok">Your request is with Watermark. We will write to you to settle it: payment first, then the piece moves to your gallery with its number.</p>'
+  : sent === '1' ? '<p class="ok">Your request is with Watermark. We will write to you to arrange it: payment first, then the piece moves to your gallery with its number.</p>'
   : `<form method="post" action="/market/${s.id}/bid" class="form mk-f">${sent === 'email' ? '<p class="err">An email address, so we can settle it with you.</p>' : ''}<label>Your name<input name="name" autocomplete="name"></label><label>Email<input name="email" type="email" required autocomplete="email"></label>
-<label>Your offer, if not the asking price<input name="offer" inputmode="decimal" placeholder="${esc(money(s.ask_cents))}"></label><button class="jewel"><span>Ask to buy it</span><b>${money(s.ask_cents)}</b></button>
-<p class="note">Nothing is charged now. Watermark settles each trade with both collectors.</p></form>`}
+<label>Your offer, if not the asking price<input name="offer" inputmode="decimal" placeholder="${esc(money(s.ask_cents))}"></label><button class="jewel"><span>Ask for this piece</span><b>${money(s.ask_cents)}</b></button>
+<p class="note">Nothing is charged now. Watermark arranges it with you and with its collector.</p></form>`}
+${s.status === 'open' && !mine ? HOLDS.block({ use: { key: 'social', kind: 'license' }, t: l.rights ? (() => { try { return JSON.parse(l.rights); } catch (e) { return null; } })() : null, maker: m.name, no: l.collector_no, of: l.edition_size, edition: true, will: true }) : ''}
 <p class="sr-also"><a href="/w/${esc(l.slug)}/life">Its history</a> &middot; <a href="/market">The market</a></p></div></section>` }),
 
     payouts: ({ rows, ready, linked, on }) => layout({ title: 'Getting paid · Watermark', body: `<section class="narrow mk-pay">
