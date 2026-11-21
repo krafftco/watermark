@@ -37,6 +37,9 @@ function mountClock(app, { db, V, C, buyerOf }) {
   }
   // What the house has, scoped: a deterministic pick by the day so a slot holds still for the hour.
   function programme(req, { maker = null } = {}) {
+    // (#139) A page that shows the hour depends on the visitor's zone (wm_tz): the worker's prepared copy says so, and a
+    // visitor with a zone of their own is built fresh (prepared.js).
+    if (req && req.preparing && req.res && !req.res.headersSent) req.res.set('X-Wm-Zoned', '1');
     const zone = zoneOf(req), hour = hourIn(zone), slot = slotAt(hour);
     const day = Math.floor(Date.now() / 86400e3), mk = maker ? 'AND w.maker_id=? ' : '', ma = maker ? [maker.id] : [];
     const pick = (rows, k = 1) => (rows.length ? Array.from({ length: Math.min(k, rows.length) }, (_, i) => rows[(day + i * 7 + hour) % rows.length]) : []);
