@@ -5,6 +5,17 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.1 · A print the photographer makes, or already has · 21 November 2026
+
+Every sentence below is a draft for Will. No price, fee or share was added or changed.
+
+- Each print a photographer offers now says who makes it: they print, sign and send it themselves; they have it already, signed, and the collector takes it from them by hand; or the house's print room makes it. A photographer's own prints are theirs to make unless they choose otherwise.
+- A print the photographer has in hand is bought with no address asked. The papers and the register entry are issued at payment; the collector's room says the print is waiting with the photographer; the photographer marks it handed over, and the collector is told.
+- A print the photographer makes lands on their desk with the address and the number for the pencil line; they mark it sent, with tracking if there is any, and then arrived. The collector is told at each step.
+- The money for a print taken by hand clears seven days after payment, like any sale, so the photographer may keep the print until it has reached them; the order says when it clears and when it went out. A print to send still clears when it is marked sent.
+- A print made by the photographer can be offered from a master under the house's print standard, since the house never prints it.
+- Repairs: a print's address is kept when the buyer returns to the thank-you page before the payment's confirmation arrives, and is read where Stripe now puts it; a work's record fits a phone; every tab of the record shows, and a link into one opens it; a work can be put on view from its own record.
+
 ## 1.90.0 · A license written from the use · 21 November 2026
 
 Every word and clause below is a draft: the words for Will, the clauses for counsel. No price was added or changed.

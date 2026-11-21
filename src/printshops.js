@@ -85,10 +85,11 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     return id;
   }
 
-  // Every print the house has sold and not yet placed is placed; run after each sale and once a minute.
+  // Every print the house has sold and not yet placed is placed; run after each sale and once a minute. A print the
+  // maker makes or has in hand (#193, `by_maker`) is never offered to a shop: it is on the maker's own desk.
   function sweep() {
     ensureHouse(); if (app.locals.lab) try { app.locals.lab.ensureLab(); } catch (e) { /* */ }
-    const rows = db.prepare("SELECT o.id FROM print_orders o WHERE o.status='asked' AND COALESCE(o.cents,0)>0 AND NOT EXISTS (SELECT 1 FROM print_jobs j WHERE j.order_id=o.id AND j.status<>'declined')").all();
+    const rows = db.prepare("SELECT o.id FROM print_orders o WHERE o.status='asked' AND COALESCE(o.cents,0)>0 AND COALESCE(o.by_maker,0)=0 AND NOT EXISTS (SELECT 1 FROM print_jobs j WHERE j.order_id=o.id AND j.status<>'declined')").all();
     let n = 0; for (const r of rows) { const o = orderOf(r.id); if (!o) continue; const s = choose(o); if (s) { offer(o, s); n++; } }
     return n;
   }

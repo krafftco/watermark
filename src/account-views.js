@@ -72,7 +72,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 
 const I = require('./icons');
 const quietNow = () => { try { return require('./views').isQuiet(); } catch (e) { return false; } }; // the maker's week (8 Nov): the desk shows the path to a first sale
-function dashboard({ keys = [], role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, starCounts = [], at = null, older = null, newer = null, maker = null, culled = null, keeping = null, asks = 0, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
+function dashboard({ keys = [], role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, starCounts = [], at = null, older = null, newer = null, maker = null, culled = null, keeping = null, asks = 0, prints = null, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
   setDeskPath('/account');
   // (#78) `works` is one page of the holdings (the newest, or what a search found); the counts are the database's.
   const DP = require('./deskpage');
@@ -104,6 +104,7 @@ function dashboard({ keys = [], role = null, m, pct, works, jewels, byUse, recen
   // Money); the figures that were paragraphs are rows; everything else is in the rail. No paragraphs on the desk.
   const bank = totals.bank;
   const needRows = viewing ? [] : [
+    prints && prints.n ? [`/account/works/${esc(prints.slug)}#prints`, 'See the order', `${prints.n} print${prints.n === 1 ? '' : 's'} sold, waiting with you to hand over or send`] : null,
     asks ? ['/account/requests', 'Answer', `${asks} request${asks === 1 ? '' : 's'} waiting`] : null,
     pairs ? ['/account/pairs', 'Confirm', `${pairs} picture${pairs === 1 ? '' : 's'} that look${pairs === 1 ? 's' : ''} like one${pairs === 1 ? '' : 's'} you hold`] : null,
     claims ? ['/account/claims', 'Answer', `${claims} claim${claims === 1 ? '' : 's'} about your work`] : null,

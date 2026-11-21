@@ -329,6 +329,8 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
+      made: t.print && t.print.made ? t.print.made : null, // (#193) a print the maker makes or has in hand
+      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : null,
     };
   }
   function grant(ref, extra = {}) {
@@ -363,7 +365,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
     if (app.locals.onGrant) { try { app.locals.onGrant(q.lic.get(ref), extra); } catch (e) { console.error('[editions]', e.message); } } // a print edition: the number, the order, the register
     const g = q.lic.get(ref);
-    try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
+    try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email && !L.made) mail.send({ to: maker.email, ...LETTERS.sold(L) }); /* (#193) a print the maker makes or holds: their letter is the order's (editions.js), not 'nothing for you to do' */ if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
       if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
       if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) }); }
@@ -1381,7 +1383,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./cull').mountCull(app, { db, V, ledger, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true) }); // the cull (11 Nov): swipe right to show, left to keep back
   require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   require('./gifts').mountGifts(app, { db, V, ledger, studioOnly });
-  app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
+  app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null, mail }); // the editions room: prints sold off the wall, at the show and after
   require('./details').mountDetails(app, { db, V, C, q, mk, images, originalPath, cache, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, zone, ledger });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
@@ -1717,7 +1719,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       return res.send(V.setThanks({ items, name: (SETS[l.set_ref.split(':')[0]] || {}).name || 'The set' }));
     }
     if (l.status !== 'active' && stripe) {
-      try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
+      try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total, session: s }); } /* (#193) the session carries a print's address: back on this page before the webhook, the order was written without it */ } catch (e) { /* show pending */ }
     }
     if (l.status === 'active' && !l.buyer_id) { // hang it in this device's collection
       let b = buyerOf(req), theirs = null;
@@ -1798,7 +1800,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (req.query.session_id && stripe && l.stripe_session === req.query.session_id) {
       owner = true;
       if (l.status !== 'active') {
-        try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } catch (e) { /* show current status */ }
+        try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') l = grant(l.ref, { paid: true, price_cents: s.amount_total, session: s }); } catch (e) { /* show current status */ }
       }
     }
     if (req.query.k && l.download_token && req.query.k === l.download_token) owner = true;

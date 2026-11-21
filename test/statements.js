@@ -26,8 +26,8 @@ function REF(app, db, m) {
     clearing: (id, pct) => {
       const since = `-${HOLD_DAYS} days`; let s = 0, n = 0;
       const add = r => { if (r) { s += r.s || 0; n += r.n || 0; } };
-      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key<>'print' AND l.created_at > datetime('now', ?)`).get(id, since)); } catch (e) { /* */ }
-      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.status IN ('sent','done','delivered'))`).get(id)); } catch (e) { /* */ }
+      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND (u.key<>'print' OR EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND o.by_maker=1 AND o.pickup=1)) AND l.created_at > datetime('now', ?)`).get(id, since)); } catch (e) { /* */ }
+      try { add(db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(pct)}),0) s, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0 AND u.key='print' AND NOT EXISTS (SELECT 1 FROM print_orders o WHERE o.license_id=l.id AND (o.status IN ('sent','done','delivered') OR (o.by_maker=1 AND o.pickup=1)))`).get(id)); } catch (e) { /* */ }
       try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE maker_id=? AND status='paid' AND COALESCE(paid_at, created_at) > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
       try { add(db.prepare("SELECT COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE maker_id=? AND kind='royalty' AND status IN ('owed','paid','house') AND created_at > datetime('now', ?)").get(id, since)); } catch (e) { /* */ }
       try { add(db.prepare(`SELECT COALESCE(SUM(CASE WHEN ${FEE.on() ? '1' : '0'}=1 THEN t.price_cents ELSE CAST(o.price_cents * ? / 100.0 AS INTEGER) END),0) s, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id WHERE t.maker_id=? AND o.status='paid' AND o.price_cents>0 AND COALESCE(o.paid_at, o.created_at) > datetime('now', ?)`).get(pct, id, since)); } catch (e) { /* */ }
@@ -91,6 +91,9 @@ const plain = o => JSON.parse(JSON.stringify(o, (k, v) => (v && typeof v === 'ob
     lic(b, 'editorial', 9999, 'requested', 1); lic(b, 'editorial', 0, 'active', 1); lic(a, 'editorial', 12345, 'declined', 1);
     const p1 = lic(a, 'print', 18000, 'active', 20), p2 = lic(b, 'print', 24000 + mi, 'active', 60, 3000);
     ins('print_orders', { license_id: p1, status: 'delivered' }); ins('print_orders', { license_id: p2, status: 'asked' });
+    // (#193) Prints taken from the maker by hand: they clear on the hold from payment, never on the hand-over.
+    const p3 = lic(a, 'print', 30000 + mi, 'active', 2, 6000), p4 = lic(b, 'print', 30000, 'active', 12, 6000);
+    ins('print_orders', { license_id: p3, status: 'asked', by_maker: 1, pickup: 1 }); ins('print_orders', { license_id: p4, status: 'asked', by_maker: 1, pickup: 1 });
     ins('tips', { grp: 'g', maker_id: m, amount_cents: 300 + mi, status: 'paid' }); ins('tips', { grp: 'g', maker_id: m, amount_cents: 999, status: 'pending' });
     db.prepare(`UPDATE tips SET created_at=${days(20)}, paid_at=${days(20)} WHERE maker_id=? AND amount_cents=?`).run(m, 300 + mi); ins('tips', { grp: 'g', maker_id: m, amount_cents: 150, status: 'paid' });
     ins('payouts', { trade_id: 1, kind: 'royalty', maker_id: m, amount_cents: 410 + mi, status: 'owed' }); ins('payouts', { trade_id: 1, kind: 'fee', maker_id: m, amount_cents: 77, status: 'owed' });
