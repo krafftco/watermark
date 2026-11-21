@@ -86,6 +86,52 @@ jobs:
           name: scale-table
           path: /tmp/scale-table.md
           if-no-files-found: ignore
+  # The scale gate on Postgres (#116, docs/SCALE.md stage 1 "Truth"): the same house of 100,000 works, moved into Postgres
+  # 16 by scripts/to-postgres.js and walked THROUGH THE BRIDGE (src/pgsync.js) as the website does, with the same budgets
+  # and its own allow-list (ALLOW_PG); the numbers desk and the digest are walked open. Live is Postgres 16 on 2 CPU and
+  # 8 GB (Render, 20 Nov) with settings assumed default; the runner's server is postgres:16 with its defaults (work_mem
+  # 4 MB, shared_buffers 128 MB) on a runner that is not live's size: a time here is a guide, the plan is the evidence.
+  # Each statement over a line is reported with its plan (EXPLAIN ANALYZE after the walk), in an annotation and whole in
+  # the `scale-postgres` artifact.
+  scale-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: |
+          npm ci > /tmp/npm-ci.txt 2>&1 && exit 0
+          echo "::warning title=scale-postgres (npm ci)::$(tail -c 1300 /tmp/npm-ci.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"
+          sleep 10; npm ci > /tmp/npm-ci.txt 2>&1 && exit 0
+          echo "::error title=scale-postgres (npm ci)::the install failed twice; the gate did not run:%0A$(tail -c 1300 /tmp/npm-ci.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1
+      # Started here rather than as a service, so a wait that runs out prints the server's log. --shm-size: Docker's 64 MB
+      # /dev/shm is too small for a parallel scan or VACUUM (the first run failed so); a real server has the host's.
+      # max_wal_size only spares the move a checkpoint every few seconds (it does not change a plan).
+      - run: |
+          docker run -d --name pg --shm-size=1g -e POSTGRES_PASSWORD=wm -p 5432:5432 postgres:16 -c max_wal_size=2GB
+          for i in $(seq 1 45); do docker exec pg pg_isready -U postgres -h localhost > /dev/null 2>&1 && exit 0; sleep 2; done
+          echo "::error title=scale-postgres (server)::Postgres did not answer in 90 s:%0A$(docker logs pg 2>&1 | tail -c 1200 | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1
+      - run: |
+          set -o pipefail
+          node scripts/big-house.js 2>&1 | tee /tmp/scale-pg.txt || { grep -q '::error title=scale-postgres' /tmp/scale-pg.txt || echo "::error title=scale-postgres::$(tail -c 1400 /tmp/scale-pg.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
+        env:
+          BIG_PG: postgres://postgres:wm@localhost:5432/postgres
+          BIG_TABLE: /tmp/scale-pg-table.md
+          BIG_PLANS: /tmp/scale-pg-plans.md
+      - if: always()
+        run: docker stats --no-stream pg || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-postgres
+          path: |
+            /tmp/scale-pg-table.md
+            /tmp/scale-pg-plans.md
+            /tmp/scale-pg.txt
+          if-no-files-found: ignore
   # The accessibility checker (issue #4): axe-core in Playwright's Chromium over the main public and signed-in doors,
   # phone and desk, WCAG 2.0/2.1 A and AA; any serious or critical fault fails. The test raises its own findings as an
   # annotation; a crash before that is raised here.
@@ -142,8 +188,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # (#109) The browser kept between runs (its install once took 24 minutes and used up the job); a stalled install is
+      # stopped at ten minutes and tried once more, so the job says so instead of running out of time.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - id: install
-        run: npx playwright install --with-deps webkit || { echo "::error title=reach-webkit::WebKit could not be installed (npx playwright install --with-deps webkit failed); the WebKit pass did not run"; exit 1; }
+        run: timeout 600 npx playwright install --with-deps webkit || timeout 600 npx playwright install --with-deps webkit || { echo "::error title=reach-webkit::WebKit could not be installed (npx playwright install --with-deps webkit failed or stalled twice); the WebKit pass did not run"; exit 1; }
       - run: |
           rc=0
           NODE_ENV=test REACH_JSON=/tmp/reach-webkit.json node scripts/reach-walk.js > /tmp/reach-webkit.txt 2>&1 || rc=$?
@@ -156,11 +208,16 @@ jobs:
           NODE_ENV=test WAYBACK_JSON=/tmp/wayback-webkit.json node test/wayback.js > /tmp/wayback-webkit.txt 2>&1 || rc=$?
           sed 's/^::/: :/' /tmp/wayback-webkit.txt
           node scripts/engine-findings.js wayback /tmp/wayback-webkit.json /tmp/wayback-webkit.txt $rc
+      # The breaks walk (#149): a room throws, a limit fires, the house stops mid-visit; photographs in the artifact.
+      - if: (success() || failure()) && steps.install.outcome == 'success'
+        run: NODE_ENV=test BREAKS_SHOTS=/tmp/breaks-webkit node scripts/breaks-walk.js
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: webkit-findings
-          path: /tmp/*-webkit.*
+          path: |
+            /tmp/*-webkit.*
+            /tmp/breaks-webkit/
           if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-24.04
@@ -200,4 +257,5 @@ jobs:
           run() { "$@" 2>&1 | tee /tmp/out.txt || { echo "::error title=$1 $2::$(tail -c 1500 /tmp/out.txt | tr '\n' ' ' | tr -d '%')"; exit 1; }; }
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

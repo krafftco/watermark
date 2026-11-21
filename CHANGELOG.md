@@ -5,6 +5,92 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
+
+The trade's rules, kept by the house:
+- An edition is never enlarged once a piece of it has sold. Its size can stay, or be made smaller down to what is sold; never larger, and a numbered edition is never opened again. The same for the maker and for the Studio, on prints and on numbered works, and the register says when a size changes.
+- A print's price is never lowered once one has sold at it. It can stay or rise, and so can its framed price.
+- No public list of prices. Anyone can see what collectors offer and what they ask. What a piece sold for, the totals, the line of prices and the value of a collection are shown only to the maker of the work, to the person who holds the piece, and to the house.
+- A piece is held for a time after it is sold before it can be offered again (a draft: a year). Its holder is told the day. A gift is not a sale and is never held. The house can lift the time for one piece, with its reason on the register.
+
+A museum's work, credited as they ask:
+- A work from a museum's open collection now says whose it is, under its label: "From the collection of The Metropolitan Museum of Art, New York", the museum's own credit line, and their page for the object, one tap away. Before, their page was folded under "For publishers" and their name was missing from the page.
+- The credit to copy is the one each museum asks for: the artist, the title, the date, then the museum and its credit line ("Courtesy National Gallery of Art, Washington" for the Gallery, as the Gallery asks). It no longer puts "The public domain" where the artist goes.
+- An open work's data and its free file no longer claim a copyright or a licence of the house's: the page's search-engine record, the public API, the Watermark panel and the file itself say the licence (CC0, public domain) and the museum's credit, never "All rights reserved".
+- A work the Met gives as "Workshop of" or "Attributed to" keeps those words, and is not hung on the master's wall.
+
+Read the way each source asks:
+- The house asks the Library of Congress for at most ten things a minute, across every job at once, as their own page asks.
+- Every request to the Art Institute of Chicago names the house and its address in the header they ask for. The size of picture the house takes from them is unchanged until we have asked them.
+- Project Gutenberg asks that machines not read its website, and Gutendex asks to be run by those who use it. Until the house moves to the way they offer, nothing is brought in from either: the Studio's desk says so, and every book already on the shelf stays as it is.
+
+The house's own words:
+- The About page says what the catalogue is for: it keeps works in view wherever they are held.
+- The register's page says its head is confirmed by a clock the house does not own, and no longer names the clock in the reading copy. The proofs and how to check them are unchanged.
+
+## 1.88.1 · What the house calls itself · 20 November 2026
+
+- The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.
+
+## 1.88.0 · On view at · 20 November 2026
+
+- A maker can say where a work can be seen in person: the place, its street, city and country, the dates, and the place's own web address. The work's page, the maker's page and the work's panel in Wander say it in one line, "On view at …, until …", with who stated it. Set on the work's record, for one work or every work of the maker in a hang at once.
+- When the maker says the place represents the work for sale, the way to buy is the place's own: "Enquire with …" goes to its address or link, and the house does not offer its own Collect beside it. A licence or prints stay off unless the maker keeps them.
+- After the last date the line says where it was shown, or goes, as the maker chose. A place named on a page can ask for its line to be corrected through the claim door, which pauses no sale for this; the house can take it off at once.
+
+## 1.87.15 · The open doors, made ahead · 20 November 2026
+
+- The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
+- A visit to one of those pages is still counted by the house itself, as every visit is.
+## 1.87.14 · A break is the house's, not the host's · 20 November 2026
+
+- When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.
+- When the house cannot answer at all, the page you see is the house's own: a dark wall, one line, and it returns you to where you were as soon as the house answers. Visitors who have the app see the same page.
+
+## 1.87.13 · Ready to run as more than one · 20 November 2026
+
+- The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
+- Getting there found places where two copies acting at the same moment could have done one thing twice: grant a licence, settle a sale, send a payment. Each now claims its row first, and every transfer to a maker or a collector carries a key so that it is made once.
+- A payment to a maker is written down before it is sent, and counted as paid from that moment.
+## 1.87.12 · The back room: it was the backup · 20 November 2026
+
+- The line added in 1.87.11 named the cause at the first start: the nightly copy of the database. It was read whole into memory, compressed whole and sealed whole, on a machine too small for three copies of it. The worker was ended for memory at that step after every start from about 18 November, and in that time no backup was made.
+- The copy is now hashed and compressed from disk to disk and read once to be sealed. The weekly restore drill is not run on a copy over 200 MB until it too reads from disk; the record says so.
+
+## 1.87.11 · The back room says what it holds · 20 November 2026
+
+- The worker is still being ended for memory, and four repairs have each fixed something real that was not the cause. This release repairs nothing: the house now writes a line whenever the database hands it a very large answer, and another the moment its memory rises sharply, with what was running. The next start names the cause.
+
+## 1.87.10 · The back room, followed to the chore · 20 November 2026
+
+- With the album warm-up made harmless, the worker was ended twenty seconds into the next long chore instead: the one that asks for each library book's subjects, which read the whole book, body and plates, to shelve it. It now reads the five small fields it needs.
+- A start-up chore now writes a line when it begins as well as when it ends.
+
+## 1.87.9 · The back room, third time · 20 November 2026
+
+- 1.87.7 was not the whole of it either. The new start-up line showed the worker ended a minute into the album warm-up, which was still reading every work of every open album whole. The warm-up now asks two small questions and reads no work.
+
+## 1.87.7 · The back room, the real cause · 20 November 2026
+
+- 1.87.6 did not stop the worker running out of memory: the host ended it again seven minutes after that release went in. Watching it through a start showed the memory rise from about 260 MB to over 1,100 MB within thirty seconds of the album warm-up, a start-up chore that made album pictures from the originals by itself. That chore now only looks and counts; the scribes make the copies, as they do for every work.
+- Each start-up chore now writes how long it took and what it did to the memory, so the next fault of this kind names itself.
+
+## 1.87.6 · The back room stops running out of memory · 20 November 2026
+
+- The worker that does the house's chores was being restarted by the host about every seven minutes on 20 November. Its hourly check of the register read the whole register into memory at once. It now reads a page at a time; the check and its answer are the same.
+
+## 1.87.5 · No one page can stop the house · 20 November 2026
+
+- A page that asks too much of the house is now stopped after a few seconds, and only the person who asked is told to try again. Before, one slow page held everyone, and three times this month it stopped the house.
+- The Studio's numbers are worked out in the back room every five minutes and kept. The numbers page and the morning digest open again and read what was kept.
+- Wander, the front page and a work's own page ask for what they need without holding the house while they wait.
+- The Publishing page no longer reads every book whole to list them. That reading caused the restart on the morning of 20 November.
+- A collector's "collecting since" now reads its date correctly.
+
+## 1.87.4 · The numbers desk is closed for repair · 20 November 2026
+
+- Opening the Studio's numbers page stopped the house a second time, on the night of 19 November. The page and the morning digest are shut on the website and say so; visits are still counted. They reopen when the figures are worked out away from the website.
+
 ## 1.87.3 · Every desk, a page at a time · 19 November 2026
 
 - A studio with tens of thousands of works opens at once. Your holdings, the Library and the Masters desk show the newest two hundred, with Older and Newer and a search that looks through everything you hold.

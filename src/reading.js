@@ -268,7 +268,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
     })();
     return job;
   }
-  app.post('/studio/reading/canon', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); shelveCanon(); res.redirect('/studio/reading?ok=' + encodeURIComponent('The canon is coming in, one book every few seconds. This page shows each as it lands.')); });
+  app.post('/studio/reading/canon', (req, res) => { if (!isStudio(req)) return res.sendStatus(403); if (require('./asks').paused('https://www.gutenberg.org/ebooks/1')) return res.redirect('/studio/reading?ok=' + encodeURIComponent(require('./asks').PAUSED_LINE)); shelveCanon(); res.redirect('/studio/reading?ok=' + encodeURIComponent('The canon is coming in, one book every few seconds. This page shows each as it lands.')); });
   async function search(q) { let results = null; try { const r = await doFetch(`${GUTENDEX}?search=${encodeURIComponent(q)}`); if (r.ok) results = (await r.json()).results || []; } catch (e) { /* below */ } if (!results) results = await opds(q); const j = { results }; return (j.results || []).slice(0, 12).map(b => ({ id: b.id, title: b.title, author: (b.authors[0] || {}).name || '', downloads: b.download_count, languages: b.languages })); }
   // The reader.
   // Authors come from the catalogue as 'Last, First'; the page says them the way a person does.
@@ -360,7 +360,10 @@ ${FACE && !plates.length ? `<nav class="rdr-fmenu" data-rd-fmenu hidden><p class
   // free; the house's editions and the work of its writers, priced or free as the author says; photo books, a maker's
   // sequence of held work with a line on each, made from a wall. Every word a draft for Will.
   app.get('/publishing', (req, res) => {
-    const all = db.prepare("SELECT t.*, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.id DESC").all();
+    // (20 Nov) This page read every book whole (`t.*`: Leonardo's notebooks alone are a megabyte and a half) to print
+    // three rows of covers; on live it held the thread 7.8 s and took the website past its memory line (the restart of
+    // 07:16). It asks for what a card shows, and whether there is a body, never the body; and for the newest 600.
+    const all = db.prepare("SELECT t.id, t.slug, t.kind, t.title, t.author, t.file, t.price_cents, t.source, t.terms, CASE WHEN t.body IS NOT NULL AND t.body<>'' THEN 1 ELSE 0 END AS body, w.slug AS cover FROM texts t LEFT JOIN works w ON w.id=t.cover_work_id WHERE t.status='held' AND t.public=1 ORDER BY t.id DESC LIMIT 600").all();
     const pd = all.filter(t => t.kind === 'book' && (!t.price_cents) && /gutenberg|public domain/i.test(`${t.source || ''} ${t.terms || ''}`)), pbs = all.filter(t => t.kind === 'photobook'), eds = all.filter(t => !pd.includes(t) && !pbs.includes(t));
     const FEE = require('./fee');
     const card = t => `<a class="pub-card" href="${t.kind === 'photobook' || (t.body && !t.file) ? `/read/${esc(t.slug)}` : `/library/${esc(t.slug)}`}">${t.cover ? `<img src="/img/${esc(t.cover)}/screen" alt="" loading="lazy">` : `<span class="pub-spine"><b>${esc(t.title)}</b></span>`}<span class="pub-t"><b>${esc(t.title)}</b>${t.author ? `<i>${esc(byName(t.author))}</i>` : ''}<small>${t.price_cents ? V.money(t.price_cents) : 'Free'}</small></span></a>`;
@@ -389,11 +392,12 @@ ${shelf('Editions', 'The house’s own.', 'Essays, journals and books from the h
   // The Studio: the public domain comes in.
   app.get('/studio/reading', async (req, res) => {
     if (!isStudio(req)) return res.sendStatus(403); V.setDeskPath('/studio/reading');
-    let found = [], err = null; if (req.query.q) { try { found = await search(String(req.query.q)); } catch (e) { err = e.message; } }
+    const gp = require('./asks').paused('https://www.gutenberg.org/ebooks/1'); // #170: Gutenberg and Gutendex are not read by machine until Will chooses a way they offer
+    let found = [], err = null; if (req.query.q && !gp) { try { found = await search(String(req.query.q)); } catch (e) { err = e.message; } }
     const have = db.prepare("SELECT slug, title, author, source FROM texts WHERE source LIKE '%gutenberg.org%' ORDER BY id DESC").all();
     const shelved = t => have.find(h => h.title.toLowerCase().startsWith(t.title.toLowerCase().slice(0, 18)) || (h.author && t.author && h.author.toLowerCase().split(',')[0] === t.author.toLowerCase().split(',')[0] && h.title.toLowerCase().includes(t.title.toLowerCase().split(' ').slice(-2).join(' '))));
     res.send(V.layout({ title: 'The public domain · Watermark', studio: true, body: `<section class="studio-wrap pd"><p class="k">The Library</p><h1>The public domain.</h1>
-<p class="lede">The greatest shelf in the world sits in plain text behind a bad viewer. Bring a book in by its Project Gutenberg number or a search; the house cuts the boilerplate away, finds the chapters, and sets it in the reading room at <code>/read/&lt;slug&gt;</code>, free, credited to its author. Gutenberg’s own index is read through Gutendex.${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}${err ? ` <b class="err">${esc(err)}</b>` : ''}</p>
+<p class="lede">The greatest shelf in the world sits in plain text behind a bad viewer. Bring a book in by its Project Gutenberg number or a search; the house cuts the boilerplate away, finds the chapters, and sets it in the reading room at <code>/read/&lt;slug&gt;</code>, free, credited to its author. Gutenberg’s own index is read through Gutendex.${gp ? ` <b class="err">${esc(require('./asks').PAUSED_LINE)}</b>` : ''}${req.query.ok ? ` <b>${esc(String(req.query.ok))}</b>` : ''}${err ? ` <b class="err">${esc(err)}</b>` : ''}</p>
 <form method="get" class="cl-f pd-s"><label><span>Search Gutenberg</span><input name="q" value="${esc(String(req.query.q || ''))}" placeholder="a title, an author"></label><button class="buy-btn">Look</button></form>
 ${app.locals.jewels ? app.locals.jewels.desk() : ''}
 <form method="post" action="/studio/reading/bring" class="cl-f pd-s"><label><span>Or a Gutenberg number</span><input name="id" inputmode="numeric" placeholder="20203"></label><button class="buy-btn">Bring it in</button></form>
@@ -409,6 +413,7 @@ ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a
   });
   app.post('/studio/reading/bring', async (req, res) => {
     if (!isStudio(req)) return res.sendStatus(403);
+    if (require('./asks').paused('https://www.gutenberg.org/ebooks/1')) return res.redirect('/studio/reading?ok=' + encodeURIComponent(require('./asks').PAUSED_LINE));
     try { const r = await bring(req.body.id, { by: 'the house' }); res.redirect('/studio/reading?ok=' + encodeURIComponent(r.already ? 'Already on the shelf.' : `${r.title} is on the shelf: ${r.chapters} chapters, ${r.words.toLocaleString('en-US')} words.`)); }
     catch (e) { res.redirect('/studio/reading?ok=' + encodeURIComponent('Could not bring it in: ' + e.message)); }
   });

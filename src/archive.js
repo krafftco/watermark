@@ -119,7 +119,7 @@ Or drop the file on ${m.verify}.
     res.set('Content-Type', 'application/vnd.watermark.archive+zip');
     res.set('Content-Disposition', `attachment; filename="${w.accession || w.slug}.wmark"`);
     ledger.append(db, 'archive.issued', w.slug, { to: isStudio(req) ? 'studio' : (makerOf(req) || {}).id === w.maker_id ? 'maker' : 'reference-holder' });
-    try { await write(w, maker, res); } catch (e) { console.error('[archive]', e.message); if (!res.headersSent) res.status(500).send('The original could not be read from the vault.'); }
+    try { await write(w, maker, res); } catch (e) { console.error('[archive]', e.message); res.fault(e, 503); }
   });
 
   // Verification: a .wmark, or any image file, dropped on the house.
@@ -188,12 +188,17 @@ Or drop the file on ${m.verify}.
     return { ran: rows.length, ok, bad: bad.length };
   }
   const fixityOf = w => lastFixity(w);
-  const summary = () => ({
-    checked: db.prepare('SELECT COUNT(DISTINCT work_id) n FROM fixity').get().n,
-    works: db.prepare('SELECT COUNT(*) n FROM works WHERE original_file IS NOT NULL').get().n,
-    failing: db.prepare('SELECT COUNT(*) n FROM (SELECT work_id, ok FROM fixity f WHERE id=(SELECT MAX(id) FROM fixity WHERE work_id=f.work_id)) WHERE ok=0').get().n,
-    last: (db.prepare('SELECT MAX(checked_at) t FROM fixity').get() || {}).t || null,
-  });
+  // (#114) Each work's latest check in one pass: the newest id per work read from fixity_last (work_id, id), then those
+  // rows by their key; it was a subquery asked once per row of fixity. `last` is the newest row (ids rise with time).
+  const summary = () => {
+    const L = db.prepare('SELECT COUNT(*) checked, COALESCE(SUM(CASE WHEN f.ok=0 THEN 1 ELSE 0 END),0) failing FROM (SELECT work_id, MAX(id) id FROM fixity GROUP BY work_id) l JOIN fixity f ON f.id=l.id').get() || {};
+    return {
+      checked: Number(L.checked) || 0,
+      works: db.prepare('SELECT COUNT(*) n FROM works WHERE original_file IS NOT NULL').get().n,
+      failing: Number(L.failing) || 0,
+      last: (db.prepare('SELECT checked_at t FROM fixity ORDER BY id DESC LIMIT 1').get() || {}).t || null,
+    };
+  };
   if (process.env.NODE_ENV !== 'test' && ROLE.chores) setInterval(() => fixity(25).catch(e => console.error('[fixity]', e.message)), 6 * 60 * 60 * 1000).unref();
 
   app.locals.archive = { manifest, write, verifyBuffer, fixity, fixityOf, summary, FORMAT };

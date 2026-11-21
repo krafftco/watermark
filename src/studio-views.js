@@ -115,7 +115,7 @@ function uses({ list, notice, base = '/studio/uses', studio = true, simply = '' 
 
 // One work: the maker's terms, and the life of the photograph so far.
 function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true, zoneBlock = '', objectBlock = '', editionsBlock = '' }) {
-  notice = { editions: 'The print editions are saved.', editioncheck: 'A size and a price, please.' }[notice] || notice;
+  notice = { editions: 'The print editions are saved.', editioncheck: 'A size and a price, please.', editionheld: 'Saved, as far as the rules allow: a size that has sold can be made smaller, down to what is sold, never larger, and its prices can rise, never fall.' }[notice] || notice;
   const licBase = studio ? '/studio/licenses' : '/account/requests';
   if (!studio) setDeskPath('/account');
   const open = k => !rules.uses || rules.uses.includes(k);
@@ -142,7 +142,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 <label>Medium<input name="medium" value="${esc(w.medium || 'Digital photograph')}"></label>
 <label>Credit line<input name="credit" value="${esc(w.credit || '')}" placeholder="${esc(makerName)}"></label>
 <label>Copyright registration<input name="copyright_reg" value="${esc(w.copyright_reg || '')}" placeholder="VA 2-345-678"></label>
-<label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition"></label>
+<label>Edition size<input name="edition" type="number" min="1" step="1" value="${w.edition_size || ''}" placeholder="Open edition" aria-describedby="ed-rule-${esc(w.slug)}"><small id="ed-rule-${esc(w.slug)}">Once one is collected, it can stay or be made smaller, never larger.</small></label>
 <label>Collect price, USD<input name="share" type="number" min="3" step="1" value="${w.share_cents ? Math.round(w.share_cents / 100) : ''}" placeholder="Your standard price"></label>
 <label class="chk"><input type="checkbox" name="noshare" value="1" ${w.rules && /"social":false/.test(w.rules) ? 'checked' : ''}> License only: no Share it on this photograph</label>
 <label class="wide">Keywords<input name="keywords" value="${esc(w.keywords || '')}" placeholder="architecture, cathedral, fresco, Renaissance"></label>
@@ -282,7 +282,7 @@ function editions({ rows, notice }) {
   const row = r => `<label class="ed-row"><input type="checkbox" name="on_${r.id}" value="1" ${r.edition_size ? '' : 'checked'}><img src="/img/${esc(r.slug)}/thumb" alt="" loading="lazy"><span class="hd-t"><b>${esc(r.title)}</b><small>${esc(r.place || '')}${r.sold ? ` &middot; ${r.sold} already collected` : ''}</small></span><span class="ed-why">${esc(r.why)}</span><span class="ed-in">Edition of <input name="size_${r.id}" inputmode="numeric" value="${r.edition_size || r.size}" aria-label="Edition size for ${esc(r.title)}"></span></label>`;
   return layout({ studio: true, title: 'Editions · Watermark', body: `<section class="studio-wrap hd">${nav('/studio/editions')}
 ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}<p class="k">Editions</p><h1>Number the collection.</h1>
-<p class="lede">A size makes a photograph a numbered limited edition: collectors hold No. 3 of 25, and once an edition is complete it passes only between them, on the market. Proposed sizes are rarer for the works that matter most. Adjust any number, untick what should stay open, and approve. A size can be raised later, never lowered below what has been collected.</p>
+<p class="lede">A size makes a photograph a numbered limited edition: collectors hold No. 3 of 25, and once an edition is complete it passes only between them, on the market. Proposed sizes are rarer for the works that matter most. Adjust any number, untick what should stay open, and approve. Once one is collected, a size can stay or be made smaller, down to what is collected, never larger.</p>
 <form method="post" action="/studio/editions">
 ${open.length ? `<section class="hd-list"><div class="hd-h"><h2>Not yet numbered</h2><span class="hd-n">${open.length}</span></div>${open.map(row).join('')}</section>` : '<p class="hd-calm">Every public photograph is numbered.</p>'}
 ${done.length ? `<details class="ed-done"><summary>Already numbered (${done.length})</summary>${done.map(row).join('')}</details>` : ''}

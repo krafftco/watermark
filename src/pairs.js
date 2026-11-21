@@ -113,6 +113,7 @@ function mountPairs(app, { db, V, images, cache, originalPath, replaceMaster, in
       db.prepare('UPDATE works SET original_file=?, sha256=?, width=?, height=?, dhash=? WHERE id=?').run(prev.original_file, prev.sha256, prev.width, prev.height, prev.dhash, O.id);
       for (const sz of Object.keys(images.SIZES)) for (const f of Object.keys(images.FORMATS)) { const c = images.fileOf(cache, O.slug, sz, f); try { fs.unlinkSync(c); } catch (e) { /* none */ } }
       if (app.locals.edge && app.locals.edge.work) app.locals.edge.work(O.slug);
+      if (app.locals.prepared) app.locals.prepared.forget(O.slug); // the stranger's prepared page too (#139)
     }
     db.prepare('UPDATE works SET caption=?, keywords=?, place=?, stars=? WHERE id=?').run(prev.caption, prev.keywords, prev.place, prev.stars || 0, O.id);
     db.prepare('UPDATE works SET status=? WHERE id=?').run(prev.n_status || 'hidden', N.id);

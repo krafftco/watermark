@@ -8,14 +8,26 @@
 const http = require('http');
 const { Worker } = require('worker_threads');
 
+// (#115) The arithmetic: one hold of the thread for holdMs can make at most this many asks in a row miss (an ask every
+// `every` ms, each given `timeout` ms). The bridge's longest hold on the website (pgsync.maxHold: the hold, one long
+// statement and the grace) must make fewer than `misses`, and be under the frozen-thread line, or one slow page would
+// look like a dead house. `patience` says whether it does; start() widens the count of misses when it does not.
+const missesFor = (holdMs, every, timeout) => (holdMs < timeout ? 0 : Math.floor((holdMs - timeout) / every) + 1);
+function patience({ holdMs, every = 15000, timeout = 8000, misses = 3, frozenS = 60 }) {
+  const worst = missesFor(holdMs, every, timeout);
+  return { holdMs, worst, misses, ok: worst < misses && holdMs < frozenS * 1000, needMisses: worst + 1 };
+}
 function start({ port, governor, role }) {
   if (process.env.WATCHDOG === '0' || process.env.NODE_ENV === 'test') return null;
   if (role && !role.web) return null; // the worker and the scribes have their own hard line
   const every = 1000 * (+process.env.WATCHDOG_EVERY_S || 15);
   const timeout = 1000 * (+process.env.WATCHDOG_TIMEOUT_S || 8);
-  const misses = +process.env.WATCHDOG_MISSES || 3;
+  let misses = +process.env.WATCHDOG_MISSES || 3;
   const memMs = 1000 * (+process.env.WATCHDOG_MEM_S || 120);
   const frozenS = +process.env.WATCHDOG_FROZEN_S || 60;
+  { const P = patience({ holdMs: require('./pgsync').maxHold(), every, timeout, misses, frozenS });
+    if (P.worst >= misses) { console.error(`[watchdog] the database's longest hold (${P.holdMs} ms) could miss ${P.worst} answers in a row; counting ${P.needMisses} before a restart`); misses = P.needMisses; }
+    if (P.holdMs >= frozenS * 1000) console.error(`[watchdog] the database's longest hold (${P.holdMs} ms) is over the frozen-thread line (${frozenS} s): lower DB_HOLD_MS or DB_LIMIT_MAX_MS`); }
   const state = { missed: 0, overSince: 0, lastOk: null, started: Date.now() };
   const leave = why => { console.error(`[watchdog] ${why}; the website restarts itself`); setTimeout(() => process.exit(1), 300); };
 
@@ -50,4 +62,4 @@ function start({ port, governor, role }) {
   }, every).unref();
   return state;
 }
-module.exports = { start };
+module.exports = { start, patience, missesFor };

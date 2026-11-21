@@ -51,8 +51,11 @@ function mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl }) {
   setTimeout(migrate, 0);
   let job = null;
   async function backfill() { // the subjects of each Gutenberg book, one every 1.5 s, so the rules can shelve them
-    if (!migrate()) return null; if (job) return job; const todo = db.prepare("SELECT id, source FROM texts WHERE subjects IS NULL AND source LIKE '%gutenberg.org/ebooks/%' ORDER BY id").all();
-    job = (async () => { for (const t of todo) { const id = +((t.source.match(/ebooks\/(\d+)/) || [])[1] || 0); if (!id) continue; try { const r = await (fetchImpl || fetch)(`${process.env.GUTENDEX || 'https://gutendex.com/books'}/${id}`, { signal: AbortSignal.timeout(8000) }); if (r.ok) { const m = await r.json(); const sub = { subjects: m.subjects || [], bookshelves: m.bookshelves || [] }; const row = db.prepare('SELECT * FROM texts WHERE id=?').get(t.id); db.prepare('UPDATE texts SET subjects=?, shelf=? WHERE id=?').run(JSON.stringify(sub), classify({ ...row, ...sub }), t.id); } } catch (e) { /* next time */ } await new Promise(r => setTimeout(r, 1500)); } job = null; })();
+    if (!migrate()) return null; if (job) return job;
+    // Paused while Gutenberg and Gutendex are not read by machine (#170, src/asks.js): the boot chore asks neither.
+    if (require('./asks').paused(`${process.env.GUTENDEX || 'https://gutendex.com/books'}/1`)) return null;
+    const todo = db.prepare("SELECT id, source FROM texts WHERE subjects IS NULL AND source LIKE '%gutenberg.org/ebooks/%' ORDER BY id").all();
+    job = (async () => { for (const t of todo) { const id = +((t.source.match(/ebooks\/(\d+)/) || [])[1] || 0); if (!id) continue; try { const r = await (fetchImpl || fetch)(`${process.env.GUTENDEX || 'https://gutendex.com/books'}/${id}`, { signal: AbortSignal.timeout(8000) }); if (r.ok) { const m = await r.json(); const sub = { subjects: m.subjects || [], bookshelves: m.bookshelves || [] }; const row = db.prepare('SELECT id, kind, title, source, maker_id FROM texts WHERE id=?').get(t.id); /* (20 Nov) never the whole row: a text carries its body and its plates, and the worker was ended for memory seconds into this chore at every start */ db.prepare('UPDATE texts SET subjects=?, shelf=? WHERE id=?').run(JSON.stringify(sub), classify({ ...row, ...sub }), t.id); } } catch (e) { /* next time */ } await new Promise(r => setTimeout(r, 1500)); } job = null; })();
     return job;
   }
   if (process.env.NODE_ENV !== 'test') app.locals.governor.boot('shelves backfill', () => backfill());

@@ -8,11 +8,14 @@ function mountAuth(app, { db, C, buyerOf, setBuyer, ledger, V, makerOf, setMaker
   db.exec(`CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, buyer_id INTEGER NOT NULL, cred_id TEXT UNIQUE NOT NULL, public_key BLOB NOT NULL,
     counter INTEGER NOT NULL DEFAULT 0, transports TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), used_at TEXT)`);
   const origin = C.base.replace(/\/$/, ''), rpID = new URL(origin).hostname;
-  // Challenges live for five minutes, keyed by a random cookie.
-  const pending = new Map();
-  const hold = (res, data) => { const k = crypto.randomBytes(18).toString('base64url'); pending.set(k, { ...data, at: Date.now() }); res.cookie('wm_ch', k, { httpOnly: true, sameSite: 'lax', secure: origin.startsWith('https'), maxAge: 5 * 60 * 1000 }); };
-  const take = req => { const k = req.cookies && req.cookies.wm_ch; const v = k && pending.get(k); if (k) pending.delete(k); return v && Date.now() - v.at < 5 * 60 * 1000 ? v : null; };
-  setInterval(() => { const now = Date.now(); for (const [k, v] of pending) if (now - v.at > 5 * 60 * 1000) pending.delete(k); }, 60 * 1000).unref();
+  // Challenges live for five minutes, keyed by a random cookie. (#123) Kept in the database, not this process: with
+  // several copies of the website the options and the answer may reach different copies. Taken once (the DELETE claims it).
+  db.exec('CREATE TABLE IF NOT EXISTS passkey_challenges (k TEXT PRIMARY KEY, v TEXT NOT NULL, at_ms INTEGER NOT NULL)');
+  const CH_MS = 5 * 60 * 1000;
+  const putCh = db.prepare('INSERT INTO passkey_challenges (k, v, at_ms) VALUES (?,?,?)'), getCh = db.prepare('SELECT v, at_ms FROM passkey_challenges WHERE k=?'), dropCh = db.prepare('DELETE FROM passkey_challenges WHERE k=?'), oldCh = db.prepare('DELETE FROM passkey_challenges WHERE at_ms<?');
+  const hold = (res, data) => { const k = crypto.randomBytes(18).toString('base64url'); putCh.run(k, JSON.stringify(data), Date.now()); res.cookie('wm_ch', k, { httpOnly: true, sameSite: 'lax', secure: origin.startsWith('https'), maxAge: CH_MS }); };
+  const take = req => { const k = req.cookies && req.cookies.wm_ch; if (!k) return null; const r = getCh.get(String(k).slice(0, 64)); if (!r || !dropCh.run(String(k).slice(0, 64)).changes) return null; if (Date.now() - Number(r.at_ms) >= CH_MS) return null; try { return JSON.parse(r.v); } catch (e) { return null; } };
+  setInterval(() => { try { oldCh.run(Date.now() - CH_MS); } catch (e) { /* later */ } }, 60 * 1000).unref();
   const keysOf = b => (b ? db.prepare('SELECT * FROM passkeys WHERE buyer_id=?').all(b.id) : []);
   const newBuyer = res => { const id = db.prepare("INSERT INTO buyers (customer, email) VALUES ('', NULL)").run().lastInsertRowid; const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(id); setBuyer(res, b); return b; };
   app.locals.passkeysOf = keysOf;

@@ -87,7 +87,7 @@ async function read(input, key) {
 
 // The open layer: an XMP packet the way IPTC and PLUS write it, so the file says who made it, who holds the rights,
 // where it is licensed and where its record is, to any reader (Photoshop, Lightroom, Google Images, the OS).
-function xmp({ title, maker, year, credit, copyright, licensor, statement, registry, accession, ref, licensee, use, ends, noAI, caption = null, number = null }) {
+function xmp({ title, maker, year, credit, copyright, licensor, statement, registry, accession, ref, licensee, use, ends, noAI, caption = null, number = null, terms = null }) {
   const e = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Watermark"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -95,13 +95,13 @@ function xmp({ title, maker, year, credit, copyright, licensor, statement, regis
 <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${e(title)}</rdf:li></rdf:Alt></dc:title>${caption ? `\n<dc:description><rdf:Alt><rdf:li xml:lang="x-default">${e(caption)}</rdf:li></rdf:Alt></dc:description>` : ''}
 <dc:creator><rdf:Seq><rdf:li>${e(maker)}</rdf:li></rdf:Seq></dc:creator>
 <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">${e(copyright)}</rdf:li></rdf:Alt></dc:rights>
-<xmpRights:Marked>True</xmpRights:Marked>
+<xmpRights:Marked>${terms ? 'False' : 'True'}</xmpRights:Marked>
 <xmpRights:WebStatement>${e(statement)}</xmpRights:WebStatement>
-<xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">${e(licensee ? `Licensed to ${licensee}: ${use}${ends ? `, until ${String(ends).slice(0, 10)}` : ''}. Watermark ${ref}. Not for AI training.` : `Held and licensed at the source on Watermark.${noAI ? ' Not for AI training.' : ''}`)}</rdf:li></rdf:Alt></xmpRights:UsageTerms>
+<xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">${e(terms ? terms : licensee ? `Licensed to ${licensee}: ${use}${ends ? `, until ${String(ends).slice(0, 10)}` : ''}. Watermark ${ref}. Not for AI training.` : `Held and licensed at the source on Watermark.${noAI ? ' Not for AI training.' : ''}`)}</rdf:li></rdf:Alt></xmpRights:UsageTerms>
 <photoshop:Credit>${e(credit)}</photoshop:Credit>
 <photoshop:Source>Watermark</photoshop:Source>
-<plus:Licensor><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:LicensorName>Watermark, a Krafft company</plus:LicensorName><plus:LicensorURL>${e(licensor)}</plus:LicensorURL></rdf:li></rdf:Seq></plus:Licensor>
-<plus:CopyrightOwner><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:CopyrightOwnerName>${e(maker)}</plus:CopyrightOwnerName></rdf:li></rdf:Seq></plus:CopyrightOwner>
+${terms ? '' : `<plus:Licensor><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:LicensorName>Watermark, a Krafft company</plus:LicensorName><plus:LicensorURL>${e(licensor)}</plus:LicensorURL></rdf:li></rdf:Seq></plus:Licensor>
+<plus:CopyrightOwner><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:CopyrightOwnerName>${e(maker)}</plus:CopyrightOwnerName></rdf:li></rdf:Seq></plus:CopyrightOwner>`}
 <plus:ImageSupplierImageID>${e(accession)}</plus:ImageSupplierImageID>
 <Iptc4xmpExt:RegistryId><rdf:Bag><rdf:li rdf:parseType="Resource"><Iptc4xmpExt:RegOrgId>watermark.krafftco.com</Iptc4xmpExt:RegOrgId><Iptc4xmpExt:RegItemId>${e(ref || accession)}</Iptc4xmpExt:RegItemId></rdf:li></rdf:Bag></Iptc4xmpExt:RegistryId>
 <Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture</Iptc4xmpExt:DigitalSourceType>

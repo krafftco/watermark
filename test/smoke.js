@@ -333,7 +333,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   assert.ok(db.prepare('SELECT conditions FROM licenses WHERE ref=?').get(cref).conditions.includes('political'), 'conditions snapshotted');
   r = await req(port, 'POST', `/studio/works/${w.slug}`, { cookie: ck, body: 'uses=editorial&uses=commercial&uses=campaign&uses=print&approve=1&never=ai&credit=1&showEarned=1', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   r = await req(port, 'POST', `/buy/${w.slug}`, { body: { use: 'commercial' } }); assert.ok(r.body.includes('approves each license personally'));
-  r = await req(port, 'GET', `/w/${w.slug}/life`); assert.ok(r.body.includes('$750') && r.body.includes('times licensed'), 'life shows earnings when opted in');
+  r = await req(port, 'GET', `/w/${w.slug}/life`, { cookie: ck }); assert.ok(r.body.includes('$750') && r.body.includes('times licensed'), 'life shows earnings when opted in, to the Studio');
+  r = await req(port, 'GET', `/w/${w.slug}/life`); assert.ok(!r.body.includes('$750') && r.body.includes('times licensed'), 'and never to a stranger (#165: no public tape)');
   // protection signals, sightings, applications
   r = await req(port, 'GET', '/sitemap.xml'); assert.ok(r.body.includes(`/w/${w.slug}`) && r.body.includes('image:loc'), 'sitemap lists works with images');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.includes('"acquireLicensePage"') && r.body.includes('og:image'), 'licensable image metadata and link previews');
@@ -2099,6 +2100,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   }
   console.log('ok: the inbox');
   console.log('ok: the Listening Room');
+  process.env.GUTENBERG_OPEN = '1'; // #170: the bring path as it runs once Will has chosen a way Gutenberg offers (paused otherwise: test/asks.js)
   { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
     const prev = app.locals.__fetch;
     const raw = ['The Project Gutenberg eBook of The Long Walk', '', '*** START OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'Produced by Someone', '', 'THE LONG WALK', '', 'By A. Walker', '', 'CHAPTER I.', '', 'It was a long walk, and the road was ' + 'dusty '.repeat(120) + '.', '', 'The second paragraph went on.', '', 'CHAPTER II. THE RIVER', '', 'Water, at last. ' + 'More water. '.repeat(100), '', '*** END OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'License text that is not the book.'].join('\n');
@@ -2193,6 +2195,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/library'); assert.ok(/Photo books/.test(r.body), 'the Library knows the kind');
     app.locals.__fetch = prev;
   }
+  delete process.env.GUTENBERG_OPEN;
   { // Find across everything (24 Oct): books and records answer too.
     app.locals.findIndexDirty(); r = await req(port, 'GET', '/api/find?q=long+walk'); const fj = JSON.parse(r.body); assert.ok(fj.books && fj.books.some(b => /Long Walk/.test(b.name) && /\/read\//.test(b.href)), 'a book found: ' + JSON.stringify(fj.books));
     r = await req(port, 'GET', '/api/find?q=got+fun'); const fr = JSON.parse(r.body); assert.ok(fr.records && fr.records.some(x => /Got Fun/.test(x.name) && /\/listening\//.test(x.href)), 'a record found');
@@ -3015,6 +3018,10 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/yours?tab=gallery', { cookie: sck }); assert.ok(!r.body.toString().includes('Test Stacks</i>'), 'and has left the old one');
   r = await req(port, 'POST', `/claim/${gtok}`); assert.equal(r.headers.location, '/yours', 'a claim link works once');
   // The market: the collector offers the piece, someone asks to buy it, the Studio settles, it moves with its price.
+  // (#165) The holding time: a gift is not a sale, so the clock runs from the piece's issue a moment ago; the Studio lifts it, with a reason on the register.
+  r = await req(port, 'POST', '/yours/offer', { cookie: nck, body: { ref: held2.ref, ask: '40' } }); assert.ok(r.headers.location.includes('offer=held'), 'held after its sale: ' + r.headers.location);
+  r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('It can be offered on the market from'), 'the holder is told when');
+  r = await req(port, 'POST', '/studio/market/hold', { cookie: ck, body: { ref: held2.ref, reason: 'A test of the market' } }); assert.ok(decodeURIComponent(r.headers.location).includes('is lifted'), 'the Studio lifts it');
   r = await req(port, 'POST', '/yours/offer', { cookie: nck, body: { ref: held2.ref, ask: '40' } }); assert.ok(r.headers.location.includes('offer=1'), 'offered');
   r = await req(port, 'GET', '/yours?tab=files', { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>'), 'offered'); r = await req(port, 'GET', '/yours?tab=gallery', { cookie: nck }); assert.ok(r.body.toString().includes('class="pf"') || /What it is worth/.test(r.body), 'the portfolio shows');
   r = await req(port, 'GET', `/w/${w2.slug}`, { cookie: nck }); assert.ok(r.body.toString().includes('Offered at <b>$40</b>') && r.body.toString().includes('Withdraw'), 'the holder sees their offer on the work');
@@ -3028,12 +3035,16 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   const tr = db.prepare('SELECT * FROM trades').get(); assert.equal(tr.price_cents, 5000); assert.equal(tr.royalty_cents, 500); assert.equal(tr.fee_cents, 250);
   r = await req(port, 'POST', `/claim/${mtok}`); const ick = r.headers['set-cookie'].find(c => c.startsWith('wm_b=')).split(';')[0];
   r = await req(port, 'GET', '/yours?tab=gallery', { cookie: ick }); assert.ok(r.body.toString().includes('Test Stacks') && r.body.toString().includes('$50'), 'it hangs on the buyer\'s wall at its price');
-  r = await req(port, 'GET', `/w/${w2.slug}/life`); assert.ok(r.body.toString().includes('Traded between collectors') && r.body.toString().includes('$50'), 'the trade is in its life');
-  assert.ok(r.body.toString().includes('class="mk-chart"'), 'with its price chart');
+  r = await req(port, 'GET', `/w/${w2.slug}/life`, { cookie: ck }); assert.ok(r.body.toString().includes('Traded between collectors') && r.body.toString().includes('$50'), 'the trade is in its life');
+  assert.ok(r.body.toString().includes('class="mk-chart"'), 'with its price chart, for the Studio');
+  r = await req(port, 'GET', `/w/${w2.slug}/life`); assert.ok(r.body.toString().includes('Traded between collectors') && !r.body.toString().includes('$50') && !r.body.toString().includes('class="mk-chart"'), 'a stranger sees the trade, not its price (#165)');
   // An offer for a piece not on the market: its collector accepts, and it goes to the Studio to settle.
   r = await req(port, 'POST', `/w/${w2.slug}/offer`, { body: { offer: '70', email: 'f@frick.org', name: 'Henry' } }); assert.ok(r.headers.location.includes('offer=sent'));
   r = await req(port, 'GET', '/yours?tab=market', { cookie: ick }); assert.ok(r.body.toString().includes('Offers for your pieces') && r.body.toString().includes('$70'), 'the collector sees the offer');
   const ofr = db.prepare("SELECT id FROM offers WHERE status='open'").get().id;
+  r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('offer=held'), 'a trade starts the holding time again (#165)');
+  db.prepare("UPDATE trades SET at=datetime('now','-1 minute') WHERE license_id=(SELECT id FROM licenses WHERE ref=?)").run(held2.ref); // the register keeps seconds: a lift in the trade's own second would count as before it
+  r = await req(port, 'POST', '/studio/market/hold', { cookie: ck, body: { ref: held2.ref, reason: 'A test of the market, again' } });
   r = await req(port, 'POST', `/yours/offers/${ofr}/accept`, { cookie: ick }); assert.ok(r.headers.location.includes('accepted=1'));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM bids WHERE status='new' AND offer_cents=7000").get().n, 1, 'accepted offers go to the Studio');
   r = await req(port, 'GET', '/studio', { cookie: ck }); assert.ok(r.body.toString().includes('Resale') && r.body.toString().includes('$5 royalties'), 'resale in the holdings');

@@ -205,7 +205,7 @@ ${masks}
     try {
       let buf = previews.get(key); if (!buf) { const p = await apply(await base(w), r, { width: 1600 }); buf = await p.jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer(); sweepTmp(p); previews.set(key, buf); if (previews.size > 60) previews.delete(previews.keys().next().value); }
       res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=60' }).send(buf);
-    } catch (e) { console.error('[darkroom]', e.message); res.sendStatus(500); }
+    } catch (e) { console.error('[darkroom]', e.message); res.fault(e); }
   });
   app.post('/account/develop/:slug', async (req, res) => {
     const w = workOf(req.params.slug); const o = own(req, w); if (!w) return res.sendStatus(404); if (!o) return res.sendStatus(403);

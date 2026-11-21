@@ -59,7 +59,7 @@ function mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail,
   function activate(id, sess) {
     const s = byId(id); if (!s || s.status !== 'pending' || (sess.id && s.stripe_session && s.stripe_session !== sess.id)) return s;
     if (sess.status !== 'complete' && sess.payment_status !== 'paid') return s;
-    db.prepare("UPDATE standing SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=?").run(sess.subscription || null, id);
+    if (!db.prepare("UPDATE standing SET status='active', stripe_sub=?, started_at=datetime('now') WHERE id=? AND status='pending'").run(sess.subscription || null, id).changes) return byId(id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, 'standing.begun', `standing-${id}`, { amount: s.cents });
     pick(byId(id), { invoice: sess.invoice || `session:${sess.id}` });
     return byId(id);

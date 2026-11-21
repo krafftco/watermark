@@ -15,7 +15,8 @@ const files = process.argv.slice(2).length ? process.argv.slice(2) : fs.readdirS
 function statements(src) {
   // .prepare(…) and any wrapper the file defines over it: const q = (sql, …) => db.prepare(sql)…, function q(sql …)
   const wrappers = [...src.matchAll(/(?:const|let)\s+(\w+)\s*=\s*\(\s*sql\b|function\s+(\w+)\s*\(\s*sql\b/g)].map(m => m[1] || m[2]).filter(Boolean);
-  const out = []; const re = new RegExp('(?:\\.prepare' + (wrappers.length ? '|\\b(?:' + wrappers.join('|') + ')' : '') + ')\\(\\s*', 'g'); let m;
+  // (#117) and the async path: adb.get/all/run(sql, …) (src/adb.js), the same SQL through the same dialect.
+  const out = []; const re = new RegExp('(?:\\.prepare|\\badb\\.(?:get|all|run)' + (wrappers.length ? '|\\b(?:' + wrappers.join('|') + ')' : '') + ')\\(\\s*', 'g'); let m;
   while ((m = re.exec(src))) {
     const i = m.index + m[0].length, q = src[i]; if (!"'\"`".includes(q)) continue;
     let j = i + 1, s = '';

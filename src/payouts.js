@@ -47,7 +47,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const L = ask('w.maker_id', `SELECT w.maker_id id, COALESCE(SUM(l.price_cents),0) s, COALESCE(SUM(${MK}),0) m, COUNT(*) n FROM licenses l JOIN works w ON w.id=l.work_id JOIN makers mk ON mk.id=w.maker_id WHERE {F} AND ${paid} GROUP BY w.maker_id`);
     const T = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM tips WHERE {F} AND status='paid' GROUP BY maker_id");
     const R = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s, COUNT(*) n FROM payouts WHERE {F} AND kind='royalty' AND status IN ('owed','paid','house') GROUP BY maker_id");
-    const P = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE {F} AND status='paid' GROUP BY maker_id");
+    const P = ask('maker_id', "SELECT maker_id id, COALESCE(SUM(amount_cents),0) s FROM maker_payouts WHERE {F} AND status IN ('paid','pending') GROUP BY maker_id");
     const W = tryAsk('t.maker_id', `SELECT t.maker_id id, COALESCE(SUM(o.price_cents),0) s, COALESCE(SUM(CASE WHEN ${FON}=1 THEN t.price_cents ELSE CAST(o.price_cents * ${PCT} / 100.0 AS INTEGER) END),0) m, COUNT(*) n FROM text_orders o JOIN texts t ON t.id=o.text_id JOIN makers mk ON mk.id=t.maker_id WHERE {F} AND o.status='paid' AND o.price_cents>0 GROUP BY t.maker_id`);
     const Cp = tryAsk('c.seller_id', "SELECT c.seller_id id, COALESCE(SUM(c.price_cents),0) s, COUNT(*) n FROM copy_orders o JOIN copies c ON c.id=o.copy_id WHERE {F} AND c.seller_kind='maker' AND o.paid=1 GROUP BY c.seller_id");
     // What has not cleared yet: the maker's side of sales inside the hold, and of prints not yet delivered.
@@ -90,17 +90,35 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
   }
   function statement(m) { return statements([m], { rows: true }).get(Number(m.id)); }
   // Pay what has cleared, when the maker can be paid and the house is set to pay. From a dollar up.
-  async function pay(m, { by = 'house' } = {}) {
-    const st = statement(m); const amt = st.cleared;
+  // (#123) One payment to a maker at a time across every process (a press on one copy of the website while Friday pay
+  // runs on the worker): the lease 'pay:maker-<id>', and the statement read after it is taken.
+  async function pay(m, opts = {}) {
+    const I = app.locals.instances; if (!I) return payNow(m, opts);
+    const r = await I.withLease(`pay:maker-${m.id}`, 5 * 60e3, () => payNow(m, opts));
+    return r === I.BUSY ? { ok: false, why: 'busy' } : r;
+  }
+  // (#123) The claim row: a payment to a maker is written as 'pending' before Stripe is asked, and asked with that row's
+  // key (wm-maker-pay-<id>). A pending row counts as paid in the statement (the money may have gone). If the process
+  // ends after Stripe sends and before the row says 'paid', the next payment within 23 hours finds the row and asks
+  // again with the same key and amount: Stripe answers with the transfer it made, or makes it once. Only a refusal Stripe
+  // states (nothing was sent) removes the row; an error that may hide a sent transfer keeps it. A row pending past the
+  // key's day (Stripe keeps a key 24 hours) is left for the house to look at, never paid again blind.
+  // (CTO review) Not an idempotency error: that one means a request with this key already reached Stripe and may have paid, so the row stays.
+  const refused = e => /^Stripe(InvalidRequest|Card|Permission|Authentication|RateLimit)Error$/.test(String((e && e.type) || ''));
+  async function payNow(m, { by = 'house' } = {}) {
+    const again = ON() && m.stripe_account ? db.prepare("SELECT * FROM maker_payouts WHERE maker_id=? AND status='pending' AND how='stripe' AND at > datetime('now','-23 hours') ORDER BY id DESC LIMIT 1").get(m.id) : null;
+    const st = statement(m); const amt = again ? Number(again.amount_cents) : st.cleared;
     if (!ON() || !m.stripe_account || amt < 100) return { ok: false, why: !ON() ? 'off' : !m.stripe_account ? 'nobank' : st.owed >= 100 ? 'clearing' : 'small', owed: st.owed, cleared: amt };
+    let id = again ? again.id : null;
     try {
       const a = await stripe.accounts.retrieve(m.stripe_account); if (!a.payouts_enabled) return { ok: false, why: 'notready', owed: st.owed };
-      const tr = await stripe.transfers.create({ amount: amt, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by } });
-      const id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, stripe_transfer, note) VALUES (?,?,'paid','stripe',?,?)").run(m.id, amt, tr.id, by === 'friday' ? 'Friday pay' : null).lastInsertRowid;
+      if (!id) id = db.prepare("INSERT INTO maker_payouts (maker_id, amount_cents, status, how, note) VALUES (?,?,'pending','stripe',?)").run(m.id, amt, by === 'friday' ? 'Friday pay' : null).lastInsertRowid;
+      const tr = await stripe.transfers.create({ amount: amt, currency: 'usd', destination: m.stripe_account, metadata: { maker: m.handle, by, payout: String(id) } }, { idempotencyKey: `wm-maker-pay-${id}` });
+      db.prepare("UPDATE maker_payouts SET status='paid', stripe_transfer=? WHERE id=?").run(tr.id, id);
       ledger.append(db, 'maker.paid', m.handle, { amount: amt, transfer: tr.id, by });
       if (m.email) mail.send({ to: m.email, subject: by === 'friday' ? `Friday pay: ${money(amt)} is on its way` : `${money(amt)} on its way to you`, text: `${m.name.split(' ')[0]},\n\n${money(amt)} has been sent to your bank through Stripe${by === 'friday' ? ': every Friday, every dollar that has cleared' : ''}. The statement is at ${C.base}/account/payouts.\n\nThank you for making work worth keeping.\n\nWatermark` });
       return { ok: true, amount: amt, id };
-    } catch (e) { console.error('[payouts]', m.handle, e.message); return { ok: false, why: 'failed', owed: st.owed }; }
+    } catch (e) { console.error('[payouts]', m.handle, e.message); if (id && refused(e)) db.prepare("DELETE FROM maker_payouts WHERE id=? AND status='pending'").run(id); return { ok: false, why: 'failed', owed: st.owed }; }
   }
   // Paid by hand (the Studio records it): the statement stays exact either way.
   function record(m, cents, note) {
@@ -151,7 +169,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
     const ms = db.prepare("SELECT * FROM makers WHERE COALESCE(kind,'maker')<>'institution' ORDER BY name").all(); const sts = statements(ms); // (#85) one grouped question a sum, not ~24 a maker
     const rows = ms.map(m => ({ m, st: sts.get(Number(m.id)) })).filter(x => x.st.owed > 0 || x.st.paid > 0).sort((a, b) => b.st.owed - a.st.owed);
     const owed = rows.reduce((n, x) => n + x.st.owed, 0), cleared = rows.reduce((n, x) => n + x.st.cleared, 0);
-    const why = { off: 'Payouts are not switched on (PAYOUTS=stripe)', nobank: 'No bank connected yet', clearing: 'Still inside the hold', small: 'Under a dollar', notready: 'Stripe has not finished the account' };
+    const why = { off: 'Payouts are not switched on (PAYOUTS=stripe)', nobank: 'No bank connected yet', clearing: 'Still inside the hold', small: 'Under a dollar', notready: 'Stripe has not finished the account', busy: 'A payment to this maker is already being made; look again in a minute' };
     const ok = req.query.ok ? `<p class="ok">${esc(String(req.query.ok))}</p>` : '';
     res.set('Cache-Control', 'private, no-store').send(V.layout({ title: 'Pay the makers · Watermark', studio: true, path: '/studio/payouts', body: `<section class="studio-wrap"><p class="k">Money</p><h1>Pay the makers.</h1>
 <p class="lede">${money(owed)} owed in all; ${money(cleared)} has cleared and can go now. Friday pay sends what has cleared to every connected bank on ${esc(nextFriday())}${ON() ? '' : ' (payouts are not switched on: pay by hand and record it here)'}.</p>${ok}
@@ -234,7 +252,7 @@ function mountPayouts(app, { db, C, stripe, makerOf, isStudio, ledger, mail }) {
 function payoutsPage({ m, st, ready, on, ok, viewing = false, why = null }) {
   setDeskPath('/account/payouts');
   const first = m.name.split(' ')[0];
-  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: `Your bank is with Stripe. Friday pay begins: every Friday, every dollar that has cleared, from a dollar up.`, paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each week, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next Friday.', clearing: `Nothing has cleared yet: a sale clears ${st.holdDays} days after it is paid. It goes out on ${st.friday}.`, notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
+  const notice = { pocket: 'Into your pocket. Spend it in the house: collect the artists you admire, take a volume from the Library, send a card.', bank: `Your bank is with Stripe. Friday pay begins: every Friday, every dollar that has cleared, from a dollar up.`, paid: 'Sent. It is on its way to your bank.', off: 'Payouts through Stripe are not switched on for the house yet; what you are owed is paid by hand each week, from this statement.', nobank: 'Add your bank first.', small: 'Under a dollar is carried to next Friday.', clearing: `Nothing has cleared yet: a sale clears ${st.holdDays} days after it is paid. It goes out on ${st.friday}.`, notready: 'Stripe has not finished with your bank details yet.', failed: 'The transfer could not be made; the house has been told.', busy: 'A payment to you is already on its way; this page shows it in a minute.', err: 'Stripe could not be reached. Try again in a moment.', connect: `Stripe would not open the bank form yet${why ? `. Stripe said: “${why}”` : ''}. The house has been told.` }[ok];
   const row = (k, v, small) => `<div><dt>${k}</dt><dd>${v}${small ? `<small>${small}</small>` : ''}</dd></div>`;
   return layout({ title: 'Getting paid · Watermark', studio: true, body: `<section class="studio-wrap hd gp">${viewing ? `<p class="ac-viewing">You are the Studio, looking at ${esc(m.name)}'s statement. <a href="/studio/accounts">Back to Accounts</a></p>` : ''}<p class="k">${viewing ? esc(m.name) : 'Your studio'}</p><h1>Getting paid.</h1>
 <p class="lede">Every dollar that reaches you, and where it came from. ${FEE.on() ? 'The price of every license is yours, every dollar of it; the house’s share is paid by the collector on top' : st.pct + '% of every license is yours'}; every thank-you card and tip is yours whole; every resale pays you a royalty. The house keeps the rest and pays for everything with it.</p>

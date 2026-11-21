@@ -5988,3 +5988,10 @@ main.st{overflow:clip}
 .hg-slugs [data-hg-add]{min-height:24px;min-width:24px;padding:0 6px}
 /* (#87) The licences desk: a find, and Live / Ended a page at a time. */
 .lg-find{margin:0 0 18px}.lg-more{margin:12px 0}
+/* On view at (#166): where a living maker's object can be seen; a stated fact, set as the house sets a museum's line. */
+.ovw{margin:14px 0 0;padding:10px 0 0;border-top:1px solid rgba(201,162,74,.28)}.ovw-l{margin:0;font:400 16px/1.45 var(--disp)}.ovw-l a{color:inherit;text-decoration-color:rgba(201,162,74,.6)}
+.ovw-by{margin:4px 0 0;font-size:12px;line-height:1.5;color:var(--mu)}.ovw-by a{color:inherit}
+.ovw-buy{margin:18px 0 0}.ovw-rep{margin:0 0 10px;font-size:14px;line-height:1.5}
+.ovw-mk{margin:14px 0 0}.ovw-mk ul{list-style:none;margin:4px 0 0;padding:0}.ovw-mk li{margin:0 0 6px;font:400 15px/1.45 var(--disp)}.ovw-mk li a{color:inherit}.ovw-mk small{display:block;font:400 12px/1.4 var(--sans);color:var(--mu)}
+.ovw-wk small{opacity:.7}
+.ovw-d{margin:24px 0}.ovw-now{font-size:14px}.ovw-row{display:flex;flex-wrap:wrap;gap:0 16px}.ovw-row label{flex:1 1 200px}.ovw-ck{display:flex;gap:8px;align-items:center}.ovw-fs{border:0;padding:0;margin:10px 0}

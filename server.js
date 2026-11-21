@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 const faults = { rejections: 0, exceptions: 0, last: null };
 process.on('unhandledRejection', (e) => { faults.rejections++; faults.last = { at: new Date().toISOString(), kind: 'rejection', message: String(e && e.message || e), stack: e && e.stack }; console.error('[house] unhandled rejection:', e && e.stack || e); });
 let lastException = 0;
-process.on('uncaughtException', (e) => { faults.exceptions++; faults.last = { at: new Date().toISOString(), kind: 'exception', message: String(e && e.message || e), stack: e && e.stack }; console.error('[house] uncaught exception:', e && e.stack || e); const now = Date.now(); if (now - lastException < 60000) { console.error('[house] a second exception inside a minute: leaving it to the host'); process.exit(1); } lastException = now; });
+process.on('uncaughtException', (e) => { faults.exceptions++; faults.last = { at: new Date().toISOString(), kind: 'exception', message: String(e && e.message || e), stack: e && e.stack }; console.error('[house] uncaught exception:', e && e.stack || e); if (e && e.limit) return; /* (20 Nov, #115) a statement cut by the website's own limit inside a timer is the guard working, not a broken house: logged and counted, never a reason to leave */ const now = Date.now(); if (now - lastException < 60000) { console.error('[house] a second exception inside a minute: leaving it to the host'); process.exit(1); } lastException = now; });
 process.faults = faults;
 const app = createApp();
 // Prove the vault key is right before serving or writing anything.

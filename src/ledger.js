@@ -33,19 +33,24 @@ function digest(e) {
 const sigReady = new WeakSet();
 function ensureSig(db) { if (sigReady.has(db)) return; if (!db.prepare("SELECT 1 FROM pragma_table_info('ledger') WHERE name='sig'").get()) db.exec('ALTER TABLE ledger ADD COLUMN sig TEXT'); sigReady.add(db); }
 function append(db, type, subject, data) {
-  const last = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get();
-  const e = {
-    seq: last ? last.seq + 1 : 1,
-    at: new Date().toISOString(),
-    type, subject,
-    data: JSON.stringify(data || {}),
-    prev_hash: last ? last.hash : GENESIS,
-  };
-  e.hash = digest(e);
-  e.sig = sign(e.hash);
-  ensureSig(db);
-  db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash, sig) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash,@sig)').run(e);
-  return e;
+  // (#123) Several processes write the register (the copies of the website, the worker). The chain's next number is the
+  // claim: two that read the same head both try seq+1, the database keeps one, and the other reads the new head and
+  // links to it. So the chain never forks and an entry is never lost to a race.
+  for (let tries = 0; ; tries++) {
+    const last = db.prepare('SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1').get();
+    const e = {
+      seq: last ? last.seq + 1 : 1,
+      at: new Date().toISOString(),
+      type, subject,
+      data: JSON.stringify(data || {}),
+      prev_hash: last ? last.hash : GENESIS,
+    };
+    e.hash = digest(e);
+    e.sig = sign(e.hash);
+    ensureSig(db);
+    try { db.prepare('INSERT INTO ledger (seq, at, type, subject, data, prev_hash, hash, sig) VALUES (@seq,@at,@type,@subject,@data,@prev_hash,@hash,@sig)').run(e); return e; }
+    catch (err) { if (tries < 8 && (err.code === '23505' || /UNIQUE|PRIMARYKEY|duplicate key/i.test(`${err.code} ${err.message}`))) continue; throw err; }
+  }
 }
 
 // Verifying the whole chain is linear; a large register would make every status check slow. So the
@@ -53,11 +58,21 @@ function append(db, type, subject, data) {
 // Any edit to an entry already verified is still caught: the full walk runs once an hour, and the
 // smoke test's tamper check runs it directly (verifyAll).
 const heads = new WeakMap();
+const WALK_PAGE = Math.max(1, +process.env.LEDGER_WALK_PAGE || 2000);
 function verifyAll(db) {
-  let prev = GENESIS, n = 0;
-  for (const e of db.prepare('SELECT * FROM ledger ORDER BY seq').iterate()) {
-    if (e.prev_hash !== prev || digest(e) !== e.hash) return { ok: false, broken_at: e.seq, checked: n };
-    prev = e.hash; n++;
+  // (20 Nov) A page at a time. On Postgres the bridge's `iterate` hands over every row at once, so the whole register
+  // (each entry with its payload) stood in memory: the worker (2 GB) reached 1.77 GB on this one statement five minutes
+  // after each start and was ended by the host about every seven minutes. The walk and its answer are unchanged.
+  let prev = GENESIS, n = 0, after = -1;
+  const page = db.prepare('SELECT * FROM ledger WHERE seq > ? ORDER BY seq LIMIT ' + WALK_PAGE);
+  for (;;) {
+    const rows = page.all(after);
+    for (const e of rows) {
+      if (e.prev_hash !== prev || digest(e) !== e.hash) return { ok: false, broken_at: e.seq, checked: n };
+      prev = e.hash; n++;
+    }
+    if (rows.length < WALK_PAGE) break;
+    after = rows[rows.length - 1].seq;
   }
   return { ok: true, checked: n, head: prev };
 }

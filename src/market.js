@@ -8,6 +8,7 @@
 // counsel has signed off and Stripe Connect is in place (MARKET_SETTLEMENT=stripe), Watermark brokers
 // each trade and records it from the Studio. Nothing here is investment advice; values are prices paid.
 const { nanoid } = require('nanoid');
+const TR = require('./rules-of-trade');
 
 const ROYALTY = 0.10; // to the maker, on every resale (draft)
 const FEE = 0.05;     // to Watermark (draft)
@@ -28,6 +29,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   col('trades', 'buyer_id', 'INTEGER'); col('trades', 'stripe_session', 'TEXT'); col('trades', 'payment_intent', 'TEXT');
   col('listings', 'held_until', 'TEXT'); col('listings', 'held_session', 'TEXT');
   col('bids', 'token', 'TEXT');
+  col('licenses', 'hold_lifted', 'TEXT'); // (#165) when the Studio lifted this piece's holding time, with a reason on the register
   col('buyers', 'stripe_account', 'TEXT'); col('makers', 'stripe_account', 'TEXT');
   db.exec(`CREATE TABLE IF NOT EXISTS payouts (id INTEGER PRIMARY KEY, trade_id INTEGER NOT NULL, kind TEXT NOT NULL, buyer_id INTEGER, maker_id INTEGER,
     amount_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'owed', stripe_transfer TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT)`);
@@ -36,6 +38,14 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   const { layout, esc, money, date, tidy } = V;
   const lic = id => db.prepare('SELECT l.*, w.slug, w.title, w.place, w.width, w.height, w.edition_size, w.maker_id FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.id=?').get(id);
   const openListing = licId => db.prepare("SELECT * FROM listings WHERE license_id=? AND status='open'").get(licId);
+  // (#165) The holding time: a piece is not offered again until MARKET_HOLD_DAYS (draft: 365) after it was last sold,
+  // at its issue or in a trade. A gift is not a sale: it neither starts the clock nor is stopped by it.
+  function holdOf(l) {
+    if (!l || !l.id) return null;
+    const r = db.prepare('SELECT starts_at, created_at, hold_lifted FROM licenses WHERE id=?').get(l.id); if (!r) return null;
+    const t = db.prepare('SELECT at FROM trades WHERE license_id=? ORDER BY id DESC LIMIT 1').get(l.id);
+    return TR.heldUntil(t ? t.at : (r.starts_at || r.created_at), r.hold_lifted);
+  }
   const split = c => { const royalty = Math.round(c * ROYALTY), fee = Math.round(c * FEE); return { royalty, fee, seller: c - royalty - fee }; };
 
   // ---------- the price of a work, and of a collection ----------
@@ -56,11 +66,23 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
       const cost = bought ? bought.price_cents : (i.price_cents || 0);
       const p = priceOf(i.wid); const v = i.edition_size ? (p.value != null ? p.value : cost) : cost;
       paid += cost; value += v; if (p.trades) priced++;
-      return { ...i, cost, value: v, listing: openListing(i.id), market: p };
+      return { ...i, cost, value: v, listing: openListing(i.id), market: p, hold: i.collector_no && i.status === 'active' ? holdOf(i) : null };
     });
     return { rows, paid, value, change: paid ? (value - paid) / paid : 0, priced };
   }
-  app.locals.market = { priceOf, portfolio, openListing, ROYALTY, FEE };
+  // (#165) No public tape. A past sale price, a total, a volume, a chart or a value is shown to the maker of the work,
+  // to the holder of the piece (their own) and to the Studio; a stranger sees that a piece is offered and its asking
+  // price (the seller chose to publish that), and nothing it sold for.
+  const makerOfReq = req => { try { return (app.locals.accounts && app.locals.accounts.makerOf(req)) || null; } catch (e) { return null; } };
+  function who(req, w) {
+    if (isStudio(req)) return { all: true, studio: true, own: new Set() };
+    const m = makerOfReq(req); if (m && w && m.id === w.maker_id) return { all: true, maker: true, own: new Set() };
+    const b = buyerOf(req); const own = new Set(b && w ? db.prepare("SELECT id FROM licenses WHERE work_id=? AND buyer_id=? AND status IN ('active','expired') LIMIT 500").all(w.id, b.id).map(r => r.id) : []);
+    return { all: false, own };
+  }
+  // What a stranger may know of a work's market: only what is asked now.
+  const asked = p => ({ ask: p.ask, asks: p.asks, trades: 0, last: null, lastAt: null, issue: null, value: null });
+  app.locals.market = { priceOf, portfolio, openListing, ROYALTY, FEE, who, asked, holdOf };
 
   // ---------- a collector offers a piece ----------
   app.post('/yours/offer', (req, res) => {
@@ -68,6 +90,8 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     if (!l || l.buyer_id !== b.id || l.status !== 'active' || !l.collector_no) return res.redirect('/yours');
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); if (!w.edition_size) return res.redirect('/yours#files');
     if (app.locals.canTransfer && !app.locals.canTransfer(l)) return res.redirect('/yours?tab=files&sent=locked');
+    const back0 = /^\/w\/[a-z0-9-]+$/.test(String(x.back || '')) ? String(x.back) : null;
+    if (holdOf(l)) return res.redirect(back0 ? back0 + '?up=held#yours' : '/yours?offer=held#files'); // (#165) inside its holding time
     const ask = Math.round(Number(String(x.ask || '').replace(/[^0-9.]/g, '')) * 100);
     const back = /^\/w\/[a-z0-9-]+$/.test(String(x.back || '')) ? String(x.back) : null;
     if (!(ask >= 100 && ask <= 100000000)) return res.redirect(back ? back + '?up=price#yours' : '/yours?offer=price#files');
@@ -91,7 +115,9 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     const s = db.prepare('SELECT * FROM listings WHERE id=?').get(Number(req.params.id)); if (!s) return res.sendStatus(404);
     const l = lic(s.license_id), b = buyerOf(req);
     const bid = req.query.bid ? db.prepare("SELECT * FROM bids WHERE listing_id=? AND token=? AND status='new'").get(s.id, String(req.query.bid)) : null;
-    res.send(page.listing({ s, l, m: mk({ maker_id: l.maker_id }), p: priceOf(l.work_id), mine: !!(b && b.id === s.seller), sent: req.query.sent, base: C.base, auto: AUTO(), bid, held: isHeld(s) }));
+    const v = who(req, { maker_id: l.maker_id, id: l.work_id }); const sees = v.all || v.own.has(l.id); // the seller holds it
+    if (sees) res.set('Cache-Control', 'private, no-store');
+    res.send(page.listing({ s, l, m: mk({ maker_id: l.maker_id }), p: sees ? priceOf(l.work_id) : asked(priceOf(l.work_id)), mine: !!(b && b.id === s.seller), sent: req.query.sent, base: C.base, auto: AUTO(), bid, held: isHeld(s) }));
   });
   app.post('/market/:id/bid', (req, res) => {
     const s = db.prepare("SELECT * FROM listings WHERE id=? AND status='open'").get(Number(req.params.id)); if (!s) return res.redirect('/market');
@@ -134,6 +160,7 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     const b = buyerOf(req), o = db.prepare("SELECT o.*, l.buyer_id AS holder FROM offers o JOIN licenses l ON l.id=o.license_id WHERE o.id=? AND o.status='open'").get(Number(req.params.id));
     if (!b || !o || o.holder !== b.id) return res.redirect('/yours');
     if (req.params.act === 'accept') {
+      if (holdOf({ id: o.license_id })) return res.redirect('/yours?offer=held#files'); // (#165) an accepted offer would list it
       let s = openListing(o.license_id);
       if (s) db.prepare('UPDATE listings SET ask_cents=? WHERE id=?').run(o.offer_cents, s.id);
       else { db.prepare('INSERT INTO listings (license_id, seller, ask_cents) VALUES (?,?,?)').run(o.license_id, b.id, o.offer_cents); s = openListing(o.license_id); }
@@ -168,11 +195,15 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
 
   // ---------- the exchange: everything offered, and what has traded ----------
   app.get('/market', (req, res) => {
-    const open = db.prepare("SELECT s.*, l.collector_no, l.ref, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, w.edition_size, m.name AS maker FROM listings s JOIN licenses l ON l.id=s.license_id JOIN works w ON w.id=l.work_id JOIN makers m ON m.id=w.maker_id WHERE s.status='open' ORDER BY s.id DESC").all()
-      .map(r => ({ ...r, p: priceOf(r.wid) }));
-    const recent = db.prepare('SELECT t.*, l.collector_no, w.slug, w.title, w.edition_size, m.name AS maker FROM trades t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id JOIN makers m ON m.id=w.maker_id ORDER BY t.id DESC LIMIT 24').all();
-    const vol = db.prepare('SELECT COALESCE(SUM(price_cents),0) v, COUNT(*) n FROM trades').get();
-    res.send(page.exchange({ open, recent, vol }));
+    // (#165) The Studio sees every trade and the totals; a maker sees their own works' trades; a stranger, what is offered.
+    const studio = isStudio(req), me = studio ? null : makerOfReq(req);
+    const open = db.prepare("SELECT s.*, l.collector_no, l.ref, w.id AS wid, w.maker_id, w.slug, w.title, w.place, w.width, w.height, w.edition_size, m.name AS maker FROM listings s JOIN licenses l ON l.id=s.license_id JOIN works w ON w.id=l.work_id JOIN makers m ON m.id=w.maker_id WHERE s.status='open' ORDER BY s.id DESC").all()
+      .map(r => ({ ...r, p: studio || (me && me.id === r.maker_id) ? priceOf(r.wid) : asked(priceOf(r.wid)) }));
+    const T = 'SELECT t.*, l.collector_no, w.slug, w.title, w.edition_size, m.name AS maker FROM trades t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id JOIN makers m ON m.id=w.maker_id';
+    const recent = studio ? db.prepare(`${T} ORDER BY t.id DESC LIMIT 24`).all() : me ? db.prepare(`${T} WHERE w.maker_id=? ORDER BY t.id DESC LIMIT 24`).all(me.id) : [];
+    const vol = studio ? db.prepare('SELECT COALESCE(SUM(price_cents),0) v, COUNT(*) n FROM trades').get() : me ? db.prepare('SELECT COALESCE(SUM(t.price_cents),0) v, COUNT(*) n FROM trades t JOIN licenses l ON l.id=t.license_id JOIN works w ON w.id=l.work_id WHERE w.maker_id=?').get(me.id) : null;
+    if (studio || me) res.set('Cache-Control', 'private, no-store');
+    res.send(page.exchange({ open, recent, vol, whose: studio ? 'house' : me ? 'yours' : null }));
   });
 
   // ---------- the Studio brokers the trade until settlement runs on its own ----------
@@ -196,6 +227,17 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     db.prepare("UPDATE bids SET status='closed' WHERE listing_id=? AND status='new'").run(s.id);
     ledger.append(db, 'market.traded', l.ref, { work: l.slug, collector_no: l.collector_no, price, royalty: sp.royalty, fee: sp.fee });
     res.redirect('/studio/market?ok=' + encodeURIComponent(`Traded. Send ${d.email} this link to take it: ${C.base}/claim/${token}`));
+  });
+  // (#165) The Studio may lift the holding time for one piece, with a reason, and the reason goes on the register.
+  app.post('/studio/market/hold', studioOnly, (req, res) => {
+    const x = req.body || {}; const reason = String(x.reason || '').trim().slice(0, 300);
+    const l = db.prepare('SELECT l.id, l.ref, l.collector_no, w.slug FROM licenses l JOIN works w ON w.id=l.work_id WHERE l.ref=?').get(String(x.ref || '').trim());
+    if (!l) return res.redirect('/studio/market?ok=' + encodeURIComponent('No piece by that reference.'));
+    if (!reason) return res.redirect('/studio/market?ok=' + encodeURIComponent('A reason, please: it goes on the register.'));
+    if (!holdOf(l)) return res.redirect('/studio/market?ok=' + encodeURIComponent(`${l.ref} is not inside its holding time.`));
+    db.prepare("UPDATE licenses SET hold_lifted=datetime('now') WHERE id=?").run(l.id);
+    ledger.append(db, 'market.hold_lifted', l.ref, { work: l.slug, collector_no: l.collector_no, reason });
+    res.redirect('/studio/market?ok=' + encodeURIComponent(`The holding time on ${l.ref} is lifted; its holder may offer it now.`));
   });
   app.post('/studio/market/:bid/decline', studioOnly, (req, res) => { db.prepare("UPDATE bids SET status='declined' WHERE id=?").run(Number(req.params.bid)); res.redirect('/studio/market'); });
 
@@ -234,26 +276,32 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
     if (cs.payment_status !== 'paid') return null;
     const s = db.prepare('SELECT * FROM listings WHERE id=?').get(listingId);
     const pi = typeof cs.payment_intent === 'string' ? cs.payment_intent : cs.payment_intent && cs.payment_intent.id;
-    if (!s || s.status !== 'open') { // sold to someone else first: refund in full
-      try { await stripe.refunds.create({ payment_intent: pi }); ledger.append(db, 'market.refunded', `listing-${listingId}`, { amount: cs.amount_total }); } catch (e) { console.error('[market] refund', e.message); }
+    // Sold to someone else first: refund in full. (#123) Unless this very session sold it, on another copy, a moment ago.
+    const refund = async () => {
+      const same = db.prepare('SELECT * FROM trades WHERE stripe_session=?').get(cs.id); if (same) return same;
+      try { await stripe.refunds.create({ payment_intent: pi }, { idempotencyKey: `wm-refund-${cs.id}` }); ledger.append(db, 'market.refunded', `listing-${listingId}`, { amount: cs.amount_total }); } catch (e) { console.error('[market] refund', e.message); }
       return null;
-    }
+    };
+    if (!s || s.status !== 'open') return refund();
     const l = lic(s.license_id), d = cs.customer_details || {}, price = cs.amount_total;
     const b = buyerByEmail(d.email, typeof cs.customer === 'string' ? cs.customer : '');
     const sp = split(price), token = nanoid(32);
-    const tid = db.transaction(() => {
+    const tx = db.transaction(() => {
       db.prepare("INSERT INTO transfers (license_id, token, from_buyer, to_buyer, claimed_at) VALUES (?,?,?,?,datetime('now'))").run(l.id, nanoid(24), s.seller, b.id);
       const id = db.prepare("INSERT INTO trades (license_id, listing_id, bid_id, seller, price_cents, royalty_cents, fee_cents, settled, buyer_id, stripe_session, payment_intent) VALUES (?,?,?,?,?,?,?,'stripe',?,?,?)")
         .run(l.id, s.id, cs.metadata && cs.metadata.bid ? Number(cs.metadata.bid) : null, s.seller, price, sp.royalty, sp.fee, b.id, cs.id, pi || null).lastInsertRowid;
       db.prepare("UPDATE licenses SET buyer_id=?, download_token=?, licensee_name=COALESCE(?, licensee_name), licensee_email=COALESCE(?, licensee_email), updated_at=datetime('now') WHERE id=?").run(b.id, token, d.name || null, d.email || null, l.id);
-      db.prepare("UPDATE listings SET status='sold', closed_at=datetime('now'), held_until=NULL WHERE id=?").run(s.id);
+      // (#123) The claim: the listing moves to sold once. A second settle of the same session (the webhook on one copy of
+      // the website, the buyer's return on another) finds it sold and undoes nothing it began.
+      if (!db.prepare("UPDATE listings SET status='sold', closed_at=datetime('now'), held_until=NULL WHERE id=? AND status='open'").run(s.id).changes) throw Object.assign(new Error('settled elsewhere'), { settledElsewhere: true });
       db.prepare("UPDATE bids SET status=CASE WHEN id=? THEN 'settled' ELSE 'closed' END WHERE listing_id=? AND status='new'").run(cs.metadata && cs.metadata.bid ? Number(cs.metadata.bid) : 0, s.id);
       db.prepare("UPDATE offers SET status='closed', closed_at=datetime('now') WHERE license_id=? AND status='open'").run(l.id);
       db.prepare("INSERT INTO payouts (trade_id, kind, buyer_id, amount_cents) VALUES (?,?,?,?)").run(id, 'seller', s.seller, sp.seller);
       // The house keeps its own royalty; any other photographer is paid out.
       db.prepare("INSERT INTO payouts (trade_id, kind, maker_id, amount_cents, status) VALUES (?,?,?,?,?)").run(id, 'royalty', l.maker_id, sp.royalty, l.maker_id === maker.id ? 'house' : 'owed');
       return id;
-    })();
+    });
+    let tid; try { tid = tx(); } catch (e) { if (e.settledElsewhere) return refund(); throw e; }
     ledger.append(db, 'market.traded', l.ref, { work: l.slug, collector_no: l.collector_no, price, royalty: sp.royalty, fee: sp.fee, settled: 'stripe' });
     ledger.append(db, 'license.transferred', l.ref, { work: l.slug, collector_no: l.collector_no });
     if (mail && d.email) mail.send({ to: d.email, subject: `Yours: ${tidy(l.title)}, No. ${l.collector_no}`, text: `${tidy(l.title)}, No. ${l.collector_no}${l.edition_size ? ` of ${l.edition_size}` : ''}, is now in your gallery.\n\nThe full file: ${C.base}/d/${token}\nIts certificate: ${C.base}/c/${l.ref}?k=${token}\nIts history: ${C.base}/w/${l.slug}/life` });
@@ -267,17 +315,26 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   // Pay every owed share whose recipient can be paid (a Connect account that can receive transfers).
   async function payOwed() {
     if (!stripe) return 0; let n = 0;
-    for (const p of db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.status='owed'").all()) {
-      const acct = p.buyer_id ? (db.prepare('SELECT stripe_account FROM buyers WHERE id=?').get(p.buyer_id) || {}).stripe_account : (db.prepare('SELECT stripe_account FROM makers WHERE id=?').get(p.maker_id) || {}).stripe_account;
-      if (!acct) continue;
-      try {
-        let charge; if (p.payment_intent) { const pi = await stripe.paymentIntents.retrieve(p.payment_intent); charge = pi.latest_charge; }
-        const tr = await stripe.transfers.create({ amount: p.amount_cents, currency: 'usd', destination: acct, transfer_group: `listing-${p.listing_id}`, ...(charge ? { source_transaction: charge } : {}), metadata: { payout: String(p.id) } });
-        db.prepare("UPDATE payouts SET status='paid', stripe_transfer=?, paid_at=datetime('now') WHERE id=?").run(tr.id, p.id);
-        ledger.append(db, 'payout.sent', `payout-${p.id}`, { kind: p.kind, amount: p.amount_cents }); n++;
-      } catch (e) { console.error('[payout]', p.id, e.message); }
+    const I = app.locals.instances;
+    for (const p0 of db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.status='owed'").all()) {
+      // (#123) One payer for a payout: the lease on it, then its row read again (another copy may have paid it and let go).
+      const k = `payout:${p0.id}`; if (I && !I.lease(k, 5 * 60e3)) continue;
+      try { const p = db.prepare("SELECT p.*, t.payment_intent, t.listing_id FROM payouts p JOIN trades t ON t.id=p.trade_id WHERE p.id=? AND p.status='owed'").get(p0.id); if (p && await payOne(p)) n++; } finally { if (I) I.release(k); }
     }
     return n;
+  }
+  async function payOne(p) {
+    {
+      const acct = p.buyer_id ? (db.prepare('SELECT stripe_account FROM buyers WHERE id=?').get(p.buyer_id) || {}).stripe_account : (db.prepare('SELECT stripe_account FROM makers WHERE id=?').get(p.maker_id) || {}).stripe_account;
+      if (!acct) return false;
+      try {
+        let charge; if (p.payment_intent) { const pi = await stripe.paymentIntents.retrieve(p.payment_intent); charge = pi.latest_charge; }
+        // Stripe's own guard beside the lease: the same payout asked twice is one transfer.
+        const tr = await stripe.transfers.create({ amount: p.amount_cents, currency: 'usd', destination: acct, transfer_group: `listing-${p.listing_id}`, ...(charge ? { source_transaction: charge } : {}), metadata: { payout: String(p.id) } }, { idempotencyKey: `wm-payout-${p.id}` });
+        if (!db.prepare("UPDATE payouts SET status='paid', stripe_transfer=?, paid_at=datetime('now') WHERE id=? AND status='owed'").run(tr.id, p.id).changes) return false;
+        ledger.append(db, 'payout.sent', `payout-${p.id}`, { kind: p.kind, amount: p.amount_cents }); return true;
+      } catch (e) { console.error('[payout]', p.id, e.message); return false; }
+    }
   }
   app.locals.payOwed = payOwed;
 
@@ -321,20 +378,20 @@ function mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnl
   const ratio = r => (r.width && r.height ? (r.width / r.height).toFixed(3) : '1.5');
   const no = r => `No.&nbsp;${r.collector_no}${r.edition_size ? ` of ${r.edition_size}` : ''}`;
   const page = {
-    exchange: ({ open, recent, vol }) => layout({ title: 'The market · Watermark', desc: 'Numbered works offered by their collectors, and what has traded.', path: '/market', body: `<section class="cx-intro mk">
+    exchange: ({ open, recent, vol, whose = null }) => layout({ title: 'The market · Watermark', desc: 'Numbered works offered by their collectors, at the prices they ask.', path: '/market', body: `<section class="cx-intro mk">
 <p class="k">The market</p><h1>Where collectors pass the work on.</h1>
-<p class="lede">Limited editions are numbered, and when an edition is complete the only way to own one is from a collector who holds it. Pieces offered here are offered by their collectors, at prices they set. Every trade is recorded, so each work carries its own price history.</p>
-<p class="mk-stats"><span><b>${open.length}</b> offered</span><span><b>${vol.n}</b> traded</span><span><b>${money(vol.v)}</b> traded in all</span></p></section>
+<p class="lede">Limited editions are numbered, and when an edition is complete the only way to own one is from a collector who holds it. Pieces offered here are offered by their collectors, at prices they set. Every trade is recorded on the register; what a piece sold for is shown to its maker, to its holder and to the house, never as a public list.</p>
+<p class="mk-stats"><span><b>${open.length}</b> offered</span>${vol ? `<span><b>${vol.n}</b> traded${whose === 'yours' ? ' of your work' : ''}</span><span><b>${money(vol.v)}</b> traded in all</span>` : ''}</p></section>
 <section class="gal"><header class="gh"><h2>Offered now</h2><span>by their collectors</span></header>
 ${open.length ? `<div class="mk-grid">${open.map(r => `<a class="mk-c" href="/market/${r.id}"><span class="mk-im" style="--r:${ratio(r)}"><img src="/img/${esc(r.slug)}/thumb" alt="${esc(tidy(r.title))}" loading="lazy" draggable="false"></span>
 <span class="mk-no">${no(r)}</span><b>${esc(tidy(r.title))}</b><span class="mk-by">${esc(r.maker)}</span><span class="mk-px"><em>${money(r.ask_cents)}</em>${r.p.last != null ? `<small>last traded ${money(r.p.last)}</small>` : r.p.issue != null ? `<small>issued at ${money(r.p.issue)}</small>` : ''}</span></a>`).join('')}</div>` : '<p class="hd-calm">Nothing is offered just now. When a collector offers a piece, it appears here.</p>'}</section>
-${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>most recent first</span></header>${recent.map(t => `<a class="hd-ev" href="/w/${esc(t.slug)}/life"><span>${date(t.at)}</span><b>${esc(tidy(t.title))}</b><span>${no(t)} &middot; ${esc(t.maker)}</span><span class="hd-v">${money(t.price_cents)}</span></a>`).join('')}</section>` : ''}
+${recent.length ? `<section class="gal"><header class="gh"><h2>Traded</h2><span>${whose === 'yours' ? 'your work, ' : ''}most recent first; shown only to you</span></header>${recent.map(t => `<a class="hd-ev" href="/w/${esc(t.slug)}/life"><span>${date(t.at)}</span><b>${esc(tidy(t.title))}</b><span>${no(t)} &middot; ${esc(t.maker)}</span><span class="hd-v">${money(t.price_cents)}</span></a>`).join('')}</section>` : ''}
 <section class="gal mk-how"><header class="gh"><h2>How it works</h2></header><ol class="mk-steps">
 <li><b>A collector offers a piece.</b> From their gallery, at a price they choose. They can withdraw it at any time.</li>
 <li><b>You ask to buy it.</b> At the asking price, or with an offer of your own.</li>
 <li><b>Watermark settles it.</b> You pay Watermark; the piece moves to you with its number; the collector is paid out, and the photographer receives ${Math.round(ROYALTY * 100)}% of every resale. Watermark keeps ${Math.round(FEE * 100)}%. Neither side has to trust the other.</li>
 <li><b>It hangs on your wall.</b> With its number, its certificate and its history, written to the ledger.</li></ol>
-<p class="note">Prices here are what collectors ask and what they have paid. They are not valuations or advice, and past prices say nothing certain about future ones.</p></section>` }),
+<p class="note">Prices here are what collectors ask. They are not valuations or advice.</p></section>` }),
 
     listing: ({ s, l, m, p, mine, sent, auto, bid, held }) => layout({ title: `${tidy(l.title)}, No. ${l.collector_no} · The market · Watermark`, body: `<section class="mk-l">
 <a class="mk-im mk-big" href="/w/${esc(l.slug)}" style="--r:${ratio(l)}"><img src="/img/${esc(l.slug)}/large" alt="${esc(tidy(l.title))}" draggable="false"></a>
@@ -365,9 +422,10 @@ ${owed.length ? `<section class="hd-list"><div class="hd-h"><h2>Owed</h2><span>p
 <section class="hd-list"><div class="hd-h"><h2>Requests</h2></div>${bids.length ? bids.map(d => { const price = d.offer_cents || d.ask_cents, sp = split(price); return `<div class="mk-bid"><div><b>${esc(tidy(d.title))}</b> <small>${no(d)}</small><p>${esc(d.name || 'Someone')} &lt;${esc(d.email)}&gt; ${d.offer_cents ? `offers <b>${money(d.offer_cents)}</b> (asking ${money(d.ask_cents)})` : `at the asking price, <b>${money(d.ask_cents)}</b>`}</p><small>At ${money(price)}: collector ${money(sp.seller)} &middot; photographer ${money(sp.royalty)} &middot; Watermark ${money(sp.fee)}</small></div>
 <form method="post" action="/studio/market/${d.id}/settle" class="inline mk-set"><input name="price" inputmode="decimal" value="${(price / 100).toFixed(0)}" aria-label="Final price, dollars"><button>Record the trade</button></form><form method="post" action="/studio/market/${d.id}/decline" class="inline"><button class="link">Decline</button></form></div>`; }).join('') : '<p class="hd-calm">No requests waiting.</p>'}</section>
 <section class="hd-list"><div class="hd-h"><h2>Offered</h2><a href="/market">The market &rarr;</a></div>${open.map(s => `<a class="hd-ev" href="/market/${s.id}"><span>${date(s.created_at)}</span><b>${esc(tidy(s.title))}</b><span>${no(s)} &middot; ${s.bids} request${s.bids === 1 ? '' : 's'}</span><span class="hd-v">${money(s.ask_cents)}</span></a>`).join('') || '<p class="hd-calm">Nothing offered.</p>'}</section>
+<section class="hd-list"><div class="hd-h"><h2>The holding time</h2><span>${TR.holdDays()} days after a piece is sold (draft)</span></div><form method="post" action="/studio/market/hold" class="inline"><input name="ref" placeholder="WM-…" aria-label="The piece's reference" required><input name="reason" placeholder="Why" aria-label="The reason, written on the register" required maxlength="300"><button>Lift it for this piece</button></form><p class="note">The reason is written on the register, which anyone can read.</p></section>
 <section class="hd-list"><div class="hd-h"><h2>Traded</h2></div>${done.map(t => `<div class="hd-ev"><span>${date(t.at)}</span><b>${esc(tidy(t.title))}</b><span>${no(t)} &middot; ${t.settled === 'stripe' ? 'settled through Stripe' : 'brokered'} &middot; royalty ${money(t.royalty_cents)} &middot; fee ${money(t.fee_cents)}${t.claim ? ` &middot; <a href="/claim/${esc(t.claim)}">claim link</a>` : ''}</span><span class="hd-v">${money(t.price_cents)}</span></div>`).join('') || '<p class="hd-calm">No trades yet.</p>'}</section></section>` }),
   };
-  return { priceOf, portfolio, split, settleStripe, payOwed, AUTO };
+  return { priceOf, portfolio, split, settleStripe, payOwed, AUTO, holdOf };
 }
 
 module.exports = { mountMarket, ROYALTY, FEE };

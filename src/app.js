@@ -9,10 +9,12 @@ const K = require('./contract');
 const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
+const TR = require('./rules-of-trade'); // the trade's rules: editions, prices, the holding time (#165)
 const images = require('./images');
 const RG = require('./regard');
 const CR = require('./credentials');
 const V = require('./views');
+const OPEN_KEYS = require('./open').OPEN; // the open licences, for a free-and-clear take's file (#170)
 const R = require('./rules');
 const SEAL = require('./seal');
 const { createStore } = require('./storage');
@@ -38,6 +40,8 @@ function slugify(s) {
 }
 
 function createApp(cfg = {}) {
+  // Every request to a source's server keeps that source's asks (src/asks.js, #170): the Library of Congress's pace, the Art Institute's header, Gutenberg paused.
+  const ASKED = require('./asks').wrap((u, o) => (cfg.fetchImpl || fetch)(u, o), { noTimers: !!cfg.noTimers });
   const C = {
     dataDir: cfg.dataDir || process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
     base: (cfg.base || process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, ''),
@@ -55,6 +59,8 @@ function createApp(cfg = {}) {
   C.staging = cfg.staging !== undefined ? !!cfg.staging : process.env.STAGING === '1';
   if (C.staging && /^(sk|rk)_live_/.test(C.stripeKey || '')) { console.error('[staging] a live Stripe key was refused; use test keys in the test house'); C.stripeKey = null; C.stripePk = null; }
   const db = open(path.join(C.dataDir, 'watermark.db'));
+  // (#123) Several copies of the website: who this process is, who is alive, and leases (src/instances.js).
+  const IN = require('./instances').mount({ locals: {} }, { db, cfg, role: require('./role').role });
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
@@ -92,11 +98,12 @@ function createApp(cfg = {}) {
   const held_ = (w, key) => !!(w && app && app.locals && app.locals.blockedBy && app.locals.blockedBy(w, key));
   const artClosed = (w, key) => !!(w && app && app.locals && ((app.locals.art && app.locals.art.blocks(w, key)) || (app.locals.companies && app.locals.companies.closed(w))));
   const clearClosed = (w, key) => !!(w && app && app.locals && app.locals.clearance && app.locals.clearance.blocks(w, key));
+  const viewClosed = (w, key) => !!(w && app && app.locals && app.locals.onview && app.locals.onview.blocks(w, key)); // (#166) a work a gallery represents: its way to buy is the gallery's
   const sitterWord = (w, key) => (w && app && app.locals && app.locals.sitters ? app.locals.sitters.gate(w, key) : null); // 'ask' | 'closed' | null
-  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -126,7 +133,8 @@ function createApp(cfg = {}) {
     const l = ref ? db.prepare('SELECT l.collector_no, u.key FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?').get(ref) : null;
     const how = !ref ? 'Free and clear, from Watermark' : l && l.key === 'social' ? `Collected on Watermark${l.collector_no ? `, No. ${l.collector_no}` : ''}` : l && l.key === 'reference' ? 'The Reference, collected on Watermark' : `Licensed on Watermark${use ? `, ${String(use).toLowerCase()}` : ''}${ends ? `, until ${new Date(ends).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}`;
     const caption = `${title}. ${require('./object').aBy(w, maker.name).replace(/ by .*$/, '')} by ${maker.name}${w.place ? `, ${w.place}` : ''}${year ? `, ${year}` : ''}. ${how}.${number ? ` ${number}.` : ''}`;
-    const copyright = `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at watermark.krafftco.com/t/${TRACK.compact(ref)}` : `Held at watermark.krafftco.com/w/${w.slug}`}`;
+    const openTake = !ref && w.open && OPEN_KEYS[w.open];
+    const copyright = openTake ? `${openTake.name}. ${require('./sources').credit(w) || maker.name}` : `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at watermark.krafftco.com/t/${TRACK.compact(ref)}` : `Held at watermark.krafftco.com/w/${w.slug}`}`;
     return { caption, copyright, number };
   }
   // A file's name: the title, the maker, the number. Readable in any folder; ASCII for the plain header, UTF-8 for the rest.
@@ -153,7 +161,9 @@ function createApp(cfg = {}) {
     if (format === 'jpeg') {
       const cap = captionOf({ w, maker, ref, licensee, use, ends });
       try { out = prov.stampJpegBuffer(out, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ }
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, noAI: R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
+      // A free-and-clear take of an open work (#170): the file says what the source says (the licence, their credit), never a copyright the house or the shelf does not hold.
+      const op = !ref && w.open && OPEN_KEYS[w.open] ? OPEN_KEYS[w.open] : null; const opCredit = op ? (require('./sources').credit(w) || `${V.tidy(w.title)}, ${maker.name}. ${op.name}`) : null;
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: op ? opCredit : `${maker.name} / Watermark`, copyright: op ? `${op.name} (${op.url}). ${opCredit}` : `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: op ? op.url : `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, terms: op ? op.says : null, noAI: !op && R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
     }
     db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
     return out;
@@ -203,6 +213,9 @@ function createApp(cfg = {}) {
   // the copy to the bucket follows in a queue (`works.vaulted` 0 → 1), retried until it lands; an unvaulted original is
   // never trimmed from the local cache; `vaultPending()` runs 20 s after start and every 30 s, so a restart loses nothing.
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vaulted'").get()) { db.exec('ALTER TABLE works ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 1'); }
+  // (#123) Which copy of the website holds an unvaulted original on its own disk (src/instances.js ME). Another copy does
+  // not have the file and must not call it lost while that copy is alive: the holder vaults it.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vault_on'").get()) db.exec('ALTER TABLE works ADD COLUMN vault_on TEXT');
   const unvaulted = () => new Set(db.prepare('SELECT original_file FROM works WHERE vaulted=0').all().map(r => r.original_file));
   let vaulting = false;
   const vaultState = { lastError: null, lastErrorAt: null, lastOkAt: null, lost: [] }; // told on /healthz `vault`
@@ -213,6 +226,7 @@ function createApp(cfg = {}) {
       for (const w of db.prepare('SELECT * FROM works WHERE vaulted=0 ORDER BY id LIMIT 50').all()) {
         const p = path.join(originals, w.original_file);
         if (!fs.existsSync(p)) {
+          if (w.vault_on && w.vault_on !== IN.ME && IN.alive(w.vault_on)) continue; // (#123) on another copy's disk: that copy vaults it
           // Not on disk: perhaps the bucket already has it (a put that landed as the process died); else the only copy
           // is gone, and the work goes off view for conservation with the finding, never a 500 on its picture.
           const inBucket = await store.size('originals/' + w.original_file).catch(() => null);
@@ -327,8 +341,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const end = u.term_months ? new Date(start.getTime()) : null;
     if (end) end.setUTCMonth(end.getUTCMonth() + u.term_months);
     const token = u.kind === 'print' ? null : nanoid(32);
-    db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=?")
+    // (#123) The claim: only the call that moves the licence to active goes on. Several copies of the website (and the
+    // worker's settleAll) may grant one ref at the same moment: Stripe's webhook on one, the buyer's return on another.
+    const claimed = db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=? AND status<>'active'")
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
+    if (!claimed.changes) return q.lic.get(ref);
     // The house's part of what was paid (FEE_SIDE=collector): recorded at the sale when the price was built, else here:
     // a maker's fee paid through a link arrives above the fee named (the difference is the house's), anything else by the rule.
     if (FEE.on() && extra.paid && l.house_cents == null) {
@@ -366,6 +383,21 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const day = new Date().toISOString().slice(0, 10);
     db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,1) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+1').run(workId, host || null, kind, day);
   }
+  // (20 Nov, #139) A view of a work seen from a prepared copy (POST /api/arrived) is counted the same way, a few seconds later,
+  // all of them in one transaction from a timer: the door that hears of it asks nothing of the database.
+  const viewsLater = new Map();
+  const flushViews = () => {
+    if (!viewsLater.size) return 0; const by = new Map(viewsLater); viewsLater.clear(); const slugs = [...by.keys()].slice(0, 500);
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      const ids = db.prepare(`SELECT id, slug FROM works WHERE slug IN (${slugs.map(() => '?').join(',')}) LIMIT 500`).all(...slugs);
+      const up = db.prepare('INSERT INTO views (work_id,host,kind,day,count) VALUES (?,?,?,?,?) ON CONFLICT(work_id,host,kind,day) DO UPDATE SET count=views.count+excluded.count');
+      db.transaction(() => { for (const w of ids) up.run(w.id, null, 'view', day, by.get(w.slug) || 1); })();
+      return ids.length;
+    } catch (e) { console.error('[views later]', e.message.split('\n')[0]); return 0; }
+  };
+  const viewLater = slug => { if (viewsLater.size < 5000) viewsLater.set(slug, (viewsLater.get(slug) || 0) + 1); };
+  if (!cfg.noTimers) setInterval(flushViews, 5000).unref();
 
   async function registerWork({ file, title, place, caption, source_url, originalName, makerId, kind, artist, fallbackTitle }) {
     const owner = makerId ? (db.prepare('SELECT * FROM makers WHERE id=?').get(makerId) || maker) : maker;
@@ -379,6 +411,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       if (dupe.vaulted === 0 && dupe.original_file && !fs.existsSync(home)) {
         try { fs.renameSync(file, home); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, home); fs.unlinkSync(file); }
         if (dupe.status === 'restoring' && app.locals.conservation) app.locals.conservation.backOnView(dupe);
+        db.prepare('UPDATE works SET vault_on=? WHERE id=?').run(IN.ME, dupe.id); // (#123) the file is on this copy's disk now
         setTimeout(() => vaultPending().catch(() => {}), 50).unref();
         const back = q.work.get(dupe.slug); back.cameHome = true; return back;
       }
@@ -398,8 +431,8 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
     const vaultLater = store.kind === 's3' && !cfg.vaultNow && process.env.VAULT_NOW !== '1'; // VAULT_NOW=1 (a house without a disk): the original is in the bucket before the record is made; // the copy to the bucket follows in the background (vaultPending)
     if (!vaultLater) await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
-    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1);
+    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted,vault_on)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1, vaultLater ? IN.ME : null);
     if (vaultLater) setTimeout(() => vaultPending().catch(() => {}), 50).unref();
     const nw = q.work.get(slug);
     const kindOk = kind && require('./object').KINDS[kind] ? kind : 'photograph';
@@ -417,11 +450,14 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // ---------- app ----------
   const ROLE = require('./role'); // web | worker | all (28 Oct): which process runs the chores
   const app = express();
+  // The async path beside the bridge (#117, docs/SCALE.md stage 2): app.locals.adb.get/all/run(sql, ...params) are promises.
+  const adb = require('./adb').open(db); app.locals.adb = adb;
   app.locals.vaultPending = vaultPending; app.locals.vaultState = vaultState;
   if (!cfg.noTimers && store.kind === 's3' && ROLE.web) { setTimeout(vaultPending, 20e3).unref(); setInterval(vaultPending, 30e3).unref(); }
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
+  app.locals.instances = IN; // (#123)
   // Kept answers (9 Nov, the scale test: the website's time went to the same counts and lists asked again by every
   // visitor). `kept(key, ms, fn)`: fn's answer held ms; nothing is kept under test, where pages are read the moment
   // after a change.
@@ -449,7 +485,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try {
       if (!applePayFile) applePayFile = await (await fetch('https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association')).text();
       res.set('Cache-Control', 'public, max-age=86400').type('text/plain').send(applePayFile);
-    } catch (e) { res.sendStatus(502); }
+    } catch (e) { res.fault(e, 502); }
   });
   async function registerDomain() {
     if (!stripe || !/^https:/.test(C.base)) return null;
@@ -466,13 +502,15 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   async function ensureVaultCors() { if (!store.ensureCors) return; try { app.locals.vaultCors = await store.ensureCors([C.base.replace(/\/$/, '')]); } catch (e) { app.locals.vaultCors = 'error: ' + e.message.slice(0, 80); } console.log('[vault] cors', app.locals.vaultCors); }
   if (!cfg.noTimers && store.kind === 's3' && ROLE.chores) { setTimeout(ensureVaultCors, 10e3).unref(); setInterval(ensureVaultCors, 6 * 3600e3).unref(); }
   app.locals.ensureVaultCors = ensureVaultCors;
-  if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => registerDomain().then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
+  if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => (IN.lease('stripe-domain', 10 * 60e3) ? registerDomain() : Promise.resolve(null)).then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
   app.use(require('compression')({ threshold: 1024 }));
   const served = require('./served').mountServed(app, { publicDir: path.join(__dirname, '..', 'public'), cacheDir: cache, express }); // scripts and styles leave stripped (19 Oct)
   // The cold page as a static file, so an edge in front (CloudFront, 25 Oct) can hold it and show it while Render restarts.
-  app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
+  // (#149) The one-moment page: self-contained (nothing asked of the house), the same file the edge serves from the vault's bucket.
+  const MOMENT = require('./breaks').momentPage();
+  app.get('/static/cold.html', (req, res) => res.set({ 'Cache-Control': 'public, max-age=60', 'X-WM-Moment': '1' }).type('html').send(MOMENT));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
   // The trail keeps no secret (16 Nov, #28): the agents' door keeps only its path, in any case; and any address whose query
@@ -574,6 +612,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   };
   app.locals.analytics = require('./analytics').mountAnalytics(app, { db, V, C, studioOnly, isStudio, ledger, mailState: () => mail.state || null }); // the numbers: every page and API hit, first-party, Studio → Back office → Analytics
   require('./tenants').mountTenants(app, { db, V, C, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a museum's own house on its own domain; /enterprise
+  // (20 Nov, #139) Prepared copies for strangers: a stranger's request for a public door is answered from the copy the
+  // worker made, shared by every copy of the website through `prepared_pages`, with no statement in the request. Anyone
+  // the house knows (a sign-in, their own looking, a basket, a walk, a tenant, a query) is built fresh, `private, no-store`.
+  app.use(require('./prepared').mountPrepared(app, { db, V, C, cfg }).serve);
+  app.locals.viewLater = viewLater; app.locals.flushViews = flushViews;
   require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
   const OB = require('./object').mountObject(app, { db, V, ledger, studioOnly, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk }); // the physical work: kinds, the object record, the cabinet's registrar card
@@ -583,9 +626,10 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     mail.setStore({ get: k => { mk(); const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; },
       set: (k, v) => { mk(); db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, String(v)); } }); }
   require('./clearance').mountClearance(app, { db, V, C, store, ledger, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), bagcheck: BAG });
+  require('./onview').mountOnView(app, { db, V, ledger, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // (#166) on view at: where a living maker's object can be seen, and the gallery's way to buy
   require('./sign').mountSign(app, { db, V, C, store, ledger, mail, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // a release signed on the spot, with a finger (26 Oct) // the clearance desk: releases, what may be licensed (26 Oct)
   require('./spend').mountSpend(app, { db }); // the meter on Al (8 Nov): every call on the house's key counted and capped by the day
-  const ART = require('./art').mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk, fetchImpl: cfg.fetchImpl, imageOf: w => app.locals.imageOf(w) }); // the artists behind the work (26 Oct)
+  const ART = require('./art').mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), mk, fetchImpl: ASKED, imageOf: w => app.locals.imageOf(w) }); // the artists behind the work (26 Oct)
   require('./backgrounds').mountBackgrounds(app, { db, V, C, images, originalPath, buyerOf: req => buyerOf(req), isStudio, ledger, cache, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // backgrounds (2 Nov): a work made to the pixels of a phone, a laptop, a Frame
   require('./catalogue').mountCatalogue(app, { db, V, C, ledger, studioOnly }); // the catalogue (2 Nov): every work Wikidata knows by an artist, in the order made, the gaps named
   require('./easel').mountEasel(app, { db, V, mk, I: require('./icons') }); // the easel: the master study
@@ -724,9 +768,15 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // the art, Wander's own first page at a shorter window), and only a true stranger is served from it: anyone with a
   // gallery (wm_b: the old test read a cookie that does not exist), the adult rooms open, the trade on, a guest key or
   // a welcome due is built fresh.
+  const PREP = require('./prepared');
   const minute = (handler, ttl = 60e3) => (req, res) => {
-    const c = req.cookies || {}; const anon = !c.wm_m && !c.wm_s && !c.wm_b && !c.wm_staff && !c.wm_as && !c.wm_trade && !c.wm_hi && !c.wm_gg && !c.wm_g && (!c.wm_zone || c.wm_zone === 'all') && !req.tenant;
-    if (!anon) return handler(req, res);
+    // (20 Nov, #139) A person is anyone prepared.js says is one: on Wander's doors the list here had missed the visitor's
+    // own looking (wm_v shapes its picks) and the basket, so one visitor's Wander could be kept and handed to the next;
+    // on the hall's doors (which read none of the visitor's own cookies) the rule is as it was, with every sign-in. A
+    // person's page is built fresh and never kept; the worker's own request is never served from here.
+    const c = req.cookies || {}; const anon = !PREP.isPerson(req);
+    if (!anon) { res.set('Cache-Control', 'private, no-store'); return handler(req, res); }
+    if (req.preparing) return handler(req, res);
     // (9 Nov) By the clock alone outside tests: with imports and visitors writing to the register all day the head moved every few seconds and the page was never kept.
     const key = req.originalUrl + '#' + (process.env.NODE_ENV === 'test' ? (db.prepare('SELECT MAX(seq) s FROM ledger').get().s || 0) : '') + '#' + (c.wm_tz || ''), hit = pageCache.get(key); // the visitor's zone shapes the clock's rooms // any entry on the register makes the page new
     if (hit && Date.now() - hit.at < ttl) { res.set('Cache-Control', 'public, max-age=' + Math.max(5, Math.round(ttl / 2000))); return res.send(hit.body); }
@@ -854,12 +904,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The signs: any door the app shuts with a bare status (sendStatus, status().end()) is shown to a browser as a
   // photograph and a way on, never a number. JSON, images and files keep their plain status.
   const coverFor = () => { try { return db.prepare("SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.width > w.height ORDER BY (CASE WHEN w.curated=1 THEN 3 WHEN w.stars>=4 THEN 2 ELSE 1 END) * (CASE WHEN w.width>=3840 THEN 4 WHEN w.width>=3000 THEN 2 ELSE 1 END) * RANDOM() DESC LIMIT 1").get() || null; } catch (e) { return null; } };
-  const wantsSign = req => req.method === 'GET' && req.accepts('html') && !/^\/(api|img|cab|static|d|portrait|ledger\.json|healthz|sw\.js)/.test(req.path) && !req.xhr;
-  app.use((req, res, next) => {
-    const sendStatus = res.sendStatus.bind(res);
-    res.sendStatus = code => { if (code >= 400 && wantsSign(req)) return res.status(code).send(V.sign({ code, cover: coverFor() })); return sendStatus(code); };
-    next();
-  });
+  // (#149) Every bare status, every thrown error and every limit: the house's own page, JSON with words for a script,
+  // the plain status only for images and files; each fault kept in app.locals.lastFault / recentFaults and a [break] line.
+  const BREAKS = require('./breaks').mountBreaks(app, { V, coverFor });
   // Every address is the person's: a photograph lives under its maker (/m/<maker>/<slug>; /w/<slug> still answers),
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
@@ -867,17 +914,26 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.use(['/w/:slug', '/m/:maker/:slug', '/license/:slug'], (req, res, next) => (app.locals.rememberPlatform ? app.locals.rememberPlatform(req, res, next) : next())); // ?via=p:<partner>: the sale is the platform's (src/platform.js)
   app.use(['/w/:slug', '/m/:maker/:slug'], (req, res, next) => (app.locals.rememberShow ? app.locals.rememberShow(req, res, next) : next())); // ?show=<hang slug> from a wall label: the show is remembered, so the sale is the show's (editions.js)
   app.get('/w/:slug', async (req, res, next) => { const r = String(req.query.paid || ''); if (r) { let l = q.lic.get(r); if (l && l.status !== 'active') await Promise.race([settle(l), new Promise(f => setTimeout(f, 6000))]); l = q.lic.get(r); if (l && l.status === 'active' && l.download_token) return res.redirect(`/thanks/${l.ref}?k=${l.download_token}`); } next(); });
-  app.get('/w/:slug', (req, res) => {
-    const w = q.work.get(req.params.slug);
+  // (20 Nov, #117) The page's own reads ask through the async path (src/adb.js); the blocks it draws from other modules
+  // (the market's price, prints, loans, the bench, the shield…) still ask on the bridge until those modules move. The
+  // view is counted on the bridge: one row by key, committed before the page is drawn.
+  app.get('/w/:slug', async (req, res) => {
+    const w = await adb.get("SELECT * FROM works WHERE slug=?", String(req.params.slug));
     const maker = mk(w); // the work's own maker
     if (w && w.status !== 'held' && !isStudio(req)) return res.redirect(onward(req, w.slug)); // no break: a photograph taken down leads on to the next
     if (!w) return res.status(404).send(V.sign({ code: 404, cover: coverFor() }));
-    countView(w.id, null, 'view');
+    if (!req.preparing) countView(w.id, null, 'view'); // the worker making a copy is not a visit; a copy's visit is counted by /api/arrived
     const rules = R.parse(w.rules);
-    const holders = db.prepare(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`).get(w.id).n;
-    const shown = db.prepare(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`).all(w.id);
-    const mkt = app.locals.market ? { sent: req.query.offer || null, held: db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL").get(w.id).n, nos: db.prepare("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no").all(w.id).map(r => r.collector_no), p: app.locals.market.priceOf(w.id), open: db.prepare("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents").all(w.id) } : null;
-    res.send(V.work({ seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: w.artist_id && maker.kind !== 'maker' ? ((db.prepare('SELECT name FROM artists WHERE id=?').get(w.artist_id) || {}).name || null) : null, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    const [holders, shown, mktRows, byArtist] = await Promise.all([
+      adb.get(`SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0`, w.id).then(r => r.n),
+      adb.all(`SELECT b.name, b.code, MIN(l.collector_no) no FROM licenses l JOIN buyers b ON b.id=l.buyer_id WHERE l.work_id=? AND b.public=1 AND b.code IS NOT NULL AND l.status IN ('active','expired') AND l.price_cents > 0 GROUP BY b.id ORDER BY no LIMIT 5`, w.id),
+      app.locals.market ? Promise.all([adb.get("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL", w.id).then(r => r.n), adb.all("SELECT collector_no FROM licenses WHERE work_id=? AND collector_no IS NOT NULL AND status='active' AND buyer_id IS NOT NULL ORDER BY collector_no", w.id).then(r => r.map(x => x.collector_no)), adb.all("SELECT s.id, s.ask_cents, l.collector_no FROM listings s JOIN licenses l ON l.id=s.license_id WHERE l.work_id=? AND s.status='open' ORDER BY s.ask_cents", w.id)]) : null,
+      w.artist_id && maker.kind !== 'maker' ? adb.get('SELECT name FROM artists WHERE id=?', w.artist_id).then(r => (r || {}).name || null) : null,
+    ]);
+    // (#165) No public tape: a stranger sees what is offered and its asking price; a past price only its maker and the Studio.
+    const mv = mktRows ? app.locals.market.who(req, w) : null;
+    const mkt = mktRows ? { sent: req.query.offer || null, held: mktRows[0], nos: mktRows[1], p: mv.all ? app.locals.market.priceOf(w.id) : app.locals.market.asked(app.locals.market.priceOf(w.id)), open: mktRows[2] } : null;
+    res.send(V.work({ onview: app.locals.onview ? app.locals.onview.forWork(w, req) : null, seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker, req) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + require('./sources').line(w) + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w).map(h => ({ ...h, hold: h.collector_no && app.locals.market ? app.locals.market.holdOf(h) : null })), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: byArtist, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -900,8 +956,13 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const ids = lic.map(l => l.id);
     const prints = ids.length ? db.prepare(`SELECT p.*, l.collector_no FROM prints p JOIN licenses l ON l.id=p.license_id WHERE p.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY p.id`).all(...ids) : [];
     const moves = ids.length ? db.prepare(`SELECT t.claimed_at, l.collector_no FROM transfers t JOIN licenses l ON l.id=t.license_id WHERE t.claimed_at IS NOT NULL AND t.license_id IN (${ids.map(() => '?').join(',')}) ORDER BY t.claimed_at`).all(...ids) : [];
-    let trades = []; try { trades = db.prepare('SELECT t.price_cents, t.at, l.collector_no FROM trades t JOIN licenses l ON l.id=t.license_id WHERE l.work_id=? ORDER BY t.id').all(w.id); } catch (e) { /* no market yet */ }
-    res.send(V.life({ chart: app.locals.marketChart ? app.locals.marketChart(w.id) : '', trades, w, maker, lic, reg, rules, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
+    let trades = []; try { trades = db.prepare('SELECT t.license_id, t.price_cents, t.at, l.collector_no FROM trades t JOIN licenses l ON l.id=t.license_id WHERE l.work_id=? ORDER BY t.id LIMIT 500').all(w.id); } catch (e) { /* no market yet */ }
+    // (#165) No public tape: the trades are told, their prices and the line through them only to the maker and the Studio,
+    // and to a holder for their own piece; what the work earned (rules.showEarned) only to the maker and the Studio.
+    const v = app.locals.market ? app.locals.market.who(req, w) : { all: isStudio(req), own: new Set() };
+    if (v.all || v.own.size) res.set('Cache-Control', 'private, no-store');
+    trades = trades.map(t => ({ ...t, price_cents: v.all || v.own.has(t.license_id) ? t.price_cents : null }));
+    res.send(V.life({ chart: v.all && app.locals.marketChart ? app.locals.marketChart(w.id) : '', trades, w, maker, lic, reg, rules: { ...rules, showEarned: !!rules.showEarned && v.all }, ed: edition(w), prints, moves, shield: shieldOf(w, maker) }));
   });
 
   // (9 Nov) A page of pictures asked for a work's whole row, guides and readings and all, once a picture: the row
@@ -1088,7 +1149,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       });
       db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
       res.redirect(303, s.url);
-    } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, uses: usesFor(w, maker), error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
+    } catch (e) { /* (#149) the form again, with its note, as 200: an edge that answers every 502 with its own page would hide it */ console.error('[checkout]', e.message); res.status(200).send(V.ask({ w, maker, u, note, uses: usesFor(w, maker), error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
   });
 
   // ---------- Share it, paid in place ----------
@@ -1135,7 +1196,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
       ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
       res.json({ ok: true, ref, secret: pi.client_secret });
-    } catch (e) { console.error('[pay]', e.message); db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref); res.status(502).json({ ok: false }); }
+    } catch (e) { console.error('[pay]', e.message); db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref); res.status(502).json({ ok: false, why: 'Payment is unavailable for a moment. Nothing was charged; try again in a minute.' }); }
   });
   app.post('/pay/:ref/done', async (req, res) => {
     let l = q.lic.get(req.params.ref);
@@ -1180,7 +1241,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!l || !b || l.status !== 'active' || !/^pi_/.test(l.stripe_session || '') || Date.now() - new Date(l.starts_at).getTime() > 120e3) return res.status(400).json({ ok: false });
     const pi = await stripe.paymentIntents.retrieve(l.stripe_session).catch(() => null);
     if (!pi || pi.customer !== b.customer) return res.status(403).json({ ok: false });
-    try { await stripe.refunds.create({ payment_intent: pi.id }); } catch (e) { return res.status(502).json({ ok: false }); }
+    try { await stripe.refunds.create({ payment_intent: pi.id }); } catch (e) { return res.status(502).json({ ok: false, why: 'The refund could not be asked of the bank just now; the house has kept the purchase as it was. Try again in a minute.' }); }
     db.prepare("UPDATE licenses SET status='declined', download_token=NULL, updated_at=datetime('now') WHERE ref=?").run(l.ref);
     ledger.append(db, 'license.undone', l.ref, { refunded: true });
     res.json({ ok: true });
@@ -1409,8 +1470,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.collectFor = collectFor;
   app.locals.edge = EDGE;
   // After a boot the edge may still be handing out the cold page it cached during the restart: clear it once the house is up (27 Oct).
-  if (!cfg.noTimers && EDGE.on()) setTimeout(() => EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
+  if (!cfg.noTimers && EDGE.on()) setTimeout(() => IN.lease('edge-boot', 2 * 60e3) /* (#123) once a deploy, not once a copy */ && EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
   // The digest, read now (27 Oct): the morning letter as it would go, and the alarm sent by hand.
+  // (20 Nov) The digest is composed from the same report as the numbers desk: shut on the website with it.
+  app.use(['/studio/digest', '/studio/digest/send', '/studio/digest/alarm'], studioOnly, (req, res, next) => { const A = app.locals.analytics; if (!A || !A.shut || !A.shut('7d')) return next(); /* (#114) open on the website when the worker's 7-day report is fresh */ if (req.method === 'GET') return res.type('text/plain').send(A.SHUT_WORDS); res.redirect('/studio?ok=' + encodeURIComponent('The digest waits for the numbers: there is no recent set from the back room.')); });
   app.get('/studio/digest', studioOnly, (req, res) => { res.type('text/plain').send(app.locals.digest ? app.locals.digest.compose() : 'no digest'); });
   app.post('/studio/digest/send', studioOnly, async (req, res) => { if (app.locals.digest) await app.locals.digest.digest({ force: true }); res.redirect('/studio?ok=' + encodeURIComponent('The digest went to the house.')); });
   app.post('/studio/digest/alarm', studioOnly, async (req, res) => { const w = app.locals.digest ? await app.locals.digest.alarm({ force: true }) : []; res.redirect('/studio?ok=' + encodeURIComponent(w && w.length ? `The alarm went: ${w[0]}` : 'The alarm went: nothing is wrong.')); });
@@ -1563,7 +1626,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (out.length && maker.email) mail.send({ to: maker.email, subject: `${out.length} letter${out.length === 1 ? '' : 's'} sent again`, text: `The house's mail was refused from the evening of 17 October until this afternoon, so these collectors never had their letters. Each has now been sent again:\n\n${out.join('\n')}\n\nWatermark` });
   }
   if (process.env.NODE_ENV !== 'test') GOV.boot('letters again', () => lettersAgain());
-  if (process.env.NODE_ENV !== 'test') { setTimeout(() => settleAll().catch(() => {}), 20e3).unref(); setInterval(() => settleAll().catch(() => {}), 5 * 60e3).unref(); }
+  // (#123) Every process ran this; now the one holding the lease 'timer:settle' does (grant's claim makes a second harmless).
+  if (process.env.NODE_ENV !== 'test') { const settleOne = IN.pinned('settle', 5 * 60e3, () => settleAll().catch(() => {})); setTimeout(settleOne, 20e3).unref(); setInterval(settleOne, 5 * 60e3).unref(); }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };
@@ -1792,7 +1856,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
       ledger.append(db, 'comp.taken', w.slug, {});
       res.type('jpg').send(out);
-    } catch (e) { res.sendStatus(503); }
+    } catch (e) { res.fault(e, 503); }
   });
   // The Watermark number, looked up: /t/202600008231 (or with spaces, or WM-…) opens the license it names.
   app.get('/t/:n', (req, res) => {
@@ -1826,7 +1890,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = await originalPath(w); } catch (e) { return res.fault(e, 503); }
     const fname = fileName(w, maker, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()); const name = fname.ascii;
     if (/\.(jpe?g|png|tiff?)$/i.test(file)) {
       try {
@@ -1968,7 +2032,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       if (!b['on_' + r.id]) continue;
       const v = Math.round(Number(b['size_' + r.id]));
       if (!(v > 0)) continue;
-      db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(Math.max(v, r.sold), r.id); n++;
+      // (#165) With a sale, a size may stay or come down to what is sold, never go up.
+      const to = TR.size(r.edition_size, v, r.sold); if (to === r.edition_size) continue;
+      db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(to, r.id); n++;
+      if (r.edition_size != null) ledger.append(db, 'work.editions', r.slug, { by: 'studio', from: r.edition_size, to });
     }
     if (n) ledger.append(db, 'editions.set', maker.handle, { works: n });
     res.redirect('/studio/editions?ok=' + encodeURIComponent(`${n} photograph${n === 1 ? '' : 's'} now numbered as limited editions.`));
@@ -2162,14 +2229,18 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if ('note' in b) db.prepare('UPDATE works SET note=? WHERE id=?').run(t(b.note, 2000), w.id);
     db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
     // Edition size: blank for an open edition. It can never be set below what has already been collected.
+    // (#165) Once one is collected it may stay or come down to what is sold, never go up, and is never opened again.
     const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });
-    db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(es === '' || !(Number(es) > 0) ? null : Math.max(Math.round(Number(es)), ed ? ed.sold : 0), w.id);
+    const want = es === '' || !(Number(es) > 0) ? null : Math.round(Number(es)), size = TR.size(w.edition_size == null ? null : w.edition_size, want, ed ? ed.sold : 0);
+    db.prepare('UPDATE works SET edition_size=? WHERE id=?').run(size, w.id);
+    if (size !== (w.edition_size == null ? null : w.edition_size)) ledger.append(db, 'work.editions', w.slug, { by: isStudio(req) ? 'studio' : ((app.locals.accounts.makerOf(req) || {}).handle || 'maker'), from: w.edition_size == null ? null : w.edition_size, to: size });
+    const held = size !== want;
     // A work too important to share at any price: license only.
     const rl = R.parse(w.rules); rl.social = b.noshare === '1' ? false : undefined; db.prepare('UPDATE works SET rules=? WHERE id=?').run(JSON.stringify(rl), w.id);
     const ids = (b.rooms == null ? [] : Array.isArray(b.rooms) ? b.rooms : [b.rooms]).map(Number).filter(Boolean);
     if (isStudio(req)) db.prepare('DELETE FROM collection_works WHERE work_id=?').run(w.id);
     if (isStudio(req)) { for (const cid of ids) if (db.prepare('SELECT 1 FROM collections WHERE id=?').get(cid)) db.prepare('INSERT OR IGNORE INTO collection_works (collection_id, work_id) VALUES (?,?)').run(cid, w.id); }
-    res.redirect(`${deskBase(req)}/${w.slug}?ok=${encodeURIComponent('Catalogue record saved.')}`);
+    res.redirect(`${deskBase(req)}/${w.slug}?ok=${encodeURIComponent(held ? `Catalogue record saved. The edition stays at ${size}: once one is collected, an edition can be made smaller, down to what is collected, never larger, and never opened again.` : 'Catalogue record saved.')}`);
   }
   app.post('/studio/works/:slug/catalogue', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); saveCatalogue(req, res, w); });
   app.post('/account/works/:slug/catalogue', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.sendStatus(401); saveCatalogue(req, res, w); });
@@ -2226,17 +2297,17 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./screening').mountScreening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req) });
   require('./binding').mountBinding(app, { db }); // the house's bindings: /binding/<slug>.svg
   require('./rows').mountRows(app, { db, V, C }); // the front door's rows (Apple TV as a museum)
-  require('./listening').mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), fetchImpl: cfg.fetchImpl });
+  require('./listening').mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), fetchImpl: ASKED });
   { const multer = require('multer'); const mUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.MUSIC_MAX_MB || 400) * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^audio\//.test(f.mimetype) || /\.(wav|flac|aiff?|mp3|m4a|ogg)$/i.test(f.originalname || '')) }); require('./music').mountMusic(app, { db, V, C, store, ledger, isStudio, makerOf: req => app.locals.accounts.makerOf(req), dataDir: C.dataDir, bagcheck: BAG, upload: mUp }); } // the makers' own music: masters in the vault, sides streamed to keyholders // the Keys' room for sound: records from the Archive, cleared at the door, played whole // the Screening Room: films chosen, shown whole at an hour
   app.locals.imageOf = async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
-  require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: cfg.fetchImpl });
-  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
+  require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: ASKED });
+  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
   require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
-  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
-  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
-  require('./inbox').mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(120000), ...(o || {}) }) }); // the inbox: a watched folder (27 Oct)
-  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
+  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
+  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
+  require('./inbox').mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}) }) }); // the inbox: a watched folder (27 Oct)
+  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
   require('./commonplace').mountCommonplace(app, { db, V, C, buyerOf, ledger }); // the readers' feed and the commonplace book (27 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
   require('./sharebook').mountShareBook(app, { db, V, C, mail, buyerOf, makerOf: req => (app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null), ledger }); // sharing a book: the card, the letter, the keeping (26 Oct)
@@ -2259,11 +2330,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./galleries').mountGalleries(app, { db, C, V, mail, ledger, makerOf: req => app.locals.accounts.makerOf(req), buyerOf, isStudio });
   require('./trade').mountTrade(app, { db, C, V, I: require('./icons'), mk, mail, ledger, buyerOf });
   require('./curate').mountCurate(app, { db, C, V, I: require('./icons'), mail, ledger, buyerOf, setBuyer, makerOf: req => app.locals.accounts.makerOf(req) });
-  require('./shelves').mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl: cfg.fetchImpl }); // the Library as a room: the shelves, by author, begin here (before library.js, whose /library it replaces)
+  require('./shelves').mountShelves(app, { db, V, C, isStudio, buyerOf, fetchImpl: ASKED }); // the Library as a room: the shelves, by author, begin here (before library.js, whose /library it replaces)
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./gazette').mountGazette(app, { db, V, C, mail, ledger, stripe, buyerOf, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Gazette by post: subscribers, the letter, the paid tier, the bench under writing (2 Nov)
   require('./jacket').mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl: cfg.fetchImpl }); // the jacket (26 Oct): the house's own front and back of every book
-  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => (cfg.fetchImpl || fetch)(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
+  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./darkroom').mountDarkroom(app, { db, V, C, store, images, ledger, originalPath, replaceMaster, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly }); // the darkroom (26 Oct): develop a work in the house; the negative kept
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
@@ -2330,6 +2401,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
         // (21 Oct) the local copy stays as the cache: the display copies are rebuilt from it at once
         ledger.append(db, 'work.master', w.slug, { fingerprint: info.sha256, previous: w.sha256, width: info.width, height: info.height, camera: info.camera, taken: info.taken_at });
         EDGE.work(w.slug); // the edge drops its copies of the old picture (25 Oct)
+        if (app.locals.prepared) app.locals.prepared.forget(w.slug); // and the stranger's prepared page (#139): its size and record changed
         warmSoon(w.slug); // the new master's copies made at once (29 Oct)
     return w;
   }
@@ -2611,7 +2683,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
     const studio = !req.path.startsWith('/account');
-    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: (app.locals.darkroom ? app.locals.darkroom.door(w) : '') + OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : '') + (app.locals.clearance ? app.locals.clearance.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/clearance`) : '') + (app.locals.sitters ? app.locals.sitters.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/sitter`) : '') + (app.locals.companies ? app.locals.companies.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/company`) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`) + (app.locals.wall ? app.locals.wall.block(w, `/studio/works/${encodeURIComponent(w.slug)}/wall`, { studio }) : ''), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
+    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: (app.locals.darkroom ? app.locals.darkroom.door(w) : '') + OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : '') + (app.locals.clearance ? app.locals.clearance.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/clearance`) : '') + (app.locals.sitters ? app.locals.sitters.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/sitter`) : '') + (app.locals.companies ? app.locals.companies.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/company`) : '') + (app.locals.onview ? app.locals.onview.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/onview`, req.query.ov) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`) + (app.locals.wall ? app.locals.wall.block(w, `/studio/works/${encodeURIComponent(w.slug)}/wall`, { studio }) : ''), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
   }
   app.get('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); workDesk(req, res, w); });
   app.get('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); workDesk(req, res, w); });
@@ -2782,6 +2854,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Back the database up to the vault every six hours, and once shortly after start.
   const BK = require('./backup').mountBackup(app, { db, C, store, ledger, mail, isStudio, V }); // nightly to the vault, a weekly restore drill, Studio → Backups
   require('./digest').mountDigest(app, { db, C, mail, ledger }); // the morning digest and the alarm to the house (27 Oct)
+  require('./numbers').mountNumbers(app, { db, cfg }); // (#114) the numbers, the health and the desk's views: made by the worker, kept, read by the website
   if (!cfg.noTimers) BK.schedule();
   app.post('/studio/backup', studioOnly, async (req, res) => { try { const k = await backupDb(); res.redirect(`/studio/activity?ok=${encodeURIComponent('Backed up to the vault: ' + k)}`); } catch (e) { res.redirect(`/studio/activity?ok=${encodeURIComponent('Backup failed: ' + e.message)}`); } });
   // Studios → Watermark: every photograph published on Krafft Studios is held here (see studios-sync.js).
@@ -2811,12 +2884,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const { unvaulted, works } = app.locals.kept('healthz-counts', 30e3, () => ({ unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works: db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n }));
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, prepared: app.locals.prepared ? app.locals.prepared.state() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, instance: IN.ME, instances: (() => { try { return app.locals.kept('healthz-instances', 15e3, () => IN.live().filter(x => x.role === 'web').length); } catch (e) { return null; } })() }; /* (#123) which copy answered, and how many copies of the website are alive */
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.
     const pgActivity = db.kind === 'postgres' ? (() => { try { return db.prepare("SELECT pid, application_name app, state, wait_event_type wait, wait_event, floor(extract(epoch from (now() - COALESCE(query_start, backend_start)))) age_s, left(query, 120) q FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY backend_start").all(); } catch (e) { return [{ error: e.message.split('\n')[0] }]; } })() : undefined;
-    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), fixity: app.locals.archive ? app.locals.archive.summary() : null, backup: app.locals.backup ? app.locals.backup.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, al: app.locals.spend ? app.locals.spend.today() : null, faults: process.faults || null, pgSlow: (() => { try { return require('./pgsync').slow(); } catch (e) { return null; } })(), lastFault: app.locals.lastFault || null, screenFault: app.locals.screenFault || null });
+    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), ...(() => { /* (#114) on the website the worker's kept health: no statement over fixity or conditions here */ if (!(ROLE.web && ROLE.split)) return { fixity: app.locals.archive ? app.locals.archive.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }; const K = app.locals.numbers ? app.locals.numbers.read('health') : null; return { fixity: K ? K.v.fixity : null, conservation: K ? K.v.conservation : null, keptHealthAt: K ? new Date(K.at).toISOString() : null }; })(), backup: app.locals.backup ? app.locals.backup.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, al: app.locals.spend ? app.locals.spend.today() : null, faults: process.faults || null, pgSlow: (() => { try { return require('./pgsync').slow(); } catch (e) { return null; } })(), adbSlow: adb.slow(), adb: adb.state(), lastFault: app.locals.lastFault || null, recentFaults: (app.locals.recentFaults || []).slice(0, 10), screenFault: app.locals.screenFault || null });
   });
   // The agents' door (15 Nov, #28): a read-only desk feed for the Floor and the analyst, shut unless AGENT_KEY is set.
   // On the web process, as /healthz and the API are; the worker answers no one.
@@ -2831,15 +2904,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get();
     res.status(404).send(V.sign({ code: 404, cover: w ? { ...w, maker: (mk(w) || {}).name } : coverFor() }));
   });
-  // The last sign: anything that gives way is told to the house and shown as a closed gallery, not a trace.
-  app.use((err, req, res, next) => {
-    const code = err && (err.status || err.statusCode) >= 400 ? (err.status || err.statusCode) : 500;
-    if (code >= 500) { console.error('[house]', req.method, req.path, err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : err); app.locals.lastFault = { at: new Date().toISOString(), path: req.path, message: String(err && err.message || err).slice(0, 300), stack: err && err.stack ? err.stack.split('\n').slice(1, 6).map(x => x.trim()).join(' | ') : null }; }
-    if (res.headersSent) return next(err);
-    if (wantsSign(req) || (req.accepts('html') && !req.xhr && !/^\/(api|img|cab)/.test(req.path))) return res.status(code).send(V.sign({ code, cover: coverFor(), detail: code === 413 ? 'The file is larger than the vault takes in one piece.' : null }));
-    res.status(code).json({ ok: false, code });
-  });
+  // The last sign: anything that gives way is told to the house and shown as a closed gallery, not a trace (src/breaks.js).
+  // A question over the website's limit (#115) is said in words, and the next visitor is answered; the [break] line
+  // and lastFault carry the statement's text (never its values), as the bridge's [pg limit] line does.
+  app.use(BREAKS.handler);
   require('./indexes').mount(app, { db }); // (9 Nov) the house's indexes, made by the chores process once every table is there
+  if (db.limitStart) db.limitStart(); // (#115) on the website (ROLE=web, Postgres) every statement from here on has its limit; the boot above kept the connection's own
   return app;
 }
 

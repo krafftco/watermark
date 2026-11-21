@@ -74,7 +74,7 @@ function mountEdition(app, { db, V, C, isStudio, makerOf, buyerOf, imageOf = nul
     }
     const name = `${tidy(t.title)}${t.author ? `, ${byName(t.author)}` : ''} (Watermark Publishing).pdf`.replace(/[\/:*?"<>|]/g, '');
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${name.replace(/[^\x20-\x7e]/g, '')}"; filename*=UTF-8''${encodeURIComponent(name)}`, 'Cache-Control': t.price_cents ? 'private, no-store' : 'public, max-age=3600' });
-    try { await build(t, res); } catch (e) { console.error('[edition]', e.message); if (!res.headersSent) res.sendStatus(500); }
+    try { await build(t, res); } catch (e) { console.error('[edition]', e.message); res.fault(e); }
   });
   return { build };
 }

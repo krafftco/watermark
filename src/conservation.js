@@ -164,6 +164,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     for (const f of renditionsOf(w.slug)) { try { fs.unlinkSync(f); } catch (e) { /* gone */ } }
     try { fs.unlinkSync(path.join(cache, `${w.slug}-screen-veil.jpg`)); } catch (e) { /* none */ }
     if (app.locals.edge) app.locals.edge.work(w.slug); // and the edge's copies (25 Oct)
+    if (app.locals.prepared) app.locals.prepared.forget(w.slug); // and the stranger's prepared page (#139)
     if (images.dropBucket) await images.dropBucket(cache, w.slug); // and the bucket's (5 Nov)
     const file = await originalPath(w);
     await images.warm(file, cache, w.slug);
@@ -195,7 +196,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     works: db.prepare("SELECT COUNT(*) n FROM works WHERE original_file IS NOT NULL AND status IN ('held','hidden','restoring')").get().n,
     restoring: db.prepare("SELECT COUNT(*) n FROM works WHERE status='restoring'").get().n,
     unsound: db.prepare("SELECT COUNT(*) n FROM works WHERE condition='unsound'").get().n,
-    last: (db.prepare('SELECT MAX(checked_at) t FROM conditions').get() || {}).t || null,
+    last: (db.prepare('SELECT checked_at t FROM conditions ORDER BY id DESC LIMIT 1').get() || {}).t || null, // (#114) the newest row, not a walk of every check
     mirror: mirror ? { on: true, done: db.prepare('SELECT COUNT(*) n FROM mirrors').get().n } : { on: false },
   });
   app.get('/studio/restoration', studioOnly, (req, res) => {

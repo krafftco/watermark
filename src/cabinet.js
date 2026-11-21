@@ -84,8 +84,8 @@ function mountCabinet(app, { db, C, mail, ledger, store, images, buyerOf, setBuy
     if (!ok) for (const s of db.prepare('SELECT s.* FROM showings s JOIN showing_works sw ON sw.showing_id=s.id WHERE sw.cabinet_id=?').all(c.id)) { if (canSee(req, s)) { ok = true; break; } }
     if (!ok) return res.sendStatus(404);
     let orig = path.join(dir, c.file);
-    if (!fs.existsSync(orig)) { try { const buf = await store.get('cabinet/' + c.file); if (!buf) return res.sendStatus(404); fs.writeFileSync(orig, buf); } catch (e) { return res.sendStatus(503); } }
-    try { const out = await images.derivative(orig, cache, `c${c.id}`, size); res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, noimageindex' }); res.sendFile(out); } catch (e) { res.sendStatus(500); }
+    if (!fs.existsSync(orig)) { try { const buf = await store.get('cabinet/' + c.file); if (!buf) return res.sendStatus(404); fs.writeFileSync(orig, buf); } catch (e) { return res.fault(e, 503); } }
+    try { const out = await images.derivative(orig, cache, `c${c.id}`, size); res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, noimageindex' }); res.sendFile(out); } catch (e) { res.fault(e); }
   });
 
   // Showings.

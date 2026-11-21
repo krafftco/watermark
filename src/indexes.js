@@ -55,11 +55,15 @@ const LIST = [
   ['works_maker_id', 'works (maker_id, id)'], // /account, /account/table, /account/copyright: the newest page of one maker
   ['works_maker_stars', 'works (maker_id, stars, id)'], // /account?stars=n: one grade's page
   ['sightings_work', 'sightings (work_id)'], // /account: a row's sightings, asked for the rows shown
+  ['prepared_pages_at', 'prepared_pages (at, k)'], // (#139) the website's poll: what changed since its mark
   ['works_status_id', 'works (status, id)'], // /studio/masters: the newest page of what is held, stopping at the page
   ['works_maker_place', 'works (maker_id, place)'], // /account/table: the places the maker uses, counted from the index
   ['works_maker_al', 'works (maker_id) WHERE al_grade IS NOT NULL'], // /account/table: how many Al has read (aledit.state), counted from a partial index
   ['licenses_use', 'licenses (use_id, status)'], // /studio: what was collected and licensed (licences by their use), without a scan per use
   ['works_maker_keep', 'works (maker_id, status, open, bytes)'], // /account: the open-access count and Keeping's weighed sum, read from the index alone
+  // (#114) the health, made by the worker: each work's latest fixity check in one pass, and the unsound works counted from an index
+  ['fixity_last', 'fixity (work_id, id)'],
+  ['works_condition', 'works (condition) WHERE condition IS NOT NULL'],
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
 // website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.
