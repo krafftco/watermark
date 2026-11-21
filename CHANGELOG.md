@@ -5,10 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.88.1 · The visit log by month · 20 November 2026
+## 1.88.2 · The visit log by month · 20 November 2026
 
 - On the house's database the log of visits is now kept a month to a table, and a month past the keeping time is let go whole instead of row by row. The worker moves the existing log over a few minutes at a time, under one short hold that no visitor waits on; nothing inside the thirty days is lost, and the old table is let go only when both sides count the same. How long visits are kept is unchanged.
 - The test of the house at scale now runs the worker's night as well: the moves, the counts, the register's check, the backup and its drill, and fails if the worker would grow past its line, or if a backup grows the worker by more than the copy it is making. The backup that ended the worker on 18 to 20 November would have failed it.
+## 1.88.1 · What the house calls itself · 20 November 2026
+
+- The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.
+
 ## 1.88.0 · On view at · 20 November 2026
 
 - A maker can say where a work can be seen in person: the place, its street, city and country, the dates, and the place's own web address. The work's page, the maker's page and the work's panel in Wander say it in one line, "On view at …, until …", with who stated it. Set on the work's record, for one work or every work of the maker in a hang at once.

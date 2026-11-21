@@ -6,7 +6,7 @@ sharpen it."
 
 ## The sentence
 
-Watermark 1.0 shipped on 27 October 2026, twelve days after the first commit. It is a museum you can collect from,
+Watermark 1.0 shipped on 27 October 2026, twelve days after the first commit. It is a gallery for living artists, a catalogue of works held in museums and a register of each work (it called itself "a museum you can collect from" until 20 Nov 2026; a museum is a not-for-profit that holds its objects, and the house is neither),
 a library, a listening room, a press and a vault, run as one product by one house. Every release since adds a room
 or keeps a promise; the record is at /releases.
 
