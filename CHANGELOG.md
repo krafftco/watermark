@@ -11,6 +11,10 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - When the maker says the place represents the work for sale, the way to buy is the place's own: "Enquire with …" goes to its address or link, and the house does not offer its own Collect beside it. A licence or prints stay off unless the maker keeps them.
 - After the last date the line says where it was shown, or goes, as the maker chose. A place named on a page can ask for its line to be corrected through the claim door, which pauses no sale for this; the house can take it off at once.
 
+## 1.87.15 · The open doors, made ahead · 20 November 2026
+
+- The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
+- A visit to one of those pages is still counted by the house itself, as every visit is.
 ## 1.87.14 · A break is the house's, not the host's · 20 November 2026
 
 - When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.
