@@ -61,7 +61,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/found/nothing-here'); assert.equal(r.status, 404);
     db.prepare("UPDATE works SET status='merged' WHERE id=?").run(global.__o2); // out of the way of the rest of the suite
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes(`data-wm-send="${w.slug}"`) && />Send<\/span>/.test(r.body.toString()), 'the work page sends'); }
-  r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(/data-stroll data-front="1"/.test(r.body) && /class="st-i"/.test(r.body) && /data-st-hello/.test(r.body) && /href="\/house"/.test(r.body) && /Where great work is kept/.test(r.body), 'the front door is Wander');
+  r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(/data-stroll data-front="1"/.test(r.body) && /class="st-i"/.test(r.body) && /data-st-hello/.test(r.body) && /href="\/house"/.test(r.body) && /Watermark · For photographers/.test(r.body) && /Photographers keep their work here/.test(r.body), 'the front door is Wander');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Watermark Shield') && r.body.toString().includes('Held by Watermark for'), 'the shield');
   r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200); assert.equal(r.headers['content-type'], 'image/jpeg');
   const sharp = require('sharp'); const m = await sharp(r.body).metadata(); assert.ok(Math.max(m.width, m.height) <= 1600, 'screen copy capped');
@@ -344,7 +344,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/sightings', { cookie: ck }); assert.ok(r.body.includes('example.org/story'));
   r = await req(port, 'POST', '/apply', { body: { name: 'Ada Lens', email: 'ada@lens.com', portfolio: 'https://ada.photo', practice: 'Photography' } }); assert.equal(r.status, 303);
   r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.includes('Ada Lens'));
-  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For those who make.'));
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For photographers.'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
   // bulk registration, one file per request
@@ -2372,7 +2372,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the Bookshop');
   { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
     r = await req(port, 'GET', '/house'); assert.ok(/class="rws"/.test(r.body) && /The makers/.test(r.body) && /Today: /.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door, in the rows');
-    assert.ok(/Keep what you make\. Own a piece of what others make\./.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /wh-q/.test(r.body) && !/<b>Read\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /nv-verbs/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
+    assert.ok(/Watermark takes art and copyright seriously\./.test(r.body) && /Photographers keep their work here/.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /wh-q/.test(r.body) && !/<b>Read\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /nv-verbs/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
     const N = app.locals.notify; assert.ok(N.KINDS.daily && N.KINDS.daily.on, 'a kind, on by default');
     const b0 = db.prepare('SELECT id FROM buyers ORDER BY id LIMIT 1').get();
     db.prepare("INSERT OR IGNORE INTO push_subs (buyer_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/x', 'k', 'a')").run(b0.id);

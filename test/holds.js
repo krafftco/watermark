@@ -123,13 +123,13 @@ const H = require('../src/holds');
   const other = db.prepare("INSERT INTO licenses (ref, work_id, use_id, licensee_name, licensee_email, price_cents, status, starts_at, collector_no, download_token, rights) VALUES ('WM-2026-900001', ?, ?, 'O', 'o@example.com', 4321, 'active', datetime('now','-500 days'), 9, 'tok-o', ?)").run(wc.id, use('social').id, JSON.stringify({ transferable: true })).lastInsertRowid;
   db.prepare("INSERT INTO trades (license_id, price_cents, royalty_cents, fee_cents, at) VALUES (?, 77700, 7770, 3885, datetime('now','-30 days'))").run(other);
   const eve = {}; // a stranger at the market
-  t = await page(eve, '/market', 'the market'); const mt = read(t);
+  t = await page(eve, '/market', 'the market'); const noFoot = h => h.replace(/<footer class="foot ft">[\s\S]*?<\/footer>/, ' '); const mt = read(noFoot(t)); // the market's own words: the house's footer says "For photographers" (#188)
   assert.ok(mt.includes('The Dome at Noon') && mt.includes('$900'), 'a stranger sees what is offered and what is asked');
   for (const bad of ['traded in all', ' traded ', 'last traded', 'issued at', '$777', '$43.21', 'Neither side', 'photographer', 'Buy it now', 'settles']) assert.ok(!mt.toLowerCase().includes(bad.toLowerCase()), `/market, a stranger: "${bad}" is not said`);
   assert.ok(/<p class="mk-stats"><span><b>1<\/b> offered<\/span><\/p>/.test(t), 'the head counts what is offered and nothing else');
   assert.ok(mt.includes('recorded on the register') && mt.includes('Prices here are what collectors ask. They are not valuations or advice.'), 'the register; and the line that stays');
   has(t, H.statement({ use: use('social'), maker: 'its maker', edition: true, will: true }), 'the market');
-  t = await page(eve, `/market/${lst}`, 'the market’s offer page'); const lt = read(t);
+  t = await page(eve, `/market/${lst}`, 'the market’s offer page'); const lt = read(noFoot(t));
   const resale = H.statement(H.ofLicense(db.prepare('SELECT * FROM licenses WHERE ref=?').get(cref), use('social'), db.prepare('SELECT * FROM works WHERE id=?').get(wc.id), M, { will: true }));
   has(t, resale, 'the offer page'); assert.ok(resale.hold.startsWith(`You will hold No. ${cl.collector_no} of 10`) && resale.pass.includes('365 days') && resale.pass.includes('10% of the price'), 'the same statement, the royalty, the holding time that will apply: ' + resale.text);
   for (const bad of ['last traded', 'issued at', '$777', '$43.21', 'photographer', 'Buy it now', 'settle']) assert.ok(!lt.toLowerCase().includes(bad.toLowerCase()), `/market/:id, a stranger: "${bad}" is not said`);

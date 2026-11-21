@@ -1,7 +1,7 @@
 {
   "name": "Wander",
   "short_name": "Wander",
-  "description": "Wander, by Watermark. The finest work, one piece at a time, full screen, at your own speed; books and records among the pictures; nothing counting you. A few dollars make a piece yours and the maker is paid.",
+  "description": "Wander, by Watermark. Watermark takes art and copyright seriously: photographers keep their work here, show it properly, and are paid when it is used or collected. A few dollars make a piece yours and the maker is paid.",
   "id": "/wander",
   "start_url": "/wander?app=1",
   "scope": "/",
