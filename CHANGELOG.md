@@ -5,7 +5,7 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.89.4 · The public house, said correctly · 21 November 2026
+## 1.90.1 · The public house, said correctly · 21 November 2026
 
 Every sentence below is a draft for Will. Nothing was deleted: what was taken down is still the Studio's.
 
@@ -17,6 +17,14 @@ Every sentence below is a draft for Will. Nothing was deleted: what was taken do
 - The steps for collectors and About say what the maker receives as the house is set today, not one way for everyone.
 - A photograph's U.S. copyright registration is kept when its maker saves the catalogue; before, a maker's save cleared it (docs/STABILITY.md, 21 Nov).
 - A walk of the public house as a stranger now runs with every test: it fails on a word the house never says to a reader, on a page that calls the house a museum or reads as an offer of a share, on the pages above being public, on a script, stylesheet, font or picture from another site, and on a cookie that is not the house's own.
+## 1.90.0 · A license written from the use · 21 November 2026
+
+Every word and clause below is a draft: the words for Will, the clauses for counsel. No price was added or changed.
+
+- The license page now asks as a person would: what is it for, where will it appear, how many, and for how long. Anywhere in the world and no set number stay the answers unless you change them, and a license that answers them so reads exactly as it did.
+- A license can now be for one country (or the European Union) and for a stated number of copies, of circulation or of audience. Each adds its own clause to the agreement and changes nothing else in it.
+- Such a license is agreed with the maker: the page says so, the request carries the answers, the maker names the fee, and the agreement and the papers then say the place and the number.
+- What you will hold says it in one breath before you pay: "in one territory (France) and in no more than 5,000 copies".
 ## 1.89.3 · Search that reads the question, and the house is not a stock library · 21 November 2026
 
 Search that reads the question:

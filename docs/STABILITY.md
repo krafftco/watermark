@@ -235,5 +235,5 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 
 ## 21 Nov 2026: a maker's catalogue save cleared the work's copyright registration (#188)
 - What was found: `saveCatalogue` in `src/app.js` wrote `works.copyright_reg` from the form on every save, Studio or maker. Only the Studio's form (`src/studio-views.js`) carries the field, so each save from the maker's desk (`/account/works/:slug/catalogue`) set it to NULL: the "U.S. Registered" plate, the work page's line and the certificate's row went with it. Shown on `next` in process: a work with VA 1-234-567, one maker-desk save, then NULL.
-- The repair (1.89.4): the field is written only when the form carries it and the Studio sends it. A registration made through the Copyright Office desk (`src/copyright.js`, by group) is unchanged.
+- The repair (1.90.1): the field is written only when the form carries it and the Studio sends it. A registration made through the Copyright Office desk (`src/copyright.js`, by group) is unchanged.
 - Not repaired: works already cleared this way on the live house are not restored (the register's `copyright.registered` entries name each group's number; the Studio can enter it again). Not checked against live data.
