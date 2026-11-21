@@ -257,6 +257,7 @@ ${mk.bio ? `<p class="whp-bio">${esc(first(mk.bio))}</p>` : ''}
       const para = t => { const p = String(t || '').split(/\n{2,}/).map(x => x.trim()).filter(Boolean)[0] || ''; return p.length > 520 ? p.slice(0, 517).replace(/\s\S*$/, '') + '…' : p; };
       const words = c && c.text ? para(c.text) : para(w.caption);
       const look = c && c.study && !c.studyHidden && Array.isArray(c.study.look) ? c.study.look.slice(0, 3) : [];
+      const ovw = app.locals.onview ? await app.locals.onview.plate(w, req).catch(() => '') : ''; // (#166) where a living maker's object is on view
       let kept = null; try { const CT = app.locals.catalogue; const r = CT && CT.rowOfWork ? CT.rowOfWork(w) : null; if (r && r.collection) { const k = r.collection_qid && CT.keeper ? CT.keeper(r.collection_qid) : null; kept = { name: r.collection, where: [k && k.city, k && k.country].filter(Boolean).join(', '), qid: r.collection_qid }; } } catch (e) { kept = null; }
       const facts = [['Made', [year, w.place].filter(Boolean).join(' · ')], ['Medium', w.medium], ['Size', w.obj_dims], ['Kept at', kept ? [kept.name, kept.where].filter(Boolean).join(', ') : ''], ['Accession', w.accession]].filter(f => f[1]);
       const rec = `/m/${esc(V.makerSlug({ handle: w.maker_handle, name: w.maker_name }))}/${esc(w.slug)}?from=wander`;
@@ -266,7 +267,7 @@ ${facts.length ? `<dl class="wka-f">${facts.map(([k, v]) => `<div><dt>${esc(k)}<
 ${words ? `<section class="wka-s"><p class="k">${c && c.text ? 'Look closer' : 'About it'}</p><p class="wka-t">${esc(words)}</p></section>` : ''}
 ${look.length ? `<section class="wka-s"><p class="k">What to look for</p><ol class="wka-l">${look.map(x => `<li><b>${esc(x.what)}</b>${x.why ? ` <span>${esc(x.why)}</span>` : ''}</li>`).join('')}</ol></section>` : ''}
 ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. <a href="/art/visit/${esc(kept.qid)}">See it in person</a></p>` : ''}
-<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>The full record</b></a>${c && c.study && !c.studyHidden ? `<a class="whp-pg" href="${rec.replace('?from=wander', '')}#study">The study ${I.next}</a>` : ''}</div>
+${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>The full record</b></a>${c && c.study && !c.studyHidden ? `<a class="whp-pg" href="${rec.replace('?from=wander', '')}#study">The study ${I.next}</a>` : ''}</div>
 <p class="wka-r">${openW ? 'In the public domain: free for everyone to look at, share and print.' : 'Numbered and on the register. To use it beyond looking, license it on the record.'}</p>
 <p class="k wka-who">Who made it</p>`;
       who = about + who + `<p class="whp-x">Swipe right to go back to the picture.</p>`;

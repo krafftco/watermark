@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.88.0 · On view at · 20 November 2026
+
+- A maker can say where a work can be seen in person: the place, its street, city and country, the dates, and the place's own web address. The work's page, the maker's page and the work's panel in Wander say it in one line, "On view at …, until …", with who stated it. Set on the work's record, for one work or every work of the maker in a hang at once.
+- When the maker says the place represents the work for sale, the way to buy is the place's own: "Enquire with …" goes to its address or link, and the house does not offer its own Collect beside it. A licence or prints stay off unless the maker keeps them.
+- After the last date the line says where it was shown, or goes, as the maker chose. A place named on a page can ask for its line to be corrected through the claim door, which pauses no sale for this; the house can take it off at once.
+
 ## 1.87.13 · Ready to run as more than one · 20 November 2026
 
 - The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.

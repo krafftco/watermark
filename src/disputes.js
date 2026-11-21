@@ -11,7 +11,10 @@ const fs = require('fs');
 const path = require('path');
 const { layout, esc, date, setDeskPath } = require('./views');
 
-const KINDS = { made: 'I made this photograph', owns: 'I hold the copyright in it', person: 'I am in it and did not consent', other: 'Something else' };
+const KINDS = { made: 'I made this photograph', owns: 'I hold the copyright in it', person: 'I am in it and did not consent', venue: 'I speak for the place this page says it is on view at, and the line is wrong', other: 'Something else' };
+// (#166) A place named by 'On view at' asks for its line to be corrected or removed here; that pauses no sale.
+const PAUSES = k => k !== 'venue';
+const VENUE = { lede: 'If you speak for the place this work\'s page says it is on view at, and the line is wrong (the place, the dates, or that you represent it), say what should change. No sale is paused for this; the house corrects the line or removes it, and writes to you.', done: t => `The house has looked at what you asked about "${t}" and taken the line naming your place off its page.`, toMaker: t => `The place named on "${t}" asked for its line to come off, and the house agreed. The work is unchanged; state the place again from the work's record if it should be said differently.`, got: 'The house will look at the line and correct it or remove it; nothing else about the work changes. You will hear within five working days.' };
 const STATUS = { open: 'Open', answered: 'Answered by the maker', upheld: 'Upheld; the photograph came down', dismissed: 'Dismissed; the photograph stands', withdrawn: 'Withdrawn' };
 const caseNo = d => `WM-C-${String(d.id).padStart(4, '0')}`;
 
@@ -27,7 +30,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
 
   const full = id => db.prepare('SELECT d.*, w.slug, w.title, w.maker_id, w.status AS work_status FROM disputes d JOIN works w ON w.id=d.work_id WHERE d.id=?').get(Number(id));
   const openOn = w => db.prepare("SELECT * FROM disputes WHERE work_id=? AND status IN ('open','answered') ORDER BY id DESC").all(w.id);
-  const refresh = w => db.prepare("UPDATE works SET disputed=(SELECT COUNT(*) FROM disputes WHERE work_id=? AND status IN ('open','answered')) WHERE id=?").run(w.id, w.id);
+  const refresh = w => db.prepare("UPDATE works SET disputed=(SELECT COUNT(*) FROM disputes WHERE work_id=? AND status IN ('open','answered') AND kind<>'venue') WHERE id=?").run(w.id, w.id);
   const holders = w => db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status='active'").get(w.id).n;
   app.locals.disputes = { full, openOn, KINDS, STATUS, caseNo, waiting: makerId => db.prepare("SELECT COUNT(*) n FROM disputes d JOIN works w ON w.id=d.work_id WHERE w.maker_id=? AND d.status='open'").get(makerId).n,
     open: () => db.prepare("SELECT COUNT(*) n FROM disputes WHERE status IN ('open','answered')").get().n };
@@ -35,7 +38,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
   // The door, on every work page: a claim in writing.
   app.get('/w/:slug/claim', (req, res) => {
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug)); if (!w) return res.sendStatus(404);
-    res.send(claimForm({ w, maker: mk(w), KINDS, err: req.query.err || null }));
+    res.send(claimForm({ w, maker: mk(w), KINDS, err: req.query.err || null, sel: KINDS[req.query.kind] ? String(req.query.kind) : null }));
   });
   app.post('/w/:slug/claim', (req, res, next) => upload.single('file')(req, res, e => (e ? res.redirect(`/w/${req.params.slug}/claim?err=file`) : next())), (req, res, next) => (req.file ? app.locals.bagcheck.gate('papers')(req, res, next) : next()), async (req, res) => {
     const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug)); if (!w) return res.sendStatus(404);
@@ -50,10 +53,10 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     const d = full(id), maker = mk(w);
     ledger.append(db, 'dispute.opened', w.slug, { claim: caseNo(d), kind });
     const base = C.base;
-    mail.send({ to: email, subject: `Your claim ${caseNo(d)}, received`, text: `Thank you. Your claim about "${w.title}" is ${caseNo(d)}. Sales of the photograph are paused while the house looks at it. The maker has been told and asked to answer in writing. You will hear from the house within five working days.\n\nWhat you said: ${KINDS[kind]}.\n\nIf anything should be added, reply to this letter and quote the number.`, feature: 'A claim, received' });
-    if (maker.email) mail.send({ to: maker.email, subject: `A claim about "${w.title}" (${caseNo(d)})`, text: `Someone has written to the house about "${w.title}": ${KINDS[kind]}. Sales are paused while the house looks. Please answer in writing within five days; what you say and what the house holds (the arrival, the fingerprint, the camera's record, the register) decide it.`, feature: 'A claim about your work', cta: { label: 'Answer the claim', url: `${base}/account/claims/${id}` } });
+    mail.send({ to: email, subject: `Your claim ${caseNo(d)}, received`, text: `Thank you. Your claim about "${w.title}" is ${caseNo(d)}. ${PAUSES(kind) ? 'Sales of the photograph are paused while the house looks at it. The maker has been told and asked to answer in writing. You will hear from the house within five working days.' : VENUE.got}\n\nWhat you said: ${KINDS[kind]}.\n\nIf anything should be added, reply to this letter and quote the number.`, feature: 'A claim, received' });
+    if (maker.email) mail.send({ to: maker.email, subject: `A claim about "${w.title}" (${caseNo(d)})`, text: `Someone has written to the house about "${w.title}": ${KINDS[kind]}.${PAUSES(kind) ? ' Sales are paused while the house looks.' : ' No sale is paused; the line saying where it is on view may be corrected or removed.'} Please answer in writing within five days; what you say and what the house holds (the arrival, the fingerprint, the camera's record, the register) decide it.`, feature: 'A claim about your work', cta: { label: 'Answer the claim', url: `${base}/account/claims/${id}` } });
     mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Claim ${caseNo(d)} on ${w.accession || w.slug}`, text: `${name} <${email}>: ${KINDS[kind]}.\n\n${body}\n\n${base}/studio/claims/${id}`, feature: 'A claim to decide', cta: { label: 'Open the file', url: `${base}/studio/claims/${id}` } });
-    res.send(layout({ title: 'Claim received · Watermark', body: `<section class="narrow cl"><p class="k">Claims</p><h1>Received.</h1><p class="lede">Your claim is <b>${caseNo(d)}</b>. Sales of the photograph are paused while the house looks at it; the maker has been asked to answer in writing. You will hear from the house within five working days, at ${esc(email)}.</p><p class="sr-also"><a href="/w/${esc(w.slug)}">The photograph</a></p></section>` }));
+    res.send(layout({ title: 'Claim received · Watermark', body: `<section class="narrow cl"><p class="k">Claims</p><h1>Received.</h1><p class="lede">Your claim is <b>${caseNo(d)}</b>. ${PAUSES(kind) ? 'Sales of the photograph are paused while the house looks at it; the maker has been asked to answer in writing. You will hear from the house within five working days' : esc(VENUE.got.replace(/\.$/, ''))}, at ${esc(email)}.</p><p class="sr-also"><a href="/w/${esc(w.slug)}">The photograph</a></p></section>` }));
   });
 
   // The maker's answer.
@@ -82,7 +85,12 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     db.prepare("UPDATE disputes SET status=?, decision=?, decided_at=datetime('now'), decided_by='studio' WHERE id=?").run(status, note || null, d.id);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(d.work_id); refresh(w);
     const maker = mk(w);
-    if (outcome === 'uphold') {
+    if (outcome === 'uphold' && d.kind === 'venue') { // (#166) the place was right: its line comes off the work; the work stays
+      if (app.locals.onview) app.locals.onview.takeOff(w, 'studio');
+      ledger.append(db, 'dispute.upheld', w.slug, { claim: caseNo(d), kind: d.kind });
+      mail.send({ to: d.email, subject: `${caseNo(d)}: upheld`, text: `${VENUE.done(w.title)}${note ? `\n\n${note}` : ''}` });
+      if (maker.email) mail.send({ to: maker.email, subject: `${caseNo(d)}: the line was taken off`, text: `${VENUE.toMaker(w.title)}${note ? `\n\n${note}` : ''}` });
+    } else if (outcome === 'uphold') {
       db.prepare("UPDATE works SET status='private', disputed=0 WHERE id=?").run(w.id);
       ledger.append(db, 'dispute.upheld', w.slug, { claim: caseNo(d), kind: d.kind, holders: holders(w) });
       mail.send({ to: d.email, subject: `${caseNo(d)}: upheld`, text: `The house has looked at your claim about "${w.title}" and upheld it. The photograph has come down and is no longer offered.${note ? `\n\n${note}` : ''}` });
@@ -117,14 +125,14 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
   return app.locals.disputes;
 }
 
-function claimForm({ w, maker, KINDS, err }) {
+function claimForm({ w, maker, KINDS, err, sel = null }) {
   const E = { fields: 'Your name, a working email address, what happened (at least a sentence) and the statement are all needed.', many: 'Three claims a day from one address is the limit. Write to the house instead.', file: 'The file could not be taken (60 MB at most).' }[err];
   return layout({ title: `A claim · ${w.title} · Watermark`, body: `<section class="narrow cl"><p class="k">Claims</p><h1>Say so in writing.</h1>
 <p class="lede">If this photograph is yours, or you are in it and did not agree to be shown, tell the house here. Sales pause the moment a claim arrives; the maker is asked to answer; the house decides against what it holds (when the file arrived, its fingerprint, the camera's record, any Content Credentials, the Copyright Office) and writes to you within five working days. A false claim is a serious thing: the statement below is made under penalty of perjury where the law provides it.</p>
-<p class="cl-work"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt=""></a><span><b>${esc(w.title)}</b><br>${esc(maker.name)}${w.accession ? ` · ${esc(w.accession)}` : ''}</span></p>
+${sel === 'venue' ? `<p class="note">${esc(VENUE.lede)}</p>` : ''}<p class="cl-work"><a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt=""></a><span><b>${esc(w.title)}</b><br>${esc(maker.name)}${w.accession ? ` · ${esc(w.accession)}` : ''}</span></p>
 ${E ? `<p class="err">${esc(E)}</p>` : ''}
 <form method="post" action="/w/${esc(w.slug)}/claim" enctype="multipart/form-data" class="cl-f">
-<fieldset><legend>What you are saying</legend>${Object.entries(KINDS).map(([k, t], i) => `<label class="cl-k"><input type="radio" name="kind" value="${k}" ${i === 0 ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</fieldset>
+<fieldset><legend>What you are saying</legend>${Object.entries(KINDS).map(([k, t], i) => `<label class="cl-k"><input type="radio" name="kind" value="${k}" ${(sel ? k === sel : i === 0) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</fieldset>
 <label><span>Your name</span><input name="name" required maxlength="120" autocomplete="name"></label>
 <label><span>Email</span><input name="email" type="email" required maxlength="200" autocomplete="email"></label>
 <label><span>Company or representative, if any</span><input name="company" maxlength="160"></label>
