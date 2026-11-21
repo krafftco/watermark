@@ -76,7 +76,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
   }
   const { esc, tidy, date, money } = V, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
   const pk = () => (typeof pocket === 'function' ? pocket() : pocket) || app.locals.pocket;
-  const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
+  const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name, u.term_months AS use_term FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
   const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };
 
   // What the holder's file is, in pixels: Collect is the 3840-pixel copy; the Reference and working licenses the original.
@@ -166,7 +166,7 @@ ${file ? `<a href="${file}" class="kp-tile" download>${I.in || I.plus}<b>On your
 ${app.locals.sitting ? app.locals.sitting.livingCard(l, b) : ''}<a href="/w/${esc(w.slug)}#closer" class="kp-tile">${I.guide}<b>Look closer</b><span>The wall text and the study: what to look for, the place and its story, the artists it speaks to.</span></a>
 </div></section>
 
-<section class="kp-s kp-papers"><p class="k">The papers</p><h2>What you hold, and the proof of it.</h2><ul class="kp-pp">
+<section class="kp-s kp-papers"><p class="k">The papers</p><h2>What you hold, and the proof of it.</h2>${require('./holds').block(require('./holds').ofLicense(l, { key: l.use_key, kind: l.use_kind, name: l.use_name, term_months: l.use_term }, w, maker.name))}<ul class="kp-pp">
 <li><a href="/c/${esc(l.ref)}${l.download_token ? `?k=${esc(l.download_token)}` : ''}">The certificate</a><span>Signed by the maker, with your number and what you may do with it.</span></li>
 <li><a href="/c/${esc(l.ref)}/contract">The agreement</a><span>The words you accepted, kept as they were.</span></li>
 <li><a href="/t/${esc(require('./track').compact(l.ref))}">The Watermark number</a><span>Anyone can check it, any time: it says the piece is yours and genuine.</span></li>

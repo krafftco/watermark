@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.1 · What you hold, said one way · 20 November 2026
+
+Every sentence below is a draft for Will; nothing new is granted or promised, and the questions it raised are with counsel.
+
+- Before you pay, on your papers and when a piece is offered again, the house now says the same four things in the same order: what you hold, what you may do with it, what stays with the maker, and what happens when you pass it on. A collected piece, a license for a use, a print and a print of a museum's open work each have their own.
+- It is on the work's page beside Collect and beside the print, on the license page (it follows the use you choose), in the basket, on the thank-you page, the certificate, your piece's own room and the letter, and on the market's pages.
+- Offering a piece again: the form now says what happens when it sells, what goes to the maker and to the house, and how long its new holder waits before offering it.
+- The certificate's "You can / You can't" now follows the agreement you accepted: a collected piece may pass on, whole, to one other person through the house; a working license stays with its holder.
+- The market's pages say "the maker" where they said "the photographer", "the register" throughout, and what the house does in a resale in plain words. A visitor sees what is offered and what is asked; never a count or a sum of what has sold.
+
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
 The trade's rules, kept by the house:

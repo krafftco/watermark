@@ -322,7 +322,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
-      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot,
+      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
       fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
