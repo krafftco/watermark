@@ -162,7 +162,7 @@ ${house ? `<p><a href="/studio/review/${m.id}">The Studio’s room</a></p>` : ''
     const d = seats('door'), wl = seats('walls');
     const who = rs => rs.filter(r => r.joined_at).map(r => `${esc(first(r.name))}${r.label ? `, ${esc(r.label)}` : ''}`).join(' · ');
     res.send(V.layout({ title: 'Who hangs · Watermark', path: '/hanging', desc: 'How the house decides who hangs and what stays.', body: `<article class="hg-std"><p class="k">The house</p><h1>Who hangs, and how it is decided.</h1>
-<p class="lede">Everyone may put work in the record the day they make it; it is kept, deeded and theirs. The walls are a museum’s, and hanging there is by invitation. This is how the invitation is decided, so that the standard is public and no one person is the standard.</p>
+<p class="lede">Everyone may put work in the record the day they make it; it is kept, deeded and theirs. The walls are the house’s, and hanging there is by invitation. This is how the invitation is decided, so that the standard is public and no one person is the standard.</p>
 <h2>The standard</h2>
 <p>The house looks for three things. <b>Craft</b>: the work is made with command of its means, whatever they are. <b>Honesty</b>: it is the maker’s own, made as it says it was, with the rights to show it. <b>A body of work</b>: not one picture but an edit, a way of seeing that holds across many. The house has its own eye and never tells an artist what to make. It has no house style; it refuses what is cheap, crude or offensive, and nothing else on principle.</p>
 <h2>The moment</h2>

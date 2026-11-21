@@ -5,7 +5,10 @@
 // earns more; the owner's manual; the letter and the meeting; what is never touched (client money); a letter door.
 // It describes the company. It offers nothing: no share is for sale on this page, and it says so plainly. Every word a
 // draft for Will and for counsel (docs in the Krafft project: "Krafft: one company").
-function mountOwners(app, { db, V, C }) {
+function mountOwners(app, { db, V, C, isStudio }) {
+  // Studio-only (#188, Will 21 Nov: nothing public that could read as an offer of investment before securities counsel).
+  // A stranger is sent to /about; the page and its words are kept, unchanged, for the Studio.
+  const studio = req => !!(isStudio && isStudio(req));
   const { esc } = V;
   const EMAIL = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
   const MANUAL = [
@@ -34,11 +37,13 @@ ${on ? `<section class="dr-st"><p class="k">The schedule</p>
 <section class="dr-st"><p class="k">What the share pays for</p>
 <p>The card fees, which the house pays out of its share, never the maker’s. The vault, the register, the papers, the delivery, the print room, the guide, the Keys, and the people who keep them. The rest is kept and put back into the house.</p></section>
 <section class="dr-line"><p class="k">What is never touched</p><p>The maker’s price, a collector’s pocket and a curator’s earnings are held apart from the house’s money and paid on schedule. The receipt on every license says what went where; anyone can check a license by its Watermark number.</p></section>` : ''}
-<section class="dr-ask"><p class="k">By letter</p><p>Questions about a particular sale: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}</a>. <a href="/owners">How the company is owned</a> · <a href="/terms">The terms of the house</a>.</p></section>
+<section class="dr-ask"><p class="k">By letter</p><p>Questions about a particular sale: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}</a>. <a href="/terms">The terms of the house</a>.</p></section>
 </article>` }));
   });
-  app.get('/investors', (req, res) => res.redirect(301, '/owners'));
+  app.get('/investors', (req, res) => { res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store'); res.redirect(302, studio(req) ? '/owners' : '/about'); });
   app.get('/owners', (req, res) => {
+    res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store');
+    if (!studio(req)) return res.redirect(302, '/about');
     const n = {
       works: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n,
       makers: db.prepare("SELECT COUNT(DISTINCT maker_id) n FROM works WHERE status='held'").get().n,

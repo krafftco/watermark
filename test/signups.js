@@ -22,7 +22,7 @@ const wait = ms => new Promise(z => setTimeout(z, ms));
   const tokOf = async (door = '/join') => tokIn(await (await fetch(base + door)).text());
   const doorMade = () => Number(db.prepare("SELECT COUNT(*) n FROM makers WHERE door_at IS NOT NULL").get().n);
   const has = email => !!db.prepare('SELECT 1 FROM makers WHERE email=?').get(email);
-  const welcomes = (since = 0) => log.slice(since).filter(l => l.subject === 'Your museum is open').length;
+  const welcomes = (since = 0) => log.slice(since).filter(l => l.subject === 'Your studio is open').length;
   const age = () => db.prepare("UPDATE makers SET joined_at=datetime('now','-3 hours'), door_at=datetime('now','-3 hours') WHERE door_at IS NOT NULL").run();
   const opened = r => /\/account\/upload\?welcome=own/.test(r.headers.get('location') || '') && r.headers.getSetCookie().some(c => /^wm_m=[^;]/.test(c));
   let r, L0;
@@ -89,7 +89,7 @@ const wait = ms => new Promise(z => setTimeout(z, ms));
   console.log('  partner makers uncounted; a flood: ten made, ten told the door is busy');
 
   // The welcome goes at most once a day to an address, whatever asks again.
-  L0 = log.length; for (let i = 0; i < 3; i++) await mail.send({ kind: 'auto', once: 'welcome:quick@example.com', to: 'quick@example.com', subject: 'Your museum is open', text: 'again' });
+  L0 = log.length; for (let i = 0; i < 3; i++) await mail.send({ kind: 'auto', once: 'welcome:quick@example.com', to: 'quick@example.com', subject: 'Your studio is open', text: 'again' });
   assert.strictEqual(welcomes(L0), 0, 'the welcome is never sent twice in a day');
 
   // The day's ceiling on the house's own letters: three go, the fourth is dropped (not counted as sent); a sign-in code
