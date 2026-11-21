@@ -68,6 +68,9 @@ const B = {
   read: +process.env.BIG_READ || 4 * 1024 * 1024,
   // (#119) the worker's round: the most the process reached (Render's worker has 2 GB; its governor's line is 1,741 MB).
   workerMB: +process.env.BIG_WORKER_MB || 1024,
+  // (#119; #162) what the backup or the drill may add to the worker: the copy it handles once, and 64 MB beside it.
+  // The repaired backup grows 0.6 times its copy; the one of 18–20 Nov 2.8 times (measured on this house).
+  copyX: +process.env.BIG_COPY_X || 1, copyPlusMB: +process.env.BIG_COPY_PLUS_MB || 64,
 };
 const SECRET = 'big-house';
 
@@ -103,6 +106,17 @@ const ALLOW_PG = [
   { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832
   { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
   { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+];
+
+// (#119) The worker's round over its memory line (BIG_WORKER_MB), by the chore in which the most was first reached.
+const ALLOW_WORKER = [
+  // 20 Nov: the drill opens the copy whole (sealed, unzipped: the 1.1 GB SQLite house in memory), 1,661 MB measured;
+  // #162 (the drill read from disk). A copy over DRILL_MAX_MB (200) is skipped instead, as live's is.
+  { chore: 'drill', engine: 'sqlite', max: 2200, issue: 162 },
+  // The same, judged by growth against the copy (`grow`, MB): the drill grew 1,400 MB for a 160 MB SQLite copy (1.1 GB
+  // raw) and 87–178 MB for a 63–65 MB Postgres one, the copy read whole (#162). Allowed to about three times that.
+  { chore: 'drill', engine: 'sqlite', grow: 4000, issue: 162 },
+  { chore: 'drill', engine: 'postgres', grow: 550, issue: 162 },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------- build
@@ -288,16 +302,34 @@ async function worker(dir) {
   // is timed and its memory read: the process's size after it (rssMB) and the most it ever reached (peakMB).
   const built = [], mem = []; const t = Date.now();
   const mb = () => Math.round(process.memoryUsage().rss / 1048576), peak = () => Math.round(process.resourceUsage().maxRSS / 1024);
-  const chore = async (k, fn) => { const t1 = Date.now(); let note = ''; try { note = (await fn()) || ''; } catch (e) { note = 'failed: ' + String(e.message).slice(0, 120); } const ms = Date.now() - t1; built.push(`${k} ${ms} ms${note ? ' (' + note + ')' : ''}`); mem.push({ k, ms, rssMB: mb(), peakMB: peak() }); };
+  // A chore's growth is sampled while it runs (every 50 ms when it yields): the most above where it began (growMB).
+  const chore = async (k, fn) => {
+    const t1 = Date.now(), r0 = mb(), p0 = peak(); let top = r0; const tick = setInterval(() => { top = Math.max(top, mb()); }, 50);
+    let note = '', copyMB = null;
+    try { const v = await fn(); if (v && typeof v === 'object') { note = v.note || ''; copyMB = v.copyMB; } else note = v || ''; } catch (e) { note = 'failed: ' + String(e.message).slice(0, 120); }
+    // a synchronous burst the sampler cannot see still raises the process's peak: counted when the peak rose in this chore
+    clearInterval(tick); top = Math.max(top, mb()); const p1 = peak(); if (p1 > p0) top = Math.max(top, p1);
+    const ms = Date.now() - t1; built.push(`${k} ${ms} ms${note ? ' (' + note + ')' : ''}`); mem.push({ k, ms, rssMB: mb(), peakMB: peak(), growMB: top - r0, copyMB });
+  };
   for (let i = 0; i < 40; i++) { let k = null; await chore('shared', () => { k = app.locals.shared.round(); return k || 'nothing left'; }); if (!k) break; built[built.length - 1] = built[built.length - 1].replace(/^shared/, k); mem[mem.length - 1].k = k; }
   const A = app.locals.analytics;
   // The visit log into months (Postgres), round after round until done, as the worker's timer does it.
-  if (A && A.hitsLog && process.env.DATABASE_URL) await chore('hits-months', async () => { let r, n = 0; do { r = await A.hitsLog.step(); n++; } while (!r.done && n < 400 && !(r.mismatch)); return `${n} rounds, ${r.done ? 'done' : 'NOT done ' + JSON.stringify(r)}`; });
-  if (A && A.prune) await chore('hits-prune', () => { A.prune(); return A.hitsLog ? A.hitsLog.shape().kind : ''; });
+  // Each round under its lease, as the worker's timer runs it (#150).
+  if (A && A.hitsLog && process.env.DATABASE_URL) await chore('hits-months', async () => { let r, n = 0; do { r = await (A.moveRound ? A.moveRound() : A.hitsLog.step()); n++; } while (r && !r.done && !r.busy && n < 400 && !(r.mismatch)); return `${n} rounds, ${r && r.done ? 'done' : 'NOT done ' + JSON.stringify(r)}`; });
+  if (A && A.prune) await chore('hits-prune', async () => { await A.prune(); return A.hitsLog ? A.hitsLog.shape().kind : ''; });
   // (#114) the worker's round of the numbers, so the walk finds the desk, the digest and the agents' desk open on the kept answer
   if (app.locals.numbers) await chore('numbers', () => { const n = app.locals.numbers.makeAll(); return n.failed.length ? 'failed: ' + n.failed.join(', ') : ''; });
-  // The register's full check (once an hour on the worker; the read that took it over 2 GB before PR #148).
+  // The register's full check (once an hour on the worker).
   await chore('register', () => { const r = require(path.join(ROOT, 'src/ledger')).verifyAll(app.locals.db); return r && r.ok ? 'ok' : 'BROKEN'; });
+  // The night's backup and the week's drill, as src/backup.js makes them (called, not changed). 18–20 Nov the worker was
+  // ended for memory inside the backup, 6 min 40 s after every start, and no copy was made for two days (docs/STABILITY.md,
+  // 18:38; #162). The drill skips a copy over DRILL_MAX_MB (200) on this box: then its line says so and it is not judged.
+  const BK = app.locals.backup;
+  // The copy's own size is handed back with each, so its growth is judged against what it handled (the gate's copy is an
+  // eighth of live's: the fault of 18–20 Nov grew with the copy and stayed under any flat line here).
+  let copyMB = null;
+  if (BK) await chore('backup', async () => { const r = await BK.backup(); copyMB = Math.round(r.bytes / 1048576); return { note: `${copyMB} MB sealed`, copyMB }; });
+  if (BK) await chore('drill', async () => { const r = await BK.drill(); return { note: r && r.ok ? 'ok' : `skipped: ${String(r && r.detail || '').replace(/^\S+: /, '').slice(0, 120)}`, copyMB: r && r.ok ? copyMB : null }; });
   console.log('@@' + JSON.stringify({ ms: Date.now() - t, built, mem, peakMB: peak() }));
   process.exit(0);
 }
@@ -563,7 +595,7 @@ function gate() {
   const db = pgServer ? { DATABASE_URL: pgUrl } : {};
   const wk = again ? {} : child('worker', dir, { ...quiet, ...db, NODE_ENV: 'production', ROLE: 'worker', NO_SEED: '1' });
   if (!again) console.log(`big-house: the worker built ahead in ${wk.ms} ms: ${(wk.built || []).join(', ')}`);
-  if (!again && wk.mem) console.log(`big-house: the worker's memory, chore by chore (MB after · most so far): ${wk.mem.map(m => `${m.k} ${m.rssMB}·${m.peakMB}`).join(', ')}; at most ${wk.peakMB} MB (line ${B.workerMB})`);
+  if (!again && wk.mem) console.log(`big-house: the worker's memory, chore by chore (MB after · most so far): ${wk.mem.map(m => `${m.k} ${m.rssMB}·${m.peakMB}${m.growMB > 32 ? ' (+' + m.growMB + ')' : ''}`).join(', ')}; at most ${wk.peakMB} MB (line ${B.workerMB})${(wk.mem || []).filter(m => m.copyMB).map(m => `; ${m.k} grew ${m.growMB} MB for a ${m.copyMB} MB copy`).join('')}`);
   const t1 = Date.now();
   // The walk is the website as live runs it (ROLE=web, NUMBERS_DESK unset): since #114/#120 the numbers desk, its json
   // and the digest read the report the worker's round above made and kept. BIG_NUMBERS_DESK=1 walks them as the website
@@ -579,8 +611,19 @@ function gate() {
   console.log('the slowest rooms:\n' + table(worst));
   const { faults, allowed, stale } = judge(rows, pgServer ? ALLOW_PG : ALLOW);
   // (#119) The worker's round is judged like a page: its memory against its line, a chore that failed or left the log unmoved.
-  if (!again && wk.peakMB > B.workerMB) { const worst = [...(wk.mem || [])].sort((a, b) => b.peakMB - a.peakMB)[0] || {}; faults.push(`worker: memory ${wk.peakMB} MB over ${B.workerMB} (the most reached first by ${(wk.mem || []).find(m => m.peakMB === worst.peakMB)?.k || '?'})`); }
+  if (!again && wk.peakMB > B.workerMB) {
+    const top = Math.max(...(wk.mem || []).map(m => m.peakMB)); const by = ((wk.mem || []).find(m => m.peakMB === top) || {}).k || '?';
+    const a = ALLOW_WORKER.find(x => x.chore === by && x.max && (!x.engine || x.engine === (pgServer ? 'postgres' : 'sqlite')));
+    const what = `worker: memory ${wk.peakMB} MB over ${B.workerMB}, reached in ${by}`;
+    if (a && wk.peakMB <= a.max) allowed.push(`${what} (allowed to ${a.max.toLocaleString()}, #${a.issue})`); else faults.push(a ? `${what} — over its allowance of ${a.max} (#${a.issue})` : what);
+  }
   for (const b of (wk.built || [])) if (/failed|NOT done/.test(b)) faults.push(`worker: ${b}`);
+  for (const m of (!again && wk.mem) || []) {
+    if (!m.copyMB) continue; const line = Math.round(m.copyMB * B.copyX + B.copyPlusMB); if (m.growMB <= line) continue;
+    const a = ALLOW_WORKER.find(x => x.chore === m.k && x.grow && (!x.engine || x.engine === (pgServer ? 'postgres' : 'sqlite')));
+    const what = `worker: ${m.k} grew ${m.growMB} MB for a ${m.copyMB} MB copy (line ${line}: the copy once and ${B.copyPlusMB} MB)`;
+    if (a && m.growMB <= a.grow) allowed.push(`${what} (allowed to ${a.grow}, #${a.issue})`); else faults.push(a ? `${what} — over its allowance of ${a.grow} (#${a.issue})` : what);
+  }
   if (allowed.length) console.log(`allowed (${allowed.length}, each with its issue):\n  ` + allowed.join('\n  '));
   if (stale.length && !process.env.BIG_ONLY) console.log(`stale allow lines (nothing matched them; delete them): ${stale.join(', ')}`);
   if (plans.length) console.log(`plans of the statements over a line (EXPLAIN ANALYZE after the walk; the worst ${Math.min(plans.length, 5)} here${process.env.BIG_PLANS ? ', all in ' + process.env.BIG_PLANS : ''}):\n` + plans.slice(0, 5).map(p => `  ${p.room} · ${p.ms} ms · ${p.rows} rows · ${p.sql.slice(0, 200)}\n    ${p.plan.split('\n').slice(0, 8).join('\n    ')}`).join('\n'));

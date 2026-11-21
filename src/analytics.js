@@ -104,13 +104,23 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
   // (#119) On Postgres by month (src/hitslog.js): the worker moves the one table into months a round at a time, then
   // drops whole months; SQLite keeps the batched delete. The keep-days are unchanged (KEEP_DAYS).
   const hitsLog = require('./hitslog').mountHitsLog(db, { keepDays: KEEP_DAYS });
-  const prune = () => { try { hitsLog.prune(); } catch (e) { console.error('[analytics] prune', e.message); } };
-  let moving = false;
-  const move = () => { if (moving || db.kind !== 'postgres') return; moving = true; hitsLog.step().then(r => { if (r && r.done) clearInterval(moveTimer); }, e => console.error('[hits] months:', String(e && e.message || e).slice(0, 200))).finally(() => { moving = false; }); };
-  let moveTimer = null;
-  if (ROLE.chores && !app.locals.noTimers) {
-    const pruneTimer = setInterval(prune, 86400000); pruneTimer.unref(); setTimeout(prune, 60000).unref();
-    if (db.kind === 'postgres') { setTimeout(move, 90000).unref(); moveTimer = setInterval(move, 5 * 60000); moveTimer.unref(); }
+  // (#150) Several copies of the worker, or a second process, may run these timers: each round takes a lease, so the move
+  // and the prune run in one process at a time; another answers BUSY and waits for its next turn. A round's next turn is
+  // set when it ends (a chain of timeouts), so one process never overlaps itself either: its own lease would let it.
+  const leased = (k, ms, fn) => { const I = app.locals.instances; return I && I.withLease ? I.withLease(k, ms, fn) : Promise.resolve().then(fn); };
+  const prune = () => leased('hits:prune', 30 * 60e3, () => hitsLog.prune()).catch(e => console.error('[analytics] prune', e.message));
+  const MOVE_EVERY = 5 * 60e3;
+  const moveRound = () => leased('hits:move', 30 * 60e3, () => hitsLog.step());
+  const move = () => moveRound()
+    .then(r => { if (r && r.busy) return 'again'; return r && r.done ? 'done' : 'again'; }, e => { console.error('[hits] months:', String(e && e.message || e).slice(0, 200)); return 'again'; })
+    .then(next => { if (next !== 'done') setTimeout(ours(move), MOVE_EVERY).unref(); });
+  // `app.locals.noTimers` is set by app.js after this room mounts, so it is read when a timer fires, not here: a house
+  // made with noTimers (the tests, scripts/to-postgres.js while it copies) never prunes or moves on its own (#119: a
+  // move into Postgres longer than 90 s started the hits move under the copy).
+  const ours = fn => () => { if (!app.locals.noTimers) return fn(); };
+  if (ROLE.chores) {
+    const pruneTimer = setInterval(ours(prune), 86400000); pruneTimer.unref(); setTimeout(ours(prune), 60000).unref();
+    if (db.kind === 'postgres') setTimeout(ours(move), 90000).unref();
   }
   const rollup = require('./numbers').mountRollup(db);
 
@@ -295,7 +305,7 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
     const K = kept('report:' + span); return !(K && K.fresh);
   };
   const SHUT_WORDS = 'The numbers are worked out in the back room every few minutes, and there is no recent set to show. Nothing is lost: every visit is still counted. Try again in a few minutes.';
-  app.locals.analytics = { report, health, fromDb, healthDb, healthLive, liveOf, rollup, hitsLog, prune, present: () => alive.size, shut, SHUT_WORDS };
+  app.locals.analytics = { report, health, fromDb, healthDb, healthLive, liveOf, rollup, hitsLog, prune, moveRound, present: () => alive.size, shut, SHUT_WORDS };
 
   // ---- the page
   const { esc } = V;
@@ -377,6 +387,6 @@ ${R.errors.length ? `<h3>Lately</h3>${list(R.errors, [r => `<b>${r.status}</b>`,
     res.set('Cache-Control', 'private, no-store').send(V.layout({ studio: true, path: '/studio/analytics', title: 'The numbers · Studio', body: body(R) + `<script>(function(){var s=new URLSearchParams(location.search).get('span')||'today';var busy=false;setInterval(function(){if(document.hidden||busy)return;busy=true;fetch('/studio/analytics?span='+s+'&frag=1',{credentials:'same-origin'}).then(function(r){return r.ok?r.text():''}).then(function(h){if(!h)return;var d=document.createElement('div');d.innerHTML=h;var o=document.querySelector('[data-an]');if(o&&d.firstElementChild)o.replaceWith(d.firstElementChild)}).catch(function(){}).then(function(){busy=false})},60000)})();</script>` }));
   });
   app.get('/studio/analytics.json', studioOnly, (req, res) => { res.set('Cache-Control', 'private, no-store'); res.json(res.locals.numbers || reportKept(spanQ(req))); });
-  return { report, health, fromDb, healthDb, healthLive, liveOf, rollup, hitsLog, prune, present: () => alive.size, flush: tick, shut, SHUT_WORDS };
+  return { report, health, fromDb, healthDb, healthLive, liveOf, rollup, hitsLog, prune, moveRound, present: () => alive.size, flush: tick, shut, SHUT_WORDS };
 }
 module.exports = { mountAnalytics, page, device, browser };

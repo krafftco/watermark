@@ -60,7 +60,22 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   function sweep() { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open' AND expires_at IS NOT NULL AND expires_at < datetime('now')").all()) close(d); }
   if (ROLE.chores) { setTimeout(sweep, 60e3).unref(); setInterval(sweep, 3600e3).unref(); }
   // The copies of every live album made ahead (90 s after start, one at a time), so a client's Download all never waits on the house.
-  const warmAlbums = async () => { for (const d of db.prepare("SELECT * FROM deliveries WHERE status='open'").all()) { if (!live(d)) continue; for (const w of worksOf(d)) { try { await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg'); } catch (e) { /* on the first download instead */ } } } };
+  // (20 Nov) The album warm-up made each album's large copy itself, from the master, outside the scribes' queue and the
+  // governor's lane. On the worker (2 GB) memory went from about 260 MB to over 1,100 MB within thirty seconds of this
+  // chore, at every start, and the host ended the process a minute later: about every seven minutes for at least three
+  // days (docs/STABILITY.md). Every work's copies are made by the scribes when it arrives (8 Nov, copies.js), so the
+  // warm-up now only looks: it counts the album works whose large copy is not made and says so; it never opens a master.
+  // WARM_ALBUMS=1 brings the old making back.
+  // (20 Nov, later) 1.87.7 stopped the making and the worker was still ended, a minute into this chore, before it could
+  // log its end: what was left was `worksOf(d)`, every column of every work of every open album, through the bridge at
+  // once. So the warm-up asks two small questions and reads no work at all: how many album works have no copies yet,
+  // and how large the largest open album is (so the log says if one album is the size of the house).
+  const warmAlbums = async () => {
+    const missing = db.prepare("SELECT COUNT(*) n FROM delivery_works dw JOIN deliveries d ON d.id=dw.delivery_id JOIN works w ON w.id=dw.work_id WHERE d.status='open' AND w.copies_at IS NULL").get().n;
+    const big = db.prepare("SELECT dw.delivery_id id, COUNT(*) n FROM delivery_works dw JOIN deliveries d ON d.id=dw.delivery_id WHERE d.status='open' GROUP BY dw.delivery_id ORDER BY COUNT(*) DESC LIMIT 1").get();
+    console.log(`[albums] ${missing} album works have no copies yet (the scribes make them); the largest open album holds ${big ? big.n : 0} works${big ? ' (delivery ' + big.id + ')' : ''}`);
+    return { missing: Number(missing), largest: big ? Number(big.n) : 0 };
+  };
   if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'test') app.locals.governor.boot('warm albums', () => warmAlbums());
   const first = s => String(s || '').trim().split(/\s+/)[0] || '';
   // By text, from the maker's own phone (Will, 1 Nov: "instead of just their email, an option to send it to their phone

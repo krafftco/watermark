@@ -57,6 +57,9 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
     const todo = db.prepare(`SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND COALESCE(flag,'')<>'reject' ${all ? '' : 'AND al_grade IS NULL'} ORDER BY id DESC`).all(m.id);
     const job = { running: true, done: 0, total: todo.length, failed: 0, retitled: 0, read: 0, at: Date.now(), last: null };
     if (!todo.length) { job.running = false; job.raised = stars(m.id); return job; }
+    // (#123) One run a maker across the copies of the website: a press on another copy finds it running (and spends nothing).
+    const I = app.locals.instances, LK = `job:aledit:${m.id}`, HOLD = 30 * 60e3;
+    if (I && !I.lease(LK, HOLD)) return { running: true, elsewhere: true, done: 0, total: todo.length, failed: 0, retitled: 0, read: 0, at: Date.now(), last: null };
     jobs.set(m.id, job);
     const G = app.locals.governor;
     (async () => {
@@ -71,7 +74,7 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
             if (g.title && FILE_NAME.test(String(w.title || '').trim())) { db.prepare('UPDATE works SET title=?, title_given=COALESCE(title_given, ?) WHERE id=?').run(g.title, w.title, w.id); job.retitled++; }
           } catch (e) { job.failed++; job.last = e.message; }
           job.done++;
-          if (job.done % 25 === 0) stars(m.id);
+          if (job.done % 25 === 0) { stars(m.id); if (I) I.lease(LK, HOLD); }
           if (G) await G.settle('al edit');
         }
       };
@@ -83,7 +86,7 @@ function mountAlEdit(app, { db, ledger, makerOf, isStudio, fetchImpl }) {
       if (app.locals.findIndexDirty) app.locals.findIndexDirty();
       ledger.append(db, 'edit.al', m.handle, { graded: job.done - job.failed, raised: job.raised, retitled: job.retitled });
       job.running = false; job.at = Date.now();
-    })().catch(e => { job.running = false; job.last = e.message; console.error('[al edit]', e.message); });
+    })().catch(e => { job.running = false; job.last = e.message; console.error('[al edit]', e.message); }).finally(() => { if (I) I.release(LK); });
     return job;
   }
   const state = m => { const j = jobs.get(m.id); const graded = db.prepare('SELECT COUNT(*) n FROM works WHERE maker_id=? AND al_grade IS NOT NULL').get(m.id).n; const all = db.prepare("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status IN ('held','hidden')").get(m.id).n; return { on: on(), graded, all, job: j || null }; };

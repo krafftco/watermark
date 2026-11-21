@@ -131,6 +131,33 @@ Found with it: the contact sheets desk (/account/sheets) for a museum reads its 
 Indexes (src/indexes.js, one block): works (maker_id, id), (maker_id, stars, id), (status, id), (maker_id, place), (maker_id) WHERE al_grade IS NOT NULL, (maker_id, status, open, bytes); sightings (work_id); licenses (use_id, status).
 At a million works (ten times): the pages stay a page; the grouped counts walk one maker's index entries or the house's (a museum's /account counts, /account/copyright, /account/held, /studio/standard, the masters count): 0.1–0.5 s each on Postgres, and /studio/standard's six shelf counts together over 2 s: those want counts kept by the worker (#99). Found with it: the regard map is built on the website by whichever request finds it stale (#98); the gate's fixture writes hits.at as text (#100).
 
+## 20 Nov 2026 (#123): faults found in making the website safe as several copies (none seen by people; one process today)
+- What was found, in the code, with two website processes on one Postgres (test/instances.js): (1) `grant` read the
+  licence and then activated it, so two processes granting one payment at once (Stripe's webhook on one, the buyer's
+  return on another, or `settleAll`, which already ran on the website and the worker alike) each sent the letters, wrote
+  the register and gave a new download token: with the claim removed, twelve payments delivered to both copies made a
+  second grant. Every other webhook settle had the same shape. (2) A maker's pay, an owed market share and Friday pay
+  read what was owed, waited on Stripe, then wrote what was paid: two at once made two transfers (shown with the lease
+  removed: "one transfer to the maker, not 2"; "one transfer for the owed share, not 2"). (3) The vault queue on a copy
+  that does not hold a new original called it lost and took the work off view. (4) The arrivals pump took a row without
+  claiming it, and the hourly sweep put every copy's work in hand back in the queue; a file sent through one copy was
+  taken by the other ("The file did not arrive."). (5) The register's next number was read then written: two writers
+  at once made the second throw mid-grant. (6) Two processes booting together on an empty database: the second died on
+  `pg_proc_proname_args_nsp_index`. (7) Passkey challenges lived in the process. (8) The market could refund a buyer
+  whose own payment, settled a moment before on another copy, had just sold the piece.
+- The repair: src/instances.js (who is alive, leases, the boot lock); a claim (a conditional UPDATE whose count decides)
+  on every settle path and on sign-in codes and links; leases with the row read again on every transfer, and Stripe's
+  idempotency key on the market's; `works.vault_on` and `arrivals.host`; the register's key as the claim with a retry;
+  `passkey_challenges`. docs/SCALE.md "Stage 2: several copies" lists every piece of state and its disposition.
+- Found in review (#123): a maker's pay and the pocket's transfers asked Stripe without an idempotency key, and the
+  maker's payment row was written only after Stripe answered: a process ending between the two would pay again on the
+  next run. Now the claim row comes first and keys the transfer; test/instances.js ends a copy right after Stripe sends
+  and shows the next attempt, on another copy, asks with the same key and records one payment.
+- Not verified: anything on the test house or live; Render's own balancer (the local measure uses a round-robin and a
+  least-in-hand proxy).
+- Rule: a timer or a door that acts on a row claims it first (UPDATE … WHERE <state> and read the count) or holds a
+  lease; anything that moves money also asks Stripe with an idempotency key. A row only one copy can finish names the copy.
+
 ## 18 Nov 2026, about 21:30 New York: the house down (502) with the numbers desk open
 - What happened: /studio/analytics read every hit of the day (kind, ms) to work out the median and the 95th, beside some twenty other statements over the span, on each visit and again every 30 s from each open tab. On the synchronous bridge each asking holds the website's one thread; the watchdog's answers were missed and it ended the process, Render brought a new one, and the open tab stopped it again. The room was on the scale gate's allow-list (#92), fixed on the desks branch (PR #101) but not yet merged: an allowed room is a known outage waiting.
 - The repair (hotfix, on Will's word): the speed figures are counted by the database in steps (PR #101's change, taken alone); the two doors (/studio/analytics, /studio/analytics.json) share one report a span for 30 s; the page refreshes once a minute and never two at once.
@@ -160,10 +187,45 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - Still open: `/ledger.json` hands the whole register to anyone in one read on the website; the bridge's `iterate` is `all` under another name, so any other walk through it is whole in memory.
 - Why the gate missed it: no gate measures the worker's memory at live's size.
 
+## 20 Nov 2026, 14:23 New York: the worker out of memory again after 1.87.6 (the cause was not the register)
+- What happened: 1.87.6 (the register read a page at a time) went live on the worker at 14:16 and Render ended it for memory at 14:23, 14:31 and 14:38. The `SELECT * FROM ledger` line was gone from the log; the restarts were not. Render's mail to Will shows the same alert on 18 and 19 Nov: at least three days.
+- Measured (the CTO session, polling live /healthz every five seconds through two cycles, 14:30 and 14:38): the worker's memory was 250 to 265 MB through `copies backfill`; the next start-up chore was `warm albums`; thirty seconds later the worker reported 1,108 and 1,136 MB with chores held, and the next report was a new process. Nothing was logged between `[copies] backfill` and the restart in any cycle.
+- Cause, as far as shown: `warmAlbums` (deliveries.js, 2 Nov, older than the scribes) made each open album's large copy itself from the master, outside the scribes' queue and the lane. Not shown: which album or master; whether memory rose inside the chore or just after it (the report said no chore was running at 1,108 MB).
+- The repair (1.87.7): the warm-up only looks and counts (WARM_ALBUMS=1 brings the making back); every start-up chore logs `[boot] <chore>: <ms>, <MB> to <MB>`. If the restarts go on, that line names the chore.
+- My error: I named the register read as the cause from one coincidence in the log (it was the one large read in each cycle and took the process to the governor's line), shipped it as the repair, and said it was not proven. It was not the cause. It stays as a repair in its own right (1.77 GB for one statement).
+- Why the gate missed it: no gate measures the worker; start-up chores do not run under test at all.
+
+## 20 Nov 2026, 15:28 New York: the worker ended again on 1.87.7, inside the album warm-up
+- What the new line showed (Render's log, the worker on a9e2029): `[boot] anchor: 11384 ms, 254 to 267 MB` at 15:27:27, then no line for `warm albums`, and a new start at 15:28. So the process ends inside that chore, within a minute, from 267 MB.
+- Cause, as far as shown: 1.87.7 took the making of pictures out and left `worksOf(d)`, `SELECT w.*` of every work of every open album through the bridge. Not shown: how many works the largest open album holds (the repair logs it).
+- The repair (1.87.9): two small questions, no work read. Still to do: the album's own page and its other readers use `worksOf` too; if one album is very large they need paging (issue to be filed once the log gives the size).
+
+## 20 Nov 2026, 16:22 New York: the worker ended again on 1.87.9, twenty seconds into the shelves backfill
+- What the log showed: on 1.87.9 `warm albums` ended in 5 ms at 248 MB (337 album works without copies; the largest open album holds 118 works, so the albums were never large). `pictures resume` ended at 16:22:13; the process restarted at 16:22:34. The next chore in the chain is `shelves backfill`. The same at 16:29.
+- What this corrects: the album warm-up was not the cause either. Before 1.87.9 it was slow (a question of the bucket for each album work), so the end came one to three minutes after `anchor`; once it was quick the end came sooner. The end follows the chain, not the clock.
+- Cause, as far as shown: `shelves.js` `backfill()` reads `SELECT * FROM texts WHERE id=?` for each library book without subjects: the whole book, body and plates, through the bridge. It never finishes, so the same first book is read at every start. Not shown: which book, or its size.
+- The repair (1.87.10): five named columns. Each start-up chore also logs its beginning, so a chore the process does not survive is named.
+- Three wrong causes in one afternoon (the register read, the album pictures, the album rows), each from a coincidence in time. The lesson for the record: a line at the start and the end of every chore, with memory, before reasoning.
+
+## 20 Nov 2026, 17:37 New York: the worker ended again on 1.87.10; the rise is between chores
+- What the log showed on 1.87.10: `listening seed` ended at 17:37:06 at 275 MB; `pictures resume` began at 17:37:07 at 769 MB. Five hundred megabytes in one second, between two chores. `shelves backfill begins at 769 MB`; the process restarted at 17:37:40. Nothing else was logged in that minute. The cycle before: the same, 6 min 40 s after the start.
+- What this corrects: the shelves backfill was not the cause either (its whole-row read is repaired and stays repaired). The rise is not in any start-up chore. It comes about 21 s after `copies backfill` ends and about 400 s after the start, from something that logs nothing.
+- Not known: what. Candidates not yet excluded: something set off by the copies gate turning on at the end of the backfill; a timer near 400 s; a single very large answer from the database.
+- 1.87.11 (no repair): `[pg big] <MB>: <statement>` for any answer over 20 MB on every process; `[mem] a to b MB in n s; heap, outside, buffers; lane; chore; large answers` once a second on a process that does the chores when memory rises 150 MB inside five seconds.
+
+## 20 Nov 2026, 18:38 New York: the cause of the worker's memory restarts is the backup; no backup since about 18 Nov
+- Measured (the `[mem]` line of 1.87.11, the worker on 180a6be): `286 to 780 MB in 4 s; heap 68, outside 515, buffers 515 MB; lane free; large answers: none`, then 939 and 1,101 MB five and ten seconds later, the restart at 18:38:40. The heap never moved: the memory is buffers, not rows. No large answer from the database.
+- Cause: `backup()` (src/backup.js). Its first look is 300 s after a start; `pg_dump` takes about 100 s; then `fs.readFileSync` of the dump (about 500 MB: the 4 s rise), `zlib.gzip` of the whole buffer (the steady rise), a hash, and `seal` (one more copy). 6 min 40 s after every start, on a 2 GB box. Because the copy never finished, it was due again at every start.
+- Consequence: no backup of the database was made from about 18 Nov (Render's first memory mail) until this repair is live and one copy is seen in the log. Not yet read: Studio → Backups for the date of the last good copy. Render's own database backups are separate and were not checked.
+- The repair (1.87.12): the dump is hashed and gzipped from disk to disk (level 1 for pg_dump's archive, which is compressed inside), the finished file read once to be sealed; `[backup] N MB copied, M MB to seal`. The drill is not run on a copy over DRILL_MAX_MB (200) and records that. Peak is still about twice the copy; the durable repair (a sealed stream, a drill from disk) is #162.
+- The four earlier repairs of today (the register walk, the album pictures, the album rows, the shelves read) were real whole reads and stay; none was this. Each was reasoned from the last line logged. The fifth release measured.
+- Why nothing warned: a failed backup mails the house and marks the register, but a process ended by the host fails nothing; `/healthz` shows the last good copy only to the Studio; the morning digest was shut with the numbers desk on 20 Nov.
+- Still to do: an alarm when the last good copy is older than 26 hours that does not depend on the worker surviving (the website's health, or the watch every ten minutes); #162.
+
 ## 20 Nov 2026 (#119): does the visit log's prune finish on live's shape? Measured, not a fault
 - Where it runs: `src/analytics.js`, on the process with the chores (the worker), 60 s after each start and then every 24 h; each run at most 100 batches of 20,000 rows (2,000,000 rows), each batch its own statement, so what one run deletes stays deleted if the worker is ended halfway.
 - How fast (Postgres 16, defaults, the workers' machine; 60 days of hits, half older than the 30 kept): at 3 M rows the planner deletes a batch by a scan of the whole table (0.65–0.83 s a batch, about 65 s a run); at 10 M and 30 M by the id index (45–55 ms a batch, about 5 s a run).
-- 18–20 Nov: the worker restarted about every seven minutes, its memory going over five minutes after each start (the register's check). The prune's turn comes at one minute, so it ran on every start, some two hundred times a day, each run able to delete 2,000,000 rows in seconds. The restarts did not starve the prune; the log cannot have grown past its 30 days for that reason.
+- 18–20 Nov: the worker restarted about every seven minutes, its memory going over after the backup's first look at 300 s (the entry of 18:38 above; not the register's check, as first thought). The prune's turn comes at one minute, so it ran on every start, some two hundred times a day, each run able to delete 2,000,000 rows in seconds. The restarts did not starve the prune; the log cannot have grown past its 30 days for that reason.
 - So the table holds 30 days of whatever the house writes. A row of `hits` with its indexes is 218–232 bytes, so the 20–30 M rows the numbers desk's timings suggested (#116) would be 4.5–7 GB, more than the whole live database (about 3 GB). One of the two readings is wrong; the count itself is in the worker's kept health (`hits`, `hitsSince`: `SELECT COUNT(*), MIN(at) FROM hits`, every five minutes), and `[hits]` lines in the worker's log now give the estimate and the months each run.
 - Found with it: the scale gate's fixture (#116) wrote pictures into the visit log (35% of its rows). The house never writes a picture or a static file there; it counts them in memory (analytics.js). The fixture now writes pages, the API and bots only.
-- Built (#119): on Postgres `hits` by month, moved by the worker's rounds (src/hitslog.js), the prune dropping whole months; the scale gate's worker round now runs the move, the prune and the register's check, and is judged on its memory (BIG_WORKER_MB, 1,024 MB), since no gate measured the worker when it ran out of memory.
+- Built (#119): on Postgres `hits` by month, moved by the worker's rounds (src/hitslog.js), the prune dropping whole months; the scale gate's worker round now runs the move, the prune and the register's check, and is judged on its memory (BIG_WORKER_MB, 1,024 MB), since no gate measured the worker when it ran out of memory; the round includes a backup and a drill of the gate's house (#162's cause).

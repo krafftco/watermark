@@ -63,6 +63,13 @@ const log = s => { quiet.push(s); if (process.env.VERBOSE) console.log(s); };
   const pause = ms => new Promise(r => setTimeout(r, ms));
   await pause(400);
 
+  // (#150) Another process holds the move's lease: a round here does nothing and says BUSY; when it is let go, it runs.
+  db.prepare("INSERT INTO leases (k, holder, until_ms) VALUES ('hits:move', 'another-copy', ?)").run(Date.now() + 600e3);
+  const busy = await app.locals.analytics.moveRound();
+  assert.ok(busy && busy.busy, 'BUSY while another holds the lease');
+  assert.ok(!db.prepare("SELECT 1 FROM pg_class WHERE relname='hits_new'").get(), 'nothing begun under another holder');
+  db.prepare("DELETE FROM leases WHERE k='hits:move'").run();
+
   // Round 1: one statement of copying, then a "restart" (a fresh instance takes it up from what hits_new holds).
   let H = mountHitsLog(db, { keepDays: 30, now: () => T, log });
   let r = await H.step({ batches: 1, yieldFn: () => pause(30) });
@@ -108,7 +115,7 @@ const log = s => { quiet.push(s); if (process.env.VERBOSE) console.log(s); };
   assert.ok(H2.shape().months.includes('hits_p202702'), 'the months ahead made: ' + H2.shape().months.join(','));
   const daysAfter = Number(db.prepare("SELECT COUNT(*) AS n FROM hits_days WHERE dim='page'").get().n);
   assert.strictEqual(daysAfter, daysBefore, 'the rollups intact');
-  console.log(`hitslog (postgres): ok — ${inside.toLocaleString('en-US')} rows inside the keep-days moved into months over rounds and a restart while another process wrote ${n} hits; the stray copied; months dropped 40 days on: ${p.dropped.join(', ')}; rollups intact (${daysAfter} days)`);
+  console.log(`hitslog (postgres): ok — ${inside.toLocaleString('en-US')} rows inside the keep-days moved into months over rounds and a restart (a round under another's lease refused) while another process wrote ${n} hits; the stray copied; months dropped 40 days on: ${p.dropped.join(', ')}; rollups intact (${daysAfter} days)`);
   try { db.close(); } catch (e) { /* */ }
   fs.rmSync(dir, { recursive: true, force: true }); process.exit(0);
 })().catch(e => { console.error(e); console.error(quiet.slice(-12).join('\n')); process.exit(1); });

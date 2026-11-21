@@ -141,7 +141,7 @@ function mountHangs(app, { db, C, V, stripe, buyerOf, setBuyer, ledger, pocket, 
   function settleThanks(id, s) {
     const t = db.prepare('SELECT * FROM hang_thanks WHERE id=?').get(Number(id)); if (!t || t.status !== 'pending' || t.stripe_session !== s.id || s.payment_status !== 'paid') return;
     const h = byId(t.hang_id); const d = s.customer_details || {};
-    db.prepare("UPDATE hang_thanks SET status='paid', name=COALESCE(name, ?) WHERE id=?").run(d.name || null, t.id);
+    if (!db.prepare("UPDATE hang_thanks SET status='paid', name=COALESCE(name, ?) WHERE id=? AND status='pending'").run(d.name || null, t.id).changes) return; // (#123) the claim: once, whichever copy of the website comes first
     pocket.credit(db.prepare('SELECT * FROM buyers WHERE id=?').get(h.buyer_id), t.cents, 'thanks_in', `hang-${h.id}`, `A card for ${h.title}${t.word ? `: ${t.word}` : ''}`);
     ledger.append(db, 'thanks.given', `hang-${h.id}`, { hang: h.slug, amount: t.cents });
   }

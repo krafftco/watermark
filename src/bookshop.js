@@ -100,7 +100,7 @@ ${shelf('The Library', 'Every book, to read here.', 'The public domain free, the
   });
   function settle(o, how, sess) {
     if (!o || o.paid) return; if (sess && (o.stripe_session !== sess.id || sess.payment_status !== 'paid')) return;
-    db.prepare("UPDATE copy_orders SET paid=1, how=?, status='asked', paid_at=datetime('now') WHERE id=?").run(how, o.id);
+    if (!db.prepare("UPDATE copy_orders SET paid=1, how=?, status='asked', paid_at=datetime('now') WHERE id=? AND COALESCE(paid,0)=0").run(how, o.id).changes) return; // (#123) the claim: once, whichever copy of the website comes first
     const c = db.prepare('SELECT * FROM copies WHERE id=?').get(o.copy_id); db.prepare("UPDATE copies SET qty=qty-1, status=CASE WHEN qty-1<=0 THEN 'sold' ELSE status END WHERE id=?").run(c.id);
     const t = text(c.text_id), seller = sellerOf(c);
     try { ledger.append(db, 'copy.sold', t.slug, { kind: c.kind, title: t.title, price_cents: c.price_cents, house_cents: o.house_cents, ref: o.ref }); } catch (e) { /* */ }

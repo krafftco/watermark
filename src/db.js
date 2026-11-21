@@ -9,7 +9,14 @@ const fs = require('fs');
 function open(file) {
   let db;
   if (process.env.DATABASE_URL) {
-    db = require('./pgsync').open(process.env.DATABASE_URL);
+    // (#123) The bridge makes its own function as it opens (dialect PRELUDE, CREATE OR REPLACE FUNCTION): two processes
+    // starting together can collide there ('duplicate key' on an empty database, 'tuple concurrently updated' after).
+    // That is before any lock can be asked, so the open is tried again after a short, uneven pause.
+    for (let tries = 0; ; tries++) {
+      try { db = require('./pgsync').open(process.env.DATABASE_URL); break; }
+      catch (e) { if (tries >= 6 || !/duplicate key|concurrently updated/i.test(String(e && e.message))) throw e; console.log('[boot] the database was being prepared by another process; trying again'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200 + Math.floor(Math.random() * 600)); }
+    }
+    require('./instances').bootLock(db); // (#123) one process's boot DDL at a time, so several copies can start together
   } else {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     db = new Database(file);

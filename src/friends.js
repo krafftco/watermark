@@ -109,7 +109,7 @@ function mountFriends(app, { db, C, stripe, buyerOf, setBuyer, makerOf, ledger, 
     const f = db.prepare('SELECT * FROM friends WHERE id=?').get(id); if (!f || f.status !== 'pending' || f.stripe_session !== s.id) return f;
     if (s.status !== 'complete' && s.payment_status !== 'paid') return f;
     const d = s.customer_details || {};
-    db.prepare("UPDATE friends SET status=?, stripe_sub=?, email=COALESCE(?, email), name=COALESCE(name, ?), started_at=datetime('now') WHERE id=?").run(f.recurring ? 'active' : 'given', s.subscription || null, d.email || null, d.name || null, id);
+    if (!db.prepare("UPDATE friends SET status=?, stripe_sub=?, email=COALESCE(?, email), name=COALESCE(name, ?), started_at=datetime('now') WHERE id=? AND status='pending'").run(f.recurring ? 'active' : 'given', s.subscription || null, d.email || null, d.name || null, id).changes) return db.prepare('SELECT * FROM friends WHERE id=?').get(id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, f.kind === 'keeping' ? 'keeping.begun' : f.recurring ? 'friend.joined' : 'friend.gave', `friend-${id}`, { house: f.house, level: f.level, amount: f.amount_cents });
     return db.prepare('SELECT * FROM friends WHERE id=?').get(id);
   }

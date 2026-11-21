@@ -10,7 +10,8 @@
 //
 // The move from the one table to the months (`step`, the worker's, a round at a time; nothing on the website):
 //   1. `hits_new`: the same columns (LIKE hits), PRIMARY KEY (id, at), partitioned; its months from the cut to two ahead.
-//   2. Copy by id, 20,000 ids a statement, only rows inside the keep-days (`at >= cut`): what is older the prune deletes
+//   2. Copy by id, 20,000 ids a statement, only rows inside the keep-days (`at >= cut`), a row already there left as it
+//      is (ON CONFLICT DO NOTHING: a round run twice over the same ids copies nothing twice): what is older the prune deletes
 //      anyway. Each statement is one INSERT … SELECT on the server: no row passes through the process. Resumable: the
 //      next id is MAX(id) of hits_new, so a restart carries on where the last statement ended.
 //   3. When fewer than 20,000 ids are left, the switch, in one transaction holding the old table for a moment (a lock
@@ -116,7 +117,7 @@ function mountHitsLog(db, { keepDays = +(process.env.HITS_KEEP_DAYS || 30), log 
     let from = maxId('hits_new');
     if (!from) { const r = db.prepare('SELECT MIN(id) AS m FROM hits WHERE at >= ?').get(cut); from = r && r.m != null ? Number(r.m) - 1 : top; }
     let copied = 0, n = 0;
-    const copyQ = db.prepare(`INSERT INTO hits_new (${cols}) SELECT ${cols} FROM hits WHERE id > ? AND id <= ? AND at >= ?`);
+    const copyQ = db.prepare(`INSERT INTO hits_new (${cols}) SELECT ${cols} FROM hits WHERE id > ? AND id <= ? AND at >= ? ON CONFLICT (id, at) DO NOTHING`);
     while (top - from > BATCH && n < batches) {
       copied += copyQ.run(from, from + BATCH, cut).changes; from += BATCH; n++;
       if (n % 25 === 0) log(`[hits] months: copied to id ${from.toLocaleString('en-US')} of ${top.toLocaleString('en-US')} (${copied.toLocaleString('en-US')} rows this round, ${Date.now() - t0} ms)`);
@@ -135,7 +136,7 @@ function mountHitsLog(db, { keepDays = +(process.env.HITS_KEEP_DAYS || 30), log 
         db.exec("SET LOCAL lock_timeout = '2s'");
         db.exec('LOCK TABLE hits IN EXCLUSIVE MODE');
         last = maxId('hits');
-        tail = db.prepare(`INSERT INTO hits_new (${cols}) SELECT ${cols} FROM hits WHERE id > ? AND at >= ?`).run(from, cut).changes;
+        tail = db.prepare(`INSERT INTO hits_new (${cols}) SELECT ${cols} FROM hits WHERE id > ? AND at >= ? ON CONFLICT (id, at) DO NOTHING`).run(from, cut).changes;
         db.exec('ALTER TABLE hits RENAME TO hits_old');
         for (const [a, b] of [['hits_at', 'hits_old_at'], ['hits_path', 'hits_old_path'], ['hits_pkey', 'hits_old_pkey']]) db.exec(`ALTER INDEX IF EXISTS ${a} RENAME TO ${b}`);
         db.exec('ALTER TABLE hits_new RENAME TO hits');

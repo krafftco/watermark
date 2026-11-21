@@ -104,7 +104,7 @@ function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, or
   function billPaid(b, session) {
     if (!b || b.status === 'paid') return;
     const first = founding() == null;
-    db.prepare("UPDATE client_bills SET status='paid', paid_at=datetime('now'), stripe_session=COALESCE(?, stripe_session) WHERE id=?").run(session || null, b.id);
+    if (!db.prepare("UPDATE client_bills SET status='paid', paid_at=datetime('now'), stripe_session=COALESCE(?, stripe_session) WHERE id=? AND status<>'paid'").run(session || null, b.id).changes) return; // (#123) the claim: once, whichever copy of the website comes first
     const refs = JSON.parse(b.refs || '[]'), each = refs.length ? Math.floor(b.cents / refs.length) : 0;
     for (const ref of refs) db.prepare("UPDATE licenses SET price_cents=?, ends_at=?, updated_at=datetime('now') WHERE ref=? AND status='active'").run(each, new Date(Date.now() + b.months * 30.44 * 864e5).toISOString(), ref);
     const c = db.prepare('SELECT * FROM clients WHERE id=?').get(b.client_id);

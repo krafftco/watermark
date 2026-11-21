@@ -78,7 +78,7 @@ function mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf
   function settle(ref, s) {
     const o = db.prepare('SELECT * FROM text_orders WHERE ref=?').get(ref); if (!o || o.status === 'paid') return o;
     const email = s && s.customer_details && s.customer_details.email ? s.customer_details.email : o.email;
-    db.prepare("UPDATE text_orders SET status='paid', paid_at=datetime('now'), token=?, email=COALESCE(?, email), price_cents=COALESCE(?, price_cents) WHERE ref=?").run(nanoid(32), email, s ? s.amount_total : null, ref);
+    if (!db.prepare("UPDATE text_orders SET status='paid', paid_at=datetime('now'), token=?, email=COALESCE(?, email), price_cents=COALESCE(?, price_cents) WHERE ref=? AND status<>'paid'").run(nanoid(32), email, s ? s.amount_total : null, ref).changes) return db.prepare('SELECT * FROM text_orders WHERE ref=?').get(ref); // (#123) the claim: once, whichever copy of the website comes first
     if (s && s.customer && o.buyer_id) db.prepare("UPDATE buyers SET customer=COALESCE(NULLIF(customer,''), ?), email=COALESCE(email, ?) WHERE id=?").run(s.customer, email, o.buyer_id);
     const t = db.prepare('SELECT * FROM texts WHERE id=?').get(o.text_id);
     ledger.append(db, 'text.taken', t.slug, { ref, paid: !!(s && s.amount_total) });

@@ -22,15 +22,22 @@ if (!data) {
 }
 
 let head, rows;
+const dl = d => ` {${['main ' + d.main, d.anims ? 'running ' + d.anims : '', d.op != null ? 'op ' + d.op : '', d.vis ? 'vis ' + d.vis : '', 't ' + d.t + 'ms', d.hover ? 'hover' : '', d.coarse ? 'coarse' : '', d.later || ''].filter(Boolean).join('; ')}}`;
 if (walk === 'reach') {
-  const g = new Map();
+  const g = new Map(); const dg = new Map();
   for (const f of data.faults) {
     const k = `${f.page} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}”${f.box ? ' [' + f.box.join(',') + ']' : ''}${f.cover ? ' · under ' + [f.cover.sel || f.cover.tag, f.cover.pe ? 'pe:' + f.cover.pe : '', f.cover.z ? 'z:' + f.cover.z : '', f.cover.pos && f.cover.pos !== 'static' ? f.cover.pos : ''].filter(Boolean).join(' ') : ''}`;
     if (!g.has(k)) g.set(k, new Set()); g.get(k).add(f.size + (f.role === 'out' ? '' : '/' + f.role));
+    if (!dg.has(k) && (f.diag || (f.cover && f.cover.err))) dg.set(k, f.diag ? dl(f.diag) : ' {' + f.cover.err + '}');
   }
-  rows = [...g].map(([k, v]) => `${k} · ${[...v].join(',')}`);
+  rows = [...g].map(([k, v]) => `${k} · ${[...v].join(',')}${dg.get(k) || ''}`);
+  // (#109) What one look of two saw: notices, never errors, never dropped.
+  const fl = data.flaky || [];
+  if (fl.length) { const fr = fl.map(f => `${f.page} · ${f.size}${f.role === 'out' ? '' : '/' + f.role} · ${f.kind}${f.at ? ' (' + f.at + ')' : ''} · ${f.sel} “${f.words}” · ${f.cover ? (f.cover.sel || f.cover.tag || '') : ''} · ${f.seen}${f.diag ? dl(f.diag) : ''}`); let cur = ''; const fp = [];
+    for (let r of fr) { if (r.length > MAX - 60) r = r.slice(0, MAX - 61) + '…'; if (cur && esc(cur + r + '\n').length > MAX - 40) { fp.push(cur); cur = ''; } cur += r + '\n'; } if (cur) fp.push(cur);
+    fp.slice(0, 5).forEach((m, i) => say('notice', `${walk} webkit flaky ${i + 1}/${fp.length}`, `seen on one look of two, not called: ` + m)); }
   const issues = [...new Set((data.allowed || []).map(a => '#' + a.issue))].join(' ');
-  head = `reach webkit: ${data.faults.length} findings in ${rows.length} groups; ${(data.allowed || []).length} on the allow-list (${issues || 'none'})`;
+  head = `reach webkit: ${data.faults.length} findings in ${rows.length} groups; ${(data.allowed || []).length} on the allow-list (${issues || 'none'}); ${(data.flaky || []).length} flaky (one look of two)`;
 } else {
   rows = data.fails || [];
   head = `wayback webkit: ${rows.length} of ${data.checks} checks failed; ${(data.allowed || []).length} on the allow-list`;

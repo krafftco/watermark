@@ -123,7 +123,7 @@ ${now && !can ? `<p class="bc-door">The screening is on now, for keyholders. <a 
   if (process.env.NODE_ENV !== 'test' && !process.env.NO_SEED) app.locals.governor.boot('screening seed', () => seed());
   app.locals.screeningSeed = seed;
   function tell() { for (const s of db.prepare("SELECT s.*, f.title, f.filmmaker, f.slug FROM film_showings s JOIN films f ON f.id=s.film_id WHERE s.told=0 AND datetime(s.at, '+' || COALESCE(f.minutes,120) || ' minutes') <= datetime('now')").all()) { db.prepare('UPDATE film_showings SET told=1 WHERE id=?').run(s.id); try { ledger.append(db, 'screening.shown', s.slug, { title: s.title, by: s.filmmaker, came: s.came }); } catch (e) { /* */ } } }
-  if (!app.locals.noTimers) setInterval(tell, 10 * 60e3).unref();
+  if (!app.locals.noTimers) setInterval(app.locals.instances ? app.locals.instances.pinned('screening-tell', 10 * 60e3, tell) : tell, 10 * 60e3).unref(); // (#123) one process of the house
   app.locals.screening = { film, nowShowing, nextShowing, parseNotes, tell, nyToUtc, onBill: () => db.prepare("SELECT s.at, f.slug, f.title, f.filmmaker FROM film_showings s JOIN films f ON f.id=s.film_id WHERE f.status='showing' AND datetime(s.at, '+' || COALESCE(f.minutes,120) || ' minutes') > datetime('now') ORDER BY s.at LIMIT 1").get() || null };
   return app.locals.screening;
 }

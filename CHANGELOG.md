@@ -5,6 +5,34 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.13 · Ready to run as more than one · 20 November 2026
+
+- The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
+- Getting there found places where two copies acting at the same moment could have done one thing twice: grant a licence, settle a sale, send a payment. Each now claims its row first, and every transfer to a maker or a collector carries a key so that it is made once.
+- A payment to a maker is written down before it is sent, and counted as paid from that moment.
+## 1.87.12 · The back room: it was the backup · 20 November 2026
+
+- The line added in 1.87.11 named the cause at the first start: the nightly copy of the database. It was read whole into memory, compressed whole and sealed whole, on a machine too small for three copies of it. The worker was ended for memory at that step after every start from about 18 November, and in that time no backup was made.
+- The copy is now hashed and compressed from disk to disk and read once to be sealed. The weekly restore drill is not run on a copy over 200 MB until it too reads from disk; the record says so.
+
+## 1.87.11 · The back room says what it holds · 20 November 2026
+
+- The worker is still being ended for memory, and four repairs have each fixed something real that was not the cause. This release repairs nothing: the house now writes a line whenever the database hands it a very large answer, and another the moment its memory rises sharply, with what was running. The next start names the cause.
+
+## 1.87.10 · The back room, followed to the chore · 20 November 2026
+
+- With the album warm-up made harmless, the worker was ended twenty seconds into the next long chore instead: the one that asks for each library book's subjects, which read the whole book, body and plates, to shelve it. It now reads the five small fields it needs.
+- A start-up chore now writes a line when it begins as well as when it ends.
+
+## 1.87.9 · The back room, third time · 20 November 2026
+
+- 1.87.7 was not the whole of it either. The new start-up line showed the worker ended a minute into the album warm-up, which was still reading every work of every open album whole. The warm-up now asks two small questions and reads no work.
+
+## 1.87.7 · The back room, the real cause · 20 November 2026
+
+- 1.87.6 did not stop the worker running out of memory: the host ended it again seven minutes after that release went in. Watching it through a start showed the memory rise from about 260 MB to over 1,100 MB within thirty seconds of the album warm-up, a start-up chore that made album pictures from the originals by itself. That chore now only looks and counts; the scribes make the copies, as they do for every work.
+- Each start-up chore now writes how long it took and what it did to the memory, so the next fault of this kind names itself.
+
 ## 1.87.6 · The back room stops running out of memory · 20 November 2026
 
 - The worker that does the house's chores was being restarted by the host about every seven minutes on 20 November. Its hourly check of the register read the whole register into memory at once. It now reads a page at a time; the check and its answer are the same.

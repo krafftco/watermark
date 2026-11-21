@@ -15,6 +15,15 @@ The CTO session keeps it honest.
   (`scripts/engine.js`; iPad (gen 7), iPad Mini, iPhone 13 from Playwright's `devices`). Here `WM_ENGINE=webkit` prints
   one line and exits 0; in CI a missing WebKit fails. Its findings come back as annotations titled `… webkit`
   (`scripts/engine-findings.js`, ≤1500 chars each, 10 a level a step) and whole in the job's `webkit-findings` artifact.
+- The reach walk calls a finding only when a second look agrees (#109): each door (a page at a size as a person, or one
+  edge of the presses) found with anything is visited again once in a fresh page; what one look of two saw is `flaky`,
+  kept in REACH_JSON and raised as notices (`reach webkit flaky`), never an error. A door that throws (a navigation under
+  the walk, a press that cannot be brought into view in 8 s) is a finding of kind `error`, looked at twice the same way.
+  Each finding carries `diag` (Wander's classes, running animations, opacity, ms since load) and an invisible control is
+  re-read 1.5 s later (`STILL`/`no longer invisible`): read those before calling a WebKit finding a flake or a fault.
+  Playwright's WebKit is not on this machine: a lab is a temporary job in test.yml on your PR (dispatch more runs with
+  `gh api -X POST repos/krafftco/watermark/actions/workflows/test.yml/dispatches -f ref=<branch>`). A PR that conflicts
+  with `next` runs no CI at all: merge `next` in when `mergeable_state` is `dirty`.
 - WebKit in CI (#55): the job takes ~13 min (reach ~10). Playwright's WebKit does not let `route()` stand in for requests
   that go through the house's service worker, and the worker claims the page at once: a test that stubs answers runs
   with `serviceWorkers: 'block'`. WebKit likely holds Wander in its arrival state (bar hidden, pointer-events none,
@@ -187,6 +196,21 @@ The CTO session keeps it honest.
 - Fix what is certain and shared; file the rest as issues, one per cause. Do not widen your job.
 - Changes on a visitor's path, to pictures, to sign-in or to money are read by the `reviewer` seat before they merge.
   Expect it to try the case you did not test.
+
+## Several copies of the website (#123, docs/SCALE.md "Stage 2: several copies")
+- The website runs as N instances on Render. Anything a request starts must finish on any copy; anything a timer does
+  must be done once. A new timer on the web role: `app.locals.instances.pinned(name, every, fn)`, or claim each row
+  (`UPDATE … WHERE status=<from>` and act only when `.changes` is 1). Money also gets a lease (`withLease`) and a
+  Stripe idempotency key. A Map in the process is a cache, a limiter or a bug: say which in docs/SCALE.md.
+- A file on a copy's disk is that copy's alone (no shared disk): record the copy (`IN.ME`) on the row, and let other
+  copies skip it while `alive(holder)`.
+- `test/instances.js` (CI's postgres job) forks two `ROLE=web` processes (test/instances-copy.js) that share Stripe and
+  the bucket through files; ask a copy over IPC (`c.call('payouts.pay', row)`, `c.sql(...)`). Locally it needs a fresh
+  database each run (`CREATE DATABASE`), about a minute. Negative proof: remove a claim and it fails in words.
+- `scripts/copies.js` (needs an empty Postgres): N copies of server.js behind a round-robin (or `COPIES_BALANCE=least`)
+  with load.js through it; `COPIES_HOLD=1` holds copy 0 with pg_sleep through a preload (scripts/copies-hold.js).
+  Never `spawnSync` a client of a server that lives in your own process: the server stops answering.
+- An INSERT through the bridge gets its RETURNING from dialect.js: take the id from `.run(...).lastInsertRowid` (the same on both engines).
 
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
