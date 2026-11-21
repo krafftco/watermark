@@ -188,6 +188,26 @@ The CTO session keeps it honest.
   BUFFERS) shows `Sort Method: external merge`. Roll it up by day instead.
 - `express` 5: a test-only route goes first with `app.router.stack.unshift(app.router.stack.pop())` (test/pglimit.js).
 
+- The visit log (#119): on Postgres `hits` is by month after the worker's move (src/hitslog.js). Watch it in the worker's log
+  by `[hits]`: `months: begun`, `copying, at id … of …`, `switched in … ms`, `done; N rows inside the keep-days on both
+  sides`. Finished when `settings.hits_switch` is `done` and `pg_class.relkind` of `hits` is `p`. A month is `hits_pYYYYMM`
+  (UTC), `hits_pdefault` takes anything else. The dialect turns LIKE into ILIKE everywhere, DDL too: never `CREATE TABLE
+  … (LIKE x)` through the bridge. An `INSERT … SELECT` through `prepare` gets `RETURNING id` added: every new id comes
+  back to the process; use `exec` for a bulk insert with no parameters.
+- The gate's worker round (`big-house.js worker`) now runs the shared rounds, the hits move, the prune, the numbers and
+  the register's check, each timed with its memory (`rssMB` after, `peakMB` the most so far); over BIG_WORKER_MB (1,024)
+  fails; the backup and the drill are also judged by their growth against the copy they handle (BIG_COPY_X 1 ×, plus
+  BIG_COPY_PLUS_MB 64), because the gate's copy (60 MB on Postgres) is an eighth of live's and the fault of 18–20 Nov
+  grew with the copy: replayed on the gate's house, the pre-1.87.12 backup grew 167 MB for a 63 MB copy (caught), the
+  repaired one 15–56 MB. The drill still reads its copy whole (#162; allowed in ALLOW_WORKER). With all of it the worker
+  reaches about 480 MB on Postgres and 1.7 GB on SQLite (the drill of a 160 MB copy). A chore's growth is sampled every
+  50 ms and also counts a rise of maxRSS, since a synchronous burst never lets the sampler run.
+- `app.locals.noTimers` is set by app.js AFTER most rooms mount: a room that reads it at mount arms its timers even in a
+  test or in scripts/to-postgres.js. Read it when the timer fires (analytics.js `ours`). Found when the hits move began
+  inside a 96 s to-postgres copy.
+- Timers that must run once across copies take a lease (`app.locals.instances.withLease`, #150); a lease does not stop
+  the SAME process overlapping itself (it renews its own), so chain the next run from the end of the last.
+
 ## Prepared copies (#139)
 - `src/prepared.js`: the worker asks its own house (a port of its own on 127.0.0.1, header `x-wm-prepare` with a key made
   per process) for each stranger door and writes the page to `prepared_pages`; every website mirrors the rows in memory
