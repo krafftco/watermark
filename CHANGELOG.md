@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.1 · Search, asked the way a person asks · 20 November 2026
+
+- "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.
+
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
 The trade's rules, kept by the house:
