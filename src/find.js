@@ -4,6 +4,7 @@
 // Enter opens the first; a word with no single work strolls through everything that matches. Before you type: what
 // you stood before lately and what is yours (the picture you want to see again), then the ways in (places, makers,
 // rooms). Typos are forgiven (trigrams); nothing personal is searched.
+const JOIN = new Set(['by', 'the', 'a', 'an', 'of', 'and', 'in', 'at', 'on', 'from', 'with']);
 function mountFind(app, { db, V, I }) {
   const { esc, tidy } = V;
   let index = { at: 0, works: [], makers: [], places: [], rooms: [], hangs: [] };
@@ -78,7 +79,9 @@ function mountFind(app, { db, V, I }) {
   function search(q, n = 12, req = null) {
     q = String(q || '').replace(/['’`]s\b/g, ''); // (10 Nov) "Leonardo's trattato" is leonardo + trattato
     const ix0 = build(); const ix = req && app.locals.zone && !app.locals.zone.open(req) ? { ...ix0, works: ix0.works.filter(w => w.zone !== 'mature') } : ix0; const nq = norm(q); if (!nq) return { works: [], makers: [], places: [], rooms: [], hangs: [] };
-    const toks = nq.split(' ').filter(Boolean); const t0 = toks[0] || '';
+    // (20 Nov, Will: "the seine by will fullerton" found nothing) A joining word is how a person asks, never a word the
+    // work must carry: "by", "the", "of" are set aside when another word is left to search by.
+    const toks0 = nq.split(' ').filter(Boolean); const said = toks0.filter(t => !JOIN.has(t)); const toks = said.length ? said : toks0; const t0 = toks[0] || '';
     const open = !(req && app.locals.zone && !app.locals.zone.open(req));
     const pool = ix0.big ? (app.locals.kept || ((k, ms, f) => f()))('find|' + (open ? 1 : 0) + '|' + toks.join(' '), 120e3, () => candidates(toks, open)) : ix.works;
     const scored = [];
