@@ -599,8 +599,10 @@ function work({ seen = '', prints = '', objectLabel = '', zoneLabel = '', bench 
     path: `/m/${makerSlug(maker)}/${w.slug}`, image: `/img/${w.slug}/screen`, type: 'article', mark: markOf(maker),
     // Google Images shows a "Licensable" badge when an image carries these fields.
     jsonld: { '@context': 'https://schema.org', '@type': 'ImageObject', name: title, caption: w.caption || undefined, contentUrl: `${BASE()}/img/${w.slug}/screen`, thumbnailUrl: `${BASE()}/img/${w.slug}/thumb`,
+      // An open work (#170) says its own licence and its source's credit, and claims no copyright and no licence page of the house's.
+      ...(open ? { creator: by ? { '@type': 'Person', name: by } : undefined, creditText: open.credit, license: open.url } : {
       creator: { '@type': 'Person', name: maker.name }, creditText: `${OBJ.by(w, maker.name)}${maker.house ? ', ' + maker.house : ''}`, copyrightNotice: `© ${maker.name}`,
-      copyrightHolder: { '@type': 'Person', name: maker.name }, license: `${BASE()}/terms`, acquireLicensePage: `${BASE()}/license/${w.slug}`,
+      copyrightHolder: { '@type': 'Person', name: maker.name }, license: `${BASE()}/terms`, acquireLicensePage: `${BASE()}/license/${w.slug}` }),
       dateCreated: w.taken_at || undefined, contentLocation: w.place ? { '@type': 'Place', name: w.place } : undefined, identifier: w.accession || undefined,
       sourceOrganization: { '@type': 'Organization', name: 'Watermark', parentOrganization: { '@type': 'Organization', name: 'Krafft', url: 'https://krafftco.com' } } },
     body: `<article class="work lot">${seen}

@@ -36,8 +36,9 @@ function mountScout(app, { db, V, studioOnly, isStudio }) {
       id: o.objectURL || `https://www.metmuseum.org/art/collection/search/${o.objectID}`, label: o.title || 'Untitled', thumb: o.primaryImageSmall || o.primaryImage, image: o.primaryImage, open: !!o.isPublicDomain, rights: o.isPublicDomain ? 'cc0' : 'closed',
       by: o.artistDisplayName || o.culture || '', date: o.objectDate || '', medium: o.medium || '', where: o.department || '', highlight: !!o.isHighlight, onview: !!o.GalleryNumber,
       summary: [o.artistDisplayName, o.objectDate].filter(Boolean).join(', '), kind: kindOf(o.classification || o.medium),
-      meta: metaOf([['Artist', o.artistDisplayName], ['Date', o.objectDate], ['Medium', o.medium], ['Dimensions', o.dimensions], ['Credit line', o.creditLine], ['Department', o.department], ['Accession number', o.accessionNumber], ['Culture', o.culture], ['Place', [o.city, o.country].filter(Boolean).join(', ')], ['Gallery', o.GalleryNumber ? `Gallery ${o.GalleryNumber}` : '']]),
-      artist: o.artistDisplayName ? { name: o.artistDisplayName, born: yr(o.artistBeginDate), died: yr(o.artistEndDate), nationality: o.artistNationality || null } : null }));
+      meta: metaOf([[o.artistPrefix ? 'Attribution' : 'Artist', [o.artistPrefix, o.artistDisplayName].filter(Boolean).join(' ')], ['Date', o.objectDate], ['Medium', o.medium], ['Dimensions', o.dimensions], ['Credit line', o.creditLine], ['Department', o.department], ['Accession number', o.accessionNumber], ['Culture', o.culture], ['Place', [o.city, o.country].filter(Boolean).join(', ')], ['Gallery', o.GalleryNumber ? `Gallery ${o.GalleryNumber}` : '']]),
+      hand: o.artistPrefix ? [o.artistPrefix, o.artistDisplayName].filter(Boolean).join(' ') : undefined, // the Met's qualifier kept (#170)
+      artist: o.artistDisplayName && !o.artistPrefix ? { name: o.artistDisplayName, born: yr(o.artistBeginDate), died: yr(o.artistEndDate), nationality: o.artistNationality || null } : null }));
     return { total: +j.total || 0, items };
   }
   async function aic({ q, page, onview }) {

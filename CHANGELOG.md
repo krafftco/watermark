@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.16 · A museum's work, credited as they ask · 20 November 2026
+
+- A work from a museum's open collection now says whose it is, under its label: "From the collection of The Metropolitan Museum of Art, New York", the museum's own credit line, and their page for the object, one tap away. Before, their page was folded under "For publishers" and their name was missing from the page.
+- The credit to copy is the one each museum asks for: the artist, the title, the date, then the museum and its credit line ("Courtesy National Gallery of Art, Washington" for the Gallery, as the Gallery asks). It no longer puts "The public domain" where the artist goes.
+- An open work's data and its free file no longer claim a copyright or a licence of the house's: the page's search-engine record, the public API, the Watermark panel and the file itself say the licence (CC0, public domain) and the museum's credit, never "All rights reserved".
+- A work the Met gives as "Workshop of" or "Attributed to" keeps those words, and is not hung on the master's wall.
+
 ## 1.87.15 · The open doors, made ahead · 20 November 2026
 
 - The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
