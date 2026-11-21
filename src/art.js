@@ -390,6 +390,7 @@ ${ws.length ? `<h2>In the house</h2><div class="ax-works ax-works-s">${ws.map(w 
   // Their writings: Gutendex by name, every book whose author carries every part of the name; English first.
   async function writingsFor(a, n = 8) {
     const R = app.locals.reading; if (!R || !R.bring) return [];
+    if (require('./asks').paused('https://www.gutenberg.org/ebooks/1')) return [require('./asks').PAUSED_LINE]; // #170
     const parts = norm(a.name).split(' ').filter(p => p.length > 2 && !['van', 'von', 'der', 'den', 'del', 'della'].includes(p)); if (!parts.length) return [];
     const r = await doFetch(`${process.env.GUTENDEX || 'https://gutendex.com'}/books/?search=${encodeURIComponent(a.name)}`); if (!r.ok) return [`gutendex ${r.status}`];
     const j = await r.json(); const out = [];

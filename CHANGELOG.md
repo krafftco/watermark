@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.88.2 · Read the way each source asks · 20 November 2026
+
+- The house asks the Library of Congress for at most ten things a minute, across every job at once, as their own page asks.
+- Every request to the Art Institute of Chicago names the house and its address in the header they ask for. The size of picture the house takes from them is unchanged until we have asked them.
+- Project Gutenberg asks that machines not read its website, and Gutendex asks to be run by those who use it. Until the house moves to the way they offer, nothing is brought in from either: the Studio's desk says so, and every book already on the shelf stays as it is.
+
 ## 1.88.0 · On view at · 20 November 2026
 
 - A maker can say where a work can be seen in person: the place, its street, city and country, the dates, and the place's own web address. The work's page, the maker's page and the work's panel in Wander say it in one line, "On view at …, until …", with who stated it. Set on the work's record, for one work or every work of the maker in a hang at once.

@@ -158,6 +158,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
   // The items of a feed, a page at a time, from the cursor on.
   async function* pages(job) {
     const kind = kindOf(job); const LIM = Math.min(MAX, job.max || MAX);
+    if (kind === 'books' && require('./asks').paused('https://www.gutenberg.org/ebooks/1')) throw new Error(require('./asks').PAUSED_LINE); // Gutenberg is not read by machine (#170)
     if (kind === 'csv' || kind === 'books' || kind === 'documents' || kind === 'guides') {
       const text = job.file ? fs.readFileSync(job.file, 'utf8') : await (async () => { const r = await doFetch(job.url); if (!r.ok) throw new Error(`feed ${r.status}`); return r.text(); })();
       if (kind === 'documents' || kind === 'guides') { const rows = parseCSV(text); const head = (rows.shift() || []).map(h => String(h).trim().toLowerCase()); const items = rows.filter(r => r.some(x => String(x).trim())).map(r => { const o = {}; head.forEach((h, i) => { if (h) o[h] = String(r[i] || '').trim(); }); return kind === 'guides' ? { guide: o, id: `guide:${o.audio || o.work}`, label: o.title || `${o.work}: ${o.speaker || 'a guide'}` } : { doc: o, id: `doc:${o.pdf || o.title}`, label: o.title || o.pdf || '' }; }); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return; }
@@ -165,7 +166,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
       const items = csvItems(text); yield { items: items.slice(+job.cursor || 0, LIM), cursor: null }; return;
     }
     if (kind === 'loc') {
-      // The Library of Congress (loc.gov JSON API: ?fo=json, c= a page, sp= its number; 20 requests a minute): each result with a PDF
+      // The Library of Congress (loc.gov JSON API: ?fo=json, c= a page, sp= its number; one request every 6 s to any loc.gov host, their legal page's 10 a minute, kept by src/asks.js for every job at once): each result with a PDF
       // becomes a document (the text layer read by the document kind); rights from the result's own line.
       const u = new URL(job.url); u.searchParams.set('fo', 'json'); u.searchParams.set('c', '100'); if (!u.searchParams.get('fa')) u.searchParams.set('fa', 'access-restricted:false');
       let sp = +job.cursor || 1, n = 0;
