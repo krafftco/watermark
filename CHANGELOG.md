@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.16 · A museum's work, credited as they ask · 20 November 2026
+
+- A work from a museum's open collection now says whose it is, under its label: "From the collection of The Metropolitan Museum of Art, New York", the museum's own credit line, and their page for the object, one tap away. Before, their page was folded under "For publishers" and their name was missing from the page.
+- The credit to copy is the one each museum asks for: the artist, the title, the date, then the museum and its credit line ("Courtesy National Gallery of Art, Washington" for the Gallery, as the Gallery asks). It no longer puts "The public domain" where the artist goes.
+- An open work's data and its free file no longer claim a copyright or a licence of the house's: the page's search-engine record, the public API, the Watermark panel and the file itself say the licence (CC0, public domain) and the museum's credit, never "All rights reserved".
+- A work the Met gives as "Workshop of" or "Attributed to" keeps those words, and is not hung on the master's wall.
+
 ## 1.88.1 · What the house calls itself · 20 November 2026
 
 - The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.

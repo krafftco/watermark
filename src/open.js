@@ -18,7 +18,13 @@ const credit = (w, maker) => `${tidy(w.title)}, ${maker.name}${w.taken_at ? `, $
 function mountOpen(app, { db, V, mk, originalPath, images, cache, ledger, isStudio, makerOf }) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='open'").get()) db.exec('ALTER TABLE works ADD COLUMN open TEXT');
   const openWorks = () => db.prepare("SELECT w.*, m.name AS maker_name, m.kind AS maker_kind, m.handle FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.open IS NOT NULL ORDER BY m.kind='institution' DESC, m.name, w.stars DESC, w.id DESC").all();
-  app.locals.openOf = w => (w && w.open && OPEN[w.open] ? { key: w.open, ...OPEN[w.open], credit: credit(w, mk(w)) } : null);
+  // A work from a museum's or a library's open collection is credited as that source asks (src/sources.js, #170): the artist,
+  // the title, the date, then the source and its own credit line; never the shelf's name in the artist's place.
+  const artistOf = w => { try { const a = app.locals.art && app.locals.art.ofWork(w); return a ? a.name : null; } catch (e) { return null; } };
+  // No statement for a work with no known source, or whose record names its artist (lists stay one read a page).
+  const S = require('./sources');
+  const sourceCredit = w => { if (!S.of(w)) return null; return S.credit(w, S.field(w, 'Attribution') || S.field(w, 'Artist') ? null : artistOf(w)); };
+  app.locals.openOf = w => { if (!(w && w.open && OPEN[w.open])) return null; const sc = sourceCredit(w); return { key: w.open, ...OPEN[w.open], credit: sc ? `${sc} ${OPEN[w.open].name}` : credit(w, mk(w)) }; };
 
   // The shelf.
   app.get('/open', (req, res) => {
