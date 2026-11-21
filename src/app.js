@@ -55,6 +55,8 @@ function createApp(cfg = {}) {
   C.staging = cfg.staging !== undefined ? !!cfg.staging : process.env.STAGING === '1';
   if (C.staging && /^(sk|rk)_live_/.test(C.stripeKey || '')) { console.error('[staging] a live Stripe key was refused; use test keys in the test house'); C.stripeKey = null; C.stripePk = null; }
   const db = open(path.join(C.dataDir, 'watermark.db'));
+  // (#123) Several copies of the website: who this process is, who is alive, and leases (src/instances.js).
+  const IN = require('./instances').mount({ locals: {} }, { db, cfg, role: require('./role').role });
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renewal_sent_at'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renewal_sent_at TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='renews'").get()) db.exec('ALTER TABLE licenses ADD COLUMN renews TEXT');
   if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='conditions'").get()) db.exec('ALTER TABLE licenses ADD COLUMN conditions TEXT');
@@ -203,6 +205,9 @@ function createApp(cfg = {}) {
   // the copy to the bucket follows in a queue (`works.vaulted` 0 → 1), retried until it lands; an unvaulted original is
   // never trimmed from the local cache; `vaultPending()` runs 20 s after start and every 30 s, so a restart loses nothing.
   if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vaulted'").get()) { db.exec('ALTER TABLE works ADD COLUMN vaulted INTEGER NOT NULL DEFAULT 1'); }
+  // (#123) Which copy of the website holds an unvaulted original on its own disk (src/instances.js ME). Another copy does
+  // not have the file and must not call it lost while that copy is alive: the holder vaults it.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('works') WHERE name='vault_on'").get()) db.exec('ALTER TABLE works ADD COLUMN vault_on TEXT');
   const unvaulted = () => new Set(db.prepare('SELECT original_file FROM works WHERE vaulted=0').all().map(r => r.original_file));
   let vaulting = false;
   const vaultState = { lastError: null, lastErrorAt: null, lastOkAt: null, lost: [] }; // told on /healthz `vault`
@@ -213,6 +218,7 @@ function createApp(cfg = {}) {
       for (const w of db.prepare('SELECT * FROM works WHERE vaulted=0 ORDER BY id LIMIT 50').all()) {
         const p = path.join(originals, w.original_file);
         if (!fs.existsSync(p)) {
+          if (w.vault_on && w.vault_on !== IN.ME && IN.alive(w.vault_on)) continue; // (#123) on another copy's disk: that copy vaults it
           // Not on disk: perhaps the bucket already has it (a put that landed as the process died); else the only copy
           // is gone, and the work goes off view for conservation with the finding, never a 500 on its picture.
           const inBucket = await store.size('originals/' + w.original_file).catch(() => null);
@@ -327,8 +333,11 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     const end = u.term_months ? new Date(start.getTime()) : null;
     if (end) end.setUTCMonth(end.getUTCMonth() + u.term_months);
     const token = u.kind === 'print' ? null : nanoid(32);
-    db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=?")
+    // (#123) The claim: only the call that moves the licence to active goes on. Several copies of the website (and the
+    // worker's settleAll) may grant one ref at the same moment: Stripe's webhook on one, the buyer's return on another.
+    const claimed = db.prepare("UPDATE licenses SET status='active', starts_at=?, ends_at=?, download_token=?, price_cents=COALESCE(?, price_cents), updated_at=datetime('now') WHERE ref=? AND status<>'active'")
       .run(start.toISOString(), end ? end.toISOString() : null, token, extra.price_cents ?? null, ref);
+    if (!claimed.changes) return q.lic.get(ref);
     // The house's part of what was paid (FEE_SIDE=collector): recorded at the sale when the price was built, else here:
     // a maker's fee paid through a link arrives above the fee named (the difference is the house's), anything else by the rule.
     if (FEE.on() && extra.paid && l.house_cents == null) {
@@ -394,6 +403,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       if (dupe.vaulted === 0 && dupe.original_file && !fs.existsSync(home)) {
         try { fs.renameSync(file, home); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, home); fs.unlinkSync(file); }
         if (dupe.status === 'restoring' && app.locals.conservation) app.locals.conservation.backOnView(dupe);
+        db.prepare('UPDATE works SET vault_on=? WHERE id=?').run(IN.ME, dupe.id); // (#123) the file is on this copy's disk now
         setTimeout(() => vaultPending().catch(() => {}), 50).unref();
         const back = q.work.get(dupe.slug); back.cameHome = true; return back;
       }
@@ -413,8 +423,8 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try { fs.renameSync(file, dest); } catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(file, dest); fs.unlinkSync(file); }
     const vaultLater = store.kind === 's3' && !cfg.vaultNow && process.env.VAULT_NOW !== '1'; // VAULT_NOW=1 (a house without a disk): the original is in the bucket before the record is made; // the copy to the bucket follows in the background (vaultPending)
     if (!vaultLater) await store.put('originals/' + path.basename(dest), dest, /\.png$/.test(ext) ? 'image/png' : /\.tiff?$/.test(ext) ? 'image/tiff' : 'image/jpeg');
-    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1);
+    db.prepare(`INSERT INTO works (maker_id,slug,title,caption,place,taken_at,camera,lens,width,height,original_file,sha256,source_url,vaulted,vault_on)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(owner.id, slug, title, caption || null, place || null, info.taken_at, info.camera, info.lens, info.width, info.height, path.basename(dest), info.sha256, source_url || null, vaultLater ? 0 : 1, vaultLater ? IN.ME : null);
     if (vaultLater) setTimeout(() => vaultPending().catch(() => {}), 50).unref();
     const nw = q.work.get(slug);
     const kindOk = kind && require('./object').KINDS[kind] ? kind : 'photograph';
@@ -439,6 +449,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.locals.mark = markApi; app.locals.fee = FEE;
   app.locals.quality = QUALITY; app.locals.downloadsOf = dlOf; app.locals.ladder = ladder;
   app.disable('x-powered-by');
+  app.locals.instances = IN; // (#123)
   // Kept answers (9 Nov, the scale test: the website's time went to the same counts and lists asked again by every
   // visitor). `kept(key, ms, fn)`: fn's answer held ms; nothing is kept under test, where pages are read the moment
   // after a change.
@@ -483,7 +494,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   async function ensureVaultCors() { if (!store.ensureCors) return; try { app.locals.vaultCors = await store.ensureCors([C.base.replace(/\/$/, '')]); } catch (e) { app.locals.vaultCors = 'error: ' + e.message.slice(0, 80); } console.log('[vault] cors', app.locals.vaultCors); }
   if (!cfg.noTimers && store.kind === 's3' && ROLE.chores) { setTimeout(ensureVaultCors, 10e3).unref(); setInterval(ensureVaultCors, 6 * 3600e3).unref(); }
   app.locals.ensureVaultCors = ensureVaultCors;
-  if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => registerDomain().then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
+  if (!cfg.noTimers && !cfg.stripeClient) setTimeout(() => (IN.lease('stripe-domain', 10 * 60e3) ? registerDomain() : Promise.resolve(null)).then(d => { if (d) console.log('[stripe] domain', d.domain_name, d.enabled ? 'enabled' : 'not enabled', 'apple', d.apple_pay && d.apple_pay.status, 'google', d.google_pay && d.google_pay.status, 'link', d.link && d.link.status); }).catch(e => console.error('[stripe] domain', e.message)), 30e3).unref();
   app.get('/.well-known/tdmrep.json', (req, res) => res.json([{ location: '/*', 'tdm-reservation': 1, 'tdm-policy': `${C.base}/terms` }]));
   // Everything text leaves compressed; the browser keeps static files a year by version, images an hour.
   app.use(require('compression')({ threshold: 1024 }));
@@ -1444,7 +1455,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.collectFor = collectFor;
   app.locals.edge = EDGE;
   // After a boot the edge may still be handing out the cold page it cached during the restart: clear it once the house is up (27 Oct).
-  if (!cfg.noTimers && EDGE.on()) setTimeout(() => EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
+  if (!cfg.noTimers && EDGE.on()) setTimeout(() => IN.lease('edge-boot', 2 * 60e3) /* (#123) once a deploy, not once a copy */ && EDGE.everything().then(id => console.log('[edge] cleared after boot', id || 'refused')), 25e3).unref();
   // The digest, read now (27 Oct): the morning letter as it would go, and the alarm sent by hand.
   // (20 Nov) The digest is composed from the same report as the numbers desk: shut on the website with it.
   app.use(['/studio/digest', '/studio/digest/send', '/studio/digest/alarm'], studioOnly, (req, res, next) => { const A = app.locals.analytics; if (!A || !A.shut || !A.shut('7d')) return next(); /* (#114) open on the website when the worker's 7-day report is fresh */ if (req.method === 'GET') return res.type('text/plain').send(A.SHUT_WORDS); res.redirect('/studio?ok=' + encodeURIComponent('The digest waits for the numbers: there is no recent set from the back room.')); });
@@ -1600,7 +1611,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (out.length && maker.email) mail.send({ to: maker.email, subject: `${out.length} letter${out.length === 1 ? '' : 's'} sent again`, text: `The house's mail was refused from the evening of 17 October until this afternoon, so these collectors never had their letters. Each has now been sent again:\n\n${out.join('\n')}\n\nWatermark` });
   }
   if (process.env.NODE_ENV !== 'test') GOV.boot('letters again', () => lettersAgain());
-  if (process.env.NODE_ENV !== 'test') { setTimeout(() => settleAll().catch(() => {}), 20e3).unref(); setInterval(() => settleAll().catch(() => {}), 5 * 60e3).unref(); }
+  // (#123) Every process ran this; now the one holding the lease 'timer:settle' does (grant's claim makes a second harmless).
+  if (process.env.NODE_ENV !== 'test') { const settleOne = IN.pinned('settle', 5 * 60e3, () => settleAll().catch(() => {})); setTimeout(settleOne, 20e3).unref(); setInterval(settleOne, 5 * 60e3).unref(); }
   // The Journal: Krafft Studios writes, Watermark shows. Every Studios article tagged "watermark"
   // (news, art history, patronage) appears here, linked back to Studios where it was published.
   let journal = { at: 0, posts: [] };
@@ -2850,7 +2862,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const given = String(req.get('x-health-key') || req.query.key || '');
     const full = (key && given && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) || isStudio(req);
     const { unvaulted, works } = app.locals.kept('healthz-counts', 30e3, () => ({ unvaulted: db.prepare('SELECT COUNT(*) n FROM works WHERE vaulted=0').get().n, works: db.prepare("SELECT COUNT(*) n FROM works WHERE status IN ('held','hidden','restoring')").get().n }));
-    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, prepared: app.locals.prepared ? app.locals.prepared.state() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false };
+    const brief = { ok: true, ver: (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || null, db: db.kind || 'sqlite', role: ROLE.role, worker: workerState(), chores: GOV.chores(), showing: !!(app.locals.beta && app.locals.beta.showing && app.locals.beta.showing()), up: Math.round(process.uptime()), mem: (m => ({ rssMB: Math.round(m.rss / 1048576), heapMB: Math.round(m.heapUsed / 1048576), heapLimitMB: Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576), lineMB: GOV.webLineMb, over: GOV.over() }))(process.memoryUsage()), faults: process.faults ? { rejections: process.faults.rejections, exceptions: process.faults.exceptions } : undefined, ledger: ledger.verify(db).ok, works, vault: { unvaulted, lost: vaultState.lost.length }, disk: (f => f == null ? null : { freeGB: Math.round(f / 1e8) / 10, low: f < DISK_FLOOR })(images.free(C.dataDir)), copies: app.locals.copies ? app.locals.copies.counts() : undefined, prepared: app.locals.prepared ? app.locals.prepared.state() : undefined, renditions: images.pushState && (images.pushState.on || images.pushState.at) ? { on: images.pushState.on, looked: images.pushState.looked, put: images.pushState.put, failed: images.pushState.failed, done: images.pushState.done } : undefined, mail: mail.on(), stripe: stripe ? (/^[sr]k_live_/.test(C.stripeKey || '') ? 'live' : 'test') : false, instance: IN.ME, instances: (() => { try { return app.locals.kept('healthz-instances', 15e3, () => IN.live().filter(x => x.role === 'web').length); } catch (e) { return null; } })() }; /* (#123) which copy answered, and how many copies of the website are alive */
     res.set('Cache-Control', 'no-store');
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.

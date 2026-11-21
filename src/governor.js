@@ -52,7 +52,7 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   function boot(label, fn, ms = 0, { always = false } = {}) { // always: a web process's own housekeeping (its renditions), run whatever the role or the showing
     if (quiet()) return;
     const at = Math.max(ms, bootQuietS * 1000 + boots.length * bootGapS * 1000); boots.push(label);
-    setTimeout(() => { if (!chores() && !always) { if (ROLE.chores) console.log(`[governor] ${label} skipped: chores held`); return; } bootChain = bootChain.then(async () => { booting = label; try { await fn(); } catch (e) { console.error(`[${label}]`, e && e.message || e); } finally { booting = null; } await settle(label); }); }, at).unref();
+    setTimeout(() => { if (!chores() && !always) { if (ROLE.chores) console.log(`[governor] ${label} skipped: chores held`); return; } bootChain = bootChain.then(async () => { booting = label; const t0 = Date.now(), r0 = rssMb(); if (ROLE.chores) console.log(`[boot] ${label} begins at ${r0} MB`); /* a chore the process does not survive is named by its beginning */ try { await fn(); } catch (e) { console.error(`[${label}]`, e && e.message || e); } finally { booting = null; /* (20 Nov) each start-up chore says how long it took and what it did to the memory: the worker was ended for memory every seven minutes for three days and no line said which chore */ if (ROLE.chores) console.log(`[boot] ${label}: ${Date.now() - t0} ms, ${r0} to ${rssMb()} MB`); } await settle(label); }); }, at).unref();
   }
   const state = () => ({ rss: rssMb(), limit: memMb, hard: hardMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
@@ -66,6 +66,18 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
   // brings it back fresh with its queues resumed from the database. Never on the web, which serves people.
   const hardMb = +process.env.GOV_MEM_HARD_MB || (boxMb() ? Math.round(boxMb() * 0.85) : 1700);
   let hardSince = 0, hardHeld = false;
+  // (20 Nov) The memory's own line: on a process that does the chores, a rise of GOV_MEM_JUMP_MB (150) inside five
+  // seconds is logged at once with what was running: the lane, the start-up chore, the last large answers from the
+  // database and what the process holds outside the heap (pictures are decoded there). Read once a second: the worker
+  // went from 275 to 769 MB in one second, between two chores, and nothing said why.
+  if ((ROLE.worker || ROLE.scribe) && !quiet()) { const jump = +process.env.GOV_MEM_JUMP_MB || 150; const seen = []; let told = 0;
+    setInterval(() => {
+      const now = Date.now(), r = rssMb(); seen.push([now, r]); while (seen.length && now - seen[0][0] > 5000) seen.shift();
+      if (r - seen[0][1] < jump || now - told < 5000) return; told = now;
+      const m = process.memoryUsage(); let bigs = []; try { bigs = require('./pgsync').big().filter(b => now - b.at < 60e3).map(b => `${b.mb} MB ${b.sql}`); } catch (e) { /* SQLite */ }
+      let hands = ''; try { const C = app.locals.copies; hands = C && C.inHand ? C.inHand().join(',') : ''; } catch (e) { /* none */ }
+      console.error(`[mem] ${seen[0][1]} to ${r} MB in ${Math.round((now - seen[0][0]) / 1000)} s; heap ${Math.round(m.heapUsed / 1048576)}, outside ${Math.round(m.external / 1048576)}, buffers ${Math.round((m.arrayBuffers || 0) / 1048576)} MB; lane ${holder || 'free'}; chore ${booting || 'none'}; scribes ${hands || 'idle'}; large answers: ${bigs.join(' | ') || 'none'}`);
+    }, 1000).unref(); }
   if ((ROLE.worker || ROLE.scribe) && !quiet()) setInterval(() => {
     const r = rssMb();
     if (r < hardMb) { if (hardHeld) { hardHeld = false; console.log(`[governor] memory back under the line (${r} MB)`); } hardSince = 0; return; }

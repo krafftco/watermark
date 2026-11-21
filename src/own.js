@@ -266,7 +266,7 @@ ${done.length ? `<h2>Registered, filed, prepared${counts.reg + counts.grouped > 
   });
   function askPaid(id, s) {
     const a = db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(Number(id)); if (!a || a.paid || (s && a.stripe_session !== s.id) || (s && s.payment_status !== 'paid')) return a;
-    db.prepare("UPDATE copyright_asks SET paid=1, status='asked' WHERE id=?").run(a.id);
+    if (!db.prepare("UPDATE copyright_asks SET paid=1, status='asked' WHERE id=? AND COALESCE(paid,0)=0").run(a.id).changes) return db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(a.id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, 'copyright.asked', `ask-${a.id}`, { maker: mk(a.maker_id).handle, works: JSON.parse(a.works).length, groups: a.groups });
     const m = mk(a.maker_id);
     mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Copyright filing asked: ${m.name}`, text: `${m.name} asks the house to register ${JSON.parse(a.works).length} work(s) in ${a.groups} group(s), paid ${money(a.cents)}.\n\n${C.base}/studio/copyright` }).catch(() => {});

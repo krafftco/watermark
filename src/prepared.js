@@ -43,6 +43,7 @@ const MAX = () => num('PREPARED_MAX', 3000);
 const PER_ROUND = () => num('PREPARED_PER_ROUND', 40);
 const MEM_MB = () => num('PREPARED_MEM_MB', 64);
 const BODIES = 50; // bodies read in one question by the website's poll
+const LAG_MS = 30e3; // how far back each poll looks again (clocks of several processes; a late commit)
 // What a copy tells a cache in front (the edge, today CachingDisabled for pages): the browser always asks again
 // (max-age=0, so a person who signs in never sees their own browser's stranger copy); a shared cache may keep it EDGE_S.
 const EDGE_S = () => num('PREPARED_EDGE_S', 60);
@@ -119,10 +120,16 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
   async function sync() {
     if (polling) return 0; polling = true; let n = 0;
     try {
+      // (#150) Rows are written by more than one process (the worker's copies; a website's `forget`), each stamping `at`
+      // by its own clock, and a row can commit after a later stamp was read. So every poll reads again the last LAG_MS
+      // before its mark (keys and stamps only) and takes only what it has not already taken.
+      let cur = { at: Math.max(0, mark.at - LAG_MS), k: '' }, top = mark.at;
       for (let page = 0; page < 50; page++) {
-        const rows = await ask().all('SELECT k, at, made, work_id, maker, gone FROM prepared_pages WHERE (at, k) > (?, ?) ORDER BY at, k LIMIT 500', mark.at, mark.k);
+        const rows = await ask().all('SELECT k, at, made, work_id, maker, gone FROM prepared_pages WHERE (at, k) > (?, ?) ORDER BY at, k LIMIT 500', cur.at, cur.k);
         for (const r of rows) {
-          const at = Number(r.at); mark = { at, k: r.k }; n++;
+          const at = Number(r.at); cur = { at, k: r.k }; if (at > top) top = at;
+          const ix = index.get(r.k); if (Number(r.gone) ? !ix && !mem.has(r.k) : ix && ix.at === at) continue; // already taken
+          n++;
           if (Number(r.gone)) { index.delete(r.k); drop(r.k); continue; }
           index.set(r.k, { at, made: Number(r.made), workId: r.work_id ? Number(r.work_id) : null, maker: r.maker || null });
           // a body changed is read again; a new one is read while there is room (the doors always)
@@ -130,6 +137,7 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
         }
         if (rows.length < 500) break;
       }
+      mark = { at: top, k: '' };
       // the bodies, BODIES a question, the doors first; what is left waits for the next poll
       const all = [...want].filter(k => index.has(k)).sort((a, b) => FIXED.includes(b) - FIXED.includes(a)); want.clear();
       for (let i = 0; i < all.length && i < BODIES * 4; i += BODIES) {
@@ -276,11 +284,14 @@ function mountPrepared(app, { db, V, C, cfg = {} }) {
     try { tomb(key); } catch (e) { /* a write the round repeats */ }
   }
 
+  // (#150) The round runs on one process of the house: whichever holds the lease `timer:prepared` (instances.js), so
+  // two workers never make the same copies twice; if that process ends, the lease runs out and another takes it.
+  const tick = () => (app.locals.instances ? app.locals.instances.pinned('prepared', ROUND_MS(), () => round()) : () => round())();
   if (on && !cfg.noTimers && !test) {
     if (ROLE.web) { setTimeout(sync, 500).unref(); setInterval(sync, POLL_MS()).unref(); }
-    if (ROLE.chores) { setTimeout(round, 15e3).unref(); setInterval(round, ROUND_MS()).unref(); }
+    if (ROLE.chores) { setTimeout(tick, 15e3).unref(); setInterval(tick, ROUND_MS()).unref(); }
   }
-  app.locals.prepared = { serve, sync, round, make, forget, isPerson, doorOf, doorOfPath, state: () => ({ on, ...state, inMemory: mem.size, memMB: Math.round(bytes / 1048576 * 10) / 10, indexed: index.size }), on: () => on };
+  app.locals.prepared = { serve, sync, round, tick, make, forget, isPerson, doorOf, doorOfPath, state: () => ({ on, ...state, inMemory: mem.size, memMB: Math.round(bytes / 1048576 * 10) / 10, indexed: index.size }), on: () => on };
   return app.locals.prepared;
 }
 

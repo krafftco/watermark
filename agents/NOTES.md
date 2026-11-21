@@ -15,6 +15,15 @@ The CTO session keeps it honest.
   (`scripts/engine.js`; iPad (gen 7), iPad Mini, iPhone 13 from Playwright's `devices`). Here `WM_ENGINE=webkit` prints
   one line and exits 0; in CI a missing WebKit fails. Its findings come back as annotations titled `… webkit`
   (`scripts/engine-findings.js`, ≤1500 chars each, 10 a level a step) and whole in the job's `webkit-findings` artifact.
+- The reach walk calls a finding only when a second look agrees (#109): each door (a page at a size as a person, or one
+  edge of the presses) found with anything is visited again once in a fresh page; what one look of two saw is `flaky`,
+  kept in REACH_JSON and raised as notices (`reach webkit flaky`), never an error. A door that throws (a navigation under
+  the walk, a press that cannot be brought into view in 8 s) is a finding of kind `error`, looked at twice the same way.
+  Each finding carries `diag` (Wander's classes, running animations, opacity, ms since load) and an invisible control is
+  re-read 1.5 s later (`STILL`/`no longer invisible`): read those before calling a WebKit finding a flake or a fault.
+  Playwright's WebKit is not on this machine: a lab is a temporary job in test.yml on your PR (dispatch more runs with
+  `gh api -X POST repos/krafftco/watermark/actions/workflows/test.yml/dispatches -f ref=<branch>`). A PR that conflicts
+  with `next` runs no CI at all: merge `next` in when `mergeable_state` is `dirty`.
 - WebKit in CI (#55): the job takes ~13 min (reach ~10). Playwright's WebKit does not let `route()` stand in for requests
   that go through the house's service worker, and the worker claims the page at once: a test that stubs answers runs
   with `serviceWorkers: 'block'`. WebKit likely holds Wander in its arrival state (bar hidden, pointer-events none,
@@ -31,7 +40,7 @@ The CTO session keeps it honest.
 - `gh api` (REST) only. Issues, comments, pulls: `gh api -X POST repos/krafftco/watermark/…`. Bodies from a file: `-F body=@file`.
 - CI runs on pull requests, on `next` and on `main`. Its logs cannot be read; a failed job's reason is in
   `gh api repos/krafftco/watermark/check-runs/<job id>/annotations`. A job that fails must publish why as an annotation.
-- Jobs: `test`, `postgres`, `load`, `a11y` (also runs `test/wayback.js`), `reach`, `reach-webkit`. All must be green before `main` moves (promote.yml names each in `NEEDS`; rename one, rename it there).
+- Jobs: `test`, `postgres`, `load`, `scale`, `scale-postgres` (#116, about 3 min), `a11y` (also runs `test/wayback.js`), `reach`, `reach-webkit`. All must be green before `main` moves (promote.yml names each in `NEEDS`; rename one, rename it there).
 - `public/sw.js`'s `V` is bumped by almost every change, so it conflicts on merge almost every time. That is expected;
   the CTO session resolves it. Do not rebase to chase it.
 - `[skip render]` in a commit message stops the host deploying THAT push. If such a commit is the newest one when `main`
@@ -119,6 +128,26 @@ The CTO session keeps it honest.
 - Someone's `/tmp/wm-*` sweep removed a running house's folder here once (16 Nov): the walk writes its result beside
   the folder, and a vanished folder is said in the log.
 
+- The gate on Postgres (#116): `BIG_PG='postgres://postgres@localhost:5433/postgres?host=/tmp' node scripts/big-house.js`
+  (start the local server first: "This machine"). It builds on SQLite, moves the house into a fresh `wm_big_<pid>` by
+  `scripts/to-postgres.js`, VACUUM ANALYZEs, runs the worker's round and walks through the bridge, then EXPLAINs every
+  statement over a line (`BIG_PLANS=x.md`) and drops the database. At 100,000 works here: build 19 s, move 70 s
+  (3.95 M rows), walk 46 s, about 3.5 min all told. `BIG_KEEP=1` keeps folder and database (drop it yourself).
+  Judged by `ALLOW_PG`, apart from the SQLite `ALLOW`. The fixture needs BIG_WORKS ≥ 90,000 (its rooms and applause
+  assume it); below that the build fails on a key.
+- Times through the bridge are the time the thread was held (round trip and JSON included): expect 2–5× the SQLite
+  figure for the same statement, and far more for anything that sorts or counts DISTINCT over many rows.
+- The visit log decides the numbers desk's cost. Its statements (COUNT(DISTINCT visitor) by device, browser, country,
+  path; the /w/ paths joined on substr) at 30 days, Postgres 16 defaults here: 3 M hits a month 1.3–1.6 s each,
+  10 M 3.4–5.6 s, 30 M about 12 s (live measured 9–13 s, 20 Nov). Growing `hits` in a kept database by SQL is faster
+  than rebuilding (generate_series; cast g to bigint before multiplying).
+- `BIG_READ` (4 MB a page, summed over statements) catches a list that reads whole text bodies; `rssMB` in BIG_JSON
+  shows how far the process grew on a page (not judged: the garbage collector makes it noisy).
+- At 1,000,000 works: build 2 min (4.3 GB of SQLite), move 4.5–7 min (11.4 M rows), worker's round 25–76 s, walk
+  80–110 s; 17–27 min all told, about 13 GB of disk while it runs. Since #120 the walk reads the numbers the worker kept
+  (as live); `BIG_NUMBERS_DESK=1` walks the website making its own report. The gate times the bridge only: a question
+  on the async path (`adb`, #117) holds no thread and is not counted.
+
 ## The async path (#117, docs/SCALE.md stage 2)
 - `app.locals.adb.get/all/run(sql, ...params)` are promises: a `pg` Pool beside the bridge on Postgres, the same
   better-sqlite3 connection on SQLite. Same SQL, same dialect, same row shape as the bridge. `scripts/sql-check.js`
@@ -176,6 +205,21 @@ The CTO session keeps it honest.
 - Fix what is certain and shared; file the rest as issues, one per cause. Do not widen your job.
 - Changes on a visitor's path, to pictures, to sign-in or to money are read by the `reviewer` seat before they merge.
   Expect it to try the case you did not test.
+
+## Several copies of the website (#123, docs/SCALE.md "Stage 2: several copies")
+- The website runs as N instances on Render. Anything a request starts must finish on any copy; anything a timer does
+  must be done once. A new timer on the web role: `app.locals.instances.pinned(name, every, fn)`, or claim each row
+  (`UPDATE … WHERE status=<from>` and act only when `.changes` is 1). Money also gets a lease (`withLease`) and a
+  Stripe idempotency key. A Map in the process is a cache, a limiter or a bug: say which in docs/SCALE.md.
+- A file on a copy's disk is that copy's alone (no shared disk): record the copy (`IN.ME`) on the row, and let other
+  copies skip it while `alive(holder)`.
+- `test/instances.js` (CI's postgres job) forks two `ROLE=web` processes (test/instances-copy.js) that share Stripe and
+  the bucket through files; ask a copy over IPC (`c.call('payouts.pay', row)`, `c.sql(...)`). Locally it needs a fresh
+  database each run (`CREATE DATABASE`), about a minute. Negative proof: remove a claim and it fails in words.
+- `scripts/copies.js` (needs an empty Postgres): N copies of server.js behind a round-robin (or `COPIES_BALANCE=least`)
+  with load.js through it; `COPIES_HOLD=1` holds copy 0 with pg_sleep through a preload (scripts/copies-hold.js).
+  Never `spawnSync` a client of a server that lives in your own process: the server stops answering.
+- An INSERT through the bridge gets its RETURNING from dialect.js: take the id from `.run(...).lastInsertRowid` (the same on both engines).
 
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
