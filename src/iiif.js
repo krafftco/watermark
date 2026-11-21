@@ -100,7 +100,7 @@ const isMet = url => /^https:\/\/collectionapi\.metmuseum\.org\//.test(url);
 function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images, ledger, DEFAULT_USES = [] }) {
   try { db.exec('ALTER TABLE works ADD COLUMN rights_note TEXT'); } catch (e) { /* has it */ }
   const { esc } = V;
-  const doFetch = (...a) => (fetchImpl || fetch)(...a);
+  const doFetch = require('./asks').wrap((...a) => (fetchImpl || fetch)(...a), { noTimers: () => !!app.locals.noTimers }); // each source's asks (#170)
   db.exec(`CREATE TABLE IF NOT EXISTS iiif_imports (id INTEGER PRIMARY KEY, maker_id INTEGER NOT NULL, url TEXT NOT NULL, label TEXT, status TEXT NOT NULL DEFAULT 'queued',
     n INTEGER NOT NULL DEFAULT 0, done INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, open TEXT, show INTEGER NOT NULL DEFAULT 0,
     note TEXT, at TEXT NOT NULL DEFAULT (datetime('now')), finished_at TEXT)`);

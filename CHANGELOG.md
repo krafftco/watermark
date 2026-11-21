@@ -15,6 +15,11 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 ## 1.88.1 · What the house calls itself · 20 November 2026
 
 - The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.
+## 1.88.2 · Read the way each source asks · 20 November 2026
+
+- The house asks the Library of Congress for at most ten things a minute, across every job at once, as their own page asks.
+- Every request to the Art Institute of Chicago names the house and its address in the header they ask for. The size of picture the house takes from them is unchanged until we have asked them.
+- Project Gutenberg asks that machines not read its website, and Gutendex asks to be run by those who use it. Until the house moves to the way they offer, nothing is brought in from either: the Studio's desk says so, and every book already on the shelf stays as it is.
 
 ## 1.88.0 · On view at · 20 November 2026
 

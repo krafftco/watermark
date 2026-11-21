@@ -2099,6 +2099,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   }
   console.log('ok: the inbox');
   console.log('ok: the Listening Room');
+  process.env.GUTENBERG_OPEN = '1'; // #170: the bring path as it runs once Will has chosen a way Gutenberg offers (paused otherwise: test/asks.js)
   { // The public domain: a Gutenberg book brought in (the boilerplate cut, the chapters found) and read in the reading room.
     const prev = app.locals.__fetch;
     const raw = ['The Project Gutenberg eBook of The Long Walk', '', '*** START OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'Produced by Someone', '', 'THE LONG WALK', '', 'By A. Walker', '', 'CHAPTER I.', '', 'It was a long walk, and the road was ' + 'dusty '.repeat(120) + '.', '', 'The second paragraph went on.', '', 'CHAPTER II. THE RIVER', '', 'Water, at last. ' + 'More water. '.repeat(100), '', '*** END OF THE PROJECT GUTENBERG EBOOK THE LONG WALK ***', '', 'License text that is not the book.'].join('\n');
@@ -2193,6 +2194,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/library'); assert.ok(/Photo books/.test(r.body), 'the Library knows the kind');
     app.locals.__fetch = prev;
   }
+  delete process.env.GUTENBERG_OPEN;
   { // Find across everything (24 Oct): books and records answer too.
     app.locals.findIndexDirty(); r = await req(port, 'GET', '/api/find?q=long+walk'); const fj = JSON.parse(r.body); assert.ok(fj.books && fj.books.some(b => /Long Walk/.test(b.name) && /\/read\//.test(b.href)), 'a book found: ' + JSON.stringify(fj.books));
     r = await req(port, 'GET', '/api/find?q=got+fun'); const fr = JSON.parse(r.body); assert.ok(fr.records && fr.records.some(x => /Got Fun/.test(x.name) && /\/listening\//.test(x.href)), 'a record found');
