@@ -208,11 +208,16 @@ jobs:
           NODE_ENV=test WAYBACK_JSON=/tmp/wayback-webkit.json node test/wayback.js > /tmp/wayback-webkit.txt 2>&1 || rc=$?
           sed 's/^::/: :/' /tmp/wayback-webkit.txt
           node scripts/engine-findings.js wayback /tmp/wayback-webkit.json /tmp/wayback-webkit.txt $rc
+      # The breaks walk (#149): a room throws, a limit fires, the house stops mid-visit; photographs in the artifact.
+      - if: (success() || failure()) && steps.install.outcome == 'success'
+        run: NODE_ENV=test BREAKS_SHOTS=/tmp/breaks-webkit node scripts/breaks-walk.js
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: webkit-findings
-          path: /tmp/*-webkit.*
+          path: |
+            /tmp/*-webkit.*
+            /tmp/breaks-webkit/
           if-no-files-found: ignore
   postgres:
     runs-on: ubuntu-24.04

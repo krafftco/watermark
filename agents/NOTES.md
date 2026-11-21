@@ -86,6 +86,16 @@ The CTO session keeps it honest.
 - **A worker's `rm -rf /tmp/wm-*` broke another's test run** (12 Nov). See "This machine".
 - **A test's last line is not its result.** Read the exit code; a stray line after teardown fooled a merge check (14 Nov).
 
+- **A bare status a person met** (20 Nov, #149). `res.sendStatus` is the house's own for every room (`app.response` in
+  `src/breaks.js`, so order of mounting does not matter): a navigation (`Sec-Fetch-Mode: navigate`, any method) gets the
+  sign, a script (`/api/`, `Sec-Fetch-Dest: empty`, JSON asked) gets `{ok:false, code, why, error}`, an image or file its
+  status. A room that catches its own error answers `res.fault(e)` / `res.fault(e, 503)`, never `sendStatus(500)`: the
+  fault is kept with its room and its copy (`instance`, src/instances.js ME) in `app.locals.lastFault` and `recentFaults`
+  (Studio's /healthz; per process, so ask each copy) and a `[break] <instance> …` line. src/adb.js marks its 57014 like
+  the bridge does (`status 503`, `limit`, `sql`).
+  Every word on a break page is in `COPY` there. The one-moment page is `/static/cold.html` (self-contained; the edge's
+  copy is uploaded by `scripts/edge-page.js`); `scripts/breaks-walk.js` stops a house mid-visit behind a stand-in edge.
+
 ## The scale gate (#8)
 - `node scripts/big-house.js` builds a house of 100,000 works from rows (about 10 s here: real pictures for six works,
   every other row a clone pointing at their files) and walks every room once as visitor, maker `mk`, museum `museum-a`

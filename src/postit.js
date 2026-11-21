@@ -102,7 +102,7 @@ function mountPostIt(app, { db, V, images, cache, originalPath }) {
       res.set('Cache-Control', w.zone === 'mature' || st.key === 'mine' ? 'private, max-age=600' : 'public, max-age=600');
       if (req.query.dl) res.set('Content-Disposition', `attachment; filename="${String(V.tidy ? V.tidy(w.title) : w.title).replace(/[^\w .,'-]+/g, ' ').trim() || 'Watermark'} (placard).jpg"`);
       res.type('image/jpeg').sendFile(f);
-    } catch (er) { console.error('[placard]', w.slug, er.message); res.sendStatus(500); }
+    } catch (er) { console.error('[placard]', w.slug, er.message); res.fault(er); }
   });
 
   app.get(['/w/:slug/post.jpg', '/w/:slug/story.jpg'], async (req, res) => {
@@ -115,7 +115,7 @@ function mountPostIt(app, { db, V, images, cache, originalPath }) {
       res.set('Cache-Control', w.zone === 'mature' ? 'private, max-age=3600' : 'public, max-age=3600');
       if (req.query.dl) res.set('Content-Disposition', `attachment; filename="${name}"`);
       res.type('image/jpeg').sendFile(f);
-    } catch (er) { console.error('[post it]', kind, w.slug, er.message); res.sendStatus(500); }
+    } catch (er) { console.error('[post it]', kind, w.slug, er.message); res.fault(er); }
   });
   // The link in bio (5 Nov): watermark…/@handle, the one address a maker puts on Instagram. Made for the phone that
   // taps it from a profile: their face, their name, one line, Wander their work, the work itself, and the doors
