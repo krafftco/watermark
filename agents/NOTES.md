@@ -231,6 +231,14 @@ The CTO session keeps it honest.
   Never `spawnSync` a client of a server that lives in your own process: the server stops answering.
 - An INSERT through the bridge gets its RETURNING from dialect.js: take the id from `.run(...).lastInsertRowid` (the same on both engines).
 
+## The market's rules (#165)
+- Who may see a past price is asked once: `app.locals.market.who(req, w)` → `{ all }` for the Studio and the work's maker,
+  `{ own: Set of licence ids }` for a holder. `market.asked(p)` is what a stranger may know of `priceOf` (the ask). Any new
+  surface that draws a sale price, a total, a line or a value goes through it; test it as a stranger, a holder, the maker.
+- A size or a price with a sale goes through `src/rules-of-trade.js` (`size`, `price`), never `Math.max(want, sold)`.
+- `market.holdOf(licence)` is the holding time; a listing is made at `/yours/offer` and by accepting an offer
+  (`/yours/offers/:id/accept`): both check it. `src/trade.js` is the trade desk (picture editors), not the market.
+
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
   go through `src/outline.js` (and `outline-n1.js` for one day's old places). `app.locals.bookNotes.note(slug, n)`.
@@ -249,3 +257,14 @@ The CTO session keeps it honest.
   naming one; a clash shows only as a 500 on another room (test/menus.js found it). What the house offers on a work is
   decided in one place, `listed()`/`offered()` in app.js: a key closed there (as `viewClosed`, `clearClosed`) closes
   the page, /buy, /license, the print editions and Wander's Collect at once.
+
+## The sources (#170, docs/SOURCES.md)
+- WebFetch reaches a museum's terms page only if a WebSearch result named that address first; search, then fetch the
+  result's link. Several sites fail from here (si.edu terms, nga.gov terms, Commons' reuse page, Gutenberg's licence
+  pages: their robots file cannot be read). Write "not read"; never fill a term from memory.
+- Bash cannot reach the museums' APIs or the live house. A walk of a museum's work page is done in process: the item in
+  the importer's own shape through `app.locals.iiif.take` (each item a different picture, or the fingerprint skips it).
+- An open work is shown through forms made for a photographer's own work (the deed, "the maker says never", the thank-you
+  card, the guest book, the JSON-LD, the file's XMP). Any change to those forms: check an open museum work too
+  (test/sources.js has one from the Gallery and one from the Met).
+- A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.

@@ -5,6 +5,29 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
+
+The trade's rules, kept by the house:
+- An edition is never enlarged once a piece of it has sold. Its size can stay, or be made smaller down to what is sold; never larger, and a numbered edition is never opened again. The same for the maker and for the Studio, on prints and on numbered works, and the register says when a size changes.
+- A print's price is never lowered once one has sold at it. It can stay or rise, and so can its framed price.
+- No public list of prices. Anyone can see what collectors offer and what they ask. What a piece sold for, the totals, the line of prices and the value of a collection are shown only to the maker of the work, to the person who holds the piece, and to the house.
+- A piece is held for a time after it is sold before it can be offered again (a draft: a year). Its holder is told the day. A gift is not a sale and is never held. The house can lift the time for one piece, with its reason on the register.
+
+A museum's work, credited as they ask:
+- A work from a museum's open collection now says whose it is, under its label: "From the collection of The Metropolitan Museum of Art, New York", the museum's own credit line, and their page for the object, one tap away. Before, their page was folded under "For publishers" and their name was missing from the page.
+- The credit to copy is the one each museum asks for: the artist, the title, the date, then the museum and its credit line ("Courtesy National Gallery of Art, Washington" for the Gallery, as the Gallery asks). It no longer puts "The public domain" where the artist goes.
+- An open work's data and its free file no longer claim a copyright or a licence of the house's: the page's search-engine record, the public API, the Watermark panel and the file itself say the licence (CC0, public domain) and the museum's credit, never "All rights reserved".
+- A work the Met gives as "Workshop of" or "Attributed to" keeps those words, and is not hung on the master's wall.
+
+Read the way each source asks:
+- The house asks the Library of Congress for at most ten things a minute, across every job at once, as their own page asks.
+- Every request to the Art Institute of Chicago names the house and its address in the header they ask for. The size of picture the house takes from them is unchanged until we have asked them.
+- Project Gutenberg asks that machines not read its website, and Gutendex asks to be run by those who use it. Until the house moves to the way they offer, nothing is brought in from either: the Studio's desk says so, and every book already on the shelf stays as it is.
+
+The house's own words:
+- The About page says what the catalogue is for: it keeps works in view wherever they are held.
+- The register's page says its head is confirmed by a clock the house does not own, and no longer names the clock in the reading copy. The proofs and how to check them are unchanged.
+
 ## 1.88.1 · What the house calls itself · 20 November 2026
 
 - The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.
