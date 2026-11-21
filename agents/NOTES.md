@@ -225,3 +225,14 @@ The CTO session keeps it honest.
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
+
+## The sources (#170, docs/SOURCES.md)
+- WebFetch reaches a museum's terms page only if a WebSearch result named that address first; search, then fetch the
+  result's link. Several sites fail from here (si.edu terms, nga.gov terms, Commons' reuse page, Gutenberg's licence
+  pages: their robots file cannot be read). Write "not read"; never fill a term from memory.
+- Bash cannot reach the museums' APIs or the live house. A walk of a museum's work page is done in process: the item in
+  the importer's own shape through `app.locals.iiif.take` (each item a different picture, or the fingerprint skips it).
+- An open work is shown through forms made for a photographer's own work (the deed, "the maker says never", the thank-you
+  card, the guest book, the JSON-LD, the file's XMP). Any change to those forms: check an open museum work too
+  (test/sources.js has one from the Gallery and one from the Met).
+- A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.
