@@ -75,11 +75,13 @@ function mountRegister(app, { db, V, ledger }) {
       case 'print.sold': return { ...k, kind: 'collect', work: w, text: d.open ? (d.piece ? `The piece of ${T(w)}${d.by ? ', by ' + esc(d.by) : ''} went home to someone's shelf.` : `A print of ${T(w)}${d.by ? ', by ' + esc(d.by) : ''}, ${d.edition ? esc(d.edition) + ' in, ' : ''}went home to someone's wall.`) : `A print of ${T(w)}${by(w)}, ${d.edition ? esc(d.edition) + ' in, ' : ''}No. ${d.no} of ${d.of}, was acquired${d.show ? ' at the show' : ''}.` };
       case 'seal.created': return { ...k, work: w, text: `A sealed copy of ${T(w)} was made.` };
       case 'editions.set': return { ...k, text: 'Edition sizes were set across the collection.' };
+      case 'work.editions': if (d.to === undefined) return null; return { ...k, work: w, text: d.to == null ? `The edition of ${T(w)}${d.edition ? `, ${esc(d.edition)} in,` : ''} was left open.` : `The edition of ${T(w)}${d.edition ? `, ${esc(d.edition)} in,` : ''} was ${d.from == null ? 'set at' : d.to < d.from ? 'made smaller, to' : 'set at'} ${Number(d.to)}${d.from != null ? `, from ${Number(d.from)}` : ''}.` };
+      case 'market.hold_lifted': return { ...k, kind: 'trade', work: w, text: `The house lifted the holding time on ${T(w)}${no(w, d)}${d.reason ? `: ${esc(d.reason)}` : ''}.` };
       case 'market.offered': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} was put up on the market${d.ask ? ` at ${money(d.ask)}` : ''}.` };
       case 'market.withdrawn': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} was taken off the market.` };
       case 'market.bid': case 'market.offer': return { ...k, kind: 'trade', work: w, text: `An offer was made for ${T(w)}${no(w, d)}.` };
       case 'market.accepted': return { ...k, kind: 'trade', work: w, text: `An offer for ${T(w)}${no(w, d)} was accepted.` };
-      case 'market.traded': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} sold on the market${d.price ? ` for ${money(d.price)}` : ''}; the photographer received a royalty.` };
+      case 'market.traded': return { ...k, kind: 'trade', work: w, text: `${T(w)}${no(w, d)} sold on the market; the photographer received a royalty.` }; // (#165) no price on the public page: no tape
       case 'swap.offered': { const a = workBySlug.get(d.give), b = workBySlug.get(d.want); return { ...k, kind: 'trade', work: b || w, text: `A trade was offered: ${T(a)}, No.&nbsp;${d.give_no || '?'}, for ${T(b)}, No.&nbsp;${d.want_no || '?'}.` }; }
       case 'swap.declined': return { ...k, kind: 'trade', text: 'A trade was declined.' };
       case 'swap.traded': { const a = workBySlug.get(d.give), b = workBySlug.get(d.want); return { ...k, kind: 'trade', work: a || w, text: `${T(a)}, No.&nbsp;${d.give_no || '?'}, and ${T(b)}, No.&nbsp;${d.want_no || '?'}, changed hands in a trade.` }; }

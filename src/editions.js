@@ -30,6 +30,7 @@ const EDITION_DEFAULTS = [
 const VIA_DAYS = 30;
 
 const FEE = require('./fee');
+const TR = require('./rules-of-trade');
 function mountEditions(app, X) {
   const { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf, notify } = X;
   const { esc, money } = V;
@@ -273,6 +274,7 @@ ${req.query.ok ? `<p class="ok">${esc(String(req.query.ok))}</p>` : ''}
 ${rows.length ? `<table class="tbl pe-t"><tr><th>Size</th><th>Long edge</th><th>Paper</th><th>Edition</th><th>Price</th><th>Framed +</th><th>Sold</th><th>On</th><th></th></tr>${rows.map(e => `<tr><form method="post" action="${base}/editions"><input type="hidden" name="id" value="${e.id}"><td><input name="label" value="${esc(e.label)}" size="8"></td><td><input name="long_in" value="${e.long_in || ''}" size="4"></td><td><input name="paper" value="${esc(e.paper || '')}" size="18"></td><td><input name="edition_n" value="${e.edition_n}" size="3"></td><td>$<input name="price" value="${(e.price_cents / 100).toFixed(0)}" size="6"></td><td>$<input name="framed" value="${e.framed_cents ? (e.framed_cents / 100).toFixed(0) : ''}" size="5"></td><td>${e.sold} of ${e.edition_n}</td><td><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}></td><td><button class="link">Save</button></td></form></tr>`).join('')}</table>` : ''}
 <form method="post" action="${base}/editions" class="inline"><input type="hidden" name="open" value="1"><button class="buy-btn">${rows.length ? 'Add the house\'s sizes' : 'Open editions with the house\'s sizes'}</button> <span class="small">11 × 14 $250 · 16 × 24 $650 · 24 × 36 $1,400, editions of 12 (8 for the largest), framed +$150/$300/$450. Drafts: set your own.</span></form>
 <form method="post" action="${base}/editions" class="inline pe-new"><input type="hidden" name="new" value="1"><input name="label" placeholder="20 × 30" size="8"><input name="long_in" placeholder="30" size="4"><input name="paper" placeholder="Paper" size="18"><input name="edition_n" placeholder="12" size="3">$<input name="price" placeholder="900" size="6"><button class="link">Add a size</button></form>
+${rows.some(r => r.sold) ? '<p class="small">Once a print of a size has sold, its edition can stay or be made smaller, down to what is sold, never larger; its price and its framed price can stay or rise, never fall.</p>' : ''}
 ${rows.length ? `<p class="small"><a href="/w/${esc(w.slug)}#print">See it as a collector does</a></p>` : ''}</section>`;
   }
   app.locals.editionsBlock = recordBlock;
@@ -283,11 +285,18 @@ ${rows.length ? `<p class="small"><a href="/w/${esc(w.slug)}#print">See it as a 
     if (body.new === '1') { if (!label || !(price > 0)) return 'editioncheck'; db.prepare('INSERT INTO print_editions (work_id, label, long_in, paper, edition_n, price_cents, framed_cents, sort) VALUES (?,?,?,?,?,?,?,?)').run(w.id, label, long_in, paper, edition_n, price, framed, allOf(w).length); return 'editions'; }
     const e = db.prepare('SELECT * FROM print_editions WHERE id=? AND work_id=?').get(+body.id, w.id); if (!e) return 'editioncheck';
     if (!label || !(price > 0)) return 'editioncheck';
-    db.prepare('UPDATE print_editions SET label=?, long_in=?, paper=?, edition_n=?, price_cents=?, framed_cents=?, active=? WHERE id=?').run(label, long_in, paper, Math.max(edition_n, soldOf(e)), price, framed, body.active === '1' ? 1 : 0, e.id);
-    return 'editions';
+    // (#165) The trade's rules: with a sale, the edition may stay or come down to what is sold, never go up; its price
+    // and its framed price may stay or rise, never fall. The same for the maker and the Studio.
+    const sold = soldOf(e), n = TR.size(e.edition_n, edition_n, sold), p = TR.price(e.price_cents, price, sold), f = TR.price(e.framed_cents, framed, sold);
+    db.prepare('UPDATE print_editions SET label=?, long_in=?, paper=?, edition_n=?, price_cents=?, framed_cents=?, active=? WHERE id=?').run(label, long_in, paper, n, p, f, body.active === '1' ? 1 : 0, e.id);
+    if (n !== e.edition_n) changed.push({ edition: e.label, from: e.edition_n, to: n });
+    return sold && (n !== edition_n || p !== price || f !== framed) ? 'editionheld' : 'editions';
   };
-  app.post('/studio/works/:slug/editions', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); const ok = save(w, req.body || {}); ledger.append(db, 'work.editions', w.slug, { by: 'studio' }); res.redirect(`/studio/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
-  app.post('/account/works/:slug/editions', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404); const ok = save(w, req.body || {}); ledger.append(db, 'work.editions', w.slug, { by: m.handle }); res.redirect(`/account/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
+  let changed = [];
+  // One save changes one size at most; a change of size goes on the register with what it was and what it is.
+  const saved = (w, body, by) => { changed = []; const ok = save(w, body); ledger.append(db, 'work.editions', w.slug, changed.length ? { by, ...changed[0] } : { by }); return ok; };
+  app.post('/studio/works/:slug/editions', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); const ok = saved(w, req.body || {}, 'studio'); res.redirect(`/studio/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
+  app.post('/account/works/:slug/editions', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404); const ok = saved(w, req.body || {}, m.handle); res.redirect(`/account/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
 
   // ---- the show: wall labels, and the desk of what sold
   const hangOf = id => db.prepare('SELECT * FROM hangs WHERE id=?').get(+id);

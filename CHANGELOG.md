@@ -27,6 +27,13 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - When the maker says the place represents the work for sale, the way to buy is the place's own: "Enquire with …" goes to its address or link, and the house does not offer its own Collect beside it. A licence or prints stay off unless the maker keeps them.
 - After the last date the line says where it was shown, or goes, as the maker chose. A place named on a page can ask for its line to be corrected through the claim door, which pauses no sale for this; the house can take it off at once.
 
+## 1.88.0 · The house keeps the trade's rules · 20 November 2026
+
+- An edition is never enlarged once a piece of it has sold. Its size can stay, or be made smaller down to what is sold; never larger, and a numbered edition is never opened again. The same for the maker and for the Studio, on prints and on numbered works, and the register says when a size changes.
+- A print's price is never lowered once one has sold at it. It can stay or rise, and so can its framed price.
+- No public list of prices. Anyone can see what collectors offer and what they ask. What a piece sold for, the totals, the line of prices and the value of a collection are shown only to the maker of the work, to the person who holds the piece, and to the house.
+- A piece is held for a time after it is sold before it can be offered again (a draft: a year). Its holder is told the day. A gift is not a sale and is never held. The house can lift the time for one piece, with its reason on the register.
+
 ## 1.87.15 · The open doors, made ahead · 20 November 2026
 
 - The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.

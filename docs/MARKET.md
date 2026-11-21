@@ -25,11 +25,11 @@ uses its record.
 
 | The rule | What the house does | Today |
 |---|---|---|
-| An edition, once stated, is never exceeded | The size is fixed at the first sale; it can be made smaller, never larger; the register says so | **fault**: `print_editions.edition_n` and `works.edition_size` can be raised after sales (only held at or above what is sold) |
-| Prices go up, never down in public; one price everywhere | A public price; a step up as an edition sells; no private discount that the record cannot see | prices are public and fixed; **no steps**; discounts not audited |
-| A fast resale harms a young market | A holding time before a piece may be offered again; the maker and their gallery are told first | **none**; the market is brokered from the Studio until counsel and `MARKET_SETTLEMENT=stripe` |
+| An edition, once stated, is never exceeded | The size is fixed at the first sale; it can be made smaller, never larger; the register says so | **holds** (#165): with a sale, a print edition's size and a work's `edition_size` stay or come down to what is sold, never up, never opened again, by the maker and the Studio alike (`src/rules-of-trade.js`); each change of size is on the register (`work.editions`, from and to) |
+| Prices go up, never down in public; one price everywhere | A public price; a step up as an edition sells; no private discount that the record cannot see | a print edition's price and framed price with a sale stay or rise, never fall (#165); licence prices not held (audit in #165's pull request); **no steps** (design below); discounts not audited |
+| A fast resale harms a young market | A holding time before a piece may be offered again; the maker and their gallery are told first | **holds** (#165): `MARKET_HOLD_DAYS` (draft 365) from a piece's issue or last trade; the holder is told the day; a gift is not held and does not start the clock; the Studio lifts it for one piece with a reason on the register; counsel question 35. Not yet: the maker and their gallery told first |
 | The artist earns nothing on resale in the United States | A royalty to the maker on every resale inside the house | **holds** in code (10%, a draft; the house's fee 5%, a draft) |
-| A weak public result can stall a career | A resale price is shown to the maker, the holder and the buyer; never a public tape, a total or a chart | **fault**: `/market` shows the last 24 trades with prices and the total traded |
+| A weak public result can stall a career | A resale price is shown to the maker, the holder and the buyer; never a public tape, a total or a chart | **holds** (#165) on the pages: `/market`, the work page, its life, `/prices`, the register's words and the master record show a stranger only what is offered and its asking price. **Not yet**: `/ledger.json` (the whole register, for anyone to check) carries each trade's and each print's price in its signed entries (see #165's pull request) |
 | Records a gallery can trust | The maker's full sales history, exportable, with each number, size, paper, date and holder | the register and the registry hold it; an export for a gallery is not built |
 | The gallery is not gone around | A represented work names its gallery; an enquiry or a sale goes to the gallery on its terms; the house never undercuts | `galleries.js`, `gallerist.js`, `shows.js` exist; **not audited** against this line |
 | Nothing made by a machine is passed as a maker's | The maker states how a work was made; the house does not sell machine-made images as art | not audited |
@@ -67,3 +67,27 @@ only when counsel has read its rules.
 3. After the freeze (designs first): "on view at" for living makers; the gallery's own desk and the sales history
    export; the represented work's way to buy.
 4. Later: a second country.
+
+## Price steps for print editions (a design; no code; every number is Will's)
+
+The trade's way: the price of an edition rises at fixed points as it sells, and never falls. The house already does this
+for Collect (`LADDER` in `src/app.js`: the base price, then higher at each quarter of the edition sold, a draft). For a
+print edition it would be stated by the maker, per size, before the first print sells.
+
+- **What is stored.** On each print edition, its steps: a short list of (from number, price, framed price), the first
+  step from No. 1 at the edition's price. A number's price is the price of the last step at or below it. Nothing else:
+  what each print sold for is already on its licence and on the register (`print.sold`).
+- **The rules, the same as the size and the price today.** Before the first sale the steps are the maker's to change.
+  After it, a step at or below the next number to sell is fixed; a later step may be raised or moved earlier, never
+  lowered or moved later; a step may be added above what is sold, never below. The Studio is held to the same. A change
+  of steps goes on the register beside the change of size (`work.editions`, from and to).
+- **Which price a buyer pays.** The price of the number they are given. The house numbers a print when it is paid
+  (`onGrant`), so the checkout states the price of the next number; if two people pay at the same moment across a step,
+  each pays what their checkout said, and the register shows it. (To decide: hold the number at checkout instead.)
+- **What a collector is shown.** The price now, and the next step in plain words: "$X now; $Y from No. N." The whole
+  ladder on the papers. Never how many remain at a price as a push to buy ("only two left at this price"), never a
+  countdown. A holder sees what they paid; a stranger never sees what another print sold for.
+- **What it needs from Will.** Whether steps are offered at all, the default shape (how many steps, at which numbers,
+  by how much), whether framed prices step with the print, and whether the house's own sizes (`EDITION_DEFAULTS`)
+  carry a ladder by default.
+
