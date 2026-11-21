@@ -124,11 +124,11 @@ ${recs.length ? `<h2>${esc(first(m.name))} also reads</h2><div class="gzp-recs">
     const s = db.prepare('SELECT * FROM gazette_subs WHERE id=?').get(+subId); if (!s) return null;
     if (sess && sess.payment_status && sess.payment_status !== 'paid' && sess.status !== 'complete') return s;
     if (s.tier !== 'paid' || s.status !== 'on') {
-      db.prepare("UPDATE gazette_subs SET status='on', tier='paid', stripe_sub=COALESCE(?, stripe_sub), confirmed_at=COALESCE(confirmed_at, datetime('now')), ended_at=NULL WHERE id=?").run(sess && sess.subscription || null, s.id);
+      if (db.prepare("UPDATE gazette_subs SET status='on', tier='paid', stripe_sub=COALESCE(?, stripe_sub), confirmed_at=COALESCE(confirmed_at, datetime('now')), ended_at=NULL WHERE id=? AND (tier<>'paid' OR status<>'on')").run(sess && sess.subscription || null, s.id).changes) { // (#123) the claim: once, whichever copy of the website comes first
       const m = makerById(s.maker_id); told(m, Object.assign({}, s, { tier: 'paid' }));
       try { ledger.append(db, 'gazette.paid', m.handle, {}); } catch (e) { /* */ }
       if (sess && sess.amount_total) pay(s.id, sess.invoice || sess.id, sess.amount_total);
-    }
+    } }
     return db.prepare('SELECT * FROM gazette_subs WHERE id=?').get(s.id);
   }
   // A month paid: the maker's side and the house's, kept for the statement.

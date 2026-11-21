@@ -136,7 +136,7 @@ ${who.keyed ? (room.open ? `<ol class="bc-lines" data-lines></ol><form class="bc
     res.json({ ok: true });
   });
   const rota = who => { const H = app.locals.hosts; if (!H) return true; const t = H.tonight(room.scope); return !t || who.house || t.owner === String(who.id || '').replace(/^([mb])/, '$1:'); }; // the rota's host has the chair tonight
-  app.post('/balcony/host', (req, res) => { const who = whoIs(req); if (!room.open || !who.keyed || !canHost(who) || (room.host && room.host.id !== who.id) || !rota(who)) return res.redirect('/balcony'); room.host = { id: who.id, name: who.full }; broadcast('state', state(who), { inside: false }); res.redirect('/balcony'); });
+  app.post('/balcony/host', (req, res) => { const who = whoIs(req); if (!room.open || !who.keyed || !canHost(who) || (room.host && room.host.id !== who.id) || !rota(who)) return res.redirect('/balcony'); room.host = { id: who.id, name: who.full }; if (app.locals.hosts && app.locals.hosts.sat) { try { app.locals.hosts.sat(room.scope, who.id); } catch (e) { /* the night is still settled by this room */ } } broadcast('state', state(who), { inside: false }); res.redirect('/balcony'); });
   const hostOnly = (req, res) => { const who = whoIs(req); if (!room.open || !(who.house || (room.host && room.host.id === who.id))) { res.redirect('/balcony'); return null; } return who; };
   app.post('/balcony/wall', (req, res) => { const who = hostOnly(req, res); if (!who) return; const w = workOf((req.body || {}).slug); if (w && w.held) { room.wall = w; broadcast('wall', w, { inside: false }); } res.redirect('/balcony'); });
   app.post('/balcony/piano', (req, res) => {

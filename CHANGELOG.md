@@ -5,6 +5,11 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.87.13 · Ready to run as more than one · 20 November 2026
+
+- The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
+- Getting there found places where two copies acting at the same moment could have done one thing twice: grant a licence, settle a sale, send a payment. Each now claims its row first, and every transfer to a maker or a collector carries a key so that it is made once.
+- A payment to a maker is written down before it is sent, and counted as paid from that moment.
 ## 1.87.12 · The back room: it was the backup · 20 November 2026
 
 - The line added in 1.87.11 named the cause at the first start: the nightly copy of the database. It was read whole into memory, compressed whole and sealed whole, on a machine too small for three copies of it. The worker was ended for memory at that step after every start from about 18 November, and in that time no backup was made.

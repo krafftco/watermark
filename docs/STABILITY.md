@@ -131,6 +131,33 @@ Found with it: the contact sheets desk (/account/sheets) for a museum reads its 
 Indexes (src/indexes.js, one block): works (maker_id, id), (maker_id, stars, id), (status, id), (maker_id, place), (maker_id) WHERE al_grade IS NOT NULL, (maker_id, status, open, bytes); sightings (work_id); licenses (use_id, status).
 At a million works (ten times): the pages stay a page; the grouped counts walk one maker's index entries or the house's (a museum's /account counts, /account/copyright, /account/held, /studio/standard, the masters count): 0.1–0.5 s each on Postgres, and /studio/standard's six shelf counts together over 2 s: those want counts kept by the worker (#99). Found with it: the regard map is built on the website by whichever request finds it stale (#98); the gate's fixture writes hits.at as text (#100).
 
+## 20 Nov 2026 (#123): faults found in making the website safe as several copies (none seen by people; one process today)
+- What was found, in the code, with two website processes on one Postgres (test/instances.js): (1) `grant` read the
+  licence and then activated it, so two processes granting one payment at once (Stripe's webhook on one, the buyer's
+  return on another, or `settleAll`, which already ran on the website and the worker alike) each sent the letters, wrote
+  the register and gave a new download token: with the claim removed, twelve payments delivered to both copies made a
+  second grant. Every other webhook settle had the same shape. (2) A maker's pay, an owed market share and Friday pay
+  read what was owed, waited on Stripe, then wrote what was paid: two at once made two transfers (shown with the lease
+  removed: "one transfer to the maker, not 2"; "one transfer for the owed share, not 2"). (3) The vault queue on a copy
+  that does not hold a new original called it lost and took the work off view. (4) The arrivals pump took a row without
+  claiming it, and the hourly sweep put every copy's work in hand back in the queue; a file sent through one copy was
+  taken by the other ("The file did not arrive."). (5) The register's next number was read then written: two writers
+  at once made the second throw mid-grant. (6) Two processes booting together on an empty database: the second died on
+  `pg_proc_proname_args_nsp_index`. (7) Passkey challenges lived in the process. (8) The market could refund a buyer
+  whose own payment, settled a moment before on another copy, had just sold the piece.
+- The repair: src/instances.js (who is alive, leases, the boot lock); a claim (a conditional UPDATE whose count decides)
+  on every settle path and on sign-in codes and links; leases with the row read again on every transfer, and Stripe's
+  idempotency key on the market's; `works.vault_on` and `arrivals.host`; the register's key as the claim with a retry;
+  `passkey_challenges`. docs/SCALE.md "Stage 2: several copies" lists every piece of state and its disposition.
+- Found in review (#123): a maker's pay and the pocket's transfers asked Stripe without an idempotency key, and the
+  maker's payment row was written only after Stripe answered: a process ending between the two would pay again on the
+  next run. Now the claim row comes first and keys the transfer; test/instances.js ends a copy right after Stripe sends
+  and shows the next attempt, on another copy, asks with the same key and records one payment.
+- Not verified: anything on the test house or live; Render's own balancer (the local measure uses a round-robin and a
+  least-in-hand proxy).
+- Rule: a timer or a door that acts on a row claims it first (UPDATE … WHERE <state> and read the count) or holds a
+  lease; anything that moves money also asks Stripe with an idempotency key. A row only one copy can finish names the copy.
+
 ## 18 Nov 2026, about 21:30 New York: the house down (502) with the numbers desk open
 - What happened: /studio/analytics read every hit of the day (kind, ms) to work out the median and the 95th, beside some twenty other statements over the span, on each visit and again every 30 s from each open tab. On the synchronous bridge each asking holds the website's one thread; the watchdog's answers were missed and it ended the process, Render brought a new one, and the open tab stopped it again. The room was on the scale gate's allow-list (#92), fixed on the desks branch (PR #101) but not yet merged: an allowed room is a known outage waiting.
 - The repair (hotfix, on Will's word): the speed figures are counted by the database in steps (PR #101's change, taken alone); the two doors (/studio/analytics, /studio/analytics.json) share one report a span for 30 s; the page refreshes once a minute and never two at once.
