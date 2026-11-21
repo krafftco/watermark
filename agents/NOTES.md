@@ -202,6 +202,14 @@ The CTO session keeps it honest.
   Never `spawnSync` a client of a server that lives in your own process: the server stops answering.
 - An INSERT through the bridge gets its RETURNING from dialect.js: take the id from `.run(...).lastInsertRowid` (the same on both engines).
 
+## The market's rules (#165)
+- Who may see a past price is asked once: `app.locals.market.who(req, w)` → `{ all }` for the Studio and the work's maker,
+  `{ own: Set of licence ids }` for a holder. `market.asked(p)` is what a stranger may know of `priceOf` (the ask). Any new
+  surface that draws a sale price, a total, a line or a value goes through it; test it as a stranger, a holder, the maker.
+- A size or a price with a sale goes through `src/rules-of-trade.js` (`size`, `price`), never `Math.max(want, sold)`.
+- `market.holdOf(licence)` is the holding time; a listing is made at `/yours/offer` and by accepting an offer
+  (`/yours/offers/:id/accept`): both check it. `src/trade.js` is the trade desk (picture editors), not the market.
+
 ## Rooms, by what trips people
 - **The reader** (/read): a book is one page of many `section.rdr-ch`; `?c=` moves between them. Books of numbered notes
   go through `src/outline.js` (and `outline-n1.js` for one day's old places). `app.locals.bookNotes.note(slug, n)`.

@@ -47,7 +47,7 @@ function mountMaster(app, { db, C, V, ledger, isStudio }) {
     const pd = rights.state === 'pd' || (w && ['pd', 'cc0'].includes(w.open));
     const may = { record: true, show_picture: !!w && w.status === 'held', collect: !!w && w.status === 'held' && !(w.open && ['pd', 'cc0'].includes(w.open)), license: !!w && rights.state !== 'reserved' && !pd, print: !!w && (pd || rights.state !== 'reserved'), reproduce_freely: !!pd };
     // What it has traded for, in the house: every paid Collect and resale of the house's photograph of it.
-    let house = null; try { if (w && app.locals.prices) { const p = app.locals.prices.record(w); house = { trades: p.events.map(e => ({ at: String(e.at).slice(0, 10), usd: e.cents / 100, what: e.what })), last_usd: p.value ? p.value / 100 : null, working_licences: p.working }; } } catch (e) { /* */ }
+    let house = null; try { if (studio && w && app.locals.prices) { /* (#165) no public tape: what it traded for is the Studio's */ const p = app.locals.prices.record(w); house = { trades: p.events.map(e => ({ at: String(e.at).slice(0, 10), usd: e.cents / 100, what: e.what })), last_usd: p.value ? p.value / 100 : null, working_licences: p.working }; } } catch (e) { /* */ }
     const market = { house, observed: null, note: 'Trades observed by the house; never an estimate or an appraisal.' };
     if (studio && a && app.locals.pricebook) { const rows = app.locals.pricebook.rowsOf(a.id); market.observed = { artist_results: rows.length, sold: rows.filter(r => r.sold).length, last: rows.filter(r => r.sold).slice(-5).map(r => ({ date: r.sale_date, house: r.house, title: r.title, usd: r.usd / 100 })) }; }
     const doc = {

@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.88.0 · The house keeps the trade's rules · 20 November 2026
+
+- An edition is never enlarged once a piece of it has sold. Its size can stay, or be made smaller down to what is sold; never larger, and a numbered edition is never opened again. The same for the maker and for the Studio, on prints and on numbered works, and the register says when a size changes.
+- A print's price is never lowered once one has sold at it. It can stay or rise, and so can its framed price.
+- No public list of prices. Anyone can see what collectors offer and what they ask. What a piece sold for, the totals, the line of prices and the value of a collection are shown only to the maker of the work, to the person who holds the piece, and to the house.
+- A piece is held for a time after it is sold before it can be offered again (a draft: a year). Its holder is told the day. A gift is not a sale and is never held. The house can lift the time for one piece, with its reason on the register.
+
 ## 1.87.13 · Ready to run as more than one · 20 November 2026
 
 - The website can now run as two or more copies side by side, so one stuck copy no longer means a stopped house. Nothing changes for a visitor yet: the second copy is switched on separately.
