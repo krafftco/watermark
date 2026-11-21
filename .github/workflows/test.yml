@@ -142,8 +142,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # (#109) The browser kept between runs (its install once took 24 minutes and used up the job); a stalled install is
+      # stopped at ten minutes and tried once more, so the job says so instead of running out of time.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - id: install
-        run: npx playwright install --with-deps webkit || { echo "::error title=reach-webkit::WebKit could not be installed (npx playwright install --with-deps webkit failed); the WebKit pass did not run"; exit 1; }
+        run: timeout 600 npx playwright install --with-deps webkit || timeout 600 npx playwright install --with-deps webkit || { echo "::error title=reach-webkit::WebKit could not be installed (npx playwright install --with-deps webkit failed or stalled twice); the WebKit pass did not run"; exit 1; }
       - run: |
           rc=0
           NODE_ENV=test REACH_JSON=/tmp/reach-webkit.json node scripts/reach-walk.js > /tmp/reach-webkit.txt 2>&1 || rc=$?
