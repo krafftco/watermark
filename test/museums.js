@@ -15,7 +15,7 @@ const { createApp } = require('../src/app');
 
   // The door says it.
   let r = await fetch(base + '/join'); let t = await r.text();
-  assert.ok(/Open your museum/.test(t) && /action="\/record"/.test(t) && /Collectors, not followers/.test(t), 'the door is open');
+  assert.ok(/Open your studio/.test(t) && /action="\/record"/.test(t) && /Collectors, not followers/.test(t), 'the door is open');
 
   // An artist opens a museum and puts work in.
   const ana = jarOf(); r = await form(ana, '/record', { name: 'Ana Open', email: 'ana@example.com', adult: '1', t: (t.match(/name="t" value="([^"]+)"/) || [])[1] });

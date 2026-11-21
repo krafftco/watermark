@@ -308,3 +308,11 @@ The CTO session keeps it honest.
   as it is typed, and read only by /studio/feedback. Each copy stops at FIND_MISSES_A_DAY (400) writes a day.
 - Give your own runs their own temp root (`TMPDIR=/tmp/wm-<issue>-tmp node test/x.js`): every house they make is
   under it, and clearing up is one folder that is certainly yours.
+
+## The public house (#188)
+- `test/public.js` walks every door, both footers and one link deep (about 270 pages, 15 s) as a stranger. A new reading word on a public page goes through it: the words a reader never meets (BANNED), "museum" for the house (SELF_MUSEUM), a share offered (OFFER). Machine addresses and /standard keep technical words (MACHINE); the legal documents are counsel's (LEGAL, docs/REDLINE.md). `PUBLIC_DUMP=<dir>` writes each page's readable text, one file a page: grep it before you call a page clean.
+- Words in a file another PR holds go in its PENDING (page, phrase, file and PR); a stale line fails.
+- A new cookie goes in its COOKIES and in the privacy page's list (counsel's). A font, script, stylesheet or picture comes from the house (`/static/fonts.css`, `public/fonts/`); the CSP names no font host.
+- Taking a page off the public house: Studio-only, a stranger 302 to /about, `noindex`, its links out of DOORS, FOOT, /about and the peephole; nothing deleted.
+- The repository krafftco/watermark is public (`gh api repos/krafftco/watermark --jq .private` is false): comments, docs and HISTORY are readable by anyone.
+

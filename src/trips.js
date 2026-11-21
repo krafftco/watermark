@@ -70,7 +70,7 @@ function mountTrips(app, { db, V, C, images, cache, originalPath, ledger, makerO
     if (b.out === '1') { db.prepare('UPDATE works SET in_trip=0 WHERE id=?').run(w.id); return res.json({ ok: true, out: true }); }
     if (b.show === '1') {
       if (w.status === 'quarantined' || (w.disputed || 0) > 0 || w.flag === 'reject') return res.json({ ok: false, why: 'This frame cannot go up.' });
-      if (w.status !== 'held' && app.locals.mayHang && !app.locals.mayHang(m)) return res.json({ ok: false, why: 'Your museum’s walls are full.' });
+      if (w.status !== 'held' && app.locals.mayHang && !app.locals.mayHang(m)) return res.json({ ok: false, why: 'Your walls are full.' });
       db.prepare("UPDATE works SET status='held', keep_back=0 WHERE id=?").run(w.id);
       if (w.status !== 'held') { ledger.append(db, 'work.published', w.slug, { maker: m.handle, by: 'trip' }); if (app.locals.legal) { try { app.locals.legal.accept('maker', m.id, 'makers', null, 'trip'); } catch (e) { /* quiet */ } } }
     } else {

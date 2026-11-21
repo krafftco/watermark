@@ -111,7 +111,7 @@ ${art || room === 'people' ? `<label class="ob-wide"><input type="checkbox" name
     const all = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY id DESC LIMIT 2000").all(m.id);
     const wait = all.filter(needsWord); const n = k => all.filter(w => w.status === 'held' && roomOf(w) === k).length;
     res.send(V.layout({ title: 'Your company page · Watermark', path: '/account/company', body: `<section class="studio-wrap cpy-desk"><p class="k">The company</p><h1>${esc(m.name)}</h1>
-<p class="lede">Your page is your own museum, in rooms. Put work in through <a href="/account/upload">the vault</a> (choose Designs for products), grade and publish it in <a href="/account/table">the Library</a>, and choose each work's room on its record.</p>
+<p class="lede">Your page is your own archive, in rooms. Put work in through <a href="/account/upload">the vault</a> (choose Designs for products), grade and publish it in <a href="/account/table">the Library</a>, and choose each work's room on its record.</p>
 <form method="post" action="/account/company" class="ob-f"><label>Founded<input name="founded" maxlength="40" value="${esc(m.founded || '')}" placeholder="1921"></label><button class="buy-btn">Keep</button></form>
 <h2>The rooms</h2><ul class="cpy-list">${ROOMS.map(([k, name, line]) => `<li><b>${esc(name)}</b> ${n(k)} on view <small>${esc(line)}</small></li>`).join('')}</ul>
 <h2>Waiting for your word</h2>${wait.length ? `<ul class="cpy-list">${wait.map(w => `<li><a href="/account/works/${esc(w.slug)}">${esc(tidy(w.title))}</a> <small>${esc(gate(w))}</small></li>`).join('')}</ul>` : '<p class="note">Nothing.</p>'}

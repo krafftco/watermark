@@ -15,10 +15,12 @@ function releases() {
   return out;
 }
 const current = () => (releases()[0] || {}).version || '1.0';
-function mountReleases(app, { V }) {
+function mountReleases(app, { V, isStudio }) {
   const { esc } = V;
   const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
   app.get('/releases', (req, res) => {
+    // Studio-only (#188): the record is the engineering log (what the register is anchored in, sources by name); it is not reading copy. A stranger is sent to /about.
+    if (!(isStudio && isStudio(req))) { res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store'); return res.redirect(302, '/about'); }
     const rs = releases();
     res.send(V.layout({ title: 'What’s new · Watermark', path: '/releases', desc: 'Each release of the house, named and dated.', body: `<main class="wrap rls"><p class="k">The house</p><h1>What’s new.</h1>
 <p class="lede">Watermark is a shipped product. Each release is named and dated here, in plain words. Nothing is announced that is not already running.</p>

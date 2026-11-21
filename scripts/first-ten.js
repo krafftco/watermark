@@ -86,7 +86,7 @@ async function pictures(dir) {
   await step('makers', async () => { await go('/makers', 'makers'); await look('makers'); });
   await step('join', async () => {
     const door = p.locator('a[href="/join"]').first();
-    if (!(await door.count())) throw new Error('no "Open your museum" link to /join on /makers');
+    if (!(await door.count())) throw new Error('no "Open your studio" link to /join on /makers');
     await door.scrollIntoViewIfNeeded(); await door.click(); taps++;
     await p.waitForURL(/\/join/);
     await look('join');

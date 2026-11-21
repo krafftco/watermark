@@ -5,6 +5,18 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.1 · The public house, said correctly · 21 November 2026
+
+Every sentence below is a draft for Will. Nothing was deleted: what was taken down is still the Studio's.
+
+- Taken off the public house, for the Studio only; a visitor who follows an old link is brought to About: how the company is owned (/owners, and /investors), the director's page (/director), the list of releases (/releases), and the desks the house made under a museum's own name before the museum has claimed them (the Art Institute of Chicago, the Cleveland Museum of Art, the demonstration desk). Their links are gone from every room, the footers and the list of rooms.
+- The house says it is for photographers. The front, What this is, About, For photographers (/makers), the sign-up page, the app and their descriptions and social cards now say: "Watermark takes art and copyright seriously. Photographers keep their work here, show it properly, and are paid when it is used or collected." The quiet footer no longer carries the Library or For museums; both rooms, and every other room, are where they were, in Find and on Every room. Museum works keep their credit everywhere.
+- The house no longer calls itself a museum. Where it said "Open your museum", it says "Open your studio"; a company's page is "your own archive"; the collection's heading is "Enter the collection".
+- The register is called the register on every reading page: the work's life says "Entry 2 in the register", the register's own page and the museums' page no longer speak of hashes.
+- The fonts are the house's own, served from the house. No page asks another site for a font or a stylesheet any more, and the house's security policy names none.
+- The steps for collectors and About say what the maker receives as the house is set today, not one way for everyone.
+- A photograph's U.S. copyright registration is kept when its maker saves the catalogue; before, a maker's save cleared it (docs/STABILITY.md, 21 Nov).
+- A walk of the public house as a stranger now runs with every test: it fails on a word the house never says to a reader, on a page that calls the house a museum or reads as an offer of a share, on the pages above being public, on a script, stylesheet, font or picture from another site, and on a cookie that is not the house's own.
 ## 1.90.0 · A license written from the use · 21 November 2026
 
 Every word and clause below is a draft: the words for Will, the clauses for counsel. No price was added or changed.

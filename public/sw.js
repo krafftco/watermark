@@ -2,8 +2,8 @@
 // house and the last copy of each is kept so the rooms you have walked are there when the connection is
 // not; photographs are kept as you see them, up to a few hundred, oldest out first. Nothing private is
 // cached: the studio, your gallery, the Studio, sign-in and anything with a key go straight to the house.
-const V = 'wm-2026-11-211900';
-const SHELL = ['/static/style.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline', '/static/cold.html'];
+const V = 'wm-2026-11-21photo';
+const SHELL = ['/static/style.css', '/static/fonts.css', '/static/watermark-logo.svg', '/static/wave.svg', '/static/collection.js', '/static/guard.js', '/static/room.js', '/static/house.js', '/static/signin.js', '/static/applause.js', '/offline', '/static/cold.html'];
 const PRIVATE = /^\/(join$|own$|notices|api\/notices|basket|api\/basket|stroll|wander|api\/stroll|frame\/|tv$|show\/|cab\/|cabinet|showings|hang\/.*\/g\/|account|yours|studio|signin|signout|auth|api\/me|c\/|d\/|seat\/|k\/|collector\/|swap|market\/.*\/bid|library\/d\/|w\/[^/]+\/archive)/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== V + '-img' && k !== V + '-pages').map(k => caches.delete(k)))).then(() => self.clients.claim())); });

@@ -4,12 +4,14 @@
 // first on the walls. /director: a portrait, the title, the standing in numbers the house can vouch for, the
 // director's statement (a draft until Will confirms), the house's record, the family line to the Keys, a letter door.
 // The title also stands on the maker page beside the roles. Dignified: one portrait, the serif, no hype.
-function mountDirector(app, { db, V, C }) {
+function mountDirector(app, { db, V, C, isStudio }) {
   const { esc } = V;
   const house = () => db.prepare('SELECT * FROM makers WHERE handle=?').get(C.maker.handle);
   const TITLE = 'Founding director';
   const isDirector = m => !!(m && house() && m.id === house().id);
   app.get('/director', (req, res) => {
+    // Studio-only (#188): the page is in the director's voice and calls the house a museum; it waits for Will. A stranger is sent to /about.
+    if (!(isStudio && isStudio(req))) { res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store'); return res.redirect(302, '/about'); }
     const m = house(); if (!m) return res.sendStatus(404);
     const n = {
       works: db.prepare("SELECT COUNT(*) n FROM works WHERE status='held'").get().n,
