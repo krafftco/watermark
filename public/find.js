@@ -46,6 +46,7 @@
     var artistRows = function () { (d.artists || []).forEach(function (a) { out += wayRow(a, 'An artist of the hall'); rows.push(a); }); };
     if (d.doorsFirst) doorRows();
     if (d.artistsFirst) artistRows();
+    var said = d.say ? '<p class="fd-none"><span>' + esc(d.say) + '</span></p>' : '';
     if (d.works && d.works.length) { out += d.works.map(workRow).join(''); rows = rows.concat(d.works); }
     if (!d.doorsFirst) doorRows();
     if (!d.artistsFirst) artistRows();
@@ -60,6 +61,7 @@
     (d.books || []).forEach(function (b) { out += wayRow(b, 'A book'); rows.push(b); });
     (d.records || []).forEach(function (b) { out += wayRow(b, 'A record'); rows.push(b); });
     (d.films || []).forEach(function (b) { out += wayRow(b, 'A film'); rows.push(b); });
+    if (out && said) out = said + out;
     if (!out) out = '<p class="fd-none">' + '<span>Nothing by that word yet. Try a place, a maker, a book or a record.</span></p>';
     else if (d.works && d.works.length) out += '<a class="fd-all" href="/wander?q=' + encodeURIComponent(d.q) + '">' + (IC.wave || '') + '<span>Wander through “' + esc(d.q) + '”' + (d.more ? ' · ' + (d.works.length + d.more) + ' works' : '') + '</span></a>';
     list.innerHTML = out; foot.innerHTML = d.works && d.works.length ? '<span>' + (PHONE ? 'Tap a work to go straight to it.' : 'Enter opens the first. ↑ ↓ choose.') + '</span>' : '';

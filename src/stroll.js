@@ -42,7 +42,11 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     // A word (5 Nov: a place, a title, a maker, an artist, a movement or a year). (9 Nov) Asked of the work's own words
     // under the search index, and of the makers and artists by their ids: seven LIKEs across every row took 1.7 s at
     // 500,000 works.
-    if (q) { const t = q.replace(/[%_]/g, ''); const like = `%${t}%`; const W = app.locals.find && app.locals.find.WORDS ? app.locals.find.WORDS : "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,''))";
+    // (20 Nov, #179) The words are read as Find reads them ("the seine by will fullerton", a phrase, a year, a holder):
+    // what Find shows, Wander walks. Without Find, the old way: the whole of what was typed, as one word.
+    const asked = q && app.locals.find && app.locals.find.whereFor ? app.locals.find.whereFor(q, req) : null;
+    if (asked) where += ` AND ${asked}`;
+    else if (q) { const t = q.replace(/[%_]/g, ''); const like = `%${t}%`; const W = app.locals.find && app.locals.find.WORDS ? app.locals.find.WORDS : "lower(coalesce(w.title,'') || ' ' || coalesce(w.place,'') || ' ' || coalesce(w.keywords,''))";
       const [mids, aids] = await Promise.all([adb.all('SELECT id FROM makers WHERE name LIKE ? LIMIT 60', like).then(r => r.map(x => Number(x.id)), () => []), adb.all('SELECT id FROM artists WHERE name LIKE ? OR movement LIKE ? LIMIT 300', like, like).then(r => r.map(x => Number(x.id)), () => [])]);
       const lit = t.toLowerCase().replace(/[^\p{L}\p{N} .,&-]/gu, ' ').trim(); // set into the question itself (no quote, no wildcard can remain), so the planner sees the word: a parameter gave a common word a blind plan
       where += ` AND (${W} LIKE '%${lit}%'${mids.length ? ` OR w.maker_id IN (${mids.join(',')})` : ''}${aids.length ? ` OR w.artist_id IN (${aids.join(',')})` : ''})`; }
@@ -379,6 +383,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
     let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
+    if (q && !set && app.locals.find) try { app.locals.find.search(q, 1, req, { log: !req.get('x-wm-prepare') }); } catch (e) { /* (#179) words that found nothing are kept for the Studio; never in the walk's way */ }
     if (at) items = [wanderJSON(at, req), ...items];
     const mk = set ? null : await makerBy(maker);
     res.set('Cache-Control', 'private, no-store');

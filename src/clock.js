@@ -63,7 +63,6 @@ function mountClock(app, { db, V, C, buyerOf }) {
       const t = pick(tours)[0]; if (t) link(`/tour/${t.slug}`, t.title, `A tour with ${t.guide || 'a guide'}${t.line ? ' · ' + t.line : ''}`, 'In the guide’s own voice'); else { const wl = pick(walls)[0]; if (wl) link(`/hang/${wl.slug}`, wl.title, wl.line || 'A wall hung by a curator', 'On view'); }
       work(pick(starred)[0], 'Today’s work');
       link('/guides', 'The guides', 'People who walk you through the work in their own voice.', 'Hear one, become one');
-      if (!maker) link('/trade', 'For editors and companies', 'The desk is awake: every use, priced or asked.', 'Working hours');
     } else if (slot.key === 'evening') {
       if (bal && bal.wall) work({ ...bal.wall, maker: bal.wall.maker }, 'The wall of the night'); else work(pick(starred, 2)[1] || pick(starred)[0], 'A wall for the evening');
       const q = pick(bench)[0]; if (q) link(`/bench/${q.slug}`, q.title, `“${q.body.slice(0, 120)}${q.body.length > 120 ? '…' : ''}” — ${q.name}`, 'On the bench');
