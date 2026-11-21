@@ -463,7 +463,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try {
       if (!applePayFile) applePayFile = await (await fetch('https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association')).text();
       res.set('Cache-Control', 'public, max-age=86400').type('text/plain').send(applePayFile);
-    } catch (e) { res.sendStatus(502); }
+    } catch (e) { res.fault(e, 502); }
   });
   async function registerDomain() {
     if (!stripe || !/^https:/.test(C.base)) return null;
@@ -486,7 +486,9 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   app.use(require('compression')({ threshold: 1024 }));
   const served = require('./served').mountServed(app, { publicDir: path.join(__dirname, '..', 'public'), cacheDir: cache, express }); // scripts and styles leave stripped (19 Oct)
   // The cold page as a static file, so an edge in front (CloudFront, 25 Oct) can hold it and show it while Render restarts.
-  app.get('/static/cold.html', (req, res) => res.set('Cache-Control', 'public, max-age=60').send(V.offline()));
+  // (#149) The one-moment page: self-contained (nothing asked of the house), the same file the edge serves from the vault's bucket.
+  const MOMENT = require('./breaks').momentPage();
+  app.get('/static/cold.html', (req, res) => res.set({ 'Cache-Control': 'public, max-age=60', 'X-WM-Moment': '1' }).type('html').send(MOMENT));
   app.use('/static', express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', immutable: false }));
   app.use(cookieParser());
   // The trail keeps no secret (16 Nov, #28): the agents' door keeps only its path, in any case; and any address whose query
@@ -869,12 +871,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The signs: any door the app shuts with a bare status (sendStatus, status().end()) is shown to a browser as a
   // photograph and a way on, never a number. JSON, images and files keep their plain status.
   const coverFor = () => { try { return db.prepare("SELECT w.slug, w.title, w.width, w.height, m.name AS maker FROM works w JOIN makers m ON m.id=w.maker_id WHERE w.status='held' AND w.width > w.height ORDER BY (CASE WHEN w.curated=1 THEN 3 WHEN w.stars>=4 THEN 2 ELSE 1 END) * (CASE WHEN w.width>=3840 THEN 4 WHEN w.width>=3000 THEN 2 ELSE 1 END) * RANDOM() DESC LIMIT 1").get() || null; } catch (e) { return null; } };
-  const wantsSign = req => req.method === 'GET' && req.accepts('html') && !/^\/(api|img|cab|static|d|portrait|ledger\.json|healthz|sw\.js)/.test(req.path) && !req.xhr;
-  app.use((req, res, next) => {
-    const sendStatus = res.sendStatus.bind(res);
-    res.sendStatus = code => { if (code >= 400 && wantsSign(req)) return res.status(code).send(V.sign({ code, cover: coverFor() })); return sendStatus(code); };
-    next();
-  });
+  // (#149) Every bare status, every thrown error and every limit: the house's own page, JSON with words for a script,
+  // the plain status only for images and files; each fault kept in app.locals.lastFault / recentFaults and a [break] line.
+  const BREAKS = require('./breaks').mountBreaks(app, { V, coverFor });
   // Every address is the person's: a photograph lives under its maker (/m/<maker>/<slug>; /w/<slug> still answers),
   // a gallery, its hangs and showings under the collector (/g/<code>/…). Old links keep working.
   app.get('/m/:maker/:slug', (req, res, next) => { const w = q.work.get(req.params.slug); if (!w) return next(); const m = mk(w); if (V.makerSlug(m) !== String(req.params.maker)) return res.redirect(301, `/m/${V.makerSlug(m)}/${w.slug}`); req.url = `/w/${w.slug}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`; next(); });
@@ -1110,7 +1109,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       });
       db.prepare("UPDATE licenses SET stripe_session=? WHERE ref=?").run(s.id, ref);
       res.redirect(303, s.url);
-    } catch (e) { console.error('[checkout]', e.message); res.status(502).send(V.ask({ w, maker, u, note, uses: usesFor(w, maker), error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
+    } catch (e) { /* (#149) the form again, with its note, as 200: an edge that answers every 502 with its own page would hide it */ console.error('[checkout]', e.message); res.status(200).send(V.ask({ w, maker, u, note, uses: usesFor(w, maker), error: 'Payment is unavailable for a moment. Leave your details and the maker will send a link.' })); }
   });
 
   // ---------- Share it, paid in place ----------
@@ -1157,7 +1156,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       db.prepare('UPDATE licenses SET stripe_session=? WHERE ref=?').run(pi.id, ref);
       ledger.append(db, 'license.checkout', ref, { work: w.slug, use: u.key });
       res.json({ ok: true, ref, secret: pi.client_secret });
-    } catch (e) { console.error('[pay]', e.message); db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref); res.status(502).json({ ok: false }); }
+    } catch (e) { console.error('[pay]', e.message); db.prepare("DELETE FROM licenses WHERE ref=? AND status='awaiting_payment'").run(ref); res.status(502).json({ ok: false, why: 'Payment is unavailable for a moment. Nothing was charged; try again in a minute.' }); }
   });
   app.post('/pay/:ref/done', async (req, res) => {
     let l = q.lic.get(req.params.ref);
@@ -1202,7 +1201,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!l || !b || l.status !== 'active' || !/^pi_/.test(l.stripe_session || '') || Date.now() - new Date(l.starts_at).getTime() > 120e3) return res.status(400).json({ ok: false });
     const pi = await stripe.paymentIntents.retrieve(l.stripe_session).catch(() => null);
     if (!pi || pi.customer !== b.customer) return res.status(403).json({ ok: false });
-    try { await stripe.refunds.create({ payment_intent: pi.id }); } catch (e) { return res.status(502).json({ ok: false }); }
+    try { await stripe.refunds.create({ payment_intent: pi.id }); } catch (e) { return res.status(502).json({ ok: false, why: 'The refund could not be asked of the bank just now; the house has kept the purchase as it was. Try again in a minute.' }); }
     db.prepare("UPDATE licenses SET status='declined', download_token=NULL, updated_at=datetime('now') WHERE ref=?").run(l.ref);
     ledger.append(db, 'license.undone', l.ref, { refunded: true });
     res.json({ ok: true });
@@ -1817,7 +1816,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
       ledger.append(db, 'comp.taken', w.slug, {});
       res.type('jpg').send(out);
-    } catch (e) { res.sendStatus(503); }
+    } catch (e) { res.fault(e, 503); }
   });
   // The Watermark number, looked up: /t/202600008231 (or with spaces, or WM-…) opens the license it names.
   app.get('/t/:n', (req, res) => {
@@ -1851,7 +1850,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!dl.left) return res.status(410).send(V.layout({ title: 'Downloads used · Watermark', body: `<section class="narrow"><p class="k">License ${V.esc(l.ref)}</p><h1>Every download has been used.</h1><p class="lede">This license came with ${dl.limit} downloads and all have been taken. The files you have are still licensed. For more, write to the maker from <a href="/c/${V.esc(l.ref)}${l.download_token ? `?k=${V.esc(l.download_token)}` : ''}">the license</a>.</p></section>` }));
     const dlId = Number(db.prepare('INSERT INTO downloads (license_id, seat_id, size) VALUES (?,?,?)').run(l.id, seat, share ? 'share' : 'full').lastInsertRowid);
     ledger.append(db, 'file.delivered', l.ref, { work: w.slug, size: share ? 'share' : 'full', left: dl.left - 1 });
-    let file; try { file = await originalPath(w); } catch (e) { return res.sendStatus(503); }
+    let file; try { file = await originalPath(w); } catch (e) { return res.fault(e, 503); }
     const fname = fileName(w, maker, l.ref, share ? '.jpg' : path.extname(w.original_file).toLowerCase()); const name = fname.ascii;
     if (/\.(jpe?g|png|tiff?)$/i.test(file)) {
       try {
@@ -2842,7 +2841,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!full) return res.json(brief);
     // The database's own view (28 Oct): every connection to it, its state and what it waits on, so a silent process is seen from here.
     const pgActivity = db.kind === 'postgres' ? (() => { try { return db.prepare("SELECT pid, application_name app, state, wait_event_type wait, wait_event, floor(extract(epoch from (now() - COALESCE(query_start, backend_start)))) age_s, left(query, 120) q FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY backend_start").all(); } catch (e) { return [{ error: e.message.split('\n')[0] }]; } })() : undefined;
-    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), ...(() => { /* (#114) on the website the worker's kept health: no statement over fixity or conditions here */ if (!(ROLE.web && ROLE.split)) return { fixity: app.locals.archive ? app.locals.archive.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }; const K = app.locals.numbers ? app.locals.numbers.read('health') : null; return { fixity: K ? K.v.fixity : null, conservation: K ? K.v.conservation : null, keptHealthAt: K ? new Date(K.at).toISOString() : null }; })(), backup: app.locals.backup ? app.locals.backup.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, al: app.locals.spend ? app.locals.spend.today() : null, faults: process.faults || null, pgSlow: (() => { try { return require('./pgsync').slow(); } catch (e) { return null; } })(), adbSlow: adb.slow(), adb: adb.state(), lastFault: app.locals.lastFault || null, screenFault: app.locals.screenFault || null });
+    res.json({ ...brief, pg: pgActivity, vault: { kind: store.kind, cors: app.locals.vaultCors, lock: store.lock || null, unvaulted, vaulting, ...vaultState, originalsOnDisk: (() => { try { return fs.readdirSync(originals).length; } catch (e) { return null; } })(), dataDir: C.dataDir }, diskGB: diskUsage(), mailState: mail.state || null, connect: app.locals.connectState ? app.locals.connectState() : null, closer: !!process.env.ANTHROPIC_API_KEY, speech: app.locals.speech && app.locals.speech.on() ? app.locals.speech.provider() : false, signing: !!(process.env.C2PA_CERT && process.env.C2PA_KEY), ...(() => { /* (#114) on the website the worker's kept health: no statement over fixity or conditions here */ if (!(ROLE.web && ROLE.split)) return { fixity: app.locals.archive ? app.locals.archive.summary() : null, conservation: app.locals.conservation ? app.locals.conservation.summary() : null }; const K = app.locals.numbers ? app.locals.numbers.read('health') : null; return { fixity: K ? K.v.fixity : null, conservation: K ? K.v.conservation : null, keptHealthAt: K ? new Date(K.at).toISOString() : null }; })(), backup: app.locals.backup ? app.locals.backup.summary() : null, governor: app.locals.governor ? app.locals.governor.state() : null, al: app.locals.spend ? app.locals.spend.today() : null, faults: process.faults || null, pgSlow: (() => { try { return require('./pgsync').slow(); } catch (e) { return null; } })(), adbSlow: adb.slow(), adb: adb.state(), lastFault: app.locals.lastFault || null, recentFaults: (app.locals.recentFaults || []).slice(0, 10), screenFault: app.locals.screenFault || null });
   });
   // The agents' door (15 Nov, #28): a read-only desk feed for the Floor and the analyst, shut unless AGENT_KEY is set.
   // On the web process, as /healthz and the API are; the worker answers no one.
@@ -2857,18 +2856,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = db.prepare("SELECT slug, title, place, width, height FROM works WHERE status='held' AND width > height * 1.2 ORDER BY curated DESC, RANDOM() LIMIT 1").get();
     res.status(404).send(V.sign({ code: 404, cover: w ? { ...w, maker: (mk(w) || {}).name } : coverFor() }));
   });
-  // The last sign: anything that gives way is told to the house and shown as a closed gallery, not a trace.
-  app.use((err, req, res, next) => {
-    const code = err && (err.status || err.statusCode) >= 400 ? (err.status || err.statusCode) : 500;
-    if (code >= 500) { console.error('[house]', req.method, req.path, err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : err); app.locals.lastFault = { at: new Date().toISOString(), path: req.path, message: String(err && err.message || err).slice(0, 300), stack: err && err.stack ? err.stack.split('\n').slice(1, 6).map(x => x.trim()).join(' | ') : null }; }
-    if (res.headersSent) return next(err);
-    // (#115) A question over the website's limit: said in words, and the next visitor is answered (the bridge's [pg limit] line has the statement).
-    const LIMIT_WORDS = 'This page asked the house a question that took too long, so it was stopped before it held up anyone else. The rest of the house is open; try this page again in a minute.';
-    if (err && err.limit) res.set('Retry-After', '60');
-    let cover = null; try { cover = coverFor(); } catch (e) { cover = null; }
-    if (wantsSign(req) || (req.accepts('html') && !req.xhr && !/^\/(api|img|cab)/.test(req.path))) return res.status(code).send(V.sign({ code, cover, detail: code === 413 ? 'The file is larger than the vault takes in one piece.' : err && err.limit ? LIMIT_WORDS : null }));
-    res.status(code).json(err && err.limit ? { ok: false, code, why: LIMIT_WORDS } : { ok: false, code });
-  });
+  // The last sign: anything that gives way is told to the house and shown as a closed gallery, not a trace (src/breaks.js).
+  // A question over the website's limit (#115) is said in words, and the next visitor is answered; the [break] line
+  // and lastFault carry the statement's text (never its values), as the bridge's [pg limit] line does.
+  app.use(BREAKS.handler);
   require('./indexes').mount(app, { db }); // (9 Nov) the house's indexes, made by the chores process once every table is there
   if (db.limitStart) db.limitStart(); // (#115) on the website (ROLE=web, Postgres) every statement from here on has its limit; the boot above kept the connection's own
   return app;

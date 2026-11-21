@@ -54,7 +54,7 @@ function mountTours(app, { db, C, V, store, buyerOf, ledger, isStudio = () => fa
     if (wid == null || !req.file) { if (req.file) fs.unlink(req.file.path, () => {}); return res.sendStatus(400); }
     const seconds = Math.min(MAX_SECONDS, +req.body.seconds || 0) || null;
     const file = `tours/${h.id}-${wid}-${crypto.randomBytes(5).toString('hex')}.${ext(req.file.mimetype)}`;
-    try { await store.put(file, req.file.path); } catch (e) { console.error('[tours vault]', e.message); fs.unlink(req.file.path, () => {}); return res.sendStatus(503); }
+    try { await store.put(file, req.file.path); } catch (e) { console.error('[tours vault]', e.message); fs.unlink(req.file.path, () => {}); return res.fault(e, 503); }
     fs.unlink(req.file.path, () => {});
     const first = !isTour(h);
     const old = db.prepare('SELECT * FROM tour_voices WHERE hang_id=? AND work_id=?').get(h.id, wid);

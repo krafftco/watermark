@@ -53,7 +53,7 @@ function sameOrigin(base) {
     if (!origin) return next(); // old browsers, curl and the tests send none; the cookie's SameSite=Lax is the second lock
     let host = ''; try { host = new URL(origin).host.toLowerCase(); } catch (e) { /* malformed */ }
     const ok = host === self || host === req.get('host') || ALLOWED_ORIGINS.test(origin) || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
-    if (!ok) return res.status(403).send('Refused: this request did not come from Watermark.');
+    if (!ok) return require('./breaks').wants(req) === 'page' ? res.sendStatus(403) : res.status(403).send('Refused: this request did not come from Watermark.'); // a person: the sign (#149)
     next();
   };
 }
@@ -71,7 +71,7 @@ function limiter({ windowMs, max, name }) {
     let v = hits.get(k); if (!v || now > v.reset) { v = { n: 0, reset: now + windowMs }; hits.set(k, v); }
     v.n++;
     res.set('X-RateLimit-Limit', String(max)); res.set('X-RateLimit-Remaining', String(Math.max(0, max - v.n)));
-    if (v.n > max) { res.set('Retry-After', String(Math.ceil((v.reset - now) / 1000))); return res.status(429).type('text/plain').send(`Too many tries. Wait ${Math.ceil((v.reset - now) / 1000)} seconds.`); }
+    if (v.n > max) { res.set('Retry-After', String(Math.ceil((v.reset - now) / 1000))); if (require('./breaks').wants(req) === 'page') return res.sendStatus(429); /* a person: the sign, 'There is time.' (#149) */ return res.status(429).type('text/plain').send(`Too many tries. Wait ${Math.ceil((v.reset - now) / 1000)} seconds.`); }
     next();
   };
 }
