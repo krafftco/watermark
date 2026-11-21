@@ -5,6 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.2 · A maker's working papers, printed from the record · 21 November 2026
+
+- From the Library (Papers) and from Your estate, a maker can print the papers a working artist carries, made from what the house already holds: an inventory of the work (what it is, its size and edition, where it is, how many hold a piece, where it has been shown), a price list for a choice of works with the prices the maker has set, a consignment sheet, a checklist for a hang, and an exhibition history from the places stated and the loans that came home. Free, and the maker's alone.
+- The inventory is printed two hundred works a page, and each page can be kept as a spreadsheet. The whole archive in one file is still the catalogue in Your estate.
+- The house suggests no price. A price on a paper is one the maker set, or writes on the sheet; what is written is printed and not kept.
+- The consignment sheet is a form that carries what the maker and the gallery state. It says plainly that it is not legal advice and that Watermark is not a party to it.
+- A hang's curator finds the checklist and the wall labels on the hang's own page; the labels can be printed without prices.
+- The printed certificate says "the register", and with the statement of what the holder holds once that lands (#176); it calls a licence non-transferable only when its terms say so. The certificate's page prints as the paper alone.
+
 ## 1.89.1 · Search, asked the way a person asks · 20 November 2026
 
 - "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.

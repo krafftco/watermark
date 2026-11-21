@@ -268,3 +268,9 @@ The CTO session keeps it honest.
   card, the guest book, the JSON-LD, the file's XMP). Any change to those forms: check an open museum work too
   (test/sources.js has one from the Gallery and one from the Met).
 - A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.
+
+## A maker's papers (#182)
+- `src/papers.js`: printable views off the Library (`/account/table/inventory|prices|consignment|checklist|exhibitions`) and a hang (`/hang/:id/checklist`); the wall labels stay in editions.js (`?prices=0` drops prices). Each paper is a self-contained page (its own CSS, `ppr-*`), like the labels, so the house's shell is never printed. A selection is `?from=hang:<id>`, `?q=<word>`, or the maker's picks (`works.flag='pick'`); 200 works a sheet.
+- No paper writes: inputs on a sheet are for printing only (no form posts). Keep it so; a stored price list is a new promise.
+- `test/papers.js` walks them by page; `PAPERS_PRINT=1` prints each in a browser (CI's a11y job). `pdftotext` reads the certificate PDF where present. The house's `@media print` hides every `img` (style.css line 94); a paper's thumbnails show because papers do not load style.css.
+

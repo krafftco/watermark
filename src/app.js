@@ -1160,7 +1160,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The buyer is known only by a signed cookie on their device; no account, no password.
   // The signature folds in the person's session generation (buyers.sess, devices.js): a bump voids every cookie ever issued.
   const bmac = b => sign('b' + b.id + (b.sess ? '.' + b.sess : ''));
-  const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(+id); return b && mac === bmac(b) ? b : null; };
+  const buyerOf = req => { const c = req.cookies && req.cookies.wm_b; if (!c) return null; const [id, mac] = String(c).split('.'); if (!/^\d{1,15}$/.test(id)) return null; /* (#182) a made-up cookie is no one: on Postgres a NaN id was a 500 */ const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(+id); return b && mac === bmac(b) ? b : null; };
   app.locals.buyerOf = buyerOf; app.locals.makerSlug = V.makerSlug; app.locals.setBuyer = (res, b, tap) => setBuyer(res, b, tap);
   const setBuyer = (res, b, tap) => {
     const o = { sameSite: 'lax', secure: C.base.startsWith('https'), maxAge: 1000 * 60 * 60 * 24 * 365 };
@@ -1373,6 +1373,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./printshops').mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), originalPath, nanoid, inviteLink: m => app.locals.accounts.inviteLink(m) }); // the press: print shops make the house's prints (26 Oct)
   require('./lab').mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press: app.locals.printShops }); // the lab: a print-on-demand house as a shop with no desk (26 Oct)
   require('./table').mountTable(app, { db, V, C, images, originalPath, makerOf: req => app.locals.accounts.makerOf(req), KINDS: Object.keys(require('./object').KINDS) }); // the Library: Lightroom's grid and loupe for the maker's own work
+  require('./papers').mountPapers(app, { db, V, C, makerOf: req => app.locals.accounts.makerOf(req), isStudio }); // (#182) a maker's working papers, printed from the record: the inventory, a price list, a consignment sheet, a checklist, the exhibition history
   require('./cull').mountCull(app, { db, V, ledger, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true) }); // the cull (11 Nov): swipe right to show, left to keep back
   require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   require('./gifts').mountGifts(app, { db, V, ledger, studioOnly });
@@ -1777,7 +1778,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
-    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
+    // (#182) What the holder holds, on the printed certificate as on its page: the one statement (src/holds.js, #176), and
+    // "non-transferable" only where the stored terms say so (as #176 did for the page's list; docs/COUNSEL.md 45, 51).
+    let holds = null, transferable = false; try { const H = require('./holds'); const a = H.ofLicense(l, u, w, maker.name); holds = H.statement(a).text; transferable = !!H.termsOf(u, a.t).transferable; } catch (e) { holds = null; transferable = false; }
+    prov.certificatePdf(res, { holds, transferable, ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
   });
 
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
