@@ -5,11 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.87.15 · The visit log by month · 20 November 2026
+## 1.87.16 · The visit log by month · 20 November 2026
 
 - On the house's database the log of visits is now kept a month to a table, and a month past the keeping time is let go whole instead of row by row. The worker moves the existing log over a few minutes at a time, under one short hold that no visitor waits on; nothing inside the thirty days is lost, and the old table is let go only when both sides count the same. How long visits are kept is unchanged.
 - The test of the house at scale now runs the worker's night as well: the moves, the counts, the register's check, the backup and its drill, and fails if the worker would grow past its line, or if a backup grows the worker by more than the copy it is making. The backup that ended the worker on 18 to 20 November would have failed it.
 
+## 1.87.15 · The open doors, made ahead · 20 November 2026
+
+- The front door, Wander's first page, the house's own page, the collection, the makers, an artist's page in the hall and the works visitors are looking at are made ahead by the house's back room and kept, so a first visit opens without waiting on the database. Anyone signed in, or carrying their own looking, a basket or a walk, has their page made for them, as before, and it is never kept.
+- A visit to one of those pages is still counted by the house itself, as every visit is.
 ## 1.87.14 · A break is the house's, not the host's · 20 November 2026
 
 - When one room gives way, that room says so in the house's own words, with Try again and the way back to where you were; the rest of the house stays open. A page that only needs a moment tries again by itself.

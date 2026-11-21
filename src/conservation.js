@@ -164,6 +164,7 @@ function mountConservation(app, { db, V, C, ledger, mail, images, store, cache, 
     for (const f of renditionsOf(w.slug)) { try { fs.unlinkSync(f); } catch (e) { /* gone */ } }
     try { fs.unlinkSync(path.join(cache, `${w.slug}-screen-veil.jpg`)); } catch (e) { /* none */ }
     if (app.locals.edge) app.locals.edge.work(w.slug); // and the edge's copies (25 Oct)
+    if (app.locals.prepared) app.locals.prepared.forget(w.slug); // and the stranger's prepared page (#139)
     if (images.dropBucket) await images.dropBucket(cache, w.slug); // and the bucket's (5 Nov)
     const file = await originalPath(w);
     await images.warm(file, cache, w.slug);

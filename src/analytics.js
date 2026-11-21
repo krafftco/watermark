@@ -17,7 +17,8 @@ const path = require('path');
 
 const KEEP_DAYS = +(process.env.HITS_KEEP_DAYS || 30); // 30 days (5 Nov: 90 made the nightly dump 150 MB)
 const BOT = /bot|crawl|spider|slurp|facebookexternalhit|preview|headless|python-requests|curl\/|wget|go-http-client|okhttp|monitor|uptime|render\/|pingdom|betterstack/i;
-const SKIP = /^\/(static|healthz|sw\.js|favicon|\.well-known|vendor|app\/)/;
+const SKIP = /^\/(static|healthz|sw\.js|favicon|\.well-known|vendor|app\/|api\/arrived$)/; // /api/arrived counts itself as the page it names (#139)
+const { isPrepare } = require('./prepared');
 
 function device(ua) {
   if (/iPad|Tablet|Silk/i.test(ua)) return 'tablet';
@@ -124,26 +125,49 @@ function mountAnalytics(app, { db, V, C, studioOnly, isStudio = () => false, led
   }
   const rollup = require('./numbers').mountRollup(db);
 
-  app.use((req, res, next) => {
-    if (SKIP.test(req.path)) return next();
-    const t0 = process.hrtime.bigint();
-    res.on('finish', () => {
-      try {
-        const ms = Number((process.hrtime.bigint() - t0) / 1000000n);
-        const kind = kindOf(req.path); const ua = req.get('user-agent') || ''; const bot = BOT.test(ua) ? 1 : 0;
+  // One request written down: by the door it asked (`at` its path, its status, how long it took) or, for a page sent
+  // from a prepared copy, by the browser's word that it arrived (POST /api/arrived: `as` names the page, the referrer and
+  // the time are the browser's own).
+  function note(req, res, ms, as = null) {
+        const reqPath = as ? as.path : req.path, status = as ? 200 : res.statusCode;
+        const kind = kindOf(reqPath); const ua = req.get('user-agent') || ''; const bot = BOT.test(ua) ? 1 : 0;
         minute[kind] = (minute[kind] || 0) + 1; if (bot) minute.bot++; if (kind === 'page' && !bot) minute.ms.push(ms);
         if (kind === 'img' || kind === 'static') return;
         const v = visitorOf(req);
-        const kid = /^\/kids(\/|$)/.test(req.path); // the kids' corner keeps no one: counted, never a visitor, a referrer or a device (29 Oct)
-        if (kind === 'page' && !bot && !kid && req.method === 'GET' && res.statusCode < 400 && !isStudio(req)) present.set(v, { at: Date.now(), path: page(req.path), device: device(ua), human: alive.has(v) });
-        if (res.statusCode >= 400 && res.statusCode !== 404 || res.statusCode >= 500) { errors.unshift({ at: new Date().toISOString(), path: req.originalUrl.slice(0, 120), status: res.statusCode, ms }); if (errors.length > 40) errors.pop(); }
-        let ref = null; try { const r = req.get('referer'); if (r) { const h = new URL(r).hostname; ref = h === new URL(C.base).hostname ? null : h.replace(/^www\./, ''); } } catch (e) { ref = null; }
+        const kid = /^\/kids(\/|$)/.test(reqPath); // the kids' corner keeps no one: counted, never a visitor, a referrer or a device (29 Oct)
+        if (kind === 'page' && !bot && !kid && (as || req.method === 'GET') && status < 400 && !isStudio(req)) present.set(v, { at: Date.now(), path: page(reqPath), device: device(ua), human: alive.has(v) });
+        if (status >= 400 && status !== 404 || status >= 500) { errors.unshift({ at: new Date().toISOString(), path: req.originalUrl.slice(0, 120), status, ms }); if (errors.length > 40) errors.pop(); }
+        let ref = null; try { const h = as ? as.ref : (req.get('referer') ? new URL(req.get('referer')).hostname : ''); if (h) ref = h === new URL(C.base).hostname ? null : String(h).replace(/^www\./, '').slice(0, 120); } catch (e) { ref = null; }
         const country = (req.get('cloudfront-viewer-country') || req.get('cf-ipcountry') || req.get('x-vercel-ip-country') || req.get('x-country') || '').toUpperCase().slice(0, 2) || null;
-        const bytes = +(res.get('content-length') || 0) || null;
-        buf.push([Math.floor(Date.now() / 1000), page(req.path), kind, res.statusCode, ms, bot || kid ? null : v, kid ? null : ref, kid ? null : device(ua), kid ? null : browser(ua), bot, kid ? null : country, bytes]);
+        const bytes = as ? null : +(res.get('content-length') || 0) || null;
+        buf.push([Math.floor(Date.now() / 1000), page(reqPath), kind, status, ms, bot || kid ? null : v, kid ? null : ref, kid ? null : device(ua), kid ? null : browser(ua), bot, kid ? null : country, bytes]);
+  }
+  app.use((req, res, next) => {
+    if (SKIP.test(req.path) || isPrepare(req)) return next(); // the worker making a copy is not a visitor (#139)
+    const t0 = process.hrtime.bigint();
+    res.on('finish', () => {
+      try {
+        if (res.locals.fromCopy) return; // a page from a prepared copy is counted when the browser says it arrived (/api/arrived)
+        note(req, res, Number((process.hrtime.bigint() - t0) / 1000000n));
       } catch (e) { /* never in the way of a request */ }
     });
     next();
+  });
+  // (20 Nov, #139) A page from a prepared copy says it arrived: sent once by the copy's own line, from the visitor's
+  // browser, whether the website or a cache in front sent the page. Written into the same hits as any page (the batch
+  // every five seconds) and, for a work, into its views (app.locals.viewLater): nothing is asked of the database here.
+  // Only a door a copy can answer is counted; anything else is answered and forgotten. A beacon, not a door a person presses.
+  app.post('/api/arrived', (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+      const p = String(req.query.p || '').slice(0, 400); const P = app.locals.prepared; const d = P && P.doorOfPath ? P.doorOfPath(p) : null;
+      if (d && !isStudio(req)) {
+        const t = Math.max(0, Math.min(600000, Math.round(+req.query.t || 0)));
+        note(req, res, t, { path: p, ref: String(req.query.r || '').toLowerCase().replace(/[^a-z0-9.-]/g, '').slice(0, 120) || null });
+        if (d.kind === 'work' && !BOT.test(req.get('user-agent') || '') && app.locals.viewLater) app.locals.viewLater(d.slug);
+      }
+    } catch (e) { /* never in the way */ }
+    res.status(204).end();
   });
 
   // ---- the report

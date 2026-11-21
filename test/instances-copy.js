@@ -42,7 +42,7 @@ const client = { async send(cmd) {
 const store = require('../src/storage').createStore({ bucket: 'wm-test', client, localRoot: path.join(DIR, 'vault') });
 
 const { createApp } = require('../src/app');
-const app = createApp({ dataDir: DIR, base: process.env.BASE || 'http://localhost', adminPassword: 'pw', secret: 'two-copies', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true, store });
+const app = createApp({ dataDir: DIR, base: process.env.BASE || 'http://localhost', adminPassword: 'pw', secret: 'two-copies', stripeKey: 'sk_test_dummy', stripePk: 'pk_test_dummy', stripeClient, webhookSecret: 'whsec_test', noTimers: true, store, prepared: true }); // (#139) prepared copies on: made by the test's call, read by each copy's own poll
 const at = (o, p) => p.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
 const ops = {
   // app.locals.<path>(...args), its answer as JSON
