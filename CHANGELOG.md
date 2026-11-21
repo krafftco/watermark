@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.88.1 · What the house calls itself · 20 November 2026
+
+- The house no longer calls itself a museum. A museum is a not-for-profit that holds its own objects; the house is a gallery for living artists, a catalogue of works held in museums, and a register. The front page and the About page say so.
+
 ## 1.88.0 · On view at · 20 November 2026
 
 - A maker can say where a work can be seen in person: the place, its street, city and country, the dates, and the place's own web address. The work's page, the maker's page and the work's panel in Wander say it in one line, "On view at …, until …", with who stated it. Set on the work's record, for one work or every work of the maker in a hang at once.
