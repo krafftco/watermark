@@ -281,3 +281,19 @@ The CTO session keeps it honest.
 - A page's own rules restyle a bare `<b>` or `<p>` (the work page made the label 30 px): look at a new block on each
   page at 390 wide, do not trust one.
 
+## Find (#179)
+- `src/findask.js` reads the ask (a phrase, a number, "X by Y", a year or decade, a kind, a holder) and touches no
+  database; `src/find.js` runs it. One judge (`judge`) scores both roads, so a change to ranking is made once; the
+  database road only chooses which works the judge sees (`candidates`), and Wander asks through `find.whereFor`.
+- The database road asks for ids first, unordered, to the ceiling (FIND_CANDIDATES, 400): an ask few works meet is one
+  pass with no join (about 50 ms on SQLite at 100,000 works, where the ordered question walked the index for 130 ms).
+  Only a common word goes on to the ordered question and its two small ones (makers who are not institutions; the exact
+  title, index `works_title_lower`). Test the ceiling by setting FIND_CANDIDATES low before `createApp` (test/findask.js).
+- On SQLite a word nothing carries is a pass over every held work (no trigram index there); Postgres answers from
+  `works_find`. A slip in a title is forgiven on the list road and on Postgres, not on SQLite's database road.
+- A caption's words and an accented letter are read on the list road and not by the database's candidates (`WORDS`
+  holds neither): the two roads differ there, as they did before #179.
+- `find_misses` (day, words, n) is written only by a deliberate ask (the /find page, Wander's page), never by the box
+  as it is typed, and read only by /studio/feedback. Each copy stops at FIND_MISSES_A_DAY (400) writes a day.
+- Give your own runs their own temp root (`TMPDIR=/tmp/wm-<issue>-tmp node test/x.js`): every house they make is
+  under it, and clearing up is one folder that is certainly yours.

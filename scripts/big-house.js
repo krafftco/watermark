@@ -420,6 +420,11 @@ async function walk(dir) {
     `/m/${mkSlug}`, `/m/${V.makerSlug ? V.makerSlug(museum) : museum.handle}`, '/art/artist-7', '/rooms/room-3', '/d/album1', '/volume/codex-big', '/volume/codex-small',
     '/read/notes-book', '/read/notes-book?c=3', '/read/text-1', '/library', '/ledger', '/find?q=river', '/api/find?q=paris', '/api/stroll?n=8', '/api/v1/works?limit=24&offset=5000', '/api/index.json', '/house', '/makers', '/', '/healthz',
     `/c/${w("SELECT ref AS slug FROM licenses WHERE status='active' ORDER BY id LIMIT 1")}`,
+    // (#179) Search as people ask: a title by its maker, a place and a year, a decade, a phrase, a kind, a holder, a
+    // number typed exactly, a word nothing carries beside words that are, words never carried together, a slip, and
+    // Wander by the same words. Each is a visitor's path: no statement over the line, no walk of the collection.
+    ...['the harbour by maker 12', 'paris 1962', 'study of a river 1960s', '"still life with lemons" kyoto', 'photographs in lisbon', 'artist 7 at museum a', 'BH.4242', 'WM-2026-000001', 'window in kyoto xyzzyq', 'kyoto zzzzqq blorp', 'vienna 1066', 'harbuor lisbon', 'zzzzqq'].map(q => `/api/find?q=${encodeURIComponent(q)}`),
+    `/find?q=${encodeURIComponent('the harbour by maker 12 xyzzyq')}`, '/find?q=zzzzqq+blorp', `/api/stroll?n=8&q=${encodeURIComponent('the harbour by maker 12')}`, `/api/stroll?n=8&q=${encodeURIComponent('paris 1960s')}`, `/wander?q=${encodeURIComponent('street evening in rome')}`,
   ];
   const people = [
     ['visitor', '', [...rooms(V.DOORS), ...extra]],
