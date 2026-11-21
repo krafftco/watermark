@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.89.2 · The house is not a stock library · 20 November 2026
+
+_A draft for Will: the words here and on the pages are his to confirm._
+
+- The page called "For the trade" is retired. It listed every photograph in rows with its file size and its prices, a search by megapixels, a watermarked sample to download and a quote for a set. The house does not read that way any more. Its address now leads to the collection.
+- Licensing itself has not changed. Each work's own licence page still shows what it may be used for and what each use costs, or "Ask".
+- New on that page: the size of the file, and "Ask about using this work", a short letter to the house (your email, your company, the use). The house answers in writing within one working day; the maker is told as well.
+- The switch that turned the trade side on for a device is gone with it: no "Trade" mark in the header and no added panel on a work's page, for anyone. A device that still carries the old switch sees the same house as everyone else, and the switch is forgotten the next time it follows an old trade link.
+- "For the trade" is out of the menus, the footer, the list of every room and the suggestions by time of day. The agencies' API page is as it was.
+
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
 The trade's rules, kept by the house:
