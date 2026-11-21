@@ -92,6 +92,8 @@ td{padding:12px 12px 12px 0;border-bottom:1px solid var(--ln);vertical-align:top
 .wv-bar button{background:none;border:1px solid #ece7de55;color:#ece7de;padding:8px 14px;font-size:11px;letter-spacing:.2em}
 @media (max-width:900px){.work,.lic{grid-template-columns:1fr}.plate{position:relative;top:0}.cert-grid{grid-template-columns:1fr}}
 @media print{img,.plate,.cf{visibility:hidden}}
+/* (#182) The certificate's page, printed: the paper alone, without the house's bars, the presses or the empty frame (a picture is never printed, above). The PDF is the paper to keep. */
+@media print{body:has(section.lc2) .top,body:has(section.lc2) .foot,body:has(section.lc2) .skip,body:has(section.lc2) .rm-bar,body:has(section.lc2) .stg,body:has(section.lc2) .hs,section.lc2 .lc2-fig,section.lc2 .lc2-acts,section.lc2 .lc2-dln{display:none!important}section.lc2{display:block;padding:0}section.lc2 .lc2-coa{break-inside:avoid}}
 /* License: one photograph, four uses, one button */
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .buy{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:clamp(28px,5vw,80px);padding:clamp(24px,4vw,56px) clamp(16px,4vw,56px);align-items:start}
