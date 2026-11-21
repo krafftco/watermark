@@ -2679,8 +2679,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
   console.log('ok: the director');
-  { r = await req(port, 'GET', '/owners'); assert.ok(r.status === 200 && /One company\./.test(r.body) && /owner’s manual/.test(r.body) && /No share is offered or sold/.test(r.body) && /works held by Watermark/.test(r.body), 'the owners’ page');
-    r = await req(port, 'GET', '/investors'); assert.equal(r.headers.location, '/owners'); }
+  // Studio-only since #188: a stranger is sent to /about; the Studio still reads the page.
+  { r = await req(port, 'GET', '/owners'); assert.ok(r.status === 302 && r.headers.location === '/about', 'the owners’ page is not public');
+    r = await req(port, 'GET', '/investors'); assert.equal(r.headers.location, '/about', 'nor the investors’ address');
+    r = await req(port, 'GET', '/owners', { cookie: ck }); assert.ok(r.status === 200 && /One company\./.test(r.body) && /owner’s manual/.test(r.body) && /No share is offered or sold/.test(r.body) && /works held by Watermark/.test(r.body), 'the owners’ page, for the Studio');
+    r = await req(port, 'GET', '/investors', { cookie: ck }); assert.equal(r.headers.location, '/owners'); }
   r = await req(port, 'GET', '/promises'); assert.ok(r.status === 200 && /The country store/.test(r.body) && /Friday pay\./.test(r.body) && /J\. Ray Weir/.test(r.body) && /class="cst-l"/.test(r.body), 'the country store');
   r = await req(port, 'GET', '/country-store'); assert.equal(r.status, 200, 'the alias');
   console.log('ok: the country store');

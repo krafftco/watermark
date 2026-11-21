@@ -169,7 +169,6 @@ ${(() => { const T = []; const Q = [];
 <p class="ph-note"><a href="/releases">Every release</a> · <a href="/healthz">the house's pulse</a> (up, the register sound, the vault, mail, payments; the full report is the Studio's)</p></section>
 
 <section class="ph-pap" id="papers"><h2 class="ph-h">The papers</h2><ul class="ph-links">
-<li><a href="/owners">How the company is owned</a> <span>Class A and B, the owner’s manual, what is never touched</span></li>
 <li><a href="/share">The house’s share</a> <span>the published schedule the collector pays</span></li>
 <li><a href="/promises">The country store</a> <span>the promises the house keeps, and the family story they come from</span></li>
 <li><a href="/standard">The standard</a> <span>the record, the number, the register, the anchor, the file, the mark</span></li>

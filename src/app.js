@@ -875,7 +875,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/about', (req, res) => res.send(V.about()));
   require('./director').mountDirector(app, { db, V, C });
   require('./promises').mountPromises(app, { V, C }); // the country store: the house's promises (/promises)
-  require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
+  require('./owners').mountOwners(app, { db, V, C, isStudio }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger, DEFAULT_USES });
   require('./nga').mountNga(app, { db, C, ledger }); /* the National Gallery of Art's open access (6 Nov) */ { const fUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }); require('./feeds').mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload: fUp }); } // feeds in: the bulk door (27 Oct) // museums: a collection in from a IIIF manifest; the Image API out; /museums
