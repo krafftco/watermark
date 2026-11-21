@@ -2817,15 +2817,32 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const ex = require('piexifjs').load(Buffer.from(r.body).toString('binary'));
     const desc = ex['0th'][require('piexifjs').ImageIFD.ImageDescription]; assert.ok(desc.includes(T.track(l.ref)) && /A photograph by/.test(desc) && !/sha256/.test(desc), 'a caption in words: ' + desc); }
   console.log('ok: the Watermark number');
-  // For the trade: the search with its filters and prices, a comp with a readable name, a quote for a set; the visitor's view untouched.
-  { let r = await req(port, 'GET', '/trade?min=0&sort=big'); assert.equal(r.status, 200); assert.ok(/tr-spec/.test(r.body) && /\/comp\//.test(r.body) && /data-hang-open/.test(r.body), 'spec, comp and lightbox on every row');
-    assert.ok((r.headers['set-cookie'] || []).some(c => /wm_trade=1/.test(c)), 'arriving at the trade turns it on for this device');
-    const slug = (r.body.toString().match(/data-hang-open="([^"]+)"/) || [])[1];
-    r = await req(port, 'GET', '/trade?shape=nonsense&min=999'); assert.equal(r.status, 200);
-    r = await req(port, 'GET', '/comp/' + slug); assert.equal(r.status, 200); assert.ok(/\(comp\)\.jpg/.test(r.headers['content-disposition']), r.headers['content-disposition']);
-    r = await req(port, 'POST', '/trade/quote', { body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()));
-    r = await req(port, 'GET', '/w/' + slug); assert.ok(!/tr-spec-box/.test(r.body.toString()), 'the visitor sees no trade panel in the page itself'); }
-  console.log('ok: for the trade');
+  // The trade is retired (#178): its doors clear the old switch and lead to the collection; no page carries a trade
+  // panel, chip or comp link; a work's licence page still offers its uses and takes an enquiry to the house.
+  { const slug = db.prepare("SELECT w.slug FROM works w WHERE w.status='held' AND w.open IS NULL AND EXISTS (SELECT 1 FROM uses u WHERE u.maker_id=w.maker_id AND u.kind!='delivery') ORDER BY w.id LIMIT 1").get().slug;
+    for (const [door, to] of [['/trade', '/collection'], ['/trade?min=24&sort=big', '/collection'], ['/trade/on', '/collection'], ['/trade/on?back=/about', '/collection'], ['/trade/off', '/collection'], ['/trade/off?back=/w/' + slug, '/w/' + slug], ['/trade/off?back=//elsewhere.example', '/collection']]) {
+      const r = await req(port, 'GET', door, { headers: { cookie: 'wm_trade=1' } }); assert.equal(r.status, 302, door); assert.equal(r.headers.location, to, door);
+      assert.ok([].concat(r.headers['set-cookie'] || []).some(c => /^wm_trade=;/.test(c) && /Max-Age=0|Expires=Thu, 01 Jan 1970/.test(c)), door + ' clears the old switch');
+      assert.ok(/no-store/.test(r.headers['cache-control'] || ''), door + ' is never kept, or the cookie would stay'); }
+    let r = await req(port, 'GET', '/collection', { headers: { cookie: 'wm_trade=1' } }); assert.equal(r.status, 200);
+    for (const p of ['/', '/w/' + slug, '/everything', '/license/' + slug]) { r = await req(port, 'GET', p, { headers: { cookie: 'wm_trade=1' } }); const t = r.body.toString(); assert.equal(r.status, 200, p);
+      assert.ok(!/static\/trade\.js|tr-chip|tr-spec|href="\/trade|\/comp\/|For the trade/.test(t), p + ' carries nothing of the trade, cookie or no'); }
+    r = await req(port, 'GET', '/static/trade.js'); assert.equal(r.status, 200); assert.ok(!/fetch|tr-chip|innerHTML/.test(r.body.toString()), 'the old script draws nothing');
+    r = await req(port, 'GET', '/license/' + slug); let t = r.body.toString();
+    assert.ok(/class="bu[ "]/.test(t) && /name="use"/.test(t) && /class="bu-p"/.test(t), 'the licence page still offers its uses, each with its price');
+    assert.ok(/Ask about using this work/.test(t) && new RegExp(`href="/license/${slug}/ask"`).test(t) && /&times; [\d,]+ pixels/.test(t) && !/name="email"/.test(t), 'and the size, and the way to ask; still no field before payment');
+    r = await req(port, 'GET', `/license/${slug}/ask`); assert.equal(r.status, 200); assert.ok(new RegExp(`action="/license/${slug}/ask"`).test(r.body.toString()) && /name="email"/.test(r.body.toString()), 'the letter to the house');
+    r = await req(port, 'GET', '/license/no-such-work/ask'); assert.equal(r.status, 302); assert.equal(r.headers.location, '/collection');
+    r = await req(port, 'GET', '/comp/' + slug); assert.equal(r.status, 200); assert.ok(/\(comp\)\.jpg/.test(r.headers['content-disposition']), 'the comp itself is not deleted: ' + r.headers['content-disposition']);
+    const n0 = db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='trade.quote'").get().n;
+    r = await req(port, 'POST', `/license/${slug}/ask`, { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example', company: 'The Paper', note: 'A cover' } }); assert.equal(r.status, 200); t = r.body.toString(); assert.ok(/Asked\./.test(t) && new RegExp(`href="/license/${slug}"`).test(t), 'asked, with the way back');
+    r = await req(port, 'POST', `/license/${slug}/ask`, { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'not an address', note: 'A cover' } }); assert.equal(r.status, 200); t = r.body.toString(); assert.ok(/does not look whole/.test(t) && /A cover/.test(t) && /action="\/license\//.test(t), 'a bad address is said, with the form and what was written');
+    r = await req(port, 'POST', '/license/no-such-work/ask', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example' } }); assert.equal(r.status, 200); assert.ok(/not here to ask about/.test(r.body.toString()) && /href="\/collection"/.test(r.body.toString()), 'a work that is gone is said, never a bare status');
+    r = await req(port, 'POST', '/trade/quote', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()), 'a form left open on the old catalogue still sends, for this release');
+    r = await req(port, 'POST', '/trade/quote', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example' } }); assert.equal(r.status, 200); assert.ok(/not here to ask about/.test(r.body.toString()));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='trade.quote'").get().n, n0 + 2, 'two enquiries kept, the refused ones not');
+    assert.ok(!JSON.stringify(require('../src/views').DOORS).includes('/trade'), 'no menu leads to the trade'); }
+  console.log('ok: the trade is retired; a work is licensed on its own page, or asked about');
   // See the watermark: what the photograph carries; a taken-down photograph leads on, never to a sign.
   { const w = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id LIMIT 1").get();
     let r = await req(port, 'GET', '/api/eye/' + w.slug); const d = JSON.parse(r.body.toString()); assert.ok(/^WM\./.test(d.number) && /% of every sale/.test(d.paid) && d.uses.length, 'the watermark reads');

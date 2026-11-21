@@ -27,7 +27,7 @@ function mountBeta(app, { db, V, mail, studioOnly, C, ledger }) {
     if (app.locals.notify && app.locals.notify.house) try { app.locals.notify.house('feedback', { id, kind }); } catch (e) {}
     res.redirect('/feedback?sent=1' + (from ? '&from=' + encodeURIComponent(from) : ''));
   });
-  app.get('/studio/feedback', studioOnly, (req, res) => res.send(V.feedbackDesk({ rows: db.prepare('SELECT * FROM feedback ORDER BY done, id DESC LIMIT 300').all(), ok: req.query.ok })));
+  app.get('/studio/feedback', studioOnly, (req, res) => res.send(V.feedbackDesk({ rows: db.prepare('SELECT * FROM feedback ORDER BY done, id DESC LIMIT 300').all(), ok: req.query.ok, misses: app.locals.find && app.locals.find.misses ? app.locals.find.misses(30) : [] })));
   app.post('/studio/feedback/:id', studioOnly, (req, res) => { db.prepare('UPDATE feedback SET done=1-done WHERE id=?').run(Number(req.params.id)); res.redirect('/studio/feedback'); });
   // The launch switch, on Studio → Launch.
   app.post('/studio/launch/state', studioOnly, (req, res) => {

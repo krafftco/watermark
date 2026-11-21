@@ -1088,7 +1088,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
     if (!q.uses.all(maker.id).some(u => listed(rules, u.key, w))) return res.redirect(`/w/${w.slug}`); // nothing to license (open, or every use closed)
-    res.send(V.buy({ w, maker, rules, simply: app.locals.saidSimply ? app.locals.saidSimply(maker, q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w))) : '', mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, ask: app.locals.askAbout ? app.locals.askAbout(w) : '', simply: app.locals.saidSimply ? app.locals.saidSimply(maker, q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w))) : '', mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).

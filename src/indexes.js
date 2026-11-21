@@ -64,6 +64,8 @@ const LIST = [
   // (#114) the health, made by the worker: each work's latest fixity check in one pass, and the unsound works counted from an index
   ['fixity_last', 'fixity (work_id, id)'],
   ['works_condition', 'works (condition) WHERE condition IS NOT NULL'],
+  ['works_accession', 'works (accession)'], // (#179) Find: an accession number typed exactly is one row, not a walk
+  ['works_title_lower', 'works (lower(title))'], // (#179) Find: the works whose title is exactly what was typed, when a common word meets the ceiling
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
 // website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.
