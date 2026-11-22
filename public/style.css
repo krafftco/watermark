@@ -4603,6 +4603,27 @@ html.rm-on{overflow:hidden}
 .st-full[hidden]{display:none!important}@media (max-width:760px){.st-full span{display:none}}
 /* The album in Wander: Save and Instax in the rail, in place of Collect. */
 .st-dv{display:contents}.st-dvb{text-decoration:none}
+/* The album in Wander (22 Nov): the heart on the rail, and one sheet for the album's acts on the photograph on screen. */
+.st-altr{display:flex;align-items:center;gap:4px}.st-altr .st-t{min-width:0}
+.st-alh{flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;margin:-10px -10px -10px 0;padding:0;background:none;border:0;color:#f2efe9;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.st-alh svg{width:24px;height:24px;filter:drop-shadow(0 1px 8px rgba(0,0,0,.8))}.st-alh[aria-pressed=true] svg path{fill:currentColor}
+.st-als{position:fixed;z-index:70}.st-alc{padding-top:20px}
+.st-alt{font:400 clamp(20px,2.4vw,26px)/1.2 var(--disp);margin:0 40px 14px 0;color:#f2efe9;text-transform:none;letter-spacing:0}
+.st-alrow{display:flex;gap:4px;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);padding:6px 0;margin:0 0 10px}
+.st-alb{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:58px;min-width:44px;background:none;border:0;border-radius:8px;color:#f2efe9;font:500 12px/1 var(--sans);text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.st-alb svg{width:24px;height:24px}.st-alb:hover,.st-alb[aria-expanded=true]{background:rgba(255,255,255,.07)}
+.st-alp{display:grid;gap:2px;margin:0 0 10px}.st-alp[hidden]{display:none}
+.st-alo2{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;width:100%;min-height:52px;padding:8px 12px;background:none;border:0;border-radius:8px;color:#f2efe9;text-align:left;text-decoration:none;font:inherit;cursor:pointer}
+.st-alo2:hover{background:rgba(255,255,255,.06)}.st-alo2 b{font:500 15px/1.2 var(--sans)}.st-alo2 i{font:400 12.5px/1.35 var(--sans);font-style:normal;color:#a39b8e}
+.st-alin{margin:0;padding:14px 12px;font:400 14px var(--sans);color:#a39b8e}
+.st-alf{display:grid;gap:10px;margin:4px 0 12px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:10px}.st-alf[hidden]{display:none}
+.st-alf label{display:grid;gap:4px;font:400 12px var(--sans);color:#a39b8e}
+.st-alf input{min-height:44px;padding:0 12px;background:#0b0a09;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#f2efe9;font:400 16px var(--sans)}
+.st-alft{margin:0;font:400 13px/1.45 var(--sans);color:#cfc8bb}.st-alfr{display:flex;gap:12px;align-items:center;margin:2px 0 0}
+.st-algo{min-height:44px;padding:0 20px;background:none;border:1px solid #f2efe9;border-radius:999px;color:#f2efe9;font:500 14px var(--sans);cursor:pointer}
+.st-alno{min-height:44px;padding:0 8px;background:none;border:0;color:#a39b8e;font:400 14px var(--sans);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.st-aldone{margin:0 0 12px;padding:12px;font:400 14px var(--sans);color:#f2efe9;background:rgba(255,255,255,.06);border-radius:8px}.st-aldone[hidden]{display:none}
+.st-alback{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:4px;color:#e9e4da;font:400 14px var(--sans);text-decoration:underline;text-underline-offset:3px}
 /* The album, social (31 Oct): send to the group; the book the group signs; the door for the photographers who see it. */
 .dv-send{display:inline-flex;flex-direction:column;gap:2px;padding:12px 22px 10px;border:1px solid rgba(233,228,218,.4);border-radius:4px;background:none;color:#e9e4da;font:inherit;text-align:left;cursor:pointer}
 .dv-send .ic{width:18px;height:18px;margin-bottom:4px}.dv-send span{font:400 18px/1.1 var(--disp)}.dv-send i{font-style:normal;font-size:12px;color:#a39d92}
@@ -4818,6 +4839,7 @@ html.dvp-on{overflow:hidden}
 /* The album, cleaned (2 Nov; docs/DESIGN.md): the grid carries the heart alone; the toolbar is plain verbs, an icon over
    the word; a tap opens the photograph's own view with its acts beneath. */
 .dv-grid .dv-w{position:relative}.dv-grid .dv-w figcaption{display:none}
+.dv-grid .dv-w{scroll-margin-top:72px}.dv-wl{margin:-22px 0 28px;font:400 13px/1.45 var(--sans);color:#8f897f}
 .dvt{display:flex;flex-wrap:wrap;gap:2px;margin:6px 0 30px;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);padding:6px 0}
 .dvt-b,.dv .dvt .dvh-f{display:inline-flex;flex-direction:column;align-items:center;gap:6px;min-width:76px;padding:10px 12px 8px;background:none;border:0;border-radius:6px;color:#e9e4da;font:500 12px var(--sans);letter-spacing:.04em;text-decoration:none;cursor:pointer}
 .dvt-b:hover{background:rgba(255,255,255,.06)}.dvt-b svg,.dvt-b .ic{width:22px;height:22px}.dvt .dv-wander svg{width:30px;height:22px;color:#d9bc7c;margin:0}

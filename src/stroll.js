@@ -382,6 +382,8 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
+    // (22 Nov, Will) In an album, the album's own acts for the photograph on screen, as its rules allow this viewer.
+    const album = isDelivery(key) && set && app.locals.deliveries && app.locals.deliveries.acts ? app.locals.deliveries.acts(key, req) : null;
     let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (q && !set && app.locals.find) try { app.locals.find.search(q, 1, req, { log: !req.get('x-wm-prepare') }); } catch (e) { /* (#179) words that found nothing are kept for the Studio; never in the walk's way */ }
     if (at) items = [wanderJSON(at, req), ...items];
@@ -392,7 +394,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     // the card is the picture itself; the page opens on it alone, in the dark, and the chrome comes after.
     const giftLine = gift ? `${gift.from ? `${gift.from} found this for you.` : 'Someone found this for you.'}` : '';
     const giftNote = gift && gift.note ? gift.note : '';
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: (as && as.label) || set.label, href: (as && as.href) || set.href, n: set.n, via: set.via || null, files: set.files || null } : null, I , front, share: sh, gift: gift ? { from: gift.from || '', line: giftLine, note: giftNote, token: gift.token || '' } : null, me: meFirst(req) }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: (as && as.label) || set.label, href: (as && as.href) || set.href, n: set.n, via: set.via || null, files: set.files || null, album } : null, I , front, share: sh, gift: gift ? { from: gift.from || '', line: giftLine, note: giftNote, token: gift.token || '' } : null, me: meFirst(req) }));
   }
 }
 
@@ -437,7 +439,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 ${gift ? `<div class="st-flower" data-st-flower>${gift.note ? `<p class="st-fl-note">“${esc(gift.note)}”</p>` : ''}<p class="st-fl-line">${esc(giftLine)}</p><p class="st-fl-sub">${items[0] ? `<b>${esc(V.tidy(items[0].title))}</b> · ${esc(items[0].maker)}` : ''}</p></div>` : ''}${front ? `<div class="st-hello" data-st-hello><p><b>Watermark takes art and copyright seriously.</b> Photographers keep their work here, show it properly, and are paid when it is used or collected.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
 <button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="More like this">${I.look || I.wave}<span>More</span></button><aside class="st-side st-side-l st-who st-like" data-st-side="yours" aria-label="More like this"><div class="sdr" data-sd-body></div></aside><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About the work">${I.page || I.look}<span>About</span></button>
 <aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="About the work and who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
-<template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template>
+<template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template><template data-st-ic="print">${I.print || ''}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>
 <p class="st-swipe" data-st-swipe hidden><span>Swipe up for the next</span><i></i></p>

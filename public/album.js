@@ -2,6 +2,8 @@
 // and the album played as a film: two pictures cross-fading, five seconds each, quiet music made in the browser.
 (function () {
   var D = window.__DV; if (!D) return;
+  // Back from Wander by the browser's own Back: a page kept whole in memory would show the hearts as they were before; ask again.
+  addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
   var root = document.querySelector('main.dv'); if (!root) return;
   var countEl = document.querySelector('[data-dvh-count]'), dl = document.querySelector('[data-dvh-dl]'), none = document.querySelector('[data-dvh-none]');
   var filterBtn = document.querySelector('[data-dvh-filter]'), only = false;

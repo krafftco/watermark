@@ -22,18 +22,107 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
   (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
-  ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card', 'look', 'pencil'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
+  ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card', 'look', 'pencil', 'print'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
 
   // An album (31 Oct, Will: "view photos in deliveries in Wander, and download from Wander; make the Instax option
-  // there"): with the album's own address, every screen carries Save (the 2,400-pixel copy, to Photos on a phone) and
-  // Instax; the address passed on to the group (album:) shows the pictures and never a file.
+  // there"; 22 Nov: "Wander is the way we want people to thumb through the albums, but we still want people to
+  // favourite, like, print"). In an album every screen carries two things more: the heart beside the title (the album's
+  // own, the same endpoint and the same state as the album page) and Album on the rail, which opens one sheet with what the album's
+  // rules allow this viewer for the photograph on screen: Download · Share (Post, Story, Message) · Print · More (Keep
+  // it, Full size, Instax, That's me, That's a friend, Ask to license it), and the way back to the album at this photograph.
   var FILES = S.set && S.set.files ? S.set.files : '';
+  var AL = S.set && S.set.album ? S.set.album : null, alHearts = {}, alMine = {};
+  if (AL) { (AL.hearts || []).forEach(function (x) { alHearts[x] = 1; }); (AL.mine || []).forEach(function (x) { alMine[x] = 1; }); }
+  var HEART = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 6.9 4.5c2.1 0 3.6 1.2 5.1 3 1.5-1.8 3-3 5.1-3 3.5 0 5.5 3.5 4.2 6.8-1.8 4.6-9.3 9.2-9.3 9.2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  var ALBUM = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="13" height="13" rx="1"/><path d="M7.5 3.5h13v13"/></svg>';
   function albumActs(w, el) {
-    if (!FILES || !el || el.__dv || !/^[a-z0-9-]+$/i.test(w.slug || '')) return; el.__dv = 1; var rail = el.querySelector('.st-rail'); if (!rail) return;
-    var base = '/deliver/' + encodeURIComponent(FILES) + '/' + encodeURIComponent(w.slug);
+    if (!AL || !el || el.__dv || !/^[a-z0-9-]+$/i.test(w.slug || '')) return; el.__dv = 1; var rail = el.querySelector('.st-rail'); if (!rail) return;
+    // The heart beside the title on the plate (the rail stays its own height on a phone); Album on the rail, before More.
+    var t = el.querySelector('.st-plate .st-t');
+    if (t) { var row = document.createElement('span'); row.className = 'st-altr'; t.parentNode.insertBefore(row, t); row.appendChild(t); row.insertAdjacentHTML('beforeend', '<button type="button" class="st-alh" data-st-alh="' + esc(w.slug) + '" aria-pressed="' + (alHearts[w.slug] ? 'true' : 'false') + '" aria-label="Favourite" title="Favourite: your heart, as in the album">' + HEART + '</button>'); }
     var box = document.createElement('div'); box.className = 'st-dv';
-    box.innerHTML = '<a class="st-b st-dvb" href="' + base + '/file" download title="Save the photograph: on a phone it goes to Photos">' + (ic.in || '') + '<span>Save</span></a><a class="st-b st-dvb" href="' + base + '/instax?film=mini" download title="Instax mini: the exact pixels the printer lays down; print it from the Instax or Leica FOTOS app">' + (ic.card || '') + '<span>Instax</span></a>';
-    var buy = rail.querySelector('[data-st-buy]'); if (buy) buy.remove(); rail.appendChild(box);
+    box.innerHTML = '<button type="button" class="st-b st-alo" data-st-alo="' + esc(w.slug) + '" aria-haspopup="dialog" title="Download, share, print, keep: what the album allows">' + ALBUM + '<span>Album</span></button>';
+    rail.insertBefore(box, rail.querySelector('[data-st-more]'));
+    if (FILES) { var buy = rail.querySelector('[data-st-buy]'); if (buy) buy.remove(); }
+  }
+  function alBack(slug) { return AL.back + (slug ? '#p-' + slug : ''); }
+  function alPaint(slug, on) { if (on) alHearts[slug] = 1; else delete alHearts[slug]; [].forEach.call(root.querySelectorAll('[data-st-alh="' + slug + '"]'), function (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+  function alHeart(slug) {
+    var was = !!alHearts[slug]; alPaint(slug, !was); if (!was && navigator.vibrate) navigator.vibrate(8);
+    fetch(AL.base + '/' + encodeURIComponent(slug) + '/heart', { method: 'POST', credentials: 'same-origin', headers: { accept: 'application/json' } })
+      .then(function (r) { return r.json(); }).then(function (j) { alPaint(slug, j && j.ok ? !!j.on : was); }).catch(function () { alPaint(slug, was); });
+  }
+  var alSheet = null, alSlug = '';
+  function alOpt(attr, b, i, href) { return (href ? '<a class="st-alo2" href="' + esc(href) + '" ' + attr + '>' : '<button type="button" class="st-alo2" ' + attr + '>') + '<b>' + b + '</b><i>' + i + '</i>' + (href ? '</a>' : '</button>'); }
+  function alOpen(slug) {
+    var w = items[slug] || {}, c = AL.caps || {}, base = AL.base + '/' + encodeURIComponent(slug), x = (root.querySelector('template[data-ic="close"]') || {}).innerHTML || '×';
+    if (!alSheet) { alSheet = document.createElement('div'); alSheet.className = 'st-sheet st-als'; alSheet.hidden = true; document.body.appendChild(alSheet); /* above the house's tab bar: a dialog */ alSheet.addEventListener('click', function (e) { if (e.target === alSheet) alClose(); }); }
+    alSlug = slug;
+    var row = '', sh = '', mo = '';
+    if (c.download) row += '<a class="st-alb" href="' + esc(base) + '/file" download>' + (ic.in || '') + '<span>Download</span></a>';
+    if (c.social || AL.msg) row += '<button type="button" class="st-alb" data-st-alpb="share" aria-expanded="false">' + ((root.querySelector('template[data-st-ic="share"]') || {}).innerHTML || ic.share || '') + '<span>Share</span></button>';
+    if (AL.print && AL.print[slug]) row += '<a class="st-alb" href="' + esc(AL.print[slug]) + '">' + (ic.print || '') + '<span>Print</span></a>';
+    if (c.social) sh += alOpt('data-st-alstory="post"', 'Post', 'For a feed, 4:5, credited') + alOpt('data-st-alstory="story"', 'Story', 'Full height, 9:16, credited');
+    if (AL.msg) sh += alOpt('data-st-almsg', 'Message', 'The album’s link: they see it, the files stay with ' + (c.download ? 'you' : 'the photographer'));
+    if (c.keep) mo += alOpt('data-st-alkeep', 'Keep it', 'In a gallery of your own, yours for good, with its papers');
+    if (c.full) mo += alOpt('download', 'Full size', 'The full file, for printing', base + '/file?full=1');
+    if (AL.instax) mo += alOpt('download', 'Instax', 'The exact pixels an Instax mini printer lays down', base + '/instax?film=mini');
+    mo += alMine[slug] ? '<p class="st-alin">You are in it.</p>' : alOpt('data-st-altag="me"', 'That’s me', 'A letter asks you to confirm; then it is in your Pictures of you');
+    mo += alOpt('data-st-altag="friend"', 'That’s a friend', 'They are asked by letter; nothing is linked until they say yes');
+    if (c.ask) mo += alOpt('', 'Ask to license it', 'For a company, a story, a wall: the request goes to the photographer', base + '/ask');
+    row += '<button type="button" class="st-alb" data-st-alpb="more" aria-expanded="false">' + (ic.more || '') + '<span>More</span></button>';
+    alSheet.innerHTML = '<div class="st-scard st-alc" role="dialog" aria-modal="true" aria-label="' + esc(w.title || 'This photograph') + ', in the album"><button type="button" class="st-gx" data-st-alx aria-label="Close">' + x + '</button>'
+      + '<p class="k">' + esc(AL.title) + '</p><h2 class="st-alt">' + esc(w.title || '') + '</h2>'
+      + '<div class="st-alrow">' + row + '</div>'
+      + (sh ? '<div class="st-alp" data-st-alp="share" hidden>' + sh + '</div>' : '') + '<div class="st-alp" data-st-alp="more" hidden>' + mo + '</div>'
+      + '<form class="st-alf" data-st-alf method="post" hidden></form><p class="st-aldone" data-st-aldone hidden></p>'
+      + '<a class="st-alback" href="' + esc(alBack(slug)) + '">Back to the album, at this photograph</a></div>';
+    alSheet.hidden = false; root.classList.add('st-sheet-on'); clearTimeout(stillT); root.classList.remove('st-still', 'st-arr');
+    var first = alSheet.querySelector('.st-alrow a, .st-alrow button'); if (first) try { first.focus({ preventScroll: true }); } catch (e) { /* */ }
+  }
+  function alClose() { if (!alSheet || alSheet.hidden) return; alSheet.hidden = true; root.classList.remove('st-sheet-on'); quiet(); var b = root.querySelector('[data-st-alo="' + alSlug + '"]'); if (b) try { b.focus({ preventScroll: true }); } catch (e) { /* */ } }
+  // Keep it, That's me, That's a friend: the album's own forms, asked here in place.
+  function alForm(kind) {
+    var f = alSheet.querySelector('[data-st-alf]'), base = AL.base + '/' + encodeURIComponent(alSlug), h = '';
+    alSheet.querySelector('[data-st-aldone]').hidden = true;
+    if (kind === 'keep') {
+      f.action = base + '/keep'; f.removeAttribute('data-kind');
+      h = '<p class="st-alft">Keep it: it hangs in a gallery of your own, yours for good, with its papers; from there it can be printed and sent.</p>' + (AL.signed ? '<p class="st-alft">As ' + esc(AL.as) + '.</p>' : '<label><span>Your name</span><input name="name" maxlength="120" autocomplete="name"></label><label><span>Email</span><input name="email" type="email" required maxlength="160" autocomplete="email" inputmode="email"></label>') + '<p class="st-alfr"><button class="st-algo">Keep it</button><button type="button" class="st-alno" data-st-alfx>Not now</button></p>';
+    } else {
+      var fr = kind === 'friend'; f.action = ''; f.setAttribute('data-kind', kind);
+      h = '<p class="st-alft">' + (fr ? 'Who is it? They are asked by letter, and nothing is linked until they say yes.' : 'You, in this photograph. A letter asks you to confirm; then it is in your Pictures of you.') + '</p>'
+        + (fr ? '<label><span>Their name</span><input name="friend_name" required maxlength="120"></label><label><span>Their email</span><input name="friend_email" type="email" required maxlength="160" inputmode="email"></label>' : '<label><span>Your name</span><input name="name" maxlength="120" autocomplete="name"></label><label><span>Your email</span><input name="email" type="email" required maxlength="160" autocomplete="email" inputmode="email"></label>')
+        + '<p class="st-alfr"><button class="st-algo">Send</button><button type="button" class="st-alno" data-st-alfx>Not now</button></p><p class="st-alft">Adults only. A photograph is linked to a person only by their own yes; the house never recognises faces.</p>';
+    }
+    f.innerHTML = h; f.hidden = false; var i = f.querySelector('input'); if (i) setTimeout(function () { try { i.focus(); } catch (e) { /* */ } }, 60);
+  }
+  function alTag(kind, body) {
+    var done = alSheet.querySelector('[data-st-aldone]'), f = alSheet.querySelector('[data-st-alf]'), fr = kind === 'friend', b = new URLSearchParams(body || ''); if (fr) b.set('friend', '1');
+    fetch(AL.base + '/' + encodeURIComponent(alSlug) + '/me', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: b.toString() })
+      .then(function (r) { return r.json(); }).then(function (j) { f.hidden = true; done.hidden = false; done.textContent = j.linked ? 'It is in your Pictures of you.' : j.ok ? (fr ? 'Asked. They will get a letter.' : 'Check your email to confirm.') : 'That did not go through. An email, please.'; if (j.linked && !fr) alMine[alSlug] = 1; })
+      .catch(function () { done.hidden = false; done.textContent = 'That did not go through. Try again in a moment.'; });
+  }
+  if (AL) {
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target : null; if (!t) return;
+      var h = t.closest('[data-st-alh]'); if (h) { e.preventDefault(); alHeart(h.getAttribute('data-st-alh')); return; }
+      var o = t.closest('[data-st-alo]'); if (o) { e.preventDefault(); alOpen(o.getAttribute('data-st-alo')); return; }
+      if (!alSheet || !alSheet.contains(t)) return;
+      if (t.closest('[data-st-alx]')) { alClose(); return; }
+      var pb = t.closest('[data-st-alpb]'); if (pb) { var k = pb.getAttribute('data-st-alpb'); [].forEach.call(alSheet.querySelectorAll('[data-st-alp]'), function (p) { p.hidden = p.getAttribute('data-st-alp') !== k || !p.hidden; }); [].forEach.call(alSheet.querySelectorAll('[data-st-alpb]'), function (y) { var p = alSheet.querySelector('[data-st-alp="' + y.getAttribute('data-st-alpb') + '"]'); y.setAttribute('aria-expanded', String(!!p && !p.hidden)); }); return; }
+      var st = t.closest('[data-st-alstory]'); if (st) { e.preventDefault(); var kd = st.getAttribute('data-st-alstory'), nm = ((items[alSlug] || {}).title || 'photograph').replace(/[^a-z0-9 ]/gi, ''); fetch(AL.base + '/' + encodeURIComponent(alSlug) + '/' + kd + '.jpg', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(function (b) { var file = new File([b], nm + ' (' + kd + ').jpg', { type: 'image/jpeg' }); if (navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file] }).catch(function () {}); var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); }).catch(function () { say('That could not be made just now.'); }); return; }
+      if (t.closest('[data-st-almsg]')) { e.preventDefault(); var m = AL.msg; if (navigator.share) navigator.share({ title: m.title, text: m.text, url: m.url }).catch(function () {}); else if (navigator.clipboard) navigator.clipboard.writeText(m.url).then(function () { say('The album’s link is copied.'); }, function () { say(m.url, 5000); }); else say(m.url, 5000); return; }
+      if (t.closest('[data-st-alkeep]')) { e.preventDefault(); alForm('keep'); return; }
+      var tg = t.closest('[data-st-altag]'); if (tg) { e.preventDefault(); var kind = tg.getAttribute('data-st-altag'); if (kind === 'me' && AL.signed) alTag('me', ''); else alForm(kind); return; }
+      if (t.closest('[data-st-alfx]')) { alSheet.querySelector('[data-st-alf]').hidden = true; return; }
+    });
+    document.addEventListener('submit', function (e) { var f = e.target; if (!alSheet || !alSheet.contains(f) || !f.hasAttribute('data-kind')) return; e.preventDefault(); alTag(f.getAttribute('data-kind'), new FormData(f)); f.removeAttribute('data-kind'); });
+    // Esc closes the sheet; with nothing open, Esc goes back to the album at this photograph (not to the collection).
+    document.addEventListener('keydown', function (e) {
+      var tn = e.target && e.target.tagName, typing = tn === 'INPUT' || tn === 'TEXTAREA';
+      if (alSheet && !alSheet.hidden) { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); alClose(); } else if (!typing && /^(Arrow\w+|PageUp|PageDown| |[jkhsgclJKHSGCL])$/.test(e.key)) e.stopImmediatePropagation(); return; }
+      if (e.key === 'Escape' && !typing && !held && !(Z && Z.on) && !sideOpen && !(sheet && !sheet.hidden)) { e.preventDefault(); e.stopImmediatePropagation(); location.href = alBack(cur); }
+    }, true);
   }
   // Full screen where the browser can (31 Oct, Will: "make sure it works full screen in Chrome"): a button in the bar
   // and F; the turn of the screen keeps the work (resnap on fullscreenchange). iPhone browsers have no full screen for
@@ -173,6 +262,7 @@
       cur = slug; since = Date.now();
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 6) more();
       try { history.replaceState(null, '', '/wander?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
+      if (AL) [].forEach.call(root.querySelectorAll('.st-top .st-set, .st-top [data-st-close]'), function (b) { b.setAttribute('href', alBack(slug)); }); // back to the album lands at this photograph
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);
       arrive(slug);
     });
