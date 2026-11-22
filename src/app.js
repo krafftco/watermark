@@ -618,6 +618,58 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // worker made, shared by every copy of the website through `prepared_pages`, with no statement in the request. Anyone
   // the house knows (a sign-in, their own looking, a basket, a walk, a tenant, a query) is built fresh, `private, no-store`.
   app.use(require('./prepared').mountPrepared(app, { db, V, C, cfg }).serve);
+  // (#198) A work not on view: anything not held (a maker's upload lands 'hidden'), or kept back. Its pictures, its page
+  // and every door under them reach only its maker, the Studio, a curator with keys, a holder of a live licence on it and
+  // the people of an album that holds it (the album's own link travels with each picture as ?token=, never a cookie
+  // alone). A few showings given on purpose stay public (`shownAnyway`). Everyone else meets the house's own not-found
+  // sign (the work's own page leads on to Wander, as a photograph taken down always has), and every answer about such a
+  // work is `private, no-store`. One rule, asked here and by the
+  // picture route, Wander and the easel (`app.locals.offView`).
+  // A work in conservation that was on view keeps its public sign (conservation.js: "a museum says so"); one that was
+  // private before it went in stays private.
+  const offView = w => !!w && ((w.status !== 'held' && !(w.status === 'restoring' && w.status_before === 'held')) || !!Number(w.keep_back || 0));
+  // The places a hidden work is on view by a word given for it: a page the Studio placed in an open volume, an outtake
+  // on a contact sheet its maker opened (sheets.js decides which frames that may be), and the cover its maker chose
+  // for one of her public books (press.js takes a cover held or hidden).
+  const shownAnyway = w => { if (!w || w.status !== 'hidden' || Number(w.keep_back || 0)) return false; try {
+    const r = db.prepare('SELECT id, status, keep_back, sheet_open, zone, attribution FROM works WHERE id=?').get(w.id);
+    if (r && Number(r.sheet_open || 0) && app.locals.sheets && app.locals.sheets.shows && app.locals.sheets.shows(r)) return true;
+    if (db.prepare("SELECT 1 FROM texts WHERE cover_work_id=? AND public=1 AND status='held' LIMIT 1").get(w.id)) return true;
+    return !!db.prepare("SELECT 1 FROM volume_pages p JOIN volumes v ON v.id=p.volume_id WHERE p.work_id=? AND p.placed IS NOT NULL AND v.status='open' LIMIT 1").get(w.id); } catch (e) { return false; } };
+  const isOff = w => offView(w) && !shownAnyway(w);
+  function mayOffView(req, w) {
+    if (!w) return false;
+    const memo = req.__off || (req.__off = new Map()); if (memo.has(w.id)) return memo.get(w.id);
+    let ok = isStudio(req);
+    if (!ok) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; ok = !!(me && me.id === w.maker_id); }
+    const D = app.locals.deliveries;
+    if (!ok && D) ok = D.mayView(req, w); // a holder of a live licence; the people of an album, by their own link's cookie or their sign-in
+    if (!ok && D && D.passes) { const t = req.query && (req.query.token || req.query.via); if (t) ok = D.passes(req, w, String(t)); } // the album's own link, carried by the picture
+    if (!ok && app.locals.curate) try { ok = !!app.locals.curate.canCurate(req, mk(w)); } catch (e) { ok = false; }
+    memo.set(w.id, ok); return ok;
+  }
+  // Everything said about an off-view work stays with the person it was said to, whatever a room sets later.
+  const keepPrivate = res => { if (res.__kept) return; res.__kept = true; const set = res.setHeader.bind(res); res.setHeader = (k, v) => set(k, /^cache-control$/i.test(k) ? 'private, no-store' : v); set('Cache-Control', 'private, no-store'); };
+  app.locals.offView = { off: isOff, may: mayOffView, keepPrivate };
+  // The doors that name a work by its slug. The trip's wash and the contact sheet (its washes, its own rule for which
+  // frames show true) stay as they are: a blur says a frame is kept, never the frame (29 Oct, 30 Oct).
+  const OFF_DOORS = [/^\/w\/([^/]+)/i, /^\/m\/[^/]+\/([^/]+)/i, /^\/img\/([^/]+)\/(?!held\/?$)[^/]+/i, /^\/(?:easel|license|buy|contract|comp|bench)\/([^/]+)/i, /^\/api\/work\/([^/]+)/i, /^\/iiif\/([^/]+)\//i];
+  app.use(async (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    let slug = null; for (const rx of OFF_DOORS) { const m = rx.exec(req.path); if (m) { slug = m[1]; break; } }
+    if (!slug) return next();
+    try { slug = decodeURIComponent(slug); } catch (e) { return next(); }
+    try {
+      const w = /^\/img\//i.test(req.path) ? imgRow(slug) : await adb.get('SELECT id, slug, status, status_before, keep_back, maker_id FROM works WHERE slug=? LIMIT 1', slug);
+      if (!w && /^\/(img|w)\//i.test(req.path)) keepPrivate(res); // an address with no work answers as a private one does: no way to tell them apart
+      if (!isOff(w)) return next();
+      keepPrivate(res); res.set('X-Robots-Tag', 'noindex');
+      if (mayOffView(req, w)) return next();
+      if (/^\/easel\//i.test(req.path)) return res.redirect('/wander'); // the easel's own answer for a work it does not have (smoke): the same for one not on view
+      if (/^\/(w\/[^/]+|m\/[^/]+\/[^/]+)\/?$/i.test(req.path)) return res.redirect(onward(req, w.slug)); // the page itself: a photograph taken down leads on, never to a sign (smoke, 'See the watermark'); nothing of it is shown
+      return res.sendStatus(404); // the house's own sign to a person; an image or a script its plain status (breaks.js)
+    } catch (e) { return next(e); }
+  });
   app.locals.viewLater = viewLater; app.locals.flushViews = flushViews;
   require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
@@ -985,10 +1037,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = imgRow(req.params.slug);
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size] || w.status === 'quarantined') return res.sendStatus(404); // a held work is shown to no one (29 Oct)
-    if (w.keep_back) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; if (!((me && me.id === w.maker_id) || isStudio(req) || (app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })()))) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); } res.set('Cache-Control', 'private, no-store'); } // kept back by the maker: only to them and the house (29 Oct)
-    // A photograph kept back in a private gallery (deliveries.js, 2 Nov): only the maker, the Studio, a curator, a holder and the people inside see it.
-    const inPrivate = w.status === 'hidden' && !w.keep_back && app.locals.deliveries && app.locals.deliveries.guarded(w.id);
-    if (inPrivate && !app.locals.deliveries.mayView(req, w) && !(app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })())) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); }
+    // (#198) Not on view (an upload not yet hung, kept back, in a private gallery): the one rule above, asked again here
+    // so the picture route stands on its own (memoised on the request); the answer stays with the person it was given to.
+    const inPrivate = isOff(w);
+    if (inPrivate) { keepPrivate(res); if (!mayOffView(req, w)) return res.sendStatus(404); }
     try {
       let fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const CP = app.locals.copies;
