@@ -279,7 +279,7 @@ The CTO session keeps it honest.
   `email_ok=0` until `/added/:token` (the letter) runs `app.locals.admit`. With #198's `passes(?token=)` the guest table
   must be asked too (`G.mayView`). `test/albumguests.js` (a11y job and the Postgres loop).
 - A panel with `display:grid` and the `hidden` attribute shows anyway: the album's "That's me" form stood on every album
-  until 1.91.0. A full-page screenshot at 390 is the quickest way to see one.
+  until 1.92.0. A full-page screenshot at 390 is the quickest way to see one.
 - **Albums' order**: `worksOf` sorts by `taken_at`, then the file name read numerically, then `pos` (the picker's order,
   newest upload first). There is no hand order yet; one would come before this sort. The link card's file is named by
   its three slugs (`cardOf`).
@@ -357,3 +357,9 @@ The CTO session keeps it honest.
 - `.cat` is two things (the Studio's works table and the record's catalogue grid): scope a table rule to `table.cat`. A work's record at 390: probe without `isMobile` too; with it, Chrome widens the layout to the widest thing and every box looks guilty.
 - `public/desk-tabs.js`: a hash naming an element inside a panel opens that panel (`#prints`, `#editions`); tab ids come from heading text, so never link to `#t-…`.
 - `test/firstsale.js` uploads through the vault's own doors; two test pictures that differ only in size or hue are the same picture to the fingerprint (flip, negate or greyscale one).
+
+## The reply link (#184)
+- A license the maker writes is `status='offered'`, `rights.written`, `house_cents=0`; its accept link is `/c/:ref?k=<download_token>` (grant replaces the token, so the link stops opening the offer). `app.locals.requests.waitingOther(l)` decides whether /c/:ref shows the offer page; a written license sent to payment and back unpaid is `awaiting_payment` and still shows it.
+- Credit only is `uses.price_cents = 0` (or `rights.credit`): never sent to Stripe (Stripe refuses 0). `rights.credit` swaps Section 3 for `K.CREDIT_ONLY`; absent otherwise, so every old fingerprint holds. `K.seal(t, {work, maker, ref})` is the one way to fingerprint an order. On the visitor's pages a price of 0 reads through `useFee` in views.js ("Credit only"), never `money(0)`.
+- /rights/:handle is an institution's desk or, for a photographer (`kind='maker'`, not `door='play'`), their reply link; the photographer's page holds no form. `test/replylink.js` walks all of it (also run it with DATABASE_URL on the local Postgres).
+

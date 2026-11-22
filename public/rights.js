@@ -47,7 +47,8 @@
     var label = inp.getAttribute('data-label') || '';
     if (box.hidden || u.base == null || /Ask the maker/.test(label)) { btn.textContent = label; return; }
     var total = u.base + c.add.length * D.add + c.x.reduce(function (s, e) { return s + (D.extras[e] || 0); }, 0);
-    btn.textContent = ask ? 'Ask the maker' : label.replace(/\$[\d,]+/, money(total));
+    // A use the maker asks only credit for: credit while nothing is added; a right added has its price (#184).
+    btn.textContent = ask ? 'Ask the maker' : u.base === 0 ? (total > 0 ? 'License for ' + money(total) : label) : label.replace(/\$[\d,]+/, money(total));
   }
   form.addEventListener('change', function (e) {
     if (e.target.name === 'use') { setUse(true); holds(); return; }

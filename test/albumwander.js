@@ -114,6 +114,8 @@ const SHOTS = process.env.SHOTS || '';
     const pick = want[size]; // a different photograph at each size (each size is its own device, with its own hearts)
     // The album page says it once; a photograph pressed opens Wander at it.
     await p.goto(`${base}/a/${sh}`, { waitUntil: 'load' });
+    const bare = await p.evaluate(() => [].map.call(document.querySelectorAll('main.dv img'), im => im.getAttribute('src')).filter(u => /^\/img\//.test(u) && !/[?&]token=/.test(u)));
+    ok(!bare.length, `${name}: every picture on the album page carries the token: ${bare.join(' ')}`);
     const hint = await p.locator('.dv-wl').textContent(); ok(/opens in Wander/.test(hint) && /the heart/.test(hint) && /Download/.test(hint) && !/Print/.test(hint), `${name}: the album page says it once, naming only what Bea may do: ${hint}`);
     await shot('1-album');
     await p.locator(`figure[data-dv-slug="${pick}"] a.dv-im`).scrollIntoViewIfNeeded(); await p.locator(`figure[data-dv-slug="${pick}"] a.dv-im`).click();
@@ -122,6 +124,9 @@ const SHOTS = process.env.SHOTS || '';
     const scr = p.locator(`.st-i[data-slug="${pick}"]`);
     const pic = await scr.locator('.st-im').evaluate(im => new Promise(res => { const done = () => res({ src: im.currentSrc || im.src, w: im.naturalWidth, h: im.naturalHeight }); if (im.complete) done(); else { im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); setTimeout(done, 8000); } }));
     ok(pic.w >= 600, `${name}: the photograph is on the wall: ${JSON.stringify(pic)}`);
+    ok(pic.src.includes(`?token=${encodeURIComponent(sh)}`), `${name}: the picture in Wander carries the album's address (#199): ${pic.src}`);
+    const untok = await p.evaluate(() => [].map.call(document.querySelectorAll('.st-i .st-im'), im => im.getAttribute('src')).filter(u => /^\/img\//.test(u) && !/[?&]token=/.test(u)));
+    ok(!untok.length, `${name}: every album picture in Wander carries the token: ${untok.join(' ')}`);
     ok(await scr.locator('[data-st-alh]').count() === 1 && await scr.locator('[data-st-alo]').count() === 1, `${name}: the heart and Album on the rail`);
     const box = await scr.locator('[data-st-alo]').boundingBox(); const hb = await scr.locator('[data-st-alh]').boundingBox();
     ok(box && box.width >= 44 && box.height >= 44 && hb.width >= 44 && hb.height >= 44, `${name}: the heart and Album are 44 px: ${JSON.stringify([hb, box])}`);

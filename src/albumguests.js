@@ -17,7 +17,7 @@
 //     are offered only on the photographer's pictures.
 //   - Limits are the house's storage, per album and per person (never an address): a file over GUEST_FILE_MB, a video,
 //     anything that is not a photograph is refused plainly, by name.
-// Words for people are drafts for Will (docs/COUNSEL.md 51 on the sentence a guest agrees to). (src/guests.js is another
+// Words for people are drafts for Will (docs/COUNSEL.md 54 on the sentence a guest agrees to). (src/guests.js is another
 // room: the guest list of a collector's private gallery.)
 const crypto = require('crypto');
 const fs = require('fs');
@@ -34,7 +34,7 @@ const LIM = {
   letterMin: 10, // the confirming letter again, at most once in this many minutes
   linkDays: 30, // the confirming link's life
 };
-// Draft for Will (docs/COUNSEL.md 51): the one sentence a guest agrees to before adding.
+// Draft for Will (docs/COUNSEL.md 54): the one sentence a guest agrees to before adding.
 const AGREE = 'Your photographs stay yours. You let this album show them to the people it is shared with, and the photographer, or you, may take any of them out.';
 const okEmail = e => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e) && e.length <= 160;
 const VIDEO = /^video\//i, VIDEO_EXT = /\.(mov|mp4|m4v|avi|mkv|webm|3gp|hevc)$/i;
