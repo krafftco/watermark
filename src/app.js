@@ -2184,6 +2184,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
           ...need.filter(x => /ending within/.test(x.label)).map(x => [x.href, 'Renew', `${x.n} license${x.n === 1 ? '' : 's'} ending within 60 days`]),
           ...need.filter(x => /missing part/.test(x.label)).map(x => [x.href, 'Complete', `${x.n} record${x.n === 1 ? '' : 's'} missing a part`]),
           N.feedback ? ['/studio/feedback', 'Read', `${N.feedback} note${N.feedback === 1 ? '' : 's'} from visitors`] : null,
+          (app.locals.spend && app.locals.spend.credit && app.locals.spend.credit()) ? ['/studio/digest', 'Top up', 'The AI calls are refused: the API account’s credit is too low. The house’s own calls wait and try again by themselves'] : null, // (22 Nov, #196) said once, here, not per work
           (app.locals.safety && app.locals.safety.waiting()) ? ['/studio/safety', 'Decide', `${app.locals.safety.waiting()} held for the house’s look`] : null,
           restoring ? ['/studio/restoration', 'Restore', `${restoring} work${restoring === 1 ? '' : 's'} off view`] : null,
           lost ? ['/studio/restoration', 'Find', `${lost} original${lost === 1 ? '' : 's'} not in the vault`] : null,

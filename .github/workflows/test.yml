@@ -258,4 +258,4 @@ jobs:
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
           psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask keptcopies; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

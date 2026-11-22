@@ -13,11 +13,15 @@ const { createApp } = require('../src/app');
   const fx = path.join(__dirname, 'fixture.jpg'); let k = 0;
   const put = async (title, extra) => { const f = path.join(dir, `in-${++k}.jpg`); fs.writeFileSync(f, await sharp(fx).modulate({ brightness: 0.6 + k * 0.1 }).jpeg().toBuffer()); const w = await app.locals.registerWork({ file: f, title, makerId: ada.id, place: 'Rome', originalName: path.basename(f) }); db.prepare(`UPDATE works SET status='held', copies_at=NULL ${extra || ''} WHERE slug=?`).run(w.slug); return db.prepare('SELECT * FROM works WHERE slug=?').get(w.slug); };
   const plain = await put('Plain'); const best = await put('Best', ', curated=1, stars=5'); const kept = await put('Kept', ', keep_back=1');
-  // 1. Best first; a claimed work is never claimed again; kept-back work is not in the queue.
-  const p0 = CP.progress(); assert.equal(p0.left, 2, JSON.stringify(p0));
+  // 1. Best first; a claimed work is never claimed again; a maker's own kept-back work is in the queue (#196: it waits on
+  // no visitor), newest first after the best; a museum's kept-back work is not.
+  db.prepare("INSERT INTO makers (handle, name, kind, joined_at, door) VALUES ('mus', 'A Museum', 'institution', datetime('now'), 'house')").run();
+  { const f = path.join(dir, 'in-mus.jpg'); fs.writeFileSync(f, await sharp(fx).negate({ alpha: false }).jpeg().toBuffer()); const m = await app.locals.registerWork({ file: f, title: 'Museum kept', makerId: db.prepare("SELECT id FROM makers WHERE handle='mus'").get().id, place: 'Rome', originalName: 'in-mus.jpg' }); db.prepare("UPDATE works SET status='held', keep_back=1, copies_at=NULL WHERE slug=?").run(m.slug); }
+  const p0 = CP.progress(); assert.equal(p0.left, 3, JSON.stringify(p0));
   const c1 = CP.claim(); assert.equal(c1.slug, best.slug, 'the best first');
-  const c2 = CP.claim(); assert.equal(c2.slug, plain.slug, 'the next, never the same');
-  assert.equal(CP.claim(), null, 'nothing else to claim (kept back is not on view)');
+  const c2 = CP.claim(); assert.equal(c2.slug, kept.slug, 'the next, never the same: the maker’s own kept back, the newest');
+  const c3 = CP.claim(); assert.equal(c3.slug, plain.slug, 'then the plain one');
+  assert.equal(CP.claim(), null, 'nothing else to claim (a museum’s kept-back work stays out)');
   db.prepare('UPDATE works SET copies_claim=NULL, copies_claim_at=NULL').run();
   // A stale claim (its scribe died) is given up.
   db.prepare("UPDATE works SET copies_claim='gone:1', copies_claim_at='2000-01-01 00:00:00' WHERE id=?").run(best.id);
@@ -26,6 +30,9 @@ const { createApp } = require('../src/app');
   assert.equal(await CP.one(), true); let w = db.prepare('SELECT * FROM works WHERE id=?').get(best.id);
   assert.ok(w.copies_at && !w.copies_claim, JSON.stringify({ c: w.copies_at, cl: w.copies_claim }));
   const images = require('../src/images'); for (const s of ['thumb', 'screen', 'large']) assert.ok(fs.existsSync(images.fileOf(path.join(dir, 'cache'), best.slug, s, 'jpg')), s);
+  // The kept-back one next, every size too (its album shows the screen copy).
+  assert.equal(await CP.one(), true); assert.ok(db.prepare('SELECT copies_at FROM works WHERE id=?').get(kept.id).copies_at, 'kept back, made and marked');
+  for (const s of ['thumb', 'screen', 'large']) assert.ok(fs.existsSync(images.fileOf(path.join(dir, 'cache'), kept.slug, s, 'jpg')), 'kept ' + s);
   // 3. A failure is counted; after three it is set aside, never looped on.
   const orig = fs.readdirSync(path.join(dir, 'originals')).filter(n => n.includes(plain.slug)); for (const n of orig) fs.renameSync(path.join(dir, 'originals', n), path.join(dir, 'originals', n + '.away'));
   db.prepare('UPDATE works SET vaulted=1 WHERE id=?').run(plain.id);

@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.3 · A photographer's own uploads are made ready at once · 22 November 2026
+
+Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
+
+- A photographer's new uploads are made ready for every page within a minute or two of arriving, whether they are on view, kept back or private: the album picker, the album and the Library show the photograph, not a dark square. The house makes them before the rest of its queue. A museum's kept-back or private works are left as they were.
+- The house no longer mistakes its own housekeeping for visitors. The worker prepares the public pages by asking its own house for them, and counted each of those requests as a visitor, so it held every other job for a minute at a time. The website, which serves people, counts visitors exactly as before.
+- When the AI account runs out of credit, the house says so once, on the Studio's front desk and in the morning letter, and its own AI calls wait half an hour before trying again. Photographs that arrive meanwhile are read once the account is paid; before, each was marked as missed and never read.
+
 ## 1.90.2 · A print the photographer makes, or already has · 21 November 2026
 
 Every sentence below is a draft for Will. No price, fee or share was added or changed.
