@@ -124,7 +124,7 @@ ${S('ask', 'The ask', `
     const spark = (rows, k) => { if (!rows || !rows.length) return ''; const max = Math.max(1, ...rows.map(x => x[k] || 0)); return `<span class="ph-spark">${rows.slice(-30).map(x => `<i style="height:${Math.max(2, Math.round(100 * (x[k] || 0) / max))}%" title="${esc(x.d)}: ${x[k] || 0}"></i>`).join('')}</span>`; };
     const tile = (big, small, sub = '') => `<div class="ph-t"><b>${big}</b><span>${small}</span>${sub ? `<em>${sub}</em>` : ''}</div>`;
     const dateLine = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
-    res.send(V.layout({ title: `The brief · ${r.name}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"><main class="phb">
+    res.send(V.layout({ title: `The brief · ${r.name}`, path: '/peephole', desc: 'A private brief.', bare: true, body: `<main class="phb">
 <script src="/static/eye.js" defer></script>
 <header class="ph-mast"><p class="ph-k">${esc(C.maker && C.maker.name || 'Will Fullerton')} · The brief</p><h1>For ${esc(r.name)}.</h1><p class="ph-date">${esc(dateLine)} · prepared for ${esc(r.name)} · <a href="#numbers">the numbers</a> · <a href="#register">the register</a> · <a href="#papers">the papers</a></p></header>
 <article class="ph-brief">${brief(r, N, P)}</article>
@@ -166,17 +166,15 @@ ${(() => { const T = []; const Q = [];
 
 <section class="ph-site" id="site"><h2 class="ph-h">Built lately</h2>
 <ul class="ph-rel">${((app.locals.releases && app.locals.releases.releases()) || []).slice(0, 6).map(x => `<li><b>${esc(x.version)}</b> · ${esc(x.name || '')} <span>${esc(x.date || '')}</span>${x.items && x.items.length ? `<ul>${x.items.slice(0, 4).map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>
-<p class="ph-note"><a href="/releases">Every release</a> · <a href="/healthz">the house's pulse</a> (up, the register sound, the vault, mail, payments; the full report is the Studio's)</p></section>
+<p class="ph-note">Every release above · <a href="/healthz">the house's pulse</a> (up, the register sound, the vault, mail, payments; the full report is the Studio's)</p></section>
 
 <section class="ph-pap" id="papers"><h2 class="ph-h">The papers</h2><ul class="ph-links">
-<li><a href="/owners">How the company is owned</a> <span>Class A and B, the owner’s manual, what is never touched</span></li>
 <li><a href="/share">The house’s share</a> <span>the published schedule the collector pays</span></li>
 <li><a href="/promises">The country store</a> <span>the promises the house keeps, and the family story they come from</span></li>
 <li><a href="/standard">The standard</a> <span>the record, the number, the register, the anchor, the file, the mark</span></li>
 <li><a href="/platforms">For platforms</a> <span>the door and the terms, the same for everyone</span></li>
 <li><a href="/museums">For museums</a> <span>one desk, not four addresses</span></li>
 <li><a href="/legal">The agreements</a> <span>six documents, versioned and fingerprinted; every word for counsel</span></li>
-<li><a href="/releases">What’s new</a> <span>each release named and dated</span></li>
 <li><a href="/wander">Wander</a> <span>the museum itself; the best way to understand the house is to stand in it</span></li>
 </ul></section>
 

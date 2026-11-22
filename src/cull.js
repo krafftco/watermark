@@ -45,7 +45,7 @@ function mountCull(app, { db, V, ledger, makerOf, mayHang }) {
       if (w.status !== 'held') {
         if (String(req.body.attest) !== '1') return say(false, 'attest');
         if (m.standing === 'held') return say(false, 'Your account is held; nothing can go on view just now.');
-        if (mayHang && !mayHang(m)) return say(false, `Your museum's walls are full (${app.locals.museums ? app.locals.museums.MUSEUM_WALL : 36} on view). Take one down first: swipe left on one that is on view.`);
+        if (mayHang && !mayHang(m)) return say(false, `Your walls are full (${app.locals.museums ? app.locals.museums.MUSEUM_WALL : 36} on view). Take one down first: swipe left on one that is on view.`);
         const g = app.locals.companies && app.locals.companies.gate(w); if (g) return say(false, g);
         db.prepare("UPDATE works SET status='held', keep_back=0, cull_at=? WHERE id=?").run(now(), w.id);
         ledger.append(db, 'work.published', w.slug, { maker: m.handle, attested: 'rights and releases', by: 'cull' });

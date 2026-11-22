@@ -23,7 +23,7 @@
 //                scrolled to and hit-tested again (covered, stranded, small, invisible).
 // Sizes: iPad portrait 820×1180 and iPad landscape 1180×820 walk every page; iPad mini 744×1133, phone 390×844 and desk
 // 1440×900 walk the smaller set SMALL below. People: signed out (DOORS and the house's own pages), a maker by email code
-// (the maker's and the collector's rooms), the Studio by its password (the house's rooms); and someone from the trade.
+// (the maker's and the collector's rooms), the Studio by its password (the house's rooms).
 // Faults found and filed rather than fixed are on ALLOW, each with its issue; a new fault fails. Exit 1 on any fault.
 // Run: `npm run reach` (PW_CHANNEL=chrome on a machine with Chrome but not Playwright's own Chromium; REACH_FONTS=dir
 // where Google's fonts cannot be reached, or the words are narrower than in CI and the walk sees another house).
@@ -237,14 +237,11 @@ let dir;
   const rooms = groups => groups.flatMap(([, l]) => l.map(x => x[0]));
   const uniq = a => [...new Set(a)].filter(h => !/logout|signout/.test(h));
   const lists = {
-    out: uniq([...rooms(V.DOORS), '/w/' + slug, '/m/mk', '/art/' + artistSlug, '/easel/' + slug, '/volume/' + vol.slug, '/read/a-book', '/deliver/reachtok', '/signin', '/everything']).filter(h => h !== '/trade'),
-    // Someone from the trade (the cookie /trade sets): a chip joins the header on every page. Walked as its own person
-    // so the chip is there, or not, whatever order the pages are walked in.
-    trade: ['/trade', '/about', '/w/' + slug, '/'],
+    out: uniq([...rooms(V.DOORS), '/w/' + slug, '/m/mk', '/art/' + artistSlug, '/easel/' + slug, '/volume/' + vol.slug, '/read/a-book', '/deliver/reachtok', '/license/' + slug + '/ask', '/signin', '/everything']),
     maker: uniq([...rooms(V.ROOMS.maker), ...rooms(V.ROOMS.yours)]),
     studio: uniq(rooms(V.ROOMS.house)),
   };
-  const cookiesFor = { out: null, trade: [{ name: 'wm_trade', value: '1', url: base }], maker: makerCookies, studio: studioCookies };
+  const cookiesFor = { out: null, maker: makerCookies, studio: studioCookies };
   const smallSet = SMALL.map(fill);
   const roleOf = p => /^\/studio/.test(p) ? 'studio' : /^\/(account|yours|notices|draw\/mine|curate)/.test(p) ? 'maker' : 'out';
 
@@ -393,8 +390,8 @@ let dir;
 
   for (const size of sizesRun) {
     const S = SIZES[size];
-    for (const role of ['out', 'trade', 'maker', 'studio']) {
-      const list = (only ? only.map(fill).filter(p => role === 'trade' ? lists.trade.includes(p) : roleOf(p) === role) : S.full ? lists[role] : role === 'trade' ? lists.trade.slice(1, 3) : smallSet.filter(p => roleOf(p) === role));
+    for (const role of ['out', 'maker', 'studio']) {
+      const list = (only ? only.map(fill).filter(p => roleOf(p) === role) : S.full ? lists[role] : smallSet.filter(p => roleOf(p) === role));
       if (!list.length) continue;
       const ctx = await browser.newContext({ ...contextFor(S), serviceWorkers: 'block' });
       // REACH_FONTS=dir: the house's web fonts from a folder (fonts.css and its files) where Google's cannot be reached,
@@ -418,7 +415,7 @@ let dir;
           // A room with nothing to show in a test house (the Met's open access with no Met works) answers 404: not walked.
           if (resp && resp.status() === 404) { skip = true; return; }
           if (!resp || resp.status() >= 400) { N({ page: p, size, role, kind: 'status', sel: '-', words: '', cover: { tag: 'answered ' + (resp ? resp.status() : 'nothing' + (err ? ': ' + errOf(err) : '')), err: err ? errOf(err) : null } }); return; }
-          if (cookiesFor[role] && role !== 'trade' && /\/signin|\/studio\/(door|login)/.test(new URL(page.url()).pathname)) throw new Error(`${p} sent the signed-in visitor to ${page.url()}`);
+          if (cookiesFor[role] && /\/signin|\/studio\/(door|login)/.test(new URL(page.url()).pathname)) throw new Error(`${p} sent the signed-in visitor to ${page.url()}`);
           await settle(page);
           let n = 0; const M = f => { n++; N(f); };
           // Wider than the screen: the browser zooms the whole page out (or it scrolls sideways), and every control shrinks.

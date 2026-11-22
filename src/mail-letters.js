@@ -67,13 +67,14 @@ function collected(c) {
   const html = frame({ base: c.base, preheader: `${title}, by ${c.maker}${c.no ? `, No. ${c.no}` : ''}. ${personal ? 'In your gallery now.' : 'Your license and the file are inside.'}`, body: [
     kicker(`${personal ? 'Collected' : c.kind === 'print' ? 'Acquired' : 'Licensed'}${c.name ? ` by ${esc(c.name)}` : ''}${c.no ? ` &nbsp;&middot;&nbsp; <span style="white-space:nowrap">No. ${c.no}${c.of ? ` of ${c.of}` : ''}</span>` : ''}`),
     headline(head),
-    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : 'The file, the license and the agreement are yours for the term.'}`),
+    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${c.printWhere ? esc(c.printWhere) : personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : 'The file, the license and the agreement are yours for the term.'}`),
     mount({ img: c.img, href: c.galleryUrl, title, year: c.year, maker: c.maker, no, of: c.of }),
     button(personal ? 'See it in your gallery' : 'Open your license', personal ? c.galleryUrl : c.certUrl),
     links([c.fileUrl && ['Save the photograph', c.fileUrl], c.printUrl && ['Print it', c.printUrl], ['The certificate', c.certUrl], ['The agreement', c.contractUrl]]),
     c.proof ? proof(c) : '',
     rule(),
     section('What you hold'),
+    c.holds ? para(esc(c.holds)) : '',
     rights(c.can, c.cannot),
     section('The particulars'),
     ledgerRows([
@@ -94,17 +95,19 @@ function collected(c) {
   const text = [
     `${personal ? `${title} is yours.` : `${title} is licensed to ${c.who}.`}`,
     `A photograph by ${c.maker}${c.place ? `, made in ${c.place}` : ''}${c.no ? `. No. ${c.no}${c.of ? ` of ${c.of}` : ''}` : ''}.`,
+    c.printWhere || '',
     personal ? `In your gallery: ${c.galleryUrl}` : `Your license: ${c.certUrl}`,
     c.fileUrl ? `Save the photograph: ${c.fileUrl}` : '',
     c.printUrl ? `Print it (the sizes it holds, how, or the house prints it): ${c.printUrl}` : '',
     c.proof ? `Hold it in your hand: the proof, a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, your number in pencil, posted, ${c.proof.price}: ${c.proof.url}` : '',
     `The certificate: ${c.certUrl}\nThe agreement: ${c.contractUrl}`,
+    c.holds ? `What you hold. ${c.holds}` : '',
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
     `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
     `Watermark number: ${c.number}. Anyone can check it: ${c.checkUrl}`,
     'Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.\nThe house',
   ].filter(Boolean).join('\n\n');
-  const subject = personal ? `${title} is yours${c.no ? `, No. ${c.no}` : ''}` : `Your license for ${title}`;
+  const subject = personal ? `${title} is yours${c.no ? `, No. ${c.no}` : ''}` : c.kind === 'print' ? `Your print of ${title}` : `Your license for ${title}`;
   return { subject, text, html };
 }
 

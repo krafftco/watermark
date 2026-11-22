@@ -23,6 +23,7 @@ const assert = require('assert'); const fs = require('fs'); const os = require('
   assert.deepStrictEqual(s('bell'), [c.slug], 'a word inside the title');
   assert.strictEqual(s(String(ix.makers[0].name).split(' ')[0].toLowerCase()).length, 3, 'by the maker’s name');
   assert.strictEqual(s('zzzzqq').length, 0, 'nothing by that word');
+  { const first = String(ix.makers[0].name).toLowerCase(); assert.deepStrictEqual(s(`the staircase by ${first}`), [a.slug], 'a title, "by", the maker: as a person asks (20 Nov)'); assert.deepStrictEqual(s('a bell tower in florence'), [c.slug], 'joining words are not required of the work'); assert.strictEqual(s('the').length >= 1, true, 'a joining word alone is still a word'); }
   if (db.kind === 'postgres') assert.ok(s('staircsae').includes(a.slug), 'a slip of the fingers, forgiven by the database');
   const be = F.before({ cookies: {} }); assert.ok(Array.isArray(be.places), 'before you type');
   // Wander by a word asks the same words.

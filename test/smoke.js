@@ -61,7 +61,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     r = await req(port, 'GET', '/found/nothing-here'); assert.equal(r.status, 404);
     db.prepare("UPDATE works SET status='merged' WHERE id=?").run(global.__o2); // out of the way of the rest of the suite
     r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes(`data-wm-send="${w.slug}"`) && />Send<\/span>/.test(r.body.toString()), 'the work page sends'); }
-  r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(/data-stroll data-front="1"/.test(r.body) && /class="st-i"/.test(r.body) && /data-st-hello/.test(r.body) && /href="\/house"/.test(r.body) && /Where great work is kept/.test(r.body), 'the front door is Wander');
+  r = await req(port, 'GET', '/'); assert.equal(r.status, 200); assert.ok(/data-stroll data-front="1"/.test(r.body) && /class="st-i"/.test(r.body) && /data-st-hello/.test(r.body) && /href="\/house"/.test(r.body) && /Watermark · For photographers/.test(r.body) && /Photographers keep their work here/.test(r.body), 'the front door is Wander');
   r = await req(port, 'GET', `/w/${w.slug}`); assert.equal(r.status, 200); assert.ok(r.body.toString().includes('Watermark Shield') && r.body.toString().includes('Held by Watermark for'), 'the shield');
   r = await req(port, 'GET', `/img/${w.slug}/screen`); assert.equal(r.status, 200); assert.equal(r.headers['content-type'], 'image/jpeg');
   const sharp = require('sharp'); const m = await sharp(r.body).metadata(); assert.ok(Math.max(m.width, m.height) <= 1600, 'screen copy capped');
@@ -344,7 +344,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', '/studio/sightings', { cookie: ck }); assert.ok(r.body.includes('example.org/story'));
   r = await req(port, 'POST', '/apply', { body: { name: 'Ada Lens', email: 'ada@lens.com', portfolio: 'https://ada.photo', practice: 'Photography' } }); assert.equal(r.status, 303);
   r = await req(port, 'GET', '/studio/makers', { cookie: ck }); assert.ok(r.body.includes('Ada Lens'));
-  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For those who make.'));
+  r = await req(port, 'GET', '/makers'); assert.ok(r.body.includes('For photographers.'));
   db.prepare('UPDATE works SET rules=NULL').run();
 
   // bulk registration, one file per request
@@ -1621,7 +1621,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   { await app.locals.seedPortrait(); const hm = db.prepare('SELECT * FROM makers WHERE handle=?').get('will-fullerton') || db.prepare('SELECT * FROM makers WHERE portrait IS NOT NULL ORDER BY id LIMIT 1').get(); assert.ok(hm && hm.portrait, 'the house maker has a portrait');
     r = await req(port, 'GET', `/portrait/${hm.handle}`); assert.equal(r.status, 200); const sq = await require('sharp')(r.body).metadata(); assert.ok(sq.width === 720 && sq.height === 720, 'the square');
     r = await req(port, 'GET', `/portrait/${hm.handle}?tall=1`); const tl = await require('sharp')(r.body).metadata(); assert.ok(tl.height > tl.width, 'the whole portrait, its own shape');
-    r = await req(port, 'GET', '/director'); assert.ok(/tall=1/.test(r.body), 'the director stands in the whole portrait'); }
+    r = await req(port, 'GET', '/director', { cookie: ck }); assert.ok(/tall=1/.test(r.body), 'the director stands in the whole portrait'); }
   console.log('ok: the portrait');
 
 
@@ -1692,7 +1692,8 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const dm = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get(); assert.ok(dm && dm.kind === 'institution' && dm.rights_open === 1 && db.prepare('SELECT COUNT(*) n FROM uses WHERE maker_id=?').get(dm.id).n > 0, 'the demo institution with its uses');
     for (let i = 0; i < 100 && db.prepare("SELECT status FROM iiif_imports ORDER BY id DESC LIMIT 1").get().status !== 'done'; i++) await new Promise(x => setTimeout(x, 50));
     const dj = db.prepare('SELECT * FROM iiif_imports ORDER BY id DESC LIMIT 1').get(); assert.ok(dj.status === 'done' && dj.max === 1 && dj.n <= 1, 'capped at one for the test: ' + JSON.stringify(dj));
-    r = await req(port, 'GET', '/rights/museum-demo'); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
+    r = await req(port, 'GET', '/rights/museum-demo'); assert.equal(r.headers.location, '/about', 'the demonstration desk is not public until a museum claims a desk (#188)');
+    r = await req(port, 'GET', '/rights/museum-demo', { cookie: ck }); assert.ok(r.status === 200 && /demonstration desk/.test(r.body), 'the demo desk answers');
     // The scout: look before bringing. The search shows what the house holds; a tick brings one in through the feeds.
     r = await req(port, 'GET', '/studio/scout'); assert.ok(r.status === 302 || r.status === 401 || r.status === 403, 'the scout is the Studio\'s');
     r = await req(port, 'GET', '/studio/scout', { cookie: ck }); assert.ok(r.status === 200 && /The scout\./.test(r.body) && /data-sct-go/.test(r.body), 'the scout');
@@ -2371,7 +2372,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   console.log('ok: the Bookshop');
   { // One work a day: the band on the front door; the morning notice, once a day, to every device that asked.
     r = await req(port, 'GET', '/house'); assert.ok(/class="rws"/.test(r.body) && /The makers/.test(r.body) && /Today: /.test(r.body) && /One work a day, at nine/.test(r.body), 'today on the front door, in the rows');
-    assert.ok(/Keep what you make\. Own a piece of what others make\./.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /wh-q/.test(r.body) && !/<b>Read\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /nv-verbs/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
+    assert.ok(/Watermark takes art and copyright seriously\./.test(r.body) && /Photographers keep their work here/.test(r.body) && /id="what"/.test(r.body) && /<b>Look\.<\/b>/.test(r.body) && /wh-q/.test(r.body) && !/<b>Read\.<\/b>/.test(r.body) && /<b>Collect\.<\/b>/.test(r.body) && /<b>Keep\.<\/b>/.test(r.body) && /nv-verbs/.test(r.body) && /gh-collect/.test(r.body) && / collectors?</.test(r.body), 'the door says what this is');
     const N = app.locals.notify; assert.ok(N.KINDS.daily && N.KINDS.daily.on, 'a kind, on by default');
     const b0 = db.prepare('SELECT id FROM buyers ORDER BY id LIMIT 1').get();
     db.prepare("INSERT OR IGNORE INTO push_subs (buyer_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/x', 'k', 'a')").run(b0.id);
@@ -2676,11 +2677,15 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   }
   console.log('ok: the house’s edition');
   console.log('ok: the rights desk');
-  { r = await req(port, 'GET', '/director'); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
+  { r = await req(port, 'GET', '/director'); assert.ok(r.status === 302 && r.headers.location === '/about', 'the director’s page is the Studio’s (#188)');
+    r = await req(port, 'GET', '/director', { cookie: ck }); assert.ok(r.status === 200 && /Founding director of Watermark/.test(r.body) && /director’s statement/.test(r.body) && /works held/.test(r.body), 'the director’s page');
     r = await req(port, 'GET', '/m/' + encodeURIComponent(db.prepare('SELECT handle FROM makers WHERE id=?').get(db.prepare("SELECT maker_id FROM works WHERE status='held' AND maker_id=(SELECT id FROM makers WHERE handle='krafft') LIMIT 1").get().maker_id).handle)); assert.ok(/Founding director/.test(r.body), 'the title beside the roles'); }
   console.log('ok: the director');
-  { r = await req(port, 'GET', '/owners'); assert.ok(r.status === 200 && /One company\./.test(r.body) && /owner’s manual/.test(r.body) && /No share is offered or sold/.test(r.body) && /works held by Watermark/.test(r.body), 'the owners’ page');
-    r = await req(port, 'GET', '/investors'); assert.equal(r.headers.location, '/owners'); }
+  // Studio-only since #188: a stranger is sent to /about; the Studio still reads the page.
+  { r = await req(port, 'GET', '/owners'); assert.ok(r.status === 302 && r.headers.location === '/about', 'the owners’ page is not public');
+    r = await req(port, 'GET', '/investors'); assert.equal(r.headers.location, '/about', 'nor the investors’ address');
+    r = await req(port, 'GET', '/owners', { cookie: ck }); assert.ok(r.status === 200 && /One company\./.test(r.body) && /owner’s manual/.test(r.body) && /No share is offered or sold/.test(r.body) && /works held by Watermark/.test(r.body), 'the owners’ page, for the Studio');
+    r = await req(port, 'GET', '/investors', { cookie: ck }); assert.equal(r.headers.location, '/owners'); }
   r = await req(port, 'GET', '/promises'); assert.ok(r.status === 200 && /The country store/.test(r.body) && /Friday pay\./.test(r.body) && /J\. Ray Weir/.test(r.body) && /class="cst-l"/.test(r.body), 'the country store');
   r = await req(port, 'GET', '/country-store'); assert.equal(r.status, 200, 'the alias');
   console.log('ok: the country store');
@@ -2812,15 +2817,32 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const ex = require('piexifjs').load(Buffer.from(r.body).toString('binary'));
     const desc = ex['0th'][require('piexifjs').ImageIFD.ImageDescription]; assert.ok(desc.includes(T.track(l.ref)) && /A photograph by/.test(desc) && !/sha256/.test(desc), 'a caption in words: ' + desc); }
   console.log('ok: the Watermark number');
-  // For the trade: the search with its filters and prices, a comp with a readable name, a quote for a set; the visitor's view untouched.
-  { let r = await req(port, 'GET', '/trade?min=0&sort=big'); assert.equal(r.status, 200); assert.ok(/tr-spec/.test(r.body) && /\/comp\//.test(r.body) && /data-hang-open/.test(r.body), 'spec, comp and lightbox on every row');
-    assert.ok((r.headers['set-cookie'] || []).some(c => /wm_trade=1/.test(c)), 'arriving at the trade turns it on for this device');
-    const slug = (r.body.toString().match(/data-hang-open="([^"]+)"/) || [])[1];
-    r = await req(port, 'GET', '/trade?shape=nonsense&min=999'); assert.equal(r.status, 200);
-    r = await req(port, 'GET', '/comp/' + slug); assert.equal(r.status, 200); assert.ok(/\(comp\)\.jpg/.test(r.headers['content-disposition']), r.headers['content-disposition']);
-    r = await req(port, 'POST', '/trade/quote', { body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()));
-    r = await req(port, 'GET', '/w/' + slug); assert.ok(!/tr-spec-box/.test(r.body.toString()), 'the visitor sees no trade panel in the page itself'); }
-  console.log('ok: for the trade');
+  // The trade is retired (#178): its doors clear the old switch and lead to the collection; no page carries a trade
+  // panel, chip or comp link; a work's licence page still offers its uses and takes an enquiry to the house.
+  { const slug = db.prepare("SELECT w.slug FROM works w WHERE w.status='held' AND w.open IS NULL AND EXISTS (SELECT 1 FROM uses u WHERE u.maker_id=w.maker_id AND u.kind!='delivery') ORDER BY w.id LIMIT 1").get().slug;
+    for (const [door, to] of [['/trade', '/collection'], ['/trade?min=24&sort=big', '/collection'], ['/trade/on', '/collection'], ['/trade/on?back=/about', '/collection'], ['/trade/off', '/collection'], ['/trade/off?back=/w/' + slug, '/w/' + slug], ['/trade/off?back=//elsewhere.example', '/collection']]) {
+      const r = await req(port, 'GET', door, { headers: { cookie: 'wm_trade=1' } }); assert.equal(r.status, 302, door); assert.equal(r.headers.location, to, door);
+      assert.ok([].concat(r.headers['set-cookie'] || []).some(c => /^wm_trade=;/.test(c) && /Max-Age=0|Expires=Thu, 01 Jan 1970/.test(c)), door + ' clears the old switch');
+      assert.ok(/no-store/.test(r.headers['cache-control'] || ''), door + ' is never kept, or the cookie would stay'); }
+    let r = await req(port, 'GET', '/collection', { headers: { cookie: 'wm_trade=1' } }); assert.equal(r.status, 200);
+    for (const p of ['/', '/w/' + slug, '/everything', '/license/' + slug]) { r = await req(port, 'GET', p, { headers: { cookie: 'wm_trade=1' } }); const t = r.body.toString(); assert.equal(r.status, 200, p);
+      assert.ok(!/static\/trade\.js|tr-chip|tr-spec|href="\/trade|\/comp\/|For the trade/.test(t), p + ' carries nothing of the trade, cookie or no'); }
+    r = await req(port, 'GET', '/static/trade.js'); assert.equal(r.status, 200); assert.ok(!/fetch|tr-chip|innerHTML/.test(r.body.toString()), 'the old script draws nothing');
+    r = await req(port, 'GET', '/license/' + slug); let t = r.body.toString();
+    assert.ok(/class="bu[ "]/.test(t) && /name="use"/.test(t) && /class="bu-p"/.test(t), 'the licence page still offers its uses, each with its price');
+    assert.ok(/Ask about using this work/.test(t) && new RegExp(`href="/license/${slug}/ask"`).test(t) && /&times; [\d,]+ pixels/.test(t) && !/name="email"/.test(t), 'and the size, and the way to ask; still no field before payment');
+    r = await req(port, 'GET', `/license/${slug}/ask`); assert.equal(r.status, 200); assert.ok(new RegExp(`action="/license/${slug}/ask"`).test(r.body.toString()) && /name="email"/.test(r.body.toString()), 'the letter to the house');
+    r = await req(port, 'GET', '/license/no-such-work/ask'); assert.equal(r.status, 302); assert.equal(r.headers.location, '/collection');
+    r = await req(port, 'GET', '/comp/' + slug); assert.equal(r.status, 200); assert.ok(/\(comp\)\.jpg/.test(r.headers['content-disposition']), 'the comp itself is not deleted: ' + r.headers['content-disposition']);
+    const n0 = db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='trade.quote'").get().n;
+    r = await req(port, 'POST', `/license/${slug}/ask`, { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example', company: 'The Paper', note: 'A cover' } }); assert.equal(r.status, 200); t = r.body.toString(); assert.ok(/Asked\./.test(t) && new RegExp(`href="/license/${slug}"`).test(t), 'asked, with the way back');
+    r = await req(port, 'POST', `/license/${slug}/ask`, { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'not an address', note: 'A cover' } }); assert.equal(r.status, 200); t = r.body.toString(); assert.ok(/does not look whole/.test(t) && /A cover/.test(t) && /action="\/license\//.test(t), 'a bad address is said, with the form and what was written');
+    r = await req(port, 'POST', '/license/no-such-work/ask', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example' } }); assert.equal(r.status, 200); assert.ok(/not here to ask about/.test(r.body.toString()) && /href="\/collection"/.test(r.body.toString()), 'a work that is gone is said, never a bare status');
+    r = await req(port, 'POST', '/trade/quote', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { w: slug, email: 'desk@paper.example', company: 'The Paper', use: 'editorial', note: 'A cover' } }); assert.equal(r.status, 200); assert.ok(/Asked\./.test(r.body.toString()), 'a form left open on the old catalogue still sends, for this release');
+    r = await req(port, 'POST', '/trade/quote', { headers: { 'x-forwarded-for': '10.178.0.9' }, body: { email: 'desk@paper.example' } }); assert.equal(r.status, 200); assert.ok(/not here to ask about/.test(r.body.toString()));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM ledger WHERE type='trade.quote'").get().n, n0 + 2, 'two enquiries kept, the refused ones not');
+    assert.ok(!JSON.stringify(require('../src/views').DOORS).includes('/trade'), 'no menu leads to the trade'); }
+  console.log('ok: the trade is retired; a work is licensed on its own page, or asked about');
   // See the watermark: what the photograph carries; a taken-down photograph leads on, never to a sign.
   { const w = db.prepare("SELECT * FROM works WHERE status='held' ORDER BY id LIMIT 1").get();
     let r = await req(port, 'GET', '/api/eye/' + w.slug); const d = JSON.parse(r.body.toString()); assert.ok(/^WM\./.test(d.number) && /% of every sale/.test(d.paid) && d.uses.length, 'the watermark reads');

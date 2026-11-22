@@ -27,7 +27,7 @@ function mountPromises(app, { V, C }) {
 <h2>Our people</h2>
 <p>The house has four constituencies and keeps them in this order: the makers, whose work it is; the collectors, who keep it; the curators, guides and hosts, who make a career here on the same terms; and the owners, who are told the truth. Everyone who works for the house is paid on the same Friday the makers are, from the same statement.</p>
 <p>If the house ever breaks one of these promises, say so, and it will be put right and said on the <a href="/ledger">register</a>.</p>
-<p class="ab-sig"><a href="/director">Will Fullerton</a><br><small>Founding director</small></p></section>`,
+<p class="ab-sig">Will Fullerton<br><small>Founding director</small></p></section>`,
   });
   app.get(['/promises', '/country-store'], (req, res) => res.send(page()));
   app.locals.promises = PROMISES;

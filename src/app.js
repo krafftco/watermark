@@ -322,13 +322,15 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
-      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot,
+      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
       fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
       certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
+      made: t.print && t.print.made ? t.print.made : null, // (#193) a print the maker makes or has in hand
+      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : null,
     };
   }
   function grant(ref, extra = {}) {
@@ -363,7 +365,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     if (extra.paid && app.locals.bridge) app.locals.bridge.notice(ref).catch(e => console.error('[bridge]', e.message));
     if (app.locals.onGrant) { try { app.locals.onGrant(q.lic.get(ref), extra); } catch (e) { console.error('[editions]', e.message); } } // a print edition: the number, the order, the register
     const g = q.lic.get(ref);
-    try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email) mail.send({ to: maker.email, ...LETTERS.sold(L) }); if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
+    try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email && !L.made) mail.send({ to: maker.email, ...LETTERS.sold(L) }); /* (#193) a print the maker makes or holds: their letter is the order's (editions.js), not 'nothing for you to do' */ if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
       if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
       if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) }); }
@@ -753,7 +755,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // The artists: every maker whose work hangs here, one layer above the collection. Will is one among many.
   // Kept five minutes (9 Nov: a grouping over every held work and a standing a maker, 1.7 s on the live house).
   app.locals.shared.register('artists', { ms: 300e3, build: () => {
-    const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') GROUP BY m.id ORDER BY n DESC, m.id`).all();
+    const rows = db.prepare(`SELECT m.*, COUNT(w.id) n, MIN(w.created_at) since FROM makers m JOIN works w ON w.maker_id=m.id AND w.status='held' WHERE COALESCE(m.standing,'open')='open' AND m.kind IN ('maker','estate','institution') AND COALESCE(m.house_desk,0)=0 GROUP BY m.id ORDER BY n DESC, m.id`).all();
     const artists = rows.map(m => ({ ...m, slug: app.locals.makerSlug ? app.locals.makerSlug(m) : m.handle, cover: db.prepare("SELECT slug, title, width, height FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id LIMIT 1").get(m.id),
       collectors: db.prepare("SELECT COUNT(DISTINCT l.buyer_id) n FROM licenses l JOIN works w ON w.id=l.work_id WHERE w.maker_id=? AND l.status IN ('active','expired') AND l.price_cents>0").get(m.id).n }));
     artists.forEach(a => { const st = RG.standing(db, a.id); a.regard = st.standing; a.shown = st.n; a.held = st.held; }); artists.sort((a, b) => b.regard - a.regard || b.n - a.n);
@@ -873,9 +875,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.send(V.reported({ w }));
   });
   app.get('/about', (req, res) => res.send(V.about()));
-  require('./director').mountDirector(app, { db, V, C });
+  require('./director').mountDirector(app, { db, V, C, isStudio });
   require('./promises').mountPromises(app, { V, C }); // the country store: the house's promises (/promises)
-  require('./owners').mountOwners(app, { db, V, C }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
+  require('./owners').mountOwners(app, { db, V, C, isStudio }); // owners: how Krafft is owned and run (/owners, /investors); describes, offers nothing // the founding director: /director, the title on the maker page
   require('./founders').mountFounders(app, { db, V, isStudio, FOUNDING }); // the Founding Collectors; the first named by hand (Will's mother)
   require('./iiif').mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl: cfg.fetchImpl, images, ledger, DEFAULT_USES });
   require('./nga').mountNga(app, { db, C, ledger }); /* the National Gallery of Art's open access (6 Nov) */ { const fUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }); require('./feeds').mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload: fUp }); } // feeds in: the bulk door (27 Oct) // museums: a collection in from a IIIF manifest; the Image API out; /museums
@@ -1081,6 +1083,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
 
   // --- licensing ---
+  // (#183) The two plain answers a license can carry beside its use: where (a place's code; none is worldwide) and
+  // how many (a number of copies, of circulation or of audience; none is unlimited). src/contract.js decides what is
+  // a place and what is a number; anything else is read as the default.
+  const askedOf = b => ({ territory: String((b && b.where) || '').slice(0, 4) || null, limit: b && b.of ? { n: String(b.many || '').slice(0, 16), of: String(b.of).slice(0, 16) } : null });
+  const narrowSays = t => [t.territory ? `Where: ${t.territory.name} only.` : '', t.limit ? `How many: no more than ${t.limit.n.toLocaleString('en-US')} ${(K.SIZES.find(z => z.key === t.limit.of) || {}).q}.` : ''].filter(Boolean).join(' ');
   app.get('/license/:slug', (req, res) => {
     const w = q.work.get(req.params.slug);
     const maker = mk(w); // the work's own maker
@@ -1088,7 +1095,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     countView(w.id, null, 'open');
     const rules = R.parse(w.rules);
     if (!q.uses.all(maker.id).some(u => listed(rules, u.key, w))) return res.redirect(`/w/${w.slug}`); // nothing to license (open, or every use closed)
-    res.send(V.buy({ w, maker, rules, simply: app.locals.saidSimply ? app.locals.saidSimply(maker, q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w))) : '', mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
+    res.send(V.buy({ w, maker, rules, ask: app.locals.askAbout ? app.locals.askAbout(w) : '', simply: app.locals.saidSimply ? app.locals.saidSimply(maker, q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w))) : '', mine: heldBy(req, w), uses: q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), chosen: req.query.use, renews: /^WM-\d{4}-\d{6}$/.test(String(req.query.renews || '')) ? req.query.renews : null, instant: !!stripe }));
   });
 
   // One tap: a priced use goes straight to Stripe Checkout (Apple Pay, Google Pay, Link, cards).
@@ -1106,11 +1113,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const note = String(req.body.note || '').slice(0, 2000) || null;
     if ((u.key === 'social' || u.key === 'reference') && soldOut(w)) return res.redirect(`/w/${w.slug}`);
     // The contract, assembled from what is being paid for: the use's rights, any added, any extended.
-    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
+    const t = K.terms({ use: u, add: req.body.add || [], extras: req.body.x || [], never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(req.body) });
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
-    const noteAll = [wants, note].filter(Boolean).join('\n') || null;
-    if (rules.approve) return res.send(V.ask({ w, maker, u, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
-    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
+    const noteAll = [wants, narrowSays(t), note].filter(Boolean).join('\n') || null;
+    if (rules.approve) return res.send(V.ask({ w, maker, u, t, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
+    if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, t, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
     u.price_cents = t.price; t.house = u.house_cents || 0; t.maker = t.price - t.house;
     const ref = nextRef();
     // The exact text accepted at checkout, fingerprinted, so the agreement can be shown word for word later.
@@ -1336,7 +1343,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const market = require('./market').mountMarket(app, { db, C, maker, buyerOf, setBuyer, isStudio, studioOnly, ledger, V, mk, edition, stripe, mail });
   // The bridge to the U.S. Copyright Office: groups, title lists, deposits, and registration numbers back onto the works.
   app.locals.beta = require('./beta').mountBeta(app, { db, V, mail, studioOnly, C, ledger });
-  require('./releases').mountReleases(app, { V }); // what's new: the shipped product's record (27 Oct)
+  require('./releases').mountReleases(app, { V, isStudio }); // what's new: the shipped product's record (27 Oct)
   require('./copyright').mountCopyright(app, { db, C, maker, studioOnly, ledger, images, originalPath, cache, V, S });
   require('./ready').mountReady(app, { db, V, C, ledger, mail, studioOnly, makerOf: req => app.locals.accounts.makerOf(req) }); // ready to hang: the two floors, the review room, the edit wanders
   require('./museums').mountMuseums(app, { db, C, V, studioOnly }); // a museum for everyone (29 Oct): the open door, the limited wall, the halls earned, following
@@ -1376,7 +1383,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./cull').mountCull(app, { db, V, ledger, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true) }); // the cull (11 Nov): swipe right to show, left to keep back
   require('./batch').mountBatch(app, { db, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mayHang: m => (app.locals.mayHang ? app.locals.mayHang(m) : true), KINDS: Object.keys(require('./object').KINDS) }); // tick works, do the lot: publish, private, stars, place, kind, curated
   require('./gifts').mountGifts(app, { db, V, ledger, studioOnly });
-  app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null }); // the editions room: prints sold off the wall, at the show and after
+  app.locals.editionsRoom = require('./editions').mountEditions(app, { db, C, V, stripe, q, mk, R, K, nextRef, meets, listed, priced, buyerOf, ledger, studioOnly, isStudio, makerOf: req => app.locals.accounts.makerOf(req), notify: null, mail }); // the editions room: prints sold off the wall, at the show and after
   require('./details').mountDetails(app, { db, V, C, q, mk, images, originalPath, cache, buyerOf, makerOf: req => app.locals.accounts.makerOf(req), isStudio, zone, ledger });
   // Passing a work on: the holder makes a one-time link; whoever opens and accepts it becomes the holder,
   // with the same collector number. The old file link stops; the new holder gets their own.
@@ -1712,7 +1719,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       return res.send(V.setThanks({ items, name: (SETS[l.set_ref.split(':')[0]] || {}).name || 'The set' }));
     }
     if (l.status !== 'active' && stripe) {
-      try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } } catch (e) { /* show pending */ }
+      try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') { fillBuyer(l.ref, s); l = grant(l.ref, { paid: true, price_cents: s.amount_total, session: s }); } /* (#193) the session carries a print's address: back on this page before the webhook, the order was written without it */ } catch (e) { /* show pending */ }
     }
     if (l.status === 'active' && !l.buyer_id) { // hang it in this device's collection
       let b = buyerOf(req), theirs = null;
@@ -1740,9 +1747,14 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       return res.status(400).send(V.licenseForm({ w, maker, uses, chosen: b.use, values: b, renews: b.renews, error: 'Please choose a use, give your name and a valid email, and agree to the terms.' }));
     }
     const ref = nextRef();
-    const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key);
-    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null);
+    // (#183) A license narrowed to a territory or to a number has no price of its own: it is always the maker's to
+    // name (no fee is carried, nothing goes to payment here), and the request keeps the narrowed terms, so the
+    // agreement of the license the maker then quotes reads with them. Any other request is stored as it always was.
+    const nt = K.terms({ use: u, never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(b) });
+    const narrowed = !!(nt.territory || nt.limit);
+    const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key) || narrowed;
+    db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, narrowed ? null : u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null, narrowed ? JSON.stringify(nt) : null);
     ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key });
     const renews = /^WM-\d{4}-\d{6}$/.test(String(b.renews || '')) ? String(b.renews) : null;
     if (renews) db.prepare('UPDATE licenses SET renews=? WHERE ref=?').run(renews, ref);
@@ -1788,7 +1800,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (req.query.session_id && stripe && l.stripe_session === req.query.session_id) {
       owner = true;
       if (l.status !== 'active') {
-        try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') l = grant(l.ref, { paid: true, price_cents: s.amount_total }); } catch (e) { /* show current status */ }
+        try { const s = await stripe.checkout.sessions.retrieve(req.query.session_id); if (s.payment_status === 'paid') l = grant(l.ref, { paid: true, price_cents: s.amount_total, session: s }); } catch (e) { /* show current status */ }
       }
     }
     if (req.query.k && l.download_token && req.query.k === l.download_token) owner = true;
@@ -1829,7 +1841,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let u = priced(q.use.get(maker.id, String(req.query.use || 'commercial')), w);
     if (!u || !offered(rules, u.key, w)) { const on = q.uses.all(maker.id).filter(x => offered(rules, x.key, w)); u = (on.find(x => x.key !== 'social') || on[0] || null) && priced(on.find(x => x.key !== 'social') || on[0], w); } // the first use on offer
     if (!u) return res.sendStatus(404);
-    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null });
+    const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(req.query) });
+    // (#183) The one statement for these answers, for the license page to show before anything is pressed (src/holds.js).
+    if (req.query.holds) return res.send(require('./holds').block({ use: u, t, maker: maker.name, edition: !!w.edition_size, will: true }));
     const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
     res.send(req.query.frag ? V.contractBody(sections) : V.contractPage({ sections, w, maker, u, t, preview: true }));
   });
@@ -2227,7 +2241,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const sp = String(b.share || '').trim(); const sc = sp === '' || !(Number(sp) >= 0) ? null : Math.max(3, Math.round(Number(sp))) * 100;
     db.prepare('UPDATE works SET share_cents=? WHERE id=?').run(sc, w.id);
     if ('note' in b) db.prepare('UPDATE works SET note=? WHERE id=?').run(t(b.note, 2000), w.id);
-    db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
+    // (#188) Only the Studio's form carries the registration (the plate's 'U.S. Registered'); a maker's save leaves it as it was.
+    if ('copyright_reg' in b && isStudio(req)) db.prepare('UPDATE works SET copyright_reg=? WHERE id=?').run(t(b.copyright_reg, 60), w.id);
     // Edition size: blank for an open edition. It can never be set below what has already been collected.
     // (#165) Once one is collected it may stay or come down to what is sold, never go up, and is never opened again.
     const es = String(b.edition || '').trim(); const ed = edition({ ...w, edition_size: 1 });

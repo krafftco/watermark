@@ -16,8 +16,8 @@ function securityHeaders(base) {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https://archive.org https://*.archive.org",
     "script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdnjs.cloudflare.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:", // the house's own fonts (#188): no other host is asked for a font or a stylesheet
     // the vault, for arrivals put straight into the bucket from the Masters desk (S3, or an S3-compatible endpoint)
     `connect-src 'self' https://api.stripe.com https://studios.krafftco.com https://*.krafftco.com${process.env.S3_BUCKET ? ' https://*.amazonaws.com' : ''}${process.env.S3_ENDPOINT ? ' ' + String(process.env.S3_ENDPOINT).replace(/\/$/, '') + ' https://*.' + String(process.env.S3_ENDPOINT).replace(/^https?:\/\//, '').replace(/\/.*$/, '') : ''}`,
     "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
@@ -92,7 +92,7 @@ function mountGuardrails(app, { base }) {
   app.post(['/account/works/one', '/studio/works'], L('upload', 400, 60 * 60000));
   // The public doors a stranger may bring a file to (21 Oct, the bag check): a handful an hour each, never a flood.
   app.post(['/verify', '/yours/add', '/w/:slug/claim', '/cabinet/add'], L('bring', 30, 60 * 60000));
-  app.post(['/account/deliveries', '/trade/quote', '/rights/:handle', '/feedback', '/brands/brief'], L('ask', 40, 60 * 60000));
+  app.post(['/account/deliveries', '/trade/quote', '/license/:slug/ask', '/rights/:handle', '/feedback', '/brands/brief'], L('ask', 40, 60 * 60000));
   app.post(['/swap', '/yours/send', '/yours/offer', '/market/:id/bid', '/w/:slug/offer', '/friends', '/m/:slug/patron'], L('money', 60, 10 * 60000));
   app.use(['/w/:slug/capture', '/w/:slug/stood'], L('beacon', 600, 10 * 60000));
 }

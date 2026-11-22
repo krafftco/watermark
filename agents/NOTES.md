@@ -268,3 +268,58 @@ The CTO session keeps it honest.
   card, the guest book, the JSON-LD, the file's XMP). Any change to those forms: check an open museum work too
   (test/sources.js has one from the Gallery and one from the Met).
 - A source the house reads gets a row in docs/SOURCES.md and a line in `src/sources.js` (KNOWN) the day it is added.
+
+## What you hold (#176)
+- What a collector holds is said in one place: `src/holds.js` (`statement`, `block`, `ofLicense`, `offering`). A page that
+  offers, confirms or resells a work calls it; never write a sentence about a right into a page. Each clause names its
+  source in the license (src/contract.js) or the terms (src/legal.js); a clause with no source is a question for
+  docs/COUNSEL.md, not a sentence. `test/holds.js` walks collect, a license, a print, an open print and a resale.
+- `H.NEVER` is the list of words a visitor never reads; `test/holds.js` checks the words between the tags and in
+  alt/title/aria-label/placeholder on every page it walks. Still said elsewhere (not walked): "wallet" in the gallery's
+  files tab and in the terms of the house, "token" and "hashed" in the terms (their text is fingerprinted: a change is
+  Will's and counsel's).
+- A page's own rules restyle a bare `<b>` or `<p>` (the work page made the label 30 px): look at a new block on each
+  page at 390 wide, do not trust one.
+
+
+## A license written from the use (#183)
+- `licenses.rights` (JSON) is the order's terms. An optional field must be absent, not null, when unset, or every old
+  fingerprint (`rights.hash`, a sha256 of `K.assemble`) changes: `terms()` spreads `territory`/`limit` in only when
+  set. `test/licence-by-use.js` holds today's text to fingerprints taken before #183; never regenerate them to pass.
+- `rights.size` already means a kept album picture's file size (src/deliveries.js); the size of use is `rights.limit`.
+- A narrowed license (territory or limit) has no price: `t.ask` is true, `/buy` shows the ask page with the answers
+  as hidden fields, `POST /license` stores the narrowed terms with `price_cents` null and `requested`, and the Studio's
+  quote sets the fee. A request that narrows nothing is stored exactly as before (`rights` null).
+- The license page may carry selects and inputs about the use; the smoke forbids a field for the buyer (`name="email"`)
+  before payment. The answers refresh the statement through `/contract/:slug?holds=1` (no new route).
+## Find (#179)
+- `src/findask.js` reads the ask (a phrase, a number, "X by Y", a year or decade, a kind, a holder) and touches no
+  database; `src/find.js` runs it. One judge (`judge`) scores both roads, so a change to ranking is made once; the
+  database road only chooses which works the judge sees (`candidates`), and Wander asks through `find.whereFor`.
+- The database road asks for ids first, unordered, to the ceiling (FIND_CANDIDATES, 400): an ask few works meet is one
+  pass with no join (about 50 ms on SQLite at 100,000 works, where the ordered question walked the index for 130 ms).
+  Only a common word goes on to the ordered question and its two small ones (makers who are not institutions; the exact
+  title, index `works_title_lower`). Test the ceiling by setting FIND_CANDIDATES low before `createApp` (test/findask.js).
+- On SQLite a word nothing carries is a pass over every held work (no trigram index there); Postgres answers from
+  `works_find`. A slip in a title is forgiven on the list road and on Postgres, not on SQLite's database road.
+- A caption's words and an accented letter are read on the list road and not by the database's candidates (`WORDS`
+  holds neither): the two roads differ there, as they did before #179.
+- `find_misses` (day, words, n) is written only by a deliberate ask (the /find page, Wander's page), never by the box
+  as it is typed, and read only by /studio/feedback. Each copy stops at FIND_MISSES_A_DAY (400) writes a day.
+- Give your own runs their own temp root (`TMPDIR=/tmp/wm-<issue>-tmp node test/x.js`): every house they make is
+  under it, and clearing up is one folder that is certainly yours.
+
+## The public house (#188)
+- `test/public.js` walks every door, both footers and one link deep (about 270 pages, 15 s) as a stranger. A new reading word on a public page goes through it: the words a reader never meets (BANNED), "museum" for the house (SELF_MUSEUM), a share offered (OFFER). Machine addresses and /standard keep technical words (MACHINE); the legal documents are counsel's (LEGAL, docs/REDLINE.md). `PUBLIC_DUMP=<dir>` writes each page's readable text, one file a page: grep it before you call a page clean.
+- Words in a file another PR holds go in its PENDING (page, phrase, file and PR); a stale line fails.
+- A new cookie goes in its COOKIES and in the privacy page's list (counsel's). A font, script, stylesheet or picture comes from the house (`/static/fonts.css`, `public/fonts/`); the CSP names no font host.
+- Taking a page off the public house: Studio-only, a stranger 302 to /about, `noindex`, its links out of DOORS, FOOT, /about and the peephole; nothing deleted.
+- The repository krafftco/watermark is public (`gh api repos/krafftco/watermark --jq .private` is false): comments, docs and HISTORY are readable by anyone.
+
+## The first sale (#193)
+- Who makes a print is per edition: `print_editions.made_by` ('house' | 'maker' | 'hand'); the order carries `print_orders.by_maker` (and `pickup` for 'hand'). The press's `sweep()` never offers a `by_maker` order to a shop. `t.print.made` is set only when not the house's, so the house's terms (and their fingerprints) read as before.
+- A print's money clears when its order is sent; a print taken by hand (`by_maker=1 AND pickup=1`) clears on the hold from payment like any sale. Change that in `src/payouts.js` and in `test/statements.js`'s per-maker questions together.
+- Checkout sessions: Stripe v23's API keeps the address at `collected_information.shipping_details`. A grant from `/thanks` must pass `session: s`, or the print's address is lost.
+- `.cat` is two things (the Studio's works table and the record's catalogue grid): scope a table rule to `table.cat`. A work's record at 390: probe without `isMobile` too; with it, Chrome widens the layout to the widest thing and every box looks guilty.
+- `public/desk-tabs.js`: a hash naming an element inside a panel opens that panel (`#prints`, `#editions`); tab ids come from heading text, so never link to `#t-…`.
+- `test/firstsale.js` uploads through the vault's own doors; two test pictures that differ only in size or hue are the same picture to the fingerprint (flip, negate or greyscale one).

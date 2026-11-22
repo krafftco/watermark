@@ -38,6 +38,8 @@ const LIST = [
   ['reading_list_buyer', 'reading_list (buyer_id)'],
   ['work_releases_work', 'work_releases (work_id)'],
   ['print_orders_status', 'print_orders (status)'],
+  ['print_orders_work', 'print_orders (work_id, by_maker)'], // (#193) a work's prints the maker makes, on the maker's desk
+  ['print_orders_waiting', 'print_orders (by_maker, status)'], // (#193) the prints waiting with makers, on each studio's front
   ['tips_post', 'tips (post_slug)'],
   // the agents' door (#28): each of its lists reads only its window, by the day
   ['feedback_at', 'feedback (at)'],
@@ -64,6 +66,8 @@ const LIST = [
   // (#114) the health, made by the worker: each work's latest fixity check in one pass, and the unsound works counted from an index
   ['fixity_last', 'fixity (work_id, id)'],
   ['works_condition', 'works (condition) WHERE condition IS NOT NULL'],
+  ['works_accession', 'works (accession)'], // (#179) Find: an accession number typed exactly is one row, not a walk
+  ['works_title_lower', 'works (lower(title))'], // (#179) Find: the works whose title is exactly what was typed, when a common word meets the ceiling
 ];
 // On Postgres (16 Nov, #28's review) every index is built CONCURRENTLY: the build takes no lock that holds a write, so the
 // website's writes to works, makers, the register and licences never wait on the worker's first build on a large house.

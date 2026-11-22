@@ -248,7 +248,7 @@ body.studio .tv{max-width:none}
 .cat{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:32px;align-items:start}
 .cat-form{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}.cat-form .wide,.cat-form button{grid-column:1/-1}.cat-form button{justify-self:start}
 .cat-form fieldset{border:0;padding:0;margin:0}.cat-form legend{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
-@media (max-width:900px){.tv-head,.cat{grid-template-columns:1fr}.tv-tot{grid-template-columns:repeat(3,auto)}.cat-form{grid-template-columns:1fr}}
+@media (max-width:900px){.tv-head{grid-template-columns:1fr}.cat{grid-template-columns:minmax(0,1fr)}.tv-tot{grid-template-columns:repeat(3,auto)}.cat-form{grid-template-columns:1fr}}
 /* Bulk registration */
 .bulk{max-width:none}
 .drop{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;text-align:center;padding:40px 20px;border:1px dashed #a9a59d;background:#fff;cursor:pointer;transition:background .2s}
@@ -1219,6 +1219,17 @@ form.share-buy .seal-t .sm-more{width:fit-content;justify-content:flex-start;ali
 .lc-acts .link{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--mu);text-decoration:underline;cursor:pointer}
 /* The rights in the contract (license page). */
 .rt{margin:18px 0 6px;padding:18px 0 4px;border-top:1px solid var(--ln)}
+/* (#183) the plain questions: what is it for, where, how many, for how long */
+.aq-l{padding:0;margin:0 0 2px;font-size:13px;font-weight:500;color:var(--ink)}
+.aq{display:grid;gap:0;margin:0 0 18px;border-bottom:1px solid var(--ln)}
+.aq-q{display:grid;grid-template-columns:minmax(120px,38%) 1fr;gap:12px;align-items:center;margin:0;padding:9px 0;border-top:1px solid var(--ln);font-size:13px}
+.aq-q:first-child{border-top:0;padding-top:0}
+.aq-q>span{color:var(--ink);font-weight:500}.aq-q b{font-weight:400}
+.aq-q select,.aq-n input{width:100%;min-height:44px;border:0;border-bottom:1px solid var(--ln);border-radius:0;background:transparent;font:inherit;font-size:15px;color:var(--ink);padding:8px 0}
+.aq-n{display:grid;grid-template-columns:1fr;gap:6px}
+.aq-n input[hidden]{display:none}
+.aq-say{margin:0;padding:0 0 10px;font-size:13px;color:var(--mu);line-height:1.5}
+@media (max-width:520px){.aq-q{grid-template-columns:1fr;gap:4px}}
 .rt-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 12px;font-size:13px;font-weight:500;color:var(--ink)}
 .rt-h a{font-weight:400;color:var(--mu)}
 .rt-g{display:flex;flex-wrap:wrap;gap:6px}
@@ -1715,7 +1726,7 @@ body.studio code,body.studio .acc{font-family:ui-monospace,SFMono-Regular,Menlo,
 /* The catalogue register. */
 .tv-view{margin-left:auto;display:inline-flex;gap:14px}.tv-view a{color:var(--mu);text-decoration:none}.tv-view a[aria-current]{color:var(--ink);border-bottom:1px solid var(--ink)}
 .cat-wrap{overflow-x:auto;border-top:1px solid var(--ink)}
-.cat{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.cat{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cat th{text-align:left;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);padding:10px 12px 8px 0;border-bottom:1px solid var(--ln)}
 .cat td{padding:8px 12px 8px 0;border-bottom:1px solid var(--ln);vertical-align:middle}
 .cat .r{text-align:right}.cat td.r{padding-right:0}.cat th.r{padding-right:0}
@@ -1724,7 +1735,7 @@ body.studio code,body.studio .acc{font-family:ui-monospace,SFMono-Regular,Menlo,
 .cat-t a{color:var(--ink);text-decoration:none;font-family:var(--read);font-size:15px}.cat-t small{margin-left:8px;color:#b8a35a;font-size:10px}
 .cat-reg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.cat i{color:#b8b3aa;font-style:normal}
 .cat-miss{color:#8a3a30}.cat-ok{color:var(--mu)}
-.cat,.cat thead,.cat tbody{display:block;min-width:1180px}.cat tr{display:grid;grid-template-columns:118px 52px minmax(220px,1.4fr) 100px minmax(120px,1fr) minmax(170px,1fr) 70px 110px 80px 70px 60px 90px 80px;align-items:center;column-gap:12px}.cat td,.cat th{display:block;padding-right:0;overflow:hidden;text-overflow:ellipsis}.cat tbody tr{border-bottom:1px solid var(--ln)}.cat thead tr{border-bottom:1px solid var(--ln)}.cat td{border-bottom:0}.cat th{border-bottom:0}
+table.cat,.cat thead,.cat tbody{display:block;min-width:1180px}.cat tr{display:grid;grid-template-columns:118px 52px minmax(220px,1.4fr) 100px minmax(120px,1fr) minmax(170px,1fr) 70px 110px 80px 70px 60px 90px 80px;align-items:center;column-gap:12px}.cat td,.cat th{display:block;padding-right:0;overflow:hidden;text-overflow:ellipsis}.cat tbody tr{border-bottom:1px solid var(--ln)}.cat thead tr{border-bottom:1px solid var(--ln)}.cat td{border-bottom:0}.cat th{border-bottom:0}
 /* Into the vault. */
 .vt{display:grid;grid-template-columns:1.3fr 1fr;gap:0 48px;align-items:start}.vt>*{grid-column:1/-1}.vt-head{grid-column:1;grid-row:2;margin-bottom:28px}.vt-rules{grid-column:2;grid-row:2}.vt>.own-wel{grid-row:1}
 .vt-rules{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--ink)}.vt-rules li{padding:12px 0;border-bottom:1px solid var(--ln);font-size:13.5px;line-height:1.5;color:var(--mu)}.vt-rules b{display:block;color:var(--ink);font-weight:500;margin-bottom:2px}
@@ -2010,6 +2021,8 @@ body.studio .vt-done h2{font-size:clamp(28px,3.6vw,44px)}
 .wk-tabs{display:flex;gap:0;border-bottom:1px solid var(--ink);margin:8px 0 26px;overflow-x:auto;scrollbar-width:none}.wk-tabs::-webkit-scrollbar{display:none}
 .wk-tabs a{padding:12px 16px 10px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
 .wk-tabs a[aria-current]{color:var(--ink);border-bottom-color:var(--ink)}
+.wt-show{border:1px solid var(--ln,#e2e2df);padding:14px 16px;margin:16px 0;display:grid;gap:10px;justify-items:start}.wt-show p{margin:0}.wt-show .buy-btn{min-height:44px}
+.wk-tabs{flex-wrap:wrap;overflow:visible}@media (max-width:600px){.wk-tabs a{padding:12px 10px 10px;letter-spacing:.12em}} /* (#193) every tab shows, at every width: a row that scrolled with no bar hid the print editions */
 .wk-panel>h2:first-child{margin-top:0}
 .ac-row{grid-template-columns:56px minmax(0,1fr) 150px 60px 80px 100px 118px}
 @media (max-width:860px){.wt-card{grid-template-columns:1fr}.wt-stats{grid-template-columns:repeat(2,1fr)}}
@@ -2536,24 +2549,11 @@ aside.cu-show .buy-btn{width:100%}
 @media (max-width:900px){.cu-cols{grid-template-columns:1fr}aside.cu-show{position:static;max-height:none;order:-1}.cu-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.cu-show{grid-template-columns:1fr}.cu-sh-go{justify-items:start}}
 .wm-no{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);letter-spacing:.08em;font-size:15px}
 /* For the trade (18 Oct). */
-.tr{max-width:1320px;margin:0 auto;padding:clamp(28px,4vw,56px) clamp(16px,3vw,40px) 48px}
-.tr-h h1{font-family:var(--disp);font-weight:400;font-size:clamp(28px,3.6vw,42px);margin:6px 0 8px;max-width:22em}.tr-sub{color:var(--mu);margin:0 0 22px;font-size:14px}
-.tr-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;border:1px solid var(--ln);background:#fff;position:sticky;top:var(--hdr);z-index:5}
-.tr-f input,.tr-f select{font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--ln);background:#fff;min-width:0}.tr-f input[name=q]{flex:1 1 260px}.tr-f input[name=max]{width:96px}.tr-f .buy-btn{padding:10px 18px}
-.tr-list{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--ln)}
-.tr-it{display:grid;grid-template-columns:24px 120px minmax(0,1.3fr) minmax(0,1.6fr) auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--ln)}
-.tr-th img{width:120px;height:80px;object-fit:cover;display:block;background:var(--soft)}
-.tr-t{display:grid;gap:2px;min-width:0}.tr-t a{color:inherit;text-decoration:none}.tr-t b{font-family:var(--read);font-weight:400;font-size:17px}.tr-t span{font-size:13px;color:var(--mu)}
-.tr-spec{font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:11px;color:var(--mu);letter-spacing:.02em}
-.tr-uses{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}.tr-uses a{display:inline-flex;gap:8px;align-items:baseline;padding:6px 10px;border:1px solid var(--ln);text-decoration:none;color:inherit;font-size:12px;background:#fff}.tr-uses b{font-weight:600}.tr-uses li.hit a{border-color:var(--ink)}.tr-uses a:hover{border-color:var(--ink)}
-.tr-act{display:grid;gap:6px;justify-items:end;font-size:12px}.tr-act a,.tr-lb{color:var(--ink);background:none;border:0;padding:0;font:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
-.tr-pick input{width:16px;height:16px}
-.tr-qbar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:#0e0e0e;color:#f6f5f2;margin-top:12px;z-index:6}.tr-qbar[hidden]{display:none}.tr-qbar input,.tr-qbar select{font:inherit;font-size:13px;padding:8px;border:0;min-width:0}.tr-qbar input[name=note]{flex:1 1 200px}.tr-qbar .buy-btn{background:#f6f5f2;color:#0e0e0e}
-.tr-pg{display:flex;gap:18px;justify-content:center;margin:24px 0}.tr-foot{margin-top:28px;max-width:52em}.tr-none{padding:28px 0;color:var(--mu)}
-.tr-chip{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--ink);color:var(--ink);text-decoration:none;margin-right:14px}
-.tr-spec-box{margin-top:28px;padding:18px;border:1px solid var(--ln);background:#fff}.tr-spec-box dl{display:grid;gap:6px;margin:8px 0 14px}.tr-spec-box dl div{display:grid;grid-template-columns:96px 1fr;gap:10px;font-size:13px}.tr-spec-box dt{color:var(--mu);font-size:11px;letter-spacing:.12em;text-transform:uppercase}.tr-acts{font-size:13px;margin:12px 0 0}
-@media (max-width:900px){.tr-it{grid-template-columns:22px 88px 1fr;}.tr-th img{width:88px;height:62px}.tr-uses,.tr-act{grid-column:2/-1}.tr-act{justify-items:start;display:flex;gap:16px}.tr-f{position:static}}
-.tr-f .buy-btn,.tr-qbar .buy-btn{width:auto;flex:none;margin:0;padding:10px 20px}
+/* Ask about using this work (the licence page; #178). The priced catalogue that had these lines is retired. */
+.buy>.tr-ask{grid-column:-2/-1;margin-top:calc(18px - clamp(28px,5vw,80px))}.tr-ask{font-size:13px;color:var(--mu)}.tr-ask-size{margin:0 0 4px}
+.tr-ask>p{margin:0}.tr-ask>p>a{display:inline-block;padding:11px 0;color:var(--ink);text-underline-offset:3px}
+.tr-ask-f{display:grid;gap:12px;margin:4px 0 0;max-width:34em}.tr-ask-f p{margin:0}.tr-ask-f label{display:grid;gap:5px}.tr-ask-f label span{font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.tr-ask-f input,.tr-ask-f textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--ln);font:inherit;font-size:16px;background:#fff;color:var(--ink)}.tr-ask-f .buy-btn{justify-self:start;width:auto;margin-top:4px}
 .cx-welcome{max-width:1180px;margin:0 auto;padding:22px clamp(16px,4vw,56px) 0;font-family:var(--read,Georgia,serif);font-style:italic;font-size:clamp(16px,1.5vw,19px);color:var(--mu)}
 
 /* The mark on a photograph (Will, 18 Oct): a museum, not a brand. No disc, no shadow: the wave alone, a ghost in the
@@ -3386,6 +3386,10 @@ html.fd-on{overflow:hidden}
 .pe-opts{display:grid;gap:8px;margin:0 0 16px}.pe-o{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}.pe-o span{display:block}.pe-o i{display:block;font-style:normal;font-size:12.5px;color:var(--mu)}.pe-ship{font-size:12.5px;color:var(--mu);margin:0}
 .pe-go{display:inline-flex;gap:14px;align-items:baseline}.pe-go em{font-style:normal;opacity:.85}.pe-fine{font-size:12.5px;color:var(--mu);margin:10px 0 0;max-width:56ch}
 .pe-rec .pe-t input{font:inherit;font-size:13px;padding:3px 5px;border:1px solid var(--line,#e6e2da);background:#fff}.pe-new{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}.pe-new input{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line,#e6e2da)}
+/* (#193) a print to sell, labelled; the prints waiting with the maker */
+.pe-new{align-items:flex-end;gap:10px 12px;padding:14px;border:1px solid var(--line,#e6e2da);margin:12px 0}.pe-new .k{flex:1 0 100%;margin:0}.pe-new label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mu)}.pe-new input,.pe-new select,.pe-t select,.pe-o-f input{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--ln,#e2e2df);background:var(--bg);color:inherit;max-width:100%}.pe-t select{font-size:13px;padding:3px 5px}.pe-new-w{flex:1 1 260px}.pe-new-w select{width:100%}.pe-new .buy-btn{min-height:44px}
+.pe-o-l{list-style:none;padding:0;margin:0 0 22px;display:grid;gap:12px}.pe-o-r{border:1px solid var(--line,#e6e2da);padding:14px 16px}.pe-o-r p{margin:0 0 6px}.pe-o-f{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-top:8px}.pe-o-f label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mu)}.pe-o-f .buy-btn{min-height:44px}
+@media (max-width:600px){.pe-new label,.pe-o-f label{flex:1 1 100%}.pe-new input,.pe-new select,.pe-o-f input{width:100%}.pe-new .buy-btn,.pe-o-f .buy-btn{width:100%}}
 .hg-ed{display:block;font-size:12px;color:var(--mu);margin-top:4px}.hg-sold{color:#a0323a}.hg-showdesk{font-size:13px}
 @media (max-width:640px){.pe-s{grid-template-columns:auto 1fr;}.pe-p{grid-column:2;justify-self:start}}
 
@@ -3875,7 +3879,7 @@ html.dk .wm-wave,.bare .wm-wave{color:#f2efe9;mix-blend-mode:screen}
 .sto-picks{list-style:none;padding:0;margin:14px 0}.sto-picks li{display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--ln)}.sto-picks img{width:56px;height:42px;object-fit:cover;background:#111}
 .sto-f{display:grid;gap:12px;max-width:420px;margin:0 0 28px}.sto-f label{display:grid;gap:4px;font-size:13px;color:var(--mu)}.sto-f input{font:inherit;padding:8px 10px;border:1px solid var(--ln);background:transparent;color:inherit}.sto-f small{color:var(--mu)}
 /* The Wander button on a phone (Will, 25 Oct: the lone wave at the top right read as a cut-off logo): the wave and the word, always. */
-@media (max-width:700px){.top .nv-w span{display:inline}.top .nv-w{gap:7px;font-size:10.5px;letter-spacing:.05em}.top .nv-w .ic-wave,.top .nv-w svg{width:24px;height:9px}.top .brand{margin-right:30px}.top nav{flex:1 1 auto}.top .tr-chip{order:4;margin:0 0 0 auto;font-size:9.5px;padding:3px 7px;letter-spacing:.12em;flex:none}}
+@media (max-width:700px){.top .nv-w span{display:inline}.top .nv-w{gap:7px;font-size:10.5px;letter-spacing:.05em}.top .nv-w .ic-wave,.top .nv-w svg{width:24px;height:9px}.top .brand{margin-right:30px}.top nav{flex:1 1 auto}}
 /* The maker's front page as shelves, and the reading list (25 Oct). */
 .mh-wrap,.yr,.yr-y{min-width:0}
 .rws-mk{margin-top:0}.rws-mk .rw-h .rw-l{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8f8a81}
@@ -5862,7 +5866,6 @@ header.top .nv-verbs{flex:0 0 auto;overflow:visible}
 header.top .nv-verbs a{padding-top:11px;padding-bottom:11px}
 header.top .nv-w{padding-top:11px;padding-bottom:11px}
 header.top .nv-bell{padding:6px}
-header.top .tr-chip{display:inline-flex;align-items:center;min-height:26px;box-sizing:border-box}
 @media (min-width:701px) and (max-width:900px){header.top .nv-find span,header.top .nv-share span{display:none}}
 .dh-top .dh-brand{padding-top:6px;padding-bottom:6px}
 .dh-top .dh-as a{padding-top:9px;padding-bottom:9px}
@@ -5995,3 +5998,6 @@ main.st{overflow:clip}
 .ovw-mk{margin:14px 0 0}.ovw-mk ul{list-style:none;margin:4px 0 0;padding:0}.ovw-mk li{margin:0 0 6px;font:400 15px/1.45 var(--disp)}.ovw-mk li a{color:inherit}.ovw-mk small{display:block;font:400 12px/1.4 var(--sans);color:var(--mu)}
 .ovw-wk small{opacity:.7}
 .ovw-d{margin:24px 0}.ovw-now{font-size:14px}.ovw-row{display:flex;flex-wrap:wrap;gap:0 16px}.ovw-row label{flex:1 1 200px}.ovw-ck{display:flex;gap:8px;align-items:center}.ovw-fs{border:0;padding:0;margin:10px 0}
+
+/* What you hold (#176): the one statement, the same at every moment. */
+.holds{font:15px/1.6 var(--read,Georgia),Georgia,serif!important;color:var(--ink);margin:16px 0;max-width:62ch;text-align:left}.holds b{font:inherit!important;font-weight:600!important;display:inline!important;margin:0!important;letter-spacing:0!important;text-transform:none!important}.holds[hidden]{display:none}

@@ -5,6 +5,67 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.2 · A print the photographer makes, or already has · 21 November 2026
+
+Every sentence below is a draft for Will. No price, fee or share was added or changed.
+
+- Each print a photographer offers now says who makes it: they print, sign and send it themselves; they have it already, signed, and the collector takes it from them by hand; or the house's print room makes it. A photographer's own prints are theirs to make unless they choose otherwise.
+- A print the photographer has in hand is bought with no address asked. The papers and the register entry are issued at payment; the collector's room says the print is waiting with the photographer; the photographer marks it handed over, and the collector is told.
+- A print the photographer makes lands on their desk with the address and the number for the pencil line; they mark it sent, with tracking if there is any, and then arrived. The collector is told at each step.
+- The money for a print taken by hand clears seven days after payment, like any sale, so the photographer may keep the print until it has reached them; the order says when it clears and when it went out. A print to send still clears when it is marked sent.
+- A print made by the photographer can be offered from a master under the house's print standard, since the house never prints it.
+- Repairs: a print's address is kept when the buyer returns to the thank-you page before the payment's confirmation arrives, and is read where Stripe now puts it; a work's record fits a phone; every tab of the record shows, and a link into one opens it; a work can be put on view from its own record.
+
+## 1.90.1 · The public house, said correctly · 21 November 2026
+
+Every sentence below is a draft for Will. Nothing was deleted: what was taken down is still the Studio's.
+
+- Taken off the public house, for the Studio only; a visitor who follows an old link is brought to About: how the company is owned (/owners, and /investors), the director's page (/director), the list of releases (/releases), and the desks the house made under a museum's own name before the museum has claimed them (the Art Institute of Chicago, the Cleveland Museum of Art, the demonstration desk). Their links are gone from every room, the footers and the list of rooms.
+- The house says it is for photographers. The front, What this is, About, For photographers (/makers), the sign-up page, the app and their descriptions and social cards now say: "Watermark takes art and copyright seriously. Photographers keep their work here, show it properly, and are paid when it is used or collected." The quiet footer no longer carries the Library or For museums; both rooms, and every other room, are where they were, in Find and on Every room. Museum works keep their credit everywhere.
+- The house no longer calls itself a museum. Where it said "Open your museum", it says "Open your studio"; a company's page is "your own archive"; the collection's heading is "Enter the collection".
+- The register is called the register on every reading page: the work's life says "Entry 2 in the register", the register's own page and the museums' page no longer speak of hashes.
+- The fonts are the house's own, served from the house. No page asks another site for a font or a stylesheet any more, and the house's security policy names none.
+- The steps for collectors and About say what the maker receives as the house is set today, not one way for everyone.
+- A photograph's U.S. copyright registration is kept when its maker saves the catalogue; before, a maker's save cleared it (docs/STABILITY.md, 21 Nov).
+- A walk of the public house as a stranger now runs with every test: it fails on a word the house never says to a reader, on a page that calls the house a museum or reads as an offer of a share, on the pages above being public, on a script, stylesheet, font or picture from another site, and on a cookie that is not the house's own.
+## 1.90.0 · A license written from the use · 21 November 2026
+
+Every word and clause below is a draft: the words for Will, the clauses for counsel. No price was added or changed.
+
+- The license page now asks as a person would: what is it for, where will it appear, how many, and for how long. Anywhere in the world and no set number stay the answers unless you change them, and a license that answers them so reads exactly as it did.
+- A license can now be for one country (or the European Union) and for a stated number of copies, of circulation or of audience. Each adds its own clause to the agreement and changes nothing else in it.
+- Such a license is agreed with the maker: the page says so, the request carries the answers, the maker names the fee, and the agreement and the papers then say the place and the number.
+- What you will hold says it in one breath before you pay: "in one territory (France) and in no more than 5,000 copies".
+## 1.89.3 · Search that reads the question, and the house is not a stock library · 21 November 2026
+
+Search that reads the question:
+- Search now reads a question the way it is asked: a title "by" its maker, a place with a year or a decade ("paris 1962", "paris 1960s"), an artist with a kind of work and where it is held ("seurat drawings at the art institute"), a phrase in quotes, and an accession number or a Watermark number typed exactly, which goes straight to that work.
+- When no work carries every word, the page no longer comes back empty. It shows what the most telling words find and says which word it set aside; a slip in a known name is read as the name, and said.
+- The order is a curator's: the exact title first, then a title with its maker, then the maker's chosen and starred work. At the same closeness of match a maker's own work stands ahead of a museum's object; a closer match still comes first, whoever made it.
+- Wander by a word reads the words the same way.
+- Words that found nothing are kept for ninety days so the house can read what people looked for: the words, the day and a count, and nothing about who asked.
+
+The house is not a stock library:
+_A draft for Will: the words here and on the pages are his to confirm._
+
+- The page called "For the trade" is retired. It listed every photograph in rows with its file size and its prices, a search by megapixels, a watermarked sample to download and a quote for a set. The house does not read that way any more. Its address now leads to the collection.
+- Licensing itself has not changed. Each work's own licence page still shows what it may be used for and what each use costs, or "Ask".
+- New on that page: the size of the file, and "Ask about using this work", a short letter to the house (your email, your company, the use). The house answers in writing within one working day; the maker is told as well.
+- The switch that turned the trade side on for a device is gone with it: no "Trade" mark in the header and no added panel on a work's page, for anyone. A device that still carries the old switch sees the same house as everyone else, and the switch is forgotten the next time it follows an old trade link.
+- "For the trade" is out of the menus, the footer, the list of every room and the suggestions by time of day. The agencies' API page is as it was.
+
+## 1.89.2 · What you hold, said one way · 20 November 2026
+
+Every sentence below is a draft for Will; nothing new is granted or promised, and the questions it raised are with counsel.
+
+- Before you pay, on your papers and when a piece is offered again, the house now says the same four things in the same order: what you hold, what you may do with it, what stays with the maker, and what happens when you pass it on. A collected piece, a license for a use, a print and a print of a museum's open work each have their own.
+- It is on the work's page beside Collect and beside the print, on the license page (it follows the use you choose), in the basket, on the thank-you page, the certificate, your piece's own room and the letter, and on the market's pages.
+- Offering a piece again: the form now says what happens when it sells, what goes to the maker and to the house, and how long its new holder waits before offering it.
+- The certificate's "You can / You can't" now follows the agreement you accepted: a collected piece may pass on, whole, to one other person through the house; a working license stays with its holder.
+- The market's pages say "the maker" where they said "the photographer", "the register" throughout, and what the house does in a resale in plain words. A visitor sees what is offered and what is asked; never a count or a sum of what has sold.
+## 1.89.1 · Search, asked the way a person asks · 20 November 2026
+
+- "The Seine by Will Fullerton" now finds the work. Search had required every word typed to appear in the work's record, so a joining word ("by", "the", "of", "in") that the record does not carry turned a good search into nothing. Those words are now set aside when another word is left to search by.
 ## 1.89.0 · The trade's rules, and every source on its own terms · 20 November 2026
 
 The trade's rules, kept by the house:

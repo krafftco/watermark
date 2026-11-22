@@ -37,16 +37,24 @@ function mountEditions(app, X) {
   db.exec(`CREATE TABLE IF NOT EXISTS print_editions (id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL, label TEXT NOT NULL, long_in REAL, paper TEXT, edition_n INTEGER NOT NULL DEFAULT 12,
     price_cents INTEGER NOT NULL, framed_cents INTEGER, active INTEGER NOT NULL DEFAULT 1, sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec('CREATE INDEX IF NOT EXISTS print_editions_work ON print_editions (work_id, sort)');
-  for (const col of ['edition_id', 'edition_no', 'framed', 'pickup', 'show_id', 'work_id', 'mounted']) if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} INTEGER`);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('print_editions') WHERE name='made_by'").get()) db.exec('ALTER TABLE print_editions ADD COLUMN made_by TEXT');
+  for (const col of ['edition_id', 'edition_no', 'framed', 'pickup', 'show_id', 'work_id', 'mounted', 'by_maker']) if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} INTEGER`);
   const tidy = t => String(t || '').replace(/[.\s]+$/, '');
   const rowsOf = w => db.prepare('SELECT * FROM print_editions WHERE work_id=? AND active=1 ORDER BY sort, id').all(w.id);
   const allOf = w => db.prepare('SELECT * FROM print_editions WHERE work_id=? ORDER BY sort, id').all(w.id);
   const soldOf = ed => db.prepare("SELECT COUNT(*) n FROM print_orders WHERE edition_id=? AND paid=1 AND status!='declined'").get(ed.id).n;
   const withLeft = rows => rows.map(e => { const sold = soldOf(e); return { ...e, sold, left: Math.max(0, e.edition_n - sold) }; });
-  const forWork = w => withLeft(rowsOf(w));
-  const sizeOf = (w, e) => { if (!w.width || !w.height || !e.long_in) return e.label; const r = Math.min(w.width, w.height) / Math.max(w.width, w.height); const s = +(e.long_in * r).toFixed(1); return w.width >= w.height ? `${s} × ${e.long_in} in` : `${e.long_in} × ${s} in`; };
+  // Who makes the print (#193), chosen per edition: 'house' (the house's print room or a shop near the collector, from the
+  // master), 'maker' (the maker prints, signs and sends it), 'hand' (the print exists, signed, in the maker's hands; the
+  // collector takes it from them, nothing is sent). A print the house makes needs the master at the print standard; one
+  // the maker makes does not, since the house never prints it.
+  const MADE = { maker: 'I print, sign and send it', hand: 'I have it: they take it from me', house: 'The house’s print room' };
+  const madeBy = e => (e && (e.made_by === 'maker' || e.made_by === 'hand') ? e.made_by : 'house');
+  const offerable = (w, rows) => { const ok = meets(w, 'print'); return rows.filter(e => ok || madeBy(e) !== 'house'); };
+  const forWork = w => withLeft(offerable(w, rowsOf(w)));
+  const sizeOf = (w, e) => { if (e && (e.made_by === 'maker' || e.made_by === 'hand')) return `${e.label} in`; /* (#193) the maker's own print is the size they say */ if (!w.width || !w.height || !e.long_in) return e.label; const r = Math.min(w.width, w.height) / Math.max(w.width, w.height); const s = +(e.long_in * r).toFixed(1); return w.width >= w.height ? `${s} × ${e.long_in} in` : `${e.long_in} × ${s} in`; };
   const printUse = m => { const u = q.use.get(m.id, 'print'); return u || null; };
-  const canSell = (w, m) => { const u = printUse(m); return !!(u && stripe && listed(R.parse(w.rules), 'print', w) && meets(w, 'print') && !w.open); };
+  const canSell = (w, m) => { const u = printUse(m); return !!(u && stripe && listed(R.parse(w.rules), 'print', w) && !w.open && (meets(w, 'print') || rowsOf(w).some(e => madeBy(e) !== 'house'))); };
 
   // The show the visitor came from: ?show=<hang slug> on a work page remembers it, as a wall does.
   const showOf = slug => db.prepare('SELECT * FROM hangs WHERE slug=? AND public=1').get(String(slug));
@@ -63,33 +71,33 @@ function mountEditions(app, X) {
     const rows = forWork(w); if (!rows.length) return '';
     const show = viaShow(req); const any = rows.some(r => r.left > 0);
     return `<section class="pe" id="print"><p class="k">The print</p><h2>${any ? 'Have it on your wall.' : 'The editions are sold.'}</h2>
-<p class="pe-lede">An archival pigment print from the house's print room, signed and numbered by ${esc(m.name)}, with its papers; the piece joins your gallery on Watermark the moment it is yours.</p>
+<p class="pe-lede">${rows.every(r => madeBy(r) === 'house') ? `An archival pigment print from the house's print room, signed and numbered by ${esc(m.name)}` : `A print signed and numbered by ${esc(m.name)}`}, with its papers; the piece joins your gallery on Watermark the moment it is yours.</p>
 ${any ? `<form method="post" action="/w/${esc(w.slug)}/print" class="pe-f" data-pe data-house-tiers="${esc(JSON.stringify(FEE.on() ? FEE.TIERS.map(t => [t.pct, t.upto === Infinity ? null : t.upto]) : []))}">
-<div class="pe-sizes">${rows.map((e, i) => `<label class="pe-s${e.left ? '' : ' pe-out'}"><input type="radio" name="edition" value="${e.id}"${e.left ? (i === rows.findIndex(x => x.left) ? ' checked' : '') : ' disabled'} data-price="${e.price_cents}" data-framed="${e.framed_cents || 0}"><span class="pe-l"><b>${esc(e.label)} in</b><i>${esc(sizeOf(w, e))} on ${esc(e.paper || 'archival paper')}</i><i>Edition of ${e.edition_n} · ${e.left ? `${e.left} remain` : 'sold out'}</i></span><span class="pe-p">${money(FEE.total('print', e.price_cents))}</span></label>`).join('')}</div>
+<div class="pe-sizes">${rows.map((e, i) => `<label class="pe-s${e.left ? '' : ' pe-out'}"><input type="radio" name="edition" value="${e.id}"${e.left ? (i === rows.findIndex(x => x.left) ? ' checked' : '') : ' disabled'} data-price="${e.price_cents}" data-framed="${e.framed_cents || 0}"><span class="pe-l"><b>${esc(e.label)} in</b><i>${madeBy(e) === 'house' ? `${esc(sizeOf(w, e))} on ` : 'On '}${esc(e.paper || 'archival paper')}</i><i>Edition of ${e.edition_n} · ${e.left ? `${e.left} remain` : 'sold out'}</i>${madeBy(e) === 'hand' ? `<i>Made and signed; you take it from ${esc(m.name.split(' ')[0])} by hand</i>` : madeBy(e) === 'maker' ? `<i>Printed, signed and sent by ${esc(m.name.split(' ')[0])}</i>` : ''}</span><span class="pe-p">${money(FEE.total('print', e.price_cents))}</span></label>`).join('')}</div>
 <div class="pe-opts">${rows.some(r => r.framed_cents) ? `<label class="pe-o"><input type="checkbox" name="framed" value="1"><span>Framed, museum glass<i data-pe-framed></i></span></label>` : ''}
-${show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" checked><span>Take it home from the show<i>${esc(show.title)}${show.venue ? ` · ${esc(show.venue)}` : ''}</i></span></label><label class="pe-o"><input type="radio" name="how" value="ship"><span>Have it sent<i>Two to three weeks; the address at payment</i></span></label>` : '<p class="pe-ship">Sent in two to three weeks, to the address you give at payment. United States, Canada, the UK and Europe.</p>'}</div>
+${rows.every(r => madeBy(r) === 'hand') ? `<p class="pe-ship">You take it from ${esc(m.name.split(' ')[0])} by hand; nothing is sent.</p>` : show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" checked><span>Take it home from the show<i>${esc(show.title)}${show.venue ? ` · ${esc(show.venue)}` : ''}</i></span></label><label class="pe-o"><input type="radio" name="how" value="ship"><span>Have it sent<i>Two to three weeks; the address at payment</i></span></label>` : `<p class="pe-ship">${rows.some(r => madeBy(r) === 'maker') ? `Sent by ${esc(m.name.split(' ')[0])}` : 'Sent in two to three weeks'}, to the address you give at payment. United States, Canada, the UK and Europe.${rows.some(r => madeBy(r) === 'hand') ? ` A print marked as taken by hand is not sent: you take it from ${esc(m.name.split(' ')[0])}.` : ''}</p>`}</div>
 <button class="buy-btn pe-go"><span>Acquire it</span><em data-pe-total>${money(FEE.total('print', rows.find(x => x.left).price_cents))}</em></button>
-<p class="pe-fine">${FEE.on() ? `The price is ${esc(m.name.split(' ')[0])}’s, every dollar; the house’s share (${FEE.schedule()}) is on top, in the total shown.` : `${m.share_pct != null ? m.share_pct : 85}% of it is ${esc(m.name.split(' ')[0])}'s.`} Yours to keep, to hang, to pass on; the papers say so.</p></form>
+<p class="pe-fine">${FEE.on() ? `The price is ${esc(m.name.split(' ')[0])}’s, every dollar; the house’s share (${FEE.schedule()}) is on top, in the total shown.` : `${m.share_pct != null ? m.share_pct : 85}% of it is ${esc(m.name.split(' ')[0])}'s.`}</p>${require('./holds').block({ use: printUse(m), maker: m.name, will: true })}</form>
 <script>(function(){var f=document.querySelector('[data-pe]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');function up(){var e=f.querySelector('input[name=edition]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]');if(fr)fr.textContent=x?'+$'+(x/100).toLocaleString('en-US'):'';if(c&&c.checked)p+=x;var T=JSON.parse(f.dataset.houseTiers||'[]'),left=p,from=0,sum=0;for(var i=0;i<T.length&&left>0;i++){var up=T[i][1]==null?Infinity:T[i][1],band=Math.max(0,Math.min(left,up-from));sum+=band*T[i][0]/100;left-=band;from=up}p=p+Math.ceil(sum);t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script>` : ''}</section>`;
   }
-  app.locals.editions = { forWork, canSell, block, sizeOf, EDITION_DEFAULTS, viaShow };
+  app.locals.editions = { forWork, canSell, block, sizeOf, EDITION_DEFAULTS, viaShow, madeBy };
 
   // ---- the purchase
   const slow = new Map();
   app.post('/w/:slug/print', async (req, res) => {
     const w = q.work.get(req.params.slug); if (!w || w.status !== 'held') return res.sendStatus(404);
     const m = mk(w); if (!canSell(w, m)) return res.redirect(`/w/${w.slug}`);
-    const e = withLeft(rowsOf(w).filter(x => x.id === +req.body.edition))[0]; if (!e || !e.left) return res.redirect(`/w/${w.slug}?ok=printgone#print`);
+    const e = forWork(w).find(x => x.id === +req.body.edition); if (!e || !e.left) return res.redirect(`/w/${w.slug}?ok=printgone#print`);
     const n = (slow.get(req.ip) || 0) + 1; slow.set(req.ip, n); if (n > 20) return res.sendStatus(429);
-    const framed = req.body.framed === '1' && e.framed_cents ? 1 : 0; const show = viaShow(req); const pickup = show && req.body.how === 'pickup' ? 1 : 0;
+    const framed = req.body.framed === '1' && e.framed_cents ? 1 : 0; const made = madeBy(e); const show = made === 'hand' ? null : viaShow(req); const pickup = made === 'hand' || (show && req.body.how === 'pickup') ? 1 : 0;
     const u = priced(printUse(m), w); const makerPrice = e.price_cents + (framed ? e.framed_cents : 0); const price = FEE.total('print', makerPrice);
     const rules = R.parse(w.rules);
     const t = K.terms({ use: u, add: [], extras: [], never: rules.never, base: price, transfer: rules.transfer || null });
-    t.price = price; t.maker = makerPrice; t.house = price - makerPrice; t.print = { edition: e.id, label: e.label, size: sizeOf(w, e), paper: e.paper, edition_n: e.edition_n, framed, pickup, show: show ? show.id : null };
+    t.price = price; t.maker = makerPrice; t.house = price - makerPrice; t.print = { edition: e.id, label: e.label, size: sizeOf(w, e), paper: e.paper, edition_n: e.edition_n, framed, pickup, show: show ? show.id : null }; if (made !== 'house') t.print.made = made; // absent for the house's own, so its terms read as before
     const ref = nextRef();
     t.version = 'standard-2021-counsel/v0'; t.hash = require('crypto').createHash('sha256').update(JSON.stringify(K.assemble({ t, work: w.title, maker: m.name, ref }))).digest('hex');
     db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,'awaiting_payment',?,?)")
-      .run(ref, w.id, u.id, 'Collector', '', `A print: ${e.label} in on ${e.paper || 'archival paper'}${framed ? ', framed' : ''}${pickup ? `, taken from the show (${show.title})` : ''}`, price, R.conditions(rules) || null, JSON.stringify(t));
+      .run(ref, w.id, u.id, 'Collector', '', `A print: ${e.label} in on ${e.paper || 'archival paper'}${framed ? ', framed' : ''}${made === 'hand' ? `, taken from ${m.name} by hand` : pickup ? `, taken from the show (${show.title})` : ''}`, price, R.conditions(rules) || null, JSON.stringify(t));
     if (FEE.on()) db.prepare('UPDATE licenses SET house_cents=? WHERE ref=?').run(price - makerPrice, ref);
     if (show) db.prepare('UPDATE licenses SET via=? WHERE ref=?').run(`hang:${show.id}`, ref);
     const b = buyerOf(req); if (b) db.prepare('UPDATE licenses SET buyer_id=?, licensee_name=?, licensee_email=? WHERE ref=?').run(b.id, b.name || 'Collector', b.email || '', ref);
@@ -97,7 +105,7 @@ ${show ? `<label class="pe-o"><input type="radio" name="how" value="pickup" chec
     try {
       const s = await stripe.checkout.sessions.create({
         mode: 'payment', submit_type: 'pay', ...(b && b.customer ? { customer: b.customer } : b && b.email ? { customer_email: b.email } : {}),
-        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `${tidy(w.title)}: the print, ${e.label} in`, description: `Archival pigment print on ${e.paper || 'archival paper'}, edition of ${e.edition_n}, signed and numbered by ${m.name}${framed ? ', framed' : ''}. ${pickup ? `Taken home from ${show.title}.` : 'Sent in two to three weeks.'} Watermark ${ref}.` } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `${tidy(w.title)}: the print, ${e.label} in`, description: `${made === 'house' ? 'Archival pigment print' : 'Print'} on ${e.paper || 'archival paper'}, edition of ${e.edition_n}, signed and numbered by ${m.name}${framed ? ', framed' : ''}. ${made === 'hand' ? `Taken from ${m.name} by hand; nothing is sent.` : pickup ? `Taken home from ${show.title}.` : made === 'maker' ? `Sent by ${m.name}.` : 'Sent in two to three weeks.'} Watermark ${ref}.` } } }],
         ...(pickup ? {} : { shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'FR', 'DE', 'IT', 'CH', 'ES', 'NL', 'AU'] } }),
         phone_number_collection: { enabled: true },
         metadata: { ref, print: '1' }, payment_intent_data: { metadata: { ref } },
@@ -143,7 +151,7 @@ ${piece ? `<label class="pe-s pe-piece"><input type="radio" name="size" value="p
 <div class="pe-sizes">${sizes.map((z, i) => `<label class="pe-s"><input type="radio" name="size" value="${z.k}"${i === 0 && !piece ? ' checked' : ''} data-price="${z.cents}" data-framed="${z.framed - z.cents}"><span class="pe-l"><b>${esc(z.label)} in</b><i>${esc(sizeOf(dim, z))}, on a white border</i></span><span class="pe-p">${money(z.cents)}</span></label>`).join('')}</div>
 <div class="pe-opts"><label class="pe-o" data-pe-frameopt><input type="checkbox" name="framed" value="1"><span>Framed by hand, museum glass<i data-pe-framed></i></span></label><p class="pe-ship">The piece and unframed prints in about a week, framed in about three, to the address you give at payment. United States for now.</p></div>
 <button class="buy-btn pe-go"><span data-pe-verb>${piece ? 'Make it mine' : 'Print it'}</span><em data-pe-total>${money(piece ? PIECE.cents : sizes[0].cents)}</em></button>
-${give && app.locals.gifts ? app.locals.gifts.field(w, give) : ''}<p class="pe-fine">The painting is in the public domain${w.open !== 'pd' && w.open !== 'cc0' ? ' and shared under an open licence, credited on the papers' : ''}; Watermark is not connected with the museum that keeps it.</p></form>
+${give && app.locals.gifts ? app.locals.gifts.field(w, give) : ''}<p class="pe-fine">The painting is in the public domain${w.open !== 'pd' && w.open !== 'cc0' ? ' and shared under an open licence, credited on the papers' : ''}; Watermark is not connected with the museum that keeps it.</p>${require('./holds').block({ use: { key: 'print', kind: 'print' }, open: w.open, will: true })}</form>
 <script>(function(){var f=document.querySelector('form[action$="/openprint"]');if(!f)return;var t=f.querySelector('[data-pe-total]'),fr=f.querySelector('[data-pe-framed]');var fo=f.querySelector('[data-pe-frameopt]'),vb=f.querySelector('[data-pe-verb]');function up(){var e=f.querySelector('input[name=size]:checked');if(!e)return;var p=+e.dataset.price,x=+e.dataset.framed,c=f.querySelector('input[name=framed]'),pc=e.dataset.piece==='1';if(fo)fo.hidden=pc;if(vb)vb.textContent=pc?'Make it mine':'Print it';if(fr)fr.textContent='+$'+(x/100).toLocaleString('en-US');if(c&&c.checked&&!pc)p+=x;t.textContent='$'+(p/100).toLocaleString('en-US')}f.addEventListener('change',up);up()})();</script></section>`;
   }
   app.locals.openPrints = { block: openBlock, can: canPrintOpen, sizes: openSizes, OPEN_SIZES, PIECE, canPiece };
@@ -249,54 +257,121 @@ ${req.query.ok ? `<p class="ok">${esc(String(req.query.ok))}</p>` : ''}
     if (db.prepare("SELECT 1 FROM print_orders WHERE license_id=? AND kind IN ('edition','open')").get(l.id)) return;
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id); const m = mk(w); const p = t.print;
     const no = p.open ? null : db.prepare("SELECT COALESCE(MAX(edition_no),0)+1 n FROM print_orders WHERE edition_id=?").get(p.edition).n;
-    const s = extra.session || null; const sd = s && (s.shipping_details || s.customer_details) || {}; const a = sd.address || {};
+    const s = extra.session || null; const sd = s && ((s.collected_information && s.collected_information.shipping_details) || s.shipping_details || s.customer_details) || {}; /* (#193) Stripe's API since 2025 keeps the address under collected_information */ const a = sd.address || {};
     const address = p.pickup ? null : [a.line1, a.line2, [a.city, a.state, a.postal_code].filter(Boolean).join(' '), a.country].filter(Boolean).join('\n') || null;
     const email = (s && s.customer_details && s.customer_details.email) || l.licensee_email || null; const name = sd.name || (s && s.customer_details && s.customer_details.name) || l.licensee_name || null;
     const phone = s && s.customer_details && s.customer_details.phone ? s.customer_details.phone : null;
-    db.prepare("INSERT INTO print_orders (license_id, buyer_id, kind, size, paper, email, ship_name, address, cents, paid, status, edition_id, edition_no, framed, pickup, show_id, work_id, mounted, note) VALUES (?,?,?,?,?,?,?,?,?,1,'asked',?,?,?,?,?,?,?,?)")
-      .run(l.id, l.buyer_id || null, p.open ? 'open' : 'edition', p.mounted ? `The piece (${p.size})` : `${p.label} in (${p.size})`, p.paper || null, email, name, address, l.price_cents, p.edition || null, no, p.framed ? 1 : 0, p.pickup ? 1 : 0, p.show || null, w.id, p.mounted ? 1 : 0, [phone ? `Phone ${phone}` : null, p.pickup ? 'Taken home from the show' : null, p.open ? `An open work, by ${p.by}${p.detail ? `; a detail (No. ${p.detail.n}), cut from the original` : ''}` : null, p.mounted ? 'The piece: mounted on a board, a magnet on the back, boxed with its card; the number on the back' : null, p.give_cents ? `A gift of ${money(p.give_cents)} to ${p.give_to ? p.give_to.name : 'the museum that keeps the original'}` : null].filter(Boolean).join(' · ') || null);
+    db.prepare("INSERT INTO print_orders (license_id, buyer_id, kind, size, paper, email, ship_name, address, cents, paid, status, edition_id, edition_no, framed, pickup, show_id, work_id, mounted, by_maker, note) VALUES (?,?,?,?,?,?,?,?,?,1,'asked',?,?,?,?,?,?,?,?,?)")
+      .run(l.id, l.buyer_id || null, p.open ? 'open' : 'edition', p.mounted ? `The piece (${p.size})` : p.made ? `${p.label} in` : `${p.label} in (${p.size})`, p.paper || null, email, name, address, l.price_cents, p.edition || null, no, p.framed ? 1 : 0, p.pickup ? 1 : 0, p.show || null, w.id, p.mounted ? 1 : 0, p.made ? 1 : 0, [phone ? `Phone ${phone}` : null, p.made === 'hand' ? 'Taken from the maker by hand' : p.made === 'maker' ? 'Made and sent by the maker' : p.pickup ? 'Taken home from the show' : null, p.open ? `An open work, by ${p.by}${p.detail ? `; a detail (No. ${p.detail.n}), cut from the original` : ''}` : null, p.mounted ? 'The piece: mounted on a board, a magnet on the back, boxed with its card; the number on the back' : null, p.give_cents ? `A gift of ${money(p.give_cents)} to ${p.give_to ? p.give_to.name : 'the museum that keeps the original'}` : null].filter(Boolean).join(' · ') || null);
     t.print.no = no; db.prepare('UPDATE licenses SET rights=? WHERE id=?').run(JSON.stringify(t), l.id);
     if (p.open && p.detail && app.locals.details) { try { app.locals.details.reward(l, w, p.detail.n); } catch (e) { console.error('[details]', e.message); } }
     if (p.open && p.give_cents && app.locals.gifts) { try { app.locals.gifts.record(l, w, p.give_cents, p.give_to || app.locals.gifts.choose({}, w)); } catch (e) { console.error('[gifts]', e.message); } }
     if (p.open) { ledger.append(db, 'print.sold', w.slug, { maker: m.handle, edition: p.label, open: true, piece: !!p.mounted, by: p.by, framed: !!p.framed, amount: l.price_cents, give: p.give_cents || 0 }); return; }
     ledger.append(db, 'print.sold', w.slug, { maker: m.handle, edition: p.label, no, of: p.edition_n, framed: !!p.framed, show: p.show || undefined, amount: l.price_cents });
-    const nf = notify || app.locals.notify; if (nf && m) { try { nf.tell({ maker_id: m.id, kind: 'sold', href: `/account/works/${w.slug}`, title: `A print of ${tidy(w.title)} was acquired`, body: `${p.label} in, No. ${no} of ${p.edition_n}${p.framed ? ', framed' : ''}${p.pickup ? ', taken from the show' : ''} · ${money(l.price_cents)}` }); } catch (e) { /* quiet */ } }
+    const toMaker = FEE.makerOf(l, m.share_pct); const who = name || 'A collector';
+    const nf = notify || app.locals.notify; if (nf && m) { try { nf.tell({ maker_id: m.id, kind: 'sold', slug: w.slug, href: `/account/works/${w.slug}${p.made ? '#prints' : ''}`, title: `A print of ${tidy(w.title)} was acquired`, body: `${p.label} in, No. ${no} of ${p.edition_n}${p.framed ? ', framed' : ''}${p.made === 'hand' ? `. ${who} takes it from you by hand` : p.made === 'maker' ? `. Yours to make, sign and send to ${who}` : p.pickup ? ', taken from the show' : ''} · ${money(toMaker)} to you` }); } catch (e) { /* quiet */ } }
+    // (#193) The maker makes it, or has it: told by letter too, with what to write in pencil and where it goes.
+    if (p.made && m && m.email && X.mail) { try { Promise.resolve(X.mail.send({ to: m.email, subject: `A print of ${tidy(w.title)} was acquired`, cta: { label: 'The order', url: `${C.base}/account/works/${encodeURIComponent(w.slug)}#prints` }, text: `${m.name.split(' ')[0]},\n\n${who} has acquired a print of ${tidy(w.title)}: ${p.label} in${p.paper ? ` on ${p.paper}` : ''}, No. ${no} of ${p.edition_n}. ${money(toMaker)} is yours; ${p.made === 'hand' ? `it clears ${app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7} days after the payment and goes to your bank on the Friday after. You may keep the print until it has reached you.` : 'it clears once the print is sent, and goes to your bank on the Friday after.'}\n\nIn pencil: No. ${no}/${p.edition_n}, and your signature.\n${p.made === 'hand' ? `${who} takes it from you by hand. When it is in their hands, mark it handed over.` : `Send it to:\n${name || ''}\n${address || ''}\n\nWhen it is on its way, mark it sent (with the tracking, if there is one).`}\n\n${C.base}/account/works/${encodeURIComponent(w.slug)}#prints\n\nWatermark` })).catch(() => {}); } catch (e) { /* quiet */ } }
   }
   app.locals.onGrant = onGrant;
 
   // ---- the record: the maker's or the Studio's editions on a work
+  const madeSelect = (v, maker) => `<select name="made_by" aria-label="Who makes the print">${['maker', 'hand', 'house'].map(k => `<option value="${k}"${(v || (maker ? 'maker' : 'house')) === k ? ' selected' : ''}>${esc(MADE[k])}</option>`).join('')}</select>`;
+  // (#193) The prints the maker makes or has in hand, on the maker's own desk: where each goes, the number for the pencil
+  // line, the press that moves it on, and when the money for it goes out.
+  const ordersOf = w => db.prepare("SELECT o.id, o.status, o.size, o.paper, o.framed, o.pickup, o.ship_name, o.address, o.edition_no, o.edition_id, o.note, o.at, l.ref, l.created_at AS paid_at, l.price_cents, l.house_cents, e.edition_n FROM print_orders o JOIN licenses l ON l.id=o.license_id LEFT JOIN print_editions e ON e.id=o.edition_id WHERE o.work_id=? AND o.by_maker=1 AND o.paid=1 AND o.kind='edition' ORDER BY o.id DESC LIMIT 50").all(w.id);
+  const day = t => { try { return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(String(t).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(t)) ? '' : 'Z'))); } catch (e) { return String(t || '').slice(0, 10); } };
+  function moneyLine(o, m) {
+    const P = app.locals.payouts; if (!P) return '';
+    const mine = FEE.makerOf(o, m.share_pct); const held = P.HOLD_DAYS;
+    const clears = o.pickup ? new Date(new Date(String(o.paid_at).replace(' ', 'T') + 'Z').getTime() + held * 864e5) : null;
+    const out = db.prepare("SELECT at, how FROM maker_payouts WHERE maker_id=? AND status='paid' AND how IN ('stripe','hand') AND at >= ? ORDER BY id LIMIT 1").get(m.id, clears ? clears.toISOString().slice(0, 19).replace('T', ' ') : '9999');
+    if (out) return `${money(mine)} is yours. ${out.how === 'stripe' ? `Sent to your bank through Stripe on ${day(out.at)}; Stripe says when it lands.` : `Paid to you by hand on ${day(out.at)}.`}`;
+    if (!o.pickup) return `${money(mine)} is yours. It clears once you mark the print sent, and goes out on the Friday after.`;
+    if (clears > new Date()) return `${money(mine)} is yours. It clears on ${day(clears.toISOString())}, ${held} days after the payment, and goes out on the Friday after${m.stripe_account ? '' : ': <a href="/account/payouts">add your bank</a> first'}. You may keep the print until it has reached you.`;
+    return `${money(mine)} is yours and has cleared. It goes out on ${esc(P.nextFriday())}${m.stripe_account ? '' : ', once your bank is added: <a href="/account/payouts">add your bank</a>'}.`;
+  }
+  function printsDesk(w, base, m) {
+    const rows = ordersOf(w); if (!rows.length) return '';
+    const open = rows.filter(o => o.status === 'asked' || o.status === 'making' || o.status === 'sent');
+    const one = o => {
+      const no = `No. ${o.edition_no || '?'}${o.edition_n ? ` of ${o.edition_n}` : ''}`;
+      const where = o.pickup ? `<b>Kept by you.</b> ${esc(o.ship_name || 'The collector')} takes it from you by hand; nothing is sent.` : `<b>Send it to</b><br>${esc(o.ship_name || '')}<br>${esc(o.address || '').replace(/\n/g, '<br>')}`;
+      const acts = o.status === 'done' ? `<p class="small">${o.pickup ? 'Handed over' : 'Delivered'}. The collector has been told.</p>`
+        : o.status === 'declined' ? '<p class="small">Declined.</p>'
+        : o.pickup ? `<form method="post" action="${base}/prints/${o.id}" class="pe-o-f"><input type="hidden" name="do" value="handed"><label><span>The number on the print</span><input name="no" inputmode="numeric" value="${o.edition_no || ''}" size="3"></label><button class="buy-btn">It is in their hands</button></form>`
+        : o.status === 'sent' ? `<form method="post" action="${base}/prints/${o.id}" class="pe-o-f"><input type="hidden" name="do" value="delivered"><button class="buy-btn">It has arrived</button></form>`
+        : `<form method="post" action="${base}/prints/${o.id}" class="pe-o-f"><input type="hidden" name="do" value="sent"><label><span>The number on the print</span><input name="no" inputmode="numeric" value="${o.edition_no || ''}" size="3"></label><label><span>Tracking, if any</span><input name="tracking" maxlength="80" autocomplete="off"></label><button class="buy-btn">It is on its way</button></form>`;
+      return `<li class="pe-o-r"><p><b>${esc(o.size || '')}</b>${o.paper ? `, ${esc(o.paper)}` : ''}${o.framed ? ', framed' : ''} · <b>${esc(no)}</b> · ${esc(day(o.paid_at))}</p><p class="small">In pencil: ${esc(no.replace(/^No\. /, '').replace(' of ', '/'))}, and your signature.</p><p>${where}</p><p class="small">${moneyLine(o, m)}</p>${acts}</li>`;
+    };
+    return `<h2 id="prints">Prints to hand over or send${open.length ? ` (${open.length})` : ''}</h2><ul class="pe-o-l">${rows.map(one).join('')}</ul>`;
+  }
+  // From the few orders waiting with makers, never from the maker's works (a museum holds 60,000): CROSS JOIN keeps SQLite's order.
+  app.locals.printsToSend = m => { try { return db.prepare("SELECT COUNT(*) n, MIN(w.slug) slug FROM print_orders o CROSS JOIN works w WHERE w.id=o.work_id AND w.maker_id=? AND o.by_maker=1 AND o.paid=1 AND o.status IN ('asked','making')").get(m.id); } catch (e) { return { n: 0 }; } };
   function recordBlock(w, base) {
     const rows = allOf(w).map(e => ({ ...e, sold: soldOf(e) }));
-    const m = mk(w);
+    const m = mk(w); const desk = base.startsWith('/account');
     const ok = meets(w, 'print'), lst = listed(R.parse(w.rules), 'print', w);
-    return `<h2 id="editions">The print editions</h2><section class="pe-rec">
-<p class="note">${ok ? '' : 'The master is under the print standard (24 MP); prints are offered once it is in the house. '}${lst ? '' : "'On a wall' is not listed for this work in its terms; list it to sell prints. "}${rows.length ? `${rows.length} size${rows.length === 1 ? '' : 's'}; ${rows.reduce((a, r) => a + r.sold, 0)} sold.` : 'No editions yet.'}</p>
-${rows.length ? `<table class="tbl pe-t"><tr><th>Size</th><th>Long edge</th><th>Paper</th><th>Edition</th><th>Price</th><th>Framed +</th><th>Sold</th><th>On</th><th></th></tr>${rows.map(e => `<tr><form method="post" action="${base}/editions"><input type="hidden" name="id" value="${e.id}"><td><input name="label" value="${esc(e.label)}" size="8"></td><td><input name="long_in" value="${e.long_in || ''}" size="4"></td><td><input name="paper" value="${esc(e.paper || '')}" size="18"></td><td><input name="edition_n" value="${e.edition_n}" size="3"></td><td>$<input name="price" value="${(e.price_cents / 100).toFixed(0)}" size="6"></td><td>$<input name="framed" value="${e.framed_cents ? (e.framed_cents / 100).toFixed(0) : ''}" size="5"></td><td>${e.sold} of ${e.edition_n}</td><td><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}></td><td><button class="link">Save</button></td></form></tr>`).join('')}</table>` : ''}
-<form method="post" action="${base}/editions" class="inline"><input type="hidden" name="open" value="1"><button class="buy-btn">${rows.length ? 'Add the house\'s sizes' : 'Open editions with the house\'s sizes'}</button> <span class="small">11 × 14 $250 · 16 × 24 $650 · 24 × 36 $1,400, editions of 12 (8 for the largest), framed +$150/$300/$450. Drafts: set your own.</span></form>
-<form method="post" action="${base}/editions" class="inline pe-new"><input type="hidden" name="new" value="1"><input name="label" placeholder="20 × 30" size="8"><input name="long_in" placeholder="30" size="4"><input name="paper" placeholder="Paper" size="18"><input name="edition_n" placeholder="12" size="3">$<input name="price" placeholder="900" size="6"><button class="link">Add a size</button></form>
+    return `${printsDesk(w, base, m)}<h2 id="editions">The print editions</h2><section class="pe-rec">
+<p class="note">${ok ? '' : 'The master is under the print standard (24 MP), so the house’s print room cannot make this one; a print you make yourself, or one you have already, can be offered now. '}${lst ? '' : "'On a wall' is not listed for this work in its terms; list it to sell prints. "}${rows.length ? `${rows.length} size${rows.length === 1 ? '' : 's'}; ${rows.reduce((a, r) => a + r.sold, 0)} sold.` : 'No editions yet.'}</p>
+${rows.length ? `<table class="tbl pe-t"><tr><th>Size</th><th>Long edge</th><th>Paper</th><th>Edition</th><th>Price</th><th>Framed +</th><th>Who makes it</th><th>Sold</th><th>On</th><th></th></tr>${rows.map(e => `<tr><form method="post" action="${base}/editions"><input type="hidden" name="id" value="${e.id}"><td><input name="label" value="${esc(e.label)}" size="8"></td><td><input name="long_in" value="${e.long_in || ''}" size="4"></td><td><input name="paper" value="${esc(e.paper || '')}" size="18"></td><td><input name="edition_n" value="${e.edition_n}" size="3"></td><td>$<input name="price" value="${(e.price_cents / 100).toFixed(0)}" size="6"></td><td>$<input name="framed" value="${e.framed_cents ? (e.framed_cents / 100).toFixed(0) : ''}" size="5"></td><td>${madeSelect(madeBy(e), false)}</td><td>${e.sold} of ${e.edition_n}</td><td><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}></td><td><button class="link">Save</button></td></form></tr>`).join('')}</table>` : ''}
+<form method="post" action="${base}/editions" class="pe-new"><input type="hidden" name="new" value="1"><p class="k">A print to sell</p><label><span>Size, inches</span><input name="label" placeholder="16 × 24" size="8" required></label><label><span>Paper</span><input name="paper" placeholder="Hahnemühle Photo Rag" size="18"></label><label><span>Edition of</span><input name="edition_n" inputmode="numeric" placeholder="12" size="3"></label><label><span>Your price, $</span><input name="price" inputmode="decimal" placeholder="300" size="6" required></label><label class="pe-new-w"><span>Who makes it</span>${madeSelect(null, desk)}</label><input type="hidden" name="long_in" value=""><button class="buy-btn">Offer this print</button></form>
+<form method="post" action="${base}/editions" class="inline"><input type="hidden" name="open" value="1"><button class="link">${rows.length ? 'Add the house\'s sizes' : 'Or open editions with the house\'s sizes'}</button> <span class="small">11 × 14 $250 · 16 × 24 $650 · 24 × 36 $1,400, editions of 12 (8 for the largest), framed +$150/$300/$450. Drafts: set your own.</span></form>
 ${rows.some(r => r.sold) ? '<p class="small">Once a print of a size has sold, its edition can stay or be made smaller, down to what is sold, never larger; its price and its framed price can stay or rise, never fall.</p>' : ''}
 ${rows.length ? `<p class="small"><a href="/w/${esc(w.slug)}#print">See it as a collector does</a></p>` : ''}</section>`;
   }
   app.locals.editionsBlock = recordBlock;
-  const save = (w, body) => {
-    if (body.open === '1') { const have = allOf(w).map(e => e.label); let i = allOf(w).length; for (const d of EDITION_DEFAULTS) if (!have.includes(d.label)) db.prepare('INSERT INTO print_editions (work_id, label, long_in, paper, edition_n, price_cents, framed_cents, sort) VALUES (?,?,?,?,?,?,?,?)').run(w.id, d.label, d.long_in, d.paper, d.edition_n, d.price_cents, d.framed_cents, i++); return 'editions'; }
+  const save = (w, body, by) => {
+    const made = ['maker', 'hand', 'house'].includes(body.made_by) ? body.made_by : (by === 'studio' ? 'house' : 'maker'); // (#193) a maker's own editions are theirs to make unless they say otherwise
+    if (body.open === '1') { const have = allOf(w).map(e => e.label); let i = allOf(w).length; for (const d of EDITION_DEFAULTS) if (!have.includes(d.label)) db.prepare('INSERT INTO print_editions (work_id, label, long_in, paper, edition_n, price_cents, framed_cents, sort, made_by) VALUES (?,?,?,?,?,?,?,?,?)').run(w.id, d.label, d.long_in, d.paper, d.edition_n, d.price_cents, d.framed_cents, i++, made); return 'editions'; }
     const cents = v => Math.round(parseFloat(String(v || '').replace(/[$,]/g, '')) * 100);
     const label = String(body.label || '').trim().slice(0, 40), long_in = parseFloat(body.long_in) || null, paper = String(body.paper || '').trim().slice(0, 80) || null, edition_n = Math.max(1, Math.min(1000, parseInt(body.edition_n, 10) || 12)), price = cents(body.price), framed = body.framed ? cents(body.framed) : null;
-    if (body.new === '1') { if (!label || !(price > 0)) return 'editioncheck'; db.prepare('INSERT INTO print_editions (work_id, label, long_in, paper, edition_n, price_cents, framed_cents, sort) VALUES (?,?,?,?,?,?,?,?)').run(w.id, label, long_in, paper, edition_n, price, framed, allOf(w).length); return 'editions'; }
+    if (body.new === '1') { if (!label || !(price > 0)) return 'editioncheck'; db.prepare('INSERT INTO print_editions (work_id, label, long_in, paper, edition_n, price_cents, framed_cents, sort, made_by) VALUES (?,?,?,?,?,?,?,?,?)').run(w.id, label, long_in || (parseFloat(String(label).split(/[×x]/i).pop()) || null), paper, edition_n, price, framed, allOf(w).length, made); return 'editions'; }
     const e = db.prepare('SELECT * FROM print_editions WHERE id=? AND work_id=?').get(+body.id, w.id); if (!e) return 'editioncheck';
     if (!label || !(price > 0)) return 'editioncheck';
     // (#165) The trade's rules: with a sale, the edition may stay or come down to what is sold, never go up; its price
     // and its framed price may stay or rise, never fall. The same for the maker and the Studio.
     const sold = soldOf(e), n = TR.size(e.edition_n, edition_n, sold), p = TR.price(e.price_cents, price, sold), f = TR.price(e.framed_cents, framed, sold);
-    db.prepare('UPDATE print_editions SET label=?, long_in=?, paper=?, edition_n=?, price_cents=?, framed_cents=?, active=? WHERE id=?').run(label, long_in, paper, n, p, f, body.active === '1' ? 1 : 0, e.id);
+    db.prepare('UPDATE print_editions SET label=?, long_in=?, paper=?, edition_n=?, price_cents=?, framed_cents=?, active=?, made_by=? WHERE id=?').run(label, long_in, paper, n, p, f, body.active === '1' ? 1 : 0, body.made_by ? made : e.made_by, e.id);
     if (n !== e.edition_n) changed.push({ edition: e.label, from: e.edition_n, to: n });
     return sold && (n !== edition_n || p !== price || f !== framed) ? 'editionheld' : 'editions';
   };
   let changed = [];
   // One save changes one size at most; a change of size goes on the register with what it was and what it is.
-  const saved = (w, body, by) => { changed = []; const ok = save(w, body); ledger.append(db, 'work.editions', w.slug, changed.length ? { by, ...changed[0] } : { by }); return ok; };
+  const saved = (w, body, by) => { changed = []; const ok = save(w, body, by); ledger.append(db, 'work.editions', w.slug, changed.length ? { by, ...changed[0] } : { by }); return ok; };
   app.post('/studio/works/:slug/editions', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); const ok = saved(w, req.body || {}, 'studio'); res.redirect(`/studio/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
   app.post('/account/works/:slug/editions', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404); const ok = saved(w, req.body || {}, m.handle); res.redirect(`/account/works/${encodeURIComponent(w.slug)}?ok=${ok}#editions`); });
+
+  // (#193) The maker moves a print they make or hold: handed over (taken by hand), sent (with the number on the print and
+  // any tracking), arrived. The collector is told by letter and notice; the register records each step. The Studio may
+  // do the same from the work's record. The number on the print may be set while it is still in the maker's hands: any
+  // number of the edition no other sold print carries.
+  const movePrint = (w, req, res, base, by) => {
+    const o = db.prepare("SELECT o.*, l.ref, l.buyer_id AS lb, l.rights, l.id AS lid FROM print_orders o JOIN licenses l ON l.id=o.license_id WHERE o.id=? AND o.work_id=? AND o.by_maker=1 AND o.paid=1").get(+req.params.id, w.id);
+    if (!o) return res.sendStatus(404);
+    const b = req.body || {}; const d = String(b.do || '');
+    const to = { handed: o.pickup && ['asked', 'making'].includes(o.status) ? 'done' : null, sent: !o.pickup && ['asked', 'making'].includes(o.status) ? 'sent' : null, delivered: !o.pickup && o.status === 'sent' ? 'done' : null }[d];
+    if (!to) return res.redirect(`${base}?ok=printmoved#prints`);
+    const ed = o.edition_id ? db.prepare('SELECT * FROM print_editions WHERE id=?').get(o.edition_id) : null;
+    const want = parseInt(b.no, 10);
+    if (d !== 'delivered' && ed && want && want !== o.edition_no) {
+      if (want < 1 || want > ed.edition_n || db.prepare("SELECT 1 FROM print_orders WHERE edition_id=? AND edition_no=? AND paid=1 AND status<>'declined' AND id<>?").get(ed.id, want, o.id)) return res.redirect(`${base}?ok=printno#prints`);
+      db.prepare('UPDATE print_orders SET edition_no=? WHERE id=?').run(want, o.id);
+      try { const t = JSON.parse(o.rights || '{}'); if (t.print) { t.print.no = want; db.prepare('UPDATE licenses SET rights=? WHERE id=?').run(JSON.stringify(t), o.lid); } } catch (e) { /* the terms stay */ }
+      ledger.append(db, 'print.numbered', w.slug, { ref: o.ref, from: o.edition_no, no: want, of: ed.edition_n, by });
+      o.edition_no = want;
+    }
+    const tracking = String(b.tracking || '').trim().slice(0, 80);
+    if (!db.prepare('UPDATE print_orders SET status=?, note=? WHERE id=? AND status=?').run(to, tracking ? [o.note, `Tracking ${tracking}`].filter(Boolean).join(' · ') : o.note, o.id, o.status).changes) return res.redirect(`${base}#prints`);
+    ledger.append(db, d === 'handed' ? 'print.handed' : d === 'sent' ? 'print.sent' : 'print.delivered', d === 'delivered' ? w.slug : o.ref, { ref: o.ref, no: o.edition_no, by });
+    const m = mk(w); const title = tidy(w.title); const no = `No. ${o.edition_no}${ed ? ` of ${ed.edition_n}` : ''}`;
+    const words = { handed: `is in your hands. ${m.name} handed it over; it is ${no}, and its papers are with your piece.`, sent: `is on its way to you from ${m.name}${tracking ? `. Tracking: ${tracking}` : ''}. It is ${no}.`, delivered: `has arrived, ${m.name} tells us. Record it on your piece so it stays with the number.` }[d];
+    if (o.email && X.mail) { try { Promise.resolve(X.mail.send({ to: o.email, subject: `Your print of ${title}`, text: `Your print of ${title} (${o.size || ''}${o.paper ? `, ${o.paper}` : ''}) ${words}\n\nYour piece: ${C.base}/yours/p/${o.ref}\n\nWatermark` })).catch(() => {}); } catch (e) { /* quiet */ } }
+    const nf = notify || app.locals.notify; if (nf && o.lb) { try { nf.tell({ buyer_id: o.lb, kind: 'print', slug: w.slug, href: `/yours/p/${o.ref}`, title: `Your print of ${title}`, body: words }); } catch (e) { /* quiet */ } }
+    res.redirect(`${base}?ok=print${d}#prints`);
+  };
+  app.post('/account/works/:slug/prints/:id', (req, res) => { const m = makerOf(req); if (!m) return res.sendStatus(401); const w = db.prepare('SELECT * FROM works WHERE slug=? AND maker_id=?').get(req.params.slug, m.id); if (!w) return res.sendStatus(404); movePrint(w, req, res, `/account/works/${encodeURIComponent(w.slug)}`, m.handle); });
+  app.post('/studio/works/:slug/prints/:id', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); movePrint(w, req, res, `/studio/works/${encodeURIComponent(w.slug)}`, 'studio'); });
 
   // ---- the show: wall labels, and the desk of what sold
   const hangOf = id => db.prepare('SELECT * FROM hangs WHERE id=?').get(+id);
