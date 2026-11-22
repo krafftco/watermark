@@ -237,7 +237,10 @@ ${closed ? `<form method="post" action="/account/sheets/all"><input type="hidden
   const card = w => `<section class="st-i st-sheet" data-slug="${esc(w.slug)}" data-kind="sheet"><article class="st-sh"><a class="ctc-paper ctc-mini" href="${esc(w.href)}">${w.film}</a><p class="k">From the contact sheet</p><h2>${esc(w.title)}</h2><p class="st-shby">${esc(w.maker)}${w.place ? ` · ${esc(w.place)}` : ''}${w.day ? ` · ${esc(w.day)}` : ''}</p><a class="st-shgo" href="${esc(w.href)}">See the whole roll · ${w.n} frames</a></article></section>`;
   const STYLE = '';
 
-  app.locals.sheets = { of, list, latest, screen, card, film, runsOf, forget, STYLE };
+  // (#198) An outtake shown true to anyone: on a sheet its maker opened, and not a frame the sheet always guards. The
+  // house's guard on pictures not on view (app.js) asks this, so an opened sheet keeps showing what its maker opened.
+  const shows = w => !!w && w.status === 'hidden' && !Number(w.keep_back || 0) && !!Number(w.sheet_open || 0) && !guarded(w);
+  app.locals.sheets = { of, list, latest, screen, card, film, runsOf, forget, shows, STYLE };
   return app.locals.sheets;
 }
 module.exports = { mountSheets };

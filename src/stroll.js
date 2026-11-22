@@ -139,6 +139,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     return setOf(key);
   }
   const isDelivery = key => /^(delivery|album):/.test(String(key || ''));
+  const carried = (j, tq) => (tq && j ? Object.assign({}, j, { img: j.img + tq, thumb: j.thumb + tq }) : j);
   async function inSet(req, key, { seen = [], at = '', n = PAGE } = {}) {
     const v = mine(req, key); if (!v || !v.works.length) return null;
     const slugs = v.works.map(w => w.slug), not = new Set(seen);
@@ -147,8 +148,10 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     for (let k = 1; k <= slugs.length && out.length < n; k++) { const sl = slugs[(i + k) % slugs.length]; if (!not.has(sl) && sl !== at) { out.push(sl); not.add(sl); } }
     // One question for the page's few (it was one a slug), set back in the set's order.
     const got = out.length ? await adb.all(`SELECT * FROM works WHERE slug IN (${out.map(() => '?').join(',')}) AND ${isDelivery(key) ? "status IN ('held','hidden')" : "status='held'"}`, ...out) : [];
-    const bySlug = new Map(got.map(w => [w.slug, w])); const rows = out.map(sl => bySlug.get(sl)).filter(Boolean);
-    return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, files: v.files || null, items: rows.map(w => wanderJSON(w, req)) };
+    // (#198) An album's pictures carry its own address (?token=); in any other set a work off view shows only to those it is for.
+    const OV = app.locals.offView, tq = isDelivery(key) && v.via ? '?token=' + encodeURIComponent(v.via) : '';
+    const bySlug = new Map(got.map(w => [w.slug, w])); const rows = out.map(sl => bySlug.get(sl)).filter(Boolean).filter(w => tq || !OV || !OV.off(w) || OV.may(req, w));
+    return { label: v.label, href: v.href, n: slugs.length, via: v.via || null, files: v.files || null, has: new Set(slugs), tq, items: rows.map(w => carried(wanderJSON(w, req), tq)) };
   }
   app.get('/api/stroll', async (req, res) => {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
@@ -377,16 +380,19 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);
     const atSlug = atIn || req.query.at;
-    const at = atSlug ? await (isDelivery(key) ? adb.get("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')", String(atSlug)) : adb.get("SELECT * FROM works WHERE slug=? AND status='held'", String(atSlug))) : null;
+    let at = atSlug ? await (isDelivery(key) ? adb.get("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')", String(atSlug)) : adb.get("SELECT * FROM works WHERE slug=? AND status='held'", String(atSlug))) : null;
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6).replace(/\.guests$/, '')) : '/deliver/' + encodeURIComponent(key.slice(9).replace(/\.guests$/, ''))); /* (#203) the guests' walk is part of its album */ // closed, or not an album: its own door says so
+    // (#198) Opened at a work not on view: only through the album that holds it, or for those it is for.
+    const inAlbum = !!(at && set && set.tq && set.has.has(at.slug)), OV = app.locals.offView;
+    if (at && !inAlbum && OV && OV.off(at) && !OV.may(req, at)) at = null;
     // (22 Nov, Will) In an album, the album's own acts for the photograph on screen, as its rules allow this viewer.
     const album = isDelivery(key) && set && app.locals.deliveries && app.locals.deliveries.acts ? app.locals.deliveries.acts(key, req) : null;
     let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (q && !set && app.locals.find) try { app.locals.find.search(q, 1, req, { log: !req.get('x-wm-prepare') }); } catch (e) { /* (#179) words that found nothing are kept for the Studio; never in the walk's way */ }
-    if (at) items = [wanderJSON(at, req), ...items];
+    if (at) items = [carried(wanderJSON(at, req), inAlbum ? set.tq : ''), ...items];
     const mk = set ? null : await makerBy(maker);
     res.set('Cache-Control', 'private, no-store');
     const sh = share || (set && SHAREABLE(key) ? { url: `/wander?in=${encodeURIComponent(key)}`, title: `${set.label} · Wander`, text: `${set.label}: one work at a time, on Watermark.` } : null);
@@ -420,7 +426,7 @@ function strollPage({ items, q = '', maker = null, set = null, I, front = false,
 <nav class="st-rail" aria-label="Acts">
 <button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}" title="Hat: a nod, I saw it. Free, as many as you like.">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}" title="Bravo: it floored me. Three a month.">${I.bravo}<span>Bravo</span></button>
 <button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">${I.hang}<span>Save</span></button>
-<button type="button" class="st-b" data-st-share title="Send it to someone. It opens for them on its own, with your name and a line from you.">${I.send}<span>Send</span></button><a class="st-b st-study" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent(`/wander?${set && isDeliveryKey(set.key) ? `in=${encodeURIComponent(set.key)}&` : ''}at=${w.slug}`)}" title="Study it: the work large on the easel, with values, notan, squint, a grid and a timer. Set your phone on a stand and draw from it.">${I.easel}<span>Study</span></a>
+<button type="button" class="st-b" data-st-share title="Send it to someone. It opens for them on its own, with your name and a line from you.">${I.send}<span>Send</span></button><a class="st-b st-study" data-st-easel href="/easel/${esc(w.slug)}?back=${encodeURIComponent(`/wander?${set && isDeliveryKey(set.key) ? `in=${encodeURIComponent(set.key)}&` : ''}at=${w.slug}`)}${set && isDeliveryKey(set.key) && set.via ? `&amp;token=${encodeURIComponent(set.via)}` : ''}" title="Study it: the work large on the easel, with values, notan, squint, a grid and a timer. Set your phone on a stand and draw from it.">${I.easel}<span>Study</span></a>
 <button type="button" class="st-b st-moreb" data-st-more aria-expanded="false" aria-label="More">${I.more}<span>More</span></button>
 <div class="st-more" data-st-morebox hidden>${w.slug && !String(w.slug).includes(':') ? `<a class="st-b" href="/w/${esc(w.slug)}/frame" title="Frame a detail: the part you love, kept with its own address">${I.look}<span>Frame</span></a><button type="button" class="st-b" data-note="${esc(w.slug)}" title="Keep a thought: write a line, or say it aloud. Yours alone unless you share it.">${I.pencil}<span>Note</span></button>` : ''}${w.sheet ? `<a class="st-b" data-st-sheet href="${esc(w.sheet.href)}?back=${encodeURIComponent(`/wander?at=${w.slug}`)}" title="The contact sheet: every frame around this one, as it was shot.">${I.page}<span>Contact sheet</span></a>` : ''}<a class="st-b" data-st-record href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander" title="Watermark: the asset under the picture; its number, its terms, the licence to use it.">${I.page}<span>Watermark</span></a>${w.guide ? `<button type="button" class="st-b" data-st-guide title="Look closer: what to see in it, read by Al.">${I.guide}<span>Look closer</span></button>` : ''}<button type="button" class="st-b" data-st-card title="A thank-you card to the maker, from 99¢.">${I.card}<span>Thank</span></button><button type="button" class="st-b" data-st-settings title="Sit a while: each work held a minute and a half, the guide read, quiet music.">${I.stand}<span>Sit</span></button></div>
 ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : w.collect ? `<button type="button" class="st-b st-buy" data-st-buy data-url="${esc(w.collect.url)}" data-pocket="${w.collect.pocket ? 1 : 0}" title="Collect it: yours to keep, numbered, with the papers. ${esc(w.collect.price)}.">${I.collect}<span>Collect<b>${esc(w.collect.price)}</b></span><em>Yours to keep</em></button>` : w.printOpen ? `<a class="st-b st-buy st-print" href="${esc(w.printOpen.url)}" title="Print it: archival pigment on cotton paper, sent to your door. From ${esc(w.printOpen.from)}.">${I.hang}<span>Print it<b>from ${esc(w.printOpen.from)}</b></span></a>` : ''}

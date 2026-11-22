@@ -64,7 +64,8 @@ function scene(n, w = 3000, h = 2000) {
   await go(`/account/pairs/${pA.id}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'do=undo' });
   const A2 = db.prepare('SELECT * FROM works WHERE slug=?').get(webA);
   assert.ok(st(sA) === 'hidden' && A2.width === 1200, 'undo puts both back');
-  const img = await fetch(base + `/img/${webA}/thumb?f=jpg`); assert.strictEqual(img.status, 200, 'the old picture shows again');
+  const img = await go(`/img/${webA}/thumb?f=jpg`); assert.strictEqual(img.status, 200, 'the old picture shows again, to its maker'); // (#198) a picture not on view is its maker's, not a stranger's
+  { const r = await fetch(base + `/img/${webA}/thumb?f=jpg`); assert.strictEqual(r.status, 404, 'and to no stranger'); }
   assert.ok(db.prepare("SELECT 1 FROM ledger WHERE type='work.merged'").get() && db.prepare("SELECT 1 FROM ledger WHERE type='work.unmerged'").get(), 'the register says both');
   const again = await app.locals.pairs.scan(maker.id); assert.strictEqual(again.looked, 0, 'a second look sees only what is new');
   srv.close(); console.log('pairs: all good'); process.exit(0);

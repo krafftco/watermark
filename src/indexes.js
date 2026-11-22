@@ -61,6 +61,8 @@ const LIST = [
   ['works_maker_stars', 'works (maker_id, stars, id)'], // /account?stars=n: one grade's page
   ['sightings_work', 'sightings (work_id)'], // /account: a row's sightings, asked for the rows shown
   ['prepared_pages_at', 'prepared_pages (at, k)'], // (#139) the website's poll: what changed since its mark
+  ['delivery_works_work', 'delivery_works (work_id)'], // (#198) a picture not on view: the albums that hold it
+  ['volume_pages_work', 'volume_pages (work_id)'], // (#198) a hidden page placed in an open volume is on view there
   ['works_status_id', 'works (status, id)'], // /studio/masters: the newest page of what is held, stopping at the page
   ['works_maker_place', 'works (maker_id, place)'], // /account/table: the places the maker uses, counted from the index
   ['works_maker_al', 'works (maker_id) WHERE al_grade IS NOT NULL'], // /account/table: how many Al has read (aledit.state), counted from a partial index

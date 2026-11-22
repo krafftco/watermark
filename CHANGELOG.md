@@ -15,6 +15,14 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - A video, a file larger than an album takes, or anything that is not a photograph is turned away with a sentence saying why. A closed album takes nothing.
 - Repaired: the "That's me" form no longer shows, empty, on every album page.
 
+## 1.90.4 · A photographer's private work stays with the people it is for · 22 November 2026
+
+Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
+
+- A photograph that is not on view (a new upload, one kept back, one in a private gallery) is seen by its maker, the Studio, a curator the maker gave keys to, someone who holds a licence on it, and the people of an album that holds it. Anyone else is shown the house's own "not found" page.
+- An album open to anyone with its link still shows every photograph to everyone who has the link, on any device, signed in or not. A private gallery shows its photographs only to the people inside.
+- None of these photographs is kept along the way, by the house's edge or by the app on a phone.
+
 ## 1.90.4 · In an album, a photograph opens Wander · 22 November 2026
 
 - In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.
