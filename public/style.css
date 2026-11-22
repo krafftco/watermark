@@ -4861,6 +4861,7 @@ html.dvp-on{overflow:hidden}
 .dvo-f figcaption .dvx-b{margin:0;text-decoration:none;color:#e9e4da}.dvx-b:hover,.dvx-b[aria-expanded=true]{background:rgba(255,255,255,.08)}.dvx-b svg,.dvx-b .ic{width:22px;height:22px}
 .dvx-sh,.dvx-mo{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:6px 0 0;max-width:640px}.dvx-sh[hidden],.dvx-mo[hidden]{display:none}
 .dvx-o{display:grid;gap:2px;text-align:left;min-width:170px;padding:10px 14px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:#15130f;color:#e9e4da;font:inherit;cursor:pointer}.dvx-o:hover{border-color:#e9e4da}.dvx-o b{font-weight:500;font-size:14px}.dvx-o i{font-style:normal;font-size:12px;color:#a39d92}
+.dvx-tag{flex-basis:100%;display:flex;justify-content:center;align-items:baseline;gap:10px;margin:4px 0 2px;font-size:13px;color:#a39d92}.dvx-tag b{font-weight:500;color:#e9e4da}.dvx-tag .link{font-size:13px;color:#e9e4da;padding:6px 4px;min-height:32px}
 .dvo-f .dvx-mo{align-items:center;gap:8px 18px;font-size:13px}.dvo-f .dvx-mo a{margin:0;color:#d9bc7c}
 .dvo-c{margin:14px 0 0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6f6a62}
 .dvo-x,.dvo-p,.dvo-n{position:fixed;z-index:2;background:rgba(11,10,9,.5);color:#e9e4da;border:0;border-radius:50%;width:46px;height:46px;font:300 30px/1 var(--sans);cursor:pointer;display:grid;place-items:center}

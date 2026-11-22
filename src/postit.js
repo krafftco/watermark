@@ -23,28 +23,17 @@ function mountPostIt(app, { db, V, images, cache, originalPath }) {
   const fit = (t, n) => { t = String(t || ''); return t.length > n ? `${t.slice(0, n - 1).replace(/\s+\S*$/, '')}…` : t; };
   const may = (req, w) => w && w.status === 'held' && !w.keep_back && !(w.zone === 'mature' && !(app.locals.zone && app.locals.zone.open(req)));
 
+  // (#210) The face is cardface.js's, as the album's: the logo, Instagram's safe band on a story, the handle under the
+  // line when a person made it, the address in small type under the logo. "c3" leaves the older cards behind.
+  const igFor = w => { if (w.artist_id) return ''; const m = db.prepare('SELECT instagram, kind FROM makers WHERE id=?').get(w.maker_id) || {}; return (m.kind || 'maker') === 'maker' ? require('./cardface').igOf(m.instagram) : ''; };
   async function card(w, kind) {
-    const post = kind === 'post';
-    const out = path.join(cache, `${kind}-${w.slug}-${(w.sha256 || '').slice(0, 10)}-c2.jpg`);
+    const CF = require('./cardface');
+    const title = V.tidy ? V.tidy(w.title) : w.title, line = lineOf(w), ig = igFor(w), foot = footOf(w);
+    const key = require('crypto').createHash('sha1').update(`${title}|${line}|${ig}|${foot}`).digest('hex').slice(0, 8);
+    const out = path.join(cache, `${kind}-${w.slug}-${(w.sha256 || '').slice(0, 10)}-${key}-c3.jpg`);
     if (fs.existsSync(out)) return out;
-    const sharp = require('sharp');
     const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg');
-    const W = 1080, H = post ? 1350 : 1920, boxW = post ? 960 : 980, boxH = post ? 1000 : 1360;
-    const pic = await sharp(src).resize(boxW, boxH, { fit: 'inside' }).toBuffer({ resolveWithObject: true });
-    const textH = 170, block = pic.info.height + textH;
-    const top = Math.round(post ? (H - block) / 2 - 10 : Math.max(150, (H - block) / 2 - 40)), left = Math.round((W - pic.info.width) / 2);
-    const y1 = top + pic.info.height + 72, y2 = y1 + 46, yf = H - (post ? 46 : 340); // a story's foot clears Instagram's reply bar
-    const title = fit(V.tidy ? V.tidy(w.title) : w.title, 44), line = fit(lineOf(w), 60);
-    const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`
-      + `<text x="${W / 2}" y="${y1}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="42" fill="#efe9df">${e(title)}</text>`
-      + `<text x="${W / 2}" y="${y2}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#b9b1a4">${e(line)}</text>`
-      + `<text x="${W / 2}" y="${yf}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" letter-spacing="5" fill="#8f877b">${e(footOf(w).toUpperCase())}</text>`
-      + `</svg>`;
-    const tmp = `${out}.${process.pid}.tmp`;
-    await sharp({ create: { width: W, height: H, channels: 3, background: '#0b0a09' } })
-      .composite([{ input: pic.data, left, top }, { input: Buffer.from(svg), left: 0, top: 0 }])
-      .jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toFile(tmp);
-    try { fs.renameSync(tmp, out); } catch (er) { try { fs.unlinkSync(tmp); } catch (e2) { /* */ } }
+    await CF.draw({ kind: kind === 'post' ? 'post' : 'story', src, out, foot, lines: [CF.L.title(title), CF.L.line(line), CF.L.handle(ig, 42)] });
     return out;
   }
 

@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.93.1 · The story card, made for Instagram · 22 November 2026
+
+- An album's story and post cards, and a work's own, now end with the house's logo, drawn in the card's quiet grey, in place of the word typed.
+- On a story, everything stands between Instagram's name bar and its reply bar, so nothing is hidden under "Add to your story". A post keeps a margin of dark on every side.
+- Under the credit, the photographer's Instagram handle when their account has one. No address of an album is ever drawn on a card.
+- In the album, Post and Story hand the card to the phone's share sheet, so it goes straight into Instagram; elsewhere it downloads. Beside them, "Tag @handle" with a copy button, when the photographer has a handle.
+- Cards already made are drawn again.
+
 ## 1.93.0 · Transparent, not cheap: the price is on the label · 22 November 2026
 
 Every sentence below is a draft for Will. No price was added or changed.
