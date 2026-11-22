@@ -157,6 +157,8 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   const byHtml = d => { const b = byLine(d); if (!b) return ''; return `<p class="dv-by">Photographs by ${b.href ? `<a href="${esc(b.href)}">${esc(b.name)}</a>` : esc(b.name)} <a class="dv-ask" href="${esc(b.ask)}">Ask ${esc(b.first)} to photograph your night</a></p>`; };
   const findIn = (d, slug) => worksOf(d).find(x => x.slug === String(slug)) || (G ? G.shownOne(d, slug) : null);
   const makerOfWork = (w, m) => (w.maker_id === m.id ? m : db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || m);
+  // (#210) Beside the Post and Story buttons, the maker's handle to tag, with a copy button; only when they have one.
+  const tagLine = ig => { const h = require('./cardface').igOf(ig); return h ? `<span class="dvx-tag">Tag <b>${esc(h)}</b><button type="button" class="link" data-dv-copy="${esc(h)}">Copy</button></span>` : ''; };
   const isHost = (req, d) => { const me = makerOf(req); return !!(me && me.id === d.maker_id) || isStudio(req); };
   const newToken = () => crypto.randomBytes(18).toString('base64url');
   // The client named on the album is a member of its own group, so the client's link opens the pictures too.
@@ -460,7 +462,7 @@ ${spare ? `<form method="post" action="/account/deliveries/${d.id}/add" class="d
     // Message) · Print · More (Keep it, Full size, That's me, That's a friend, Wander from here).
     const fig = w => { const l = licOf(w.ref); const nm = esc(tidy(w.title)); return `<figure class="dv-w" id="p-${esc(w.slug)}" data-dv-slug="${esc(w.slug)}"${hearts.has(w.id) ? ' data-hearted' : ''}><a href="${wander}&at=${esc(w.slug)}" class="dv-im" data-dvo><img src="/img/${esc(w.slug)}/screen" alt="${nm}" loading="lazy" decoding="async"${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}></a><button type="button" class="dvh-b" data-dvh="${esc(w.slug)}" aria-pressed="${hearts.has(w.id)}" aria-label="Favourite" title="Favourite">${HEART}</button>${isMaker && counts[w.id] ? `<span class="dvh-n" title="Favourited by ${counts[w.id]}">♥ ${counts[w.id]}</span>` : ''}<figcaption><b>${nm}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}${withs[w.id] ? `<span class="dv-with">With ${withs[w.id].map(esc).join(', ')}</span>` : ''}
 <span class="dvx">${!can.download ? '' : `<a class="dvx-b" href="${base}/${esc(w.slug)}/file" download>${I.in || ''}<span>Download</span></a>`}${can.social || can.pass ? `<button type="button" class="dvx-b" data-dvx="share">${I.share || ''}<span>Share</span></button>` : ''}${!view && l && l.download_token ? `<a class="dvx-b dv-print" href="/yours/p/${esc(l.ref)}?k=${esc(l.download_token)}#print">${I.print || ''}<span>Print</span></a>` : ''}<button type="button" class="dvx-b" data-dvx="more">${I.more || ''}<span>More</span></button></span>
-<span class="dvx-sh" data-dvx-p="share" hidden>${can.social ? `<button type="button" class="dvx-o" data-dv-story="${base}/${esc(w.slug)}/post.jpg" data-dv-story-name="${nm}" data-dv-story-kind="post"><b>Post</b><i>For a feed, 4:5, credited</i></button><button type="button" class="dvx-o" data-dv-story="${base}/${esc(w.slug)}/story.jpg" data-dv-story-name="${nm}" data-dv-story-kind="story"><b>Story</b><i>Full height, 9:16, credited</i></button>` : ''}${can.pass ? `<button type="button" class="dvx-o" data-send data-send-title="${esc(d.title)}" data-send-text="${esc(`${d.title}, photographs by ${m.name}`)}" data-send-url="${esc(`${C.base}/a/${sh}`)}"><b>Message</b><i>The album's link: they see it, the files stay with you</i></button>` : ''}</span>
+<span class="dvx-sh" data-dvx-p="share" hidden>${can.social ? `<button type="button" class="dvx-o" data-dv-story="${base}/${esc(w.slug)}/post.jpg" data-dv-story-name="${nm}" data-dv-story-kind="post"><b>Post</b><i>For a feed, 4:5, credited</i></button><button type="button" class="dvx-o" data-dv-story="${base}/${esc(w.slug)}/story.jpg" data-dv-story-name="${nm}" data-dv-story-kind="story"><b>Story</b><i>Full height, 9:16, credited</i></button>${tagLine(makerOfWork(w, m).instagram)}` : ''}${can.pass ? `<button type="button" class="dvx-o" data-send data-send-title="${esc(d.title)}" data-send-text="${esc(`${d.title}, photographs by ${m.name}`)}" data-send-url="${esc(`${C.base}/a/${sh}`)}"><b>Message</b><i>The album's link: they see it, the files stay with you</i></button>` : ''}</span>
 <span class="dvx-mo dv-me" data-dvx-p="more" hidden>${can.keep ? `<button type="button" class="dv-keep" data-dv-keep="${esc(w.slug)}">Keep it</button>` : ''}${can.full ? `<a class="dv-full" href="${base}/${esc(w.slug)}/file?full=1" download title="The full file, for printing">Full size</a>` : ''}${can.speak ? `<a class="link" href="#book" data-dv-say="${esc(w.slug)}" data-dv-say-t="${nm}">Talk about it</a>` : ''}${can.ask ? `<a class="link" href="${base}/${esc(w.slug)}/ask">Ask to license it</a>` : ''}${mine.has(w.id) ? '<em>You are in it</em>' : `<button type="button" class="link" data-dv-me="${esc(w.slug)}">That&rsquo;s me</button>`}<button type="button" class="link" data-dv-friend="${esc(w.slug)}">That&rsquo;s a friend</button><a class="link" href="${wander}&at=${esc(w.slug)}">Wander from here</a><a class="link" href="/easel/${esc(w.slug)}?back=${encodeURIComponent(base)}&amp;token=${encodeURIComponent(view ? sh : d.token)}" title="The picture large on the easel, with values, notan, squint, a grid and a timer: to draw or paint from">Study it</a></span></figcaption></figure>`; };
     const sh = shareOf(d); const base = view ? `/a/${esc(sh)}` : `/deliver/${esc(d.token)}`; const wander = view ? `/wander?in=album:${esc(sh)}` : `/wander?in=delivery:${esc(d.token)}`, logo = `<a class="dv-logo" href="/" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark" width="150" height="40"></a>`;
     const tq = carry(d, view); // (#198) each picture carries the address it was opened by
@@ -482,9 +484,16 @@ ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))}
 <div class="ty-amts">${[99, 499, 999].map((c, i) => `<label><input type="radio" name="amount" value="${c}" ${i === 1 ? 'checked' : ''}><span>${c < 100 ? `${c}¢` : `$${(c / 100).toFixed(2)}`}</span></label>`).join('')}<label class="ty-own"><input type="radio" name="amount" value="own"><span>$<input name="own" inputmode="decimal" placeholder="your own" aria-label="Your own amount"></span></label></div>
 <input name="word" class="ty-word" placeholder="A word, if you like" maxlength="280" autocomplete="off"><button class="buy-btn">Send the card</button></form></div></section>` : ''}
 ${!can.keep ? '' : `<form method="post" class="dv-ks" data-dv-ks hidden><input type="hidden" name="slug"><p class="dv-ks-t"><b>Keep <span data-dv-ks-title></span>.</b> It hangs in a gallery of your own, yours for good, with its papers; and from there you can have it printed, framed and sent, or save it to your phone.</p>${me ? `<p class="dv-ks-me">As ${esc(me.email)}.</p>` : `<label><span>Your name</span><input name="name" maxlength="120" autocomplete="name"></label><label><span>Email</span><input name="email" type="email" required maxlength="160" autocomplete="email" inputmode="email"></label>`}<p class="dv-ks-row"><button class="buy-btn">Keep it</button><button type="button" class="link" data-dv-ks-x>Not now</button></p></form>`}
-<script>(function(){var f=document.querySelector('[data-dv-tag]');if(!f)return;var signed=!!f.querySelector('[data-dv-asme]'),slug='',fr=false;function show(sel,on){[].forEach.call(f.querySelectorAll(sel),function(x){x.hidden=!on;var i=x.querySelector('input');if(i)i.required=on;});}
+<script>(function(){var f=document.querySelector('[data-dv-tag]');if(!f)return;var signed=!!f.querySelector('[data-dv-asme]'),slug='',fr=false;
+var cards={};function card(u){if(!cards[u])cards[u]=fetch(u,{credentials:'same-origin'}).then(function(r){return r.ok?r.blob():null;}).then(function(b){if(b)cards[u+'B']=b;else delete cards[u];return b;}).catch(function(){delete cards[u];return null;});return cards[u];}
+function save(b,nm){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nm;document.body.appendChild(a);a.click();a.remove();}
+function pick(el){var r=document.createRange();r.selectNodeContents(el.previousElementSibling||el);var sl=getSelection();sl.removeAllRanges();sl.addRange(r);}function show(sel,on){[].forEach.call(f.querySelectorAll(sel),function(x){x.hidden=!on;var i=x.querySelector('input');if(i)i.required=on;});}
 document.addEventListener('click',function(e){var me=e.target.closest('[data-dv-me]'),fd=e.target.closest('[data-dv-friend]'),st=e.target.closest('[data-dv-story]');
-if(st){e.preventDefault();var u=st.getAttribute('data-dv-story'),n=st.getAttribute('data-dv-story-name')||'photograph',kd=st.getAttribute('data-dv-story-kind')||'story';fetch(u).then(function(r){return r.blob();}).then(function(b){var file=new File([b],n.replace(/[^a-z0-9 ]/gi,'')+' ('+kd+').jpg',{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[file]}))return navigator.share({files:[file]}).catch(function(){});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=file.name;document.body.appendChild(a);a.click();a.remove();});return;}
+var sx=e.target.closest('[data-dvx="share"]');if(sx){var cp=sx.closest('figcaption');if(cp)[].forEach.call(cp.querySelectorAll('[data-dv-story]'),function(x){card(x.getAttribute('data-dv-story'));});}
+var cy=e.target.closest('[data-dv-copy]');if(cy){e.preventDefault();var v=cy.getAttribute('data-dv-copy'),said=function(){cy.textContent='Copied';setTimeout(function(){cy.textContent='Copy';},2400);};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(said,function(){pick(cy);});else pick(cy);return;}
+if(st){e.preventDefault();var u=st.getAttribute('data-dv-story'),n=st.getAttribute('data-dv-story-name')||'photograph',kd=st.getAttribute('data-dv-story-kind')||'story',nm=(n.replace(/[^a-z0-9 ]/gi,'').trim()||'photograph')+' ('+kd+').jpg';
+var give=function(b){if(!b)return;var file=new File([b],nm,{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[file]}))return navigator.share({files:[file]}).catch(function(er){if(er&&er.name==='NotAllowedError')save(b,nm);});save(b,nm);};
+if(cards[u+'B'])give(cards[u+'B']);else card(u).then(give);return;}
 if(e.target.closest('[data-dv-tag-x]')){f.hidden=true;return;}
 if(!me&&!fd)return;slug=(me||fd).getAttribute(me?'data-dv-me':'data-dv-friend');fr=!!fd;
 if(me&&signed){post();return;}
@@ -714,32 +723,30 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
     res.json(r);
   });
   // The photograph sized for a story (1080 × 1920) or a post (1080 × 1350, 4:5, 2 Nov): the picture whole on the dark,
-  // never cropped, the credit beneath it in the house's type, the album and the address. The picture is the album's own
-  // copy; the credit is drawn, not hidden.
+  // never cropped, the credit beneath it in the house's type, the maker's Instagram handle, the album's name and the
+  // house's logo. Never the album's address: a card goes on a public feed. The picture is the album's own copy; the
+  // credit is drawn into the card, never into the picture.
   app.get(['/deliver/:token/:slug/story.jpg', '/a/:share/:slug/story.jpg', '/deliver/:token/:slug/post.jpg', '/a/:share/:slug/post.jpg'], async (req, res) => {
     const post = req.path.endsWith('/post.jpg');
     const d = albumOf(req); if (!d || !live(d)) return res.sendStatus(404);
     { const can = capsOf(req, d, !!req.params.share); if (!can.see || !can.social) return res.sendStatus(403); }
     const w = findIn(d, req.params.slug); if (!w) return res.sendStatus(404);
-    const out = path.join(cache, `${post ? 'post' : 'story'}-${w.slug}-${d.id}.jpg`);
+    // (#210) The face is cardface.js's: the logo, Instagram's safe band, the maker's handle under the credit. The file is
+    // named by what is drawn, so a new name, handle or album title makes a new card; "2" leaves the old cards behind.
+    const m = db.prepare('SELECT name, instagram FROM makers WHERE id=?').get(w.maker_id) || {}; // the picture's own maker: a guest's is credited to the guest (#203)
+    const key = crypto.createHash('sha1').update(`${m.name}|${m.instagram || ''}|${d.title}`).digest('hex').slice(0, 8);
+    const out = path.join(cache, `${post ? 'post' : 'story'}2-${w.slug}-${d.id}-${key}.jpg`);
     try {
       if (!fs.existsSync(out)) {
-        const sharp = require('sharp'); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); // the picture's own maker: a guest's is credited to the guest (#203)
+        const CF = require('./cardface');
         const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg');
-        const W = 1080, H = post ? 1350 : 1920, boxW = post ? 940 : 960, boxH = post ? 1000 : 1380, top0 = post ? 70 : 150;
-        const pic = await sharp(src).resize(boxW, boxH, { fit: 'inside' }).toBuffer({ resolveWithObject: true });
-        const left = Math.round((W - pic.info.width) / 2), top = post ? Math.round((H - 70 - (pic.info.height + 124)) / 2) : Math.round(top0 + (boxH - pic.info.height) / 2), capY = top + pic.info.height + (post ? 70 : 92);
-        const e = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg"><text x="${W / 2}" y="${capY}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="40" fill="#efe9df">Photograph by ${e(m.name)}</text><text x="${W / 2}" y="${capY + 54}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="25" letter-spacing="5" fill="#a39d92">${e(String(d.title).toUpperCase().slice(0, 48))}</text><text x="${W / 2}" y="${H - (post ? 50 : 90)}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="24" letter-spacing="6" fill="#8f897f">WATERMARK</text></svg>`;
-        const tmp = `${out}.${process.pid}.tmp`;
-        await sharp({ create: { width: W, height: H, channels: 3, background: '#0b0a09' } }).composite([{ input: pic.data, left, top }, { input: Buffer.from(svg), left: 0, top: 0 }]).jpeg({ quality: 90, chromaSubsampling: '4:4:4' }).toFile(tmp);
-        try { fs.renameSync(tmp, out); } catch (er) { try { fs.unlinkSync(tmp); } catch (e2) { /* */ } }
+        await CF.draw({ kind: post ? 'post' : 'story', src, out, lines: [CF.L.credit(`Photograph by ${m.name || ''}`), CF.L.handle(CF.igOf(m.instagram)), CF.L.caps(d.title)] });
       }
       res.set('Cache-Control', 'private, max-age=3600'); res.type('image/jpeg').sendFile(out);
     } catch (er) { console.error('[story]', post ? 'post' : 'story', er.message); res.fault(er); }
   });
   // (#203) Guests add their own photographs: mounted before the one-photograph page below, which would take /add as a slug.
-  G = require('./albumguests').mountAlbumGuests(app, { db, C, V, I, mail, ledger, grant, nextRef, q, D: { byTaken: (a, b) => byTaken(a, b), shareOf: d => shareOf(d), albumOf: req => albumOf(req), live: d => live(d), isHost: (req, d) => isHost(req, d), capsOf: (req, d, v) => capsOf(req, d, v), makerOf: req => makerOf(req), HEART } });
+  G = require('./albumguests').mountAlbumGuests(app, { db, C, V, I, mail, ledger, grant, nextRef, q, D: { byTaken: (a, b) => byTaken(a, b), shareOf: d => shareOf(d), albumOf: req => albumOf(req), live: d => live(d), isHost: (req, d) => isHost(req, d), tagLine: ig => tagLine(ig), capsOf: (req, d, v) => capsOf(req, d, v), makerOf: req => makerOf(req), HEART } });
   app.get('/deliver/:token/:slug', (req, res) => {
     const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
     const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);

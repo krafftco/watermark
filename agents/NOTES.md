@@ -283,6 +283,10 @@ The CTO session keeps it honest.
 - **Albums' order**: `worksOf` sorts by `taken_at`, then the file name read numerically, then `pos` (the picker's order,
   newest upload first). There is no hand order yet; one would come before this sort. The link card's file is named by
   its three slugs (`cardOf`).
+- **Story and post cards** (#210, `src/cardface.js`): one drawing for the album's cards and the work's own. A story draws
+  only between y=250 and y=1590 (Instagram's bars), a post keeps 60 px of dark; the picture box is 940 wide, since a JPEG's
+  edge rings a pixel or two past a 960 box. The cache name carries a hash of what is drawn: change the face, change the
+  suffix (`story2-`, `-c3`). `test/cardface.js` checks the bands by pixel rows; `CARDS=<dir>` keeps PNGs to look at.
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
