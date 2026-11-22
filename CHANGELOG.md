@@ -5,6 +5,15 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.93.0 · Transparent, not cheap: the price is on the label · 22 November 2026
+
+Every sentence below is a draft for Will. No price was added or changed.
+- The few-dollar Collect is no longer offered, and neither is the Reference. Nothing sits on or over a picture to buy: not on a work's page, in Wander, on the front, in the collection or in the hall. The setting COLLECT=on brings both back as they were.
+- Each work's page has a wall label under the picture: the maker, the title and year, the edition and what remains, and the price of the print in plain figures where a print is offered. Never "on request".
+- A licence's price is shown in the licence check, not beside the picture.
+- What was collected stays collected: the pieces, their papers, their entries on the register and the holder's room are unchanged, and a holder can still offer a piece on the market. The market issues nothing new.
+- The stand's code now opens the work's own page and its label; the Instax print is as before. A standing order already running keeps its monthly piece; no new one begins. The monthly letter that offered a Collect is not sent.
+
 ## 1.92.0 · Guests add their own photographs to an album · 22 November 2026
 
 - Anyone an album is shared with can now add the pictures they took, from a phone or a computer, many at once: "Add your photographs" on the album and in Wander from the album. A name and an email; no password.

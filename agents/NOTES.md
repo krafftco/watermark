@@ -363,3 +363,12 @@ The CTO session keeps it honest.
 - Credit only is `uses.price_cents = 0` (or `rights.credit`): never sent to Stripe (Stripe refuses 0). `rights.credit` swaps Section 3 for `K.CREDIT_ONLY`; absent otherwise, so every old fingerprint holds. `K.seal(t, {work, maker, ref})` is the one way to fingerprint an order. On the visitor's pages a price of 0 reads through `useFee` in views.js ("Credit only"), never `money(0)`.
 - /rights/:handle is an institution's desk or, for a photographer (`kind='maker'`, not `door='play'`), their reply link; the photographer's page holds no form. `test/replylink.js` walks all of it (also run it with DATABASE_URL on the local Postgres).
 
+## Collect retired (#208)
+- `src/collect.js`: `COLLECT=on` (env) offers the Collect ('social') and the Reference again; unset, both are closed in
+  `listed()`/`offered()` (app.js), which closes every door that asks them. `offered0` is the gate without it, used only
+  by a standing order already running (`collectFor(b, slug, true)`). Read `COL.on()` at call time, never at require.
+- A test that walks the Collect's own code sets `process.env.COLLECT = 'on'` at its top (smoke, holds, fee, onview,
+  sitters, instances); `test/collectoff.js` walks the house as it is (off): no offer on any door, no price under $100
+  beside a picture, the wall label (`.wlb`, `labelOf` in app.js), the holder's papers unchanged byte for byte.
+- A `${}` inside a single-quoted string in a view is printed as written: turn the string into a template literal.
+

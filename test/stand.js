@@ -13,10 +13,10 @@ const { createApp } = require('../src/app');
   const buf = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: { r: 200, g: 90, b: 40 } } }).jpeg().toBuffer(); const fd = new FormData(); fd.append('file', new Blob([buf], { type: 'image/jpeg' }), 'party.jpg');
   const j = await (await go('/account/works/one', { method: 'POST', body: fd })).json();
   let t = await (await go('/account/stand')).text(); assert.ok(t.includes(`/account/stand/${j.slug}`), 'tonight’s work on the stand');
-  t = await (await go(`/account/stand/${j.slug}`)).text(); assert.ok(t.includes('Put it on view to sell') && !t.includes('<svg'.repeat(1) + 'x'), 'kept back: the word first');
+  t = await (await go(`/account/stand/${j.slug}`)).text(); assert.ok(t.includes('Put it on view</button>') && !t.includes('<svg'.repeat(1) + 'x'), 'kept back: the word first');
   await go(`/account/stand/${j.slug}/sell`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'attest=1' });
   assert.strictEqual(db.prepare('SELECT status FROM works WHERE slug=?').get(j.slug).status, 'held', 'on view');
-  t = await (await go(`/account/stand/${j.slug}`)).text(); assert.ok(t.includes('Scan to make it yours') && t.includes('sd2-qr'), 'the code to scan');
+  t = await (await go(`/account/stand/${j.slug}`)).text(); assert.ok(t.includes('Scan to see it on Watermark') && t.includes('sd2-qr') && !t.includes('Scan to make it yours'), 'the code to scan: the work’s page, no Collect (#208)');
   const ix = await go(`/account/stand/${j.slug}/instax`); assert.strictEqual(ix.status, 200, "instax"); if (!/image/.test(ix.headers.get("content-type"))) { console.log(ix.headers.get("content-type"), (await ix.text()).slice(0, 300)); process.exit(1); } const meta = await sharp(Buffer.from(await ix.arrayBuffer())).metadata(); assert.ok(meta.width === 800 && meta.height === 600, 'the Instax mini file');
   // People, not requests: a browser that answers is a person; a bare fetch is not; the Studio is never counted.
   const before = app.locals.analytics.report('today').cur.people;
