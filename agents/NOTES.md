@@ -207,6 +207,18 @@ The CTO session keeps it honest.
 - Two processes booting at once against one Postgres can fail with `tuple concurrently updated` on the dialect's
   `CREATE OR REPLACE FUNCTION wm_mod`: start the second when the first answers /healthz.
 
+## The copies and the scribes (#196)
+- A maker's upload lands `status='hidden'` (accounts.js `takeWork`); "kept back" to a photographer is that, or `held` with
+  `keep_back=1`. Anything that serves a maker's own pictures must take both. The scribes take a living maker's own works
+  of the last SCRIBE_NEW_DAYS first (`FRESH` in copies.js, through `works_status_created`), then `WANT` as before.
+- The worker's prepared round asks its own house (up to 40 pages a round, every 10 s, header `x-wm-prepare`). Anything
+  on a chores process that counts "people" must skip `require('./prepared').isPrepare(req)`; the governor does, and says
+  `own10s` beside `visitors10s` on /healthz. test/governor.js runs one process per role (the role is read at require).
+- Many distinct test pictures: a field of noise each (`sharp({ create: { …, noise } })`) passes the fingerprint; hue or
+  brightness alone does not. test/keptcopies.js (KEPT_N) uploads through the arrivals doors and walks the album picker.
+- An AI call's failure goes through `app.locals.spend.heard(e, module)` in its catch: out of credit it stops the
+  background for AL_CREDIT_WAIT_MIN and the Studio's desk says it once (settings `credit_low`).
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.

@@ -156,7 +156,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
         if (n >= limit) break;
         const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
         if (app.locals.spend && !app.locals.spend.ok('closer')) break;
-        try { if (await write(w)) n++; } catch (e) { console.error('[closer]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; }
+        try { if (await write(w)) n++; } catch (e) { if (app.locals.spend && app.locals.spend.heard && app.locals.spend.heard(e, 'closer')) break; console.error('[closer]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; }
         await new Promise(r => setTimeout(r, 1500));
       }
       // Then the studies, best work first, paced (each runs several web searches on the house's key).
@@ -166,7 +166,7 @@ function mountCloser(app, { db, C, studioOnly, isStudio, makerOf, imageOf, ledge
         const w = db.prepare('SELECT * FROM works WHERE id=?').get(id); if (!w) continue;
         if (studies++ >= PER) break;
         if (app.locals.spend && !app.locals.spend.ok('study')) break;
-        try { if (await study(w)) n++; } catch (e) { console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyMissed: new Date().toISOString() }); }
+        try { if (await study(w)) n++; } catch (e) { if (app.locals.spend && app.locals.spend.heard && app.locals.spend.heard(e, 'study')) break; console.error('[study]', w.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; const c0 = read(w); if (c0) save(w.id, { ...c0, studyMissed: new Date().toISOString() }); }
         await new Promise(r => setTimeout(r, 4000));
       }
     } finally { running = false; }
