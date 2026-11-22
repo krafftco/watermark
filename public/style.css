@@ -4714,7 +4714,7 @@ html.rm-on{overflow:hidden}
 .dv-tag{grid-column:1/-1;display:grid;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(233,228,218,.2);border-radius:6px;padding:16px;max-width:560px}
 .dv-tag label{display:grid;gap:4px;font-size:12px;color:#a39d92}.dv-tag input{background:rgba(0,0,0,.25);border:1px solid rgba(233,228,218,.25);color:#f2efe9;border-radius:4px;padding:10px 12px;font:inherit;font-size:16px}
 .dv-tag-t{margin:0;color:#efe9df;font-size:14px}.dv-tag-me{margin:0;font-size:13px;color:#a39d92}.dv-tag-row{display:flex;gap:16px;align-items:center;margin:0}.dv-tag .note{color:#8f897f;font-size:12px;margin:0}
-.dv-tag [hidden]{display:none!important}
+.dv-tag [hidden]{display:none!important}.dv-tag[hidden]{display:none}
 .dv-done{margin:6px 0 0;font-size:12px;color:#9cc59a}
 .dv-me{flex-basis:100%}
 .dv-tag .buy-btn{background:#d9bc7c;color:#0b0a09;border-color:#d9bc7c}.dv-tag .link{color:#a39d92}
@@ -6023,3 +6023,24 @@ main.st{overflow:clip}
 
 /* What you hold (#176): the one statement, the same at every moment. */
 .holds{font:15px/1.6 var(--read,Georgia),Georgia,serif!important;color:var(--ink);margin:16px 0;max-width:62ch;text-align:left}.holds b{font:inherit!important;font-weight:600!important;display:inline!important;margin:0!important;letter-spacing:0!important;text-transform:none!important}.holds[hidden]{display:none}
+/* (#203) Guests add their own photographs: the album's line of credit, the guests' own part, the add step, the photographer's look, the studio's mark. Phone first: every control at least 44 px. */
+.dv-by{margin:-6px 0 18px;font:14px/1.6 var(--sans);color:#a39d92;display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}.dv-by a{display:inline-block;padding:11px 0;margin:-11px 0;color:#e9e4da;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(233,228,218,.35)}.dv-by a.dv-ask{color:#d9bc7c}
+.st-end .st-endby{font:13px var(--sans);letter-spacing:.04em;color:rgba(243,241,236,.8)}.st-end .st-endby a{font-size:inherit;letter-spacing:inherit;text-transform:none}
+.gad-s{margin:56px 0 24px;padding:28px 0 0;border-top:1px solid rgba(233,228,218,.14)}.gad-s h2{font:400 26px/1.2 var(--disp);text-transform:none;letter-spacing:0;color:#f3efe8;margin:6px 0 8px}.gad-l{color:#cfc8bb;font-size:15px;max-width:58ch;margin:0 0 16px}.gad-l a{color:#e9e4da}
+.gad-add{margin:0 0 22px}.gad-add .buy-btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 20px}.gad-add svg{width:18px;height:18px}
+.gad-one{margin:0 0 26px}.gad-one h3{font:500 13px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#cfc8bb;margin:0 0 10px}.gad-one h3 span{color:#8f897f;margin-left:6px}
+.dv-grid.gad-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.gad-fw{position:relative}.gad-by{position:absolute;left:8px;bottom:8px;padding:3px 8px;border-radius:20px;background:rgba(11,10,9,.62);color:#f3efe8;font:500 12px var(--sans);pointer-events:none}
+.gad .gad-c{max-width:560px;margin:0 auto;padding:72px 16px 60px}.gad h1{font:400 34px/1.15 var(--disp);margin:8px 0 12px}
+.gad-f{display:flex;flex-direction:column;gap:14px;margin:20px 0}.gad-f label{display:flex;flex-direction:column;gap:6px;font:14px var(--sans);color:#cfc8bb}.gad-f label i{font-style:normal;color:#8f897f}
+.gad-f input[type=text],.gad-f input:not([type]),.gad-f input[type=email]{min-height:48px;padding:0 14px;font:16px var(--sans);background:rgba(255,255,255,.06);border:1px solid rgba(233,228,218,.25);color:#f2efe9;border-radius:6px}
+.gad-f .gad-ok{flex-direction:row;align-items:flex-start;gap:12px;font-size:15px;line-height:1.5;color:#e9e4da;padding:6px 0}.gad-ok input{width:24px;height:24px;flex:0 0 24px;margin:2px 0 0}
+.gad-pick{position:relative}.gad-pick input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.gad-pick .buy-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;font-size:16px}.gad-pick svg{width:20px;height:20px}.gad-pick b{font-weight:500;color:#d9bc7c}
+.gad-pick b:empty{display:none}.gad-go{margin:0}.gad-go .buy-btn{width:100%;min-height:52px;font-size:16px;background:#e9e4da;color:#0b0a09}.gad-st{min-height:1.4em;color:#d9bc7c;margin:0}.gad-as{color:#cfc8bb;margin:0}
+.gad-done{border:1px solid rgba(217,188,124,.4);border-radius:8px;padding:12px 16px;margin:16px 0}.gad-done p{margin:4px 0;color:#e9e4da}
+.gad-back a{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:#cfc8bb}.gad-back svg{width:16px;height:16px}
+.gad-g{margin:0 0 22px}.gad-gh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+.gad-ws{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}.gad-w{margin:0}.gad-w img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#eee}
+.gad-w figcaption{display:flex;flex-direction:column;gap:6px;font-size:12px;padding:6px 0}.gad-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.gad-acts form{margin:0}.gad-acts .buy-btn,.gad-acts .link{min-height:44px;padding:0 14px}.gad-acts em{font-style:normal;color:#5f7f5a}
+.gad-no img,.gad-out img{opacity:.45}
+.gad-sh{display:block;margin-top:4px;color:#6f6a62}.gad-sh form{display:inline}.gad-sh .link{padding:10px 4px;margin:-10px 0}

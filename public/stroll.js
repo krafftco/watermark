@@ -70,6 +70,8 @@
     mo += alMine[slug] ? '<p class="st-alin">You are in it.</p>' : alOpt('data-st-altag="me"', 'That’s me', 'A letter asks you to confirm; then it is in your Pictures of you');
     mo += alOpt('data-st-altag="friend"', 'That’s a friend', 'They are asked by letter; nothing is linked until they say yes');
     if (c.ask) mo += alOpt('', 'Ask to license it', 'For a company, a story, a wall: the request goes to the photographer', base + '/ask');
+    if (AL.guests) mo += alOpt('', 'From the guests', 'The pictures the group took, credited to each', AL.guests);
+    if (AL.add) mo += alOpt('', 'Add your photographs', 'Were you there too? Yours stay yours, credited to you', AL.add);
     row += '<button type="button" class="st-alb" data-st-alpb="more" aria-expanded="false">' + (ic.more || '') + '<span>More</span></button>';
     alSheet.innerHTML = '<div class="st-scard st-alc" role="dialog" aria-modal="true" aria-label="' + esc(w.title || 'This photograph') + ', in the album"><button type="button" class="st-gx" data-st-alx aria-label="Close">' + x + '</button>'
       + '<p class="k">' + esc(AL.title) + '</p><h2 class="st-alt">' + esc(w.title || '') + '</h2>'
@@ -208,7 +210,8 @@
     fetch('/api/stroll?n=8&q=' + encodeURIComponent(q) + '&maker=' + encodeURIComponent(maker) + (set ? '&in=' + encodeURIComponent(set.key) : '') + '&seen=' + encodeURIComponent(seen.slice(-300).join(','))).then(function (r) { if (!r.ok) throw new Error('no feed'); return r.json(); }).then(function (j) {
       if (hadNet) found(); hadNet = true;
       var list = (j && j.items) || [];
-      if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p><a href="' + esc(set.href) + '">Back to it</a><a href="/wander">Wander everything</a>'; scroller.appendChild(e); }, 0); }
+      if (set && (j.end || !list.length)) { done = true; setTimeout(function () { var e = document.createElement('section'); e.className = 'st-i st-none st-end'; var by = AL && AL.by ? '<p class="st-endby">Photographs by ' + (AL.by.href ? '<a href="' + esc(AL.by.href) + '">' + esc(AL.by.name) + '</a>' : esc(AL.by.name)) + '</p><a href="' + esc(AL.by.ask) + '">Ask ' + esc(AL.by.first) + ' to photograph your night</a>' : ''; /* (#203) the album's photographer, at the end of its walk */
+        e.innerHTML = '<p>That is all of ' + esc(set.label.replace(/^The /, 'the ')) + '.</p>' + by + (AL && AL.guests ? '<a href="' + esc(AL.guests) + '">From the guests</a>' : '') + '<a href="' + esc(set.href) + '">Back to it</a><a href="/wander">Wander everything</a>'; scroller.appendChild(e); }, 0); }
       else if (!list.length) { done = true; return; }
       list.forEach(function (w) { if (items[w.slug]) return; var el = screenFor(w); scroller.appendChild(el); register(w, el); io.observe(el); });
       if (cur) prefetch(order.indexOf(cur));

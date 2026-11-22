@@ -18,6 +18,9 @@ const LIST = [
   ['works_place', 'works (place)'],
   ['works_taken', 'works (maker_id, taken_at)'],
   ['licenses_work', 'licenses (work_id, status)'],
+  ['delivery_guest_works_work', 'delivery_guest_works (work_id, state)'], // (#203) asked by the picture's gate for any work not on view
+  ['delivery_guest_works_guest', 'delivery_guest_works (guest_id, state)'],
+  ['delivery_guests_maker', 'delivery_guests (maker_id)'],
   ['licenses_buyer', 'licenses (buyer_id, status)'],
   ['licenses_status', 'licenses (status, id)'],
   ['licenses_token', 'licenses (download_token)'],

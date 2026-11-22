@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.91.0 · Guests add their own photographs to an album · 22 November 2026
+
+- Anyone an album is shared with can now add the pictures they took, from a phone or a computer, many at once: "Add your photographs" on the album and in Wander from the album. A name and an email; no password.
+- One letter goes to that email. Until its link is pressed, nobody sees the pictures. The link opens the guest's own studio, with their pictures in it, private and theirs.
+- The album's photographer sees them as "Added by" the guest and chooses which the album shows. Shown pictures sit below the photographer's own, in "From the guests", credited by first name, and are a walk of their own in Wander. The group can heart, download and share them as the album allows; prints and licences stay with the photographer's pictures.
+- In their studio a guest sees each picture marked "Shared with" the album, and what kind of file it is (a phone copy or a full file), and can take any picture out of the album; it stays theirs.
+- Every album now names its photographer under the title, with a link to their page when they have one, and "Ask them to photograph your night", which opens the commission door. The same line ends Wander from the album.
+- A video, a file larger than an album takes, or anything that is not a photograph is turned away with a sentence saying why. A closed album takes nothing.
+- Repaired: the "That's me" form no longer shows, empty, on every album page.
+
 ## 1.90.4 · In an album, a photograph opens Wander · 22 November 2026
 
 - In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.

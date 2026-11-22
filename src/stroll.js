@@ -381,7 +381,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
-    if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
+    if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6).replace(/\.guests$/, '')) : '/deliver/' + encodeURIComponent(key.slice(9).replace(/\.guests$/, ''))); /* (#203) the guests' walk is part of its album */ // closed, or not an album: its own door says so
     // (22 Nov, Will) In an album, the album's own acts for the photograph on screen, as its rules allow this viewer.
     const album = isDelivery(key) && set && app.locals.deliveries && app.locals.deliveries.acts ? app.locals.deliveries.acts(key, req) : null;
     let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
