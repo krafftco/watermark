@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.4 · In an album, a photograph opens Wander · 22 November 2026
+
+- In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.
+
 ## 1.90.3 · A photographer's own uploads are made ready at once · 22 November 2026
 
 Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
