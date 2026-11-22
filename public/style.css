@@ -6044,3 +6044,14 @@ main.st{overflow:clip}
 .gad-w figcaption{display:flex;flex-direction:column;gap:6px;font-size:12px;padding:6px 0}.gad-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.gad-acts form{margin:0}.gad-acts .buy-btn,.gad-acts .link{min-height:44px;padding:0 14px}.gad-acts em{font-style:normal;color:#5f7f5a}
 .gad-no img,.gad-out img{opacity:.45}
 .gad-sh{display:block;margin-top:4px;color:#6f6a62}.gad-sh form{display:inline}.gad-sh .link{padding:10px 4px;margin:-10px 0}
+/* The wall label (#208): under the picture, never over it; a small card as a gallery hangs one. */
+.wlb{position:relative;z-index:1;align-self:flex-end;margin:clamp(18px,3vh,28px) 0 0;max-width:280px;width:100%;box-sizing:border-box;padding:14px 16px 12px;background:#f3efe7;color:#2a2622;font-size:12.5px;line-height:1.45;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.wlb p{margin:0}
+.wlb-m{font-weight:600;letter-spacing:.02em}
+.wlb-t{font-family:var(--read);font-size:14px}
+.wlb-e{margin-top:6px!important;color:#5d574e}
+.wlb-p{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 10px;margin-top:6px!important;padding-top:6px;border-top:1px solid #ddd6c9;color:#5d574e}
+.wlb-p span:first-child{flex-basis:100%;color:#2a2622}
+.wlb-p b{font-weight:600;color:#2a2622;font-variant-numeric:tabular-nums}
+.wlb-go{display:inline-block;margin-top:8px;padding:6px 0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#2a2622}
+@media (max-width:700px){.wlb{align-self:stretch;max-width:none}}

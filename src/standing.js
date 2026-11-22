@@ -6,6 +6,7 @@
 // time; the month paid runs out. The first piece arrives the day the order begins. Nothing is chosen without a payment:
 // each pick follows an invoice Stripe has paid (the first with the checkout, then each month's), and a daily catch-up
 // asks Stripe about any order whose month has passed with no pick, so a missed webhook never costs a collector a piece.
+const COL = require('./collect');
 const FEE = require('./fee');
 
 const STANDING_CENTS = () => Number(process.env.STANDING_CENTS || FEE.total('social', 500)); // the Collect, with the house's share when the fee is on
@@ -28,7 +29,7 @@ function mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail,
   function choose(s) {
     const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(s.buyer_id); if (!b) return null;
     const taken = new Set(db.prepare('SELECT work_id FROM standing_picks WHERE standing_id=?').all(s.id).map(r => r.work_id));
-    const fits = w => { const x = collectFor(b, w.slug); return x && x.u.price_cents <= s.cents && !taken.has(x.w.id) ? x : null; };
+    const fits = w => { const x = collectFor(b, w.slug, true); /* (#208) an order already running keeps its picks */ return x && x.u.price_cents <= s.cents && !taken.has(x.w.id) ? x : null; };
     let cands = [];
     try { cands = app.locals.looking ? app.locals.looking.candidates(b, null, 40, 1).picks : []; } catch (e) { cands = []; }
     for (const c of cands) { const x = fits(c); if (x) return x; }
@@ -98,15 +99,16 @@ function mountStanding(app, { db, V, C, ledger, stripe, buyerOf, setBuyer, mail,
     res.set('Cache-Control', 'private, no-store');
     res.send(layout({ title: 'A piece a month · Watermark', path: '/yours', desc: 'The house chooses one piece a month for you, at the price of a Collect.', body: `<section class="narrow prose sto"><p class="k">Your gallery</p><h1>A piece a month.</h1>
 <p class="lede">Ask the house to choose for you. Once a month, for ${money(cents)}, the house’s eye picks one work from what you have stood before and what you have not yet seen, collects it in your name, and puts it in your gallery with its number and its papers: a Collect like any other, the maker paid as for any sale. The first arrives today.</p>
-${req.query.ok === 'check' ? '<p class="note">A name and an email, please.</p>' : req.query.ok === 'unavailable' ? '<p class="note">Payments are not open yet.</p>' : req.query.ok === 'ending' ? '<p class="note">Your order ends with the month paid. Thank you for collecting with us.</p>' : ''}
+${req.query.ok === 'check' ? '<p class="note">A name and an email, please.</p>' : req.query.ok === 'unavailable' ? '<p class="note">Payments are not open yet.</p>' : req.query.ok === 'closed' || (!s && !COL.on()) ? '<p class="note">The house is not taking new standing orders.</p>' : req.query.ok === 'ending' ? '<p class="note">Your order ends with the month paid. Thank you for collecting with us.</p>' : ''}
 ${s ? `<div class="sto-on"><p><b>Your standing order is ${s.status === 'ending' ? 'ending with this month' : 'on'}.</b> ${s.picks} piece${s.picks === 1 ? '' : 's'} chosen so far${s.last_pick_at ? `; the last on ${V.date(s.last_pick_at)}` : ''}. ${money(s.cents)} a month.</p>
 ${picks.length ? `<ul class="sto-picks">${picks.map(p => `<li><a href="/w/${esc(p.slug)}"><img src="/img/${esc(p.slug)}/thumb" alt="" loading="lazy"></a><div><a href="/yours/p/${esc(p.ref)}"><b>${esc(tidy(p.title))}</b></a><br><small>${esc(p.maker)}${p.place ? ` · ${esc(p.place)}` : ''}${p.collector_no ? ` · No. ${p.collector_no}` : ''} · ${V.date(p.at)}</small></div></li>`).join('')}</ul>` : ''}
 ${s.status === 'active' ? `<form method="post" action="/yours/standing/end"><button class="link">End the standing order</button> <small>The month paid runs out; what was chosen stays yours.</small></form>` : ''}</div>`
-  : `<form method="post" action="/yours/standing/begin" class="sto-f"><label>Your name<input name="name" required maxlength="80" value="${esc((b && b.name) || '')}"></label><label>Your email<input type="email" name="email" required maxlength="160" value="${esc((b && b.email) || '')}"></label><button class="buy-btn">Begin · ${money(cents)} a month</button><small>By the month through Stripe; end any time. The price is the maker’s${FEE.on() ? '; the house’s share is on top, as published' : ''}. The pieces are chosen by the house and are not exchanged. The agreement is the same as any Collect’s.</small></form>`}
+  : !COL.on() ? '' : `<form method="post" action="/yours/standing/begin" class="sto-f"><label>Your name<input name="name" required maxlength="80" value="${esc((b && b.name) || '')}"></label><label>Your email<input type="email" name="email" required maxlength="160" value="${esc((b && b.email) || '')}"></label><button class="buy-btn">Begin · ${money(cents)} a month</button><small>By the month through Stripe; end any time. The price is the maker’s${FEE.on() ? '; the house’s share is on top, as published' : ''}. The pieces are chosen by the house and are not exchanged. The agreement is the same as any Collect’s.</small></form>`}
 <h2>How the house chooses</h2><p>From what you have stood before longest, and from further off: never a piece you hold, never one you were shown this fortnight, half close to your taste and half to stretch it. Each is a numbered Collect with the file, the certificate and the agreement, and the maker is paid for it on Friday as for any sale. No piece is chosen without a month paid.</p>
 <p class="ky-foot"><a href="/yours">Your gallery</a> · <a href="/wander">Wander</a></p></section>` }));
   });
   app.post('/yours/standing/begin', async (req, res) => {
+    if (!COL.on()) return res.redirect('/yours/standing?ok=closed'); // (#208) no new order while Collect is retired
     const x = req.body || {}; const name = String(x.name || '').trim().slice(0, 80), email = String(x.email || '').trim().toLowerCase().slice(0, 160);
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect('/yours/standing?ok=check');
     let b = buyerOf(req);

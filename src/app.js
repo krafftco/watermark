@@ -100,10 +100,12 @@ function createApp(cfg = {}) {
   const clearClosed = (w, key) => !!(w && app && app.locals && app.locals.clearance && app.locals.clearance.blocks(w, key));
   const viewClosed = (w, key) => !!(w && app && app.locals && app.locals.onview && app.locals.onview.blocks(w, key)); // (#166) a work a gallery represents: its way to buy is the gallery's
   const sitterWord = (w, key) => (w && app && app.locals && app.locals.sitters ? app.locals.sitters.gate(w, key) : null); // 'ask' | 'closed' | null
-  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const COL = require('./collect'); // (#208) Collect retired as a new offer unless COLLECT=on
+  const offered0 = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const offered = (rules, key, w) => !COL.closed(key) && offered0(rules, key, w);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !COL.closed(key) && !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -767,7 +769,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const e = can ? edition(w) : null;
       base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: art ? art.name : m.name, makerSlug: V.makerSlug(m), artist: art ? { name: art.name, href: `/art/${art.slug}` } : null, life: art ? (app.locals.lifeline.dateWords(art) ? { years: app.locals.lifeline.dateWords(art) } : null) : app.locals.lifeline.text(m), width: w.width, height: w.height,
         img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'),
-        price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null, printOpen: !can && app.locals.openPrints && app.locals.openPrints.can(w) ? { url: `/w/${w.slug}?from=wander#print`, from: V.money(app.locals.openPrints.sizes(w)[0].cents) } : null,
+        price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null, printOpen: COL.on() && !can && app.locals.openPrints /* (#208) no price and no buy button over a picture; the print is on the record */ && app.locals.openPrints.can(w) ? { url: `/w/${w.slug}?from=wander#print`, from: V.money(app.locals.openPrints.sizes(w)[0].cents) } : null,
         hat: ap ? { n: ap.n, mine: false } : null, bravo: ap && ap.bravo ? { mine: false } : null, sheet: app.locals.sheets ? (() => { try { return app.locals.sheets.of(w); } catch (e) { return null; } })() : null } };
       wanderBase.set(key, base); if (wanderBase.size > 2000) wanderBase.delete(wanderBase.keys().next().value);
     }
@@ -883,9 +885,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let collectors = 0, collectCents = null;
     if (front) {
       try { collectors = db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n; } catch (e) { collectors = 0; }
-      try { const c = works[0]; const u = c ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
+      try { const c = works[0]; const u = c && COL.on() ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
     }
-    res.send(V.collection({ front, rowsHtml, maker, works, total: hall.total, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
+    res.send(V.collection({ front, rowsHtml, maker, works, total: hall.total, rooms, share: COL.on() ? q.use.get(maker.id, 'social') : null, pay: COL.on() ? payCfg() : null, lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
   }));
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
@@ -971,6 +973,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // (20 Nov, #117) The page's own reads ask through the async path (src/adb.js); the blocks it draws from other modules
   // (the market's price, prints, loans, the bench, the shield…) still ask on the bridge until those modules move. The
   // view is counted on the bridge: one row by key, committed before the page is drawn.
+  // (#208) The wall label's facts: maker, title, year, the edition, and the print's price where a print is offered
+  // (the total a collector pays, as the print's own button says). An open work's prints keep their own block.
+  const labelOf = (w, maker, rules, byArtist) => {
+    const L = { slug: w.slug, maker: byArtist || maker.name, title: V.tidy(w.title), year: w.taken_at ? String(w.taken_at).slice(0, 4) : '', ed: null, prints: [], print: null };
+    if (!COL.on() && !w.open) L.ed = edition(w);
+    if (w.open || w.disputed) return L;
+    try { const E = app.locals.editions; if (E && E.canSell(w, maker)) L.prints = E.forWork(w).slice(0, 4).map(e => ({ size: E.sizeOf(w, e), paper: e.paper || null, n: e.edition_n, left: e.left, cents: FEE.total('print', e.price_cents) })); } catch (e) { L.prints = []; }
+    if (!L.prints.length) { const u = q.use.get(maker.id, 'print'); if (u && offered(rules, 'print', w)) { const pr = priced(u, w); if (pr && pr.price_cents != null && !pr.needsMaster) L.print = pr.price_cents; } }
+    return L;
+  };
   app.get('/w/:slug', async (req, res) => {
     const w = await adb.get("SELECT * FROM works WHERE slug=?", String(req.params.slug));
     const maker = mk(w); // the work's own maker
@@ -987,7 +999,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     // (#165) No public tape: a stranger sees what is offered and its asking price; a past price only its maker and the Studio.
     const mv = mktRows ? app.locals.market.who(req, w) : null;
     const mkt = mktRows ? { sent: req.query.offer || null, held: mktRows[0], nos: mktRows[1], p: mv.all ? app.locals.market.priceOf(w.id) : app.locals.market.asked(app.locals.market.priceOf(w.id)), open: mktRows[2] } : null;
-    res.send(V.work({ onview: app.locals.onview ? app.locals.onview.forWork(w, req) : null, seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker, req) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + require('./sources').line(w) + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w).map(h => ({ ...h, hold: h.collector_no && app.locals.market ? app.locals.market.holdOf(h) : null })), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: byArtist, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ wallLabel: labelOf(w, maker, rules, byArtist), onview: app.locals.onview ? app.locals.onview.forWork(w, req) : null, seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker, req) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + require('./sources').line(w) + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w).map(h => ({ ...h, hold: h.collector_no && app.locals.market ? app.locals.market.holdOf(h) : null })), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: byArtist, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -1080,7 +1092,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     // Every photograph carries the K. Public ones are collected at once; ones held privately (people,
     // other artists' work) are licensed on request, so nothing is sold without consent.
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
-      collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
+      collect: r.status === 'held' && COL.on() && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
       page: r.status === 'held' ? `${C.base}/m/${V.makerSlug(maker)}/${r.slug}` : null,
       // Every use the work allows, as on its page: instant ones priced, the rest asked of the maker (the file is too small, or the maker approves by hand).
@@ -1096,7 +1108,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
     const p = imgPath(req.query.src); if (!p) return res.json({ work: null });
     let r = null; try { r = db.prepare("SELECT w.slug, w.title, w.rules FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE w.status='held' AND s.src LIKE ?").get('%' + p); } catch (e) { /* none */ }
-    res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: R.allows(R.parse(r.rules), 'social') } : null });
+    res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: COL.on() && R.allows(R.parse(r.rules), 'social') } : null });
   });
   app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript'); res.sendFile(path.join(__dirname, '..', 'public', 'k.js')); });
   app.post('/api/seen', (req, res) => {
@@ -1234,7 +1246,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   app.post('/pay/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
-    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (!COL.on() || !w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
@@ -1276,7 +1288,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Every Share it after the first: one tap, the remembered card, no sheet. Undo for a short while after.
   app.post('/pay/:slug/tap', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
-    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (!COL.on() || !w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
@@ -1510,7 +1522,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const SERIES = require('./series');
   // Collecting more than one: a part of a series at a quarter off, the whole series at 40% off. Whole dollars. (Draft rates.)
   const SET_OFF = { part: 0.25, all: 0.40 };
-  const collectable = slugs => slugs.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social') && !soldOut(w))
+  const collectable = (slugs, running = false) => (running || COL.on() ? slugs : []).map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social') && !soldOut(w))
     .map(w => ({ w, u: priced(q.use.get(mk(w).id, 'social'), w) })).filter(x => x.u && x.u.price_cents != null);
   const setPrice = (items, off) => { const full = items.reduce((a, x) => a + x.u.price_cents, 0); return { full, price: Math.max(100, Math.round(full * (1 - off) / 100) * 100) }; };
   const seriesParts = s => {
@@ -1527,7 +1539,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const BASKET_MAX = 40;
   const basketOf = req => [...new Set(String((req.cookies && req.cookies.wm_bk) || '').split(',').map(x => decodeURIComponent(x).trim()).filter(x => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, BASKET_MAX);
   // Can this collector collect this work now? (the standing order asks without a request)
-  const collectFor = (b, slug) => { const x = collectable([slug])[0]; if (!x || !offered(R.parse(x.w.rules), 'social', x.w)) return null;
+  const collectFor = (b, slug, running = false) => { const x = collectable([slug], running)[0]; if (!x || !(running ? offered0 : offered)(R.parse(x.w.rules), 'social', x.w)) return null;
     if (b && db.prepare("SELECT 1 FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) AND u.key IN ('social','reference')").get(x.w.id, b.id)) return null; return x; };
   app.locals.collectFor = collectFor;
   app.locals.edge = EDGE;
