@@ -1,6 +1,7 @@
 // The house's share, paid by the collector (FEE_SIDE=collector): the maker names $5 and receives $5; the collector pays
 // $7; a working use at $350 is paid at $402.50; the statement, the eye and the receipt all say the same split.
 process.env.FEE_SIDE = 'collector';
+process.env.COLLECT = 'on'; // (#208) the Collect's own code, kept behind the setting
 const assert = require('assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { createApp } = require('../src/app');

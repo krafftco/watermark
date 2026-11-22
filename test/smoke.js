@@ -1,4 +1,5 @@
 // End-to-end smoke test: register, view, license (request + paid via signed webhook), certificate, download, ledger.
+process.env.COLLECT = 'on'; // (#208) the smoke walks the Collect's own code, kept behind the setting; test/collectoff.js walks the house with it off
 const assert = require('assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const http = require('http');
