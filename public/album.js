@@ -2,7 +2,10 @@
 // and the album played as a film: two pictures cross-fading, five seconds each, quiet music made in the browser.
 (function () {
   var D = window.__DV; if (!D) return;
+  // Back from Wander by the browser's own Back: a page kept whole in memory would show the hearts as they were before; ask again.
+  addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
   var root = document.querySelector('main.dv'); if (!root) return;
+  var Q = root.getAttribute('data-dv-q') || ''; // (#198) the album's own address travels with each picture
   var countEl = document.querySelector('[data-dvh-count]'), dl = document.querySelector('[data-dvh-dl]'), none = document.querySelector('[data-dvh-none]');
   var filterBtn = document.querySelector('[data-dvh-filter]'), only = false;
   function paintFilter() {
@@ -47,18 +50,18 @@
     if (!olist.length) return; oi = (k + olist.length) % olist.length; var g = olist[oi], slug = g.getAttribute('data-dv-slug');
     ofig.setAttribute('data-dv-slug', slug); ofig.toggleAttribute('data-hearted', g.hasAttribute('data-hearted'));
     [].slice.call(ofig.children).forEach(function (c) { if (!c.classList.contains('dvo-im')) c.remove(); });
-    oimg.src = '/img/' + encodeURIComponent(slug) + '/large'; oimg.alt = (g.querySelector('img') || {}).alt || '';
+    oimg.src = '/img/' + encodeURIComponent(slug) + '/large' + Q; oimg.alt = (g.querySelector('img') || {}).alt || '';
     var hb = g.querySelector('[data-dvh]'); if (hb) ofig.appendChild(hb.cloneNode(true));
     var cap = g.querySelector('figcaption'); if (cap) { var c2 = cap.cloneNode(true); c2.querySelectorAll('[data-dvx-p]').forEach(function (p) { p.hidden = true; }); ofig.appendChild(c2); }
     ocount.textContent = (oi + 1) + ' of ' + olist.length;
-    [1, -1].forEach(function (s) { var n = olist[(oi + s + olist.length) % olist.length]; if (n) { var im = new Image(); im.src = '/img/' + encodeURIComponent(n.getAttribute('data-dv-slug')) + '/large'; } });
+    [1, -1].forEach(function (s) { var n = olist[(oi + s + olist.length) % olist.length]; if (n) { var im = new Image(); im.src = '/img/' + encodeURIComponent(n.getAttribute('data-dv-slug')) + '/large' + Q; } });
     var tag = document.querySelector('[data-dv-tag]'); if (tag && O.contains(tag)) tag.hidden = true;
   }
   function oopen(fig) { olist = grid(); var k = olist.indexOf(fig); if (k < 0) return; O.hidden = false; document.documentElement.classList.add('dvo-on'); if (!opened) { opened = true; try { history.pushState({ dvo: 1 }, ''); } catch (e) { /* */ } } oshow(k); }
   function oclose(fromPop) { if (O.hidden) return; O.hidden = true; document.documentElement.classList.remove('dvo-on'); var tag = document.querySelector('[data-dv-tag]'); if (tag && O.contains(tag)) { tag.hidden = true; root.appendChild(tag); } if (opened && !fromPop) { opened = false; try { history.back(); } catch (e) { /* */ } } opened = false; }
   window.addEventListener('popstate', function () { if (!O.hidden) { opened = false; oclose(true); } });
   document.addEventListener('click', function (e) {
-    var a = e.target.closest('[data-dvo]'); if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) { e.preventDefault(); oopen(a.closest('.dv-w')); return; }
+    // (22 Nov, Will) A photograph pressed opens Wander at that photograph: the link's own address (/wander?in=album:…&at=…), not the open view.
     if (e.target.closest('[data-dvo-x]') || e.target === O) { oclose(); return; }
     var go = e.target.closest('[data-dvo-go]'); if (go) { oshow(oi + Number(go.getAttribute('data-dvo-go'))); return; }
     if (O.contains(e.target) && e.target.closest('[data-dv-keep]')) setTimeout(function () { oclose(); }, 0); // the keep form lives on the page
@@ -70,7 +73,7 @@
   var P = document.querySelector('[data-dvp]'); if (!P) return;
   var A = P.querySelector('.dvp-a'), B = P.querySelector('.dvp-b'), cap = P.querySelector('[data-dvp-cap]'), front = A, i = 0, timer = null, paused = false, list = D.list, lock = null;
   var EACH = 5200;
-  function src(k) { return '/img/' + encodeURIComponent(list[k].s) + '/large'; }
+  function src(k) { return '/img/' + encodeURIComponent(list[k].s) + '/large' + Q; }
   function show(k) {
     i = (k + list.length) % list.length; var back = front === A ? B : A, it = list[i];
     var im = new Image(); im.onload = im.onerror = function () { back.src = im.src; back.classList.add('on'); front.classList.remove('on'); front = back; cap.textContent = it.t + (it.p ? ' · ' + it.p : '') + '  ' + (i + 1) + ' / ' + list.length; var nx = new Image(); nx.src = src((i + 1) % list.length); };

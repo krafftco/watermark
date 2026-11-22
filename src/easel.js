@@ -40,14 +40,17 @@ ${band(a ? 'In the order made' : 'The masters', a ? '' : 'Great works that belon
     // work that is private… I just uploaded a portrait of myself that I want to paint"): its maker and the Studio
     // always; and, unless the maker keeps it back, whoever was sent it: anyone holding a live album's link, or, for a
     // private gallery, the people inside (the picture route's own rule, deliveries.mayView). Never cached, never indexed.
-    let w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held'").get(req.params.slug); let quiet = false;
+    // (#198) "Sent" is the house's one rule for a work off view (app.locals.offView): a holder, the people of an album
+    // that holds it (its own link carried here as ?token=), a curator; never a stranger who only knows its address.
+    let w = db.prepare("SELECT * FROM works WHERE slug=? AND status='held' AND COALESCE(keep_back,0)=0").get(req.params.slug); let quiet = false, tq = '';
     if (!w) {
-      const h = db.prepare("SELECT * FROM works WHERE slug=? AND status='hidden'").get(req.params.slug);
-      const me = h && app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null, D = app.locals.deliveries;
+      const h = db.prepare("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')").get(req.params.slug);
+      const me = h && app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null, OV = app.locals.offView, D = app.locals.deliveries;
       const mine = h && ((me && me.id === h.maker_id) || (app.locals.isStudio && app.locals.isStudio(req)));
-      const sent = h && !h.keep_back && D && (D.guarded(h.id) ? D.mayView(req, h) : D.inLive(h.id));
-      if (!h || !(mine || sent)) return res.redirect('/wander');
-      w = h; quiet = true; res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' });
+      const sent = h && !h.keep_back && OV && OV.may(req, h);
+      if (!h || !(mine || sent)) return res.redirect('/wander'); // as for a work the easel does not have
+      w = h; quiet = true; if (OV) OV.keepPrivate(res); res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' });
+      const t = String(req.query.token || ''); if (t && D && D.passes && D.passes(req, h, t)) tq = '?token=' + encodeURIComponent(t);
     }
     if (app.locals.zone && app.locals.zone.mature(w) && !app.locals.zone.open(req)) return res.redirect(`/w/${encodeURIComponent(w.slug)}`);
     const m = mk(w); const home = quiet ? '/account/table' : `/w/${w.slug}`; let back = String(req.query.back || home).replace(/[^\w\-/?=&.%]/g, ''); if (!/^\/(?!\/)/.test(back)) back = home; // only a path of this house
@@ -82,7 +85,7 @@ ${look.length ? `<p class="k">What to look for, in this one</p><ul>${look.map(x 
 <p class="note">Set your phone or tablet on a stand beside your sketchbook: On the stand puts everything away and holds the view. Pinch or drag to a passage; a wheel or + − zooms; arrows move; Esc leaves. The screen stays awake while you work.</p></aside>
 <div class="ez-timers" data-ez-timers hidden><span>A sitting of</span><button type="button" data-ez-min="5">5</button><button type="button" data-ez-min="15">15</button><button type="button" data-ez-min="30">30</button><button type="button" data-ez-min="60">60</button><span>minutes</span><button type="button" data-ez-min="0">Stop</button></div>
 </main><script src="/static/easel.js?v=${V.VER}" defer></script>`;
-    res.send(V.layout({ title: `${tidy(w.title)} · The easel`, path: '/easel', bare: true, body }));
+    res.send(V.layout({ title: `${tidy(w.title)} · The easel`, path: '/easel', bare: true, body: tq ? body.split(`/img/${esc(w.slug)}/large"`).join(`/img/${esc(w.slug)}/large${tq}"`).split(`/img/${esc(w.slug)}/wall"`).join(`/img/${esc(w.slug)}/wall${tq}"`) : body }));
   });
 }
 module.exports = { mountEasel };

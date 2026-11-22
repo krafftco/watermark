@@ -153,6 +153,8 @@ jobs:
           set -o pipefail
           NODE_ENV=test node test/a11y.js 2>&1 | tee /tmp/a11y.txt || { grep -q '::error title=a11y' /tmp/a11y.txt || echo "::error title=a11y::$(tail -c 1500 /tmp/a11y.txt | sed 's/%/%25/g' | awk 1 ORS='%0A')"; exit 1; }
       - run: NODE_ENV=test node test/wayback.js
+      # An album in Wander (PR #200): the order, the acts as the rules allow, the way back, the card, a stranger refused.
+      - run: NODE_ENV=test node test/albumwander.js
   # The reach walk (#42): every control on every page pressable at iPad, phone and desk sizes, in both rotations.
   reach:
     runs-on: ubuntu-24.04

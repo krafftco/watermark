@@ -15,6 +15,25 @@ Every sentence below is a draft for Will; the credit-only clause and the license
 - A deal made elsewhere can be written here. On the requests desk the photographer answers the same questions, names a fee or none, and sends the other side a link. They read the agreement, say who they are, and accept, or accept and pay. If there is a fee, all of it is the photographer's. Writing a license costs nothing. The photographer may withdraw it; the other side may decline it, with a word.
 - Every page that hands over the agreement now says it is a standard form, not legal advice.
 - Nothing here opens a conversation between strangers: every word belongs to one request, and ends in a price, a yes or a no.
+## 1.90.5 · In an album, Wander keeps the album's heart and its acts · 22 November 2026
+
+Every sentence below is a draft for Will.
+
+- In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.
+- In Wander, inside an album, the photograph on screen keeps everything the album allows: the heart beside its title (the same heart as on the album page), and Album on the side, which opens Download, Share (Post, Story, Message), Print and More (Keep it, Full size, Instax, That's me, That's a friend, Ask to license it), as the album's rules allow each person, and nothing more.
+- A way back to the album from Wander lands on the photograph you were looking at: the album's name at the top, the close, Esc, and "Back to the album, at this photograph".
+- The album page says once, under its toolbar, that a photograph pressed opens in Wander.
+- An album now plays from the earliest photograph to the latest, on its page, in Wander and in its film: by the time each was taken, then by the file's number. Albums already made read this way too, without being remade.
+- The link's card for an album leads with its cover, then the next two photographs; a new cover makes a new card.
+- A private gallery's hearts and That's me answer only to the people inside it.
+
+## 1.90.4 · A photographer's private work stays with the people it is for · 22 November 2026
+
+Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
+
+- A photograph that is not on view (a new upload, one kept back, one in a private gallery) is seen by its maker, the Studio, a curator the maker gave keys to, someone who holds a licence on it, and the people of an album that holds it. Anyone else is shown the house's own "not found" page.
+- An album open to anyone with its link still shows every photograph to everyone who has the link, on any device, signed in or not. A private gallery shows its photographs only to the people inside.
+- None of these photographs is kept along the way, by the house's edge or by the app on a phone.
 
 ## 1.90.3 · A photographer's own uploads are made ready at once · 22 November 2026
 
