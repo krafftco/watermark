@@ -5,6 +5,18 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.90.5 · In an album, Wander keeps the album's heart and its acts · 22 November 2026
+
+Every sentence below is a draft for Will.
+
+- In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.
+- In Wander, inside an album, the photograph on screen keeps everything the album allows: the heart beside its title (the same heart as on the album page), and Album on the side, which opens Download, Share (Post, Story, Message), Print and More (Keep it, Full size, Instax, That's me, That's a friend, Ask to license it), as the album's rules allow each person, and nothing more.
+- A way back to the album from Wander lands on the photograph you were looking at: the album's name at the top, the close, Esc, and "Back to the album, at this photograph".
+- The album page says once, under its toolbar, that a photograph pressed opens in Wander.
+- An album now plays from the earliest photograph to the latest, on its page, in Wander and in its film: by the time each was taken, then by the file's number. Albums already made read this way too, without being remade.
+- The link's card for an album leads with its cover, then the next two photographs; a new cover makes a new card.
+- A private gallery's hearts and That's me answer only to the people inside it.
+
 ## 1.90.4 · A photographer's private work stays with the people it is for · 22 November 2026
 
 Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
