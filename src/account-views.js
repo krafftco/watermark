@@ -72,7 +72,7 @@ ${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
 
 const I = require('./icons');
 const quietNow = () => { try { return require('./views').isQuiet(); } catch (e) { return false; } }; // the maker's week (8 Nov): the desk shows the path to a first sale
-function dashboard({ keys = [], role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, starCounts = [], at = null, older = null, newer = null, maker = null, culled = null, keeping = null, asks = 0, prints = null, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
+function dashboard({ shared = null, sharedLine = null, keys = [], role = null, m, pct, works, jewels, byUse, recent, totals, toMaker, multiple, viewing, need, keyed = true, welcome = false, stars = null, starCounts = [], at = null, older = null, newer = null, maker = null, culled = null, keeping = null, asks = 0, prints = null, owed = 0, claims = 0, pairs = 0, edit = null, rep = null, steps = null, batch = '', ok = null, almanack = null }) {
   setDeskPath('/account');
   // (#78) `works` is one page of the holdings (the newest, or what a search found); the counts are the database's.
   const DP = require('./deskpage');
@@ -85,7 +85,7 @@ function dashboard({ keys = [], role = null, m, pct, works, jewels, byUse, recen
     ? `<form method="post" action="/account/works/${esc(w.slug)}/show" class="inline"><button class="link ac-st">Public</button></form>`
     : `<details class="ac-pub"><summary>Private &middot; <u>Publish</u></summary><form method="post" action="/account/works/${esc(w.slug)}/show"><label><input type="checkbox" name="attest" value="1" required> I hold the rights, and releases for anyone identifiable, and I accept <a href="/legal/makers" target="_blank">the Maker Agreement</a></label><button>Publish</button></form></details>`;
   const row = w => `<div class="hd-row ac-row${viewing ? '' : ' ac-row-bt'}" id="w-${esc(w.slug)}">${viewing ? '' : `<label class="bt-ck"><input type="checkbox" form="batchForm" name="slugs" value="${esc(w.slug)}" aria-label="Select"></label>`}<a href="/w/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="${esc(w.title || 'A work')}" loading="lazy" draggable="false"></a>
-<span class="hd-t"><b><a href="/w/${esc(w.slug)}">${esc(w.title)}</a></b><small>${esc(w.place || '')}${viewing ? '' : `${w.place ? ' &middot; ' : ''}<a href="/voices/${esc(w.slug)}">Add your voice</a>`}</small></span>
+<span class="hd-t"><b><a href="/w/${esc(w.slug)}">${esc(w.title)}</a></b><small>${esc(w.place || '')}${viewing ? '' : `${w.place ? ' &middot; ' : ''}<a href="/voices/${esc(w.slug)}">Add your voice</a>`}</small>${shared && sharedLine && shared[w.id] ? sharedLine(w, shared[w.id]) : ''}</span>
 <span>${pub(w)}</span><span class="hd-c">${w.shares + w.licenses}</span><span class="hd-c">${w.seen30}</span><span class="hd-v">${money(toMaker(w.gross))}</span><span class="ac-star">${grade(w)}</span></div>`;
   const collected = byUse.filter(u => u.key === 'social').reduce((a, u) => a + u.gross, 0), licensed = byUse.filter(u => u.key !== 'social').reduce((a, u) => a + u.gross, 0);
   const share = c => (collected + licensed ? Math.round(100 * c / (collected + licensed)) : 0);

@@ -253,3 +253,9 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - What was found: (1) an album's order was `delivery_works.pos`, which is the picker's order when the album was made (newest upload first), so a night read from its end (Will saw it on ANI.31). (2) A private gallery's heart (`POST /a/:share/:slug/heart`) and That's me (`/me`) did not ask whether the caller was inside; a stranger with the address could heart or tag a photograph they could not see. (3) The album's link card was drawn from the first three works and cached under one name forever, so a cover chosen later never reached it.
 - The repair (1.90.5): `worksOf` sorts by `taken_at`, the file name read numerically, then `pos` (no row rewritten, so albums already made read in order at once); the heart and That's me answer 403 to a stranger of a private gallery; the card is the cover and the next two, cached under a key from their slugs, and the page's open-graph image carries the key. `test/albumwander.js` walks all three.
 - Not repaired: a card unfurled before this release in a chat keeps its old picture in that chat (the app's own copy). Old card files stay in the cache folder, unused.
+
+## 22 Nov 2026: the album's "That's me" form showed, empty, on every album page (#203, found walking the album at 390 wide)
+- What was found: `.dv-tag` in `public/style.css` is `display:grid`, and the form carries `hidden` until someone presses "That's me" or "That's a friend"; a rule that sets `display` beats the `hidden` attribute, so the empty form (Your name, Your email, Their name, Their email, Send) stood under the grid of every album, on a phone and on a desk. Seen in a screenshot of the test house; not checked on the live house.
+- The repair (1.92.0): `.dv-tag[hidden]{display:none}`.
+- Not repaired: nothing else looked for; other panels with `display:grid|flex` and `hidden` are agents/NOTES.md's standing rule.
+

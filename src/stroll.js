@@ -384,7 +384,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
     if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
-    if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6)) : '/deliver/' + encodeURIComponent(key.slice(9))); // closed, or not an album: its own door says so
+    if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6).replace(/\.guests$/, '')) : '/deliver/' + encodeURIComponent(key.slice(9).replace(/\.guests$/, ''))); /* (#203) the guests' walk is part of its album */ // closed, or not an album: its own door says so
     // (#198) Opened at a work not on view: only through the album that holds it, or for those it is for.
     const inAlbum = !!(at && set && set.tq && set.has.has(at.slug)), OV = app.locals.offView;
     if (at && !inAlbum && OV && OV.off(at) && !OV.may(req, at)) at = null;

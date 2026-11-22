@@ -18,6 +18,7 @@ const DAYS = Number(process.env.DELIVERY_DAYS || 30);
 const SIZES = { original: 'The 2,400-pixel copy, and the full file too', large: 'The 2,400-pixel copy only' }; // (21 Oct) the copy is what friends download: a couple of megabytes for a phone and for sharing; the full file is a second door
 function mountDeliveries(app, { db, C, V, I, mail, ledger, grant, nextRef, mk, q, makerOf, isStudio, originalPath, images, cache, marked, fileName, buyerOf, setBuyer }) {
   const { esc, tidy, date } = V;
+  let G = null; // (#203) the guests' own photographs (src/albumguests.js), mounted below
   db.exec(`CREATE TABLE IF NOT EXISTS deliveries (id INTEGER PRIMARY KEY, token TEXT NOT NULL UNIQUE, maker_id INTEGER NOT NULL, title TEXT NOT NULL, client_name TEXT NOT NULL, client_email TEXT, note TEXT,
     size TEXT NOT NULL DEFAULT 'original', expires_at TEXT, status TEXT NOT NULL DEFAULT 'open', opens INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), closed_at TEXT);
   CREATE TABLE IF NOT EXISTS delivery_works (delivery_id INTEGER NOT NULL, work_id INTEGER NOT NULL, pos INTEGER NOT NULL DEFAULT 0, ref TEXT NOT NULL, PRIMARY KEY (delivery_id, work_id));`);
@@ -54,13 +55,15 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   const holds = (token, slug) => { const d = byToken.get(token) || byShare.get(token); if (!d || !live(d)) return null; return worksOf(d).some(w => w.slug === slug) ? d : null; };
   const licOf = ref => db.prepare('SELECT * FROM licenses WHERE ref=?').get(ref);
   // The album as a set to wander (Will, 21 Oct): its photographs, in its order, while the link is live.
-  const set = (token, view = false, req = null) => { const d = (view ? byShare : byToken).get(String(token || '')); if (!d || !live(d)) return null; if (view && isPrivate(d) && !(req && capsOf(req, d, true).see)) return null; return { label: d.title, href: view ? `/a/${d.share_token}` : `/deliver/${d.token}`, via: view ? d.share_token : d.token, view, files: view ? null : d.token, works: worksOf(d).map(w => ({ id: w.id, slug: w.slug, title: w.title, width: w.width, height: w.height, maker_id: w.maker_id })) }; };
+  // (#203) `<token>.guests` is the guests' own walk: the pictures the photographer chose to show from them, by guest.
+  const keyOf = t => { const s = String(t || ''); const g = /\.guests$/.test(s); return { tok: g ? s.slice(0, -7) : s, guests: g }; };
+  const set = (token, view = false, req = null) => { const k = keyOf(token); const d = (view ? byShare : byToken).get(k.tok); if (!d || !live(d)) return null; if (view && isPrivate(d) && !(req && capsOf(req, d, true).see)) return null; const href = view ? `/a/${d.share_token}` : `/deliver/${d.token}`; return { label: k.guests ? `From the guests · ${d.title}` : d.title, href: k.guests ? href + '#guests' : href, via: view ? d.share_token : d.token, view, files: view ? null : d.token, works: (k.guests ? (G ? G.shownOf(d) : []) : worksOf(d)).map(w => ({ id: w.id, slug: w.slug, title: w.title, width: w.width, height: w.height, maker_id: w.maker_id })) }; };
   // What a viewer may do to a photograph while wandering the album (Will, 22 Nov: "Wander is the way we want people to
   // thumb through the albums, but we still want people to favourite, like, print"): the album's own acts and the
   // album's own rules (`capsOf`), the same endpoints as the album page, so a heart given in Wander is the album's heart.
   // Asked once, when Wander opens on the album; a few small questions over this album's rows, never the collection.
   const acts = (key, req) => {
-    const view = /^album:/.test(String(key || '')); const d = (view ? byShare : byToken).get(String(key || '').replace(/^(album|delivery):/, ''));
+    const view = /^album:/.test(String(key || '')); const kk = keyOf(String(key || '').replace(/^(album|delivery):/, '')); const d = (view ? byShare : byToken).get(kk.tok);
     if (!d || !live(d)) return null;
     const can = capsOf(req, d, view); if (!can.see) return null;
     const sh = shareOf(d), base = view ? `/a/${sh}` : `/deliver/${d.token}`, b = buyerOf(req), m = db.prepare('SELECT name FROM makers WHERE id=?').get(d.maker_id) || { name: '' };
@@ -68,7 +71,10 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
     const print = {}; if (!view) db.prepare('SELECT w.slug, l.ref, l.download_token FROM delivery_works dw JOIN works w ON w.id=dw.work_id JOIN licenses l ON l.ref=dw.ref WHERE dw.delivery_id=? AND l.download_token IS NOT NULL LIMIT 5000').all(d.id).forEach(r => { print[r.slug] = `/yours/p/${encodeURIComponent(r.ref)}?k=${encodeURIComponent(r.download_token)}#print`; });
     let mineS = []; const SI = app.locals.sitters;
     if (SI && b) { const ids = db.prepare('SELECT work_id FROM delivery_works WHERE delivery_id=? LIMIT 5000').all(d.id).map(r => r.work_id); const got = SI.mineIn(b, ids); if (got.size) mineS = db.prepare(`SELECT slug FROM works WHERE id IN (${[...got].map(() => '?').join(',')}) LIMIT 5000`).all(...got).map(r => r.slug); }
-    return { base, back: base, title: d.title, caps: { download: !!can.download, full: !!can.full, keep: !!can.keep, social: !!can.social, pass: !!can.pass, ask: !!can.ask }, instax: !view, hearts, print, mine: mineS, signed: !!(b && b.email), as: b && b.email ? b.email : '', msg: can.pass ? { title: d.title, text: `${d.title}, photographs by ${m.name}`, url: `${C.base}/a/${sh}` } : null };
+    const by = byLine(d); const gw = G && !kk.guests && G.shownOf(d).length ? G.walkOf(d, view) : null;
+    // (#203) the guests' walk: their pictures may be hearted, downloaded and shared as the album allows; prints, Keep it, a licence and the full file are the photographer's alone
+    if (kk.guests) return { base, back: base, title: `From the guests · ${d.title}`, caps: { download: !!can.download, full: false, keep: false, social: !!can.social, pass: !!can.pass, ask: false }, instax: false, hearts, print: {}, mine: mineS, signed: !!(b && b.email), as: b && b.email ? b.email : '', msg: can.pass ? { title: d.title, text: `${d.title}, photographs by ${m.name} and the guests`, url: `${C.base}/a/${sh}` } : null, by, add: can.add ? `${base}/add` : null };
+    return { base, back: base, title: d.title, caps: { download: !!can.download, full: !!can.full, keep: !!can.keep, social: !!can.social, pass: !!can.pass, ask: !!can.ask }, instax: !view, hearts, print, mine: mineS, signed: !!(b && b.email), as: b && b.email ? b.email : '', msg: can.pass ? { title: d.title, text: `${d.title}, photographs by ${m.name}`, url: `${C.base}/a/${sh}` } : null, by, add: can.add ? `${base}/add` : null, guests: gw };
   };
   const live = d => d.status === 'open' && !(d.expires_at && new Date(d.expires_at) < new Date());
   const url = d => `${C.base}/deliver/${d.token}`;
@@ -128,8 +134,8 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   if (!col('delivery_notes', 'work_id')) db.exec('ALTER TABLE delivery_notes ADD COLUMN work_id INTEGER');
   if (!col('delivery_notes', 'member_id')) db.exec('ALTER TABLE delivery_notes ADD COLUMN member_id INTEGER');
   const DOORS = { link: ['Anyone with the link', 'As it has always been: the link opens it.'], join: ['The group', 'A private gallery: the link asks a name, and they are in. You see who.'], invited: ['By invitation', 'Only the people you invite. Anyone else with the link may ask, and you let them in.'] };
-  const RULES = [['download', 'Download the copies', 'The 2,400-pixel copy, right for a phone'], ['full', 'Download the full files', 'For printing; only when the album carries them'], ['keep', 'Keep one in their own gallery', 'Theirs for good, with its papers, ready to print'], ['ask', 'Ask you to license one', 'For a company, a story, a wall: the request comes to you'], ['speak', 'Talk on the bench', 'Lines about the day or one photograph, seen only inside'], ['invite', 'Invite others', 'Members may bring someone in'], ['social', 'Post it', 'A credited copy sized for a feed or a story'], ['pass', 'Pass it on', 'A Share button for the album']];
-  const DEF_RULES = { download: 1, full: 0, keep: 1, ask: 1, speak: 1, invite: 0, social: 0, pass: 0 };
+  const RULES = [['download', 'Download the copies', 'The 2,400-pixel copy, right for a phone'], ['full', 'Download the full files', 'For printing; only when the album carries them'], ['keep', 'Keep one in their own gallery', 'Theirs for good, with its papers, ready to print'], ['ask', 'Ask you to license one', 'For a company, a story, a wall: the request comes to you'], ['speak', 'Talk on the bench', 'Lines about the day or one photograph, seen only inside'], ['invite', 'Invite others', 'Members may bring someone in'], ['social', 'Post it', 'A credited copy sized for a feed or a story'], ['pass', 'Pass it on', 'A Share button for the album'], ['add', 'Add their own photographs', 'Theirs, credited to them; you choose which the album shows']];
+  const DEF_RULES = { download: 1, full: 0, keep: 1, ask: 1, speak: 1, invite: 0, social: 0, pass: 0, add: 1 }; // add (#203): the album's people add their own photographs
   const rulesOf = d => { let r = {}; try { r = JSON.parse(d.rules || '{}') || {}; } catch (e) { /* */ } return Object.assign({}, DEF_RULES, r); };
   const isPrivate = d => d.door === 'join' || d.door === 'invited';
   const PGC = 'wm_pg';
@@ -141,6 +147,16 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
     if (!mm) { const b = buyerOf(req); if (b && b.email) mm = db.prepare("SELECT * FROM delivery_members WHERE delivery_id=? AND status='in' AND lower(email)=? ORDER BY id LIMIT 1").get(d.id, String(b.email).toLowerCase()); }
     return mm || null;
   };
+  // (#203, Will) One quiet line on every album: who made it, their own page when they have one, and the door to ask
+  // them for a night of one's own (the commission door, commission.js). Drafts for Will.
+  function byLine(d) {
+    const m = db.prepare('SELECT id, name, handle, standing FROM makers WHERE id=?').get(d.maker_id); if (!m) return null;
+    const pub = m.standing !== 'held' && !!db.prepare("SELECT 1 FROM works WHERE maker_id=? AND status='held' LIMIT 1").get(m.id);
+    return { name: m.name, first: first(m.name), href: pub ? `/m/${V.makerSlug ? V.makerSlug(m) : m.handle}` : null, ask: `/commission?to=${encodeURIComponent(m.handle)}` };
+  }
+  const byHtml = d => { const b = byLine(d); if (!b) return ''; return `<p class="dv-by">Photographs by ${b.href ? `<a href="${esc(b.href)}">${esc(b.name)}</a>` : esc(b.name)} <a class="dv-ask" href="${esc(b.ask)}">Ask ${esc(b.first)} to photograph your night</a></p>`; };
+  const findIn = (d, slug) => worksOf(d).find(x => x.slug === String(slug)) || (G ? G.shownOne(d, slug) : null);
+  const makerOfWork = (w, m) => (w.maker_id === m.id ? m : db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || m);
   const isHost = (req, d) => { const me = makerOf(req); return !!(me && me.id === d.maker_id) || isStudio(req); };
   const newToken = () => crypto.randomBytes(18).toString('base64url');
   // The client named on the album is a member of its own group, so the client's link opens the pictures too.
@@ -153,11 +169,11 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   // carries; behind a private door a member what the rules allow; behind the open door the shared link shows, never hands over.
   function capsOf(req, d, view) {
     const r = rulesOf(d), fullOk = allowsFull(d);
-    if (isHost(req, d)) return { see: true, download: true, full: fullOk, keep: true, ask: false, speak: true, invite: true, social: true, pass: true, host: true, member: null };
-    if (!view) return { see: true, download: true, full: fullOk, keep: true, ask: !!r.ask, speak: true, invite: isPrivate(d) && !!r.invite, social: true, pass: true, client: true, member: isPrivate(d) ? clientMember(d) : null };
-    if (!isPrivate(d)) return { see: true, download: false, full: false, keep: false, ask: !!r.ask, speak: true, invite: false, social: true, pass: true, member: null };
+    if (isHost(req, d)) return { see: true, download: true, full: fullOk, keep: true, ask: false, speak: true, invite: true, social: true, pass: true, add: false, host: true, member: null };
+    if (!view) return { see: true, download: true, full: fullOk, keep: true, ask: !!r.ask, speak: true, invite: isPrivate(d) && !!r.invite, social: true, pass: true, add: !!r.add, client: true, member: isPrivate(d) ? clientMember(d) : null };
+    if (!isPrivate(d)) return { see: true, download: false, full: false, keep: false, ask: !!r.ask, speak: true, invite: false, social: true, pass: true, add: !!r.add, member: null };
     const mm = memberIn(req, d); if (!mm) return { see: false };
-    return { see: true, download: !!r.download, full: !!(r.download && r.full && fullOk), keep: !!r.keep, ask: !!r.ask, speak: !!r.speak, invite: !!r.invite, social: !!r.social, pass: !!r.pass, look: !r.download && !r.social && !r.pass && !r.keep, member: mm };
+    return { see: true, download: !!r.download, full: !!(r.download && r.full && fullOk), keep: !!r.keep, ask: !!r.ask, speak: !!r.speak, invite: !!r.invite, social: !!r.social, pass: !!r.pass, add: !!r.add, look: !r.download && !r.social && !r.pass && !r.keep, member: mm };
   }
   const membersOf = d => db.prepare("SELECT * FROM delivery_members WHERE delivery_id=? AND status IN ('in','asked') ORDER BY status DESC, id").all(d.id);
   const inviteLink = mm => `${C.base}/in/${mm.token}`;
@@ -177,7 +193,7 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   const inviteSms = (mm, d, m) => `sms:${mm.phone || ''}?&body=${encodeURIComponent(`${first(mm.name) ? first(mm.name) + ', ' : ''}you are invited into ${d.title}, photographs by ${m.name}: ${inviteLink(mm)}`)}`;
   // The /img gate: a photograph kept back in a private gallery is shown only to its maker, the Studio, a curator, someone
   // who holds a licence on it, and the people inside one of the private galleries that hold it.
-  const guarded = workId => !!db.prepare("SELECT 1 FROM delivery_works dw JOIN deliveries d ON d.id=dw.delivery_id WHERE dw.work_id=? AND d.door IN ('join','invited') AND d.status='open' LIMIT 1").get(workId);
+  const guarded = workId => !!db.prepare("SELECT 1 FROM delivery_works dw JOIN deliveries d ON d.id=dw.delivery_id WHERE dw.work_id=? AND d.door IN ('join','invited') AND d.status='open' LIMIT 1").get(workId) || !!(G && G.guarded(workId)); // (#203) a guest's picture: theirs until shown
   // In an album whose link is live (any door): what the easel asks before a photograph not on view is studied (12 Nov).
   const inLive = workId => !!db.prepare("SELECT 1 FROM delivery_works dw JOIN deliveries d ON d.id=dw.delivery_id WHERE dw.work_id=? AND d.status='open' AND (d.expires_at IS NULL OR d.expires_at > ?) LIMIT 1").get(workId, new Date().toISOString());
   // (#198) Who may see a work not on view, beyond the house's own rule in app.js (`app.locals.offView`): a holder of a
@@ -190,6 +206,7 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
     const ts = tokensOf(req);
     if (ts.length && db.prepare(`SELECT 1 FROM delivery_members mm JOIN delivery_works dw ON dw.delivery_id=mm.delivery_id JOIN deliveries d ON d.id=mm.delivery_id WHERE dw.work_id=? AND mm.status='in' AND ${LIVE_D} AND mm.token IN (${ts.map(() => '?').join(',')}) LIMIT 1`).get(w.id, now, ...ts)) return true;
     if (b && b.email && db.prepare(`SELECT 1 FROM delivery_members mm JOIN delivery_works dw ON dw.delivery_id=mm.delivery_id JOIN deliveries d ON d.id=mm.delivery_id WHERE dw.work_id=? AND mm.status='in' AND ${LIVE_D} AND lower(mm.email)=? LIMIT 1`).get(w.id, now, String(b.email).toLowerCase())) return true;
+    if (G && G.mayView(req, w, ts, b && b.email ? String(b.email).toLowerCase() : '')) return true; // (#203) the photographer deciding; the people of an album that shows it
     return false;
   }
   // (#198) The album's own link, carried by each picture it shows (?token=): the client's link opens every door's
@@ -197,7 +214,7 @@ ${speak ? `<form method="post" action="${act}" class="dv-bookf" data-dv-bookf><i
   function passes(req, w, tok) {
     if (!w || !/^[\w-]{8,64}$/.test(tok || '')) return false;
     const d = byToken.get(tok) || byShare.get(tok); if (!d || !live(d)) return false;
-    if (!db.prepare('SELECT 1 FROM delivery_works WHERE delivery_id=? AND work_id=? LIMIT 1').get(d.id, w.id)) return false;
+    if (!db.prepare('SELECT 1 FROM delivery_works WHERE delivery_id=? AND work_id=? LIMIT 1').get(d.id, w.id) && !(G && w.slug && G.shownOne(d, w.slug))) return false; // (#203) or a guest's picture the album shows
     if (d.token === tok) return true;
     return !isPrivate(d) || !!capsOf(req, d, true).see;
   }
@@ -292,6 +309,7 @@ ${sent ? `<p class="dvd-ok">Made. Send it: Text it from your phone, or Share and
 ${on ? `<nav class="dvd-bar" aria-label="This album">${tool(`/deliver/${esc(d.token)}`, I.eye, 'Preview', ' target="_blank" rel="noopener"')}<button type="button" class="dvd-b" data-send data-send-title="${esc(d.title)}" data-send-text="${esc(`${d.title}, photographs by ${m.name}`)}" data-send-url="${esc(link)}">${I.share || ''}<span>Share</span></button>${tool(esc(smsHref(d, m)), I.send, 'Text')}<button type="button" class="dvd-b" data-copy="${esc(link)}">${I.page || ''}<span>Copy link</span></button>${spare ? tool('#add', I.plus, 'Add') : ''}<form method="post" action="/account/deliveries/${d.id}/close" onsubmit="return confirm('Close this album? The link stops working and its licences end.')"><button class="dvd-b">${I.close || ''}<span>Close</span></button></form></nav>
 <p class="dvd-link"><input readonly value="${esc(link)}" onclick="this.select()" aria-label="The album's link"><span class="note">${isPrivate(d) ? `The link with downloads, for ${esc(first(d.client_name))}. The group's door: <a href="/a/${esc(sh)}" target="_blank" rel="noopener">${esc(C.base)}/a/${esc(sh)}</a>${d.door === 'join' ? ' (they give a name to come in)' : ' (they ask; you let them in)'}.` : `The link with downloads, for them. To pass it round a group without the files: <a href="/a/${esc(sh)}" target="_blank" rel="noopener">the album to share</a>.`}</span></p>` : '<p class="dvd-l">This album is closed. Its link no longer opens.</p>'}
 ${on ? deskDoor(d, m, req) : ''}
+${G ? G.desk(d) : ''}
 <h2 class="dvd-h2">Photographs <span>Tap ☆ to make one the cover</span></h2>
 <div class="dvd-grid">${ws.map(w => `<figure class="dvd-w${cover && cover.id === w.id ? ' dvd-cov' : ''}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy">${counts[w.id] ? `<span class="dvd-hn">♥ ${counts[w.id]}</span>` : ''}<figcaption><span>${esc(tidy(w.title))}</span>${on ? `<form method="post" action="/account/deliveries/${d.id}/cover"><input type="hidden" name="slug" value="${esc(w.slug)}"><button class="dvd-i" title="${cover && cover.id === w.id ? 'The cover' : 'Make it the cover'}" aria-label="Make it the cover">${cover && cover.id === w.id ? '★' : '☆'}</button></form><form method="post" action="/account/deliveries/${d.id}/remove" onsubmit="return confirm('Take this photograph out of the album? It stays in your vault.')"><input type="hidden" name="slug" value="${esc(w.slug)}"><button class="dvd-i" title="Remove from this album" aria-label="Remove">×</button></form>` : ''}</figcaption></figure>`).join('')}</div>
 ${on && sc ? `<h2 class="dvd-h2">Scenes <span>Named by the time of day; rename them as you like</span></h2><form method="post" action="/account/deliveries/${d.id}/scenes" class="dvd-sc">${sc.map(c => `<label><img src="/img/${esc(c.list[0].slug)}/thumb" alt=""><span>${c.list.length} photograph${c.list.length === 1 ? '' : 's'}${c.when ? ` · ${esc(c.when)}` : ''}</span><input name="n_${esc(c.list[0].slug)}" value="${esc(names[c.list[0].slug] || '')}" placeholder="${esc(c.name)}" maxlength="60"></label>`).join('')}<p><button class="buy-btn">Save the names</button></p></form>` : ''}
@@ -447,15 +465,16 @@ ${spare ? `<form method="post" action="/account/deliveries/${d.id}/add" class="d
     const sh = shareOf(d); const base = view ? `/a/${esc(sh)}` : `/deliver/${esc(d.token)}`; const wander = view ? `/wander?in=album:${esc(sh)}` : `/wander?in=delivery:${esc(d.token)}`, logo = `<a class="dv-logo" href="/" aria-label="Watermark"><img src="/static/watermark-logo.svg" alt="Watermark" width="150" height="40"></a>`;
     const tq = carry(d, view); // (#198) each picture carries the address it was opened by
     res.send(withToken(V.layout({ title: `${d.title} · ${m.name}`, bare: true, desc: `${ws.length === 1 ? 'A photograph' : ws.length + ' photographs'} by ${m.name}. ${view ? 'Shared from' : 'Delivered with'} Watermark.`, path: `/a/${sh}`, image: `/a/${sh}/card.jpg?v=${cardOf(d, all).key}`, body: `<main class="dv"${scenes ? ' data-dv-scenes' : ''} data-dv-q="${esc(tq)}">${cover ? `<section class="dvc"><img class="dvc-im" src="/img/${esc(cover.slug)}/large" srcset="/img/${esc(cover.slug)}/large 2400w, /img/${esc(cover.slug)}/wall 3840w" sizes="100vw" alt="" fetchpriority="high"><div class="dvc-t">${logo}<p class="k">From ${esc(m.name)}${view ? '' : ` · for ${esc(d.client_name)}`}<span class="dvc-beta">Album · beta</span></p><h1>${esc(d.title)}</h1><p class="dvc-line">${ws.length === 1 ? 'A photograph' : `${ws.length} photographs`}${scenes ? ` in ${scenes.length} scenes` : ''}</p><p class="dvc-acts"><a class="dvc-go" href="#album">View the album</a><button type="button" class="dvc-play" data-dvp-open>${I.play || ''}<span>Play it</span></button></p></div></section>` : ''}<section class="dv-wall" id="album">
-<header class="dv-h">${logo}<p class="k">From ${esc(m.name)}${view ? '' : ` · for ${esc(d.client_name)}`}</p><h1>${esc(d.title)}</h1>
+<header class="dv-h">${logo}<p class="k">From ${esc(m.name)}${view ? '' : ` · for ${esc(d.client_name)}`}</p><h1>${esc(d.title)}</h1>${byHtml(d)}
 <p class="dv-gift">${ws.length === 1 ? 'A photograph' : `${ws.length} photographs`}${scenes ? ` in ${scenes.length} scenes` : ''} by ${esc(m.name)}, ${view ? 'shared with you' : 'made for you and yours to keep'}. Each carries ${esc(first(m.name))}’s name inside it, the way a print carries a signature.${!view && d.expires_at ? ` The link closes ${esc(date(d.expires_at))}.` : ''}</p>
 ${d.note ? `<blockquote class="dv-note"><p>${esc(d.note)}</p><footer>— ${esc(first(m.name))}</footer></blockquote>` : ''}
 ${mine.size ? `<p class="dv-you">You are in ${mine.size} of these. ${onlyMine ? `<a href="${base}">Show them all</a>` : `<a href="${base}?mine=1">Show only yours</a>`}</p>` : ''}</header>
-<nav class="dvt" aria-label="The album"><button type="button" class="dvt-b dvh-f" data-dvh-filter aria-pressed="false">${HEART}<span>Favourites <b data-dvh-count>${hearts.size}</b></span></button><button type="button" class="dvt-b" data-dvp-open>${I.play || ''}<span>Play</span></button><a class="dvt-b dv-wander" href="${wander}" title="Wander through them, one at a time, edge to edge">${V.WAVE_MARK || ''}<span>Wander</span></a>${can.download ? `<button type="button" class="dvt-b" data-dvt="dl">${I.in || ''}<span>Download</span></button>` : ''}${can.invite && isPrivate(d) ? `<a class="dvt-b" href="#people">${I.plus || ''}<span>Invite</span></a>` : ''}${can.pass ? `<button type="button" class="dvt-b" data-send data-send-title="${esc(d.title)}" data-send-text="${esc(`${ws.length === 1 ? 'A photograph' : ws.length + ' photographs'} by ${m.name}`)}" data-send-url="${esc(`${C.base}/a/${sh}`)}" title="${isPrivate(d) ? (d.door === 'join' ? 'Share the link: whoever opens it gives their name to come in' : 'Share the link: whoever opens it can ask to come in') : 'Share with the group: they see every picture and sign the book; the downloads stay with you'}">${I.share || ''}<span>Share</span></button>` : ''}</nav>
+<nav class="dvt" aria-label="The album"><button type="button" class="dvt-b dvh-f" data-dvh-filter aria-pressed="false">${HEART}<span>Favourites <b data-dvh-count>${hearts.size}</b></span></button><button type="button" class="dvt-b" data-dvp-open>${I.play || ''}<span>Play</span></button><a class="dvt-b dv-wander" href="${wander}" title="Wander through them, one at a time, edge to edge">${V.WAVE_MARK || ''}<span>Wander</span></a>${can.download ? `<button type="button" class="dvt-b" data-dvt="dl">${I.in || ''}<span>Download</span></button>` : ''}${can.add ? `<a class="dvt-b" href="${base}/add">${I.plus || ''}<span>Add yours</span></a>` : can.invite && isPrivate(d) ? `<a class="dvt-b" href="#people">${I.plus || ''}<span>Invite</span></a>` : ''}${can.pass ? `<button type="button" class="dvt-b" data-send data-send-title="${esc(d.title)}" data-send-text="${esc(`${ws.length === 1 ? 'A photograph' : ws.length + ' photographs'} by ${m.name}`)}" data-send-url="${esc(`${C.base}/a/${sh}`)}" title="${isPrivate(d) ? (d.door === 'join' ? 'Share the link: whoever opens it gives their name to come in' : 'Share the link: whoever opens it can ask to come in') : 'Share with the group: they see every picture and sign the book; the downloads stay with you'}">${I.share || ''}<span>Share</span></button>` : ''}</nav>
 <p class="dv-wl">${(x => `Press a photograph and it opens in Wander, one at a time; ${x.length > 1 ? x.slice(0, -1).join(', ') + ' and ' + x[x.length - 1] + ' go' : x[0] + ' goes'} with it.`)(['the heart', can.download && 'Download', !view && 'Print'].filter(Boolean))}</p>
 ${!can.download ? '' : `<div class="dvt-sheet" data-dvt-p="dl" hidden><a href="${base}/all.zip"><b>Download all ${ws.length === 1 ? '' : `(${ws.length})`}</b><i>2,400 pixels, a few megabytes each: right for a phone and for sharing</i></a><a data-dvh-dl href="${base}/all.zip?fav=1"${hearts.size ? '' : ' hidden'}><b>Download your favourites</b><i>Only the ones with a heart</i></a>${can.full ? `<a href="${base}/all.zip?full=1"><b>The full files</b><i>${esc(fullSize(ws))}, for printing</i></a>` : ''}</div>`}
 ${isMaker ? `<p class="dvh-mk">Only you see this: ${Object.values(counts).reduce((a, b) => a + b, 0)} favourites given across the album; each photograph shows its count.</p>` : ''}
 ${scenes ? `<nav class="dvs-nav" aria-label="Scenes">${scenes.map(c => `<a href="#${c.id}">${esc(c.name)}${c.when ? ` <small>${esc(c.when)}</small>` : ''}</a>`).join('')}</nav>${scenes.map(c => `<section class="dvs" id="${c.id}"><h2>${esc(c.name)}${c.when ? ` <small>${esc(c.when)}</small>` : ''}<span>${c.list.length}</span></h2><div class="dv-grid">${c.list.map(fig).join('')}</div></section>`).join('')}` : `<div class="dv-grid">${ws.map(fig).join('')}</div>`}<p class="dvh-none" data-dvh-none hidden>No favourites yet. Tap the heart on any photograph.</p>
+${G ? G.section(d, can, view, hearts) : ''}
 <form class="dv-tag" data-dv-tag data-base="${base}" hidden><p class="dv-tag-t" data-dv-tag-t></p>${me && me.email ? `<p class="dv-tag-me" data-dv-asme>As ${esc(me.email)}.</p>` : ''}<label data-dv-who><span>Your name</span><input name="name" maxlength="120" autocomplete="name"></label><label data-dv-who><span>Your email</span><input name="email" type="email" maxlength="160" autocomplete="email" inputmode="email"></label><label data-dv-fr><span>Their name</span><input name="friend_name" maxlength="120"></label><label data-dv-fr><span>Their email</span><input name="friend_email" type="email" maxlength="160" inputmode="email"></label><p class="dv-tag-row"><button class="buy-btn">Send</button><button type="button" class="link" data-dv-tag-x>Not now</button></p><p class="note">Adults only. A photograph is linked to a person only by their own yes; the house never recognises faces.</p></form>
 ${isPrivate(d) ? peopleBlock(d, m, req, can, base) : ''}${bookOf(d, req, view, can, base, all)}${ws.length ? `<section class="ty dv-ty" id="thanks"><div class="ty-card"><p class="k">A thank-you card</p>
 ${req.query.thanks === 'given' ? `<p class="ty-done">Sent. ${esc(first(m.name))} will see it.</p>` : req.query.thanks ? '<p class="ty-done">Not just now; the till is closed.</p>' : ''}
@@ -647,8 +666,8 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
   app.get(['/deliver/:token/:slug/file', '/a/:share/:slug/file'], async (req, res) => {
     const d = albumOf(req); if (!d || !live(d)) return res.sendStatus(404);
     const can = capsOf(req, d, !!req.params.share); if (!can.see || !can.download) return res.sendStatus(403);
-    const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
-    const full = req.query.full === '1' && can.full; const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
+    const w = findIn(d, req.params.slug); if (!w) return res.sendStatus(404);
+    const own = w.maker_id === d.maker_id; const full = req.query.full === '1' && can.full && own; const m = makerOfWork(w, db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id)); // (#203) a guest's picture leaves with the guest's name inside it
     try { const f = await fileOf(d, w, m, full); if (!f) return res.sendStatus(410);
       res.set('Content-Type', f.type); res.set('Content-Disposition', `attachment; filename="${f.ascii.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(f.name)}`); res.set('Cache-Control', 'private, no-store'); res.send(f.buf);
     } catch (e) { console.error('[delivery file]', w.slug, e.message); res.fault(e); }
@@ -659,7 +678,7 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
   app.post(['/deliver/:token/:slug/heart', '/a/:share/:slug/heart'], (req, res) => {
     const d = req.params.share ? byShare.get(String(req.params.share)) : byToken.get(String(req.params.token)); if (!d || !live(d)) return res.status(404).json({ ok: false });
     if (req.params.share && !capsOf(req, d, true).see) return res.status(403).json({ ok: false, why: 'private' }); // a private album's hearts are its members'
-    const w = worksOf(d).find(x => x.slug === req.params.slug); if (!w) return res.status(404).json({ ok: false });
+    const w = findIn(d, req.params.slug); if (!w) return res.status(404).json({ ok: false });
     const who = heartWho(req, res); const on = db.prepare('SELECT 1 FROM delivery_hearts WHERE delivery_id=? AND work_id=? AND who=?').get(d.id, w.id, who);
     if (on) db.prepare('DELETE FROM delivery_hearts WHERE delivery_id=? AND work_id=? AND who=?').run(d.id, w.id, who);
     else db.prepare('INSERT INTO delivery_hearts (delivery_id, work_id, who) VALUES (?,?,?) ON CONFLICT DO NOTHING').run(d.id, w.id, who);
@@ -669,11 +688,11 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
     const d = albumOf(req); if (!d || !live(d)) return res.sendStatus(404);
     const can = capsOf(req, d, !!req.params.share); if (!can.see || !can.download) return res.sendStatus(403);
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id), full = req.query.full === '1' && can.full;
-    let ws = worksOf(d); if (req.query.fav === '1') { const h = heartsOf(d, heartWho(req)); ws = ws.filter(w => h.has(w.id)); if (!ws.length) return res.redirect(req.params.share ? `/a/${encodeURIComponent(d.share_token)}` : `/deliver/${encodeURIComponent(d.token)}#album`); }
+    let ws = worksOf(d); if (req.query.fav === '1') { const h = heartsOf(d, heartWho(req)); ws = ws.concat(G && !full ? G.shownOf(d) : []).filter(w => h.has(w.id)); if (!ws.length) return res.redirect(req.params.share ? `/a/${encodeURIComponent(d.share_token)}` : `/deliver/${encodeURIComponent(d.token)}#album`); }
     res.set('Content-Type', 'application/zip'); res.set('Content-Disposition', `attachment; filename="${d.title.replace(/[^\w .-]+/g, ' ').trim() || 'Delivery'}, ${m.name.replace(/[^\w .-]+/g, ' ')} (Watermark).zip"`); res.set('Cache-Control', 'private, no-store');
     const zip = archiver('zip', { zlib: { level: 1 } }); zip.on('error', () => { try { res.end(); } catch (e) { /* */ } }); zip.pipe(res);
     for (const w of ws) {
-      try { const f = await fileOf(d, w, m, full); if (!f) continue;
+      try { const f = await fileOf(d, w, makerOfWork(w, m), full); if (!f) continue;
         const written = new Promise(r => zip.once('entry', r)); zip.append(f.buf, { name: f.name }); await written;
       } catch (e) { console.error('[delivery zip]', w.slug, e.message); }
     }
@@ -701,11 +720,11 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
     const post = req.path.endsWith('/post.jpg');
     const d = albumOf(req); if (!d || !live(d)) return res.sendStatus(404);
     { const can = capsOf(req, d, !!req.params.share); if (!can.see || !can.social) return res.sendStatus(403); }
-    const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
+    const w = findIn(d, req.params.slug); if (!w) return res.sendStatus(404);
     const out = path.join(cache, `${post ? 'post' : 'story'}-${w.slug}-${d.id}.jpg`);
     try {
       if (!fs.existsSync(out)) {
-        const sharp = require('sharp'); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(d.maker_id);
+        const sharp = require('sharp'); const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); // the picture's own maker: a guest's is credited to the guest (#203)
         const src = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'large', 'jpg');
         const W = 1080, H = post ? 1350 : 1920, boxW = post ? 940 : 960, boxH = post ? 1000 : 1380, top0 = post ? 70 : 150;
         const pic = await sharp(src).resize(boxW, boxH, { fit: 'inside' }).toBuffer({ resolveWithObject: true });
@@ -719,6 +738,8 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
       res.set('Cache-Control', 'private, max-age=3600'); res.type('image/jpeg').sendFile(out);
     } catch (er) { console.error('[story]', post ? 'post' : 'story', er.message); res.fault(er); }
   });
+  // (#203) Guests add their own photographs: mounted before the one-photograph page below, which would take /add as a slug.
+  G = require('./albumguests').mountAlbumGuests(app, { db, C, V, I, mail, ledger, grant, nextRef, q, D: { byTaken: (a, b) => byTaken(a, b), shareOf: d => shareOf(d), albumOf: req => albumOf(req), live: d => live(d), isHost: (req, d) => isHost(req, d), capsOf: (req, d, v) => capsOf(req, d, v), makerOf: req => makerOf(req), HEART } });
   app.get('/deliver/:token/:slug', (req, res) => {
     const d = byToken.get(String(req.params.token)); if (!d || !live(d)) return res.sendStatus(404);
     const w = worksOf(d).find(x => x.slug === String(req.params.slug)); if (!w) return res.sendStatus(404);
@@ -726,7 +747,8 @@ ${made ? `<div class="grp-made"><p><b>${esc(first(made.name))} is invited.</b>${
     res.set('Cache-Control', 'private, no-store');
     res.send(withToken(V.layout({ title: `${tidy(w.title)} · ${d.title} · Watermark`, bare: true, body: `<main class="dv dv-one"><a class="dv-back" href="/deliver/${esc(d.token)}">${I.back || ''}<span>${esc(d.title)}</span></a><img class="dv-big" src="/img/${esc(w.slug)}/large" alt="${esc(tidy(w.title))}"><p class="dv-cap"><b>${esc(tidy(w.title))}</b> · ${esc(m.name)}${w.place ? ` · ${esc(w.place)}` : ''} · <a href="/deliver/${esc(d.token)}/${esc(w.slug)}/file" download>Download</a><button type="button" class="dv-keep" data-dv-keep="${esc(w.slug)}">Keep it</button>${allowsFull(d) ? ` · <a href="/deliver/${esc(d.token)}/${esc(w.slug)}/file?full=1" download>Full size</a>` : ''} · <a href="/wander?in=delivery:${esc(d.token)}&at=${esc(w.slug)}">Wander from here</a></p></main>` }), carry(d, false)));
   });
-  app.locals.deliveries = { url, live, close, worksOf, holds, set, acts, guarded, mayView, passes, inLive, galleriesOf, isPrivate };
+  app.locals.deliveries = { url, live, close, worksOf, holds, set, acts, guarded, mayView, passes, inLive, galleriesOf, isPrivate, byLine, guests: G };
+  app.locals.albumGuests = G;
   return app.locals.deliveries;
 }
 module.exports = { mountDeliveries, SIZES };

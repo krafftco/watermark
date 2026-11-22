@@ -271,6 +271,15 @@ The CTO session keeps it honest.
   on the client's link); public/stroll.js adds the heart to the plate and Album to the rail, and the album's sheet is
   appended to `body` (inside `main.st` nothing rises above the house's tab bar, z-index 60). Each extra rail button costs
   about 63 px on a phone: at 390 × 664 two more ran the rail into the top bar. `test/albumwander.js` (CI's a11y job).
+- **Album guests** (#203, `src/albumguests.js`; `src/guests.js` is another room, a collector's guest list): a guest's
+  picture is a work of the guest's own studio (`hidden`), linked to the album only by `delivery_guest_works` (state
+  waiting | in | no | out), never by `delivery_works`, so `worksOf`, the cover, the card, the film and Wander's album walk
+  stay the photographer's. Anything that must also answer for a shown guest picture asks `findIn(d, slug)`; the guests'
+  walk is the key `album:<share>.guests` (`keyOf` in deliveries.js). A guest's studio is `makers.door='album'`,
+  `email_ok=0` until `/added/:token` (the letter) runs `app.locals.admit`. With #198's `passes(?token=)` the guest table
+  must be asked too (`G.mayView`). `test/albumguests.js` (a11y job and the Postgres loop).
+- A panel with `display:grid` and the `hidden` attribute shows anyway: the album's "That's me" form stood on every album
+  until 1.92.0. A full-page screenshot at 390 is the quickest way to see one.
 - **Albums' order**: `worksOf` sorts by `taken_at`, then the file name read numerically, then `pos` (the picker's order,
   newest upload first). There is no hand order yet; one would come before this sort. The link card's file is named by
   its three slugs (`cardOf`).
