@@ -66,14 +66,14 @@ self.addEventListener('fetch', e => {
       .catch(async () => (await caches.match('/wander')) || (await cold()) || landing(r.url, null)));
     return;
   }
-  if (PRIVATE.test(u.pathname) || u.searchParams.has('k')) return;
+  if (PRIVATE.test(u.pathname) || u.searchParams.has('k') || u.searchParams.has('token')) return; // (#198) an album's picture, opened by its own link, goes straight to the house
   // The shell: cache first, refreshed in the background. Never kept unless it is what was asked for (27 Oct: during a
   // deploy's cold minute the edge answered /static/style.css with the cold page, 200 and HTML, and the worker kept it as
   // the stylesheet, so every page on the phone came up bare until the cache was dropped): the answer's type must fit
   // the file's name, and a wrong answer is never served over a good copy already held.
   if (u.pathname.startsWith('/static/')) { e.respondWith(caches.open(V).then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (fits(u.pathname, res)) { c.put(r, res.clone()); return res; } return hit || res; }).catch(() => hit); return hit || net; })); return; }
   // Photographs as shown: cache first, a few hundred kept; only a picture is ever kept as one.
-  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/') && !res.headers.get('x-making')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
+  if (u.pathname.startsWith('/img/') || u.pathname.startsWith('/portrait/')) { e.respondWith(caches.open(V + '-img').then(async c => { const hit = await c.match(r); const net = fetch(r).then(res => { if (res.ok && (res.headers.get('content-type') || '').startsWith('image/') && !res.headers.get('x-making') && !/no-store/.test(res.headers.get('cache-control') || '')) { c.put(r, res.clone()); trim(V + '-img', 400); return res; } return hit || res; }); if (hit) { e.waitUntil(net.catch(() => {})); return hit; } return net; })); return; }
   // Pages: the house first; the last copy if the house cannot be reached; the offline room if there is none.
   if (r.mode === 'navigate' || (r.headers.get('accept') || '').includes('text/html')) {
     e.respondWith(fetch(r).then(async res => { if (res.ok && res.type === 'basic' && (res.headers.get('content-type') || '').includes('text/html') && !res.headers.get('content-disposition')) caches.open(V + '-pages').then(c => { c.put(r, res.clone()); trim(V + '-pages', 120); }); /* a download is never kept as a page */ if (res.status >= 502 && res.status <= 504) return (await caches.match(r)) || (await cold()) || res; return res; })

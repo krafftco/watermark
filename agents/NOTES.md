@@ -216,6 +216,12 @@ The CTO session keeps it honest.
   `own10s` beside `visitors10s` on /healthz. test/governor.js runs one process per role (the role is read at require).
 - Many distinct test pictures: a field of noise each (`sharp({ create: { …, noise } })`) passes the fingerprint; hue or
   brightness alone does not. test/keptcopies.js (KEPT_N) uploads through the arrivals doors and walks the album picker.
+- (#198) A work not on view (not held, or kept back) is guarded in one place: `app.locals.offView` in app.js (`off(w)`,
+  `may(req, w)`, `keepPrivate(res)`), asked by a gate before every door in `OFF_DOORS` and by /img, Wander and the easel.
+  A new door that names a work by slug goes into `OFF_DOORS`; a new place a hidden work is shown on purpose goes into
+  `shownAnyway` (volumes, opened contact sheets). A page that shows an album's pictures carries the album's token on each
+  (`?token=`, deliveries.js `carry`/`withToken`, album.js `data-dv-q`); a cookie alone never opens a stranger's picture.
+  A test that fetches a maker's own upload must do it as the maker (test/pairs.js once did it as a stranger).
 - An AI call's failure goes through `app.locals.spend.heard(e, module)` in its catch: out of credit it stops the
   background for AL_CREDIT_WAIT_MIN and the Studio's desk says it once (settings `credit_low`).
 
