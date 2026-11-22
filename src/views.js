@@ -2,6 +2,8 @@ const FEE = require('./fee');
 // HTML for every page. Plain functions, no template engine.
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = (c, cur = 'usd') => c == null ? 'On request' : new Intl.NumberFormat('en-US', { style: 'currency', currency: cur.toUpperCase(), maximumFractionDigits: c % 100 ? 2 : 0 }).format(c / 100);
+// (#184) A use's price as a visitor reads it: a maker who prices a use at nothing asks only for credit.
+const useFee = (c, cur) => (c === 0 ? 'Credit only' : money(c, cur));
 // Titles as a catalogue sets them: no closing period, proper apostrophes.
 const tidy = s => String(s == null ? '' : s).trim().replace(/\.$/, '').replace(/(\w)'(\w)/g, '$1\u2019$2').replace(/'/g, '\u2019');
 // The maker's mark, used as the Collect seal. Krafft makers carry the hand-made K; others the Watermark wave.
@@ -581,12 +583,12 @@ function work({ onview = null, seen = '', prints = '', objectLabel = '', zoneLab
   const share = uses.find(u => u.key === 'social' && u.price_cents != null);
   // The K toggles between uses: Collect is the default; the others are a tap away, and the seal commits.
   const tUses = share ? [{ k: 'social', l: 'Collect', b: ed ? `Collect No.\u00a0${ed.sold + 1}` : 'Collect', d: `Yours to keep and to share, credited. ${FEE.on() ? 'The price is the maker’s.' : '85% goes to the maker.'}` },
-    ...uses.filter(u => u !== share).map(u => ({ k: u.key, l: u.name, b: u.name, d: `${u.description} ${termText(u)}. ${u.price_cents == null ? 'Price on request.' : money(u.price_cents) + '.'}` }))] : [];
+    ...uses.filter(u => u !== share).map(u => ({ k: u.key, l: u.name, b: u.name, d: `${u.description} ${termText(u)}. ${u.price_cents == null ? 'Price on request.' : useFee(u.price_cents) + '.'}` }))] : [];
   // The seal opens a card of every way to have the photograph, the same card as the K on Krafft Studios.
   const toggle = tUses.length > 1 ? `<ul class="seal-menu" role="menu" hidden><li class="sm-h" role="presentation">Have this photograph</li>${tUses.map(u => {
     const pu = uses.find(x => x.key === u.k);
-    return `<li role="none"><button type="button" role="menuitem" data-k="${esc(u.k)}"><b>${esc(u.k === 'social' ? u.b : u.l)}</b>${u.k !== 'social' && pu && pu.price_cents != null ? `<em>${money(pu.price_cents)}</em>` : ''}<i>&rsaquo;</i></button></li>`; }).join('')}</ul>` : '';
-  const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${money(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null || u.needsMaster ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
+    return `<li role="none"><button type="button" role="menuitem" data-k="${esc(u.k)}"><b>${esc(u.k === 'social' ? u.b : u.l)}</b>${u.k !== 'social' && pu && pu.price_cents != null ? `<em>${useFee(pu.price_cents)}</em>` : ''}<i>&rsaquo;</i></button></li>`; }).join('')}</ul>` : '';
+  const options = uses.filter(u => u !== share).map(u => `<a class="use" href="/license/${esc(w.slug)}?use=${esc(u.key)}"><span class="un">${esc(u.name)}</span><span class="up">${useFee(u.price_cents)}</span><span class="ud">${esc(u.description)} ${esc(termText(u))}.</span><span class="ua">${u.price_cents == null || u.needsMaster ? 'Ask' : u.kind === 'print' ? 'Order' : 'License'} <i></i></span></a>`).join('');
   const trade = ''; // trades in kind stay by address (/swap/new) until there is a second collector to trade with (Will, 21 Oct)
   // Launch fix 1.4: no small numbers on the wall. Counts show from five; below that, names or a quiet line.
   const named = held.shown.map(c => `<a href="/g/${esc(c.code)}">${esc(c.name || 'a private collector')}</a> <small>No.&nbsp;${c.no}</small>`).join(', ');
@@ -840,12 +842,12 @@ function contractPage({ sections, w, maker, u, t, preview = false, lic = null })
   return layout({ title: `${preview ? 'The agreement' : 'Agreement ' + lic.ref} · ${tidy(w.title)}`, body: `<section class="ct-wrap">
 <p class="k">${preview ? 'The agreement, as it would read' : `Agreement ${esc(lic.ref)}`}</p>
 <h1>Standard Content License Agreement</h1>
-<p class="ct-for"><i>${esc(tidy(w.title))}</i>, photograph by ${mlink(maker.name)} &middot; ${esc(u.name)}${t.price != null && !t.ask ? ` &middot; ${money(t.price)}` : ''}</p>
+<p class="ct-for"><i>${esc(tidy(w.title))}</i>, photograph by ${mlink(maker.name)} &middot; ${esc(u.name)}${t.credit ? ' &middot; Credit only' : t.price != null && !t.ask ? ` &middot; ${money(t.price)}` : ''}</p>
 <div class="ct-sum"><div><span>Granted</span>${has.length ? has.map(esc).join(', ') : u.kind === 'print' ? 'A physical print' : 'Personal use'}${t.extras.length ? `; ${t.extras.map(k => esc(C.EXTRAS.find(e => e.key === k).label)).join(', ')}` : ''}</div>
 <div><span>Term</span>${t.term_months ? `${t.term_months / 12 === 1 ? '1 year' : t.term_months + ' months'}` : 'Perpetual'}</div>
 <div><span>Never</span>${t.never.length ? t.never.map(k => esc(require('./rules').NEVER[k])).join('; ') : 'No further restrictions'}</div></div>
 ${contractBody(sections)}
-<p class="note">${preview ? 'Assembled from the rights chosen. The agreement you accept at checkout is this text, with your name and order added.' : 'Accepted at checkout and recorded on the register.'} Drafted with counsel; under review.</p>
+<p class="note">${preview ? 'Assembled from the rights chosen. The agreement you accept at checkout is this text, with your name and order added.' : lic.status === 'offered' ? `Written by ${esc(maker.name)}; not yet accepted.` : t.written || (t.credit && !(lic.price_cents > 0)) ? 'Accepted on Watermark and recorded on the register.' : 'Accepted at checkout and recorded on the register.'} Drafted with counsel; under review. ${esc(require('./contract').FORM_NOT_ADVICE)}</p>
 <p class="sr-also"><a href="/w/${esc(w.slug)}">The photograph</a></p></section>` });
 }
 
@@ -876,11 +878,11 @@ function buy({ w, maker, uses, chosen, renews, instant, rules = { never: [], app
   const held = Object.fromEntries((renews ? [] : mine).map(m => [m.key, m]));
   const open = uses.filter(u => !held[u.key]);
   const pick = open.find(u => u.key === chosen) || open.find(u => u.key === 'social' && u.price_cents != null) || open.find(u => u.key === 'commercial') || open[0] || uses[0];
-  const label = u => !u || u.price_cents == null || !instant || u.needsMaster ? 'Ask the maker' : rules.approve ? `Request for ${money(u.price_cents)}` : `${u.key === 'social' ? 'Collect' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
+  const label = u => !u || u.price_cents == null || u.needsMaster ? 'Ask the maker' : rules.approve ? `Request for ${useFee(u.price_cents)}` : u.price_cents === 0 ? 'License it for credit' : !instant ? 'Ask the maker' : `${u.key === 'social' ? 'Collect' : u.kind === 'print' ? 'Order' : 'License'} for ${money(u.price_cents)}`;
   const row = u => held[u.key] ? `<label class="bu is-mine"><input type="radio" name="use" value="${esc(u.key)}" disabled>
 <span class="bu-n">${esc(u.name)}</span><span class="bu-p">Yours</span>
 <span class="bu-d">${held[u.key].ends_at ? `Licensed to you until ${date(held[u.key].ends_at)}.` : 'In your gallery.'} <a href="/c/${esc(held[u.key].ref)}${held[u.key].download_token ? `?k=${esc(held[u.key].download_token)}` : ''}">Your license</a></span></label>` : `<label class="bu"><input type="radio" name="use" value="${esc(u.key)}" data-label="${esc(label(u))}" ${u === pick ? 'checked' : ''}>
-<span class="bu-n">${esc(u.name)}</span><span class="bu-p">${money(u.price_cents)}</span>
+<span class="bu-n">${esc(u.name)}</span><span class="bu-p">${useFee(u.price_cents)}</span>
 <span class="bu-d">${esc(u.description)} <em>${esc(termText(u))}.</em>${u.needsMaster ? ' <span class="bu-nm">The maker supplies the full-resolution file for this use; they reply within the day.</span>' : ''}</span></label>`;
   // Share it leads; the larger uses wait behind one line until someone asks for them.
   const lead = uses.find(u => u.key === 'social' && u.price_cents != null);
@@ -903,7 +905,7 @@ ${rightsPanel(uses, rules)}
 <details class="buy-note"><summary>Add a note for the maker</summary><textarea name="note" rows="3" placeholder="Where it will appear. Optional."></textarea></details>
 ${open.map(u => HOLDS.block({ use: u, t: require('./contract').terms({ use: u, never: rules.never, base: u.price_cents, transfer: rules.transfer || null }), maker: maker.name, edition: !!w.edition_size, will: true }, { attrs: `data-holds-for="${esc(u.key)}"${u === pick ? '' : ' hidden'}` })).join('')}
 <button type="submit" class="buy-btn" id="buyBtn">${esc(label(pick))}</button>
-<p class="buy-assent">By paying you accept the <a href="/contract/${esc(w.slug)}?use=${esc(pick ? pick.key : '')}" target="_blank" data-assent>license agreement</a> for the rights you chose. It is binding on both sides, and a copy is yours with the certificate.</p>
+<p class="buy-assent">By paying you accept the <a href="/contract/${esc(w.slug)}?use=${esc(pick ? pick.key : '')}" target="_blank" data-assent>license agreement</a> for the rights you chose. It is binding on both sides, and a copy is yours with the certificate. ${esc(require('./contract').FORM_NOT_ADVICE)}</p>
 ${rules.never.length ? `<p class="never"><span>The maker says never</span>${rules.never.map(k => esc(NEVER[k])).join(' &middot; ')}</p>` : ''}
 <p class="buy-how">${rules.approve ? 'The maker approves each license personally, usually within the day. You pay only once it is approved.' : instant ? (pick && pick.key === 'social' ? 'Apple Pay, Google Pay or card. The file is yours the moment you pay, ready to post.' : 'Apple Pay, Google Pay or card. The full file, a certificate and a receipt arrive the moment you pay.') : 'The maker replies with terms and a payment link, usually within the day.'}</p>
 <ul class="buy-p"><li>Paid to the maker</li><li>Full resolution, licensed in the file</li><li>Recorded in Watermark&rsquo;s <a href="/ledger">register</a></li></ul>
@@ -922,26 +924,28 @@ var a=document.querySelector('[data-ask]');a&&a.addEventListener('click',functio
 }
 
 // For anything bespoke: three fields, then the maker answers.
-function ask({ w, maker, u, t = null, note, renews, error, approve, uses = [] }) {
+function ask({ w, maker, u, t = null, note, renews, error, approve, uses = [], credit = false }) {
   // The menu stays with the buyer: every other use the work allows, a tap away, instant ones marked by price, the rest as Ask.
-  const menu = uses.length > 1 ? `<nav class="buy-menu" aria-label="Other uses"><p class="k">Or another use</p><ul>${uses.map(x => `<li${x.key === u.key ? ' class="now"' : ''}><a href="${x.needsMaster || x.price_cents == null ? `/buy/${esc(w.slug)}?use=${esc(x.key)}` : `/license/${esc(w.slug)}?use=${esc(x.key)}`}"><b>${esc(x.name)}</b><span>${x.needsMaster || x.price_cents == null ? 'Ask the maker' : money(x.price_cents) + ' · at once'}</span></a></li>`).join('')}</ul><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></nav>` : `<p class="buy-back-p"><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></p>`;
+  const menu = uses.length > 1 ? `<nav class="buy-menu" aria-label="Other uses"><p class="k">Or another use</p><ul>${uses.map(x => `<li${x.key === u.key ? ' class="now"' : ''}><a href="${x.needsMaster || x.price_cents == null ? `/buy/${esc(w.slug)}?use=${esc(x.key)}` : `/license/${esc(w.slug)}?use=${esc(x.key)}`}"><b>${esc(x.name)}</b><span>${x.needsMaster || x.price_cents == null ? 'Ask the maker' : useFee(x.price_cents) + ' · at once'}</span></a></li>`).join('')}</ul><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></nav>` : `<p class="buy-back-p"><a class="buy-back" href="/w/${esc(w.slug)}">&larr; The work</a></p>`;
   return layout({
     title: `Ask about ${w.title} · Watermark`,
     body: `<section class="buy buy-ask">
 <figure class="buy-fig"><div class="buy-plate"><img src="/img/${esc(w.slug)}/screen" alt="${esc(w.title)}" draggable="false"></div>
 <figcaption><b>${esc(w.title)}</b><br>${esc(OBJ.by(w, maker.name))}</figcaption></figure>
 <form method="post" action="/license/${esc(w.slug)}" class="buy-form form">
-<p class="k">${esc(u.name)}${approve && u.price_cents != null ? ` &middot; ${money(u.price_cents)}` : ''}</p><h1>${approve ? 'This maker approves each license personally.' : 'Tell the maker what you have in mind.'}</h1>
+<p class="k">${esc(u.name)}${(approve || credit) && u.price_cents != null ? ` &middot; ${useFee(u.price_cents)}` : ''}</p><h1>${credit ? `${esc(maker.name)} asks only to be credited.` : approve ? 'This maker approves each license personally.' : 'Tell the maker what you have in mind.'}</h1>
+${credit ? `<p class="lede">There is no fee. Say who the license is for and it is yours at once: the agreement, the file and the certificate, recorded on the register.</p>` : ''}
 ${error ? `<p class="err">${esc(error)}</p>` : ''}
 <input type="hidden" name="use" value="${esc(u.key)}"><input type="hidden" name="agree" value="1">
 ${t && t.territory ? `<input type="hidden" name="where" value="${esc(t.territory.code)}">` : ''}${t && t.limit ? `<input type="hidden" name="of" value="${esc(t.limit.of)}"><input type="hidden" name="many" value="${esc(String(t.limit.n))}">` : ''}
-${t && (t.territory || t.limit) ? HOLDS.block({ use: u, t, maker: maker.name, will: true }) : ''}
+${t && (t.territory || t.limit || credit) ? HOLDS.block({ use: u, t, maker: maker.name, will: true }) : ''}
 ${renews ? `<input type="hidden" name="renews" value="${esc(renews)}">` : ''}
 <label>Your name<input name="name" required autocomplete="name" autofocus></label>
 <label>Email<input name="email" type="email" required autocomplete="email"></label>
-<label>The project<textarea name="intended" rows="4" placeholder="Where it will appear, for how long, and whether you need it exclusively.">${esc(note || '')}</textarea></label>
-<button type="submit" class="buy-btn">Send to the maker</button>
-<p class="buy-how">A reply with terms and a one-tap payment link, usually within the day.</p>
+${credit ? '<label>Company <small>optional</small><input name="company" autocomplete="organization"></label>' : ''}
+<label>The project${credit ? ' <small>optional</small>' : ''}<textarea name="intended" rows="4" placeholder="Where it will appear, for how long, and whether you need it exclusively.">${esc(note || '')}</textarea></label>
+<button type="submit" class="buy-btn">${credit ? 'Take the license' : 'Send to the maker'}</button>
+<p class="buy-how">${credit ? `By taking it you accept the <a href="/contract/${esc(w.slug)}?use=${esc(u.key)}" target="_blank">license agreement</a>, and with it the credit to ${esc(maker.name)} wherever the use allows. ${esc(require('./contract').FORM_NOT_ADVICE)}` : 'A reply with terms and a one-tap payment link, usually within the day.'}</p>
 </form>${menu}</section>`
   });
 }
@@ -1472,7 +1476,7 @@ function certificate({ lic, w, maker, use, entry, base, owner, seats = null, sea
   let t = null; try { t = lic.rights ? JSON.parse(lic.rights) : null; } catch (e) { /* older license */ }
   const added = t ? C.RIGHTS.filter(r => t.added.includes(r.key)).map(r => r.label.toLowerCase()) : [];
   const extras = t ? t.extras.map(k => (C.EXTRAS.find(e => e.key === k) || {}).label).filter(Boolean) : [];
-  const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended' }[lic.status] || lic.status;
+  const status = { active: 'Licensed', requested: 'Requested', awaiting_payment: 'Awaiting payment', declined: 'Declined', expired: 'Ended', offered: 'Written, not yet accepted' }[lic.status] || lic.status;
   const says = use.kind === 'print' ? `${esc(who)} owns this print: signed, archival, theirs to keep.`
     : `${esc(who)} may use this photograph ${esc(USE_SAYS[use.key] || use.name.toLowerCase())}${added.length ? `, and also in ${esc(added.join(', '))}` : ''}${extras.length ? `. Included: ${esc(extras.join(', ').toLowerCase())}` : ''}${active ? (lic.ends_at ? `, until ${date(lic.ends_at)}.` : ', for good.') : '.'}`;
   let left = '';
@@ -1499,7 +1503,7 @@ ${left}
 <dl class="lc2-dl">
 <div><dt>Licensed to</dt><dd>${esc(who)}</dd></div>
 <div><dt>For</dt><dd>${esc(use.name)}</dd></div>
-${lic.price_cents != null ? `<div><dt>Paid</dt><dd>${money(lic.price_cents, lic.currency)}${lic.collector_no ? ` &middot; No.&nbsp;${lic.collector_no}` : ''}${lic.house_cents != null && lic.price_cents > 0 ? `<br><small>${money(lic.price_cents - lic.house_cents, lic.currency)} to the maker &middot; <a href="/share">${money(lic.house_cents, lic.currency)} the house&rsquo;s share</a></small>` : ''}</dd></div>` : ''}
+${t && t.credit ? `<div><dt>Fee</dt><dd>None: credit only</dd></div>` : lic.price_cents != null ? `<div><dt>Paid</dt><dd>${money(lic.price_cents, lic.currency)}${lic.collector_no ? ` &middot; No.&nbsp;${lic.collector_no}` : ''}${lic.house_cents != null && lic.price_cents > 0 ? `<br><small>${money(lic.price_cents - lic.house_cents, lic.currency)} to the maker &middot; <a href="/share">${money(lic.house_cents, lic.currency)} the house&rsquo;s share</a></small>` : ''}</dd></div>` : ''}
 <div><dt>Credit</dt><dd>${OBJ.kindWord(w)} by ${mlink(maker.name)}</dd></div>
 </dl>
 <div class="lc2-cc"><div><p class="lc2-h">You can</p><ul>${can.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><p class="lc2-h">You can&rsquo;t</p><ul class="no">${cannot.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>
@@ -1513,7 +1517,7 @@ ${active ? `<a href="/c/${esc(lic.ref)}.pdf">Certificate (PDF)</a>` : ''}
 <div class="lc2-coa">${SHIELD}<div><p class="lc2-h">Certificate of authenticity</p>
 <p>This certifies that the photograph above is an original work by ${esc(maker.name)}, held on Watermark${w.accession ? ` as ${esc(w.accession)}` : ''} since ${date(w.created_at)}, and that ${esc(who)} holds the license set out here${active ? `, granted on ${date(lic.starts_at)}` : ''}.</p>
 <p class="lc2-sig"><span>${esc(maker.name)}</span><small>The maker, through Watermark</small></p>
-${t && t.hash && active ? `<p class="lc2-acc">Agreement accepted by ${esc(who)} at payment on ${date(lic.starts_at)}. Order ${esc(lic.ref)}.</p>` : ''}</div></div>
+${t && t.hash && active ? `<p class="lc2-acc">Agreement accepted by ${esc(who)} ${t.credit || t.written ? 'on Watermark' : 'at payment'} on ${date(lic.starts_at)}. Order ${esc(lic.ref)}.${t.written ? ` Written by ${esc(maker.name)} for a deal made between them.` : ''}</p>` : ''}</div></div>
 ${owner && seats && seats.capacity > 1 && lic.download_token ? `<section class="lc2-seats" id="seats"><p class="lc2-h">People on this license <span>${seats.list.length + 1} of ${seats.capacity} seats</span></p>
 <p class="lc2-sn">Everyone at ${esc(who)} who works with the work can hold the license too: the file, the agreement and the dates, in their own collection. Each seat is recorded.</p>
 ${seat && seat.length > 12 ? `<p class="ok">Seat added. Their link: <input class="lc2-link" readonly value="${esc(base)}/seat/${esc(seat)}" onclick="this.select()"></p>` : seat === 'full' ? '<p class="err">Every seat is in use. Remove one, or add more below.</p>' : seat === 'added' ? '<p class="ok">Seats added.</p>' : seat === 'unavailable' ? '<p class="err">Payment is unavailable for a moment. Try again shortly.</p>' : seat === 'email' ? '<p class="err">An email address, so they can be sent their link.</p>' : seat === 'ended' ? '<p class="err">This license has ended.</p>' : ''}

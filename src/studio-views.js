@@ -114,7 +114,7 @@ function uses({ list, notice, base = '/studio/uses', studio = true, simply = '' 
 
 
 // One work: the maker's terms, and the life of the photograph so far.
-function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true, zoneBlock = '', objectBlock = '', editionsBlock = '' }) {
+function workTerms({ makerName = '', reply = null, w, rules, uses, NEVER, seen, lic, seals = [], rooms = [], views = [], notice, base = '/studio/works', studio = true, zoneBlock = '', objectBlock = '', editionsBlock = '' }) {
   notice = { editions: 'The print editions are saved.', editioncheck: 'A size and a price, please.', editionheld: 'Saved, as far as the rules allow: a size that has sold can be made smaller, down to what is sold, never larger, and its prices can rise, never fall.', printhanded: 'Marked as handed over. The collector has been told.', printsent: 'Marked as sent. The collector has been told.', printdelivered: 'Marked as arrived.', printno: 'That number is not in the edition, or another print already carries it.', printmoved: 'That print has already moved on.', shown: 'On view. To sell a print of it, fill in A print to sell, below.' }[notice] || notice;
   const licBase = studio ? '/studio/licenses' : '/account/requests';
   if (!studio) setDeskPath('/account');
@@ -128,6 +128,7 @@ function workTerms({ makerName = '', w, rules, uses, NEVER, seen, lic, seals = [
 <div class="stats wt-stats"><div><b>${money(earned)}</b><span>earned for you</span></div><div><b>${paid.length}</b><span>times licensed</span></div><div><b>${lic.filter(l => l.status === 'requested').length}</b><span>waiting</span></div><div><b>${seen.length}</b><span>sightings</span></div></div>
 <p class="wt-links"><a href="/w/${esc(w.slug)}">Its page</a><a href="/w/${esc(w.slug)}/life">Its life</a><a href="/voices/${esc(w.slug)}">Voices</a><a href="/closer/${esc(w.slug)}">Look closer</a><a href="/account/works/${esc(w.slug)}/splits">Shares and releases</a>${studio ? `<a href="/w/${esc(w.slug)}/archive.wmark">The archive (.wmark)</a>` : ''}</p></div></div>
 ${!studio && w.status !== 'held' ? `<form method="post" action="/account/works/${esc(w.slug)}/show" class="wt-show"><input type="hidden" name="back" value="desk"><p>Private: only you see it. Put it on view to offer it, and prints of it.</p><label class="chk"><input type="checkbox" name="attest" value="1" required> I made this and hold the rights. A personal Collect needs no release; a company’s use would.</label><button class="buy-btn">Put it on view</button></form>` : ''}${notice ? `<p class="ok">${esc(notice)}</p>` : ''}
+${reply ? `<p class="note">Its reply link, for a comment or a message: <input class="lc2-link" readonly value="${esc(reply)}" onclick="this.select()" aria-label="Its reply link"> <a href="/account/requests?write=${esc(encodeURIComponent(w.slug))}#write">Write a license for a deal made elsewhere</a></p>` : ''}
 <div data-desk-tabs>
 <h2>Catalogue record</h2>
 <div class="cat"><dl class="facts cat-fixed">
