@@ -323,7 +323,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
       no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
-      fee: V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
+      fee: t.credit && !cents ? 'Nothing: credit only' : V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
       certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
@@ -618,6 +618,58 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // worker made, shared by every copy of the website through `prepared_pages`, with no statement in the request. Anyone
   // the house knows (a sign-in, their own looking, a basket, a walk, a tenant, a query) is built fresh, `private, no-store`.
   app.use(require('./prepared').mountPrepared(app, { db, V, C, cfg }).serve);
+  // (#198) A work not on view: anything not held (a maker's upload lands 'hidden'), or kept back. Its pictures, its page
+  // and every door under them reach only its maker, the Studio, a curator with keys, a holder of a live licence on it and
+  // the people of an album that holds it (the album's own link travels with each picture as ?token=, never a cookie
+  // alone). A few showings given on purpose stay public (`shownAnyway`). Everyone else meets the house's own not-found
+  // sign (the work's own page leads on to Wander, as a photograph taken down always has), and every answer about such a
+  // work is `private, no-store`. One rule, asked here and by the
+  // picture route, Wander and the easel (`app.locals.offView`).
+  // A work in conservation that was on view keeps its public sign (conservation.js: "a museum says so"); one that was
+  // private before it went in stays private.
+  const offView = w => !!w && ((w.status !== 'held' && !(w.status === 'restoring' && w.status_before === 'held')) || !!Number(w.keep_back || 0));
+  // The places a hidden work is on view by a word given for it: a page the Studio placed in an open volume, an outtake
+  // on a contact sheet its maker opened (sheets.js decides which frames that may be), and the cover its maker chose
+  // for one of her public books (press.js takes a cover held or hidden).
+  const shownAnyway = w => { if (!w || w.status !== 'hidden' || Number(w.keep_back || 0)) return false; try {
+    const r = db.prepare('SELECT id, status, keep_back, sheet_open, zone, attribution FROM works WHERE id=?').get(w.id);
+    if (r && Number(r.sheet_open || 0) && app.locals.sheets && app.locals.sheets.shows && app.locals.sheets.shows(r)) return true;
+    if (db.prepare("SELECT 1 FROM texts WHERE cover_work_id=? AND public=1 AND status='held' LIMIT 1").get(w.id)) return true;
+    return !!db.prepare("SELECT 1 FROM volume_pages p JOIN volumes v ON v.id=p.volume_id WHERE p.work_id=? AND p.placed IS NOT NULL AND v.status='open' LIMIT 1").get(w.id); } catch (e) { return false; } };
+  const isOff = w => offView(w) && !shownAnyway(w);
+  function mayOffView(req, w) {
+    if (!w) return false;
+    const memo = req.__off || (req.__off = new Map()); if (memo.has(w.id)) return memo.get(w.id);
+    let ok = isStudio(req);
+    if (!ok) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; ok = !!(me && me.id === w.maker_id); }
+    const D = app.locals.deliveries;
+    if (!ok && D) ok = D.mayView(req, w); // a holder of a live licence; the people of an album, by their own link's cookie or their sign-in
+    if (!ok && D && D.passes) { const t = req.query && (req.query.token || req.query.via); if (t) ok = D.passes(req, w, String(t)); } // the album's own link, carried by the picture
+    if (!ok && app.locals.curate) try { ok = !!app.locals.curate.canCurate(req, mk(w)); } catch (e) { ok = false; }
+    memo.set(w.id, ok); return ok;
+  }
+  // Everything said about an off-view work stays with the person it was said to, whatever a room sets later.
+  const keepPrivate = res => { if (res.__kept) return; res.__kept = true; const set = res.setHeader.bind(res); res.setHeader = (k, v) => set(k, /^cache-control$/i.test(k) ? 'private, no-store' : v); set('Cache-Control', 'private, no-store'); };
+  app.locals.offView = { off: isOff, may: mayOffView, keepPrivate };
+  // The doors that name a work by its slug. The trip's wash and the contact sheet (its washes, its own rule for which
+  // frames show true) stay as they are: a blur says a frame is kept, never the frame (29 Oct, 30 Oct).
+  const OFF_DOORS = [/^\/w\/([^/]+)/i, /^\/m\/[^/]+\/([^/]+)/i, /^\/img\/([^/]+)\/(?!held\/?$)[^/]+/i, /^\/(?:easel|license|buy|contract|comp|bench)\/([^/]+)/i, /^\/api\/work\/([^/]+)/i, /^\/iiif\/([^/]+)\//i];
+  app.use(async (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    let slug = null; for (const rx of OFF_DOORS) { const m = rx.exec(req.path); if (m) { slug = m[1]; break; } }
+    if (!slug) return next();
+    try { slug = decodeURIComponent(slug); } catch (e) { return next(); }
+    try {
+      const w = /^\/img\//i.test(req.path) ? imgRow(slug) : await adb.get('SELECT id, slug, status, status_before, keep_back, maker_id FROM works WHERE slug=? LIMIT 1', slug);
+      if (!w && /^\/(img|w)\//i.test(req.path)) keepPrivate(res); // an address with no work answers as a private one does: no way to tell them apart
+      if (!isOff(w)) return next();
+      keepPrivate(res); res.set('X-Robots-Tag', 'noindex');
+      if (mayOffView(req, w)) return next();
+      if (/^\/easel\//i.test(req.path)) return res.redirect('/wander'); // the easel's own answer for a work it does not have (smoke): the same for one not on view
+      if (/^\/(w\/[^/]+|m\/[^/]+\/[^/]+)\/?$/i.test(req.path)) return res.redirect(onward(req, w.slug)); // the page itself: a photograph taken down leads on, never to a sign (smoke, 'See the watermark'); nothing of it is shown
+      return res.sendStatus(404); // the house's own sign to a person; an image or a script its plain status (breaks.js)
+    } catch (e) { return next(e); }
+  });
   app.locals.viewLater = viewLater; app.locals.flushViews = flushViews;
   require('./lifeline').mountLifeline(app, { db, V });
   const zone = require('./zone').mountZone(app, { db, V, images, originalPath, cache, isStudio, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null) }); // the rooms: child-safe by default; adult rooms by the door
@@ -985,10 +1037,10 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = imgRow(req.params.slug);
     const maker = mk(w); // the work's own maker
     if (!w || !images.SIZES[req.params.size] || w.status === 'quarantined') return res.sendStatus(404); // a held work is shown to no one (29 Oct)
-    if (w.keep_back) { const me = app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null; if (!((me && me.id === w.maker_id) || isStudio(req) || (app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })()))) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); } res.set('Cache-Control', 'private, no-store'); } // kept back by the maker: only to them and the house (29 Oct)
-    // A photograph kept back in a private gallery (deliveries.js, 2 Nov): only the maker, the Studio, a curator, a holder and the people inside see it.
-    const inPrivate = w.status === 'hidden' && !w.keep_back && app.locals.deliveries && app.locals.deliveries.guarded(w.id);
-    if (inPrivate && !app.locals.deliveries.mayView(req, w) && !(app.locals.curate && (() => { try { return app.locals.curate.canCurate(req, mk(w)); } catch (e) { return false; } })())) { res.set('Cache-Control', 'private, no-store'); return res.sendStatus(404); }
+    // (#198) Not on view (an upload not yet hung, kept back, in a private gallery): the one rule above, asked again here
+    // so the picture route stands on its own (memoised on the request); the answer stays with the person it was given to.
+    const inPrivate = isOff(w);
+    if (inPrivate) { keepPrivate(res); if (!mayOffView(req, w)) return res.sendStatus(404); }
     try {
       let fmt = req.query.f === 'jpg' ? 'jpg' : images.pick(req.headers.accept); // mail asks for JPEG by name
       const CP = app.locals.copies;
@@ -1117,6 +1169,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const wants = t.added.length || t.extras.length ? `Rights asked for: ${K.RIGHTS.filter(r => t.rights.includes(r.key)).map(r => r.label).join(', ')}${t.extras.length ? `; ${t.extras.map(k => K.EXTRAS.find(e => e.key === k).label).join(', ')}` : ''}.` : '';
     const noteAll = [wants, narrowSays(t), note].filter(Boolean).join('\n') || null;
     if (rules.approve) return res.send(V.ask({ w, maker, u, t, note: noteAll, renews: req.body.renews, approve: true, uses: usesFor(w, maker) }));
+    // (#184) Credit only: the maker asks no fee for this use. Nothing goes to payment; the licensee says who they are
+    // (payment would have told us) and the license is granted at once by POST /license.
+    if (!req.body.ask && !t.ask && !u.needsMaster && u.price_cents === 0 && t.price === 0) return res.send(V.ask({ w, maker, u, t: { ...t, credit: true }, note, renews: req.body.renews, uses: usesFor(w, maker), credit: true }));
     if (req.body.ask || t.ask || u.needsMaster || u.price_cents == null || !stripe) return res.send(V.ask({ w, maker, u, t, note: u.needsMaster ? [noteAll, 'Needs the full-resolution master.'].filter(Boolean).join('\n') : noteAll, renews: req.body.renews, uses: usesFor(w, maker) }));
     u.price_cents = t.price; t.house = u.house_cents || 0; t.maker = t.price - t.house;
     const ref = nextRef();
@@ -1752,6 +1807,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     // agreement of the license the maker then quotes reads with them. Any other request is stored as it always was.
     const nt = K.terms({ use: u, never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(b) });
     const narrowed = !!(nt.territory || nt.limit);
+    // (#184) Credit only, as the maker priced it: granted at once, no payment, the agreement's Section 3 the credit.
+    if (u.price_cents === 0 && nt.price === 0 && !narrowed && !rules.approve && offered(rules, u.key, w)) {
+      const ct = K.seal({ ...nt, credit: true }, { work: w.title, maker: maker.name, ref });
+      db.prepare("INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions,rights,house_cents) VALUES (?,?,?,?,?,?,?,0,'requested',?,?,0)")
+        .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, R.conditions(rules) || null, JSON.stringify(ct));
+      ledger.append(db, 'license.requested', ref, { work: w.slug, use: u.key, credit: true });
+      const g = grant(ref, { paid: false });
+      if (maker.email) mail.send({ to: maker.email, subject: `Licensed for credit: ${V.tidy(w.title)}`, text: `${String(b.name).slice(0, 120)}${b.company ? `, ${String(b.company).slice(0, 160)}` : ''} took a license to ${V.tidy(w.title)} (${u.name}), for credit alone, as you priced that use.\n\nThe license: ${C.base}/account/requests/${ref}\n\nWatermark` });
+      return res.redirect(303, `/c/${ref}?k=${g.download_token || ''}`);
+    }
     const needsMaker = u.price_cents == null || rules.approve || !stripe || !meets(w, u.key) || narrowed;
     db.prepare('INSERT INTO licenses (ref,work_id,use_id,licensee_name,licensee_email,licensee_company,intended_use,price_cents,status,conditions,rights) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
       .run(ref, w.id, u.id, String(b.name).slice(0, 120), email.slice(0, 160), String(b.company || '').slice(0, 160) || null, String(b.intended || '').slice(0, 2000) || null, narrowed ? null : u.price_cents, needsMaker ? 'requested' : 'awaiting_payment', R.conditions(rules) || null, narrowed ? JSON.stringify(nt) : null);
@@ -1796,6 +1861,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/c/:ref', async (req, res) => {
     let l = q.lic.get(req.params.ref);
     if (!l) return res.sendStatus(404);
+    if (app.locals.requests.waitingOther(l) && !req.query.session_id) return app.locals.requests.offer(req, res, l); // (#184) a license the maker wrote, waiting for the other side
     let owner = false;
     if (req.query.session_id && stripe && l.stripe_session === req.query.session_id) {
       owner = true;
@@ -1842,6 +1908,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     if (!u || !offered(rules, u.key, w)) { const on = q.uses.all(maker.id).filter(x => offered(rules, x.key, w)); u = (on.find(x => x.key !== 'social') || on[0] || null) && priced(on.find(x => x.key !== 'social') || on[0], w); } // the first use on offer
     if (!u) return res.sendStatus(404);
     const t = K.terms({ use: u, add: [].concat(req.query.add || []), extras: [].concat(req.query.x || []), never: rules.never, base: u.price_cents, transfer: rules.transfer || null, ...askedOf(req.query) });
+    if (u.price_cents === 0 && t.price === 0 && !t.ask) t.credit = true; // (#184) a use the maker asks only credit for
     // (#183) The one statement for these answers, for the license page to show before anything is pressed (src/holds.js).
     if (req.query.holds) return res.send(require('./holds').block({ use: u, t, maker: maker.name, edition: !!w.edition_size, will: true }));
     const sections = contractFor(w, maker, u, t, { price: t.price != null && !t.ask ? V.money(t.price) : null });
@@ -2184,6 +2251,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
           ...need.filter(x => /ending within/.test(x.label)).map(x => [x.href, 'Renew', `${x.n} license${x.n === 1 ? '' : 's'} ending within 60 days`]),
           ...need.filter(x => /missing part/.test(x.label)).map(x => [x.href, 'Complete', `${x.n} record${x.n === 1 ? '' : 's'} missing a part`]),
           N.feedback ? ['/studio/feedback', 'Read', `${N.feedback} note${N.feedback === 1 ? '' : 's'} from visitors`] : null,
+          (app.locals.spend && app.locals.spend.credit && app.locals.spend.credit()) ? ['/studio/digest', 'Top up', 'The AI calls are refused: the API account’s credit is too low. The house’s own calls wait and try again by themselves'] : null, // (22 Nov, #196) said once, here, not per work
           (app.locals.safety && app.locals.safety.waiting()) ? ['/studio/safety', 'Decide', `${app.locals.safety.waiting()} held for the house’s look`] : null,
           restoring ? ['/studio/restoration', 'Restore', `${restoring} work${restoring === 1 ? '' : 's'} off view`] : null,
           lost ? ['/studio/restoration', 'Find', `${lost} original${lost === 1 ? '' : 's'} not in the vault`] : null,
@@ -2352,7 +2420,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./darkroom').mountDarkroom(app, { db, V, C, store, images, ledger, originalPath, replaceMaster, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly }); // the darkroom (26 Oct): develop a work in the house; the negative kept
-  require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP });
+  require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP, nextRef, listed, mk });
   app.get('/studio/works', studioOnly, (req, res) => res.send(S.works({ list: q.allWorks.all(), notice: req.query.ok, rooms: db.prepare('SELECT id, title FROM collections ORDER BY sort, id').all() })));
   app.post('/studio/works', studioOnly, upload.single('file'), BAG.gate('image'), async (req, res) => {
     if (!req.file || !req.body.title) return res.status(400).send(S.works({ list: q.allWorks.all(), error: 'Choose a photograph and give it a title.' }));
@@ -2698,7 +2766,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const rooms = db.prepare('SELECT c.*, EXISTS(SELECT 1 FROM collection_works cw WHERE cw.collection_id=c.id AND cw.work_id=?) AS has FROM collections c ORDER BY sort, id').all(w.id);
     const views = db.prepare("SELECT host, kind, SUM(count) n, MIN(day) first, MAX(day) last FROM views WHERE work_id=? GROUP BY host, kind ORDER BY n DESC").all(w.id);
     const studio = !req.path.startsWith('/account');
-    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: (app.locals.darkroom ? app.locals.darkroom.door(w) : '') + OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : '') + (app.locals.clearance ? app.locals.clearance.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/clearance`) : '') + (app.locals.sitters ? app.locals.sitters.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/sitter`) : '') + (app.locals.companies ? app.locals.companies.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/company`) : '') + (app.locals.onview ? app.locals.onview.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/onview`, req.query.ov) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`) + (app.locals.wall ? app.locals.wall.block(w, `/studio/works/${encodeURIComponent(w.slug)}/wall`, { studio }) : ''), makerName: mk(w).name, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
+    res.send(S.workTerms({ editionsBlock: app.locals.editionsBlock ? app.locals.editionsBlock(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}`) : '', objectBlock: (app.locals.darkroom ? app.locals.darkroom.door(w) : '') + OB.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/object`) + (app.locals.art ? app.locals.art.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/art`) : '') + (app.locals.clearance ? app.locals.clearance.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/clearance`) : '') + (app.locals.sitters ? app.locals.sitters.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/sitter`) : '') + (app.locals.companies ? app.locals.companies.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/company`) : '') + (app.locals.onview ? app.locals.onview.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/onview`, req.query.ov) : ''), zoneBlock: zone.block(w, `${deskBase(req)}/${encodeURIComponent(w.slug)}/zone`) + (app.locals.wall ? app.locals.wall.block(w, `/studio/works/${encodeURIComponent(w.slug)}/wall`, { studio }) : ''), makerName: mk(w).name, reply: w.status === 'held' && !studio ? `${C.base}/license/${w.slug}` : null, rooms, views, w, rules: R.parse(w.rules), uses: q.uses.all(mk(w).id), NEVER: R.NEVER, seen, lic, seals, notice: req.query.ok, base: deskBase(req), studio }));
   }
   app.get('/studio/works/:slug', studioOnly, (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); workDesk(req, res, w); });
   app.get('/account/works/:slug', (req, res) => { const w = q.work.get(req.params.slug); if (!w) return res.sendStatus(404); if (!mayEdit(req, w)) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); workDesk(req, res, w); });

@@ -77,7 +77,7 @@ function mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl = 
       for (const t of db.prepare("SELECT * FROM texts WHERE status='held' AND public=1 AND jacket IS NULL AND (body IS NOT NULL OR plates IS NOT NULL) ORDER BY CASE kind WHEN 'book' THEN 0 ELSE 1 END, id").all()) {
         if (n >= limit) break;
         if (app.locals.spend && !app.locals.spend.ok('jacket')) break;
-        try { if (await write(t)) n++; else save(t.id, { missed: new Date().toISOString() }); } catch (e) { console.error('[jacket]', t.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; save(t.id, { missed: new Date().toISOString(), why: e.message.slice(0, 120) }); }
+        try { if (await write(t)) n++; else save(t.id, { missed: new Date().toISOString() }); } catch (e) { if (app.locals.spend && app.locals.spend.heard && app.locals.spend.heard(e, 'jacket')) break; console.error('[jacket]', t.slug, e.message); if (/\b(401|403|429)\b/.test(e.message)) break; save(t.id, { missed: new Date().toISOString(), why: e.message.slice(0, 120) }); }
         await new Promise(r => setTimeout(r, 4000));
       }
     } finally { running = false; }

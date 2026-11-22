@@ -207,6 +207,24 @@ The CTO session keeps it honest.
 - Two processes booting at once against one Postgres can fail with `tuple concurrently updated` on the dialect's
   `CREATE OR REPLACE FUNCTION wm_mod`: start the second when the first answers /healthz.
 
+## The copies and the scribes (#196)
+- A maker's upload lands `status='hidden'` (accounts.js `takeWork`); "kept back" to a photographer is that, or `held` with
+  `keep_back=1`. Anything that serves a maker's own pictures must take both. The scribes take a living maker's own works
+  of the last SCRIBE_NEW_DAYS first (`FRESH` in copies.js, through `works_status_created`), then `WANT` as before.
+- The worker's prepared round asks its own house (up to 40 pages a round, every 10 s, header `x-wm-prepare`). Anything
+  on a chores process that counts "people" must skip `require('./prepared').isPrepare(req)`; the governor does, and says
+  `own10s` beside `visitors10s` on /healthz. test/governor.js runs one process per role (the role is read at require).
+- Many distinct test pictures: a field of noise each (`sharp({ create: { …, noise } })`) passes the fingerprint; hue or
+  brightness alone does not. test/keptcopies.js (KEPT_N) uploads through the arrivals doors and walks the album picker.
+- (#198) A work not on view (not held, or kept back) is guarded in one place: `app.locals.offView` in app.js (`off(w)`,
+  `may(req, w)`, `keepPrivate(res)`), asked by a gate before every door in `OFF_DOORS` and by /img, Wander and the easel.
+  A new door that names a work by slug goes into `OFF_DOORS`; a new place a hidden work is shown on purpose goes into
+  `shownAnyway` (volumes, opened contact sheets). A page that shows an album's pictures carries the album's token on each
+  (`?token=`, deliveries.js `carry`/`withToken`, album.js `data-dv-q`); a cookie alone never opens a stranger's picture.
+  A test that fetches a maker's own upload must do it as the maker (test/pairs.js once did it as a stranger).
+- An AI call's failure goes through `app.locals.spend.heard(e, module)` in its catch: out of credit it stops the
+  background for AL_CREDIT_WAIT_MIN and the Studio's desk says it once (settings `credit_low`).
+
 ## How work is judged
 - The issue's "done means" is the contract; its Proof is run, not described. "Not verified" in your report is as
   important as "passes": name the engine, the device and the data you did not have.
@@ -249,6 +267,13 @@ The CTO session keeps it honest.
   volume's id) decides what leaves the open walls; keep it, `volume_pages.pos` and `volumes.n` true together.
 - **Wander** (/wander): docs/WANDER.md's ten sentences, `scripts/wander-walk.js`. Sets are keys (`maker:`, `album:`,
   `delivery:`, `collection`); a private album's pictures answer only to those inside.
+  In an album set the page carries `set.album` (`deliveries.acts(key, req)`: the caps, the viewer's hearts, Print links
+  on the client's link); public/stroll.js adds the heart to the plate and Album to the rail, and the album's sheet is
+  appended to `body` (inside `main.st` nothing rises above the house's tab bar, z-index 60). Each extra rail button costs
+  about 63 px on a phone: at 390 × 664 two more ran the rail into the top bar. `test/albumwander.js` (CI's a11y job).
+- **Albums' order**: `worksOf` sorts by `taken_at`, then the file name read numerically, then `pos` (the picker's order,
+  newest upload first). There is no hand order yet; one would come before this sort. The link card's file is named by
+  its three slugs (`cardOf`).
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
@@ -323,3 +348,9 @@ The CTO session keeps it honest.
 - `.cat` is two things (the Studio's works table and the record's catalogue grid): scope a table rule to `table.cat`. A work's record at 390: probe without `isMobile` too; with it, Chrome widens the layout to the widest thing and every box looks guilty.
 - `public/desk-tabs.js`: a hash naming an element inside a panel opens that panel (`#prints`, `#editions`); tab ids come from heading text, so never link to `#t-…`.
 - `test/firstsale.js` uploads through the vault's own doors; two test pictures that differ only in size or hue are the same picture to the fingerprint (flip, negate or greyscale one).
+
+## The reply link (#184)
+- A license the maker writes is `status='offered'`, `rights.written`, `house_cents=0`; its accept link is `/c/:ref?k=<download_token>` (grant replaces the token, so the link stops opening the offer). `app.locals.requests.waitingOther(l)` decides whether /c/:ref shows the offer page; a written license sent to payment and back unpaid is `awaiting_payment` and still shows it.
+- Credit only is `uses.price_cents = 0` (or `rights.credit`): never sent to Stripe (Stripe refuses 0). `rights.credit` swaps Section 3 for `K.CREDIT_ONLY`; absent otherwise, so every old fingerprint holds. `K.seal(t, {work, maker, ref})` is the one way to fingerprint an order. On the visitor's pages a price of 0 reads through `useFee` in views.js ("Credit only"), never `money(0)`.
+- /rights/:handle is an institution's desk or, for a photographer (`kind='maker'`, not `door='play'`), their reply link; the photographer's page holds no form. `test/replylink.js` walks all of it (also run it with DATABASE_URL on the local Postgres).
+

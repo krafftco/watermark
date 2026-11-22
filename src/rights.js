@@ -29,6 +29,28 @@ function mountRights(app, { db, V, C, mail, isStudio, makerOf, notify }) {
   const mayDesk = (req, m) => { if (isStudio(req)) return true; const me = makerOf(req); return !!(me && me.id === m.id); };
   const STATUS = { asked: 'With the rights desk', answered: 'Answered', granted: 'Permission granted', declined: 'Declined', withdrawn: 'Withdrawn' };
 
+  // (#184; Will, 21 Nov: "screenshot licences") The same door for a photographer: the one address they paste under a
+  // brand's comment or into a message. It holds no form of its own: the brand finds the photograph and goes to its
+  // license page (/license/:slug), which asks the questions, sells a priced use at once, and sends anything else to the
+  // photographer as one request (/account/requests). Words on this page are drafts for Will.
+  const photographer = slug => db.prepare("SELECT id, handle, name FROM makers WHERE handle=? AND COALESCE(kind,'maker')='maker' AND COALESCE(door,'')<>'play' AND COALESCE(standing,'open')<>'held'").get(String(slug));
+  app.get('/rights/:slug', (req, res, next) => {
+    if (inst(req.params.slug)) return next();
+    const m = photographer(req.params.slug); if (!m) return res.sendStatus(404);
+    const first = String(m.name).split(' ')[0];
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    // A page of the photographer's own, never their whole archive: the 24 they rank first, or 12 found by word.
+    const list = q ? db.prepare("SELECT slug, title, taken_at FROM works WHERE maker_id=? AND status='held' AND (title LIKE ? OR caption LIKE ? OR place LIKE ?) ORDER BY curated DESC, stars DESC, id DESC LIMIT 12").all(m.id, `%${q}%`, `%${q}%`, `%${q}%`)
+      : db.prepare("SELECT slug, title, taken_at FROM works WHERE maker_id=? AND status='held' ORDER BY curated DESC, stars DESC, id DESC LIMIT 24").all(m.id);
+    res.send(V.layout({ title: `Using a photograph by ${m.name} · Watermark`, path: `/rights/${m.handle}`, desc: `License a photograph by ${m.name}: say what it is for, and the agreement is written from your answers.`, body: `<article class="rd">
+<header class="rd-h"><p class="k">${esc(m.name)}</p><h1>Using a photograph.</h1>
+<p class="lede">Choose the photograph, then say what it is for, where it will appear, how many and for how long. If ${esc(first)} has set a price for that use, the license is yours when you pay. If not, it goes to ${esc(first)} as one request, answered with a price, a yes for credit alone, or a no. Either way you both receive the agreement in writing, and the license is recorded on the register.</p></header>
+<section class="rd-s"><p class="k">The photographs</p><h2>${q ? 'Found.' : 'Choose the photograph.'}</h2>
+<form method="get" action="/rights/${esc(m.handle)}" class="rd-find"><input name="q" value="${esc(q)}" placeholder="A title, a place, a subject" maxlength="80" aria-label="Find a photograph"><button class="buy-btn">Find</button></form>
+${list.length ? `<ul class="rd-found">${list.map(w => `<li><a href="/license/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span><b>${esc(tidy(w.title))}</b>${w.taken_at ? ` · ${esc(String(w.taken_at).slice(0, 4))}` : ''}</span></a> <a class="link" href="/license/${esc(w.slug)}">Use it →</a></li>`).join('')}</ul>` : `<p class="note">${q ? 'Nothing by that word.' : 'No photograph is on view yet.'} <a href="/m/${esc(m.handle)}">${esc(m.name)}’s page</a> shows everything on view.</p>`}</section>
+<section class="rd-s rd-foot"><p class="k">The house</p><p>${esc(m.name)}’s work is kept on Watermark, a Krafft company, which writes the agreement from your answers and records it. ${esc(require('./contract').FORM_NOT_ADVICE)}</p></section>
+</article>` }));
+  });
   // The door: one page per institution.
   app.get('/rights/:slug', (req, res) => {
     const m = inst(req.params.slug); if (!m) return res.sendStatus(404);

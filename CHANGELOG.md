@@ -5,6 +5,44 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.91.0 · One link to answer with · 22 November 2026
+
+Every sentence below is a draft for Will; the credit-only clause and the license a photographer writes are questions for counsel (docs/COUNSEL.md 51 to 53). No price was added or changed. The house takes no share of a license a photographer arranges alone.
+
+- A photographer now has one address to paste under a comment or into a message: their reply link, shown on their requests desk. It opens on their photographs; each leads to its license page. Each photograph's own link is on its page in the studio.
+- The license page already asks what it is for, where, how many and for how long. A use the photographer has priced is paid at once. Anything else reaches the photographer as one request, with three answers: name a price, grant it for credit only, or decline.
+- Credit only is a real license at no fee. A photographer who sets a use at 0 lets it be taken at once for credit: the brand says who it is for, and the agreement, the file and the certificate follow, recorded on the register. The agreement then says no fee is payable and the credit is what is owed.
+- A deal made elsewhere can be written here. On the requests desk the photographer answers the same questions, names a fee or none, and sends the other side a link. They read the agreement, say who they are, and accept, or accept and pay. If there is a fee, all of it is the photographer's. Writing a license costs nothing. The photographer may withdraw it; the other side may decline it, with a word.
+- Every page that hands over the agreement now says it is a standard form, not legal advice.
+- Nothing here opens a conversation between strangers: every word belongs to one request, and ends in a price, a yes or a no.
+## 1.90.5 · In an album, Wander keeps the album's heart and its acts · 22 November 2026
+
+Every sentence below is a draft for Will.
+
+- In an album, pressing a photograph now opens Wander at that photograph, one at a time, full screen, inside the album. Before, it opened a smaller view over the page, and Wander was one step further away.
+- In Wander, inside an album, the photograph on screen keeps everything the album allows: the heart beside its title (the same heart as on the album page), and Album on the side, which opens Download, Share (Post, Story, Message), Print and More (Keep it, Full size, Instax, That's me, That's a friend, Ask to license it), as the album's rules allow each person, and nothing more.
+- A way back to the album from Wander lands on the photograph you were looking at: the album's name at the top, the close, Esc, and "Back to the album, at this photograph".
+- The album page says once, under its toolbar, that a photograph pressed opens in Wander.
+- An album now plays from the earliest photograph to the latest, on its page, in Wander and in its film: by the time each was taken, then by the file's number. Albums already made read this way too, without being remade.
+- The link's card for an album leads with its cover, then the next two photographs; a new cover makes a new card.
+- A private gallery's hearts and That's me answer only to the people inside it.
+
+## 1.90.4 · A photographer's private work stays with the people it is for · 22 November 2026
+
+Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
+
+- A photograph that is not on view (a new upload, one kept back, one in a private gallery) is seen by its maker, the Studio, a curator the maker gave keys to, someone who holds a licence on it, and the people of an album that holds it. Anyone else is shown the house's own "not found" page.
+- An album open to anyone with its link still shows every photograph to everyone who has the link, on any device, signed in or not. A private gallery shows its photographs only to the people inside.
+- None of these photographs is kept along the way, by the house's edge or by the app on a phone.
+
+## 1.90.3 · A photographer's own uploads are made ready at once · 22 November 2026
+
+Every sentence below is a draft for Will. No price, fee, share or AI spending line was changed.
+
+- A photographer's new uploads are made ready for every page within a minute or two of arriving, whether they are on view, kept back or private: the album picker, the album and the Library show the photograph, not a dark square. The house makes them before the rest of its queue. A museum's kept-back or private works are left as they were.
+- The house no longer mistakes its own housekeeping for visitors. The worker prepares the public pages by asking its own house for them, and counted each of those requests as a visitor, so it held every other job for a minute at a time. The website, which serves people, counts visitors exactly as before.
+- When the AI account runs out of credit, the house says so once, on the Studio's front desk and in the morning letter, and its own AI calls wait half an hour before trying again. Photographs that arrive meanwhile are read once the account is paid; before, each was marked as missed and never read.
+
 ## 1.90.2 · A print the photographer makes, or already has · 21 November 2026
 
 Every sentence below is a draft for Will. No price, fee or share was added or changed.

@@ -28,12 +28,16 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
     try { db.prepare("INSERT INTO render_asks (slug, asked_at, n, size) VALUES (?, ?, 1, ?) ON CONFLICT(slug) DO UPDATE SET n=render_asks.n+1, asked_at=excluded.asked_at, size=CASE WHEN excluded.size='wall' THEN 'wall' ELSE render_asks.size END").run(slug, now(), size || null); } catch (e) { /* asked */ }
   }
   const THUMB = ['thumb']; let made = 0; // a newly made set renews the open wander's pool (stroll.js keys on it)
-  // Make a work's set (the thumb for anything kept; every size for work on view) and mark it.
+  // A living maker's own work, not the shelves' or a museum's (the same line as the scribes' SHELF below).
+  const ownWork = w => { try { const m = db.prepare('SELECT kind, handle FROM makers WHERE id=? LIMIT 1').get(w.maker_id); return !!m && !['institution', 'company'].includes(m.kind || 'maker') && m.handle !== 'the-public-domain'; } catch (e) { return false; } };
+  // Make a work's set (the thumb for anything kept; every size for work on view) and mark it. (22 Nov, #196) A maker's
+  // own work gets every size whether it is on view, kept back or private: its albums, the Library and the picker show
+  // the screen copy, and a kept-back upload made only its thumb (or nothing) until a person met the dark.
   async function make(w) {
     const o = () => originalPath(w);
     let full = false;
     await images.warm(o, cache, w.slug, THUMB);
-    if (w.status === 'held' && !w.keep_back) full = await images.warm(o, cache, w.slug);
+    if ((w.status === 'held' && !w.keep_back) || (['held', 'hidden'].includes(w.status) && ownWork(w))) full = await images.warm(o, cache, w.slug);
     else full = await images.has(cache, w.slug);
     if (full && !w.copies_at) { db.prepare('UPDATE works SET copies_at=? WHERE id=?').run(now(), w.id); made++; }
     return full;
@@ -101,14 +105,21 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
   const iso = ms => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
   const SHELF = "CASE WHEN m.kind IN ('institution','company') OR m.handle='the-public-domain' THEN 1 ELSE 0 END";
   const WANT = "w.copies_at IS NULL AND w.status='held' AND COALESCE(w.keep_back,0)=0 AND COALESCE(w.copies_tries,0)<3";
+  // (22 Nov, #196; Will's 31 kept-back photographs for a client album, 15 of them black in the picker) First, a living
+  // maker's own works that arrived in the last SCRIBE_NEW_DAYS (7), on view, kept back or private alike: they wait on
+  // no visitor. Then the queue as before. The shelves' and museums' kept-back and private works stay out, as before.
+  // Read through works_status_created (status, created_at): only the week's arrivals are looked at.
+  const NEW_MS = 864e5 * (+process.env.SCRIBE_NEW_DAYS || 7);
+  const FRESH = "w.copies_at IS NULL AND w.status IN ('held','hidden') AND w.created_at >= ? AND COALESCE(w.copies_tries,0)<3 AND COALESCE(m.kind,'maker') NOT IN ('institution','company') AND m.handle<>'the-public-domain'";
   function claim() {
     const stale = iso(Date.now() - STALE_MS);
-    const rows = db.prepare(`SELECT w.id FROM works w LEFT JOIN makers m ON m.id=w.maker_id WHERE ${WANT} AND (w.copies_claim IS NULL OR w.copies_claim_at < ?) ORDER BY COALESCE(w.curated,0) DESC, COALESCE(w.stars,0) DESC, ${SHELF}, w.id DESC LIMIT 12`).all(stale);
-    for (const r of rows) {
+    const take = rows => { for (const r of rows) {
       const c = db.prepare('UPDATE works SET copies_claim=?, copies_claim_at=? WHERE id=? AND copies_at IS NULL AND (copies_claim IS NULL OR copies_claim_at < ?)').run(ME, now(), r.id, stale);
       if (c.changes === 1) return db.prepare('SELECT * FROM works WHERE id=?').get(r.id);
-    }
-    return null;
+    } return null; };
+    const fresh = take(db.prepare(`SELECT w.id FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${FRESH} AND (w.copies_claim IS NULL OR w.copies_claim_at < ?) ORDER BY COALESCE(w.curated,0) DESC, COALESCE(w.stars,0) DESC, w.id DESC LIMIT 12`).all(iso(Date.now() - NEW_MS), stale));
+    if (fresh) return fresh;
+    return take(db.prepare(`SELECT w.id FROM works w LEFT JOIN makers m ON m.id=w.maker_id WHERE ${WANT} AND (w.copies_claim IS NULL OR w.copies_claim_at < ?) ORDER BY COALESCE(w.curated,0) DESC, COALESCE(w.stars,0) DESC, ${SHELF}, w.id DESC LIMIT 12`).all(stale));
   }
   const done = []; // completion times, for the rate
   const scribe = { lanes: 0, made: 0, failed: 0, at: null, last: null, error: null };
@@ -158,7 +169,8 @@ function mountCopies(app, { db, images, cache, originalPath, GOV, studioOnly, le
     return out.sort((a, b) => b.at - a.at);
   }
   function progress() {
-    const left = db.prepare(`SELECT COUNT(*) n FROM works w WHERE ${WANT}`).get().n;
+    const left = db.prepare(`SELECT COUNT(*) n FROM works w WHERE ${WANT}`).get().n
+      + db.prepare(`SELECT COUNT(*) n FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${FRESH} AND NOT (w.status='held' AND COALESCE(w.keep_back,0)=0)`).get(iso(Date.now() - NEW_MS)).n; // the makers' own kept back or private, this week
     const stuck = db.prepare("SELECT COUNT(*) n FROM works WHERE copies_at IS NULL AND status='held' AND COALESCE(keep_back,0)=0 AND COALESCE(copies_tries,0)>=3").get().n;
     const ready = db.prepare("SELECT COUNT(*) n FROM works WHERE copies_at IS NOT NULL AND status='held'").get().n;
     const live = fleet().filter(f => f.live); const perMin = live.reduce((a, f) => a + (+f.rate || 0), 0);

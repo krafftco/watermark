@@ -15,7 +15,14 @@ function boxMb() {
 function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math.round(boxMb() * 0.4) : 380), busyN = +process.env.GOV_BUSY || 6, pauseMs = +process.env.GOV_PAUSE_MS || 600, bootQuietS = +process.env.BOOT_QUIET_S || 180, bootGapS = +process.env.BOOT_GAP_S || 15 } = {}) {
   const hits = []; // visitor requests (pages and API) in the last ten seconds
   const STATIC = /^\/(static|img|sw\.js|favicon|apple-touch|app\/|vendor|portrait|healthz|api\/here)|\/stood$/; // beacons are not people waiting
-  app.use((req, res, next) => { if (!STATIC.test(req.path)) { const now = Date.now(); hits.push(now); while (hits.length && hits[0] < now - 10000) hits.shift(); } next(); });
+  // (22 Nov, #196) The worker asks its own house for the prepared copies of the stranger's doors (prepared.js: up to
+  // PREPARED_PER_ROUND (40) pages every PREPARED_ROUND_MS (10 s), on 127.0.0.1, signed `x-wm-prepare`), and the governor
+  // counted each as a visitor: "40 visitors in ten seconds" on a process no visitor reaches, so every copy ask and every
+  // chore waited out the full minute. On a process that runs the round (the worker, a one-process house) or a scribe,
+  // the house's own requests are not counted. The website (ROLE=web) never runs the round and counts exactly as before.
+  const own = (ROLE.chores || ROLE.scribe) ? require('./prepared').isPrepare : () => false;
+  const mine = []; // the house's own requests in the last ten seconds, said on /healthz beside the visitors
+  app.use((req, res, next) => { if (!STATIC.test(req.path)) { const now = Date.now(); const into = own(req) ? mine : hits; into.push(now); while (into.length && into[0] < now - 10000) into.shift(); } next(); });
   const rssMb = () => Math.round(process.memoryUsage().rss / 1048576);
   const pressure = () => rssMb() > memMb;
   const busy = () => { const now = Date.now(); while (hits.length && hits[0] < now - 10000) hits.shift(); return hits.length > busyN; };
@@ -54,7 +61,7 @@ function mountGovernor(app, { memMb = +process.env.GOV_MEM_MB || (boxMb() ? Math
     const at = Math.max(ms, bootQuietS * 1000 + boots.length * bootGapS * 1000); boots.push(label);
     setTimeout(() => { if (!chores() && !always) { if (ROLE.chores) console.log(`[governor] ${label} skipped: chores held`); return; } bootChain = bootChain.then(async () => { booting = label; const t0 = Date.now(), r0 = rssMb(); if (ROLE.chores) console.log(`[boot] ${label} begins at ${r0} MB`); /* a chore the process does not survive is named by its beginning */ try { await fn(); } catch (e) { console.error(`[${label}]`, e && e.message || e); } finally { booting = null; /* (20 Nov) each start-up chore says how long it took and what it did to the memory: the worker was ended for memory every seven minutes for three days and no line said which chore */ if (ROLE.chores) console.log(`[boot] ${label}: ${Date.now() - t0} ms, ${r0} to ${rssMb()} MB`); } await settle(label); }); }, at).unref();
   }
-  const state = () => ({ rss: rssMb(), limit: memMb, hard: hardMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
+  const state = () => ({ rss: rssMb(), limit: memMb, hard: hardMb, pressure: pressure(), busy: busy(), visitors10s: hits.length, own10s: (() => { const t = Date.now() - 10000; while (mine.length && mine[0] < t) mine.shift(); return mine.length; })(), lane: holder, booting, waited, held, load: os.loadavg()[0], up: Math.round((Date.now() - started) / 1000), boots });
   // The kill switch: CHORES=0 in the environment boots the house with every background chore off (feeds, pictures, documents), so a troubled house can be brought back to serve visitors and nothing else.
   // The showing (27 Oct): while the house is being shown (Studio → Launch → 'Showing'), every chore holds too, so a demo never meets a feed.
   let shown = false;
