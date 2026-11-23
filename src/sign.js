@@ -32,7 +32,7 @@ const CONSENT = 'I agree to sign this release electronically and to receive my c
 function mountSign(app, { db, V, C, store, ledger, mail, makerOf, isStudio }) {
   const dir = path.join(C.dataDir, 'releases'); fs.mkdirSync(dir, { recursive: true });
   for (const [c, t] of [['maker_id', 'INTEGER'], ['token', 'TEXT'], ['email', 'TEXT'], ['sha256', 'TEXT'], ['place', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('work_releases') WHERE name=?").get(c)) db.exec(`ALTER TABLE work_releases ADD COLUMN ${c} ${t}`);
-  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = require('./address').email();
   const workOf = (m, slug) => (slug ? db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status IN ('held','hidden','restoring')").get(String(slug), m.id) : null);
 
   // The page the maker hands over.

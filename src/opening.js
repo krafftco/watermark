@@ -7,7 +7,7 @@
 function mountOpening(app, { db, C, V, mail, buyerOf, isStudio }) {
   db.exec(`CREATE TABLE IF NOT EXISTS rsvps (id INTEGER PRIMARY KEY, hang_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL,
     plus INTEGER NOT NULL DEFAULT 0, maker INTEGER NOT NULL DEFAULT 0, note TEXT, at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (hang_id, email))`);
-  const esc = V.esc, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const esc = V.esc, HOUSE = require('./address').email();
   const hang = id => db.prepare('SELECT * FROM hangs WHERE id=?').get(+id);
   const today = () => new Date().toISOString().slice(0, 10);
   const open = h => !!(h && h.public && h.opens_at && (!h.closes_at || h.closes_at >= today()));

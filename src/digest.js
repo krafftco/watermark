@@ -10,7 +10,7 @@ const ROLE = require('./role');
 
 function mountDigest(app, { db, C, mail, ledger }) {
   const HOUR = +process.env.DIGEST_HOUR || 13, ALARM_5XX = +process.env.ALARM_5XX || 20;
-  const TO = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const TO = require('./address').email();
   db.exec('CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)');
   const get = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
   const set = (k, v) => db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, String(v));

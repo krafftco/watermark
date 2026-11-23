@@ -21,7 +21,7 @@ function frame({ base, preheader, body }) {
 <tr><td align="center" style="padding:44px 48px 6px" class="wm-pad"><a href="${base}" style="text-decoration:none"><img src="${base}/static/mail/wordmark.png" width="124" alt="Watermark" style="display:block;border:0;width:124px;height:auto"></a></td></tr>
 ${body}
 </table>
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td align="center" style="padding:26px 24px 0;font:10px/1.8 ${SANS};letter-spacing:.22em;text-transform:uppercase;color:#a29d93">Watermark &middot; A Krafft company<br><a href="${base}" style="color:#a29d93;text-decoration:none">watermark.krafftco.com</a></td></tr></table>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td align="center" style="padding:26px 24px 0;font:10px/1.8 ${SANS};letter-spacing:.22em;text-transform:uppercase;color:#a29d93">Watermark &middot; A Krafft company<br><a href="${base}" style="color:#a29d93;text-decoration:none">${require('./address').hostOf(base) || require('./address').host()}</a></td></tr></table>
 </td></tr></table></body></html>`;
 }
 const kicker = t => `<tr><td align="center" style="padding:30px 48px 0" class="wm-pad"><p style="margin:0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">${t}</p></td></tr>`;

@@ -9,6 +9,8 @@ const K = require('./contract');
 const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
+const ADDR = require('./address'); // the house's address, in one place (#215)
+const HOST = () => ADDR.host(); // the bare host, where one is drawn or written into a file
 const TR = require('./rules-of-trade'); // the trade's rules: editions, prices, the holding time (#165)
 const images = require('./images');
 const RG = require('./regard');
@@ -136,7 +138,7 @@ function createApp(cfg = {}) {
     const how = !ref ? 'Free and clear, from Watermark' : l && l.key === 'social' ? `Collected on Watermark${l.collector_no ? `, No. ${l.collector_no}` : ''}` : l && l.key === 'reference' ? 'The Reference, collected on Watermark' : `Licensed on Watermark${use ? `, ${String(use).toLowerCase()}` : ''}${ends ? `, until ${new Date(ends).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}`;
     const caption = `${title}. ${require('./object').aBy(w, maker.name).replace(/ by .*$/, '')} by ${maker.name}${w.place ? `, ${w.place}` : ''}${year ? `, ${year}` : ''}. ${how}.${number ? ` ${number}.` : ''}`;
     const openTake = !ref && w.open && OPEN_KEYS[w.open];
-    const copyright = openTake ? `${openTake.name}. ${require('./sources').credit(w) || maker.name}` : `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at watermark.krafftco.com/t/${TRACK.compact(ref)}` : `Held at watermark.krafftco.com/w/${w.slug}`}`;
+    const copyright = openTake ? `${openTake.name}. ${require('./sources').credit(w) || maker.name}` : `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at ${HOST()}/t/${TRACK.compact(ref)}` : `Held at ${HOST()}/w/${w.slug}`}`;
     return { caption, copyright, number };
   }
   // A file's name: the title, the maker, the number. Readable in any folder; ASCII for the plain header, UTF-8 for the rest.
@@ -159,13 +161,13 @@ function createApp(cfg = {}) {
   // traced by its bytes (downloads.sha256), its XMP and its Content Credentials.
   async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, strip = null, format = 'jpeg' }) {
     let out = buf;
-    if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
+    if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `${HOST()}/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
       const cap = captionOf({ w, maker, ref, licensee, use, ends });
       try { out = prov.stampJpegBuffer(out, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ }
       // A free-and-clear take of an open work (#170): the file says what the source says (the licence, their credit), never a copyright the house or the shelf does not hold.
       const op = !ref && w.open && OPEN_KEYS[w.open] ? OPEN_KEYS[w.open] : null; const opCredit = op ? (require('./sources').credit(w) || `${V.tidy(w.title)}, ${maker.name}. ${op.name}`) : null;
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: op ? opCredit : `${maker.name} / Watermark`, copyright: op ? `${op.name} (${op.url}). ${opCredit}` : `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: op ? op.url : `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, terms: op ? op.says : null, noAI: !op && R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: op ? opCredit : `${maker.name} / Watermark`, copyright: op ? `${op.name} (${op.url}). ${opCredit}` : `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: op ? op.url : `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: HOST(), accession: w.accession, ref, licensee, use, ends, terms: op ? op.says : null, noAI: !op && R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
     }
     db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
     return out;
@@ -469,6 +471,23 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     app.locals.kept = (key, ms, fn) => { if (off) return fn(); const h = K.get(key); const now = Date.now(); if (h && now - h.at < ms) return h.v; const v = fn(); K.set(key, { at: now, v }); if (K.size > 4000) { let n = 0; for (const k of K.keys()) { K.delete(k); if (++n >= 800) break; } } return v; }; }
   require('./shared').mountShared(app, { db, ROLE, cfg }); // data any process can build, built ahead by the worker (9 Nov)
   app.set('trust proxy', Number(process.env.TRUST_PROXY || 1)); // 1 on Render alone; 2 with CloudFront in front (25 Oct), else every visitor reads as the edge
+  // The house at its own address (#215). A GET or HEAD arriving on a host the house has left (OLD_HOSTS) is sent on,
+  // permanently, to the same path and query where the house stands now (BASE_URL): pages, albums with their tokens,
+  // pictures, downloads, certificates, register entries, API reads. Nothing a machine posts is turned (a POST is not
+  // redirected, and a read that carries a key is answered where it is asked, so Stripe's webhook, the Krafft sites'
+  // calls, push and the Lightroom plug-in work on both hosts until they are moved), and /healthz
+  // answers where it is asked, so the watch and the promotion's "being shown" read never see a redirect. The host is
+  // read as the tenants read it (req.hostname: the edge passes the viewer's Host through, AllViewer). The answer says
+  // no-store: the edge's picture cache is not keyed on the host, and a kept redirect would be served to the new host.
+  // The host the house stands on is never an old host, and a house with no address set has left none: with BASE_URL
+  // unset, or set to where the house first stood, this mounts nothing.
+  { const OLD = new Set(cfg.base || process.env.BASE_URL ? ADDR.oldHosts(C.base, cfg.oldHosts) : []), STAY = /^\/(healthz|stripe\/webhook)$/;
+    if (OLD.size) app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (!OLD.has(String(req.hostname || '').toLowerCase()) && !OLD.has(String(req.get('host') || '').toLowerCase())) return next();
+      if (STAY.test(req.path) || /^Bearer /i.test(req.get('authorization') || '')) return next(); // a keyed machine (push, Lightroom, a partner): its client drops the key when it crosses hosts
+      res.set('Cache-Control', 'private, no-store').redirect(308, C.base + req.originalUrl);
+    }); }
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
   app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
@@ -1110,7 +1129,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let r = null; try { r = db.prepare("SELECT w.slug, w.title, w.rules FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE w.status='held' AND s.src LIKE ?").get('%' + p); } catch (e) { /* none */ }
     res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: COL.on() && R.allows(R.parse(r.rules), 'social') } : null });
   });
-  app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript'); res.sendFile(path.join(__dirname, '..', 'public', 'k.js')); });
+  // house.js and k.js run on other sites, so they cannot ask where the house stands: it is written in as they are served (#215).
+  const ADDRESSED = {}; const addressed = name => ADDRESSED[name] || (ADDRESSED[name] = fs.readFileSync(path.join(__dirname, '..', 'public', name), 'utf8').split('{{HOUSE}}').join(C.base)); // read once: the file changes only with a deploy
+  app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript').send(addressed('k.js')); });
   app.post('/api/seen', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     const w = q.work.get(String(req.body.work || req.query.work || ''));
@@ -1139,7 +1160,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=60, must-revalidate').set('Access-Control-Allow-Origin', '*'); // one minute: a change to the bar reaches every site at once
-    res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));
+    res.send(addressed('house.js'));
   });
   app.get('/embed.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=3600').set('Access-Control-Allow-Origin', '*');
@@ -1944,8 +1965,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w);
     try {
       const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg');
-      let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `watermark.krafftco.com/w/${w.slug}` });
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at watermark.krafftco.com/license/${w.slug}.` }));
+      let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `${HOST()}/w/${w.slug}` });
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: HOST(), accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at ${HOST()}/license/${w.slug}.` }));
       res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
       ledger.append(db, 'comp.taken', w.slug, {});
       res.type('jpg').send(out);
@@ -2397,12 +2418,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.imageOf = async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: ASKED });
-  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
+  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
   require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
-  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
-  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
+  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
+  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
   require('./inbox').mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}) }) }); // the inbox: a watched folder (27 Oct)
-  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
+  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
   require('./commonplace').mountCommonplace(app, { db, V, C, buyerOf, ledger }); // the readers' feed and the commonplace book (27 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
   require('./sharebook').mountShareBook(app, { db, V, C, mail, buyerOf, makerOf: req => (app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null), ledger }); // sharing a book: the card, the letter, the keeping (26 Oct)
@@ -2429,7 +2450,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./gazette').mountGazette(app, { db, V, C, mail, ledger, stripe, buyerOf, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Gazette by post: subscribers, the letter, the paid tier, the bench under writing (2 Nov)
   require('./jacket').mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl: cfg.fetchImpl }); // the jacket (26 Oct): the house's own front and back of every book
-  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
+  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./darkroom').mountDarkroom(app, { db, V, C, store, images, ledger, originalPath, replaceMaster, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly }); // the darkroom (26 Oct): develop a work in the house; the negative kept
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP, nextRef, listed, mk });
@@ -2990,7 +3011,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // On the web process, as /healthz and the API are; the worker answers no one.
   if (ROLE.web) require('./agentsdoor').mountAgentsDoor(app, { db });
   // security.txt (RFC 9116): where a researcher writes, and the house's claims page.
-  app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });
+  app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${require('./address').email()}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

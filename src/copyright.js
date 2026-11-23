@@ -118,7 +118,7 @@ function mountCopyright(app, { db, C, maker, studioOnly, ledger, images, origina
         claimant: { name: r.m.name || null, address: null, transfer_statement: null },
         year_of_completion: years.length ? Math.max(...years) : null,
         ...(pubd ? { publication: { earliest: r.earliest, latest: r.latest, year: g.year, nation: 'United States' } } : { dates_of_creation: { earliest: r.earliest, latest: r.latest } }),
-        limitation_of_claim: null, rights_and_permissions: { name: 'Watermark', email: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', url: C.base } },
+        limitation_of_claim: null, rights_and_permissions: { name: 'Watermark', email: require('./address').email(), url: C.base } },
       checks: r.group,
       photographs: r.works.map((x, i) => ({ n: i + 1, title: x.w.title, file_name: `${x.w.slug}.jpg`,
         ...(pubd ? { date_of_publication: x.p ? x.p.date : null, publication_basis: x.p ? x.p.how : null } : { date_of_creation: day(x.w.taken_at || x.w.created_at) }),

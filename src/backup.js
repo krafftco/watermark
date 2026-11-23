@@ -40,7 +40,7 @@ const PREFIX = 'backups/db/';
 function mountBackup(app, { db, C, store, ledger, mail, isStudio, V }) {
   db.exec(`CREATE TABLE IF NOT EXISTS backup_runs (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, key TEXT, bytes INTEGER, sha256 TEXT, ok INTEGER NOT NULL DEFAULT 1,
     detail TEXT, at TEXT NOT NULL DEFAULT (datetime('now')))`);
-  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = require('./address').email();
   const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const record = (kind, r) => db.prepare('INSERT INTO backup_runs (kind, key, bytes, sha256, ok, detail) VALUES (?,?,?,?,?,?)').run(kind, r.key || null, r.bytes || null, r.sha256 || null, r.ok ? 1 : 0, r.detail || null);
   function failed(kind, e) {

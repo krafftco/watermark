@@ -9,7 +9,7 @@ const mp = w => (w.width && w.height ? Math.round(w.width * w.height / 1e5) / 10
 
 function mountTrade(app, { db, C, V, mk, mail, ledger }) {
   const esc = V.esc, tidy = V.tidy;
-  const HOUSE = () => process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = () => require('./address').email();
   const safe = b => { b = String(b || ''); return /^\/[^/\\]/.test(b) ? b.slice(0, 300) : null; };
   // The old doors. Each clears the switch an earlier visit left on the device and leads on; none is a page any more.
   // (Never kept by the edge or the browser: a kept redirect would leave the cookie where it is.)

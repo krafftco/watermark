@@ -55,7 +55,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     const base = C.base;
     mail.send({ to: email, subject: `Your claim ${caseNo(d)}, received`, text: `Thank you. Your claim about "${w.title}" is ${caseNo(d)}. ${PAUSES(kind) ? 'Sales of the photograph are paused while the house looks at it. The maker has been told and asked to answer in writing. You will hear from the house within five working days.' : VENUE.got}\n\nWhat you said: ${KINDS[kind]}.\n\nIf anything should be added, reply to this letter and quote the number.`, feature: 'A claim, received' });
     if (maker.email) mail.send({ to: maker.email, subject: `A claim about "${w.title}" (${caseNo(d)})`, text: `Someone has written to the house about "${w.title}": ${KINDS[kind]}.${PAUSES(kind) ? ' Sales are paused while the house looks.' : ' No sale is paused; the line saying where it is on view may be corrected or removed.'} Please answer in writing within five days; what you say and what the house holds (the arrival, the fingerprint, the camera's record, the register) decide it.`, feature: 'A claim about your work', cta: { label: 'Answer the claim', url: `${base}/account/claims/${id}` } });
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Claim ${caseNo(d)} on ${w.accession || w.slug}`, text: `${name} <${email}>: ${KINDS[kind]}.\n\n${body}\n\n${base}/studio/claims/${id}`, feature: 'A claim to decide', cta: { label: 'Open the file', url: `${base}/studio/claims/${id}` } });
+    mail.send({ to: require('./address').email(), subject: `Claim ${caseNo(d)} on ${w.accession || w.slug}`, text: `${name} <${email}>: ${KINDS[kind]}.\n\n${body}\n\n${base}/studio/claims/${id}`, feature: 'A claim to decide', cta: { label: 'Open the file', url: `${base}/studio/claims/${id}` } });
     res.send(layout({ title: 'Claim received · Watermark', body: `<section class="narrow cl"><p class="k">Claims</p><h1>Received.</h1><p class="lede">Your claim is <b>${caseNo(d)}</b>. ${PAUSES(kind) ? 'Sales of the photograph are paused while the house looks at it; the maker has been asked to answer in writing. You will hear from the house within five working days' : esc(VENUE.got.replace(/\.$/, ''))}, at ${esc(email)}.</p><p class="sr-also"><a href="/w/${esc(w.slug)}">The photograph</a></p></section>` }));
   });
 
@@ -68,7 +68,7 @@ function mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf, mk, shi
     const answer = String((req.body || {}).answer || '').trim().slice(0, 6000); if (answer.length < 10) return res.redirect(`/account/claims/${d.id}?ok=short`);
     db.prepare("UPDATE disputes SET answer=?, answered_at=datetime('now'), status='answered' WHERE id=?").run(answer, d.id);
     ledger.append(db, 'dispute.answered', d.slug, { claim: caseNo(d) });
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `${caseNo(d)}: the maker has answered`, text: answer, cta: { label: 'Decide', url: `${C.base}/studio/claims/${d.id}` } });
+    mail.send({ to: require('./address').email(), subject: `${caseNo(d)}: the maker has answered`, text: answer, cta: { label: 'Decide', url: `${C.base}/studio/claims/${d.id}` } });
     res.redirect(`/account/claims/${d.id}?ok=answered`);
   });
 
@@ -141,7 +141,7 @@ ${E ? `<p class="err">${esc(E)}</p>` : ''}
 <label><span>Your original, or other evidence (optional, 60 MB at most)</span><input type="file" name="file"></label>
 <label class="cl-oath"><input type="checkbox" name="oath" value="1" required> I believe in good faith that what I have said is true and accurate; I am the person concerned, or the holder of the right, or authorized to act for them; and I understand that a knowing misstatement may make me liable.</label>
 <button class="buy-btn">Send the claim</button></form>
-<p class="note">The house's agent for notices is house@watermark.krafftco.com. Claims are kept with the work's record; the decision is written to the register without naming anyone.</p></section>` });
+<p class="note">The house's agent for notices is ${esc(require('./address').email())}. Claims are kept with the work's record; the decision is written to the register without naming anyone.</p></section>` });
 }
 
 function claimsDesk({ rows, base, studio }) {

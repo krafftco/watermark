@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.0 · The house can stand at its own address · 23 November 2026
+
+- The house's address is one setting. Every page, letter, card, paper, feed and file that names the house reads it; nothing else spells a host.
+- When the house moves, the address it left sends every visitor on to the same page at the new one: albums with their links, pictures, downloads, certificates, register entries. Papers already issued are not rewritten; their links keep working.
+- Nothing changes today: the house stays where it is until the new address is switched on.
+
 ## 1.93.1 · The story card, made for Instagram · 22 November 2026
 
 - An album's story and post cards, and a work's own, now end with the house's logo, drawn in the card's quiet grey, in place of the word typed.

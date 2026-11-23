@@ -98,7 +98,7 @@ function mountVolumes(app, { db, V, studioOnly, ledger }) {
     let t = String(s || '').trim(); if (!t) return null;
     if (/^[a-z0-9][a-z0-9-]{0,119}$/i.test(t)) return t.toLowerCase();
     let u; try { u = new URL(t, 'http://localhost'); } catch (e) { return null; }
-    if (/^[a-z]+:\/\//i.test(t)) { const h = u.hostname.toLowerCase(); if (!(HOUSE_HOST.test(h) || (host && h === String(host).toLowerCase().split(':')[0]))) return { foreign: true }; }
+    if (/^[a-z]+:\/\//i.test(t)) { const h = u.hostname.toLowerCase(); if (!(HOUSE_HOST.test(h) || h === require('./address').host().split(':')[0] || (host && h === String(host).toLowerCase().split(':')[0]))) return { foreign: true }; }
     const seg = u.pathname.split('/').filter(Boolean).map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
     let slug = null;
     if (seg[0] === 'wander') slug = u.searchParams.get('at');

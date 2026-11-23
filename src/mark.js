@@ -91,7 +91,7 @@ function xmp({ title, maker, year, credit, copyright, licensor, statement, regis
   const e = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Watermark"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:plus="http://ns.useplus.org/ldf/xmp/1.0/" xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" xmlns:wm="https://watermark.krafftco.com/ns/1.0/">
+<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:plus="http://ns.useplus.org/ldf/xmp/1.0/" xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" xmlns:wm="${require('./address').NS.xmp}">
 <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${e(title)}</rdf:li></rdf:Alt></dc:title>${caption ? `\n<dc:description><rdf:Alt><rdf:li xml:lang="x-default">${e(caption)}</rdf:li></rdf:Alt></dc:description>` : ''}
 <dc:creator><rdf:Seq><rdf:li>${e(maker)}</rdf:li></rdf:Seq></dc:creator>
 <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">${e(copyright)}</rdf:li></rdf:Alt></dc:rights>
@@ -103,7 +103,7 @@ function xmp({ title, maker, year, credit, copyright, licensor, statement, regis
 ${terms ? '' : `<plus:Licensor><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:LicensorName>Watermark, a Krafft company</plus:LicensorName><plus:LicensorURL>${e(licensor)}</plus:LicensorURL></rdf:li></rdf:Seq></plus:Licensor>
 <plus:CopyrightOwner><rdf:Seq><rdf:li rdf:parseType="Resource"><plus:CopyrightOwnerName>${e(maker)}</plus:CopyrightOwnerName></rdf:li></rdf:Seq></plus:CopyrightOwner>`}
 <plus:ImageSupplierImageID>${e(accession)}</plus:ImageSupplierImageID>
-<Iptc4xmpExt:RegistryId><rdf:Bag><rdf:li rdf:parseType="Resource"><Iptc4xmpExt:RegOrgId>watermark.krafftco.com</Iptc4xmpExt:RegOrgId><Iptc4xmpExt:RegItemId>${e(ref || accession)}</Iptc4xmpExt:RegItemId></rdf:li></rdf:Bag></Iptc4xmpExt:RegistryId>
+<Iptc4xmpExt:RegistryId><rdf:Bag><rdf:li rdf:parseType="Resource"><Iptc4xmpExt:RegOrgId>${e(require('./address').host())}</Iptc4xmpExt:RegOrgId><Iptc4xmpExt:RegItemId>${e(ref || accession)}</Iptc4xmpExt:RegItemId></rdf:li></rdf:Bag></Iptc4xmpExt:RegistryId>
 <Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture</Iptc4xmpExt:DigitalSourceType>
 <Iptc4xmpCore:CreatorContactInfo rdf:parseType="Resource"><Iptc4xmpCore:CiUrlWork>${e(licensor)}</Iptc4xmpCore:CiUrlWork></Iptc4xmpCore:CreatorContactInfo>
 <wm:accession>${e(accession)}</wm:accession>${ref ? `<wm:license>${e(ref)}</wm:license>` : ''}${number ? `<wm:number>${e(number)}</wm:number>` : ''}${year ? `<wm:year>${e(year)}</wm:year>` : ''}<wm:register>${e(statement)}</wm:register>

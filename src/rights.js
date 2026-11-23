@@ -16,7 +16,7 @@ const KINDS = { image: 'An image of a work in the collection', archive: 'Archiva
 const USES = { book: 'A book or catalogue', article: 'An article, essay or thesis', exhibition: 'An exhibition or wall text', film: 'A film, broadcast or documentary', web: 'A website or social media', commercial: 'Commercial or advertising', study: 'Private study or research' };
 const DEFAULT_TERMS = `You will not misrepresent the material. You will cite it as the institution asks. You will not publish private or personally identifiable information about living persons that could cause them harm. You alone are responsible for complying with the law, including libel, copyright and privacy. You will obtain any further permission needed from copyright holders and from people depicted. You will send the institution a copy of the publication.`;
 function mountRights(app, { db, V, C, mail, isStudio, makerOf, notify }) {
-  const { esc, tidy, date } = V, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const { esc, tidy, date } = V, HOUSE = require('./address').email();
   for (const [c, t] of [['rights_email', 'TEXT'], ['rights_note', 'TEXT'], ['rights_terms', 'TEXT'], ['rights_open', 'INTEGER NOT NULL DEFAULT 1']]) {
     if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
   }

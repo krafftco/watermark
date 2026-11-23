@@ -9,7 +9,7 @@
 const crypto = require('crypto');
 
 const VERSION = '2026-10-19';
-const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+const HOUSE = require('./address').email();
 const PCT = Number(process.env.MAKER_PCT || 85);
 
 // A document: key, path, title, a line, sections of [heading, paragraphs...]. Paragraphs are plain text with
@@ -17,7 +17,7 @@ const PCT = Number(process.env.MAKER_PCT || 85);
 const DOCS = [
   { key: 'house', path: '/terms', title: 'The terms of the house', line: 'What Watermark is, and what we agree to with everyone who comes in.', sections: [
     ['Who we are', 'Watermark is a Krafft company. It holds, shows, licenses and protects works of art at the source, beginning with photographs. The house is operated from New York, United States, by the entity named in the Particulars below. "We", "the house" and "Watermark" mean that entity. "You" means anyone who looks, signs in, collects, licenses, curates or makes here.',
-      'These terms apply to every page of watermark.krafftco.com and to the files, letters and services that come from it. Makers, curators and galleries also agree to their own agreements, which say more and govern where they differ: [the Maker Agreement](/legal/makers) and [the Curator and Gallery Agreement](/legal/curators).'],
+      'These terms apply to every page of ' + require('./address').host() + ' and to the files, letters and services that come from it. Makers, curators and galleries also agree to their own agreements, which say more and govern where they differ: [the Maker Agreement](/legal/makers) and [the Curator and Gallery Agreement](/legal/curators).'],
     ['Looking', 'The collection is open to everyone, always, without an account. What you see on screen is a screen-sized copy; the originals stay in the vault. Looking is free. Screen copies are for looking at, here. They may not be taken, scraped, reproduced or used to train a machine; every page says so to crawlers, and every delivered file carries its papers inside it.'],
     ['Your account', 'You sign in by email. Your email is used to sign you in, to send you what you collect and what the house owes you, and for nothing else (see [Privacy](/privacy)). You are responsible for what is done with your sign-in; tell us at once if you think it has been used by someone else. You must be eighteen or older to collect, make or curate here.'],
     ['The register', 'Everything that matters here is recorded on the house register: arrivals, fingerprints, licenses, transfers, claims. Each entry is hashed into the one before and signed with the house key, so the record cannot be quietly changed. The public register names works, makers and events, never collectors or their addresses. Hidden entries exist for private matters and are kept the same way.'],

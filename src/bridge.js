@@ -69,12 +69,12 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
   `);
   for (const [c, t] of [['did', 'TEXT'], ['ids', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
 
-  const host = () => { try { return new URL(C.base).host; } catch (e) { return 'watermark.krafftco.com'; } };
+  const host = () => { try { return new URL(C.base).host; } catch (e) { return require('./address').host(); } };
   const HOUSE = () => `did:web:${encodeURIComponent(host())}`;
   const VM = () => `${HOUSE()}#register`;
   const makerDid = m => `${HOUSE()}:m:${V.makerSlug(m)}`;
   const ids = m => { try { return JSON.parse(m.ids || '{}') || {}; } catch (e) { return {}; } };
-  const CTX = ['https://www.w3.org/ns/credentials/v2', { wm: 'https://watermark.krafftco.com/ns#', WatermarkLicense: 'wm:WatermarkLicense', WatermarkAuthorship: 'wm:WatermarkAuthorship' }];
+  const CTX = ['https://www.w3.org/ns/credentials/v2', { wm: require('./address').NS.vc, WatermarkLicense: 'wm:WatermarkLicense', WatermarkAuthorship: 'wm:WatermarkAuthorship' }];
 
   // --- Identity documents.
   app.get('/.well-known/did.json', (req, res) => {

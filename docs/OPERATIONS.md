@@ -56,6 +56,89 @@ The promotion walks what it promoted (#66): its push, made with the workflow's o
 - Closed for the moment (Studio → Launch) answers every write 503 for a move or a restore; GET pages keep serving.
 - Backups: Studio → Back office → Backups; by hand `node scripts/restore.js`.
 
+## Moving the house's address
+
+23 November 2026 (#215). The house is to stand at `watermark.world`; today it stands at `watermark.krafftco.com`. The code is ready from 1.94.0 and changes nothing by itself: the address is two settings, and every step below is Will's hand (Render, AWS, DNS, Stripe, mail, Google). Nothing here has been run; where a step rests on a guess it says so.
+
+**The two settings** (`src/address.js`)
+
+- `BASE_URL`: where the house stands. Every page, letter, card, paper, feed and file reads it.
+- `OLD_HOSTS`: the hosts the house has left, comma-separated. A GET or HEAD arriving on one is answered 308 to the same path and query at `BASE_URL`. Not turned: anything posted (Stripe's webhook, the lab's callback, the Krafft sites' calls), a read that carries a key (push, the Lightroom plug-in, a partner), and `/healthz`. Unset, it means `watermark.krafftco.com`; the host named in `BASE_URL` is never treated as old.
+- Beside them: `HOUSE_EMAIL` and `MAIL_FROM` do not follow `BASE_URL` (step 8), and `LIVE_URL` is for the test house only (step 10).
+
+**The order, and why.** The new address answers first (steps 1 to 5). Then the house is told its address (step 6). Only then does the old address begin to redirect (step 7). At every moment both names reach the same house, so no step leaves it unreachable, and each of 6 and 7 is undone by putting the setting back. Do steps 6 and 7 with Studio → Launch not "being shown": each saves a setting, and Render restarts the service.
+
+**1. The zone.** Route 53 → Hosted zones → `watermark.world`.
+- Unsure: this repository does not record where `watermark.world` is registered or which AWS account holds its zone. The edge is in the wrkfullerton account (714560676112), and `krafftco.com`'s zone is in Will's AWS account. If the zone is in another account, the alias records of step 5 are still possible but are typed by hand; if the name is registered elsewhere, its nameservers must be the four the hosted zone lists.
+- Check: `dig +short NS watermark.world` lists the zone's four nameservers.
+
+**2. Render knows the name.** Render → `watermark` (the web service) → Settings → Custom Domains → Add `watermark.world`, then `www.watermark.world`.
+- Why: the edge passes the visitor's Host header through to Render (the default behaviour's origin request policy, AllViewer), and Render serves only the names it has been given. On 25 October the old name was already on the service when the edge went in front, and it was left there.
+- Unsure: whether Render will verify the name and issue its own certificate while DNS points at the edge and not at Render. If Render shows the name unverified after step 5, point the name at Render first as Render's own page instructs, wait for "Verified" and "Certificate issued", and then do step 5. A visitor reaching Render directly in that window is served the same house (TRUST_PROXY stays 2; keep the window short). Also unproven: whether Render renews that certificate once the name is behind the edge. The old name's certificate dates from before 25 October and has not yet come up for renewal with the edge in front; watch both names' dates on that page.
+- Check, once the name is added: `curl -s -H 'Host: watermark.world' https://watermark-3a4z.onrender.com/healthz` answers the house's JSON. Unsure that this check is conclusive, since the certificate offered on that connection is for the onrender name.
+
+**3. The certificate.** AWS console, the wrkfullerton account, region **US East (N. Virginia) us-east-1** → Certificate Manager → Request → public certificate. Names, all three on one certificate: `watermark.world`, `www.watermark.world`, `watermark.krafftco.com`. DNS validation.
+- Why three: a distribution carries one certificate. The old name must stay on it, or the old address stops answering the moment the certificates are swapped and nothing is left to redirect.
+- Validation: each name gets a CNAME. "Create records in Route 53" writes them where the zone is in the same account; otherwise copy each into its zone by hand. The old name's record goes in the `krafftco.com` zone.
+- Check: the certificate's status is "Issued" and all three names show "Success". Do not go on until it is.
+
+**4. The edge.** CloudFront → distribution `EUW7MFQLDRUTK` → General → Settings → Edit. Alternate domain names: add `watermark.world` and `www.watermark.world`, keeping `watermark.krafftco.com`. Custom SSL certificate: choose the new three-name certificate. Save, and wait for "Deployed".
+- Nothing else at the edge changes. The Host header already reaches the house on every behaviour. The cache key of `/img/*` and `/static/*` (policy `watermark-pictures`) does not include the host and should not: the redirect is sent `no-store`, so the edge never keeps one, and a picture already at the edge is simply served under either name.
+- Unsure: whether the default behaviour's origin request policy is still AllViewer or has since become AllViewerAndCloudFrontHeaders. Either passes the Host header; leave it as it is.
+- Check: `curl -sI https://watermark.krafftco.com/healthz` still answers 200 (the old name survived the swap), and the General tab lists three alternate names.
+
+**5. DNS.** Route 53 → `watermark.world` → Create record, four times: an **A** and an **AAAA** record for the bare name, each an Alias to the CloudFront distribution `d1wj8xafp4wtz7.cloudfront.net`; the same pair for `www`.
+- Check: `curl -s https://watermark.world/healthz` answers `"ok":true` with the same `ver` as `curl -s https://watermark.krafftco.com/healthz`; `curl -sI https://watermark.world/` shows `via: … cloudfront`; the same for `www`. Open `https://watermark.world/wander` on a real phone. At this point the pages work at the new name but still call themselves by the old one (links in letters, the sitemap, the address drawn on a shared picture), and a passkey will not open there. That is right for this step.
+- If it does not answer: nothing has changed for visitors. Fix it before going on.
+
+**6. Tell the house.** Render → Environment, on three services, in this order: `watermark-scribe`, `watermark-worker`, then `watermark`:
+- `BASE_URL` = `https://watermark.world`
+- `OLD_HOSTS` = `none` (a word that matches no host: the old address keeps serving pages for now, so the new one can be tried first)
+
+  Then, by itself and with no help needed from Will, the house registers the new name with Stripe for Apple Pay and Google Pay (`registerDomain`, about a minute after start) and sets the vault's upload permission for the new origin.
+- Check: `curl -s https://watermark.world/sitemap.xml | head -c 400` names `watermark.world`. Sign in at the new address with the email code. Open a work and an album. On an iPhone, a work's price shows Apple Pay (if not, Stripe → Settings → Payments → Payment method domains → `watermark.world` → verify). Studio → Masters: add one picture (the vault's door from the new origin). A real phone, start to finish.
+- GitHub → the repository → Settings → Secrets and variables → Actions → Variables → New: `HOUSE_URL` = `https://watermark.world`. The watch, the live walk and the promotion read it. Check: the next `watch` run is green.
+- Back out: put `BASE_URL` back on all three and delete `HOUSE_URL`.
+
+**7. The old address sends people on.** Render → `watermark` → Environment: `OLD_HOSTS` = `watermark.krafftco.com,www.watermark.world`. (The same value on the worker and the scribe keeps the three alike; only the website acts on it.)
+- Check: `curl -sI 'https://watermark.krafftco.com/wander?at=x'` answers `308` with `location: https://watermark.world/wander?at=x`; `curl -sI https://www.watermark.world/` answers 308 to the bare name; an album link from an old letter opens the album; `curl -s https://watermark.krafftco.com/healthz` still answers 200 itself. A picture address on the old name may answer with the picture from the edge and no redirect; that is expected.
+- Back out: `OLD_HOSTS` = `none`.
+
+**8. Stripe.** Not urgent: the old webhook address keeps working, because a POST is never redirected.
+- Stripe → Developers → Webhooks → the endpoint at `https://watermark.krafftco.com/stripe/webhook` → **edit its URL** to `https://watermark.world/stripe/webhook`. Do not add a second endpoint: a new endpoint has a new signing secret, and the house holds one (`STRIPE_WEBHOOK_SECRET`).
+- Check: "Send test webhook" answers 200; after the next real sale the endpoint shows a 200 and the work is granted.
+- Apple Pay: nothing to press if step 6's check passed. Unsure: any place in the Stripe dashboard that shows the business's website (public details, Connect branding) is not known to this repository; change it where you find it.
+
+**9. Mail.** Letters keep going out, from the old sending domain with links to the new address, until this step. It can wait.
+- The mail service is Resend, and it has verified only `watermark.krafftco.com`. Resend → Domains → Add `watermark.world` → put its records (DKIM, SPF, the return path) into the `watermark.world` zone → wait for "Verified".
+- Then Render, on the web service and the worker: `MAIL_FROM` = `Watermark <house@watermark.world>`. If Resend refuses a sender, the house falls back to the old verified address by itself, so a mistake here delays nothing.
+- `HOUSE_EMAIL` is where people write to the house and where the digest and the alarm go. Unsure: this repository does not record where `house@watermark.krafftco.com` is received. Set `HOUSE_EMAIL` to a new address only after a letter sent to it from outside has arrived; until then the house keeps printing the old one, which still works.
+- Check: sign in with an email code at the new address; the letter's sender, its links and its foot name `watermark.world`.
+
+**10. Google, and the names written elsewhere.**
+- Search Console → Add property → Domain → `watermark.world` (a TXT record in the zone) → Sitemaps → `https://watermark.world/sitemap.xml`. Then, in the old property if one exists (unsure), Settings → Change of address → `watermark.world`. Check: the tool accepts the move (it looks for the redirect of step 7).
+- The Krafft sites load `house.js` and `k.js` from the old address; the redirect serves them. When convenient, change those script addresses on krafftco.com and studios.krafftco.com to `https://watermark.world/house.js` and `/k.js`.
+- The desk at fullerton.cloud: its `WATERMARK_BASE`. Instagram bios and printed cards: by hand; the old links keep working.
+- The test house, when it has `LIVE_URL` = `https://watermark.world`, names the new address on its banner.
+- `CLAUDE.md`, `README.md` and the agents' notes say where the house is live: a line each, after the move.
+
+**What changes for people**
+
+- Signed in at the old address, a person arrives at the new one signed out, because a browser keeps a sign-in per host. They are asked to sign in once, by email code; nothing is refused, and what they hold is as they left it. A basket kept in the browser at the old address starts empty at the new one.
+- Passkeys were made for the old host and do not open the new one. The email code does; a new passkey can be added afterwards. This includes the Studio's.
+- The Krafft house bar on krafftco.com and studios.krafftco.com can no longer tell that a visitor is signed in to Watermark (the browser sent the sign-in across `*.krafftco.com`; it will not send it to another site). The bar shows "Sign in" there; on Watermark itself it knows the visitor as before. The bar's links, the guest book and the K lead to the new address.
+- A phone that has the app on its home screen, or has allowed notifications, did so at the old address. Unsure how each browser carries that across; expect to add the app again from the new address. Not verified on a device.
+- The push command and the Lightroom plug-in already installed keep working against the old address. A newly downloaded push command names the new one. The plug-in's default (`lightroom/watermark.lrplugin/WatermarkAPI.lua`) still names the old address on purpose: it keeps its key under the house's address, so changing it signs every photographer's Lightroom out. A decision for another day.
+
+**What is not rewritten**
+
+- Papers already issued, licences and register entries name the old address in their text and are left as they are; the redirect keeps their links alive. New ones carry the new address.
+- The two namespaces written inside files and credentials (`NS` in `src/address.js`) are names, not addresses, and never change.
+- For counsel (Craig), before step 6: the terms say which address they cover, so their text, and with it their fingerprint, changes when `BASE_URL` does, with no change of version. Acceptances already recorded keep the fingerprint they were given.
+- Open, and not solved here: the house's identity for credentials is `did:web:` followed by its host (`src/bridge.js`), so it changes with the address, and a credential issued under the old identity is checked against a document that now redirects. Whether that matters to anyone holding one is a question for the CTO session before step 7.
+
+**If the test house moves later.** Not now. `watermark-next` would need its own name on its Render service, a certificate and (if it goes behind an edge) a distribution of its own, `BASE_URL` on `watermark-next` and `watermark-next-worker`, `LIVE_URL`, the test-mode webhook's address edited in Stripe, and the addresses in `load.yml` and `PLAYHOUSE_BASE`. Until then it stays at its onrender name and nothing here touches it.
+
 ## Next, in order
 
 1. Display copies to the bucket behind the edge, then the website's disk off: zero-downtime deploys.
