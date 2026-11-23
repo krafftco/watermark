@@ -40,7 +40,7 @@ function rights(a, w) {
 }
 
 function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, mk, fetchImpl, imageOf }) {
-  const { esc } = V; const doFetch = fetchImpl || fetch; const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const { esc } = V; const doFetch = fetchImpl || fetch; const HOUSE = require('./address').email();
   db.exec(`CREATE TABLE IF NOT EXISTS artists (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, sort_name TEXT, born INTEGER, died INTEGER, nationality TEXT, movement TEXT,
     bio TEXT, sources TEXT, wiki TEXT, claim_status TEXT, claimed_name TEXT, claimed_email TEXT, claimed_maker_id INTEGER, sale_ok INTEGER NOT NULL DEFAULT 0, terms TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS artist_claims (id INTEGER PRIMARY KEY, artist_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, relation TEXT NOT NULL, note TEXT, ip TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')), decided_at TEXT)`);

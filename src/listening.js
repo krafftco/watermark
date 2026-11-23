@@ -12,7 +12,7 @@
 // `recordings`: one row per record (a side or an album: the files in order), with the sleeve notes the house writes.
 const LICENSES = { pd: 'Public domain', cc0: 'CC0, no rights reserved', 'cc-by': 'CC BY', 'cc-by-sa': 'CC BY-SA', 'cc-by-nd': 'CC BY-ND', maker: 'The maker’s own, all rights reserved' };
 const PD_RECORDING_YEAR = +(process.env.PD_RECORDING_YEAR || (new Date().getUTCFullYear() - 101)); // US sound recordings: published this many years ago and before are public domain (1925 in 2026)
-const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; Watermark/1.0; +https://watermark.krafftco.com)' };
+const UA = { 'User-Agent': `Mozilla/5.0 (compatible; Watermark/1.0; +${require('./address').base()})` };
 function mountListening(app, { db, V, C, ledger, isStudio, buyerOf, makerOf, fetchImpl }) {
   const { esc, tidy } = V; const I = require('./icons');
   db.exec(`CREATE TABLE IF NOT EXISTS recordings (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, performer TEXT, composer TEXT, year TEXT, source TEXT NOT NULL DEFAULT 'archive', ia_id TEXT, files TEXT NOT NULL, license TEXT NOT NULL, license_url TEXT, credit TEXT, line TEXT, body TEXT, cover_url TEXT, cover_slug TEXT, maker_id INTEGER, chosen_by TEXT, why TEXT, seconds INTEGER, plays INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'shelved', at TEXT NOT NULL DEFAULT (datetime('now')))`);

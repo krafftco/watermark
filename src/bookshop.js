@@ -13,7 +13,7 @@ const KINDS = { first: 'First edition', signed: 'Signed copy', reprint: 'The hou
 const STEPS = { asked: 'Asked', packed: 'Packed', sent: 'Sent', done: 'Delivered', declined: 'Declined' };
 function mountBookshop(app, { db, V, C, buyerOf, setBuyer, mail, ledger, isStudio, stripe, makerOf }) {
   const { esc, tidy, money } = V, FEE = require('./fee'), I = require('./icons');
-  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = require('./address').email();
   db.exec(`CREATE TABLE IF NOT EXISTS copies (id INTEGER PRIMARY KEY, text_id INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'other', seller_kind TEXT NOT NULL DEFAULT 'house', seller_id INTEGER, line TEXT, condition TEXT, note TEXT,
       price_cents INTEGER NOT NULL, qty INTEGER NOT NULL DEFAULT 1, photo_slug TEXT, attest INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'offered', created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS copy_orders (id INTEGER PRIMARY KEY, ref TEXT UNIQUE NOT NULL, copy_id INTEGER NOT NULL, buyer_id INTEGER, email TEXT, ship_name TEXT, address TEXT, cents INTEGER NOT NULL, house_cents INTEGER NOT NULL DEFAULT 0,

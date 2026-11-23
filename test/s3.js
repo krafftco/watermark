@@ -19,8 +19,8 @@ const client = { async send(cmd) {
   assert.deepEqual(await s.list('originals/'), ['originals/a.jpg']);
   // Watermark's own key: S3 only ever holds sealed bytes; wrong key refuses to start
   // The bucket's door for the browser (21 Oct): set by the house, idempotent, and 'forbidden' said plainly when the key cannot.
-  assert.equal(await s.ensureCors(['https://watermark.krafftco.com']), 'set'); assert.ok(client.cors[0].ExposeHeaders.includes('ETag') && client.cors[0].AllowedMethods.includes('PUT'));
-  assert.equal(await s.ensureCors(['https://watermark.krafftco.com']), 'ok', 'already set: left alone');
+  assert.equal(await s.ensureCors([require('../src/address').base()]), 'set'); assert.ok(client.cors[0].ExposeHeaders.includes('ETag') && client.cors[0].AllowedMethods.includes('PUT'));
+  assert.equal(await s.ensureCors([require('../src/address').base()]), 'ok', 'already set: left alone');
   client.corsForbidden = true; client.cors = null; assert.equal(await s.ensureCors(['https://x.example']), 'forbidden'); client.corsForbidden = false;
   const key = require('crypto').randomBytes(32).toString('base64');
   const v = createStore({ bucket: 'b', client, vaultKey: key });

@@ -188,7 +188,7 @@ ${lines.length ? `<ul class="ph-lines">${lines.map(l => `<li><span>${esc(new Dat
     noStore(res); const r = readerOf(req); if (!r || !r.id) return res.sendStatus(403);
     const body = String((req.body || {}).body || '').replace(/<[^>]*>/g, '').trim().slice(0, 2000); if (!body) return res.redirect('/peephole#line');
     db.prepare('INSERT INTO reader_lines (reader_id, body) VALUES (?,?)').run(r.id, body);
-    try { mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `A line from the peephole: ${r.name}`, text: `${r.name} wrote, in the peephole:\n\n${body}\n\n${C.base}/studio/peephole` }); } catch (e) { /* mail off */ }
+    try { mail.send({ to: require('./address').email(), subject: `A line from the peephole: ${r.name}`, text: `${r.name} wrote, in the peephole:\n\n${body}\n\n${C.base}/studio/peephole` }); } catch (e) { /* mail off */ }
     if (app.locals.notify && C.maker) { try { const hm = db.prepare('SELECT id FROM makers WHERE handle=?').get(C.maker.handle); if (hm) app.locals.notify.tell({ maker_id: hm.id, kind: 'note', href: '/studio/peephole', title: `${r.name} wrote a line in the peephole`, body: body.slice(0, 140) }).catch(() => {}); } catch (e) { /* */ } }
     res.redirect('/peephole?ok=line#line');
   });

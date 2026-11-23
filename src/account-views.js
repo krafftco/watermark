@@ -34,7 +34,7 @@ ${msg ? `<p class="err">${msg}</p>` : ''}
 function profile({ m, saved = null, slug, intros = '' }) {
   setDeskPath('/account/profile');
   return layout({ title: 'Your profile · Watermark', studio: true, body: `<section class="narrow pf-ed"><p class="k">Your studio</p><h1>Your page.</h1>
-<p class="lede">This is what people find at <a href="/m/${esc(slug)}">watermark.krafftco.com/m/${esc(slug)}</a>: who you are, where you work, and your work.</p>
+<p class="lede">This is what people find at <a href="/m/${esc(slug)}">${esc(require('./address').host())}/m/${esc(slug)}</a>: who you are, where you work, and your work.</p>
 ${saved ? '<p class="ok">Saved.</p>' : ''}
 <form method="post" action="/account/profile" enctype="multipart/form-data" class="form">
 <div class="pf-por">${m.portrait ? `<img src="/portrait/${esc(m.handle)}?v=${esc(m.portrait)}" alt="">` : '<span class="pf-none"></span>'}<label class="pf-up"><input type="file" name="portrait" accept="image/*"><span>${m.portrait ? 'Change the portrait' : 'Add a portrait'}</span></label>${m.portrait ? '<label class="chk"><input type="checkbox" name="remove_portrait" value="1"> Remove it</label>' : ''}</div>

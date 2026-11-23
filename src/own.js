@@ -195,7 +195,7 @@ ${can ? `<form method="post" action="/account/ask-house" class="way-f"><label>A 
     if (app.locals.readiness && !app.locals.readiness(m).can) return res.redirect('/account?ok=notyet#way'); // the moment is read from the work, not asked for
     db.prepare('INSERT INTO house_asks (maker_id, note) VALUES (?,?)').run(m.id, String((req.body || {}).note || '').replace(/<[^>]*>/g, '').trim().slice(0, 240) || null);
     ledger.append(db, 'house.asked', m.handle, {});
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `${m.name} asks the house to look`, text: `${m.name} asks the house to look at their work.
+    mail.send({ to: require('./address').email(), subject: `${m.name} asks the house to look`, text: `${m.name} asks the house to look at their work.
 
 ${C.base}/account?maker=${m.handle}
 ${C.base}/studio/accounts` }).catch(() => {});
@@ -269,7 +269,7 @@ ${done.length ? `<h2>Registered, filed, prepared${counts.reg + counts.grouped > 
     if (!db.prepare("UPDATE copyright_asks SET paid=1, status='asked' WHERE id=? AND COALESCE(paid,0)=0").run(a.id).changes) return db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(a.id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, 'copyright.asked', `ask-${a.id}`, { maker: mk(a.maker_id).handle, works: JSON.parse(a.works).length, groups: a.groups });
     const m = mk(a.maker_id);
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Copyright filing asked: ${m.name}`, text: `${m.name} asks the house to register ${JSON.parse(a.works).length} work(s) in ${a.groups} group(s), paid ${money(a.cents)}.\n\n${C.base}/studio/copyright` }).catch(() => {});
+    mail.send({ to: require('./address').email(), subject: `Copyright filing asked: ${m.name}`, text: `${m.name} asks the house to register ${JSON.parse(a.works).length} work(s) in ${a.groups} group(s), paid ${money(a.cents)}.\n\n${C.base}/studio/copyright` }).catch(() => {});
     if (m.email) mail.send({ to: m.email, subject: 'Your registration is in hand', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has your ask and the Office’s fee, and prepares the filing. You will hear when it is filed, and again when the Office registers it; the number is then written onto each work and its deed.\n\nThank you.\n\nWatermark, a Krafft company.` }).catch(() => {});
     return db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(a.id);
   }

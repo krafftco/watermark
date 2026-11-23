@@ -45,8 +45,8 @@ const pagesNow=vv=>db.prepare('SELECT work_id, pos FROM volume_pages WHERE volum
 const sound=(vv,msg)=>{vv=V.byId(vv.id);const o=pagesNow(vv);assert.deepStrictEqual(o.map(x=>x.pos),o.map((x,i)=>i),msg+': pos dense');assert.strictEqual(vv.n,o.length,msg+': n');
   if(vv.status==='open')o.forEach((x,i)=>assert.strictEqual(vp(x.work_id),i===0?0:vv.id,msg+': vol_page of page '+(i+1)));return o.map(x=>x.work_id);};
 const S=V.slugFrom;assert.strictEqual(S('codex-arundel-folio-1'),'codex-arundel-folio-1');assert.strictEqual(S('/w/abc-1'),'abc-1');assert.strictEqual(S('/m/the-house/abc-1'),'abc-1');
-assert.strictEqual(S('/wander?at=abc-1&in=open'),'abc-1');assert.strictEqual(S('/easel/abc-1?back=%2F'),'abc-1');assert.strictEqual(S('https://watermark.krafftco.com/m/x/abc-1'),'abc-1');
-assert.strictEqual(S('https://watermark.krafftco.com/wander?at=abc-1'),'abc-1');assert.ok(S('https://example.com/w/abc-1').foreign,'another site is not read');assert.strictEqual(S('/collection'),null);
+assert.strictEqual(S('/wander?at=abc-1&in=open'),'abc-1');assert.strictEqual(S('/easel/abc-1?back=%2F'),'abc-1');assert.strictEqual(S(require('../src/address').base()+'/m/x/abc-1'),'abc-1');
+assert.strictEqual(S(require('../src/address').base()+'/wander?at=abc-1'),'abc-1');assert.ok(S('https://example.com/w/abc-1').foreign,'another site is not read');assert.strictEqual(S('/collection'),null);
 // add by slug, at the end: on the open volume, off the walls, and in the viewer at once
 r=await post('/studio/volumes/'+v.id+'/pages',{at:lady.slug,label:'added'});assert.strictEqual(r.status,302);assert.strictEqual(okOf(r),'Added as page 8.');
 let ids=sound(v,'added at the end');assert.strictEqual(ids[7],lady.id);assert.strictEqual(vp(lady.id),v.id);
@@ -58,7 +58,7 @@ r=await post('/studio/volumes/'+v.id+'/pages/'+lady.id+'/out',{});assert.strictE
 ids=sound(v,'taken out');assert.ok(!ids.includes(lady.id));assert.strictEqual(vp(lady.id),null);assert.ok(db.prepare("SELECT 1 x FROM works w WHERE w.id=?"+wall.sql('w')).get(lady.id),'back on the walls');
 // add by a full address of the house, as the first page: the first page changes and vol_page follows
 const hd=db.prepare('SELECT handle FROM makers WHERE id=?').get(lady.maker_id).handle;
-r=await post('/studio/volumes/'+v.id+'/pages',{at:'https://watermark.krafftco.com/m/'+hd+'/'+lady.slug,after:'0'});assert.strictEqual(okOf(r),'Added as page 1.');
+r=await post('/studio/volumes/'+v.id+'/pages',{at:require('../src/address').base()+'/m/'+hd+'/'+lady.slug,after:'0'});assert.strictEqual(okOf(r),'Added as page 1.');
 ids=sound(v,'added first');assert.strictEqual(ids[0],lady.id);assert.strictEqual(vp(lady.id),0);assert.strictEqual(vp(ws[1].id),v.id,'the old first page leaves the walls');
 // after page N, by the Wander address
 const loose=await mk('Study of hands',10);r=await post('/studio/volumes/'+v.id+'/pages',{at:base+'/wander?at='+loose.slug,after:'3'});assert.strictEqual(okOf(r),'Added as page 4.');

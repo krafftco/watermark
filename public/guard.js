@@ -27,7 +27,7 @@
   }
   // The mark, for the capture moment only: the picture dims, the wave comes up large and single, and one
   // line names the work and its address. Nothing tiled, nothing busy; it should look like the house's own seal.
-  var mark = '<svg viewBox="1.5 14.2 41 11" fill="currentColor"><path d="' + W.wave + '"/></svg><span>' + (W.accession ? W.accession + ' \u00b7 ' : '') + 'watermark.krafftco.com/w/' + W.slug + '</span>';
+  var mark = '<svg viewBox="1.5 14.2 41 11" fill="currentColor"><path d="' + W.wave + '"/></svg><span>' + (W.accession ? W.accession + ' \u00b7 ' : '') + (W.host || location.host) + '/w/' + W.slug + '</span>';
   var st2 = document.createElement('style');
   st2.textContent = '.wm-mark{position:absolute;left:0;right:0;bottom:7%;display:flex;justify-content:center;align-items:center;gap:10px;color:#fff;font:12px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:0;pointer-events:none;z-index:6;transition:opacity .25s ease .05s;text-shadow:0 1px 12px rgba(0,0,0,.5)}'
     + '.wm-mark svg{display:none}'

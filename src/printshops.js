@@ -222,7 +222,7 @@ function mountPrintShops(app, { db, V, C, ledger, mail, isStudio, studioOnly, ma
     if (!name || !shop || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).send(V.layout({ title: 'The press · Watermark', body: '<section class="narrow"><h1>A name, the shop and an address, please.</h1><p><a href="/printers#join">Back</a></p></section>' }));
     const id = db.prepare('INSERT INTO printer_applications (name, shop, email, city, state, papers, max_in, note) VALUES (?,?,?,?,?,?,?,?)').run(name, shop, email, String(b.city || '').slice(0, 80), String(b.state || '').toUpperCase().slice(0, 2), String(b.papers || '').slice(0, 300), Math.max(5, Math.min(120, +b.max_in || 17)), String(b.note || '').slice(0, 800)).lastInsertRowid;
     try { ledger.append(db, 'printer.asked', String(id), { shop, hidden: true }); } catch (e) { /* */ }
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `A shop asks to print for the house: ${shop}`, text: `${name}, ${shop}${b.city ? `, ${b.city}` : ''}${b.state ? `, ${b.state}` : ''}\n${email}\nPapers: ${b.papers || '—'} · to ${b.max_in || 17} in\n\n${b.note || ''}\n\n${C.base}/studio/printers` });
+    mail.send({ to: require('./address').email(), subject: `A shop asks to print for the house: ${shop}`, text: `${name}, ${shop}${b.city ? `, ${b.city}` : ''}${b.state ? `, ${b.state}` : ''}\n${email}\nPapers: ${b.papers || '—'} · to ${b.max_in || 17} in\n\n${b.note || ''}\n\n${C.base}/studio/printers` });
     mail.send({ to: email, subject: 'The house has your note', text: `${name.split(' ')[0]},\n\nThank you for asking to print for the house. We read every note and write back within the week.\n\nWatermark, a Krafft company.` });
     res.redirect('/printers?ok=asked');
   });

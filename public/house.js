@@ -1,5 +1,5 @@
 /* The house bar: one thin strip shared by Krafft, Krafft Studios, Watermark and Will Fullerton's own site.
-   Served from watermark.krafftco.com/house.js and loaded in the <head> of every site, so they all
+   Served from the house's own address (/house.js, which writes that address in: {{HOUSE}}) and loaded in the <head> of every site, so they all
    show the same bar and it changes in one place.
    Seamless: each link returns you to the page you last had open on that site (30 minutes), the next
    page is prefetched on hover, and links stay in the tab. The krafftco.com sites share one cookie;
@@ -7,10 +7,13 @@
    on to your last page there. */
 (function () {
   if (window.__krafftHouse) return; window.__krafftHouse = 1;
+  // Where Watermark stands. The house writes its address in as it serves this file; read raw (from /static), it is
+  // wherever this script came from.
+  var WM = '{{HOUSE}}'; if (WM.charAt(0) === '{') WM = (function () { try { return new URL(document.currentScript.src).origin; } catch (e) { return location.origin; } })();
   var P = [
     // Two front doors (Will, 18 Oct: Studios is the magazine, Watermark is the thing; the rest is tucked behind the K).
     { id: 'studios', name: 'Studios', host: 'studios.krafftco.com', url: 'https://studios.krafftco.com', front: 1 },
-    { id: 'watermark', name: 'Watermark', host: 'watermark.krafftco.com', url: 'https://watermark.krafftco.com', front: 1 },
+    { id: 'watermark', name: 'Watermark', host: WM.replace(/^https?:\/\//, ''), url: WM, front: 1 },
     { id: 'krafft', name: 'Krafft', host: 'krafftco.com', url: 'https://www.krafftco.com', line: 'The Firm, and the ventures' },
     // A venture that lives as a page on krafftco.com: matched by path, always opens at its page.
     { id: 'dgc', name: 'Dallas Golf Club', short: 'DGC', host: 'krafftco.com', path: '/dallas-golf-club', url: 'https://www.krafftco.com/dallas-golf-club', line: 'A Krafft venture' },
@@ -18,7 +21,6 @@
   ];
   // The far right of the bar is the visitor's own door: their studio and collection when they are known
   // to the house, the way in when they are not. Will's page is the example of what everyone's can be.
-  var WM = 'https://watermark.krafftco.com';
   function fam(host) { return /wrkfullerton\.com$/.test(host) ? 'wrkfullerton.com' : /krafftco\.com$/.test(host) ? 'krafftco.com' : ''; }
   var h = location.hostname.replace(/^www\./, '');
   var here = null;
@@ -103,7 +105,7 @@
     var mh = '<p class="kh-mh">The house of Krafft</p>';
     P.forEach(function (p) { if (p.front) return; var a = link(p); mh += '<a class="kh-mi" href="' + a.href + '"><b>' + p.name + '</b>' + (p.line ? '<span>' + p.line + '</span>' : '') + '</a>'; });
     var chm = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : 'krafft';
-    mh += '<a class="kh-mi kh-mg" href="https://watermark.krafftco.com/guestbook?chapter=' + chm + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign"><b>Guest book</b><span>Sign it from any door</span></a>';
+    mh += '<a class="kh-mi kh-mg" href="' + WM + '/guestbook?chapter=' + chm + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign"><b>Guest book</b><span>Sign it from any door</span></a>';
     menu.innerHTML = mh; bar.appendChild(menu);
     kb.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden = !menu.hidden; bar.classList.toggle('open', !menu.hidden); });
     document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== kb) { menu.hidden = true; bar.classList.remove('open'); } });
@@ -113,7 +115,7 @@
     // The house guest book, from every door: a quiet line at the end of the bar.
     var gb = document.createElement('a'); gb.className = 'kh-gb'; gb.textContent = 'Guest book';
     var ch = here === 'studios' ? 'studios' : here === 'dgc' ? 'dgc' : here === 'watermark' ? 'watermark' : here === 'will' ? 'krafft' : 'krafft';
-    gb.href = 'https://watermark.krafftco.com/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
+    gb.href = WM + '/guestbook?chapter=' + ch + '&from=' + encodeURIComponent(location.href.split('#')[0]) + '#sign';
     var you = document.createElement('a'); you.className = 'kh-you'; you.innerHTML = '<span class="kh-nm">Sign in</span>'; you.href = WM + '/signin'; right.appendChild(you);
     bar.appendChild(right);
     // On Studios the magazine keeps one top row (Will, 18 Oct: drop the subheader, make it the magazine): the
@@ -153,7 +155,7 @@
   // krafftco.com/license and Watermark, joined: when the photograph is held on Watermark, each use is
   // bought there at once and the photograph can be collected; with no photograph, the uses lead to the collection.
   if (/(^|\.)krafftco\.com$/.test(h) && /^\/license\/?$/.test(location.pathname)) {
-    var WMB = 'https://watermark.krafftco.com', USE = { Editorial: 'editorial', Commercial: 'commercial', Campaign: 'campaign', Print: 'print' };
+    var WMB = WM, USE = { Editorial: 'editorial', Commercial: 'commercial', Campaign: 'campaign', Print: 'print' };
     var lic = function () {
       var r = document.querySelector('.wl'); if (!r) return;
       var img = new URLSearchParams(location.search).get('image') || '';
@@ -183,7 +185,7 @@
   if (/(^|\.)krafftco\.com$/.test(h) && /^\/watermark\/?$/.test(location.pathname)) {
     var wmp = function () {
       var ul = document.querySelector('.wm .wm-links'); if (!ul || ul.getAttribute('data-wm')) return; ul.setAttribute('data-wm', '1');
-      var W = 'https://watermark.krafftco.com';
+      var W = WM;
       var row = function (href, t, s) { var li = document.createElement('li'); li.innerHTML = '<a href="' + href + '"><span>' + t + '<i></i></span><small>' + s + '</small></a>'; return li; };
       [].forEach.call(ul.querySelectorAll('a'), function (a) {
         if (/studios\.krafftco\.com\/?$/.test(a.href)) { a.href = W + '/collection'; a.removeAttribute('target'); a.querySelector('span').firstChild.textContent = 'Walk the collection'; a.querySelector('small').textContent = 'Krafft Studios'; }

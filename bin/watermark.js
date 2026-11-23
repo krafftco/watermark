@@ -22,7 +22,9 @@ const VERSION = '0.1.0';
 const HOME = process.env.WATERMARK_HOME || path.join(os.homedir(), '.watermark');
 const CONF = path.join(HOME, 'config.json');
 const STATE = path.join(HOME, 'state');
-const DEFAULT_HOUSE = 'https://watermark.krafftco.com';
+// The house writes its own address in as it serves this file (/push/watermark.js). Run from the source, it is
+// WATERMARK_HOUSE or --house.
+const DEFAULT_HOUSE = '{{HOUSE}}'.charAt(0) === '{' ? (process.env.WATERMARK_HOUSE || '') : '{{HOUSE}}';
 const EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.tif': 'image/tiff', '.tiff': 'image/tiff', '.png': 'image/png', '.webp': 'image/webp', '.dng': 'image/x-adobe-dng' };
 const SKIP_DIRS = /(^\.|\.lrdata$|\.lrcat-data$|^Previews$|^@eaDir$|^\$RECYCLE\.BIN$|^System Volume Information$)/;
 const tty = process.stdout.isTTY;
@@ -119,6 +121,7 @@ function sha256(file, onBytes) {
 // ---------- commands ----------
 async function login(o) {
   const house = String(o.house || readJSON(CONF, {}).house || DEFAULT_HOUSE).replace(/\/$/, '');
+  if (!house) die('Which house? Say --house https://… (the copy the house serves at /push/watermark.js knows its own).');
   const name = String(o.name || (os.platform() === 'darwin' ? macName() : os.hostname()) || 'a computer');
   let b; try { b = await (await fetch(house + '/api/push/begin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })).json(); } catch (e) { die(`Could not reach ${house}: ${e.message}`); }
   if (!b || !b.ok) die('The house would not begin a pairing: ' + JSON.stringify(b));

@@ -376,3 +376,16 @@ The CTO session keeps it honest.
   beside a picture, the wall label (`.wlb`, `labelOf` in app.js), the holder's papers unchanged byte for byte.
 - A `${}` inside a single-quoted string in a view is printed as written: turn the string into a template literal.
 
+## The house's address (#215)
+- No file spells the house's host but `src/address.js` (`test/address.js` fails on one in src, public, test, scripts or bin).
+  A link or a bare host: `require('./address').base()` / `.host()`; the letterbox: `.email()` (it does not follow BASE_URL).
+  In app.js routes `C.base` is the same thing with the test house's own base.
+- `public/house.js`, `public/k.js` and `bin/watermark.js` run away from the house: they carry `{{HOUSE}}`, written in as
+  they are served (`/house.js`, `/k.js`, `/push/watermark.js`). Read raw they fall back to where the script came from.
+- The settings are read as modules load (`legal.js`, the UA strings): a test of another address sets `process.env.BASE_URL`
+  before its first `require`, and proves "unset" in a child process.
+- The old-host redirect (app.js, after `trust proxy`) turns only GET and HEAD, never `/healthz`, `/stripe/webhook` or a
+  request with a Bearer key, and answers `no-store`: the edge's picture cache is not keyed on the host. A new machine
+  door that is read with GET and no key on the old host needs a line in `STAY`.
+- The namespaces in `ADDR.NS` are names inside issued files; they never follow the address.
+- The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).

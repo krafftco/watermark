@@ -239,7 +239,7 @@ ${more ? `<tr><td align="center" style="padding:10px 56px 26px" class="wm-pad"><
     const text = `${m.name}’s Gazette\n\n${tidy(t.title)}\n${t.summary ? t.summary + '\n' : ''}\n${shown.map(p => p.replace(/^#+\s*/, '').replace(/^>\s?/, '')).join('\n\n')}\n\n${more ? `Read on: ${url}\n\n` : ''}Talk about it: ${C.base}/bench/text/${t.slug}\nUnsubscribe: ${off}`;
     return { html, text };
   }
-  const SENDER = (m) => { const addr = (String(process.env.MAIL_FROM || '').match(/<([^>]+)>/) || [])[1] || 'house@watermark.krafftco.com'; return `${String(m.name).replace(/[<>"]/g, '')} · Watermark <${addr}>`; };
+  const SENDER = (m) => { const addr = (String(process.env.MAIL_FROM || '').match(/<([^>]+)>/) || [])[1] || require('./address').email(); return `${String(m.name).replace(/[<>"]/g, '')} · Watermark <${addr}>`; };
   const queue = []; let running = false;
   async function drain() { if (running) return; running = true; try { while (queue.length) { const j = queue.shift(); try { await mail.send(j); } catch (e) { console.error('[gazette] send', e.message); } if (GAP) await new Promise(r => setTimeout(r, GAP)); } } finally { running = false; } }
   function send(t, { only } = {}) {

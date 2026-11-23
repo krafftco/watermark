@@ -74,7 +74,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
   for (const [col, def] of [['kind', "TEXT NOT NULL DEFAULT 'ask'"], ['cents', 'INTEGER'], ['paid', 'INTEGER NOT NULL DEFAULT 0'], ['stripe_session', 'TEXT'], ['ship_name', 'TEXT'], ['address', 'TEXT']]) {
     if (!db.prepare("SELECT 1 FROM pragma_table_info('print_orders') WHERE name=?").get(col)) db.exec(`ALTER TABLE print_orders ADD COLUMN ${col} ${def}`);
   }
-  const { esc, tidy, date, money } = V, HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const { esc, tidy, date, money } = V, HOUSE = require('./address').email();
   const pk = () => (typeof pocket === 'function' ? pocket() : pocket) || app.locals.pocket;
   const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name, u.term_months AS use_term FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
   const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };

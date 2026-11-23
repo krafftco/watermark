@@ -22,7 +22,7 @@ const archiver = require('archiver');
 const ROLES = { heir: 'Heir', executor: 'Executor' };
 const WAIT = () => Math.max(0, +(process.env.ESTATE_WAIT_DAYS || 30));
 const MAX_HEIRS = 3;
-const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+const HOUSE = require('./address').email();
 
 function mountEstate(app, { db, V, C, mail, ledger, isStudio, studioOnly, makerOf, images, originalPath, cache, upload, bagcheck }) {
   const { esc, date } = V;

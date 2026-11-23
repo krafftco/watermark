@@ -72,7 +72,7 @@ function mountFirstWeek(app, { db, C, mail, ledger, steps }) {
       if (db.prepare("SELECT 1 FROM ledger WHERE type='maker.firstsale' AND subject=?").get(w.handle)) return;
       const l = db.prepare('SELECT * FROM licenses WHERE ref=?').get(String(subject)) || {};
       ledger.append(db, 'maker.firstsale', w.handle, { work: w.slug, ref: subject, cents: l.price_cents || 0, hidden: true });
-      mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `${w.maker_name}’s first sale`, text: `${w.maker_name} just sold for the first time on the house: ${w.title}, ${require('./views').money ? require('./views').money(l.price_cents || 0) : ''}.\n\nA word from you today would mean something. ${w.maker_email ? `Their address: ${w.maker_email}` : ''}\n\n${C.base}/m/${w.handle}` });
+      mail.send({ to: require('./address').email(), subject: `${w.maker_name}’s first sale`, text: `${w.maker_name} just sold for the first time on the house: ${w.title}, ${require('./views').money ? require('./views').money(l.price_cents || 0) : ''}.\n\nA word from you today would mean something. ${w.maker_email ? `Their address: ${w.maker_email}` : ''}\n\n${C.base}/m/${w.handle}` });
       const hm = C.maker && C.maker.handle ? db.prepare('SELECT id FROM makers WHERE handle=?').get(C.maker.handle) : null;
       if (hm && app.locals.notify) try { app.locals.notify.tell({ maker_id: hm.id, kind: 'licensed', slug: w.slug, href: `/m/${w.handle}`, title: `${w.maker_name}’s first sale`, body: `${w.title}. Write to them today.` }); } catch (e) { /* */ }
     } catch (e) { console.error('[firstweek]', e.message); } });

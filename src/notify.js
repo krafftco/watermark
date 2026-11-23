@@ -55,7 +55,7 @@ function mountNotify(app, { db, C, ledger, V, mk, makerOf, buyerOf, fetchImpl })
       if (row) keys = JSON.parse(row.v);
       else { keys = webpush.generateVAPIDKeys(); db.prepare("INSERT INTO settings (k, v) VALUES ('vapid', ?)").run(JSON.stringify(keys)); }
     }
-    webpush.setVapidDetails(`mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}`, keys.publicKey, keys.privateKey);
+    webpush.setVapidDetails(`mailto:${require('./address').email()}`, keys.publicKey, keys.privateKey);
     return keys;
   }
 

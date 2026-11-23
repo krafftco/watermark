@@ -9,6 +9,7 @@ database and disk, test money only.
 - A band on every page: "The test house. Nothing here is real and no money moves."
 - Never indexed: robots.txt disallows everything; every page says noindex.
 - Never takes real money: a live Stripe key is refused at start (logged as `[staging]`); use the Stripe test keys.
+- The band's link to the live house reads `LIVE_URL` (unset: where the house first stood). Set it on the test house when the live house moves (docs/OPERATIONS.md, "Moving the house's address").
 - Mails only testers: `MAIL_ALLOW` is a comma list of addresses or domains (`will@krafftco.com, @krafftco.com`);
   anything else is held back and logged. Subjects begin "[Test house]".
 

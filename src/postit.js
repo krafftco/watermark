@@ -5,7 +5,7 @@
 const fs = require('fs'); const path = require('path');
 
 function mountPostIt(app, { db, V, images, cache, originalPath }) {
-  const host = () => { try { return new URL(process.env.BASE_URL || 'https://watermark.krafftco.com').host; } catch (e) { return 'watermark.krafftco.com'; } };
+  const host = () => { try { return new URL(require('./address').base()).host; } catch (e) { return require('./address').host(); } };
   const e = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // Who made it, as a person says it: the artist for a museum's work, else the maker.
   const byOf = w => {
@@ -116,7 +116,7 @@ function mountPostIt(app, { db, V, images, cache, originalPath }) {
     return m;
   };
   const worksOf = (m, n) => db.prepare("SELECT slug, title, width, height, place, taken_at, zone FROM works WHERE maker_id=? AND status='held' AND COALESCE(keep_back,0)=0 AND COALESCE(zone,'all')='all' ORDER BY curated DESC, COALESCE(stars,0) DESC, id DESC LIMIT ?").all(m.id, n);
-  const bioUrl = m => `${(process.env.BASE_URL || 'https://watermark.krafftco.com').replace(/\/$/, '')}/@${m.handle}`;
+  const bioUrl = m => `${require('./address').base()}/@${m.handle}`;
   app.get(/^\/@([A-Za-z0-9_.-]{1,64})\/?$/, (req, res, next) => {
     const m = makerBy(req.params[0]); if (!m) return next();
     const ws = worksOf(m, 12); const hero = ws[0];

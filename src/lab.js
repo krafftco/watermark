@@ -77,7 +77,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const tries = (j.lab_tries || 0) + 1;
     db.prepare('UPDATE print_jobs SET lab_state=?, lab_tries=?, note=? WHERE id=?').run('failed', tries, String(why).slice(0, 300), j.id);
     try { ledger.append(db, 'print.lab.failed', String(j.id), { why: String(why).slice(0, 200), tries, hidden: true }); } catch (e) { /* */ }
-    if (tries >= 3) { press.move(press.jobOf(j.id), 'declined', { by: 'lab' }); mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: 'The lab could not take a print', text: `Job ${j.id}: ${why}\n\nOffered on to the next shop.\n\n${C.base}/studio/printers` }); }
+    if (tries >= 3) { press.move(press.jobOf(j.id), 'declined', { by: 'lab' }); mail.send({ to: require('./address').email(), subject: 'The lab could not take a print', text: `Job ${j.id}: ${why}\n\nOffered on to the next shop.\n\n${C.base}/studio/printers` }); }
     return false;
   }
 
@@ -104,7 +104,7 @@ function mountLab(app, { db, V, C, ledger, mail, studioOnly, originalPath, press
     const ceiling = Math.round((o.cents || 0) * Math.max(10, Math.min(100, +(process.env.LAB_MAX_COST_PCT || 80))) / 100);
     if (quoted != null && o.cents > 0 && quoted > ceiling) {
       db.prepare("UPDATE print_jobs SET lab_state='too dear', lab_tries=3, lab_cost=?, note=? WHERE id=?").run(quoted, `the lab asks $${(quoted / 100).toFixed(2)} against a price of $${(o.cents / 100).toFixed(2)}`, j.id);
-      mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `A print the lab would make at a loss: ${o.title}`, text: `${o.title}, ${o.size || 'the proof'}: the lab asks $${(quoted / 100).toFixed(2)} (print and shipping) against the collector's $${(o.cents / 100).toFixed(2)}. Not placed. Raise the price, lower the size, or place it by hand from the press desk.\n\n${C.base}/studio/printers#lab` });
+      mail.send({ to: require('./address').email(), subject: `A print the lab would make at a loss: ${o.title}`, text: `${o.title}, ${o.size || 'the proof'}: the lab asks $${(quoted / 100).toFixed(2)} (print and shipping) against the collector's $${(o.cents / 100).toFixed(2)}. Not placed. Raise the price, lower the size, or place it by hand from the press desk.\n\n${C.base}/studio/printers#lab` });
       try { ledger.append(db, 'print.lab.failed', String(j.id), { why: 'too dear', quoted, cents: o.cents, hidden: true }); } catch (e) { /* */ }
       press.move(press.jobOf(j.id), 'declined', { by: 'lab' });
       return false;

@@ -23,7 +23,7 @@ function mountBeta(app, { db, V, mail, studioOnly, C, ledger }) {
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(b.email || '').trim()) ? String(b.email).trim().slice(0, 160) : null;
     const ua = String(req.get('user-agent') || ''), device = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac OS X/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Other';
     const id = db.prepare('INSERT INTO feedback (kind, body, email, page, device, ip) VALUES (?,?,?,?,?,?)').run(kind, body, email, from || null, device, ip.slice(0, 60)).lastInsertRowid;
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Beta: ${kind}${from ? ' on ' + from : ''}`, text: `${body}\n\n${email ? `From ${email}. ` : ''}${device}${from ? `, on ${C.base}${from}` : ''}.\n\n${C.base}/studio/feedback`, cta: { label: 'Read it in the Studio', url: `${C.base}/studio/feedback` } });
+    mail.send({ to: require('./address').email(), subject: `Beta: ${kind}${from ? ' on ' + from : ''}`, text: `${body}\n\n${email ? `From ${email}. ` : ''}${device}${from ? `, on ${C.base}${from}` : ''}.\n\n${C.base}/studio/feedback`, cta: { label: 'Read it in the Studio', url: `${C.base}/studio/feedback` } });
     if (app.locals.notify && app.locals.notify.house) try { app.locals.notify.house('feedback', { id, kind }); } catch (e) {}
     res.redirect('/feedback?sent=1' + (from ? '&from=' + encodeURIComponent(from) : ''));
   });
