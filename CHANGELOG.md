@@ -5,6 +5,12 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.1 · A credential issued at the old address still checks · 23 November 2026
+
+- The house's identity for credentials is tied to its address. When the house moves, it keeps the identity it had: the old address still answers for it, with the same key, and the new address names the old one as its own.
+- A license or an authorship credential saved before the move checks after it. New ones are issued under the new address.
+- Nothing changes today: until the new address is switched on, the house has one identity, as before.
+
 ## 1.94.0 · The house can stand at its own address · 23 November 2026
 
 - The house's address is one setting. Every page, letter, card, paper, feed and file that names the house reads it; nothing else spells a host.

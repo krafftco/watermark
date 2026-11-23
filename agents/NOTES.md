@@ -388,4 +388,10 @@ The CTO session keeps it honest.
   request with a Bearer key, and answers `no-store`: the edge's picture cache is not keyed on the host. A new machine
   door that is read with GET and no key on the old host needs a line in `STAY`.
 - The namespaces in `ADDR.NS` are names inside issued files; they never follow the address.
+- The identity (#220): `did:web` is a host, so the house has one identity per address it has had (`C.left`, from
+  `ADDR.leftHosts`: the old hosts and the first host, even with `OLD_HOSTS=none`; empty with no address set and on the
+  test house). `/.well-known/did.json` and `/m/<slug>/did.json` answer on the host asked, never redirected; issuing uses
+  `HOUSE()`, checking accepts `OWN()` (bridge.js). `test/identity.js` runs several houses in one process: each needs its
+  own folder, and the same `secret` gives the same signing key (the ledger's key is one per process).
+- A credential is built when it is asked for, never stored: there is no table of issued credentials to count or re-sign.
 - The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).

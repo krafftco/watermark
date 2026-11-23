@@ -481,7 +481,10 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
   // no-store: the edge's picture cache is not keyed on the host, and a kept redirect would be served to the new host.
   // The host the house stands on is never an old host, and a house with no address set has left none: with BASE_URL
   // unset, or set to where the house first stood, this mounts nothing.
-  { const OLD = new Set(cfg.base || process.env.BASE_URL ? ADDR.oldHosts(C.base, cfg.oldHosts) : []), STAY = /^\/(healthz|stripe\/webhook)$/;
+  // The identity documents (#220) answer where they are asked too: a credential issued at the old address names the
+  // old host, and a checker reads that host's document for that host's id (bridge.js). The test house never stood there.
+  C.left = (cfg.base || process.env.BASE_URL) && !C.staging ? ADDR.leftHosts(C.base, cfg.oldHosts) : [];
+  { const OLD = new Set(cfg.base || process.env.BASE_URL ? ADDR.oldHosts(C.base, cfg.oldHosts) : []), STAY = /^\/(healthz|stripe\/webhook|\.well-known\/did\.json|m\/[^/]+\/did\.json)$/;
     if (OLD.size) app.use((req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       if (!OLD.has(String(req.hostname || '').toLowerCase()) && !OLD.has(String(req.get('host') || '').toLowerCase())) return next();

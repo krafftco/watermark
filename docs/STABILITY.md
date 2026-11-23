@@ -259,3 +259,7 @@ At a million works (ten times): the pages stay a page; the grouped counts walk o
 - The repair (1.92.0): `.dv-tag[hidden]{display:none}`.
 - Not repaired: nothing else looked for; other panels with `display:grid|flex` and `hidden` are agents/NOTES.md's standing rule.
 
+## 23 Nov 2026: a credential issued at the old address would stop checking when the house moved (#220, found reading #215)
+- What was found: the house's identity for credentials is `did:web:` plus its host. After `BASE_URL` moves, a credential issued earlier names the old host; its document there was redirected by #215 and carried the new id, so a checker that resolves the issuer refuses it, and the house's own door looked the old name up over the network as if it were a stranger's. Found by reading the code before the move; the house has not moved, so no one has met it.
+- The repair (1.94.1): the identity documents are answered on the host they are asked on, with that host's id and the same key, and are left out of the redirect; the new document names the old identity as also-known-as; the house's own check accepts any identity it has had. `test/identity.js` issues before the move and checks after, on both hosts, with and without the redirect.
+- Not repaired: nothing was run against the edge or a real resolver library; the old name must stay pointed at the house (docs/OPERATIONS.md, "Moving the house's address").

@@ -49,7 +49,7 @@ const V = require('../src/views');
       while (r.status >= 300 && r.status < 400 && hops++ < 4) { const loc = r.headers.location || ''; if (loc.includes(FIRST)) bad.push(`${p} → ${loc}`); const u = new URL(loc, `https://${NEW}`); if (u.host !== NEW) break; r = await ask('GET', u.pathname + u.search, NEW); }
       if (r.status >= 500) bad.push(`${p} → ${r.status}`);
       if (r.status !== 200) continue; read++;
-      const body = r.body.split(ADDR.NS.xmp).join('').split(ADDR.NS.vc).join(''); let i = body.indexOf(FIRST);
+      const body = r.body.split(ADDR.NS.xmp).join('').split(ADDR.NS.vc).join('').split(`did:web:${FIRST}`).join(''); /* the identity the house has left is a name too (#220, also-known-as), not a link */ let i = body.indexOf(FIRST);
       if (i >= 0) bad.push(`${p}: …${body.slice(Math.max(0, i - 70), i + 50).replace(/\s+/g, ' ')}…`);
       if (/\$\{[^}]*address/.test(body)) bad.push(`${p}: a setting left unread in the page`);
     }
@@ -60,11 +60,13 @@ const V = require('../src/views');
     { const r = await ask('GET', '/k.js', NEW); assert.ok(r.body.includes(`'https://${NEW}'`), 'the K leads to the new address'); }
 
     // 2. The old host: every GET and HEAD goes on, permanently, path and query whole.
-    for (const p of ['/', '/wander?at=abc-1&in=open', '/a/Tok3n_-x?k=9f2c&from=mail', '/deliver/abc123?t=s3cret%2Fx', '/img/some-work/screen.jpg', '/d/WM-2026-0001/file?dl=1', '/c/WM-2026-0001', '/ledger/12', '/api/v1/works?maker=mk&page=2', '/signin?next=%2Faccount', '/house.js', '/.well-known/did.json']) {
+    for (const p of ['/', '/wander?at=abc-1&in=open', '/a/Tok3n_-x?k=9f2c&from=mail', '/deliver/abc123?t=s3cret%2Fx', '/img/some-work/screen.jpg', '/d/WM-2026-0001/file?dl=1', '/c/WM-2026-0001', '/ledger/12', '/api/v1/works?maker=mk&page=2', '/signin?next=%2Faccount', '/house.js']) {
       const r = await ask('GET', p, FIRST);
       assert.equal(r.status, 308, `${p} on the old host`); assert.equal(r.headers.location, `https://${NEW}${p}`, `${p}: the same path and query`);
       assert.ok(/no-store/.test(r.headers['cache-control'] || ''), `${p}: the redirect is never kept by a cache`);
     }
+    // The identity documents are answered where they are asked (#220; test/identity.js holds what they say).
+    { const r = await ask('GET', '/.well-known/did.json', FIRST); assert.equal(r.status, 200, 'the identity document is not turned'); }
     { const r = await ask('HEAD', '/a/Tok3n?k=1', FIRST); assert.ok(r.status === 308 && r.headers.location === `https://${NEW}/a/Tok3n?k=1`, 'HEAD too'); }
     { const r = await ask('GET', '/a/Tok3n?k=1', FIRST.toUpperCase() + ':443'); assert.equal(r.status, 308, 'the host in any case, with a port'); }
     // What a machine posts is never turned; neither is the health line the watch and the promotion read.
