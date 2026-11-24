@@ -395,3 +395,11 @@ The CTO session keeps it honest.
   own folder, and the same `secret` gives the same signing key (the ledger's key is one per process).
 - A credential is built when it is asked for, never stored: there is no table of issued credentials to count or re-sign.
 - The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).
+
+## The photographer's first ten minutes (#223)
+- A work's own desk is `/account/works/:slug` (the Studio's is `/studio/works/:slug`); the studio's holdings, the Library's loupe and Enter, and `/w/:slug` for its maker (`edit` in views.work) all lead there. `/w/:slug` is the page a collector sees.
+- `public/table.js` and the vault page's inline script are a few very long lines: a `//` comment added at the end of one swallows the rest of the line, and the page dies silently with nothing on it. Use `/* */`; `test/firstminutes.js` parses both.
+- The vault's page takes JPEG, TIFF and PNG; the server's raw door (src/raw.js) is for the arrivals a DNG reaches by other roads. The page names a raw file by its extension and leaves it out (`RAW` in account-views.js upload).
+- A walk in a browser: `.lib-tk` (a tile's tick) is under the picture for Playwright's pointer; `dispatchEvent('click')` on it selects. An album's `share_token` is made when its desk page is first opened.
+- A test house has no Stripe: `/w/:slug` offers no print there (editions.js `canSell`), so prove an offer with test/firstsale.js's stub.
+

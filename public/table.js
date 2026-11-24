@@ -69,7 +69,7 @@
   function repaint(w) { var el = grid.querySelector('[data-slug="' + w.slug + '"]'); if (!el) return; var n = document.createElement('div'); n.innerHTML = tile(w); el.replaceWith(n.firstChild); }
   function paintSel() {
     grid.querySelectorAll('.lib-t').forEach(function (el) { el.classList.toggle('is-sel', sel.has(el.getAttribute('data-slug'))); el.classList.toggle('is-cur', el.getAttribute('data-slug') === cur); });
-    nEl.textContent = sel.size; bar.hidden = sel.size === 0; root.querySelector('[data-lib-sel]').textContent = sel.size + ' selected';
+    nEl.textContent = sel.size; bar.hidden = sel.size === 0; root.querySelector('[data-lib-sel]').textContent = sel.size ? sel.size + ' selected' : works.some(function (w) { return w.status !== 'public'; }) ? 'Select what to publish' : '0 selected'; /* (#223) the Publish button is on the bar, which waits for a selection: say so */
     document.body.classList.toggle('lib-on', sel.size > 0);
   }
   function idx(slug) { for (var i = 0; i < shown.length; i++) if (shown[i].slug === slug) return i; return -1; }
@@ -150,8 +150,10 @@
   // Publish asks the attestation once a visit.
   var attest = root.querySelector('[data-lib-attest]'), attestCb = root.querySelector('[data-lib-attest-cb]');
   function attested() { try { return sessionStorage.getItem('wm_lib_attest') === '1'; } catch (e) { return false; } }
-  function publish() { if (attested()) { act({ do: 'publish', attest: '1' }); return; } attest.hidden = false; attestCb.checked = false; attestCb.focus(); }
-  root.querySelector('[data-lib-attest-go]').addEventListener('click', function () { if (!attestCb.checked) { attestCb.focus(); return; } try { sessionStorage.setItem('wm_lib_attest', '1'); } catch (e) { /* */ } attest.hidden = true; act({ do: 'publish', attest: '1' }); });
+  var attestSay = root.querySelector('[data-lib-attest-say]');
+  function publish() { if (attested()) { act({ do: 'publish', attest: '1' }); return; } attest.hidden = false; attestCb.checked = false; attestSay.hidden = true; attestCb.focus(); }
+  attestCb.addEventListener('change', function () { if (attestCb.checked) attestSay.hidden = true; });
+  root.querySelector('[data-lib-attest-go]').addEventListener('click', function () { if (!attestCb.checked) { attestSay.hidden = false; attestCb.focus(); return; } /* (#223) a press that does nothing says why */ try { sessionStorage.setItem('wm_lib_attest', '1'); } catch (e) { /* */ } attest.hidden = true; act({ do: 'publish', attest: '1' }); });
   root.querySelector('[data-lib-attest-no]').addEventListener('click', function () { attest.hidden = true; });
   bar.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return; var a = b.getAttribute('data-act');
@@ -171,7 +173,7 @@
   var L = root.querySelector('[data-lib-loupe]'), Lim = root.querySelector('[data-lib-lim]'), loupeSlug = null;
   var selBefore = null;
   function loupe(slug) { if (!loupeSlug) selBefore = new Set(sel); loupeSlug = slug; cur = slug; zReset(); sel = new Set([slug]); paintSel(); loupePaint(); L.hidden = false; document.body.classList.add('lib-loupe-on'); }
-  function loupePaint() { var w = bySlug[loupeSlug]; if (!w) return; if (Lim.getAttribute('data-for') !== w.slug) { Lim.setAttribute('data-for', w.slug); Lim.src = '/img/' + encodeURIComponent(w.slug) + '/large'; } root.querySelector('[data-lib-lt]').textContent = w.title; root.querySelector('[data-lib-ll]').textContent = [w.place, w.at.slice(0, 4), w.status === 'public' ? 'Public' : 'Private', w.flag === 'pick' ? 'Pick' : w.flag === 'reject' ? 'Rejected' : ''].filter(Boolean).join(' · '); root.querySelector('[data-lib-lstars]').innerHTML = stars(w.stars); root.querySelector('[data-lib-lopen]').href = '/w/' + encodeURIComponent(w.slug); var i = idx(loupeSlug); var im2 = shown[i + 1]; if (im2) { var pre = new Image(); pre.src = '/img/' + encodeURIComponent(im2.slug) + '/large'; } }
+  function loupePaint() { var w = bySlug[loupeSlug]; if (!w) return; if (Lim.getAttribute('data-for') !== w.slug) { Lim.setAttribute('data-for', w.slug); Lim.src = '/img/' + encodeURIComponent(w.slug) + '/large'; } root.querySelector('[data-lib-lt]').textContent = w.title; root.querySelector('[data-lib-ll]').textContent = [w.place, w.at.slice(0, 4), w.status === 'public' ? 'Public' : 'Private', w.flag === 'pick' ? 'Pick' : w.flag === 'reject' ? 'Rejected' : ''].filter(Boolean).join(' · '); root.querySelector('[data-lib-lstars]').innerHTML = stars(w.stars); root.querySelector('[data-lib-lopen]').href = '/account/works/' + encodeURIComponent(w.slug); var i = idx(loupeSlug); var im2 = shown[i + 1]; if (im2) { var pre = new Image(); pre.src = '/img/' + encodeURIComponent(im2.slug) + '/large'; } }
   function loupeClose() { loupeSlug = null; zReset(); L.hidden = true; document.body.classList.remove('lib-loupe-on'); if (selBefore) { sel = selBefore; selBefore = null; paintSel(); } }
   function loupeStep(d) { var i = idx(loupeSlug); var w = shown[i + d]; if (!w) return; loupe(w.slug); var el = grid.querySelector('[data-slug="' + w.slug + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }
   root.querySelector('[data-lib-lclose]').addEventListener('click', loupeClose);
@@ -240,7 +242,7 @@
     if (kl === 'x' && sel.size) { act({ do: 'flag', flag: 'reject' }); return; }
     if (kl === 'u' && sel.size) { act({ do: 'flag', flag: 'none' }); return; }
     if ((kl === 'e' || k === ' ') && (cur || sel.size)) { e.preventDefault(); if (loupeSlug) loupeClose(); else loupe(cur || Array.from(sel)[0]); return; }
-    if (k === 'Enter' && cur) { location.href = '/w/' + encodeURIComponent(cur); return; }
+    if (k === 'Enter' && cur) { location.href = '/account/works/' + encodeURIComponent(cur); return; }
     if (k === 'ArrowRight' || k === 'ArrowLeft' || k === 'ArrowDown' || k === 'ArrowUp') {
       var i = idx(cur); if (i < 0) { if (shown.length) select(shown[0].slug, 'one'); return; }
       var cols = Math.max(1, Math.round(grid.clientWidth / (grid.querySelector('.lib-t') || grid).getBoundingClientRect().width));

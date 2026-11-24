@@ -630,7 +630,7 @@ ${labelBlock(wallLabel)}<p class="lot-hint"><span class="lot-hint-c">Click the $
 ${w.accession ? `<p class="lot-no">${esc(w.accession)}</p>` : ''}
 <p class="lot-maker"><a href="/m/${esc(makerSlug(maker))}">${esc(maker.name)}</a>${by ? '' : lifeOf(maker)}${maker.house ? ` <span>${esc(maker.house)}</span>` : ''}</p>
 <h1 class="lot-t">${esc(title)}</h1>
-<p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>
+<p class="lot-pl">${[w.place, year].filter(Boolean).map(esc).join(', ')}</p>${edit ? `<p class="lc-edit"><a href="/account/works/${esc(w.slug)}">Edit this work</a></p>` : ''}
 ${story ? `<p class="lot-story">From <a href="${esc(story.url)}"><i>${esc(story.title)}</i></a>, Krafft Studios</p>` : ''}
 <p class="lot-md">${esc(medium)}${dims ? `<br>${dims}` : ''}</p>
 ${onview ? onview.html : ''}

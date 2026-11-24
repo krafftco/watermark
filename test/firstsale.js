@@ -127,7 +127,18 @@ const { createApp } = require('../src/app');
   // ---- 8. the other way: made and sent by the maker, from a master under the house's print standard -------------------
   const w2 = await putMaster('L1004400.jpg', 4000, 3000); await form(roland, `/account/works/${w2.slug}/show`, { attest: '1' });
   await form(roland, `/account/works/${w2.slug}/editions`, { new: '1', label: '11 × 14', paper: 'Canson Platine', edition_n: '10', price: '300' });
-  await form(roland, `/account/works/${w2.slug}/editions`, { new: '1', label: '24 × 36', edition_n: '5', price: '900', made_by: 'house' });
+  // (#223) The house's print room on a master under its standard is refused with the reason, never answered 'saved' and then not offered.
+  r = await form(roland, `/account/works/${w2.slug}/editions`, { new: '1', label: '24 × 36', edition_n: '5', price: '900', made_by: 'house' });
+  assert.ok(/ok=editionhouse/.test(r.headers.get('location') || ''), 'the print room from a 12 MP master is refused: ' + r.headers.get('location'));
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM print_editions WHERE work_id=?').get(w2.id).n, 1, 'and nothing is saved');
+  let desk2 = await page(roland, r.headers.get('location'));
+  assert.ok(/<p class="err"[^>]*>The house’s print room needs a master of 24 MP or more/.test(desk2), 'the desk says why, as a refusal');
+  assert.ok(/<option value="house" disabled>The house’s print room \(needs a 24 MP master\)<\/option>/.test(desk2), 'and the choice is greyed, with the reason');
+  r = await form(roland, `/account/works/${w2.slug}/editions`, { id: String(db.prepare('SELECT id FROM print_editions WHERE work_id=?').get(w2.id).id), label: '11 × 14', edition_n: '10', price: '300', active: '1', made_by: 'house' });
+  assert.ok(/ok=editionhouse/.test(r.headers.get('location') || '') && db.prepare('SELECT made_by FROM print_editions WHERE work_id=?').get(w2.id).made_by === 'maker', 'a size cannot be moved to the print room either');
+  // A size set to the print room before this (an older row) stays as it was, is not offered, and the desk says so.
+  db.prepare("INSERT INTO print_editions (work_id, label, long_in, edition_n, price_cents, sort, made_by) VALUES (?, '24 × 36', 36, 5, 90000, 1, 'house')").run(w2.id);
+  desk2 = await page(roland, `/account/works/${w2.slug}`); assert.ok(desk2.includes('24 × 36: set to the house’s print room, so not offered.'), 'the desk names the size that is not offered');
   const [e1, e2] = db.prepare('SELECT * FROM print_editions WHERE work_id=? ORDER BY sort, id').all(w2.id); assert.equal(e1.made_by, 'maker', 'a maker’s print is theirs to make by default'); assert.equal(e2.made_by, 'house');
   wp = await page({}, `/w/${w2.slug}`); assert.ok(wp.includes(`value="${e1.id}"`) && !wp.includes(`value="${e2.id}"`), 'from a 12 MP master the print he makes is offered; the house’s, which needs 24 MP, is not');
   assert.ok(text(wp).includes('Printed, signed and sent by Roland'));
