@@ -311,14 +311,17 @@ function createApp(cfg = {}) {
   const EDGE = require('./edge');
 const FEE = require('./fee'); // the house's share, paid by the collector when FEE_SIDE=collector
   const LETTERS = require('./mail-letters');
+  const PRINTP = require('./printpapers'); // (#224) a bought print: its number, where it is, when its maker is paid
   function letterFor(g, w, maker, u, token) {
     let t = null; try { t = g.rights ? JSON.parse(g.rights) : null; } catch (e) { t = null; }
     if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: g.price_cents });
+    if (!Array.isArray(t.rights) || !Array.isArray(t.extras)) t = require('./holds').termsOf(u, t); // (#207) a kept picture's rights say only its size: the use's own terms fill the rest, or the letter fell back to the plain one
     const pr = V.plainRights(g, u, t), k = token ? `?k=${token}` : '';
     const pct = FEE.on() && g.house_cents != null ? 100 : (maker.share_pct || 85), cents = g.price_cents || 0;
     const fmtD = d => new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
     const b = g.buyer_id ? db.prepare('SELECT * FROM buyers WHERE id=?').get(g.buyer_id) : null;
     const certUrl = `${C.base}/c/${g.ref}${k}`;
+    const po = u.kind === 'print' ? PRINTP.of(db, g, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7) : null; // (#224) the print's own number, where it is, when its maker is paid
     const times = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0").get(w.id).n;
     const allTimes = db.prepare("SELECT COUNT(*) n FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0").get(maker.id).n;
     const month = db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(maker.share_pct || 85)}),0) c FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?`).get(maker.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()).c;
@@ -326,15 +329,15 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
-      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
+      no: u.kind === 'print' ? (po && po.no) || null : g.collector_no || null, of: u.kind === 'print' ? (po && po.of) || null : w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
       fee: t.credit && !cents ? 'Nothing: credit only' : V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
-      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
+      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: u.kind === 'print' ? null : `${C.base}/yours/p/${g.ref}${k}#print`, roomUrl: `${C.base}/yours/p/${g.ref}${k}`, paidWhen: po ? po.paid : null, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
       made: t.print && t.print.made ? t.print.made : null, // (#193) a print the maker makes or has in hand
-      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : null,
+      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : u.kind === 'print' && t.print && !t.print.open && !t.print.pickup ? 'A signed archival print, yours to keep. It ships within the week.' : null,
     };
   }
   function grant(ref, extra = {}) {
@@ -372,7 +375,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email && !L.made) mail.send({ to: maker.email, ...LETTERS.sold(L) }); /* (#193) a print the maker makes or holds: their letter is the order's (editions.js), not 'nothing for you to do' */ if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
       if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
-      if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) }); }
+      if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null, print: u.kind === 'print' }) }); }
     return g;
   }
 
@@ -1362,7 +1365,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   function collected(b) {
     const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.gallery_pos, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
-      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
+      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %' OR l.intended_use = 'Kept by its sitter') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
     const rooms = ids.length ? db.prepare(`SELECT * FROM (SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
       FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
@@ -1823,7 +1826,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id), theirs: res.locals.theirs || null }));
+    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id), theirs: res.locals.theirs || null, order: PRINTP.of(db, l, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7) }));
   });
 
   app.post('/license/:slug', async (req, res) => {
@@ -1889,10 +1892,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w); // the work's own maker
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
+    // The same rule as the page: the public PDF names no holder (unless they chose to be named), no price and no described use.
+    const me = buyerOf(req), full = isStudio(req) || !!(me && l.buyer_id === me.id) || !!(req.query.k && l.download_token && req.query.k === l.download_token) || makerSees(req, w);
+    if (!full) { l.price_cents = null; l.intended_use = null; if (!l.show_holder) { l.licensee_company = null; l.licensee_name = 'The holder'; } }
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
-    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
+    prov.certificatePdf(res, { print: u.kind === 'print' ? { holds: require('./holds').statement(require('./holds').ofLicense(l, u, w, maker.name)).text, number: (PRINTP.of(db, l, maker.name) || {}).number || '' } : null, ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
   });
 
+  // (Will, 24 Nov; #224) Who reads a certificate whole: its holder (signed in, or with the letter's key), the Studio,
+  // and the work's maker. Everyone else reads the public certificate: no holder's name, no price, no split.
+  const makerSees = (req, w) => { try { const mm = app.locals.accounts && app.locals.accounts.asMaker(req); return !!(mm && w && mm.id === w.maker_id); } catch (e) { return false; } };
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
   app.get('/c/:ref', async (req, res) => {
     let l = q.lic.get(req.params.ref);
@@ -1912,7 +1921,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
     const resend = owner && l.status === 'active' ? { room: `/yours/p/${encodeURIComponent(l.ref)}${l.download_token ? `?k=${l.download_token}` : ''}`, email: l.licensee_email || (me && me.email) || '', sent: req.query.sent ? String(req.query.sent).slice(0, 160) : null } : null;
-    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend }));
+    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend, order: PRINTP.of(db, l, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7), pub: !(owner || makerSees(req, w)) }));
   });
   // Send it again (Will, 18 Oct: the letter never came): the holder, signed in or holding the key, asks for the
   // collector's letter once more, to the address on the license or a new one (kept on the license when it had none).
@@ -1952,7 +1961,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   app.get('/c/:ref/contract', (req, res) => {
     const l = q.lic.get(req.params.ref); if (!l) return res.sendStatus(404);
-    if (!(isStudio(req) || (req.query.k && req.query.k === l.download_token))) return res.redirect(`/c/${l.ref}`);
+    if (!(isStudio(req) || (req.query.k && req.query.k === l.download_token) || (() => { const me = buyerOf(req); return !!(me && l.buyer_id === me.id); })())) /* (#224) the signed-in holder reads their own agreement: a bought print has no file key, so its buyer could never open it */ return res.redirect(`/c/${l.ref}`);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w), u = q.useById.get(l.use_id);
     let t; try { t = l.rights ? JSON.parse(l.rights) : null; } catch (e) { t = null; }
     if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: l.price_cents });
@@ -2885,7 +2894,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
 
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));
-  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.asMaker(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id), notice: req.query.ok, base: '/account/prices', studio: false, simply: app.locals.saidSimply ? app.locals.saidSimply(m, q.uses.all(m.id)) : '' })); });
+  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.asMaker(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id).filter(u => !require('./collect').closed(u.key)) /* (#208, #224) no price is asked for a retired use; COLLECT=on brings the rows back */, notice: req.query.ok, base: '/account/prices', studio: false, simply: app.locals.saidSimply ? app.locals.saidSimply(m, q.uses.all(m.id)) : '' })); });
   app.post('/account/prices/:key', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.sendStatus(401); savePrice(req, res, m, '/account/prices'); });
   app.post('/studio/uses/:key', studioOnly, (req, res) => savePrice(req, res, maker, '/studio/uses'));
   function savePrice(req, res, maker, back) {

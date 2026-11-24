@@ -76,6 +76,8 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
   }
   const { esc, tidy, date, money } = V, HOUSE = require('./address').email();
   const pk = () => (typeof pocket === 'function' ? pocket() : pocket) || app.locals.pocket;
+  // (Will, 24 Nov; #224) The holder may show their name on the public certificate: off unless they tick it.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name='show_holder'").get()) db.exec('ALTER TABLE licenses ADD COLUMN show_holder INTEGER NOT NULL DEFAULT 0');
   const lic = ref => db.prepare(`SELECT l.*, u.key AS use_key, u.kind AS use_kind, u.name AS use_name, u.term_months AS use_term FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.ref=?`).get(String(ref));
   const mine = (req, l) => { const b = buyerOf(req), k = String((req.query && req.query.k) || (req.body && req.body.k) || ''); return !!(l && ((b && l.buyer_id === b.id) || isStudio(req) || (k && l.download_token && k === l.download_token))); };
 
@@ -87,6 +89,7 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
   }
 
   function room({ l, w, maker, b, ok, kq = '' }) {
+    const nameTick = `<form method="post" action="/yours/p/${esc(l.ref)}/name" class="kp-f kp-name" id="name">${kq ? `<input type="hidden" name="k" value="${esc(kq)}">` : ''}<label class="kp-c"><input type="checkbox" name="show" value="1"${l.show_holder ? ' checked' : ''}> Show my name on the public certificate</label><button>Save</button><small class="kp-pfn">${ok === 'name' ? 'Saved. ' : ''}The public certificate proves the piece: the work, its maker, the number, the date and the register entry. It names you only if you tick this, and never shows what you paid.</small></form>`;
     const f = fileOf(l, w), sz = sizes(f.L, f.S), best = sz.filter(s => s.grade), top = best[best.length - 1];
     const prints = db.prepare('SELECT * FROM prints WHERE license_id=? ORDER BY id').all(l.id);
     const orders = db.prepare('SELECT * FROM print_orders WHERE license_id=? ORDER BY id DESC').all(l.id);
@@ -109,6 +112,27 @@ function mountKeep(app, { db, V, C, buyerOf, mk, mail, ledger, dlOf, isStudio, s
 <label><span>State</span><input name="state" required maxlength="2" autocomplete="address-level1" placeholder="NY"></label>
 <label><span>ZIP</span><input name="zip" required maxlength="10" inputmode="numeric" autocomplete="postal-code"></label>
 ${proofPocket ? `<button class="buy-btn" name="from" value="pocket">${money(PROOF_CENTS)} from your pocket</button>` : `<button class="buy-btn">The proof, ${money(PROOF_CENTS)}</button>`}<small class="kp-pfn">United States for now; elsewhere by letter to the house. Posted within the week.</small></form></div></div>` : '';
+    // (#224) A print that was bought is an object, not a file: the room shows where the order is (near the top), then
+    // the papers and what is held. No file, no downloads, no print-it-yourself, no proof: its papers say the print
+    // carries no right to copy the picture, and the room must not say otherwise. Wording: drafts for Will.
+    if (l.use_kind === 'print') {
+      const PP = require('./printpapers'), po = PP.of(db, l, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7);
+      const pno = po && po.no ? `No.&nbsp;${po.no}${po.of ? ` of ${po.of}` : ''}` : esc(l.use_name);
+      const cert = `/c/${esc(l.ref)}${l.download_token ? `?k=${esc(l.download_token)}` : ''}`;
+      const H = require('./holds');
+      return V.layout({ title: `${title} · Yours · Watermark`, path: '/yours', desc: `${title}, by ${maker.name}. Yours.`, body: `<div class="kp kp-isprint">
+<section class="kp-wall"><figure class="kp-mount" style="--r:${r}"><img src="/img/${esc(w.slug)}/large" alt="${esc(title)}, a photograph by ${esc(maker.name)}" draggable="false"><figcaption class="kp-pencil"><span>${pno}</span><span><i>${esc(title)}</i>${yr ? `, ${esc(yr)}` : ''}</span><span class="kp-sig">${esc(maker.name)}</span></figcaption></figure></section>
+<header class="kp-h"><p class="k"><a href="/yours">Your gallery</a> · ${pno}</p><h1>Your print of <i>${esc(title)}</i>.</h1>
+<p class="kp-l">${require('./object').aBy(w, '').replace(/ by $/, '')} by <a href="/m/${esc(V.makerSlug(maker))}">${esc(maker.name)}</a>${w.place ? `, ${esc(w.place)}` : ''}${yr ? `, ${esc(yr)}` : ''}. Acquired ${esc(date(l.starts_at))}.</p></header>
+${po && po.o ? `<section class="kp-s kp-order" id="print"><p class="k">Your print</p><h2>It is ${esc(po.where)}.</h2>
+<p class="kp-lede">${esc([po.what, po.number].filter(Boolean).join(', '))}. Paid ${esc(date(l.starts_at))}.${po.paid ? ` ${esc(po.paid)}` : ''}</p></section>` : ''}
+<section class="kp-s kp-papers" id="papers"><p class="k">The papers</p><h2>What you hold, and the proof of it.</h2>${H.block(H.ofLicense(l, { key: l.use_key, kind: l.use_kind, name: l.use_name, term_months: l.use_term }, w, maker.name))}<ul class="kp-pp">
+<li><a href="${cert}">The certificate</a><span>Signed by the maker, with your number and what you may do with it.</span></li>
+<li><a href="/c/${esc(l.ref)}/contract">The agreement</a><span>The words you accepted, kept as they were.</span></li>
+<li><a href="/t/${esc(require('./track').compact(l.ref))}">The Watermark number</a><span>Anyone can check it, any time: it says the print is yours and genuine.</span></li>
+</ul>${nameTick}${l.collector_no ? `<p class="kp-pass">If the print goes to someone else, its papers can go with it: <a href="/yours?tab=files#files">pass it on</a>.</p>` : ''}</section>
+</div>` });
+    }
     return V.layout({ title: `${title} · Yours · Watermark`, path: '/yours', desc: `${title}, by ${maker.name}. Yours.`, body: `<div class="kp">
 <section class="kp-wall"><figure class="kp-mount" style="--r:${r}"><img src="/img/${esc(w.slug)}/large" alt="${esc(title)}, a photograph by ${esc(maker.name)}" draggable="false"><figcaption class="kp-pencil"><span>${no}</span><span><i>${esc(title)}</i>${yr ? `, ${esc(yr)}` : ''}</span><span class="kp-sig">${esc(maker.name)}</span></figcaption></figure></section>
 <header class="kp-h"><p class="k"><a href="/yours">Your gallery</a> · ${no}</p><h1><i>${esc(title)}</i> is yours.</h1>
@@ -171,7 +195,7 @@ ${app.locals.sitting ? app.locals.sitting.livingCard(l, b) : ''}<a href="/w/${es
 <li><a href="/c/${esc(l.ref)}/contract">The agreement</a><span>The words you accepted, kept as they were.</span></li>
 <li><a href="/t/${esc(require('./track').compact(l.ref))}">The Watermark number</a><span>Anyone can check it, any time: it says the piece is yours and genuine.</span></li>
 ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of ${dl.limit} left. Each file carries your name and the license within it.</span></li>` : ''}
-</ul>${l.collector_no ? `<p class="kp-pass">To give it to someone, or trade it: <a href="/yours?tab=files#files">pass it on</a>. It leaves your gallery the moment it lands in theirs, with every print recorded.</p>` : ''}</section>
+</ul>${nameTick}${l.collector_no ? `<p class="kp-pass">To give it to someone, or trade it: <a href="/yours?tab=files#files">pass it on</a>. It leaves your gallery the moment it lands in theirs, with every print recorded.</p>` : ''}</section>
 </div><script src="/static/hang.js?v=${V.VER}" defer></script>` });
   }
 
@@ -180,6 +204,12 @@ ${live && dl.limit ? `<li><span class="kp-k">Downloads</span><span>${dl.left} of
     if (!mine(req, l)) return res.redirect(`/c/${encodeURIComponent(l.ref)}`);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     res.send(room({ l, w, maker: mk(w), b: buyerOf(req), ok: req.query.ok || null, kq: req.query.k && l.download_token === String(req.query.k) ? l.download_token : '' }));
+  });
+  app.post('/yours/p/:ref/name', (req, res) => {
+    const l = lic(req.params.ref); if (!l) return res.sendStatus(404);
+    if (!mine(req, l)) return res.redirect(303, `/c/${encodeURIComponent(l.ref)}`);
+    db.prepare('UPDATE licenses SET show_holder=? WHERE id=?').run(req.body && req.body.show === '1' ? 1 : 0, l.id);
+    res.redirect(303, `/yours/p/${encodeURIComponent(l.ref)}?ok=name${req.body && req.body.k ? '&k=' + encodeURIComponent(req.body.k) : ''}#name`);
   });
   // The Instax file, made on request from the holder's own file (the original; or the 2400 px copy's source is the same original).
   app.get('/yours/p/:ref/instax', async (req, res) => {

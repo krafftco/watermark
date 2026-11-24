@@ -62,14 +62,15 @@ const proof = c => `<tr><td style="padding:34px 48px 0" class="wm-pad"><table ro
 function collected(c) {
   const title = clean(c.title), first = String(c.name || '').trim().split(/\s+/)[0];
   const personal = c.kind !== 'print' && c.personal;
+  const isPrint = c.kind === 'print'; // (#224) a bought print: the print, where it is, its papers; never a file or a license
   const head = c.kind === 'print' ? `<i>${esc(title)}</i> is yours.` : personal ? `<i>${esc(title)}</i> is yours.` : `<i>${esc(title)}</i> is licensed to ${esc(c.who)}.`;
   const no = c.no ? `No.&nbsp;${c.no}` : '';
-  const html = frame({ base: c.base, preheader: `${title}, by ${c.maker}${c.no ? `, No. ${c.no}` : ''}. ${personal ? 'In your gallery now.' : 'Your license and the file are inside.'}`, body: [
+  const html = frame({ base: c.base, preheader: `${title}, by ${c.maker}${c.no ? `, No. ${c.no}` : ''}. ${personal ? 'In your gallery now.' : isPrint ? 'Where it is, and its papers.' : 'Your license and the file are inside.'}`, body: [
     kicker(`${personal ? 'Collected' : c.kind === 'print' ? 'Acquired' : 'Licensed'}${c.name ? ` by ${esc(c.name)}` : ''}${c.no ? ` &nbsp;&middot;&nbsp; <span style="white-space:nowrap">No. ${c.no}${c.of ? ` of ${c.of}` : ''}</span>` : ''}`),
     headline(head),
-    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${c.printWhere ? esc(c.printWhere) : personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : 'The file, the license and the agreement are yours for the term.'}`),
+    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${c.printWhere ? esc(c.printWhere) : personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : isPrint ? 'Its papers are in your gallery.' : 'The file, the license and the agreement are yours for the term.'}`),
     mount({ img: c.img, href: c.galleryUrl, title, year: c.year, maker: c.maker, no, of: c.of }),
-    button(personal ? 'See it in your gallery' : 'Open your license', personal ? c.galleryUrl : c.certUrl),
+    button(personal ? 'See it in your gallery' : isPrint ? 'Your print, and its papers' : 'Open your license', personal ? c.galleryUrl : isPrint ? (c.roomUrl || c.certUrl) : c.certUrl),
     links([c.fileUrl && ['Save the photograph', c.fileUrl], c.printUrl && ['Print it', c.printUrl], ['The certificate', c.certUrl], ['The agreement', c.contractUrl]]),
     c.proof ? proof(c) : '',
     rule(),
@@ -88,22 +89,24 @@ function collected(c) {
       c.house && ['The house’s share', esc(c.house)],
       ['Watermark number', esc(c.number), true],
     ]),
+    isPrint && c.paidWhen ? para(esc(c.paidWhen), '26px') : '',
     para(`Your agreement with ${esc(c.maker)} is set out in full at <a href="${c.contractUrl}" style="color:${INK}">the agreement</a>. You accepted it when you paid; its fingerprint is kept in the house register, so neither side can change a word of it.`, '26px'),
-    para(`The photograph carries its papers inside the file: who made it, this number, and how to reach the maker. Anyone can check them at <a href="${c.checkUrl}" style="color:${INK}">${esc(c.checkUrl.replace(/^https?:\/\//, ''))}</a>.`),
+    para(`${isPrint ? 'Anyone can check these papers at' : 'The photograph carries its papers inside the file: who made it, this number, and how to reach the maker. Anyone can check them at'} <a href="${c.checkUrl}" style="color:${INK};word-break:break-all;overflow-wrap:anywhere">${esc(c.checkUrl.replace(/^https?:\/\//, ''))}</a>.`),
     close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
   ].join('') });
   const text = [
-    `${personal ? `${title} is yours.` : `${title} is licensed to ${c.who}.`}`,
+    `${personal ? `${title} is yours.` : isPrint ? `Your print of ${title}.` : `${title} is licensed to ${c.who}.`}`,
     `A photograph by ${c.maker}${c.place ? `, made in ${c.place}` : ''}${c.no ? `. No. ${c.no}${c.of ? ` of ${c.of}` : ''}` : ''}.`,
     c.printWhere || '',
-    personal ? `In your gallery: ${c.galleryUrl}` : `Your license: ${c.certUrl}`,
+    personal ? `In your gallery: ${c.galleryUrl}` : isPrint ? `Your print, and its papers: ${c.roomUrl || c.certUrl}` : `Your license: ${c.certUrl}`,
     c.fileUrl ? `Save the photograph: ${c.fileUrl}` : '',
     c.printUrl ? `Print it (the sizes it holds, how, or the house prints it): ${c.printUrl}` : '',
     c.proof ? `Hold it in your hand: the proof, a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, your number in pencil, posted, ${c.proof.price}: ${c.proof.url}` : '',
     `The certificate: ${c.certUrl}\nThe agreement: ${c.contractUrl}`,
     c.holds ? `What you hold. ${c.holds}` : '',
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
-    `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
+    `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}${isPrint && c.house ? ` The house’s share: ${c.house}.` : ''}`,
+    isPrint && c.paidWhen ? c.paidWhen : '',
     `Watermark number: ${c.number}. Anyone can check it: ${c.checkUrl}`,
     'Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.\nThe house',
   ].filter(Boolean).join('\n\n');

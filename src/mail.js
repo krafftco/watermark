@@ -14,10 +14,13 @@ function paper({ subject, text, feature = null, cta = null }) {
     if (feature && p === feature) return '';
     if (/^Watermark, a Krafft company\.?$/.test(p)) return '';
     if (feature && /\bis$/.test(p)) p = p.replace(/\s*is$/, ` is ${feature}.`);
-    const h = esc(p).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0e0e0e">$1</a>').replace(/\n/g, '<br>');
+    const h = esc(p).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0e0e0e;word-break:break-all;overflow-wrap:anywhere">$1</a>').replace(/\n/g, '<br>');
     return `<p style="margin:0 0 16px;font:17px/1.55 Georgia,'Times New Roman',serif;color:#2f2d29">${h}</p>`;
   }).join('');
-  const feat = feature ? `<p style="margin:8px 0 10px;font:44px/1.1 Georgia,serif;letter-spacing:.18em;color:#0e0e0e">${cta ? `<a href="${esc(cta.url)}" style="color:#0e0e0e;text-decoration:none">${esc(feature)}</a>` : esc(feature)}</p>${cta ? `<p style="margin:0 0 24px;font:13px/1.5 Helvetica,Arial,sans-serif;color:#5f5f5c">Type it, or tap it.</p>` : ''}` : '';
+  // (#224) A code is digits (a sign-in code); only a code is typed. Any other feature is a few words: set smaller, so it
+  // fits a phone, and without the line about typing.
+  const isCode = !!feature && /^\d[\d ]*\d$/.test(String(feature).trim());
+  const feat = feature ? `<p style="margin:8px 0 10px;font:${isCode ? '44px/1.1' : '30px/1.2'} Georgia,serif;letter-spacing:${isCode ? '.18em' : '.01em'};color:#0e0e0e">${cta ? `<a href="${esc(cta.url)}" style="color:#0e0e0e;text-decoration:none">${esc(feature)}</a>` : esc(feature)}</p>${cta && isCode ? `<p style="margin:0 0 24px;font:13px/1.5 Helvetica,Arial,sans-serif;color:#5f5f5c">Type it, or tap it.</p>` : ''}` : '';
   const btn = cta ? `<p style="margin:8px 0 28px"><a href="${esc(cta.url)}" style="display:inline-block;padding:16px 28px;background:#0e0e0e;color:#f7f6f3;text-decoration:none;font:600 13px/1 Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase">${esc(cta.label)}</a></p>` : '';
   return `<!doctype html><html><body style="margin:0;background:#f2f2f0;padding:32px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e2df">
@@ -115,7 +118,10 @@ const templates = {
     subject: `Terms for "${title}" (${ref})`, cta: { label: `Pay ${fee} and take the file`, url },
     text: `Dear ${name},\n\nThe fee for your license of "${title}" is ${fee}. Pay securely here and the file and certificate arrive at once:\n\n${url}\n\nReference: ${ref}`,
   }),
-  grantedToLicensee: ({ ref, title, name, certUrl, downloadUrl, ends }) => ({
+  grantedToLicensee: ({ ref, title, name, certUrl, downloadUrl, ends, print = false }) => (print ? { // (#224) a bought print: no license, no file
+    subject: `Your print of "${title}" (${ref})`, cta: { label: 'Open the papers', url: certUrl.replace(/\?k=$/, '') },
+    text: `Dear ${name},\n\nThank you. Your print of "${title}" is recorded, with its papers.\n\nCertificate: ${certUrl.replace(/\?k=$/, '')}`,
+  } : {
     subject: `It's yours: "${title}" (${ref})`, cta: { label: 'Open your license', url: certUrl },
     text: `Dear ${name},\n\nThank you. Your license is active${ends ? ` until ${ends.slice(0, 10)}` : ''}.\n\nCertificate: ${certUrl}\n${downloadUrl ? `Full file (valid for the term): ${downloadUrl}\n` : ''}\nThe file carries its license reference, so the use can always be verified.`,
   }),

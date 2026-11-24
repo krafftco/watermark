@@ -395,3 +395,9 @@ The CTO session keeps it honest.
   own folder, and the same `secret` gives the same signing key (the ledger's key is one per process).
 - A credential is built when it is asked for, never stored: there is no table of issued credentials to count or re-sign.
 - The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).
+
+## A bought print, and who reads a certificate (#224)
+- A print's licence has no `download_token`: any door that proves the holder by `?k=` is shut to a print buyer. Prove them by `buyerOf(req)` as well. A print's number is `rights.print.no` / `print_orders.edition_no`, never `collector_no`.
+- Say a print's number, where it is and when its maker is paid from `src/printpapers.js` only. `/c/:ref` takes `pub`: add nothing about the holder or the money outside `!pub`.
+- A kept picture's `licenses.rights` is `{ size, strip }` with no `rights`/`added`/`extras`: read terms through `holds.termsOf`, never `t.added.includes`.
+- `test/printpapers.js` takes `SHOTS=<dir>` and writes the letters and the buyer's pages at 390.
