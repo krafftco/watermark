@@ -2546,6 +2546,13 @@ aside.cu-show .buy-btn{width:100%}
 .cu-pv{max-width:900px;margin:0 auto;padding:clamp(28px,4vw,64px) 16px 48px}.cu-pv h1{font-family:var(--disp);font-weight:400;font-size:clamp(32px,5vw,56px);margin:6px 0 6px}.cu-by{color:var(--mu);margin:0 0 18px}
 .cu-wall{list-style:none;margin:36px 0;padding:0;display:grid;gap:56px}.cu-wall figure{margin:0 0 12px;background:#0b0a09;padding:clamp(10px,2vw,24px)}.cu-wall img{display:block;width:100%;height:auto}.cu-wall p{margin:0;font-size:14px}.cu-line{font-family:var(--read);font-size:17px;margin-top:6px!important}
 .cu-pv-go{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.cu-pv-go form{margin:0}
+/* (#225) the public link where the curator looks; the private line on a draft; the approval that names what it publishes */
+.cu-open{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:10px 0 16px;padding:12px 14px;border:1px solid var(--ln);background:var(--soft,#f2f0eb);font-size:14px}.cu-open .k{flex:1 1 100%;margin:0}.cu-open a{flex:1 1 200px;min-width:0;overflow-wrap:anywhere;color:inherit}.cu-open .bk-alt{flex:none;margin:0}
+.cu-priv{font-size:14px;line-height:1.6;color:var(--mu);margin:0 0 18px;max-width:60ch}
+.cu-pv-go .buy-btn,.cu-sh-go .buy-btn{width:auto;margin-top:0;display:inline-block}
+.cu-ok{max-width:760px}.cu-ok h2{margin:28px 0 10px}
+.cu-named{list-style:none;margin:0;padding:0;display:grid;gap:8px}.cu-named li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center;padding:8px;background:var(--soft,#f2f0eb)}.cu-named img{width:96px;height:72px;object-fit:cover;display:block}.cu-named span{display:grid;gap:2px;min-width:0}.cu-named b{font-family:var(--read);font-weight:400;font-size:18px;overflow-wrap:anywhere}.cu-named i{font-style:normal;font-size:13px;color:var(--mu)}
+.cu-ok-go{display:grid;gap:12px;margin:28px 0 0;justify-items:start}.cu-ok-go .buy-btn{margin-top:0}.cu-ok-go .bk-alt{min-height:44px}.cu-ok-go a{font-size:14px;padding:10px 0;display:inline-block}
 @media (max-width:900px){.cu-cols{grid-template-columns:1fr}aside.cu-show{position:static;max-height:none;order:-1}.cu-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.cu-show{grid-template-columns:1fr}.cu-sh-go{justify-items:start}}
 .wm-no{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace);letter-spacing:.08em;font-size:15px}
 /* For the trade (18 Oct). */
