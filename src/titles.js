@@ -1,6 +1,7 @@
 // Titles in title case, the way a catalogue or a gallery wall sets them: "The Dome of the Pantheon".
 // Small words stay lower (a, of, the, in…) unless they open or close the title or follow a colon;
-// words the maker already capitalised (McQueen, iPhone, NASA) are left as they are.
+// words the maker already capitalised (McQueen, iPhone, NASA) are left as they are, and so is a word that opens
+// with a figure (81st, 5am, 35mm): the maker's wording, as typed (#223).
 const SMALL = new Set('a an and as at but by en for from if in into nor of off on onto or over per so the to up via vs with yet'.split(' ').concat(
   // Particles in the languages the collection travels through (dei Calzaiuoli, du Louvre, de la Cité, am Main).
   'de del della delle dei degli di da du des le les la il lo los las y e et und am im von van der zu au aux'.split(' ')));
@@ -17,7 +18,7 @@ function titleCase(s) {
     const lead = i === first || i === last || /[:—–-]$/.test(prev) || /^[("“‘]/.test(w);
     if (!lead && SMALL.has(bare)) return w.toLowerCase();
     // Capitalise each part of a hyphenated word ("Late-Afternoon"), after any opening punctuation.
-    return w.split('-').map(p => p.replace(/^([^A-Za-z]*)([a-z])/, (m, a, b) => a + b.toUpperCase())).join('-');
+    return w.split('-').map(p => p.replace(/^([^A-Za-z0-9]*)([a-z])/, (m, a, b) => a + b.toUpperCase())).join('-');
   }).join('');
 }
 // One pass over what is already held: the maker's wording is kept in title_given.

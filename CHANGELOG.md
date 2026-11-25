@@ -5,6 +5,19 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.4 · A photographer's first ten minutes, tightened · 24 November 2026
+
+- From your studio, a work's title now opens its own desk, where its print editions and prices are set; so does the Library's large view, and your own public page offers "Edit this work".
+- Offering a print through the house's print room from a master under 24 MP is refused with the reason, and the choice is greyed on the form. Before, it answered "saved" and the print never appeared.
+- Putting work in: a raw file is named and left out, with what to bring instead. A folder can be chosen, or dropped on the page. A file under 12 MP is held with a line saying what it can and cannot be licensed for.
+- The Library on a phone: the sentence you agree to before publishing reads as one paragraph; pressing "Publish them" without the tick says so; with nothing selected the page says to select what to publish.
+- A title keeps a word that opens with a figure as you typed it: "81st", "5am".
+- The print editions on a work's desk stack on a phone instead of running off the side.
+- An invitation link opened a second time, on another device, offers "Sign in with your email".
+- First steps ticks "Your best in front" when you publish; a grade is not needed.
+- A guest adding to an album: a file over the album's size is named before anything is sent, and the form keeps what was typed.
+- A print's page says that sending is included in the price, and names the countries a print is sent to; they are the ones the payment page accepts.
+
 ## 1.94.3 · A print buyer's papers match what they bought; the public certificate proves the piece and names no one · 24 November 2026
 
 Every new sentence here is a draft for Will. No price, share or fee changed.
