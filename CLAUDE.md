@@ -2,7 +2,7 @@
 
 Read this first. It is short on purpose. The dated record of how every room was built is `docs/HISTORY.md` (85,000 words): never read it whole; search it (`grep -n "<room or file name>" docs/HISTORY.md`) before touching a room.
 
-Watermark is a Krafft company that takes art and copyright seriously: a gallery for living artists, a catalogue of works held in museums, and a register of each work, its maker and its holder (never "a museum": Will, 20 Nov 2026; docs/MARKET.md). Makers keep their work here; anyone can own a piece of it. Live at watermark.krafftco.com. Will Fullerton is the CEO and decides. The CTO session (Claude) runs engineering and reports to him. Workers (other Claude sessions) take one issue each. How we work together: `docs/ENTERPRISE.md`. A worker's contract: `docs/WORKERS.md`. What the workers have learned: `agents/NOTES.md`.
+Watermark is a Krafft company that takes art and copyright seriously. In public it is for photographers: they keep their work here, show it properly, and are paid when it is used or collected (Will, 21 Nov 2026: start with photography; never "a museum"). Underneath, it is a register of each work, its maker and its holder; the rooms built for museums, catalogues, books and more stay, quiet, for later, and are not claimed in public copy. Makers keep their work here; anyone can own a piece of it. Live at watermark.krafftco.com. Will Fullerton is the CEO and decides. The CTO session (Claude) runs engineering and reports to him. Workers (other Claude sessions) take one issue each. How we work together: `docs/ENTERPRISE.md`. A worker's contract: `docs/WORKERS.md`. What the workers have learned: `agents/NOTES.md`.
 
 ## Rules from Will (never broken)
 - Restrained, precise voice; no hype. Anything written in Will's voice, and every price, is a draft until he confirms.
@@ -55,7 +55,11 @@ Watermark is a Krafft company that takes art and copyright seriously: a gallery 
 ## What only Will can do
 Render and AWS settings, DNS, Stripe and bank, counsel, anything signed, a check on a real phone, and every word in his voice. When a job ends there, say exactly what to press and where, and tag the issue `needs:will`.
 
-## The current order (12 Nov 2026)
-New rooms are frozen for two weeks. The lanes tighten what exists: the photographer's first ten minutes, the pictures, stability at scale, accessibility. The house is quiet (`QUIET` in views.js): rooms not on the short menus are still reachable through Find and /everything.
+## The current order (21 Nov 2026)
+Photographers first (Will, 21 Nov). The offer is one sentence: photographers keep their work here, show it properly, and are paid when it is used or collected. Will is the first; his show is the launch. Everything else already built stays, quiet, for later: rooms not on the short menus are reached through Find and /everything (`QUIET` in views.js). No new rooms. Work is chosen from three things, in this order, and anything else waits:
+1. Never lose anything, never go down: backups proven nightly, a second copy of the vault, alarms that reach someone.
+2. A photographer's first ten minutes: an archive brought in, a beautiful public page, nothing to learn.
+3. Used or collected without a conversation: the reply link (#184), the license from the use, what you hold.
+The measure before launch: ten outside photographers hanging, one selling.
 
 Commit trailers for sessions: follow the attribution lines the session gives; never add others.
