@@ -29,6 +29,7 @@ const V = require('../src/views');
   for (const h of rooms(V.ROOMS.house)) await check(h, 'house');
   // The sheet is on the studio's and the house's pages, and the collector's.
   const acc = await (await go('/account')).text(); assert.ok(/data-rm-open/.test(acc) && /Getting paid/.test(acc) && !/Contact sheets/.test(acc) && /Every room/.test(acc), 'the studio carries the maker’s rooms, the rest put away (8 Nov)');
+  assert.ok(/href="\/account\/curators"/.test(acc.slice(acc.indexOf('data-rm '))), 'Curators stays on the quiet sheet (#225)');
   { const V = require('../src/views'); V.setQuiet(false); const all = await (await go('/account')).text(); V.setQuiet(true); assert.ok(/Contact sheets/.test(all), 'with the house open, every room'); }
   const st = await (await go('/studio')).text(); assert.ok(/data-rm-open/.test(st) && /Feeds in/.test(st), 'the house carries every room');
   const yo = await (await go('/yours')).text(); assert.ok(/data-rm-open/.test(yo) && /Your devices/.test(yo) && !/commonplace/.test(yo), 'the gallery carries its rooms, the rest put away');
