@@ -395,3 +395,9 @@ The CTO session keeps it honest.
   own folder, and the same `secret` gives the same signing key (the ledger's key is one per process).
 - A credential is built when it is asked for, never stored: there is no table of issued credentials to count or re-sign.
 - The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).
+
+## Curators and shows (#225)
+- 'Kept back' is two things: `works.status='hidden'` (not public yet; the curator's desk marks these 'kept back') and `works.keep_back=1` (the maker's own word, also the tidy's and a safety hold's). An approval may publish the first, only by name (`with=all` + `seen`), and never the second.
+- A show's `hangs.slug` moves with its title; the addresses it left are in `hang_was`. Link a show by `app.locals.hangs.href(h)`, never by a slug you stored; a new door keyed on a hang's slug needs the old-address line in hangs.js (`wasAt`).
+- What a curator is paid is one sentence, `curatorShare()` in hangs.js; a page or letter that speaks of the share reads it. test/curators.js holds the sentence against `reward()`.
+- The letters in `src/mail-letters.js` have a plain-text twin; write the sentence once as a string and put it in both (`esc` it in the HTML).

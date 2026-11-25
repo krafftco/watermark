@@ -5,6 +5,16 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.2 · A curator's first ten minutes · 24 November 2026
+
+- What a curator earns is said once, the same way, in the invitation, in the curator's room and on the public show: ten percent of the price of a work collected through the show, from the house's share, never the maker's; credited at the sale, and sent to a bank on Fridays once one is connected. Nothing about the share changed; the words now match it.
+- When a maker approves a show, the curator gets a letter with the public link, as well as the notice.
+- A show's address follows its title. An address it had before still opens it.
+- The public link is at the head of the curator's preview and beside the show on the desk, with a Copy button. A show that is not yet approved says plainly that it has no public link, and no longer offers a Share button that led nowhere.
+- Approving a show never publishes a photograph the public has not seen at one press. The maker is shown each one by name and opens the show with them or without them. A photograph the maker has kept back stays private either way.
+- Curators is back on a maker's short menu, on Every room, and in Find.
+- The curator's invitation is plainer about what the link opens and what happens next.
+
 ## 1.94.1 · A credential issued at the old address still checks · 23 November 2026
 
 - The house's identity for credentials is tied to its address. When the house moves, it keeps the identity it had: the old address still answers for it, with the same key, and the new address names the old one as its own.
