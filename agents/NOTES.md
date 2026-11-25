@@ -401,3 +401,9 @@ The CTO session keeps it honest.
 - A show's `hangs.slug` moves with its title; the addresses it left are in `hang_was`. Link a show by `app.locals.hangs.href(h)`, never by a slug you stored; a new door keyed on a hang's slug needs the old-address line in hangs.js (`wasAt`).
 - What a curator is paid is one sentence, `curatorShare()` in hangs.js; a page or letter that speaks of the share reads it. test/curators.js holds the sentence against `reward()`.
 - The letters in `src/mail-letters.js` have a plain-text twin; write the sentence once as a string and put it in both (`esc` it in the HTML).
+
+## A bought print, and who reads a certificate (#224)
+- A print's licence has no `download_token`: any door that proves the holder by `?k=` is shut to a print buyer. Prove them by `buyerOf(req)` as well. A print's number is `rights.print.no` / `print_orders.edition_no`, never `collector_no`.
+- Say a print's number, where it is and when its maker is paid from `src/printpapers.js` only. `/c/:ref` takes `pub`: add nothing about the holder or the money outside `!pub`.
+- A kept picture's `licenses.rights` is `{ size, strip }` with no `rights`/`added`/`extras`: read terms through `holds.termsOf`, never `t.added.includes`.
+- `test/printpapers.js` takes `SHOTS=<dir>` and writes the letters and the buyer's pages at 390.

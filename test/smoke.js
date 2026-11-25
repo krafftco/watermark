@@ -802,7 +802,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: 'own', own: '12' } }); assert.equal(r.status, 303, 'more than the pocket holds goes to Checkout'); assert.ok(r.headers.location.includes('checkout'));
   r = await req(port, 'GET', `/w/${w.slug}?thanks=given`); assert.ok(r.body.toString().includes('1 person has said thank you'), 'counted on the work');
   // Getting paid: the maker's statement is exact (85% of licenses, cards whole), payouts through Stripe wait for PAYOUTS=stripe; a payment by hand is recorded.
-  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank') && r.body.toString().includes('Friday pay.'), 'the statement, with Friday pay');
+  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank') && (r.body.toString().includes('Friday pay.') || r.body.toString().includes('Paid by hand, for now.')), 'the statement, with how the money goes out (#224: one true sentence, by hand until payouts through Stripe are on)');
   { // Friday pay: a sale made today is clearing, not cleared; cleared + clearing = owed; the Friday run is off until Stripe pays.
     const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw);
     assert.ok(st.cleared + st.clearing === st.owed && st.clearing > 0 && st.holdDays === 7 && /day, /.test(st.friday), 'today’s money is clearing: ' + JSON.stringify({ cleared: st.cleared, clearing: st.clearing, owed: st.owed }));

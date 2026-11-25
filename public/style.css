@@ -6030,6 +6030,8 @@ main.st{overflow:clip}
 .ovw-d{margin:24px 0}.ovw-now{font-size:14px}.ovw-row{display:flex;flex-wrap:wrap;gap:0 16px}.ovw-row label{flex:1 1 200px}.ovw-ck{display:flex;gap:8px;align-items:center}.ovw-fs{border:0;padding:0;margin:10px 0}
 
 /* What you hold (#176): the one statement, the same at every moment. */
+/* (#224) a bought print's order, and the way in for a signed-out holder, on the certificate */
+.lc2-order,.lc2-own{font:15px/1.6 var(--read,Georgia),Georgia,serif;color:var(--ink);margin:16px 0;max-width:62ch;text-align:left}.lc2-order b{font-weight:600}.lc2-own{color:var(--mu)}.lc2-own a{color:var(--ink)}
 .holds{font:15px/1.6 var(--read,Georgia),Georgia,serif!important;color:var(--ink);margin:16px 0;max-width:62ch;text-align:left}.holds b{font:inherit!important;font-weight:600!important;display:inline!important;margin:0!important;letter-spacing:0!important;text-transform:none!important}.holds[hidden]{display:none}
 /* (#203) Guests add their own photographs: the album's line of credit, the guests' own part, the add step, the photographer's look, the studio's mark. Phone first: every control at least 44 px. */
 .dv-by{margin:-6px 0 18px;font:14px/1.6 var(--sans);color:#a39d92;display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}.dv-by a{display:inline-block;padding:11px 0;margin:-11px 0;color:#e9e4da;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(233,228,218,.35)}.dv-by a.dv-ask{color:#d9bc7c}
