@@ -2789,8 +2789,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const sid = new URL('http://x' + r.headers.location).searchParams.get('show'); assert.ok(sid);
     for (const w of ws) { r = await req(port, 'POST', '/curate/show/' + sid + '/toggle', { cookie: cc, body: { work: w.slug }, headers: { accept: 'application/json' } }); assert.ok(JSON.parse(r.body).in); }
     r = await req(port, 'POST', '/curate/show/' + sid + '/propose', { cookie: cc }); assert.equal(db.prepare('SELECT review FROM hangs WHERE id=?').get(+sid).review, 'proposed');
-    r = await req(port, 'GET', '/curate/show/' + sid, { cookie: cc }); assert.ok(r.body.includes('kept back'), 'the preview shows the kept-back photograph');
-    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc });
+    r = await req(port, 'GET', '/curate/show/' + sid, { cookie: cc }); assert.ok(r.body.includes('not public yet'), 'the preview marks the photograph the public has not seen');
+    // (#225) One press never publishes it: the press is sent to a page that names it, and that page's answer opens the show.
+    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc }); assert.equal(r.status, 303); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'hidden', 'one press publishes nothing');
+    r = await req(port, 'GET', r.headers.location, { cookie: mc }); assert.ok(r.status === 200 && r.body.includes(require('../src/views').esc(require('../src/views').tidy(ws[1].title))), 'the approval names it');
+    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc, body: { with: 'all', seen: /name="seen" value="([^"]*)"/.exec(r.body)[1] } });
     const h = db.prepare('SELECT * FROM hangs WHERE id=?').get(+sid); assert.ok(h.review === 'approved' && h.public === 1, 'the show opens');
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'held', 'the kept-back photograph is published with it');
     r = await req(port, 'GET', '/curate/' + require('../src/views').makerSlug(cm)); assert.equal(r.status, 302, 'a stranger cannot open the archive'); }
