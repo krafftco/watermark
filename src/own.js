@@ -290,6 +290,11 @@ ${done.length ? `<h2>Registered, filed, prepared${counts.reg + counts.grouped > 
     const FEE = require('./fee'); const part = u => `${u.name.toLowerCase().replace(/^in a story$/, 'in a story').replace(/^for a company$/, 'for a company')} for ${money(u.price_cents)}`;
     let s = `${first} says: you may use this ${priced.map(part).join(', ')}`.replace(/, ([^,]*)$/, ' or $1');
     if (!priced.length) s = `${first} says: ask, and I will answer`; else if (asked.length) s += `; for ${asked.map(u => u.name.toLowerCase()).join(' or ')}, ask`;
+    // (#224) On the license page the prices handed in are already the totals a collector pays (app.js `priced`: the
+    // maker's price is `maker_cents`, the house's share `house_cents`): say the total, and both parts of it, once and
+    // right. On the maker's own prices page the prices are the maker's, and the old sentence is true. A draft for Will.
+    const eg = priced.find(u => u.maker_cents != null && u.house_cents != null);
+    if (FEE.on() && eg) return s + `. Each price is the whole of what you pay: ${first}’s own price and the house’s share (${FEE.schedule()}) together. Of ${money(eg.price_cents)} ${eg.name.toLowerCase()}, ${money(eg.maker_cents)} is ${first}’s and ${money(eg.house_cents)} is the house’s share.`;
     return s + '.' + (FEE.on() && priced.length ? ` Every dollar of it is ${first}’s; the house’s share (${FEE.schedule()}) is paid on top.` : '');
   };
   return { yours, OFFICE_FEE, GROUP };

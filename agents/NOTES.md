@@ -402,6 +402,12 @@ The CTO session keeps it honest.
 - What a curator is paid is one sentence, `curatorShare()` in hangs.js; a page or letter that speaks of the share reads it. test/curators.js holds the sentence against `reward()`.
 - The letters in `src/mail-letters.js` have a plain-text twin; write the sentence once as a string and put it in both (`esc` it in the HTML).
 
+## A bought print, and who reads a certificate (#224)
+- A print's licence has no `download_token`: any door that proves the holder by `?k=` is shut to a print buyer. Prove them by `buyerOf(req)` as well. A print's number is `rights.print.no` / `print_orders.edition_no`, never `collector_no`.
+- Say a print's number, where it is and when its maker is paid from `src/printpapers.js` only. `/c/:ref` takes `pub`: add nothing about the holder or the money outside `!pub`.
+- A kept picture's `licenses.rights` is `{ size, strip }` with no `rights`/`added`/`extras`: read terms through `holds.termsOf`, never `t.added.includes`.
+- `test/printpapers.js` takes `SHOTS=<dir>` and writes the letters and the buyer's pages at 390.
+
 ## The photographer's first ten minutes (#223)
 - A work's own desk is `/account/works/:slug` (the Studio's is `/studio/works/:slug`); the studio's holdings, the Library's loupe and Enter, and `/w/:slug` for its maker (`edit` in views.work) all lead there. `/w/:slug` is the page a collector sees.
 - `public/table.js` and the vault page's inline script are a few very long lines: a `//` comment added at the end of one swallows the rest of the line, and the page dies silently with nothing on it. Use `/* */`; `test/firstminutes.js` parses both.

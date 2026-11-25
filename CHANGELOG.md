@@ -5,7 +5,7 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.94.3 · A photographer's first ten minutes, tightened · 24 November 2026
+## 1.94.4 · A photographer's first ten minutes, tightened · 24 November 2026
 
 - From your studio, a work's title now opens its own desk, where its print editions and prices are set; so does the Library's large view, and your own public page offers "Edit this work".
 - Offering a print through the house's print room from a master under 24 MP is refused with the reason, and the choice is greyed on the form. Before, it answered "saved" and the print never appeared.
@@ -16,7 +16,19 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - An invitation link opened a second time, on another device, offers "Sign in with your email".
 - First steps ticks "Your best in front" when you publish; a grade is not needed.
 - A guest adding to an album: a file over the album's size is named before anything is sent, and the form keeps what was typed.
+- A print's page says that sending is included in the price, and names the countries a print is sent to; they are the ones the payment page accepts.
 
+## 1.94.3 · A print buyer's papers match what they bought; the public certificate proves the piece and names no one · 24 November 2026
+
+Every new sentence here is a draft for Will. No price, share or fee changed.
+
+- After buying a print, the piece's room, the certificate, the thank-you page, the PDF and the receipt letter speak of a print: where the order is (near the top), the papers, "What you hold", and when the maker is paid. They no longer offer a file, downloads, printing it yourself or a proof, or say "licensed to". The print carries its own number in its edition. Licenses of files read as before.
+- The public certificate shows only what proves the piece: the work, the maker, the edition and number, the date, that it is genuine and held, and the register entry. It does not show the holder's name, the price paid or the split. The holder, the maker and the Studio see all of it as before. A holder may tick "Show my name on the public certificate" in the piece's room; it is off unless ticked.
+- The license page says the total, the maker's part and the house's share correctly. The work's page offers a print once: where an edition is on offer, "On a wall" leads to it.
+- Letters fit a phone: a bare link wraps, and "Type it, or tap it." is printed only beside a code.
+- A picture of yourself that you keep now hangs in your gallery, as the page said. The letter for a kept picture is the house's own.
+- The payouts page says one thing about the share and one about how the money goes out; the prices page no longer asks a price for the retired Collect and Reference. A "Collect it" link that led nowhere is gone. The papers tab speaks of a gallery's address. A print its maker makes is said to be with its maker.
+- The signed-in holder of a print can open the agreement they accepted. Signed out, the certificate shows the way in.
 ## 1.94.2 · A curator's first ten minutes · 24 November 2026
 
 - What a curator earns is said once, the same way, in the invitation, in the curator's room and on the public show: ten percent of the price of a work collected through the show, from the house's share, never the maker's; credited at the sale, and sent to a bank on Fridays once one is connected. Nothing about the share changed; the words now match it.
