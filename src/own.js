@@ -195,7 +195,7 @@ ${can ? `<form method="post" action="/account/ask-house" class="way-f"><label>A 
     if (app.locals.readiness && !app.locals.readiness(m).can) return res.redirect('/account?ok=notyet#way'); // the moment is read from the work, not asked for
     db.prepare('INSERT INTO house_asks (maker_id, note) VALUES (?,?)').run(m.id, String((req.body || {}).note || '').replace(/<[^>]*>/g, '').trim().slice(0, 240) || null);
     ledger.append(db, 'house.asked', m.handle, {});
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `${m.name} asks the house to look`, text: `${m.name} asks the house to look at their work.
+    mail.send({ to: require('./address').email(), subject: `${m.name} asks the house to look`, text: `${m.name} asks the house to look at their work.
 
 ${C.base}/account?maker=${m.handle}
 ${C.base}/studio/accounts` }).catch(() => {});
@@ -269,7 +269,7 @@ ${done.length ? `<h2>Registered, filed, prepared${counts.reg + counts.grouped > 
     if (!db.prepare("UPDATE copyright_asks SET paid=1, status='asked' WHERE id=? AND COALESCE(paid,0)=0").run(a.id).changes) return db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(a.id); // (#123) the claim: once, whichever copy of the website comes first
     ledger.append(db, 'copyright.asked', `ask-${a.id}`, { maker: mk(a.maker_id).handle, works: JSON.parse(a.works).length, groups: a.groups });
     const m = mk(a.maker_id);
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Copyright filing asked: ${m.name}`, text: `${m.name} asks the house to register ${JSON.parse(a.works).length} work(s) in ${a.groups} group(s), paid ${money(a.cents)}.\n\n${C.base}/studio/copyright` }).catch(() => {});
+    mail.send({ to: require('./address').email(), subject: `Copyright filing asked: ${m.name}`, text: `${m.name} asks the house to register ${JSON.parse(a.works).length} work(s) in ${a.groups} group(s), paid ${money(a.cents)}.\n\n${C.base}/studio/copyright` }).catch(() => {});
     if (m.email) mail.send({ to: m.email, subject: 'Your registration is in hand', text: `${(m.name || '').split(/\s+/)[0]},\n\nThe house has your ask and the Office’s fee, and prepares the filing. You will hear when it is filed, and again when the Office registers it; the number is then written onto each work and its deed.\n\nThank you.\n\nWatermark, a Krafft company.` }).catch(() => {});
     return db.prepare('SELECT * FROM copyright_asks WHERE id=?').get(a.id);
   }
@@ -290,6 +290,11 @@ ${done.length ? `<h2>Registered, filed, prepared${counts.reg + counts.grouped > 
     const FEE = require('./fee'); const part = u => `${u.name.toLowerCase().replace(/^in a story$/, 'in a story').replace(/^for a company$/, 'for a company')} for ${money(u.price_cents)}`;
     let s = `${first} says: you may use this ${priced.map(part).join(', ')}`.replace(/, ([^,]*)$/, ' or $1');
     if (!priced.length) s = `${first} says: ask, and I will answer`; else if (asked.length) s += `; for ${asked.map(u => u.name.toLowerCase()).join(' or ')}, ask`;
+    // (#224) On the license page the prices handed in are already the totals a collector pays (app.js `priced`: the
+    // maker's price is `maker_cents`, the house's share `house_cents`): say the total, and both parts of it, once and
+    // right. On the maker's own prices page the prices are the maker's, and the old sentence is true. A draft for Will.
+    const eg = priced.find(u => u.maker_cents != null && u.house_cents != null);
+    if (FEE.on() && eg) return s + `. Each price is the whole of what you pay: ${first}’s own price and the house’s share (${FEE.schedule()}) together. Of ${money(eg.price_cents)} ${eg.name.toLowerCase()}, ${money(eg.maker_cents)} is ${first}’s and ${money(eg.house_cents)} is the house’s share.`;
     return s + '.' + (FEE.on() && priced.length ? ` Every dollar of it is ${first}’s; the house’s share (${FEE.schedule()}) is paid on top.` : '');
   };
   return { yours, OFFICE_FEE, GROUP };

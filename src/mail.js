@@ -6,23 +6,27 @@ const on = () => !!process.env.RESEND_API_KEY;
 // Codes and references are picked out large. No images that must load; the wave is inline SVG with a text
 // fallback, so the mail reads the same in every client.
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const BASE = () => process.env.BASE_URL || 'https://watermark.krafftco.com';
+const ADDR = require('./address');
+const BASE = () => ADDR.base();
 function paper({ subject, text, feature = null, cta = null }) {
   // Paragraphs from the text; URLs become links; a line that is only a reference or a code is set apart.
   const paras = String(text).split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).map(p => {
     if (feature && p === feature) return '';
     if (/^Watermark, a Krafft company\.?$/.test(p)) return '';
     if (feature && /\bis$/.test(p)) p = p.replace(/\s*is$/, ` is ${feature}.`);
-    const h = esc(p).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0e0e0e">$1</a>').replace(/\n/g, '<br>');
+    const h = esc(p).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0e0e0e;word-break:break-all;overflow-wrap:anywhere">$1</a>').replace(/\n/g, '<br>');
     return `<p style="margin:0 0 16px;font:17px/1.55 Georgia,'Times New Roman',serif;color:#2f2d29">${h}</p>`;
   }).join('');
-  const feat = feature ? `<p style="margin:8px 0 10px;font:44px/1.1 Georgia,serif;letter-spacing:.18em;color:#0e0e0e">${cta ? `<a href="${esc(cta.url)}" style="color:#0e0e0e;text-decoration:none">${esc(feature)}</a>` : esc(feature)}</p>${cta ? `<p style="margin:0 0 24px;font:13px/1.5 Helvetica,Arial,sans-serif;color:#5f5f5c">Type it, or tap it.</p>` : ''}` : '';
+  // (#224) A code is digits (a sign-in code); only a code is typed. Any other feature is a few words: set smaller, so it
+  // fits a phone, and without the line about typing.
+  const isCode = !!feature && /^\d[\d ]*\d$/.test(String(feature).trim());
+  const feat = feature ? `<p style="margin:8px 0 10px;font:${isCode ? '44px/1.1' : '30px/1.2'} Georgia,serif;letter-spacing:${isCode ? '.18em' : '.01em'};color:#0e0e0e">${cta ? `<a href="${esc(cta.url)}" style="color:#0e0e0e;text-decoration:none">${esc(feature)}</a>` : esc(feature)}</p>${cta && isCode ? `<p style="margin:0 0 24px;font:13px/1.5 Helvetica,Arial,sans-serif;color:#5f5f5c">Type it, or tap it.</p>` : ''}` : '';
   const btn = cta ? `<p style="margin:8px 0 28px"><a href="${esc(cta.url)}" style="display:inline-block;padding:16px 28px;background:#0e0e0e;color:#f7f6f3;text-decoration:none;font:600 13px/1 Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase">${esc(cta.label)}</a></p>` : '';
   return `<!doctype html><html><body style="margin:0;background:#f2f2f0;padding:32px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e2df">
 <tr><td style="padding:34px 40px 10px"><a href="${BASE()}" style="text-decoration:none"><img src="${BASE()}/static/mail/wordmark.png" width="150" height="auto" alt="Watermark" style="display:block;border:0;width:150px;height:auto"></a></td></tr>
 <tr><td style="padding:22px 40px 8px"><p style="margin:0 0 18px;font:11px/1 Helvetica,Arial,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#5f5f5c">${esc(subject)}</p>${feat}${btn}${paras}</td></tr>
-<tr><td style="padding:18px 40px 34px"><hr style="border:0;border-top:1px solid #e2e2df;margin:0 0 18px"><p style="margin:0;font:11px/1.6 Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8f8a81">Watermark &middot; A Krafft company<br><a href="${BASE()}" style="color:#8f8a81;text-decoration:none">watermark.krafftco.com</a></p></td></tr>
+<tr><td style="padding:18px 40px 34px"><hr style="border:0;border-top:1px solid #e2e2df;margin:0 0 18px"><p style="margin:0;font:11px/1.6 Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8f8a81">Watermark &middot; A Krafft company<br><a href="${BASE()}" style="color:#8f8a81;text-decoration:none">${esc(ADDR.host())}</a></p></td></tr>
 </table></td></tr></table></body></html>`;
 }
 // What the last sends came to, told on /healthz (never the key, never an address): so a quiet failure is seen.
@@ -70,7 +74,7 @@ function admitAuto(once) {
 async function send({ to, subject, text, from, html, feature, cta, headers, replyTo, kind, once }) {
   if (kind === 'auto') { const a = admitAuto(once); if (a !== true) return { skipped: true, ceiling: a === 'ceiling', once: a === 'once' }; }
   const key = process.env.RESEND_API_KEY;
-  const sender = from || process.env.MAIL_FROM || 'Watermark <house@watermark.krafftco.com>';
+  const sender = from || process.env.MAIL_FROM || ADDR.sender();
   // (#65) A letter mail-off did not send may carry a sign-in code or a link that proves an address: outside tests neither
   // its text nor a code in its subject is kept or written to the host's logs.
   if (!key || !to) { const T = process.env.NODE_ENV === 'test'; console.log(`[mail:off] to=${to} subject="${T ? subject : String(subject || '').replace(/\d{3} ?\d{3}/g, '••• •••')}"`); log.push({ to, subject: T ? subject : String(subject || '').replace(/\d{3} ?\d{3}/g, '••• •••'), text: T ? text || '' : '', at: Date.now() }); if (log.length > 300) log.splice(0, log.length - 300); return { skipped: true }; }
@@ -81,7 +85,7 @@ async function send({ to, subject, text, from, html, feature, cta, headers, repl
     if (!ok.length) { console.log(`[mail:test-house] held back, to=${to} subject="${subject}"`); return { skipped: true }; }
     to = ok; subject = `[Test house] ${subject}`;
   }
-  const SAFE = 'Watermark <house@watermark.krafftco.com>'; // the verified sending domain
+  const SAFE = ADDR.sender(); // the verified sending domain
   const post = f => fetch('https://api.resend.com/emails', {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(Object.assign({ from: f, to: [].concat(to), subject, text, html: html || paper({ subject, text, feature, cta }) }, headers ? { headers } : {}, replyTo ? { reply_to: replyTo } : {})),
@@ -114,7 +118,10 @@ const templates = {
     subject: `Terms for "${title}" (${ref})`, cta: { label: `Pay ${fee} and take the file`, url },
     text: `Dear ${name},\n\nThe fee for your license of "${title}" is ${fee}. Pay securely here and the file and certificate arrive at once:\n\n${url}\n\nReference: ${ref}`,
   }),
-  grantedToLicensee: ({ ref, title, name, certUrl, downloadUrl, ends }) => ({
+  grantedToLicensee: ({ ref, title, name, certUrl, downloadUrl, ends, print = false }) => (print ? { // (#224) a bought print: no license, no file
+    subject: `Your print of "${title}" (${ref})`, cta: { label: 'Open the papers', url: certUrl.replace(/\?k=$/, '') },
+    text: `Dear ${name},\n\nThank you. Your print of "${title}" is recorded, with its papers.\n\nCertificate: ${certUrl.replace(/\?k=$/, '')}`,
+  } : {
     subject: `It's yours: "${title}" (${ref})`, cta: { label: 'Open your license', url: certUrl },
     text: `Dear ${name},\n\nThank you. Your license is active${ends ? ` until ${ends.slice(0, 10)}` : ''}.\n\nCertificate: ${certUrl}\n${downloadUrl ? `Full file (valid for the term): ${downloadUrl}\n` : ''}\nThe file carries its license reference, so the use can always be verified.`,
   }),

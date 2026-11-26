@@ -31,6 +31,20 @@ function mountCurate(app, { db, C, V, I, mail, ledger, buyerOf, setBuyer, makerO
     const seen = new Set(); return [...a, ...r].filter(m => !seen.has(m.id) && seen.add(m.id));
   };
   app.locals.curate = { canCurate, archivesFor };
+  // (#225) What a curator is paid, in the one sentence hangs.js keeps beside the code that pays it.
+  const H = require('./hangs'); const SHARE = H.curatorShare();
+  const paid = who => `When a work is collected through ${who}, you earn ${SHARE}, never the maker’s. It is credited to your pocket at the sale; on Fridays what has cleared goes to your bank, once you have connected one.`;
+  // The public address of a show, and the address a title gives (free among the walls and the addresses shows have left).
+  const publicHref = h => H.hangHref({ ...h, curator_code: h.curator_code || (db.prepare('SELECT code FROM buyers WHERE id=?').get(h.buyer_id) || {}).code });
+  const slugFor = (title, id) => { const base = String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'show'; let x = base, k = 2;
+    while (db.prepare('SELECT 1 FROM hangs WHERE slug=? AND id!=?').get(x, id || 0) || db.prepare('SELECT 1 FROM hang_was WHERE slug=? AND hang_id!=?').get(x, id || 0)) x = `${base}-${k++}`; return x; };
+  const COPY = `<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy]');if(!b)return;var t=b.getAttribute('data-copy'),done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,function(){prompt('The link',t)});else prompt('The link',t)})</script>`;
+  const linkBlock = h => { const u = C.base + publicHref(h); return `<p class="cu-open"><span class="k">The public link</span><a href="${esc(publicHref(h))}">${esc(u)}</a><button type="button" class="bk-alt" data-copy="${esc(u)}">Copy</button></p>`; };
+  // What a show holds that the public has not seen: 'out' would be published by an approval; 'kept' the maker has kept
+  // back by name (works.keep_back) and no approval publishes.
+  const notShown = (h, m) => { const rows = db.prepare("SELECT w.id, w.slug, w.title, w.place, w.keep_back FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='hidden' AND w.maker_id=? ORDER BY hw.pos, w.id LIMIT 500").all(h.id, m.id);
+    return { all: rows, out: rows.filter(w => !Number(w.keep_back || 0)), kept: rows.filter(w => Number(w.keep_back || 0)) }; };
+  const approveBtn = (h, m) => { const x = notShown(h, m); return x.out.length + x.kept.length ? `<a class="buy-btn" href="/account/shows/${h.id}/approve">Approve and open</a>` : `<form method="post" action="/account/shows/${h.id}/approve"><button class="buy-btn">Approve and open</button></form>`; };
   const shell = (title, body) => V.layout({ title: `${title} · Watermark`, path: '/curate', body });
   const tell = (x) => { try { if (app.locals.notify) app.locals.notify.tell(x).catch(() => {}); } catch (e) { /* quiet */ } };
 
@@ -44,9 +58,9 @@ function mountCurate(app, { db, C, V, I, mail, ledger, buyerOf, setBuyer, makerO
     const ok = req.query.ok ? `<p class="ok">${esc(req.query.ok)}</p>` : '';
     res.send(V.layout({ title: 'Curators · Your studio · Watermark', studio: true, path: '/account/curators', body: `<section class="cu">
 <p class="k">Your studio</p><h1>Curators.</h1>
-<p class="lede">Open your archive to someone whose eye you trust: a gallery, a curator, a friend with taste. They see everything you hold, kept-back work included, build a show from it and send it to you. Nothing opens until you say so.</p>${ok}
+<p class="lede">Open your archive to someone whose eye you trust: a gallery, a curator, a friend with taste. They see everything you hold, kept-back work included, build a show from it and send it to you. Nothing opens until you say so, and a photograph the public has not seen is named to you before it does.</p>${ok}
 ${shows.length ? `<h2>Shows for you</h2><ul class="cu-shows">${shows.map(h => `<li class="cu-show ${esc(h.review)}"><div class="cu-strip">${thumbs(h).map(t => `<img src="/img/${esc(t.slug)}/thumb" alt="" loading="lazy">`).join('')}</div><div class="cu-sh-t"><b>${esc(h.title)}</b><span>${h.n} photograph${h.n === 1 ? '' : 's'} &middot; by ${esc(h.curator || 'a curator')} &middot; ${h.review === 'proposed' ? 'waiting for you' : h.review === 'approved' ? 'open' : 'returned with a note'}</span>${h.line ? `<p>${esc(h.line)}</p>` : ''}</div>
-<div class="cu-sh-go"><a href="/curate/show/${h.id}">See it</a>${h.review === 'proposed' ? `<form method="post" action="/account/shows/${h.id}/approve"><button class="buy-btn">Approve and open</button></form><form method="post" action="/account/shows/${h.id}/return" class="cu-ret"><input name="note" placeholder="A note back (optional)" maxlength="400"><button class="bk-alt">Return</button></form>` : ''}</div></li>`).join('')}</ul>` : ''}
+<div class="cu-sh-go"><a href="/curate/show/${h.id}">See it</a>${h.review === 'proposed' ? `${approveBtn(h, m)}<form method="post" action="/account/shows/${h.id}/return" class="cu-ret"><input name="note" placeholder="A note back (optional)" maxlength="400"><button class="bk-alt">Return</button></form>` : ''}</div></li>`).join('')}</ul>` : ''}
 <h2>Who holds keys</h2>
 ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name || c.email)}</b><span>${esc([c.label, c.email].filter(Boolean).join(' · '))}</span><small>${c.status === 'on' ? `In since ${esc(String(c.joined_at || c.at).slice(0, 10))}` : 'Letter sent, not yet opened'}</small></div><form method="post" action="/account/curators/${c.id}/end"><button class="bk-alt">Take back the keys</button></form></li>`).join('')}</ul>` : '<p class="note">No one yet.</p>'}
 <form method="post" action="/account/curators" class="form cu-inv"><h2>Open your archive to someone</h2>
@@ -54,7 +68,7 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
 <label>Their email<input name="email" type="email" required maxlength="160"></label>
 <label>As (optional)<input name="label" maxlength="80" placeholder="Leica Gallery, curator"></label>
 <button class="buy-btn">Send the keys</button>
-<p class="note">They receive a letter with a link that opens your archive to them, signed in as themselves. You can take the keys back at any time; a show you approved stays open until you close it.</p></form>
+<p class="note">They receive a letter with a link that opens your archive to them, signed in as themselves. You can take the keys back at any time; a show you approved stays open until you close it. When a work is collected through their show, they earn ${esc(SHARE)}, never yours.</p></form>
 </section>` }));
   });
   app.post('/account/curators', (req, res) => {
@@ -68,7 +82,7 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     { // The invitation, engraved (31 Oct): the maker's best photograph on its mount, what the key opens, one door.
       const L = require('./mail-letters'); const best = db.prepare("SELECT * FROM works WHERE maker_id=? AND status='held' AND COALESCE(keep_back,0)=0 ORDER BY curated DESC, stars DESC, id DESC LIMIT 1").get(m.id);
       const K = app.locals.keys; const given = K ? db.prepare("SELECT COUNT(*) n FROM keys WHERE kind='curator'").get().n : 1;
-      const letter = L.curatorInvite({ base: C.base, name, maker: m.name, makerFirst: m.name.split(' ')[0], label, link, no: given === 0 ? 1 : null, img: best ? `${C.base}/img/${best.slug}/screen?f=jpg` : null, href: best ? `${C.base}/w/${best.slug}` : C.base, title: best ? V.tidy(best.title) : '', year: best ? String(best.taken_at || '').slice(0, 4) : '' });
+      const letter = L.curatorInvite({ base: C.base, name, maker: m.name, makerFirst: m.name.split(' ')[0], label, link, share: SHARE, no: given === 0 ? 1 : null, img: best ? `${C.base}/img/${best.slug}/screen?f=jpg` : null, href: best ? `${C.base}/w/${best.slug}` : C.base, title: best ? V.tidy(best.title) : '', year: best ? String(best.taken_at || '').slice(0, 4) : '' });
       if (mail.on()) mail.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html }); else if (app.locals.mailLog) app.locals.mailLog.push({ to: email, subject: letter.subject, link }); }
     // (16 Nov, #65) The join link signs its opener in as the invited address, so it travels only by mail to that address.
     // With mail off it is never shown to the inviter (it was: any maker could invite an address and become it); the
@@ -80,16 +94,57 @@ ${list.length ? `<ul class="cu-keys">${list.map(c => `<li><div><b>${esc(c.name |
     db.prepare("UPDATE curators SET status='ended' WHERE id=? AND maker_id=?").run(+req.params.id, m.id);
     res.redirect('/account/curators?ok=' + encodeURIComponent('The keys are back with you.'));
   });
-  // Approve: the show opens, and whatever it needs from the kept-back work is published with it.
+  // Approve. (#225) A photograph the public has not seen is never opened by one press: when a show holds any, the
+  // button leads to a page that names each one, and the maker opens the show with them or without them. The answer
+  // carries the photographs that page named ('seen'); one hung since is named first. A work the maker has kept back
+  // (works.keep_back) is named too and stays private either way. What is left out leaves the show.
+  const showFor = (req, res) => { const m = makerOf(req); if (!m) { if (req.method === 'GET') res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl)); else res.redirect(303, '/signin?next=/account/curators'); return null; }
+    const h = db.prepare("SELECT * FROM hangs WHERE id=? AND for_maker_id=?").get(+req.params.id, m.id); if (!h) { res.redirect(303, '/account/curators?ok=' + encodeURIComponent('That show is not here any more.')); return null; } return { m, h }; };
+  app.get('/account/shows/:id/approve', (req, res) => {
+    const s = showFor(req, res); if (!s) return; const { m, h } = s;
+    if (h.review === 'approved') return res.redirect('/account/curators?ok=' + encodeURIComponent(`${h.title} is already open.`));
+    const x = notShown(h, m); const n = db.prepare('SELECT COUNT(*) n FROM hang_works WHERE hang_id=?').get(h.id).n; const rest = n - x.out.length - x.kept.length;
+    const by = (db.prepare('SELECT name FROM buyers WHERE id=?').get(h.buyer_id) || {}).name || 'a curator';
+    const row = w => `<li><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span><b>${esc(tidy(w.title))}</b>${w.place ? `<i>${esc(w.place)}</i>` : ''}</span></li>`;
+    V.setDeskPath('/account/curators'); res.set('Cache-Control', 'private, no-store');
+    res.send(V.layout({ title: `Approve ${h.title} · Your studio · Watermark`, studio: true, path: '/account/curators', body: `<section class="cu cu-ok">
+<p class="k">Curators &middot; approve a show</p><h1>${esc(h.title)}</h1>
+<p class="lede">${n} photograph${n === 1 ? '' : 's'}, chosen by ${esc(by)}. ${req.query.changed ? 'The show changed since you last looked. ' : ''}${x.out.length ? `${x.out.length === 1 ? 'One of them is' : `${x.out.length} of them are`} not public yet. Opening the show with ${x.out.length === 1 ? 'it' : 'them'} publishes ${x.out.length === 1 ? 'it' : 'them'}: anyone can then see ${x.out.length === 1 ? 'it' : 'them'}, here and on your page.` : 'Everything else in it is already public.'}</p>
+${x.out.length ? `<h2>Not public yet</h2><ul class="cu-named" data-cu-out>${x.out.map(row).join('')}</ul>` : ''}
+${x.kept.length ? `<h2>Kept back by you</h2><p class="note">${x.kept.length === 1 ? 'This one stays' : 'These stay'} private whichever you press, and ${x.kept.length === 1 ? 'leaves' : 'leave'} the show. To let one go, publish it yourself in <a href="/account/hang">Hang your best</a> first.</p><ul class="cu-named" data-cu-kept>${x.kept.map(row).join('')}</ul>` : ''}
+<form method="post" action="/account/shows/${h.id}/approve" class="cu-ok-go"><input type="hidden" name="seen" value="${x.out.concat(x.kept).map(w => w.id).join(',')}">
+${x.out.length ? `<button class="buy-btn" name="with" value="all">Open the show and publish ${x.out.length === 1 ? 'this photograph' : `these ${x.out.length}`}</button>` : ''}
+${rest > 0 ? `<button class="${x.out.length ? 'bk-alt' : 'buy-btn'}" name="with" value="none">${x.out.length ? `Open the show without ${x.out.length === 1 ? 'it' : 'them'}` : 'Open the show'} (${rest} photograph${rest === 1 ? '' : 's'})</button>` : `<p class="note">Without ${x.out.length + x.kept.length === 1 ? 'it' : 'them'} the show would be empty, so it cannot open that way.</p>`}
+<a href="/curate/show/${h.id}">See the show again</a> <a href="/account/curators">Not now</a></form>
+<p class="note">Either way the curator is told what you decided, by name. To ask for changes instead, return the show with a note from <a href="/account/curators">Curators</a>.</p>
+</section>` }));
+  });
   app.post('/account/shows/:id/approve', (req, res) => {
-    const m = makerOf(req); if (!m) return res.sendStatus(401);
-    const h = db.prepare("SELECT * FROM hangs WHERE id=? AND for_maker_id=?").get(+req.params.id, m.id); if (!h) return res.sendStatus(404);
-    const hidden = db.prepare("SELECT w.* FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='hidden' AND COALESCE(w.keep_back,0)=0 AND w.maker_id=?").all(h.id, m.id);
-    for (const w of hidden) { db.prepare("UPDATE works SET status='held' WHERE id=?").run(w.id); ledger.append(db, 'work.published', w.slug, { by: 'show', show: h.slug }); }
-    db.prepare("UPDATE hangs SET review='approved', review_note=NULL, public=1, updated_at=datetime('now') WHERE id=?").run(h.id);
+    const s = showFor(req, res); if (!s) return; const { m, h } = s; const x = notShown(h, m), body = req.body || {};
+    const how = body.with === 'all' || body.with === 'none' ? body.with : null;
+    const seen = new Set(String(body.seen || '').split(',').filter(Boolean).map(Number));
+    if (x.out.length + x.kept.length) {
+      if (!how) return res.redirect(303, `/account/shows/${h.id}/approve`);
+      if (x.out.concat(x.kept).some(w => !seen.has(w.id))) return res.redirect(303, `/account/shows/${h.id}/approve?changed=1`); // hung since the page was read: name it first
+    }
+    const publish = how === 'all' ? x.out : [], left = how === 'all' ? x.kept : x.all;
+    const n = db.prepare('SELECT COUNT(*) n FROM hang_works WHERE hang_id=?').get(h.id).n - left.length;
+    if (n < 1) return res.redirect(303, `/account/shows/${h.id}/approve`);
+    db.transaction(() => {
+      for (const w of publish) { db.prepare("UPDATE works SET status='held' WHERE id=? AND status='hidden' AND COALESCE(keep_back,0)=0").run(w.id); ledger.append(db, 'work.published', w.slug, { by: 'show', show: h.slug }); }
+      for (const w of left) db.prepare('DELETE FROM hang_works WHERE hang_id=? AND work_id=?').run(h.id, w.id);
+      db.prepare("UPDATE hangs SET review='approved', review_note=NULL, public=1, updated_at=datetime('now') WHERE id=?").run(h.id);
+    })();
     ledger.append(db, 'hang.opened', h.slug, { show: true, maker: m.handle });
-    tell({ buyer_id: h.buyer_id, kind: 'reviewed', href: `/curate/show/${h.id}`, title: `${m.name} approved your show`, body: `${h.title} is open.${hidden.length ? ` ${hidden.length} photograph${hidden.length === 1 ? ' was' : 's were'} brought out for it.` : ''}` });
-    res.redirect('/account/curators?ok=' + encodeURIComponent(`${h.title} is open.${hidden.length ? ` ${hidden.length} kept-back photograph${hidden.length === 1 ? '' : 's'} published with it.` : ''}`));
+    const names = left.map(w => tidy(w.title));
+    tell({ buyer_id: h.buyer_id, kind: 'reviewed', href: `/curate/show/${h.id}`, title: `${m.name} approved your show`, body: `${h.title} is open.${publish.length ? ` ${publish.length} photograph${publish.length === 1 ? ' was' : 's were'} brought out for it.` : ''}${left.length ? ` Left out, still private: ${names.join('; ')}.` : ''}` });
+    { // The letter (#225): the bell alone did not reach a curator who was not in the house. It carries the public link.
+      const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(h.buyer_id);
+      if (b && b.email) { const first = db.prepare("SELECT w.slug, w.title, w.taken_at FROM hang_works hw JOIN works w ON w.id=hw.work_id WHERE hw.hang_id=? AND w.status='held' AND COALESCE(w.keep_back,0)=0 ORDER BY hw.pos, w.id LIMIT 1").get(h.id);
+        const link = C.base + publicHref({ ...h, curator_code: codeFor(b) });
+        const letter = require('./mail-letters').showApproved({ base: C.base, name: b.name, maker: m.name, makerFirst: m.name.split(' ')[0], title: h.title, link, n, left: names, share: SHARE, img: first ? `${C.base}/img/${first.slug}/screen?f=jpg` : null, href: link, imgTitle: first ? tidy(first.title) : '', year: first ? String(first.taken_at || '').slice(0, 4) : '' });
+        if (mail.on()) mail.send({ to: b.email, subject: letter.subject, text: letter.text, html: letter.html }); else if (app.locals.mailLog) app.locals.mailLog.push({ to: b.email, subject: letter.subject, link, text: letter.text }); } }
+    res.redirect(303, '/account/curators?ok=' + encodeURIComponent(`${h.title} is open.${publish.length ? ` ${publish.length} photograph${publish.length === 1 ? '' : 's'} published with it.` : ''}${left.length ? ` Left out, still private: ${names.join('; ')}.` : ''}`));
   });
   app.post('/account/shows/:id/return', (req, res) => {
     const m = makerOf(req); if (!m) return res.sendStatus(401);
@@ -147,7 +202,7 @@ ${list.length ? `<ul class="cur-arch">${list.map(m => { const c = coverOf(m), n 
 ${shows.length ? `<ul class="cur-shows">${shows.map(h => { const mm = db.prepare('SELECT * FROM makers WHERE id=?').get(h.for_maker_id); const [st, cls] = state(h); const t = thumbs(h); return `<li class="cur-s cur-${cls}"><a class="cur-strip" href="/curate/${esc(slugOfMaker(mm))}?show=${h.id}">${t.length ? t.map(x => `<img src="/img/${esc(x)}/thumb" alt="" loading="lazy">`).join('') : '<span class="cur-blank"></span>'}</a><div class="cur-st"><b>${esc(h.title)}</b><span>${esc(mm ? mm.name : '')} · ${h.n} work${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} placed, ${money(h.earned || 0)}` : ''}</span><i>${st}</i></div><p class="cur-go"><a href="/curate/${esc(slugOfMaker(mm))}?show=${h.id}">${h.review === 'approved' ? 'Change it' : 'Go on'}</a>${h.review === 'approved' ? ` <a href="${esc(hrefOf(h))}">See it</a>` : ` <a href="/curate/show/${h.id}">Preview</a>`}</p></li>`; }).join('')}</ul>` : `<p class="cur-empty">${list.length ? 'Open an archive and tap a photograph: the show begins with your first choice.' : 'Your shows will gather here.'}</p>`}
 ${walls.length ? `<h2 class="cur-k">Your walls</h2><ul class="cur-shows">${walls.map(h => { const t = thumbs(h); return `<li class="cur-s"><a class="cur-strip" href="${esc(hrefOf(h))}">${t.map(x => `<img src="/img/${esc(x)}/thumb" alt="" loading="lazy">`).join('') || '<span class="cur-blank"></span>'}</a><div class="cur-st"><b>${esc(h.title)}</b><span>${h.n} work${h.n === 1 ? '' : 's'}${h.sales ? ` · ${h.sales} placed` : ''}</span><i>${h.public ? 'Shown' : 'Private'}</i></div><p class="cur-go"><a href="${esc(hrefOf(h))}">See it</a></p></li>`; }).join('')}</ul>` : ''}
 <h2 class="cur-k">The share</h2>
-<p class="cur-money">${earned.c ? `<b>${money(earned.c)}</b> earned in all${earned.m ? `, ${money(earned.m)} this month` : ''}. It sits in your pocket and goes to your bank on Fridays once connected. <a href="/yours?tab=more#pocket">Your pocket</a>` : 'When a work is collected through a show of yours or your gallery&rsquo;s link, the curator&rsquo;s share is yours, paid on Fridays.'}</p>
+<p class="cur-money">${earned.c ? `<b>${money(earned.c)}</b> earned in all${earned.m ? `, ${money(earned.m)} this month` : ''}. ${esc(paid('a show of yours or your gallery’s link'))} <a href="/yours?tab=more#pocket">Your pocket</a>` : esc(paid('a show of yours or your gallery’s link'))}</p>
 <p class="cur-links"><a href="/keys">The Keys</a> · <a href="/yours">Your gallery</a> · <a href="/legal/curators">The Curator and Gallery Agreement</a></p>
 </section>`));
   });
@@ -173,23 +228,23 @@ ${walls.length ? `<h2 class="cur-k">Your walls</h2><ul class="cur-shows">${walls
     res.send(shell(`Curating ${m.name}`, `<section class="cu cu-desk" data-cu data-show="${cur ? cur.id : ''}" data-maker="${esc(slugOfMaker(m))}" data-first="${esc(m.name.split(' ')[0])}">
 <header class="cu-h"><div><p class="k">Curating</p><h1>${esc(m.name)}&rsquo;s archive.</h1><p class="cu-n">${total.n} works held${total.k ? `, ${total.k} kept back (marked)` : ''}. </p></div>
 <form method="get" class="cu-f"><input type="hidden" name="show" value="${cur ? cur.id : ''}"><input name="q" value="${esc(q)}" placeholder="A place, a word"><select name="stars" onchange="this.form.submit()"><option value="0">Every grade</option>${[3, 4, 5].map(s => `<option value="${s}"${stars === s ? ' selected' : ''}>${s}★ and above</option>`).join('')}</select><button class="bk-alt">Find</button></form></header>
-${!shows.length ? `<ol class="cu-steps"><li><b>Walk the archive.</b><span>Tap a photograph to hang it. The show begins with your first choice.</span></li><li><b>Sequence it.</b><span>Drag the order, a line beside each, a title and a statement.</span></li><li><b>Send it to ${esc(m.name.split(' ')[0])}.</b><span>Approved, it opens to the house under your name; a work collected through it pays you the curator&rsquo;s share.</span></li></ol>` : ''}
+${!shows.length ? `<ol class="cu-steps"><li><b>Walk the archive.</b><span>Tap a photograph to hang it. The show begins with your first choice.</span></li><li><b>Sequence it.</b><span>Drag the order, a line beside each, a title and a statement.</span></li><li><b>Send it to ${esc(m.name.split(' ')[0])}.</b><span>Nothing opens until ${esc(m.name.split(' ')[0])} approves it. Then it opens to the public under your name, a letter brings you its link, and a work collected through it earns you ${esc(SHARE)}.</span></li></ol>` : ''}
 <div class="cu-cols">
 <div class="cu-grid">${works.map(w => `<button type="button" class="cu-w${inShow.has(w.id) ? ' on' : ''}${w.status === 'hidden' ? ' kept' : ''}" data-cu-w="${esc(w.slug)}" aria-pressed="${inShow.has(w.id)}"><span class="cu-im"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy" draggable="false"></span><span><b>${esc(tidy(w.title))}</b><i>${esc(w.place || '')}${w.stars ? ` ${starsOf(w.stars)}` : ''}${w.status === 'hidden' ? ' · kept back' : ''}</i></span><em>${I.check}</em></button>`).join('') || '<p class="note">Nothing by that word or grade.</p>'}</div>
 <aside class="cu-show" data-cu-tray><button type="button" class="cu-tray" data-cu-tray-t aria-expanded="false"><b data-cu-tn>${seq.length}</b><span>${cur ? esc(cur.title) : 'Your show'}</span><i>Open</i></button>${cur ? `<form method="post" action="/curate/show/${cur.id}/title" class="cu-st"><input name="title" value="${esc(cur.title)}" maxlength="120" aria-label="The show's title"><textarea name="line" rows="3" maxlength="600" placeholder="The curator's statement">${esc(cur.line || '')}</textarea><button class="bk-alt">Keep</button></form>
-<p class="cu-state">${cur.review === 'proposed' ? `With ${esc(m.name.split(' ')[0])} for approval.` : cur.review === 'approved' ? 'Open to the public.' : cur.review === 'returned' ? `Returned${cur.review_note ? `: &ldquo;${esc(cur.review_note)}&rdquo;` : '.'}` : 'A draft. Only you can see it.'}</p>
+<p class="cu-state">${cur.review === 'proposed' ? `With ${esc(m.name.split(' ')[0])} for approval.` : cur.review === 'approved' ? 'Open to the public. The address follows the title; an earlier address still opens it.' : cur.review === 'returned' ? `Returned${cur.review_note ? `: &ldquo;${esc(cur.review_note)}&rdquo;` : '.'}` : `A draft. Only you can see it; ${esc(m.name.split(' ')[0])} sees it when you send it, and it has no public link until it is approved.`}</p>${cur.review === 'approved' ? linkBlock(cur) : ''}
 <ol class="cu-seq" data-cu-seq>${seq.map(w => `<li data-slug="${esc(w.slug)}"><span class="cu-grip">${I.grip}</span><img src="/img/${esc(w.slug)}/thumb" alt=""><div><b>${esc(tidy(w.title))}</b><input data-cu-note value="${esc(w.note || '')}" placeholder="A line for the wall" maxlength="240"></div><button type="button" class="cu-x" data-cu-out aria-label="Take it out">${I.close}</button></li>`).join('')}</ol>
 <p class="cu-hint">${seq.length ? `${seq.length} in the show. Drag to sequence; the order is the walk.` : 'Tap works on the left to hang them here.'}</p>
 ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form method="post" action="/curate/show/${cur.id}/propose"><button class="buy-btn">Send to ${esc(m.name.split(' ')[0])}</button><small class="cu-agree">Sending accepts <a href="/legal/curators" target="_blank">the Curator and Gallery Agreement</a>.</small></form>` : ''}
 <p class="cu-links"><a href="/curate/show/${cur.id}">Preview</a>${shows.length > 1 ? ` &middot; ${shows.filter(s => s.id !== cur.id).map(s => `<a href="?show=${s.id}">${esc(s.title)}</a>`).join(' &middot; ')}` : ''}</p>` : '<p class="cu-empty">Your show begins with the first photograph you tap. Name it whenever you like.</p><ol class="cu-seq" data-cu-seq></ol>'}
 <form method="post" action="/curate/${esc(slugOfMaker(m))}/show" class="cu-new"><input name="title" placeholder="${cur ? 'Another show' : 'The show’s title'}" maxlength="120" required><button class="bk-alt">Begin</button></form></aside>
-</div><template data-cu-ic="grip">${I.grip}</template><template data-cu-ic="close">${I.close}</template></section><script src="/static/curate.js?v=${V.VER}" defer></script>`));
+</div><template data-cu-ic="grip">${I.grip}</template><template data-cu-ic="close">${I.close}</template></section>${COPY}<script src="/static/curate.js?v=${V.VER}" defer></script>`));
   });
   app.post('/curate/:maker/show', (req, res) => {
     const m = makerBySlug(String(req.params.maker)); if (!m || !canCurate(req, m)) return res.sendStatus(403);
     const b = curatorBuyer(req, res); if (!b) return res.sendStatus(401);
     const title = String((req.body || {}).title || '').trim().slice(0, 120) || `A show of ${m.name}`;
-    let base = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'show', s = base, k = 2; while (db.prepare('SELECT 1 FROM hangs WHERE slug=?').get(s)) s = `${base}-${k++}`;
+    const s = slugFor(title, 0);
     const id = db.prepare("INSERT INTO hangs (buyer_id, slug, title, public, for_maker_id, review) VALUES (?,?,?,0,?,'draft')").run(b.id, s, title, m.id).lastInsertRowid;
     if ((req.headers.accept || '').includes('application/json')) return res.json({ ok: true, id, title });
     res.redirect(`/curate/${slugOfMaker(m)}?show=${id}`);
@@ -220,7 +275,14 @@ ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form 
   app.post('/curate/show/:id/title', (req, res) => {
     const s = myShow(req, req.params.id); if (!s || !s.mine) return res.sendStatus(403);
     const x = req.body || {};
-    db.prepare("UPDATE hangs SET title=?, line=?, updated_at=datetime('now') WHERE id=?").run(String(x.title || s.h.title).trim().slice(0, 120) || s.h.title, String(x.line || '').trim().slice(0, 600) || null, s.h.id);
+    const title = String(x.title || s.h.title).trim().slice(0, 120) || s.h.title;
+    // (#225) The address follows the title (it kept the working one: /hang/a-show-of-mira under a show renamed twice);
+    // the address it leaves is kept in hang_was and sends on, so a link already handed out still arrives.
+    const slug = title === s.h.title ? s.h.slug : slugFor(title, s.h.id);
+    db.transaction(() => {
+      if (slug !== s.h.slug) { db.prepare('DELETE FROM hang_was WHERE slug=?').run(slug); db.prepare("INSERT INTO hang_was (slug, hang_id) VALUES (?,?) ON CONFLICT(slug) DO UPDATE SET hang_id=excluded.hang_id").run(s.h.slug, s.h.id); }
+      db.prepare("UPDATE hangs SET title=?, slug=?, line=?, updated_at=datetime('now') WHERE id=?").run(title, slug, String(x.line || '').trim().slice(0, 600) || null, s.h.id);
+    })();
     res.redirect(`/curate/${slugOfMaker(s.m)}?show=${s.h.id}`);
   });
   app.post('/curate/show/:id/propose', (req, res) => {
@@ -239,9 +301,9 @@ ${seq.length && cur.review !== 'proposed' && cur.review !== 'approved' ? `<form 
     const s = myShow(req, req.params.id); if (!s) return res.redirect('/signin?next=' + encodeURIComponent(req.originalUrl));
     const seq = showWorks(s.h); const b = db.prepare('SELECT * FROM buyers WHERE id=?').get(s.h.buyer_id) || {};
     res.set('Cache-Control', 'private, no-store');
-    res.send(shell(s.h.title, `<section class="cu-pv"><p class="k">${s.h.review === 'approved' ? 'Open' : 'Preview'} &middot; ${esc(s.m.name)}</p><h1>${esc(s.h.title)}</h1><p class="cu-by">Curated by ${esc(b.name || 'a curator')}</p>${s.h.line ? `<p class="lede">${esc(s.h.line)}</p>` : ''}
-<ol class="cu-wall">${seq.map((w, i) => `<li><figure><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="${i < 2 ? 'eager' : 'lazy'}" draggable="false"></figure><p><b>${esc(tidy(w.title))}</b>${w.place ? `, ${esc(w.place)}` : ''}${w.status === 'hidden' ? ' <i>(kept back; published if approved)</i>' : ''}</p>${w.note ? `<p class="cu-line">${esc(w.note)}</p>` : ''}</li>`).join('')}</ol>
-<p class="cu-pv-go">${s.mine ? `<a class="bk-alt" href="/curate/${esc(slugOfMaker(s.m))}?show=${s.h.id}">Back to the desk</a>` : ''}${!s.mine && s.h.review === 'proposed' ? `<form method="post" action="/account/shows/${s.h.id}/approve"><button class="buy-btn">Approve and open</button></form> <a class="bk-alt" href="/account/curators">Return with a note</a>` : ''}${s.h.review === 'approved' ? ` <a class="bk-alt" href="${esc(require('./hangs').hangHref ? require('./hangs').hangHref({ ...s.h, curator_code: b.code }) : '/hang/' + s.h.slug)}">The open show</a>` : ''}</p></section>`));
+    res.send(shell(s.h.title, `<section class="cu-pv"><p class="k">${s.h.review === 'approved' ? 'Open' : 'Preview'} &middot; ${esc(s.m.name)}</p><h1>${esc(s.h.title)}</h1><p class="cu-by">Curated by ${esc(b.name || 'a curator')}</p>${s.h.review === 'approved' ? linkBlock({ ...s.h, curator_code: b.code }) : `<p class="cu-priv">A private preview: only ${s.mine ? `you and ${esc(s.m.name.split(' ')[0])}` : `you and ${esc((b.name || 'the curator').split(' ')[0])}`} can open this page, so its address is not one to pass on. The show has no public link until ${s.mine ? `${esc(s.m.name.split(' ')[0])} approves it; a letter brings it to you then` : 'you approve it'}.</p>`}${s.h.line ? `<p class="lede">${esc(s.h.line)}</p>` : ''}
+<ol class="cu-wall">${seq.map((w, i) => `<li><figure><img src="/img/${esc(w.slug)}/screen" alt="${esc(tidy(w.title))}" loading="${i < 2 ? 'eager' : 'lazy'}" draggable="false"></figure><p><b>${esc(tidy(w.title))}</b>${w.place ? `, ${esc(w.place)}` : ''}${w.status === 'hidden' ? (Number(w.keep_back || 0) ? ` <i>(kept back by ${esc(s.m.name.split(' ')[0])}; it stays private)</i>` : ` <i>(not public yet; ${s.mine ? `${esc(s.m.name.split(' ')[0])} is asked by name before it is` : 'you are asked by name before it is'})</i>`) : ''}</p>${w.note ? `<p class="cu-line">${esc(w.note)}</p>` : ''}</li>`).join('')}</ol>
+<p class="cu-pv-go">${s.mine ? `<a class="bk-alt" href="/curate/${esc(slugOfMaker(s.m))}?show=${s.h.id}">Back to the desk</a>` : ''}${!s.mine && s.h.review === 'proposed' ? `${approveBtn(s.h, s.m)} <a class="bk-alt" href="/account/curators">Return with a note</a>` : ''}${s.h.review === 'approved' ? ` <a class="bk-alt" href="${esc(publicHref({ ...s.h, curator_code: b.code }))}">The open show</a>` : ''}</p></section>${COPY}`));
   });
 }
 

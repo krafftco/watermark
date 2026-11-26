@@ -76,7 +76,7 @@ jobs:
       - name: The house is not being shown
         if: steps.diff.outputs.skip != '1'
         run: |
-          s=$(curl -s https://watermark.krafftco.com/healthz | sed -n 's/.*"showing":\(true\|false\).*/\1/p')
+          s=$(curl -s ${{ vars.HOUSE_URL || 'https://watermark.krafftco.com' }}/healthz | sed -n 's/.*"showing":\(true\|false\).*/\1/p')
           echo "showing: ${s:-unknown}"
           if [ "$s" = "true" ]; then
             if [ -n "$DRY" ]; then echo "::warning title=promote (dry run)::the house is being shown; a promotion would wait"; else echo "::error::the house is being shown; no deploy"; exit 1; fi

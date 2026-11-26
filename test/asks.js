@@ -17,10 +17,10 @@ const A = require('../src/asks');
   // 2. The Art Institute's header, with the contact from the setting; nowhere else.
   const was = process.env.HOUSE_EMAIL; process.env.HOUSE_EMAIL = 'desk@house.example';
   sent.length = 0; await f('https://api.artic.edu/api/v1/artworks/search?q=x', { headers: { accept: 'application/json' } }); await f('https://www.artic.edu/iiif/2/abc/full/max/0/default.jpg'); await f('https://collectionapi.metmuseum.org/x');
-  assert.ok(sent[0].h['AIC-User-Agent'] === 'Watermark (https://watermark.krafftco.com; desk@house.example)' && sent[0].h.accept === 'application/json', 'the API, with its own headers kept: ' + JSON.stringify(sent[0].h));
+  assert.ok(sent[0].h['AIC-User-Agent'] === `Watermark (${require('../src/address').base()}; desk@house.example)` && sent[0].h.accept === 'application/json', 'the API, with its own headers kept: ' + JSON.stringify(sent[0].h));
   assert.ok(sent[1].h['AIC-User-Agent'], 'the IIIF server'); assert.ok(!sent[2].h['AIC-User-Agent'], 'never another museum');
   assert.ok(/size/.test('size') && sent[1].u.endsWith('/full/max/0/default.jpg'), 'the size taken is not changed here');
-  delete process.env.HOUSE_EMAIL; assert.equal(A.aicAgent(), 'Watermark (https://watermark.krafftco.com)', 'no setting, no address'); if (was) process.env.HOUSE_EMAIL = was;
+  delete process.env.HOUSE_EMAIL; assert.equal(A.aicAgent(), `Watermark (${require('../src/address').base()})`, 'no setting, no address'); if (was) process.env.HOUSE_EMAIL = was;
   // 3. Gutenberg and Gutendex paused; their harvest endpoint (the way they offer) is not; Will's switch lifts it.
   for (const u of ['https://www.gutenberg.org/ebooks/1342.txt.utf-8', 'https://www.gutenberg.org/ebooks/search.opds/?query=x', 'https://gutenberg.org/cache/epub/1/pg1.txt', 'https://gutendex.com/books/?search=x']) {
     let e = null; try { await f(u); } catch (x) { e = x; } assert.ok(e && e.paused && e.message === A.PAUSED_LINE, 'paused: ' + u);

@@ -118,7 +118,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   // One item through the door (shared with the feeds, feeds.js): the picture fetched, the work registered as the maker's, the licence and year set.
   // A picture from another house (31 Oct: Wikimedia answered 429 to 433 of the Van Gogh files): Wikimedia asks for a
   // User-Agent that names the caller and for a gentle pace; a 429 or 503 is waited out (Retry-After, else 15 s, 30 s, 60 s).
-  const UA = 'Watermark/1.17 (https://watermark.krafftco.com; house@watermark.krafftco.com)'; let wikiLast = 0;
+  const UA = `Watermark/1.17 (${require('./address').base()}; ${require('./address').email()})`; let wikiLast = 0;
   async function fetchPicture(url) {
     const wiki = /(^|\.)wikimedia\.org$/.test((() => { try { return new URL(url).hostname; } catch (e) { return ''; } })());
     for (let i = 0; ; i++) {
@@ -188,7 +188,7 @@ function mountIIIF(app, { db, V, C, registerWork, studioOnly, fetchImpl, images,
   function demoDesk() {
     let m = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get();
     if (!m) {
-      db.prepare("INSERT INTO makers (handle, name, kind, bio, email, share_pct, joined_at) VALUES ('museum-demo', 'A museum desk (demonstration)', 'institution', ?, ?, 85, datetime('now'))").run('A demonstration of a museum’s own house on Watermark, built on The Metropolitan Museum of Art’s Open Access objects (CC0). Not the Met’s own door: every object is credited to the museum and free to take, as the Met gives it.', process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com');
+      db.prepare("INSERT INTO makers (handle, name, kind, bio, email, share_pct, joined_at) VALUES ('museum-demo', 'A museum desk (demonstration)', 'institution', ?, ?, 85, datetime('now'))").run('A demonstration of a museum’s own house on Watermark, built on The Metropolitan Museum of Art’s Open Access objects (CC0). Not the Met’s own door: every object is credited to the museum and free to take, as the Met gives it.', require('./address').email());
       db.prepare("UPDATE makers SET house_desk=1 WHERE handle='museum-demo'").run();
       m = db.prepare("SELECT * FROM makers WHERE handle='museum-demo'").get();
       const ins = db.prepare('INSERT OR IGNORE INTO uses (maker_id,key,name,description,term_months,kind,sort,price_cents) VALUES (?,?,?,?,?,?,?,?)'); DEFAULT_USES.forEach(u => ins.run(m.id, ...u));
@@ -268,7 +268,7 @@ ${r.show ? '' : `<p>Arrived held back. <a href="/studio/works?maker=${esc(r.hand
 </section>
 <p><a class="link" href="/museums/desk">How to open a rights desk, in an afternoon →</a></p>
 <section class="mu-ways"><p class="k">Three ways in</p><h2>However much you want to move.</h2><ol><li><b>The desk only.</b> Keep your collection where it is; open a rights desk on Watermark in an afternoon and point your rights page at it. The house answers nothing itself; your people do, from one queue.</li><li><b>The manifest.</b> Give the house your IIIF manifest and the collection is held, fingerprinted and sealed, your viewers keep working against the Image API, and every work gains its page, its guide and its licence.</li><li><b>The platform.</b> The open API, the partner bridge and the Keys: your members, your shop, your archive on the house’s rails, under your name. We help you integrate; the engineering is ours, the collection is yours, and it leaves with you if you ever ask.</li></ol></section>
-<section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
+<section class="mu-ask"><h2>Bring a collection in.</h2><p>Write to the house with a manifest address and the name of the institution. ${n ? `${n} institution${n === 1 ? ' is' : 's are'} already here.` : 'Be the first.'} <a class="buy-btn" href="mailto:${esc(require('./address').email())}?subject=${encodeURIComponent('A collection for Watermark')}">By letter</a> <a class="mu-alt" href="/developers">The API</a> <a class="mu-alt" href="/legal">The agreements</a></p><p class="note">Terms for institutions are drawn up with counsel; what the house keeps is yours, and leaves with you, byte for byte, in the archival master.</p></section></section>` }));
   });
 
   app.locals.iiif = { parseManifest, parseMet, isMet, kick, run, take, doFetch, demoDesk, museumDesk, fetchPicture };

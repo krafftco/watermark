@@ -9,6 +9,8 @@ const K = require('./contract');
 const { nanoid } = require('nanoid');
 const { open } = require('./db');
 const ledger = require('./ledger');
+const ADDR = require('./address'); // the house's address, in one place (#215)
+const HOST = () => ADDR.host(); // the bare host, where one is drawn or written into a file
 const TR = require('./rules-of-trade'); // the trade's rules: editions, prices, the holding time (#165)
 const images = require('./images');
 const RG = require('./regard');
@@ -100,10 +102,12 @@ function createApp(cfg = {}) {
   const clearClosed = (w, key) => !!(w && app && app.locals && app.locals.clearance && app.locals.clearance.blocks(w, key));
   const viewClosed = (w, key) => !!(w && app && app.locals && app.locals.onview && app.locals.onview.blocks(w, key)); // (#166) a work a gallery represents: its way to buy is the gallery's
   const sitterWord = (w, key) => (w && app && app.locals && app.locals.sitters ? app.locals.sitters.gate(w, key) : null); // 'ask' | 'closed' | null
-  const offered = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const COL = require('./collect'); // (#208) Collect retired as a new offer unless COLLECT=on
+  const offered0 = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && !sitterWord(w, key) && R.allows(rules, key) && (key !== 'reference' || refOK(w)) && meets(w, key);
+  const offered = (rules, key, w) => !COL.closed(key) && offered0(rules, key, w);
   // Listed on the work page and the license page: every use the maker allows. A use the held file is too small
   // for is listed as Ask: the maker is asked for the master and the order goes through by hand (see /buy).
-  const listed = (rules, key, w) => !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
+  const listed = (rules, key, w) => !COL.closed(key) && !held_(w, key) && !(w && w.disputed) && !artClosed(w, key) && !clearClosed(w, key) && !viewClosed(w, key) && sitterWord(w, key) !== 'closed' && R.allows(rules, key) && (key !== 'reference' || refOK(w));
   // What each use needs of the file. A web copy is fine to share; a campaign or a print needs the master.
   // Megapixels, drafts until Will confirms. Below the line the use is asked of the maker, not sold instantly.
   const MIN_MP = { social: 1, reference: 40, editorial: 12, commercial: 12, campaign: 24, print: 24 };
@@ -134,7 +138,7 @@ function createApp(cfg = {}) {
     const how = !ref ? 'Free and clear, from Watermark' : l && l.key === 'social' ? `Collected on Watermark${l.collector_no ? `, No. ${l.collector_no}` : ''}` : l && l.key === 'reference' ? 'The Reference, collected on Watermark' : `Licensed on Watermark${use ? `, ${String(use).toLowerCase()}` : ''}${ends ? `, until ${new Date(ends).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}`;
     const caption = `${title}. ${require('./object').aBy(w, maker.name).replace(/ by .*$/, '')} by ${maker.name}${w.place ? `, ${w.place}` : ''}${year ? `, ${year}` : ''}. ${how}.${number ? ` ${number}.` : ''}`;
     const openTake = !ref && w.open && OPEN_KEYS[w.open];
-    const copyright = openTake ? `${openTake.name}. ${require('./sources').credit(w) || maker.name}` : `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at watermark.krafftco.com/t/${TRACK.compact(ref)}` : `Held at watermark.krafftco.com/w/${w.slug}`}`;
+    const copyright = openTake ? `${openTake.name}. ${require('./sources').credit(w) || maker.name}` : `(c) ${year || new Date().getFullYear()} ${maker.name}. ${number ? `${number}. Look it up at ${HOST()}/t/${TRACK.compact(ref)}` : `Held at ${HOST()}/w/${w.slug}`}`;
     return { caption, copyright, number };
   }
   // A file's name: the title, the maker, the number. Readable in any folder; ASCII for the plain header, UTF-8 for the rest.
@@ -157,13 +161,13 @@ function createApp(cfg = {}) {
   // traced by its bytes (downloads.sha256), its XMP and its Content Credentials.
   async function marked(buf, { w, maker, ref = null, licensee = null, use = null, ends = null, dlId, share = false, strip = null, format = 'jpeg' }) {
     let out = buf;
-    if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `watermark.krafftco.com/${ref ? `c/${ref}` : `w/${w.slug}`}` });
+    if (share && strip !== false) out = await MARK.credit(out, { maker: maker.name, url: `${HOST()}/${ref ? `c/${ref}` : `w/${w.slug}`}` });
     if (format === 'jpeg') {
       const cap = captionOf({ w, maker, ref, licensee, use, ends });
       try { out = prov.stampJpegBuffer(out, { ref: ref || w.accession, maker: maker.name, licensee: licensee || 'the public', use: use || 'Free and clear', ends, fingerprint: w.sha256, base: C.base, conditions: null, caption: cap.caption, copyright: cap.copyright }); } catch (e) { /* keep */ }
       // A free-and-clear take of an open work (#170): the file says what the source says (the licence, their credit), never a copyright the house or the shelf does not hold.
       const op = !ref && w.open && OPEN_KEYS[w.open] ? OPEN_KEYS[w.open] : null; const opCredit = op ? (require('./sources').credit(w) || `${V.tidy(w.title)}, ${maker.name}. ${op.name}`) : null;
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: op ? opCredit : `${maker.name} / Watermark`, copyright: op ? `${op.name} (${op.url}). ${opCredit}` : `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: op ? op.url : `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref, licensee, use, ends, terms: op ? op.says : null, noAI: !op && R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: op ? opCredit : `${maker.name} / Watermark`, copyright: op ? `${op.name} (${op.url}). ${opCredit}` : `© ${(w.taken_at || w.created_at || '').slice(0, 4)} ${maker.name}. All rights reserved.`, licensor: op ? op.url : `${C.base}/license/${w.slug}`, statement: ref ? `${C.base}/c/${ref}` : `${C.base}/w/${w.slug}`, registry: HOST(), accession: w.accession, ref, licensee, use, ends, terms: op ? op.says : null, noAI: !op && R.parse(w.rules).never.includes('ai'), caption: cap.caption, number: cap.number }));
     }
     db.prepare('UPDATE downloads SET sha256=?, mark=?, work_id=?, to_whom=? WHERE id=?').run(crypto.createHash('sha256').update(out).digest('hex'), dlId >>> 0, w.id, licensee || null, dlId);
     return out;
@@ -307,14 +311,17 @@ function createApp(cfg = {}) {
   const EDGE = require('./edge');
 const FEE = require('./fee'); // the house's share, paid by the collector when FEE_SIDE=collector
   const LETTERS = require('./mail-letters');
+  const PRINTP = require('./printpapers'); // (#224) a bought print: its number, where it is, when its maker is paid
   function letterFor(g, w, maker, u, token) {
     let t = null; try { t = g.rights ? JSON.parse(g.rights) : null; } catch (e) { t = null; }
     if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: g.price_cents });
+    if (!Array.isArray(t.rights) || !Array.isArray(t.extras)) t = require('./holds').termsOf(u, t); // (#207) a kept picture's rights say only its size: the use's own terms fill the rest, or the letter fell back to the plain one
     const pr = V.plainRights(g, u, t), k = token ? `?k=${token}` : '';
     const pct = FEE.on() && g.house_cents != null ? 100 : (maker.share_pct || 85), cents = g.price_cents || 0;
     const fmtD = d => new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
     const b = g.buyer_id ? db.prepare('SELECT * FROM buyers WHERE id=?').get(g.buyer_id) : null;
     const certUrl = `${C.base}/c/${g.ref}${k}`;
+    const po = u.kind === 'print' ? PRINTP.of(db, g, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7) : null; // (#224) the print's own number, where it is, when its maker is paid
     const times = db.prepare("SELECT COUNT(*) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0").get(w.id).n;
     const allTimes = db.prepare("SELECT COUNT(*) n FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0").get(maker.id).n;
     const month = db.prepare(`SELECT COALESCE(SUM(${FEE.sqlMaker(maker.share_pct || 85)}),0) c FROM licenses l JOIN works x ON x.id=l.work_id WHERE x.maker_id=? AND l.status IN ('active','expired') AND l.price_cents > 0 AND l.starts_at >= ?`).get(maker.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()).c;
@@ -322,15 +329,15 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
       base: C.base, title: V.tidy(w.title), maker: maker.name, place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null,
       img: `${C.base}/img/${w.slug}/screen?f=jpg`, name: g.licensee_name, who: g.licensee_company || g.licensee_name || 'A collector',
       kind: u.kind, personal: !!t.personal, useName: u.name, useSays: `for ${u.name.toLowerCase()}`,
-      no: g.collector_no || null, of: w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
+      no: u.kind === 'print' ? (po && po.no) || null : g.collector_no || null, of: u.kind === 'print' ? (po && po.of) || null : w.edition_size || null, can: pr.can, cannot: pr.cannot, holds: require('./holds').statement(require('./holds').ofLicense(g, u, w, maker.name)).text,
       fee: t.credit && !cents ? 'Nothing: credit only' : V.money(cents, g.currency), date: fmtD(g.starts_at || Date.now()), ends: g.ends_at ? fmtD(g.ends_at) : null,
       share: V.money(FEE.makerOf(g, maker.share_pct || 85), g.currency), house: FEE.on() && g.house_cents != null ? V.money(g.house_cents, g.currency) : null, pct, times, allTimes, month: allTimes > 1 ? V.money(month, g.currency) : null,
       number: TRACK.track(g.ref) || g.ref, checkUrl: `${C.base}/t/${TRACK.compact(g.ref) || g.ref}`,
-      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: `${C.base}/yours/p/${g.ref}${k}#print`, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
+      certUrl, contractUrl: `${C.base}/c/${g.ref}/contract${k}`, fileUrl: token ? `${C.base}/d/${token}` : null, printUrl: u.kind === 'print' ? null : `${C.base}/yours/p/${g.ref}${k}#print`, roomUrl: `${C.base}/yours/p/${g.ref}${k}`, paidWhen: po ? po.paid : null, proof: t.personal && u.kind !== 'print' ? { price: V.money(require('./keep').PROOF_CENTS), url: `${C.base}/yours/p/${g.ref}${k}#print` } : null,
       galleryUrl: b && b.public && b.code ? `${C.base}/g/${b.code}` : certUrl,
       studioUrl: `${C.base}/account/works/${w.slug}`, payUrl: `${C.base}/account/payouts`,
       made: t.print && t.print.made ? t.print.made : null, // (#193) a print the maker makes or has in hand
-      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : null,
+      printWhere: t.print && t.print.made === 'hand' ? `The print is with ${maker.name}; you take it from them by hand. You will be told when it is in your hands.` : t.print && t.print.made === 'maker' ? `${maker.name} makes the print, signs it and sends it to you; you will be told when it is on its way.` : u.kind === 'print' && t.print && !t.print.open && !t.print.pickup ? 'A signed archival print, yours to keep. It ships within the week.' : null,
     };
   }
   function grant(ref, extra = {}) {
@@ -368,7 +375,7 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     try { const L = letterFor(g, w, maker, u, token); if (extra.paid && maker.email && !L.made) mail.send({ to: maker.email, ...LETTERS.sold(L) }); /* (#193) a print the maker makes or holds: their letter is the order's (editions.js), not 'nothing for you to do' */ if (g.licensee_email) mail.send({ to: g.licensee_email, ...LETTERS.collected(L) }); }
     catch (e) { console.error('[letters]', e.message);
       if (extra.paid) mail.send({ to: maker.email, ...mail.templates.soldToMaker({ ref, title: w.title, use: u.name, buyer: g.licensee_company || g.licensee_name, fee: V.money(g.price_cents, g.currency), base: C.base }) });
-      if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null }) }); }
+      if (g.licensee_email) mail.send({ to: g.licensee_email, ...mail.templates.grantedToLicensee({ ref, title: w.title, name: g.licensee_name, ends: g.ends_at, certUrl: `${C.base}/c/${ref}?k=${token || ''}`, downloadUrl: token ? `${C.base}/d/${token}` : null, print: u.kind === 'print' }) }); }
     return g;
   }
 
@@ -467,6 +474,26 @@ const FEE = require('./fee'); // the house's share, paid by the collector when F
     app.locals.kept = (key, ms, fn) => { if (off) return fn(); const h = K.get(key); const now = Date.now(); if (h && now - h.at < ms) return h.v; const v = fn(); K.set(key, { at: now, v }); if (K.size > 4000) { let n = 0; for (const k of K.keys()) { K.delete(k); if (++n >= 800) break; } } return v; }; }
   require('./shared').mountShared(app, { db, ROLE, cfg }); // data any process can build, built ahead by the worker (9 Nov)
   app.set('trust proxy', Number(process.env.TRUST_PROXY || 1)); // 1 on Render alone; 2 with CloudFront in front (25 Oct), else every visitor reads as the edge
+  // The house at its own address (#215). A GET or HEAD arriving on a host the house has left (OLD_HOSTS) is sent on,
+  // permanently, to the same path and query where the house stands now (BASE_URL): pages, albums with their tokens,
+  // pictures, downloads, certificates, register entries, API reads. Nothing a machine posts is turned (a POST is not
+  // redirected, and a read that carries a key is answered where it is asked, so Stripe's webhook, the Krafft sites'
+  // calls, push and the Lightroom plug-in work on both hosts until they are moved), and /healthz
+  // answers where it is asked, so the watch and the promotion's "being shown" read never see a redirect. The host is
+  // read as the tenants read it (req.hostname: the edge passes the viewer's Host through, AllViewer). The answer says
+  // no-store: the edge's picture cache is not keyed on the host, and a kept redirect would be served to the new host.
+  // The host the house stands on is never an old host, and a house with no address set has left none: with BASE_URL
+  // unset, or set to where the house first stood, this mounts nothing.
+  // The identity documents (#220) answer where they are asked too: a credential issued at the old address names the
+  // old host, and a checker reads that host's document for that host's id (bridge.js). The test house never stood there.
+  C.left = (cfg.base || process.env.BASE_URL) && !C.staging ? ADDR.leftHosts(C.base, cfg.oldHosts) : [];
+  { const OLD = new Set(cfg.base || process.env.BASE_URL ? ADDR.oldHosts(C.base, cfg.oldHosts) : []), STAY = /^\/(healthz|stripe\/webhook|\.well-known\/did\.json|m\/[^/]+\/did\.json)$/;
+    if (OLD.size) app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (!OLD.has(String(req.hostname || '').toLowerCase()) && !OLD.has(String(req.get('host') || '').toLowerCase())) return next();
+      if (STAY.test(req.path) || /^Bearer /i.test(req.get('authorization') || '')) return next(); // a keyed machine (push, Lightroom, a partner): its client drops the key when it crosses hosts
+      res.set('Cache-Control', 'private, no-store').redirect(308, C.base + req.originalUrl);
+    }); }
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
   // Protection by default: tell crawlers and AI scrapers the work is reserved (TDMRep, noai).
   app.use((req, res, next) => { if (!req.path.startsWith('/studio')) res.set({ 'X-Robots-Tag': 'noai, noimageai', 'TDM-Reservation': '1', 'TDM-Policy': `${C.base}/terms` }); next(); });
@@ -767,7 +794,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
       const e = can ? edition(w) : null;
       base = { at: Date.now(), v: { slug: w.slug, title: V.tidy(w.title), place: w.place || null, year: (w.taken_at || '').slice(0, 4) || null, maker: art ? art.name : m.name, makerSlug: V.makerSlug(m), artist: art ? { name: art.name, href: `/art/${art.slug}` } : null, life: art ? (app.locals.lifeline.dateWords(art) ? { years: app.locals.lifeline.dateWords(art) } : null) : app.locals.lifeline.text(m), width: w.width, height: w.height,
         img: `/img/${w.slug}/large`, thumb: `/img/${w.slug}/thumb`, guide: c ? c.text : (ag ? ag.transcript : null), study: !!(c && c.study && !c.studyHidden), audio: c ? `/closer/${w.slug}/audio` : (ag ? ag.src : null), spoken: ag ? ag.by : null, approved: !!(c && c.state === 'approved'),
-        price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null, printOpen: !can && app.locals.openPrints && app.locals.openPrints.can(w) ? { url: `/w/${w.slug}?from=wander#print`, from: V.money(app.locals.openPrints.sizes(w)[0].cents) } : null,
+        price: can ? pr.price_cents : null, collect: can ? { url: `/buy/${w.slug}`, price: V.money(pr.price_cents), pocket: false, edition: e ? { size: e.size, sold: e.sold } : null } : null, printOpen: COL.on() && !can && app.locals.openPrints /* (#208) no price and no buy button over a picture; the print is on the record */ && app.locals.openPrints.can(w) ? { url: `/w/${w.slug}?from=wander#print`, from: V.money(app.locals.openPrints.sizes(w)[0].cents) } : null,
         hat: ap ? { n: ap.n, mine: false } : null, bravo: ap && ap.bravo ? { mine: false } : null, sheet: app.locals.sheets ? (() => { try { return app.locals.sheets.of(w); } catch (e) { return null; } })() : null } };
       wanderBase.set(key, base); if (wanderBase.size > 2000) wanderBase.delete(wanderBase.keys().next().value);
     }
@@ -883,9 +910,9 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     let collectors = 0, collectCents = null;
     if (front) {
       try { collectors = db.prepare("SELECT COUNT(DISTINCT buyer_id) n FROM licenses WHERE buyer_id IS NOT NULL AND collector_no IS NOT NULL AND status IN ('active','expired')").get().n; } catch (e) { collectors = 0; }
-      try { const c = works[0]; const u = c ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
+      try { const c = works[0]; const u = c && COL.on() ? priced(q.use.get(c.maker_id, 'social'), c) : null; collectCents = u && u.price_cents != null ? u.price_cents : null; } catch (e) { collectCents = null; }
     }
-    res.send(V.collection({ front, rowsHtml, maker, works, total: hall.total, rooms, share: q.use.get(maker.id, 'social'), pay: payCfg(), lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
+    res.send(V.collection({ front, rowsHtml, maker, works, total: hall.total, rooms, share: COL.on() ? q.use.get(maker.id, 'social') : null, pay: COL.on() ? payCfg() : null, lately: app.locals.lately ? app.locals.lately(6) : [], today: td, hangs: hangsNow, shows: showsList, collections: publicCollections(), collectors, collectCents }));
   }));
   // The collection's search index, apart from the page so the page stays light as the library grows;
   // cached by the browser and refreshed when a work changes (the ETag is the newest change).
@@ -971,6 +998,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // (20 Nov, #117) The page's own reads ask through the async path (src/adb.js); the blocks it draws from other modules
   // (the market's price, prints, loans, the bench, the shield…) still ask on the bridge until those modules move. The
   // view is counted on the bridge: one row by key, committed before the page is drawn.
+  // (#208) The wall label's facts: maker, title, year, the edition, and the print's price where a print is offered
+  // (the total a collector pays, as the print's own button says). An open work's prints keep their own block.
+  const labelOf = (w, maker, rules, byArtist) => {
+    const L = { slug: w.slug, maker: byArtist || maker.name, title: V.tidy(w.title), year: w.taken_at ? String(w.taken_at).slice(0, 4) : '', ed: null, prints: [], print: null };
+    if (!COL.on() && !w.open) L.ed = edition(w);
+    if (w.open || w.disputed) return L;
+    try { const E = app.locals.editions; if (E && E.canSell(w, maker)) L.prints = E.forWork(w).slice(0, 4).map(e => ({ size: E.sizeOf(w, e), paper: e.paper || null, n: e.edition_n, left: e.left, cents: FEE.total('print', e.price_cents) })); } catch (e) { L.prints = []; }
+    if (!L.prints.length) { const u = q.use.get(maker.id, 'print'); if (u && offered(rules, 'print', w)) { const pr = priced(u, w); if (pr && pr.price_cents != null && !pr.needsMaster) L.print = pr.price_cents; } }
+    return L;
+  };
   app.get('/w/:slug', async (req, res) => {
     const w = await adb.get("SELECT * FROM works WHERE slug=?", String(req.params.slug));
     const maker = mk(w); // the work's own maker
@@ -987,7 +1024,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     // (#165) No public tape: a stranger sees what is offered and its asking price; a past price only its maker and the Studio.
     const mv = mktRows ? app.locals.market.who(req, w) : null;
     const mkt = mktRows ? { sent: req.query.offer || null, held: mktRows[0], nos: mktRows[1], p: mv.all ? app.locals.market.priceOf(w.id) : app.locals.market.asked(app.locals.market.priceOf(w.id)), open: mktRows[2] } : null;
-    res.send(V.work({ onview: app.locals.onview ? app.locals.onview.forWork(w, req) : null, seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker, req) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + require('./sources').line(w) + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w).map(h => ({ ...h, hold: h.collector_no && app.locals.market ? app.locals.market.holdOf(h) : null })), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: byArtist, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
+    res.send(V.work({ wallLabel: labelOf(w, maker, rules, byArtist), onview: app.locals.onview ? app.locals.onview.forWork(w, req) : null, seen: (app.locals.clientSeen ? app.locals.clientSeen(req, w, maker) : '') + (app.locals.catalogue ? app.locals.catalogue.inPerson(w) : ''), prints: (app.locals.registry && app.locals.registry.line ? app.locals.registry.line(w) : '') + (app.locals.prices ? app.locals.prices.block(w, maker, req) : '') + (app.locals.loans ? app.locals.loans.block(w, req) : '') + (app.locals.editions ? app.locals.editions.block(w, maker, req) : '') + (app.locals.openPrints ? app.locals.openPrints.block(w) : '') + (app.locals.backgrounds ? app.locals.backgrounds.block(w, req) : '') + (app.locals.notebook ? app.locals.notebook.block(w, req) : ''), objectLabel: (app.locals.wall && app.locals.wall.label ? app.locals.wall.label(w, maker) : '') + OB.label(w) + (app.locals.art ? app.locals.art.label(w, maker.name) : '') + require('./sources').line(w) + (app.locals.volumes ? app.locals.volumes.line(w) : '') + (app.locals.auction ? app.locals.auction.line(w) : '') + (app.locals.sheets ? (() => { try { const sh = app.locals.sheets.of(w); return sh ? `<p class="ctc-line"><a href="${sh.href}">The contact sheet · ${sh.line}</a><span>the frames around the frame</span></p>` : ''; } catch (e) { return ''; } })() : '') + (app.locals.sitters ? app.locals.sitters.credit(w) : ''), zoneLabel: zone.label(w), walk: app.locals.walk ? app.locals.walk.walk(req, w.slug) : null, hang: app.locals.hangs ? require('./hangs').hangIt({ w, hangs: app.locals.hangs.mine(buyerOf(req)), hung: req.query.hung ? app.locals.hangs.byId(req.query.hung) : null }) : '', open: app.locals.openOf ? app.locals.openOf(w) : null, thanks: app.locals.thanksOf ? { ...app.locals.thanksOf(w), state: req.query.thanks || null, on: !!stripe, pocket: app.locals.pocket ? app.locals.pocket.tap(buyerOf(req)) : 0 } : null, stood: app.locals.stoodOf ? app.locals.stoodOf(w, req) : null, wander: req.query.wander === '1' || req.query.from === 'wander', office: app.locals.copyrightState ? app.locals.copyrightState(w) : null, mkt, shield: (() => { const sh = shieldOf(w, maker); const mine0 = heldBy(req, w); if (isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id || mine0.some(h => h.key === 'reference')) sh.archive = w.slug; return sh; })(), w, maker, uses: w.open ? [] : q.uses.all(maker.id).filter(u => listed(rules, u.key, w)).map(u => priced(u, w)), base: C.base, rules, pay: payCfg(), held: { n: holders, shown }, ed: edition(w), story: storyOf(w), voices: app.locals.voicesOf ? app.locals.voicesOf(w) : [], closer: app.locals.closerOf ? app.locals.closerOf(w) : null, spoken: app.locals.audioGuides ? app.locals.audioGuides.block(w) : '', mine: heldBy(req, w).map(h => ({ ...h, hold: h.collector_no && app.locals.market ? app.locals.market.holdOf(h) : null })), up: req.query.up || null, ap: app.locals.applauseOf ? app.locals.applauseOf(w, req) : null, note: req.query.note || null, bench: app.locals.bench ? app.locals.bench.door('work', w) : '', canModerate: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, by: byArtist, me: (buyerOf(req) || {}).id || null, meName: (() => { try { const b = buyerOf(req), m = app.locals.accounts.makerOf(req); const n = String((m && m.name) || (b && b.name && !/collection$/i.test(b.name) ? b.name : '') || '').trim().split(/\s+/)[0] || ''; return /^[\p{L}'’.-]{1,24}$/u.test(n) ? n : ''; } catch (e) { return ''; } })(), edit: isStudio(req) || (app.locals.accounts.makerOf(req) || {}).id === w.maker_id, patron: maker.id === mk(null).id && stripe ? app.locals.patronage.slugOf(maker) : null }));
   });
 
   // The public life of a photograph: registered, licensed, and (if the maker chooses) what it has earned.
@@ -1080,7 +1117,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     // Every photograph carries the K. Public ones are collected at once; ones held privately (people,
     // other artists' work) are licensed on request, so nothing is sold without consent.
     const works = rows.map(r => ({ path: imgPath(r.src), slug: r.status === 'held' ? r.slug : null, title: r.title,
-      collect: r.status === 'held' && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
+      collect: r.status === 'held' && COL.on() && R.allows(R.parse(r.rules), 'social'), ask: r.status !== 'held',
       // What the K can toggle between for this photograph: Collect first, then the licenses it allows.
       page: r.status === 'held' ? `${C.base}/m/${V.makerSlug(maker)}/${r.slug}` : null,
       // Every use the work allows, as on its page: instant ones priced, the rest asked of the maker (the file is too small, or the maker approves by hand).
@@ -1096,9 +1133,11 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
     const p = imgPath(req.query.src); if (!p) return res.json({ work: null });
     let r = null; try { r = db.prepare("SELECT w.slug, w.title, w.rules FROM studios_imports s JOIN works w ON w.id=s.work_id WHERE w.status='held' AND s.src LIKE ?").get('%' + p); } catch (e) { /* none */ }
-    res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: R.allows(R.parse(r.rules), 'social') } : null });
+    res.json({ work: r ? { slug: r.slug, title: r.title, page: `${C.base}/w/${r.slug}`, license: `${C.base}/license/${r.slug}`, collect: COL.on() && R.allows(R.parse(r.rules), 'social') } : null });
   });
-  app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript'); res.sendFile(path.join(__dirname, '..', 'public', 'k.js')); });
+  // house.js and k.js run on other sites, so they cannot ask where the house stands: it is written in as they are served (#215).
+  const ADDRESSED = {}; const addressed = name => ADDRESSED[name] || (ADDRESSED[name] = fs.readFileSync(path.join(__dirname, '..', 'public', name), 'utf8').split('{{HOUSE}}').join(C.base)); // read once: the file changes only with a deploy
+  app.get('/k.js', (req, res) => { res.set('Cache-Control', 'public, max-age=600'); res.type('application/javascript').send(addressed('k.js')); });
   app.post('/api/seen', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     const w = q.work.get(String(req.body.work || req.query.work || ''));
@@ -1127,7 +1166,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.get('/app', (req, res) => res.send(V.appPage({ standalone: req.query.app === '1' })));
   app.get('/house.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=60, must-revalidate').set('Access-Control-Allow-Origin', '*'); // one minute: a change to the bar reaches every site at once
-    res.sendFile(path.join(__dirname, '..', 'public', 'house.js'));
+    res.send(addressed('house.js'));
   });
   app.get('/embed.js', (req, res) => {
     res.type('application/javascript').set('Cache-Control', 'public, max-age=3600').set('Access-Control-Allow-Origin', '*');
@@ -1234,7 +1273,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   }
   app.post('/pay/:slug', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w);
-    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (!COL.on() || !w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(req.body.email || '')) ? String(req.body.email).slice(0, 160) : '';
@@ -1276,7 +1315,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // Every Share it after the first: one tap, the remembered card, no sheet. Undo for a short while after.
   app.post('/pay/:slug/tap', async (req, res) => {
     const w = q.work.get(req.params.slug); const maker = mk(w); const u = priced(q.use.get(maker.id, 'social'), w), b = buyerOf(req);
-    if (!w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
+    if (!COL.on() || !w || w.status !== 'held' || !u || u.price_cents == null || !stripe || !R.allows(R.parse(w.rules), 'social')) return res.status(404).json({ ok: false });
     if (soldOut(w)) return res.status(409).json({ ok: false, soldOut: true });
     if (covers(heldBy(req, w), 'social')) return res.status(409).json({ ok: false, held: true, page: `/w/${w.slug}#yours` });
     if (!b || !b.pm) return res.json({ ok: false, sheet: true });
@@ -1326,7 +1365,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   function collected(b) {
     const items = db.prepare(`SELECT l.id, l.ref, l.collector_no, l.gallery_pos, l.price_cents, w.edition_size, (SELECT GROUP_CONCAT(COALESCE(p.size,'') || CASE WHEN p.paper IS NOT NULL AND p.paper != '' THEN ', ' || p.paper ELSE '' END, '; ') FROM prints p WHERE p.license_id=l.id) AS printed, l.starts_at, l.ends_at, l.use_id, l.dl_extra, l.extra_seats, l.licensee_company, l.download_token, l.status, u.name AS use_name, u.key AS use_key, u.kind AS use_kind, w.id AS wid, w.slug, w.title, w.place, w.width, w.height, m.name AS maker, m.handle
       FROM licenses l JOIN works w ON w.id=l.work_id JOIN uses u ON u.id=l.use_id JOIN makers m ON m.id=w.maker_id
-      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
+      WHERE l.buyer_id=? AND l.status IN ('active','expired') AND (l.price_cents > 0 OR l.intended_use LIKE 'Kept from %' OR l.intended_use = 'Kept by its sitter') ORDER BY l.gallery_pos IS NULL, l.gallery_pos, l.starts_at DESC`).all(b.id);
     const ids = [...new Set(items.map(i => i.wid))];
     const rooms = ids.length ? db.prepare(`SELECT * FROM (SELECT c.slug, c.title, COUNT(*) AS total, SUM(CASE WHEN cw.work_id IN (${ids.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS have
       FROM collections c JOIN collection_works cw ON cw.collection_id=c.id JOIN works w ON w.id=cw.work_id AND w.status='held'
@@ -1510,7 +1549,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const SERIES = require('./series');
   // Collecting more than one: a part of a series at a quarter off, the whole series at 40% off. Whole dollars. (Draft rates.)
   const SET_OFF = { part: 0.25, all: 0.40 };
-  const collectable = slugs => slugs.map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social') && !soldOut(w))
+  const collectable = (slugs, running = false) => (running || COL.on() ? slugs : []).map(slug => q.work.get(slug)).filter(w => w && w.status === 'held' && R.allows(R.parse(w.rules), 'social') && !soldOut(w))
     .map(w => ({ w, u: priced(q.use.get(mk(w).id, 'social'), w) })).filter(x => x.u && x.u.price_cents != null);
   const setPrice = (items, off) => { const full = items.reduce((a, x) => a + x.u.price_cents, 0); return { full, price: Math.max(100, Math.round(full * (1 - off) / 100) * 100) }; };
   const seriesParts = s => {
@@ -1527,7 +1566,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   const BASKET_MAX = 40;
   const basketOf = req => [...new Set(String((req.cookies && req.cookies.wm_bk) || '').split(',').map(x => decodeURIComponent(x).trim()).filter(x => /^[a-z0-9-]{1,120}$/.test(x)))].slice(0, BASKET_MAX);
   // Can this collector collect this work now? (the standing order asks without a request)
-  const collectFor = (b, slug) => { const x = collectable([slug])[0]; if (!x || !offered(R.parse(x.w.rules), 'social', x.w)) return null;
+  const collectFor = (b, slug, running = false) => { const x = collectable([slug], running)[0]; if (!x || !(running ? offered0 : offered)(R.parse(x.w.rules), 'social', x.w)) return null;
     if (b && db.prepare("SELECT 1 FROM licenses l JOIN uses u ON u.id=l.use_id WHERE l.work_id=? AND l.buyer_id=? AND l.status='active' AND (l.ends_at IS NULL OR l.ends_at > datetime('now')) AND u.key IN ('social','reference')").get(x.w.id, b.id)) return null; return x; };
   app.locals.collectFor = collectFor;
   app.locals.edge = EDGE;
@@ -1787,7 +1826,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     }
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
-    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id), theirs: res.locals.theirs || null }));
+    res.send(V.thanks({ lic: l, w, maker, use: q.useById.get(l.use_id), theirs: res.locals.theirs || null, order: PRINTP.of(db, l, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7) }));
   });
 
   app.post('/license/:slug', async (req, res) => {
@@ -1853,10 +1892,16 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w); // the work's own maker
     const u = q.useById.get(l.use_id);
     const e = q.lastEntryFor.get(l.ref);
+    // The same rule as the page: the public PDF names no holder (unless they chose to be named), no price and no described use.
+    const me = buyerOf(req), full = isStudio(req) || !!(me && l.buyer_id === me.id) || !!(req.query.k && l.download_token && req.query.k === l.download_token) || makerSees(req, w);
+    if (!full) { l.price_cents = null; l.intended_use = null; if (!l.show_holder) { l.licensee_company = null; l.licensee_name = 'The holder'; } }
     res.type('pdf').set('Content-Disposition', `inline; filename="${l.ref}.pdf"`);
-    prov.certificatePdf(res, { ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
+    prov.certificatePdf(res, { print: u.kind === 'print' ? { holds: require('./holds').statement(require('./holds').ofLicense(l, u, w, maker.name)).text, number: (PRINTP.of(db, l, maker.name) || {}).number || '' } : null, ref: l.ref, title: w.title, maker: maker.name, house: maker.house, licensee: l.licensee_company || l.licensee_name, use: u.name, description: u.description, starts: l.starts_at, ends: l.ends_at, fee: l.price_cents != null ? V.money(l.price_cents, l.currency) : null, fingerprint: w.sha256, ledgerHash: e && e.hash, base: C.base, intended: l.intended_use, conditions: l.conditions, credentials: CR.enabled() });
   });
 
+  // (Will, 24 Nov; #224) Who reads a certificate whole: its holder (signed in, or with the letter's key), the Studio,
+  // and the work's maker. Everyone else reads the public certificate: no holder's name, no price, no split.
+  const makerSees = (req, w) => { try { const mm = app.locals.accounts && app.locals.accounts.asMaker(req); return !!(mm && w && mm.id === w.maker_id); } catch (e) { return false; } };
   // Certificate. The licensee returns here from Stripe; if the webhook is slow, check the session directly.
   app.get('/c/:ref', async (req, res) => {
     let l = q.lic.get(req.params.ref);
@@ -1876,7 +1921,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id);
     const maker = mk(w); // the work's own maker
     const resend = owner && l.status === 'active' ? { room: `/yours/p/${encodeURIComponent(l.ref)}${l.download_token ? `?k=${l.download_token}` : ''}`, email: l.licensee_email || (me && me.email) || '', sent: req.query.sent ? String(req.query.sent).slice(0, 160) : null } : null;
-    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend }));
+    res.send(V.certificate({ lic: l, w, maker, use: q.useById.get(l.use_id), entry: q.lastEntryFor.get(l.ref), base: C.base, owner, seats: owner && app.locals.seatsOf ? app.locals.seatsOf({ ...l, use_key: (q.useById.get(l.use_id) || {}).key }) : null, seat: req.query.seat || null, dl: dlOf(l), resend, order: PRINTP.of(db, l, maker.name, app.locals.payouts ? app.locals.payouts.HOLD_DAYS : 7), pub: !(owner || makerSees(req, w)) }));
   });
   // Send it again (Will, 18 Oct: the letter never came): the holder, signed in or holding the key, asks for the
   // collector's letter once more, to the address on the license or a new one (kept on the license when it had none).
@@ -1916,7 +1961,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
   app.get('/c/:ref/contract', (req, res) => {
     const l = q.lic.get(req.params.ref); if (!l) return res.sendStatus(404);
-    if (!(isStudio(req) || (req.query.k && req.query.k === l.download_token))) return res.redirect(`/c/${l.ref}`);
+    if (!(isStudio(req) || (req.query.k && req.query.k === l.download_token) || (() => { const me = buyerOf(req); return !!(me && l.buyer_id === me.id); })())) /* (#224) the signed-in holder reads their own agreement: a bought print has no file key, so its buyer could never open it */ return res.redirect(`/c/${l.ref}`);
     const w = db.prepare('SELECT * FROM works WHERE id=?').get(l.work_id), maker = mk(w), u = q.useById.get(l.use_id);
     let t; try { t = l.rights ? JSON.parse(l.rights) : null; } catch (e) { t = null; }
     if (!t) t = K.terms({ use: u, never: R.parse(w.rules).never, base: l.price_cents });
@@ -1932,8 +1977,8 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
     const maker = mk(w);
     try {
       const file = await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg');
-      let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `watermark.krafftco.com/w/${w.slug}` });
-      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: 'watermark.krafftco.com', accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at watermark.krafftco.com/license/${w.slug}.` }));
+      let out = await MARK.credit(fs.readFileSync(file), { maker: `Comp, not for publication. ${maker.name}`, url: `${HOST()}/w/${w.slug}` });
+      out = MARK.withXmp(out, MARK.xmp({ title: V.tidy(w.title), maker: maker.name, year: (w.taken_at || '').slice(0, 4) || null, credit: `${maker.name} / Watermark`, copyright: `© ${maker.name}. A comp: not for publication.`, licensor: `${C.base}/license/${w.slug}`, statement: `${C.base}/license/${w.slug}`, registry: HOST(), accession: w.accession, ref: null, licensee: null, use: null, ends: null, noAI: true, caption: `${V.tidy(w.title)}. A photograph by ${maker.name}. Comp for layout only; license it at ${HOST()}/license/${w.slug}.` }));
       res.set('Content-Disposition', disposition({ utf8: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`, ascii: `${V.tidy(w.title)}, ${maker.name} (comp).jpg`.normalize('NFKD').replace(/[^\x20-\x7e]/g, '') }));
       ledger.append(db, 'comp.taken', w.slug, {});
       res.type('jpg').send(out);
@@ -2385,12 +2430,12 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   app.locals.imageOf = async w => fs.promises.readFile(await images.derivativeOf(() => originalPath(w), cache, w.slug, 'screen', 'jpg'));
   require('./edition').mountEdition(app, { db, V, C, isStudio, buyerOf, imageOf: app.locals.imageOf, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the house's edition as a printable book (PDF); before /read/:slug so .pdf is its own door
   require('./reading').mountReading(app, { db, V, C, isStudio, ledger, fetchImpl: ASKED });
-  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
+  require('./bookplates').mountBookplates(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // the pictures in the books (27 Oct)
   require('./facing').mountFacing(app, { db, ledger, fetchImpl: cfg.fetchImpl }); // facing pages: a translation beside the text (25 Oct)
-  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
-  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
+  { const dUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.DOC_MAX_MB || 300) * 1024 * 1024, files: 600 } }); require('./documents').mountDocuments(app, { db, V, C, store, isStudio, studioOnly, ledger, upload: dUp, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); } // the document kind (27 Oct)
+  { const gUp = multer({ dest: path.join(C.dataDir, 'incoming'), limits: { fileSize: (+process.env.GUIDE_MAX_MB || 80) * 1024 * 1024, files: 2 } }); require('./audioguides').mountAudioGuides(app, { db, V, C, store, isStudio, studioOnly, ledger, makerOf: req => (app.locals.accounts ? app.locals.accounts.makerOf(req) : null), upload: gUp, bagcheck: app.locals.bagcheck, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); } // audio guides as objects (27 Oct)
   require('./inbox').mountInbox(app, { db, V, C, store, studioOnly, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(120000), ...(o || {}) }) }); // the inbox: a watched folder (27 Oct)
-  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
+  require('./standard').mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(60000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // Standard Ebooks (27 Oct)
   require('./commonplace').mountCommonplace(app, { db, V, C, buyerOf, ledger }); // the readers' feed and the commonplace book (27 Oct)
   require('./reading-list').mountReadingList(app, { db, V, C, buyerOf }); // the reading list (25 Oct)
   require('./sharebook').mountShareBook(app, { db, V, C, mail, buyerOf, makerOf: req => (app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null), ledger }); // sharing a book: the card, the letter, the keeping (26 Oct)
@@ -2417,7 +2462,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   require('./library').mountLibrary(app, { db, C, store, stripe, isStudio, studioOnly, buyerOf, setBuyer, ledger, mail, upload: () => upload, V, S: { library: require('./library').libraryDesk, libraryEdit: require('./library').libraryEdit } });
   require('./gazette').mountGazette(app, { db, V, C, mail, ledger, stripe, buyerOf, isStudio, makerOf: req => app.locals.accounts && app.locals.accounts.makerOf ? app.locals.accounts.makerOf(req) : null }); // the Gazette by post: subscribers, the letter, the paid tier, the bench under writing (2 Nov)
   require('./jacket').mountJacket(app, { db, C, V, ledger, studioOnly, isStudio, fetchImpl: cfg.fetchImpl }); // the jacket (26 Oct): the house's own front and back of every book
-  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': 'Watermark (watermark.krafftco.com)', ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
+  require('./jewels').mountJewels(app, { db, V, C, store, isStudio, ledger, governor: app.locals.governor, doFetch: (u, o) => ASKED(u, { signal: AbortSignal.timeout(30000), ...(o || {}), headers: { 'User-Agent': `Watermark (${HOST()})`, ...((o && o.headers) || {}) } }) }); // editions of the house (27 Oct): the jewels
   require('./disputes').mountDisputes(app, { db, C, mail, ledger, V, isStudio, makerOf: req => app.locals.accounts.makerOf(req), mk, shieldOf });
   require('./darkroom').mountDarkroom(app, { db, V, C, store, images, ledger, originalPath, replaceMaster, makerOf: req => app.locals.accounts.makerOf(req), isStudio, studioOnly }); // the darkroom (26 Oct): develop a work in the house; the negative kept
   require('./requests').mountRequests(app, { db, C, q, mail, ledger, V, stripe, checkoutUrl, grant, isStudio, makerOf: req => app.locals.accounts.makerOf(req), upload: () => upload, images, replaceMaster, meets, MIN_MP, nextRef, listed, mk });
@@ -2849,7 +2894,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   });
 
   app.get('/studio/uses', studioOnly, (req, res) => res.send(S.uses({ list: q.uses.all(maker.id), notice: req.query.ok })));
-  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.asMaker(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id), notice: req.query.ok, base: '/account/prices', studio: false, simply: app.locals.saidSimply ? app.locals.saidSimply(m, q.uses.all(m.id)) : '' })); });
+  app.get('/account/prices', (req, res) => { const m = app.locals.accounts.asMaker(req); if (!m) return res.redirect('/signin?next=/account/prices'); res.send(S.uses({ list: q.uses.all(m.id).filter(u => !require('./collect').closed(u.key)) /* (#208, #224) no price is asked for a retired use; COLLECT=on brings the rows back */, notice: req.query.ok, base: '/account/prices', studio: false, simply: app.locals.saidSimply ? app.locals.saidSimply(m, q.uses.all(m.id)) : '' })); });
   app.post('/account/prices/:key', (req, res) => { const m = app.locals.accounts.makerOf(req); if (!m) return res.sendStatus(401); savePrice(req, res, m, '/account/prices'); });
   app.post('/studio/uses/:key', studioOnly, (req, res) => savePrice(req, res, maker, '/studio/uses'));
   function savePrice(req, res, maker, back) {
@@ -2978,7 +3023,7 @@ ${rows.length ? `<table class="tbl au"><tr><th>When</th><th>What</th><th>Detail<
   // On the web process, as /healthz and the API are; the worker answers no one.
   if (ROLE.web) require('./agentsdoor').mountAgentsDoor(app, { db });
   // security.txt (RFC 9116): where a researcher writes, and the house's claims page.
-  app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });
+  app.get('/.well-known/security.txt', (req, res) => { const exp = new Date(Date.now() + 365 * 864e5).toISOString(); res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(`Contact: mailto:${require('./address').email()}\nExpires: ${exp}\nPreferred-Languages: en\nCanonical: ${C.base}/.well-known/security.txt\nPolicy: ${C.base}/legal/claims\n`); });
 
   Object.assign(app.locals, { backupDb, store, fillBuyer, db, registerWork, grant, maker, C, sweep, sync });
   // Nothing at this address: said in the house's voice, with a way back in and a photograph to look at.

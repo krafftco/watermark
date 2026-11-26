@@ -19,7 +19,7 @@ const isGutenberg = (h, p) => (/(^|\.)gutenberg\.org$/.test(h) && !/^\/robot\/ha
 // GUTENBERG_OPEN=1 (Will's switch, in the host's settings, once he has chosen a way they offer) lifts the pause.
 const open = () => process.env.GUTENBERG_OPEN === '1';
 const paused = u => !open() && isGutenberg(hostOf(u), pathOf(u));
-const aicAgent = () => `Watermark (https://watermark.krafftco.com${process.env.HOUSE_EMAIL ? `; ${process.env.HOUSE_EMAIL}` : ''})`;
+const aicAgent = () => `Watermark (${require('./address').base()}${process.env.HOUSE_EMAIL ? `; ${process.env.HOUSE_EMAIL}` : ''})`;
 let locNext = 0; // when the next loc.gov request may leave, for the whole process
 const log = []; // the last waits, for the tests and /healthz-minded readers
 function pausedError() { const e = new Error(PAUSED_LINE); e.paused = true; e.code = 'SOURCE_PAUSED'; return e; }

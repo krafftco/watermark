@@ -13,6 +13,7 @@
 // On SQLite (npm test) the copies cannot share a database without sharing a disk: it checks the lease alone and says so.
 'use strict';
 process.env.NODE_ENV = 'test';
+process.env.COLLECT = 'on'; // (#208) this walk proves the Collect's own code, kept behind the setting; test/collectoff.js walks the house with it off
 const assert = require('assert'); const fs = require('fs'); const os = require('os'); const path = require('path');
 const { fork } = require('child_process');
 const PG = !!process.env.DATABASE_URL;

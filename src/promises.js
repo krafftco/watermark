@@ -14,7 +14,7 @@ function mountPromises(app, { V, C }) {
     ['Nothing counts you.', 'Your looking is yours. No numbers on the wall, no feed, no ranking of people; the only rating in the house is a maker’s regard.', '/privacy'],
     ['The record is free, forever.', 'Any work can be deeded, fingerprinted and written to the register at no cost, the day it is made, and it stays the maker’s.', '/own'],
     ['Your work is yours to take.', 'Leave any day with every file and every paper. Nothing is held hostage, and the deed goes with you.', '/legal/makers'],
-    ['We answer.', 'A letter to the house is read by a person and answered by one. There is no ticket.', `mailto:${process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com'}`],
+    ['We answer.', 'A letter to the house is read by a person and answered by one. There is no ticket.', `mailto:${require('./address').email()}`],
   ];
   const page = () => layout({
     title: 'The country store · Watermark', desc: 'How Watermark does business: a few plain promises, named and kept.', path: '/promises',

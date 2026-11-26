@@ -127,7 +127,7 @@ node watermark.js push ~/Pictures/Exports/Philadelphia --place Philadelphia --st
   });
   app.get('/push/watermark.js', (req, res) => {
     res.set('Cache-Control', 'public, max-age=300'); res.type('application/javascript');
-    res.sendFile(require('path').join(__dirname, '..', 'bin', 'watermark.js'));
+    res.send(require('fs').readFileSync(require('path').join(__dirname, '..', 'bin', 'watermark.js'), 'utf8').split('{{HOUSE}}').join(C.base)); // the house's own address, written in (#215)
   });
   return { hash };
 }

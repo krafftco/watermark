@@ -28,7 +28,7 @@ function mountCompanies(app, { db, V, ledger, isStudio, studioOnly, makerOf }) {
   const { esc, tidy } = V;
   const col = (t, c, d) => { if (!db.prepare(`SELECT 1 FROM pragma_table_info('${t}') WHERE name='${c}'`).get()) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`); };
   col('works', 'co_room', 'TEXT'); col('works', 'show_ok', 'INTEGER'); col('makers', 'founded', 'TEXT');
-  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = require('./address').email();
 
   // A maker's kind, cached a minute (offered/listed ask it per use per work).
   const kinds = new Map(); let kindsAt = 0;

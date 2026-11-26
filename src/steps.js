@@ -22,12 +22,11 @@ function mountSteps(app, { db, makerOf, V, base = '' }) {
     const n = sql => db.prepare(sql).get(m.id).n;
     const works = n('SELECT COUNT(*) n FROM works WHERE maker_id=?');
     const shown = n("SELECT COUNT(*) n FROM works WHERE maker_id=? AND status='held'");
-    const graded = n('SELECT COUNT(*) n FROM works WHERE maker_id=? AND stars > 0');
     const slug = V.makerSlug(m);
     const steps = [
       { key: 'page', done: !!(m.portrait || (m.bio && m.bio.length > 20)), title: 'Your page', line: 'A portrait and a few lines: who you are and what you make.', href: '/account/profile', go: 'Write it' },
       { key: 'work', done: works > 0, title: 'Your work', line: 'Put in the originals. Each is fingerprinted and entered on the register as it arrives.', href: '/account/upload', go: 'Put work in' },
-      { key: 'edit', done: shown > 0 && graded > 0, title: 'Your best in front', line: 'Grade with stars, then publish what you would hang. The rest stays kept, never lost.', href: '/account#holdings', go: 'Grade and publish' },
+      { key: 'edit', done: shown > 0, title: 'Your best in front', line: 'Grade with stars, then publish what you would hang. The rest stays kept, never lost.', href: '/account#holdings', go: 'Grade and publish' },
       { key: 'prices', done: has(m, 'prices'), title: 'Your prices', line: 'The house sets fair drafts for each use. Look them over and change any.', href: '/account/prices', go: 'See your prices' },
       { key: 'key', done: !!keyed, title: 'Your key', line: 'Save a passkey so your studio opens from any device, with no password.', href: '/account#passkey', go: 'Save a passkey' },
       { key: 'paid', done: !!m.stripe_account, title: 'Getting paid', line: `${require('./fee').said(m.share_pct, null).replace(/^The price is the maker’s/, 'The price is yours')} Add your bank and it is paid to you.`, href: '/account/payouts', go: 'Add your bank' },

@@ -13,6 +13,8 @@ function mountStand(app, { db, V, C, makerOf, ledger, originalPath }) {
   const { esc, tidy } = V; const QR = require('./qr'); const KEEP = require('./keep');
   const mine = (req, slug) => { const m = makerOf(req); if (!m) return [null, null]; const w = db.prepare("SELECT * FROM works WHERE slug=? AND maker_id=? AND status IN ('held','hidden')").get(String(slug), m.id); return [m, w]; };
   const priceOf = w => { try { const j = app.locals.workJSON(w); const u = (j.uses || []).find(x => x.key === 'social' && x.instant); return u ? u.price_cents : null; } catch (e) { return null; } };
+  const COL = require('./collect'); // (#208) the Collect retired: the stand shows the work's own page and its label
+  const printOf = w => { try { const j = app.locals.workJSON(w); const u = (j.uses || []).find(x => x.key === 'print' && x.instant); return u ? u.price_cents : null; } catch (e) { return null; } };
   const money = c => c == null ? '' : `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
   app.get('/account/stand', (req, res) => {
@@ -20,7 +22,7 @@ function mountStand(app, { db, V, C, makerOf, ledger, originalPath }) {
     const ws = db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') AND created_at >= datetime('now', '-36 hours') ORDER BY id DESC LIMIT 120").all(m.id);
     const older = ws.length ? [] : db.prepare("SELECT * FROM works WHERE maker_id=? AND status IN ('held','hidden') ORDER BY id DESC LIMIT 24").all(m.id);
     const tile = w => `<a class="sd2-t" href="/account/stand/${esc(w.slug)}"><img src="/img/${esc(w.slug)}/thumb" alt="" loading="lazy"><span>${w.status === 'held' ? 'On view' : 'Kept back'}</span></a>`;
-    res.send(V.layout({ title: 'The stand · Watermark', bare: true, path: '/account/stand', body: `<main class="sd2"><header class="sd2-h"><a href="/account" data-way-back>← Your studio</a><h1>The stand</h1><p>Shoot, send it in, hand them the phone. They scan, pay with Apple Pay on their own phone, and it is theirs: the file, the licence, the letter. You print the Instax.</p>
+    res.send(V.layout({ title: 'The stand · Watermark', bare: true, path: '/account/stand', body: `<main class="sd2"><header class="sd2-h"><a href="/account" data-way-back>← Your studio</a><h1>The stand</h1><p>${COL.on() ? 'Shoot, send it in, hand them the phone. They scan, pay with Apple Pay on their own phone, and it is theirs: the file, the licence, the letter. You print the Instax.' : 'Shoot, send it in, hand them the phone. They scan and the work’s own page opens, with its label: the edition and the print, priced. You print the Instax.'}</p>
 <p class="sd2-acts"><a class="buy-btn" href="/account/upload">Send in tonight’s</a><a class="btn" href="/account/deliveries">Make an album</a></p></header>
 ${ws.length ? `<h2>Today</h2><div class="sd2-g">${ws.map(tile).join('')}</div>` : older.length ? `<h2>Nothing new today. The latest:</h2><div class="sd2-g">${older.map(tile).join('')}</div>` : '<p class="sd2-e">Nothing in the vault yet. Send in tonight’s first.</p>'}</main>` }));
   });
@@ -29,12 +31,12 @@ ${ws.length ? `<h2>Today</h2><div class="sd2-g">${ws.map(tile).join('')}</div>` 
     const [m, w] = mine(req, req.params.slug); if (!m) return res.redirect(`/signin?next=/account/stand/${encodeURIComponent(req.params.slug)}`); if (!w) return res.sendStatus(404);
     const next = db.prepare("SELECT slug FROM works WHERE maker_id=? AND status IN ('held','hidden') AND id<? ORDER BY id DESC LIMIT 1").get(m.id, w.id);
     const prev = db.prepare("SELECT slug FROM works WHERE maker_id=? AND status IN ('held','hidden') AND id>? ORDER BY id ASC LIMIT 1").get(m.id, w.id);
-    const url = `${C.base}/m/${m.handle}/${w.slug}?from=stand`; const shown = w.status === 'held'; const p = shown ? priceOf(w) : null;
+    const url = `${C.base}/m/${m.handle}/${w.slug}?from=stand`; const shown = w.status === 'held'; const p = shown && COL.on() ? priceOf(w) : null;
     res.set('Cache-Control', 'private, no-store');
     res.send(V.layout({ title: `${tidy(w.title)} · The stand`, bare: true, path: '/account/stand', body: `<main class="sd2 sd2-one"><a class="sd2-x" href="/account/stand" aria-label="Back to the stand">×</a>
 <figure class="sd2-pic"><img src="/img/${esc(w.slug)}/large" alt=""></figure>
-<section class="sd2-sell">${shown ? `<div class="sd2-qr">${QR.svg(url, { size: 220 })}</div><p class="sd2-say"><b>Scan to make it yours${p ? ` · ${money(p)}` : ''}</b><br>Apple Pay on your phone. The file and the licence are yours at once, and your gallery opens with it: no account to make, no password. Your email gets you in.</p>`
-      : `<form method="post" action="/account/stand/${esc(w.slug)}/sell" class="sd2-f"><label class="sd2-ck"><input type="checkbox" name="attest" value="1" required> I made this and hold the rights. A personal Collect needs no release; a company’s use would.</label><button class="buy-btn">Put it on view to sell</button></form>`}
+<section class="sd2-sell">${shown ? `<div class="sd2-qr">${QR.svg(url, { size: 220 })}</div>${COL.on() ? `<p class="sd2-say"><b>Scan to make it yours${p ? ` · ${money(p)}` : ''}</b><br>Apple Pay on your phone. The file and the licence are yours at once, and your gallery opens with it: no account to make, no password. Your email gets you in.</p>` : `<p class="sd2-say"><b>Scan to see it on Watermark</b><br>Its page, its record and its label. ${printOf(w) != null ? 'The print can be ordered there.' : 'Nothing to pay here.'}</p>`}`
+      : `<form method="post" action="/account/stand/${esc(w.slug)}/sell" class="sd2-f"><label class="sd2-ck"><input type="checkbox" name="attest" value="1" required> I made this and hold the rights. ${COL.on() ? 'A personal Collect needs no release; a company’s use would.' : 'A print needs no release; a company’s use would.'}</label><button class="buy-btn">${COL.on() ? 'Put it on view to sell' : 'Put it on view'}</button></form>`}
 <p class="sd2-row"><a class="btn" href="/account/stand/${esc(w.slug)}/instax" download>Print on Instax</a>${shown ? `<a class="btn" href="${esc(url)}">Open its page</a>` : ''}</p>
 <p class="sd2-nav">${prev ? `<a href="/account/stand/${esc(prev.slug)}">← Newer</a>` : '<span></span>'}${next ? `<a href="/account/stand/${esc(next.slug)}">Older →</a>` : '<span></span>'}</p></section></main>` }));
   });

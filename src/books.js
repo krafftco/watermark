@@ -138,7 +138,7 @@ function mountBooks(app, { db, V, studioOnly }) {
 For the bookkeeper. ${ENTITY}. Prepared by the house on ${new Date().toISOString().slice(0, 10)}.
 
 WHAT IT IS
-Watermark (watermark.krafftco.com) is a museum for the web with an engine under it. Makers keep their work
+Watermark (${require('./address').host()}) is a museum for the web with an engine under it. Makers keep their work
 there; anyone can own a piece of it. Every sale is a licence to a work, recorded on the house's register.
 
 WHO IS PAID, AND WHEN
@@ -159,7 +159,7 @@ WHO IS PAID, AND WHEN
    cleared earnings go out on Friday pay with the makers'.
 
 WHERE THE RECORD IS
-- The register (watermark.krafftco.com/ledger) is the signed, anchored record of every event.
+- The register (${require('./address').host()}/ledger) is the signed, anchored record of every event.
 - /studio/books/<month>.csv: every money event, one a line, with the Stripe session or transfer id where one exists,
   gross, the house's part, who the rest is owed to, and a revenue class:
   collect · license · print · delivery · tip · subscription · book · liability · payout · cost.
@@ -176,7 +176,7 @@ Not yet collected. Counsel is deciding the character of the house's share (a buy
 intended road. Flag any state nexus questions to the house.
 
 PEOPLE
-Owner: Will Fullerton (will@krafftco.com). Questions on any line: house@watermark.krafftco.com.
+Owner: Will Fullerton (will@krafftco.com). Questions on any line: ${require('./address').email()}.
 `;
 
   // Routes.

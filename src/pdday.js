@@ -21,7 +21,7 @@ function mountPdDay(app, { db, V, C, ledger, mail, studioOnly }) {
   const nextDay = () => thisYear() + 1; // the next 1 January
   const diedFor = j => j - PD_YEARS - 1; // in January j, those who died in j-71
   const usFor = j => j - 96; // and in the United States, work first published in j-96 (ninety-five years, to the year's end)
-  const HOUSE = () => process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = () => require('./address').email();
   const get = k => { try { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; } catch (e) { return null; } };
   const set = (k, v) => db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, String(v));
 

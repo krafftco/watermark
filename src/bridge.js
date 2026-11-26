@@ -69,25 +69,37 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
   `);
   for (const [c, t] of [['did', 'TEXT'], ['ids', 'TEXT']]) if (!db.prepare("SELECT 1 FROM pragma_table_info('makers') WHERE name=?").get(c)) db.exec(`ALTER TABLE makers ADD COLUMN ${c} ${t}`);
 
-  const host = () => { try { return new URL(C.base).host; } catch (e) { return 'watermark.krafftco.com'; } };
+  const host = () => { try { return new URL(C.base).host; } catch (e) { return require('./address').host(); } };
   const HOUSE = () => `did:web:${encodeURIComponent(host())}`;
   const VM = () => `${HOUSE()}#register`;
   const makerDid = m => `${HOUSE()}:m:${V.makerSlug(m)}`;
+  // The house's identities (#220). did:web is a host, so the identity moves when the house does, and a credential
+  // already issued names the host it was issued on. The house keeps every identity it has had: the same key answers for
+  // each. New credentials are issued under HOUSE(); one issued under an identity the house has left still checks; and
+  // an identity document is answered on the host it is asked on, with that host's id (C.left: app.js; the host is read
+  // as the redirect reads it). A house that has left nowhere has one identity, as before.
+  const didOf = h => `did:web:${encodeURIComponent(h)}`;
+  const LEFT = () => (C.left || []).filter(h => h !== host().toLowerCase());
+  const OWN = () => [HOUSE(), ...LEFT().map(didOf)];
+  const asked = req => { const left = LEFT(); for (const h of [req.hostname, req.get('host')]) { const x = String(h || '').toLowerCase(); if (left.includes(x)) return didOf(x); } return HOUSE(); };
+  const keep = () => LEFT().length ? 'private, no-store' : 'public, max-age=300'; // two hosts, one path: no cache may hand one host's document to the other
   const ids = m => { try { return JSON.parse(m.ids || '{}') || {}; } catch (e) { return {}; } };
-  const CTX = ['https://www.w3.org/ns/credentials/v2', { wm: 'https://watermark.krafftco.com/ns#', WatermarkLicense: 'wm:WatermarkLicense', WatermarkAuthorship: 'wm:WatermarkAuthorship' }];
+  const CTX = ['https://www.w3.org/ns/credentials/v2', { wm: require('./address').NS.vc, WatermarkLicense: 'wm:WatermarkLicense', WatermarkAuthorship: 'wm:WatermarkAuthorship' }];
 
   // --- Identity documents.
   app.get('/.well-known/did.json', (req, res) => {
     const pub = ledger.publicKey(); if (!pub) return res.status(503).json({ error: 'The house key is not set.' });
-    res.set('Cache-Control', 'public, max-age=300').json({ '@context': ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'], id: HOUSE(),
-      alsoKnownAs: [C.base], verificationMethod: [{ id: VM(), type: 'Multikey', controller: HOUSE(), publicKeyMultibase: multikey(pub) }],
-      assertionMethod: [VM()], authentication: [VM()], service: [{ id: `${HOUSE()}#register`, type: 'LinkedDomains', serviceEndpoint: C.base }, { id: `${HOUSE()}#api`, type: 'WatermarkAPI', serviceEndpoint: `${C.base}/api/v1` }] });
+    const me = asked(req), vm = `${me}#register`;
+    res.set('Cache-Control', keep()).json({ '@context': ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'], id: me,
+      alsoKnownAs: [C.base, ...OWN().filter(d => d !== me)], verificationMethod: [{ id: vm, type: 'Multikey', controller: me, publicKeyMultibase: multikey(pub) }],
+      assertionMethod: [vm], authentication: [vm], service: [{ id: `${me}#register`, type: 'LinkedDomains', serviceEndpoint: C.base }, { id: `${me}#api`, type: 'WatermarkAPI', serviceEndpoint: `${C.base}/api/v1` }] });
   });
   app.get('/m/:slug/did.json', (req, res) => {
     const m = db.prepare('SELECT * FROM makers').all().find(x => V.makerSlug(x) === req.params.slug || x.handle === req.params.slug); if (!m) return res.sendStatus(404);
-    const i = ids(m), aka = [`${C.base}/m/${V.makerSlug(m)}`, m.did, i.isni && `https://isni.org/isni/${i.isni.replace(/\s/g, '')}`, i.site, i.ipi && `urn:ipi:${i.ipi}`].filter(Boolean);
-    res.set('Cache-Control', 'public, max-age=300').json({ '@context': ['https://www.w3.org/ns/did/v1'], id: makerDid(m), controller: HOUSE(), alsoKnownAs: aka,
-      service: [{ id: `${makerDid(m)}#works`, type: 'WatermarkCatalogue', serviceEndpoint: `${C.base}/api/v1/works?maker=${V.makerSlug(m)}` }] });
+    const me = asked(req), of = d => `${d}:m:${V.makerSlug(m)}`;
+    const i = ids(m), aka = [`${C.base}/m/${V.makerSlug(m)}`, ...OWN().filter(d => d !== me).map(of), m.did, i.isni && `https://isni.org/isni/${i.isni.replace(/\s/g, '')}`, i.site, i.ipi && `urn:ipi:${i.ipi}`].filter(Boolean);
+    res.set('Cache-Control', keep()).json({ '@context': ['https://www.w3.org/ns/did/v1'], id: of(me), controller: me, alsoKnownAs: aka,
+      service: [{ id: `${of(me)}#works`, type: 'WatermarkCatalogue', serviceEndpoint: `${C.base}/api/v1/works?maker=${V.makerSlug(m)}` }] });
   });
 
   // --- Credentials.
@@ -117,7 +129,7 @@ function mountBridge(app, { db, C, V, ledger, isStudio, studioOnly, makerOf, mk,
   // Check a credential: the house's own, or any did:web issuer's (fetched, with a short timeout).
   async function keyFor(vm) {
     const did = String(vm || '').split('#')[0];
-    if (did === HOUSE()) return ledger.publicKey();
+    if (OWN().includes(did)) return ledger.publicKey(); // the house's own, at any address it has had (#220)
     const url = didUrl(did); if (!url) return null;
     const r = await fetchImpl(url, { signal: AbortSignal.timeout(6000), headers: { accept: 'application/did+json, application/json' } }); if (!r.ok) return null;
     const d = await r.json(); const k = (d.verificationMethod || []).find(x => x.id === vm || x.id === '#' + String(vm).split('#')[1]);

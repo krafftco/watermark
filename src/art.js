@@ -35,12 +35,12 @@ function rights(a, w) {
   if (!a.died && a.born && y - a.born > 170) return { state: 'pd', why: `${a.name} was born in ${a.born}; the work is in the public domain.` };
   const made = w && yearOf(w.taken_at); if (made && made <= y - 96) return { state: 'pd', why: `Made in ${made}; the work is in the public domain.` };
   if (a.claim_status === 'claimed' && a.sale_ok) return { state: 'claimed', why: `${a.name}${a.died ? '’s estate' : ''} holds the rights and has set terms with the house.` };
-  const strict = process.env.ART_STRICT === '1';
+  const strict = process.env.ART_STRICT === '1' || !require('./collect').on(); // (#208) with Collect retired, a reserved work is shown, not sold
   return { state: 'reserved', why: `${a.name}’s work is under copyright. A photograph of it is shown here and credited${strict ? '; the house does not sell or license it' : '; it may be collected for yourself, and the house does not license it for any other use'}. The rights are ${a.died ? 'the estate’s' : 'the artist’s'}.${a.died ? ` It enters the public domain on January 1, ${a.died + PD_YEARS + 1}, in the countries that protect for life plus seventy years.` : ''}` };
 }
 
 function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, mk, fetchImpl, imageOf }) {
-  const { esc } = V; const doFetch = fetchImpl || fetch; const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const { esc } = V; const doFetch = fetchImpl || fetch; const HOUSE = require('./address').email();
   db.exec(`CREATE TABLE IF NOT EXISTS artists (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, sort_name TEXT, born INTEGER, died INTEGER, nationality TEXT, movement TEXT,
     bio TEXT, sources TEXT, wiki TEXT, claim_status TEXT, claimed_name TEXT, claimed_email TEXT, claimed_maker_id INTEGER, sale_ok INTEGER NOT NULL DEFAULT 0, terms TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   db.exec(`CREATE TABLE IF NOT EXISTS artist_claims (id INTEGER PRIMARY KEY, artist_id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, relation TEXT NOT NULL, note TEXT, ip TEXT, status TEXT NOT NULL DEFAULT 'asked', at TEXT NOT NULL DEFAULT (datetime('now')), decided_at TEXT)`);
@@ -100,7 +100,7 @@ function mountArt(app, { db, V, C, ledger, mail, isStudio, studioOnly, makerOf, 
   // every licence (a story, a company, an audience, a wall, a print, the Reference) is closed. The house's own
   // 'closed' closes everything; 'open' opens everything.
   const PERSONAL = new Set(['social']);
-  const STRICT = () => process.env.ART_STRICT === '1';
+  const STRICT = () => process.env.ART_STRICT === '1' || !require('./collect').on(); // (#208)
   function blocks(w, key) {
     const v = verdict(w); if (v.state !== 'closed') return false;
     if (v.by === 'house') return true;

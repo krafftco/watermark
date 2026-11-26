@@ -33,7 +33,7 @@ function mountHosts(app, { db, V, C, mail, ledger, isStudio, buyerOf, makerOf, n
     const s = db.prepare("SELECT * FROM host_shifts WHERE scope=? AND night=? AND status='taken'").get(scope, night); if (!s) return;
     const sat = (hostId && s.owner === hostId) || !!s.sat_at;
     // (#123) Each step claims the shift's row, so a night is settled once, whichever copy closes it first.
-    if (!sat) { if (!db.prepare("UPDATE host_shifts SET status='missed' WHERE id=? AND status='taken' AND sat_at IS NULL").run(s.id).changes) return; mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `The host did not come: ${s.name}, ${s.night}`, text: `${s.name} had the chair on ${s.night} (${scope}) and did not take it. ${came} came.` }); return; }
+    if (!sat) { if (!db.prepare("UPDATE host_shifts SET status='missed' WHERE id=? AND status='taken' AND sat_at IS NULL").run(s.id).changes) return; mail.send({ to: require('./address').email(), subject: `The host did not come: ${s.name}, ${s.night}`, text: `${s.name} had the chair on ${s.night} (${scope}) and did not take it. ${came} came.` }); return; }
     if (!db.prepare("UPDATE host_shifts SET status='done' WHERE id=? AND status='taken'").run(s.id).changes) return;
     const b = buyerOfOwner(s.owner);
     if (b && app.locals.pocket && s.cents > 0) { app.locals.pocket.credit(b, s.cents, 'hosting', `host-${s.id}`, `Hosting the balcony, ${s.night}`); db.prepare("UPDATE host_shifts SET status='paid', paid_at=datetime('now') WHERE id=?").run(s.id); }
@@ -58,7 +58,7 @@ ${!can ? '<section class="cx-intro"><p class="note">Taking a night needs a maker
     res.redirect('/hosts?ok=' + encodeURIComponent(`The ${date(night)} chair is yours.`));
   });
   app.post('/hosts/:id/accept', (req, res) => { const me = ownerOf(req); const s = db.prepare('SELECT * FROM host_shifts WHERE id=?').get(+req.params.id); if (!me || !s || s.owner !== me.id) return res.sendStatus(403); db.prepare("UPDATE host_shifts SET status='taken' WHERE id=?").run(s.id); res.redirect('/hosts?ok=' + encodeURIComponent('Accepted. Thank you.')); });
-  app.post('/hosts/:id/give', (req, res) => { const me = ownerOf(req); const s = db.prepare('SELECT * FROM host_shifts WHERE id=?').get(+req.params.id); if (!me || !s || s.owner !== me.id) return res.sendStatus(403); db.prepare('DELETE FROM host_shifts WHERE id=?').run(s.id); mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `A night given back: ${s.night}`, text: `${s.name} gave back the chair for ${s.night} (${s.scope}).` }); res.redirect('/hosts?ok=' + encodeURIComponent('Given back; the house is told.')); });
+  app.post('/hosts/:id/give', (req, res) => { const me = ownerOf(req); const s = db.prepare('SELECT * FROM host_shifts WHERE id=?').get(+req.params.id); if (!me || !s || s.owner !== me.id) return res.sendStatus(403); db.prepare('DELETE FROM host_shifts WHERE id=?').run(s.id); mail.send({ to: require('./address').email(), subject: `A night given back: ${s.night}`, text: `${s.name} gave back the chair for ${s.night} (${s.scope}).` }); res.redirect('/hosts?ok=' + encodeURIComponent('Given back; the house is told.')); });
   // The Studio: the rota, offer a night to someone, clear one.
   app.get('/studio/hosts', (req, res) => {
     if (!isStudio(req)) return res.sendStatus(403); V.setDeskPath('/studio/hosts');

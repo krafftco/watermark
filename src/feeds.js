@@ -122,7 +122,7 @@ function mountFeeds(app, { db, V, C, isStudio, studioOnly, ledger, upload }) {
     status TEXT NOT NULL DEFAULT 'queued', cursor TEXT, looked INTEGER NOT NULL DEFAULT 0, taken INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, missed TEXT, retry_of INTEGER, note TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')), started_at TEXT, finished_at TEXT)`);
   const I = app.locals.iiif; const RD = () => app.locals.reading; const doFetch = (u, o) => I.doFetch(u, o);
-  const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
+  const UA = `Watermark (${require('./address').host()}; ${require('./address').email()})`;
   const COMMONS_DEPTH = +process.env.COMMONS_DEPTH || 4, COMMONS_CATS = +process.env.COMMONS_CATS || 400;
   // Subcategories that are not the artist's own hand (a tree under an artist carries copies, stamps, coins and street art after the work): left out.
   const NOT_THEIRS = /derivative|replica|copies|copy after|after leonardo|reproduction|stamps|coins|banknotes|memorial|monument|statue|sculptures of|street art|graffiti|logos?\b|tattoo|merchandise|in popular culture|parod|museums? (?:of|dedicated)|exhibitions? (?:of|about)/i;

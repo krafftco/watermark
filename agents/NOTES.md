@@ -271,9 +271,22 @@ The CTO session keeps it honest.
   on the client's link); public/stroll.js adds the heart to the plate and Album to the rail, and the album's sheet is
   appended to `body` (inside `main.st` nothing rises above the house's tab bar, z-index 60). Each extra rail button costs
   about 63 px on a phone: at 390 × 664 two more ran the rail into the top bar. `test/albumwander.js` (CI's a11y job).
+- **Album guests** (#203, `src/albumguests.js`; `src/guests.js` is another room, a collector's guest list): a guest's
+  picture is a work of the guest's own studio (`hidden`), linked to the album only by `delivery_guest_works` (state
+  waiting | in | no | out), never by `delivery_works`, so `worksOf`, the cover, the card, the film and Wander's album walk
+  stay the photographer's. Anything that must also answer for a shown guest picture asks `findIn(d, slug)`; the guests'
+  walk is the key `album:<share>.guests` (`keyOf` in deliveries.js). A guest's studio is `makers.door='album'`,
+  `email_ok=0` until `/added/:token` (the letter) runs `app.locals.admit`. With #198's `passes(?token=)` the guest table
+  must be asked too (`G.mayView`). `test/albumguests.js` (a11y job and the Postgres loop).
+- A panel with `display:grid` and the `hidden` attribute shows anyway: the album's "That's me" form stood on every album
+  until 1.92.0. A full-page screenshot at 390 is the quickest way to see one.
 - **Albums' order**: `worksOf` sorts by `taken_at`, then the file name read numerically, then `pos` (the picker's order,
   newest upload first). There is no hand order yet; one would come before this sort. The link card's file is named by
   its three slugs (`cardOf`).
+- **Story and post cards** (#210, `src/cardface.js`): one drawing for the album's cards and the work's own. A story draws
+  only between y=250 and y=1590 (Instagram's bars), a post keeps 60 px of dark; the picture box is 940 wide, since a JPEG's
+  edge rings a pixel or two past a 960 box. The cache name carries a hash of what is drawn: change the face, change the
+  suffix (`story2-`, `-c3`). `test/cardface.js` checks the bands by pixel rows; `CARDS=<dir>` keeps PNGs to look at.
 - **The sign-up door** (POST /record): a signed time on the form, a trap field, ceilings on letters not on people.
 - **Downloads**: `public/save.js` decides what a download press does in the installed app. The heavy doors may answer
   "wait your turn" as a page: a fetch must check what it received.
@@ -353,4 +366,52 @@ The CTO session keeps it honest.
 - A license the maker writes is `status='offered'`, `rights.written`, `house_cents=0`; its accept link is `/c/:ref?k=<download_token>` (grant replaces the token, so the link stops opening the offer). `app.locals.requests.waitingOther(l)` decides whether /c/:ref shows the offer page; a written license sent to payment and back unpaid is `awaiting_payment` and still shows it.
 - Credit only is `uses.price_cents = 0` (or `rights.credit`): never sent to Stripe (Stripe refuses 0). `rights.credit` swaps Section 3 for `K.CREDIT_ONLY`; absent otherwise, so every old fingerprint holds. `K.seal(t, {work, maker, ref})` is the one way to fingerprint an order. On the visitor's pages a price of 0 reads through `useFee` in views.js ("Credit only"), never `money(0)`.
 - /rights/:handle is an institution's desk or, for a photographer (`kind='maker'`, not `door='play'`), their reply link; the photographer's page holds no form. `test/replylink.js` walks all of it (also run it with DATABASE_URL on the local Postgres).
+
+## Collect retired (#208)
+- `src/collect.js`: `COLLECT=on` (env) offers the Collect ('social') and the Reference again; unset, both are closed in
+  `listed()`/`offered()` (app.js), which closes every door that asks them. `offered0` is the gate without it, used only
+  by a standing order already running (`collectFor(b, slug, true)`). Read `COL.on()` at call time, never at require.
+- A test that walks the Collect's own code sets `process.env.COLLECT = 'on'` at its top (smoke, holds, fee, onview,
+  sitters, instances); `test/collectoff.js` walks the house as it is (off): no offer on any door, no price under $100
+  beside a picture, the wall label (`.wlb`, `labelOf` in app.js), the holder's papers unchanged byte for byte.
+- A `${}` inside a single-quoted string in a view is printed as written: turn the string into a template literal.
+
+## The house's address (#215)
+- No file spells the house's host but `src/address.js` (`test/address.js` fails on one in src, public, test, scripts or bin).
+  A link or a bare host: `require('./address').base()` / `.host()`; the letterbox: `.email()` (it does not follow BASE_URL).
+  In app.js routes `C.base` is the same thing with the test house's own base.
+- `public/house.js`, `public/k.js` and `bin/watermark.js` run away from the house: they carry `{{HOUSE}}`, written in as
+  they are served (`/house.js`, `/k.js`, `/push/watermark.js`). Read raw they fall back to where the script came from.
+- The settings are read as modules load (`legal.js`, the UA strings): a test of another address sets `process.env.BASE_URL`
+  before its first `require`, and proves "unset" in a child process.
+- The old-host redirect (app.js, after `trust proxy`) turns only GET and HEAD, never `/healthz`, `/stripe/webhook` or a
+  request with a Bearer key, and answers `no-store`: the edge's picture cache is not keyed on the host. A new machine
+  door that is read with GET and no key on the old host needs a line in `STAY`.
+- The namespaces in `ADDR.NS` are names inside issued files; they never follow the address.
+- The identity (#220): `did:web` is a host, so the house has one identity per address it has had (`C.left`, from
+  `ADDR.leftHosts`: the old hosts and the first host, even with `OLD_HOSTS=none`; empty with no address set and on the
+  test house). `/.well-known/did.json` and `/m/<slug>/did.json` answer on the host asked, never redirected; issuing uses
+  `HOUSE()`, checking accepts `OWN()` (bridge.js). `test/identity.js` runs several houses in one process: each needs its
+  own folder, and the same `secret` gives the same signing key (the ledger's key is one per process).
+- A credential is built when it is asked for, never stored: there is no table of issued credentials to count or re-sign.
+- The workflows read the live address from the repository variable `HOUSE_URL` (unset: where the house first stood).
+
+## Curators and shows (#225)
+- 'Kept back' is two things: `works.status='hidden'` (not public yet; the curator's desk marks these 'kept back') and `works.keep_back=1` (the maker's own word, also the tidy's and a safety hold's). An approval may publish the first, only by name (`with=all` + `seen`), and never the second.
+- A show's `hangs.slug` moves with its title; the addresses it left are in `hang_was`. Link a show by `app.locals.hangs.href(h)`, never by a slug you stored; a new door keyed on a hang's slug needs the old-address line in hangs.js (`wasAt`).
+- What a curator is paid is one sentence, `curatorShare()` in hangs.js; a page or letter that speaks of the share reads it. test/curators.js holds the sentence against `reward()`.
+- The letters in `src/mail-letters.js` have a plain-text twin; write the sentence once as a string and put it in both (`esc` it in the HTML).
+
+## A bought print, and who reads a certificate (#224)
+- A print's licence has no `download_token`: any door that proves the holder by `?k=` is shut to a print buyer. Prove them by `buyerOf(req)` as well. A print's number is `rights.print.no` / `print_orders.edition_no`, never `collector_no`.
+- Say a print's number, where it is and when its maker is paid from `src/printpapers.js` only. `/c/:ref` takes `pub`: add nothing about the holder or the money outside `!pub`.
+- A kept picture's `licenses.rights` is `{ size, strip }` with no `rights`/`added`/`extras`: read terms through `holds.termsOf`, never `t.added.includes`.
+- `test/printpapers.js` takes `SHOTS=<dir>` and writes the letters and the buyer's pages at 390.
+
+## The photographer's first ten minutes (#223)
+- A work's own desk is `/account/works/:slug` (the Studio's is `/studio/works/:slug`); the studio's holdings, the Library's loupe and Enter, and `/w/:slug` for its maker (`edit` in views.work) all lead there. `/w/:slug` is the page a collector sees.
+- `public/table.js` and the vault page's inline script are a few very long lines: a `//` comment added at the end of one swallows the rest of the line, and the page dies silently with nothing on it. Use `/* */`; `test/firstminutes.js` parses both.
+- The vault's page takes JPEG, TIFF and PNG; the server's raw door (src/raw.js) is for the arrivals a DNG reaches by other roads. The page names a raw file by its extension and leaves it out (`RAW` in account-views.js upload).
+- A walk in a browser: `.lib-tk` (a tile's tick) is under the picture for Playwright's pointer; `dispatchEvent('click')` on it selects. An album's `share_token` is made when its desk page is first opened.
+- A test house has no Stripe: `/w/:slug` offers no print there (editions.js `canSell`), so prove an offer with test/firstsale.js's stub.
 

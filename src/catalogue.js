@@ -8,7 +8,7 @@
 // is; 'no open photograph' when there is none), so the gaps are honest. 'Bring in the pictures' queues every open
 // photograph as a feed through the one door (the bag check, the deed, the register), for an artist in the public
 // domain only; a living artist's work is listed, never copied.
-const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
+const UA = `Watermark (${require('./address').host()}; ${require('./address').email()})`;
 const SPARQL = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql';
 const WD_API = process.env.WIKIDATA_API || 'https://www.wikidata.org/w/api.php';
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();

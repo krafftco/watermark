@@ -10,7 +10,7 @@ function mountOwners(app, { db, V, C, isStudio }) {
   // A stranger is sent to /about; the page and its words are kept, unchanged, for the Studio.
   const studio = req => !!(isStudio && isStudio(req));
   const { esc } = V;
-  const EMAIL = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const EMAIL = require('./address').email();
   const MANUAL = [
     ['One company.', 'Krafft owns its businesses outright and lets them run themselves. People own Krafft; no subsidiary ever sells a share of its own.'],
     ['Owned for life, run as a stewardship.', 'The founder’s owner shares are held in a trust whose purpose is written: keep the work, keep the maker’s share, never sell the company. The votes belong to the purpose; the economics are shared.'],
@@ -37,7 +37,7 @@ ${on ? `<section class="dr-st"><p class="k">The schedule</p>
 <section class="dr-st"><p class="k">What the share pays for</p>
 <p>The card fees, which the house pays out of its share, never the maker’s. The vault, the register, the papers, the delivery, the print room, the guide, the Keys, and the people who keep them. The rest is kept and put back into the house.</p></section>
 <section class="dr-line"><p class="k">What is never touched</p><p>The maker’s price, a collector’s pocket and a curator’s earnings are held apart from the house’s money and paid on schedule. The receipt on every license says what went where; anyone can check a license by its Watermark number.</p></section>` : ''}
-<section class="dr-ask"><p class="k">By letter</p><p>Questions about a particular sale: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}</a>. <a href="/terms">The terms of the house</a>.</p></section>
+<section class="dr-ask"><p class="k">By letter</p><p>Questions about a particular sale: <a href="mailto:${esc(require('./address').email())}">${esc(require('./address').email())}</a>. <a href="/terms">The terms of the house</a>.</p></section>
 </article>` }));
   });
   app.get('/investors', (req, res) => { res.set('X-Robots-Tag', 'noindex, nofollow'); res.set('Cache-Control', 'private, no-store'); res.redirect(302, studio(req) ? '/owners' : '/about'); });

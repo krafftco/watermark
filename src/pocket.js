@@ -72,7 +72,7 @@ function mountPocket(app, { db, C, stripe, buyerOf, setBuyer, ledger }) {
     }
     db.prepare("UPDATE pocket SET status='posted' WHERE id=?").run(id);                      // the balance drops now; the house pays by hand
     ledger.append(db, 'pocket.cashed', `buyer-${b.id}`, { amount: cents, how: 'hand' });
-    try { require('./mail').send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `Cash out: ${money(cents)} to buyer ${b.id}`, text: `${b.name || 'A collector'} <${b.email || 'no email'}> asked to cash out ${money(cents)} from their pocket.${b.stripe_account ? ` Connect account ${b.stripe_account}.` : ' No bank on file yet.'}` }); } catch (e) { /* mail off */ }
+    try { require('./mail').send({ to: require('./address').email(), subject: `Cash out: ${money(cents)} to buyer ${b.id}`, text: `${b.name || 'A collector'} <${b.email || 'no email'}> asked to cash out ${money(cents)} from their pocket.${b.stripe_account ? ` Connect account ${b.stripe_account}.` : ' No bank on file yet.'}` }); } catch (e) { /* mail off */ }
     res.redirect('/yours?tab=settings&pocket=cashed#pocket');
   }
   app.post('/pocket/add', async (req, res) => {

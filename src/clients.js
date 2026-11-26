@@ -10,7 +10,7 @@
 // When a license ends the image is no longer served: the script shows the credit and "Renew" in its place.
 // Nothing is mailed to the client from here: the Studio sends the papers when Will says.
 const T = require('./track');
-const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+const HOUSE = require('./address').email();
 
 function mountClients(app, { db, C, V, ledger, grant, nextRef, mk, q, images, originalPath, cache, studioOnly, isStudio, stripe }) {
   db.exec(`CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, hosts TEXT, email TEXT,

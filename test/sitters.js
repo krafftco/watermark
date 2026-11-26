@@ -1,5 +1,6 @@
 // The sitter (31 Oct): a picture is linked to a person only by their word; their word on commercial use holds.
 process.env.NODE_ENV = 'test';
+process.env.COLLECT = 'on'; // (#208) this walk proves the Collect's own code, kept behind the setting; test/collectoff.js walks the house with it off
 const assert = require('assert'); const fs = require('fs'); const path = require('path'); const os = require('os'); const sharp = require('sharp');
 const { createApp } = require('../src/app');
 (async () => {
@@ -42,6 +43,12 @@ const { createApp } = require('../src/app');
   r = await go(`/yours/sitter/keep/${c}`, form({}), bea); assert.ok(/ok=kept/.test(r.headers.get('location')));
   assert.ok(db.prepare("SELECT 1 FROM licenses WHERE work_id=? AND intended_use='Kept by its sitter' AND status='active'").get(W(c).id), 'kept, a free licence');
   r = await go(`/yours/sitter/keep/${a}`, form({}), bea); assert.strictEqual(r.status, 403, 'only her own pictures');
+  // (#224) What she kept hangs in her gallery (the page said so and the gallery was empty), opens as her piece, and its papers open.
+  { const kl = db.prepare("SELECT ref FROM licenses WHERE work_id=? AND intended_use='Kept by its sitter'").get(W(c).id);
+    t = await (await go('/yours', {}, bea)).text(); assert.ok(t.includes(`/yours/p/${kl.ref}`) && !/Nothing here yet/.test(t), 'the kept picture is in her gallery');
+    r = await go(`/yours/p/${kl.ref}`, {}, bea); assert.strictEqual(r.status, 200, 'her piece opens');
+    r = await go(`/c/${kl.ref}`, {}, bea); assert.strictEqual(r.status, 200, 'its papers open: ' + r.status);
+    assert.ok(!(app.locals.mailLog || []).some(m => /^It's yours: /.test(m.subject)), '(#207) the letter of a kept picture is the house’s own, not the plain fallback'); }
   t = await (await go('/account/sitters', {}, me)).text(); assert.ok(/Ana Ruiz/.test(t) && /Bea Stone/.test(t), 'your sitters');
   t = await (await go(`/account/works/${a}`, {}, me)).text(); assert.ok(/In this picture/.test(t) && /Signed a release/.test(t), 'on the record');
 

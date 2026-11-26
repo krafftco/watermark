@@ -152,7 +152,7 @@ function mountPlatform(app, { db, C, V, ledger, registerWork, mail, fetchImpl = 
 
 <section class="dr-st"><p class="k">The door</p>
 <ol class="plf-steps">
-<li><b>A key.</b> By letter to <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}">the house</a>; shown once.</li>
+<li><b>A key.</b> By letter to <a href="mailto:${esc(require('./address').email())}">the house</a>; shown once.</li>
 <li><b>Open a studio</b> for a creator: <code>POST /api/partner/v1/makers</code> with a name and an email. The record is free; nothing is shown until the maker publishes and the house has invited them. The house is curated.</li>
 <li><b>Put a work in</b> by address: <code>POST /api/partner/v1/makers/&lt;slug&gt;/works</code> with the picture’s URL, a title, a place, your own id. The answer is the record: fingerprint, accession, deed, the badge, your Collect link.</li>
 <li><b>Carry the mark</b>: <code>/w/&lt;slug&gt;/badge.svg</code>, dark or light, linking to the record${ex ? ` (<a href="/w/${esc(ex.slug)}/badge.svg">one</a>)` : ''}.</li>

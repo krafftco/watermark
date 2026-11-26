@@ -83,7 +83,7 @@ function mountMoma(app, { db, C, ledger, studioOnly, V }) {
     const base = app.locals.moma.base || BASE();
     if (!/^https?:/.test(base)) return path.join(base, name);
     fs.mkdirSync(dir(), { recursive: true }); const to = path.join(dir(), name), tmp = to + '.part';
-    const r = await fetch(`${base}/${name}`, { headers: { 'user-agent': 'Watermark (house@watermark.krafftco.com)' } });
+    const r = await fetch(`${base}/${name}`, { headers: { 'user-agent': `Watermark (${require('./address').email()})` } });
     if (!r.ok) throw new Error(`MoMA ${name}: ${r.status}`);
     const { Readable } = require('stream'); const { pipeline } = require('stream/promises');
     await pipeline(Readable.fromWeb(r.body), fs.createWriteStream(tmp)); fs.renameSync(tmp, to);

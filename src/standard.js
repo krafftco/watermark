@@ -136,7 +136,7 @@ function mountStandard(app, { db, V, C, store, isStudio, ledger, doFetch }) {
   async function* catalogue({ from = 1, limit = 2000 } = {}) {
     let page = from, n = 0;
     while (n < limit) {
-      const r = await doFetch(`https://api.github.com/orgs/standardebooks/repos?per_page=100&page=${page}&sort=full_name`, { headers: { accept: 'application/vnd.github+json', 'User-Agent': 'Watermark (watermark.krafftco.com)' } });
+      const r = await doFetch(`https://api.github.com/orgs/standardebooks/repos?per_page=100&page=${page}&sort=full_name`, { headers: { accept: 'application/vnd.github+json', 'User-Agent': `Watermark (${require('./address').host()})` } });
       if (!r.ok) { if (r.status === 403 || r.status === 429) throw new Error('GitHub asks us to wait (rate limit); the run resumes on the next look'); throw new Error(`github ${r.status}`); }
       const j = await r.json(); if (!Array.isArray(j) || !j.length) return;
       const repos = j.map(x => x.name).filter(x => /_/.test(x) && !/^(tools|manual|web|standardebooks\.github\.io)$/.test(x)); n += repos.length;

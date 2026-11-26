@@ -106,7 +106,7 @@ function mountReading(app, { db, V, C, isStudio, ledger, fetchImpl }) {
   try { db.exec('ALTER TABLE texts ADD COLUMN plates TEXT'); } catch (e) { /* has it */ }
   // Gutendex sits behind a gate that turns a bare server away (403, 24 Oct); the house asks as a browser would, and if
   // the index still refuses, reads Gutenberg's own OPDS search (Atom) instead. The text always comes from gutenberg.org.
-  const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 Watermark/1 (+https://watermark.krafftco.com)', 'Accept': 'application/json, text/xml;q=0.9, */*;q=0.5' };
+  const UA = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 Watermark/1 (+' + require('./address').base() + ')', 'Accept': 'application/json, text/xml;q=0.9, */*;q=0.5' };
   const doFetch = (u, o) => (fetchImpl || fetch)(u, { signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined, ...(o || {}), headers: { ...UA, ...((o && o.headers) || {}) } });
   const unx = x => String(x || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
   async function opds(q) {

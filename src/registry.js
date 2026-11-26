@@ -152,7 +152,7 @@ ${desk && (o.record_kind !== 'collection' || r === 'house') ? deskBlock(o, r) : 
   // the medium, the size, when it was made), the facts at a glance, one way to ask the house, and below it the
   // catalogue's own sections in their order: provenance as a catalogue note (each line with its source behind it),
   // exhibited, literature, about the work, condition, then more by the same hand. No estimate and no price, ever.
-  const HOUSE = process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com';
+  const HOUSE = require('./address').email();
   const I = (() => { try { return require('./icons'); } catch (e) { return {}; } })();
   const viewsOf = o => db.prepare('SELECT * FROM object_views WHERE object_id=? ORDER BY n, id').all(o.id);
   // The size as written, read into centimetres (height × width): '43.2 × 36.2 cm', '17 × 14 ¼ in.', '61 x 50 cm'.
@@ -524,7 +524,7 @@ ${studioKnown()}${studioOffers()}
   const howOf = credit => (/bequest|bequeathed/i.test(credit) ? 'bequest' : /gift|given|donat/i.test(credit) ? 'gift' : /purchase|fund|acquired/i.test(credit) ? 'purchase' : /exchange/i.test(credit) ? 'exchange' : null);
   const yearIn = s => { const all = String(s || '').match(/\b(1[5-9]\d\d|20[0-2]\d)\b/g); return all ? +all[all.length - 1] : null; };
   const metId = url => { const m = /\/(?:objects|search)\/(\d+)/.exec(String(url || '')); return m ? m[1] : null; };
-  const UA = 'Watermark (watermark.krafftco.com; house@watermark.krafftco.com)';
+  const UA = `Watermark (${require('./address').host()}; ${require('./address').email()})`;
   const SPARQL = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql';
   const fetchOf = () => (app.locals.iiif && app.locals.iiif.doFetch) || fetch;
   // The ownership history Wikidata keeps (owned by, with its dates) and the shows (exhibition history), for a batch.
@@ -611,7 +611,7 @@ ${studioKnown()}${studioOffers()}
   }
   // What anyone may add: a line of what is known, with its source, read by the house before it stands.
   function offerForm(o) {
-    return `<details class="rgy-add rgy-offer"><summary>Know more? <span>Add what you know, with its source; the house reads each line before it stands</span></summary><form method="post" action="/registry/o/${o.id}/offer" enctype="multipart/form-data"><label>What it is<select name="kind"><option value="provenance">Provenance: whose hands, when</option><option value="exhibited">A show it hung in</option><option value="published">A book or catalogue it appears in</option><option value="condition">Its condition, or a restoration</option><option value="note">Something else</option></select></label><label>Who, or what<input name="party" maxlength="300" required></label><div class="rgy-row"><label>From (year)<input name="year_from" inputmode="numeric"></label><label>To (year)<input name="year_to" inputmode="numeric"></label></div><label>The source (a book and page, an archive, an address)<input name="source" maxlength="300" required></label><label>A note<textarea name="body" rows="2" maxlength="1500"></textarea></label><label>A paper, if you have one<input type="file" name="file" accept="application/pdf,image/*"></label><label>Your name, as it will stand on the line<input name="name" maxlength="120" required></label><button class="buy-btn">Send it to the house</button></form><p class="note">Are you the holder? The record can be kept in your own name, your registrar’s word in place of ours: <a href="mailto:${esc(process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com')}?subject=${encodeURIComponent(`The registry: ${no(o)}`)}">write to the house</a>.</p></details>`;
+    return `<details class="rgy-add rgy-offer"><summary>Know more? <span>Add what you know, with its source; the house reads each line before it stands</span></summary><form method="post" action="/registry/o/${o.id}/offer" enctype="multipart/form-data"><label>What it is<select name="kind"><option value="provenance">Provenance: whose hands, when</option><option value="exhibited">A show it hung in</option><option value="published">A book or catalogue it appears in</option><option value="condition">Its condition, or a restoration</option><option value="note">Something else</option></select></label><label>Who, or what<input name="party" maxlength="300" required></label><div class="rgy-row"><label>From (year)<input name="year_from" inputmode="numeric"></label><label>To (year)<input name="year_to" inputmode="numeric"></label></div><label>The source (a book and page, an archive, an address)<input name="source" maxlength="300" required></label><label>A note<textarea name="body" rows="2" maxlength="1500"></textarea></label><label>A paper, if you have one<input type="file" name="file" accept="application/pdf,image/*"></label><label>Your name, as it will stand on the line<input name="name" maxlength="120" required></label><button class="buy-btn">Send it to the house</button></form><p class="note">Are you the holder? The record can be kept in your own name, your registrar’s word in place of ours: <a href="mailto:${esc(require('./address').email())}?subject=${encodeURIComponent(`The registry: ${no(o)}`)}">write to the house</a>.</p></details>`;
   }
   app.post('/registry/o/:id/offer', up.single('file'), bag('papers'), async (req, res) => {
     const o = obj(req.params.id); const drop = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
@@ -624,7 +624,7 @@ ${studioKnown()}${studioOffers()}
     const paper = await keep(o, req.file);
     const kind = ['provenance', 'exhibited', 'published', 'condition', 'note'].includes(b.kind) ? b.kind : 'note';
     db.prepare('INSERT INTO object_offers (object_id, who, name, email, kind, year_from, year_to, party, body, source, file, mime, file_sha) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(o.id, keys[0], name, emailOf(keys[0]), kind, yr(b.year_from), yr(b.year_to), party, t(b.body, 1500), source, paper.file || null, paper.mime || null, paper.file_sha || null);
-    mail.send({ to: process.env.HOUSE_EMAIL || 'house@watermark.krafftco.com', subject: `The registry: a line for ${tidy(o.title)}`, text: `${name} offers a ${kind} line for ${no(o)}: ${party}. Source: ${source}.\n\n${C.base}/studio/registry#offers` }).catch(() => {});
+    mail.send({ to: require('./address').email(), subject: `The registry: a line for ${tidy(o.title)}`, text: `${name} offers a ${kind} line for ${no(o)}: ${party}. Source: ${source}.\n\n${C.base}/studio/registry#offers` }).catch(() => {});
     res.redirect(`/registry/o/${o.id}?ok=${encodeURIComponent('Thank you. The house reads it against its source; when it stands, it carries your name.')}`);
   });
   app.post('/studio/registry/offers/:id', (req, res) => {

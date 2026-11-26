@@ -8,6 +8,7 @@
 //   - the certificate's "You can / You can't" follows the agreement the holder accepted (9.3), not the other way.
 // Every sentence asserted here is a draft for Will.
 process.env.NODE_ENV = 'test';
+process.env.COLLECT = 'on'; // (#208) this walk proves the Collect's own code, kept behind the setting; test/collectoff.js walks the house with it off
 const assert = require('assert'); const fs = require('fs'); const path = require('path'); const os = require('os'); const sharp = require('sharp');
 const { createApp } = require('../src/app');
 const H = require('../src/holds');

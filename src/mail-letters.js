@@ -21,7 +21,7 @@ function frame({ base, preheader, body }) {
 <tr><td align="center" style="padding:44px 48px 6px" class="wm-pad"><a href="${base}" style="text-decoration:none"><img src="${base}/static/mail/wordmark.png" width="124" alt="Watermark" style="display:block;border:0;width:124px;height:auto"></a></td></tr>
 ${body}
 </table>
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td align="center" style="padding:26px 24px 0;font:10px/1.8 ${SANS};letter-spacing:.22em;text-transform:uppercase;color:#a29d93">Watermark &middot; A Krafft company<br><a href="${base}" style="color:#a29d93;text-decoration:none">watermark.krafftco.com</a></td></tr></table>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td align="center" style="padding:26px 24px 0;font:10px/1.8 ${SANS};letter-spacing:.22em;text-transform:uppercase;color:#a29d93">Watermark &middot; A Krafft company<br><a href="${base}" style="color:#a29d93;text-decoration:none">${require('./address').hostOf(base) || require('./address').host()}</a></td></tr></table>
 </td></tr></table></body></html>`;
 }
 const kicker = t => `<tr><td align="center" style="padding:30px 48px 0" class="wm-pad"><p style="margin:0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">${t}</p></td></tr>`;
@@ -62,14 +62,15 @@ const proof = c => `<tr><td style="padding:34px 48px 0" class="wm-pad"><table ro
 function collected(c) {
   const title = clean(c.title), first = String(c.name || '').trim().split(/\s+/)[0];
   const personal = c.kind !== 'print' && c.personal;
+  const isPrint = c.kind === 'print'; // (#224) a bought print: the print, where it is, its papers; never a file or a license
   const head = c.kind === 'print' ? `<i>${esc(title)}</i> is yours.` : personal ? `<i>${esc(title)}</i> is yours.` : `<i>${esc(title)}</i> is licensed to ${esc(c.who)}.`;
   const no = c.no ? `No.&nbsp;${c.no}` : '';
-  const html = frame({ base: c.base, preheader: `${title}, by ${c.maker}${c.no ? `, No. ${c.no}` : ''}. ${personal ? 'In your gallery now.' : 'Your license and the file are inside.'}`, body: [
+  const html = frame({ base: c.base, preheader: `${title}, by ${c.maker}${c.no ? `, No. ${c.no}` : ''}. ${personal ? 'In your gallery now.' : isPrint ? 'Where it is, and its papers.' : 'Your license and the file are inside.'}`, body: [
     kicker(`${personal ? 'Collected' : c.kind === 'print' ? 'Acquired' : 'Licensed'}${c.name ? ` by ${esc(c.name)}` : ''}${c.no ? ` &nbsp;&middot;&nbsp; <span style="white-space:nowrap">No. ${c.no}${c.of ? ` of ${c.of}` : ''}</span>` : ''}`),
     headline(head),
-    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${c.printWhere ? esc(c.printWhere) : personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : 'The file, the license and the agreement are yours for the term.'}`),
+    lede(`A photograph by ${esc(c.maker)}${c.place ? `, made in ${esc(c.place)}` : ''}. ${c.printWhere ? esc(c.printWhere) : personal ? 'From today it hangs in your gallery, numbered and registered in your name.' : isPrint ? 'Its papers are in your gallery.' : 'The file, the license and the agreement are yours for the term.'}`),
     mount({ img: c.img, href: c.galleryUrl, title, year: c.year, maker: c.maker, no, of: c.of }),
-    button(personal ? 'See it in your gallery' : 'Open your license', personal ? c.galleryUrl : c.certUrl),
+    button(personal ? 'See it in your gallery' : isPrint ? 'Your print, and its papers' : 'Open your license', personal ? c.galleryUrl : isPrint ? (c.roomUrl || c.certUrl) : c.certUrl),
     links([c.fileUrl && ['Save the photograph', c.fileUrl], c.printUrl && ['Print it', c.printUrl], ['The certificate', c.certUrl], ['The agreement', c.contractUrl]]),
     c.proof ? proof(c) : '',
     rule(),
@@ -88,22 +89,24 @@ function collected(c) {
       c.house && ['The house’s share', esc(c.house)],
       ['Watermark number', esc(c.number), true],
     ]),
+    isPrint && c.paidWhen ? para(esc(c.paidWhen), '26px') : '',
     para(`Your agreement with ${esc(c.maker)} is set out in full at <a href="${c.contractUrl}" style="color:${INK}">the agreement</a>. You accepted it when you paid; its fingerprint is kept in the house register, so neither side can change a word of it.`, '26px'),
-    para(`The photograph carries its papers inside the file: who made it, this number, and how to reach the maker. Anyone can check them at <a href="${c.checkUrl}" style="color:${INK}">${esc(c.checkUrl.replace(/^https?:\/\//, ''))}</a>.`),
+    para(`${isPrint ? 'Anyone can check these papers at' : 'The photograph carries its papers inside the file: who made it, this number, and how to reach the maker. Anyone can check them at'} <a href="${c.checkUrl}" style="color:${INK};word-break:break-all;overflow-wrap:anywhere">${esc(c.checkUrl.replace(/^https?:\/\//, ''))}</a>.`),
     close(`<p style="margin:0;font:italic 17px/1.5 ${BODY};color:#4a463f">Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.</p><p style="margin:14px 0 0;font:10px/1 ${SANS};letter-spacing:.32em;text-transform:uppercase;color:${MUTED}">The house</p>`),
   ].join('') });
   const text = [
-    `${personal ? `${title} is yours.` : `${title} is licensed to ${c.who}.`}`,
+    `${personal ? `${title} is yours.` : isPrint ? `Your print of ${title}.` : `${title} is licensed to ${c.who}.`}`,
     `A photograph by ${c.maker}${c.place ? `, made in ${c.place}` : ''}${c.no ? `. No. ${c.no}${c.of ? ` of ${c.of}` : ''}` : ''}.`,
     c.printWhere || '',
-    personal ? `In your gallery: ${c.galleryUrl}` : `Your license: ${c.certUrl}`,
+    personal ? `In your gallery: ${c.galleryUrl}` : isPrint ? `Your print, and its papers: ${c.roomUrl || c.certUrl}` : `Your license: ${c.certUrl}`,
     c.fileUrl ? `Save the photograph: ${c.fileUrl}` : '',
     c.printUrl ? `Print it (the sizes it holds, how, or the house prints it): ${c.printUrl}` : '',
     c.proof ? `Hold it in your hand: the proof, a 5 x 7 print from the house's print room on Hahnemuhle Photo Rag, your number in pencil, posted, ${c.proof.price}: ${c.proof.url}` : '',
     `The certificate: ${c.certUrl}\nThe agreement: ${c.contractUrl}`,
     c.holds ? `What you hold. ${c.holds}` : '',
     `You may:\n${c.can.map(x => `  - ${x}`).join('\n')}\nYou may not:\n${c.cannot.map(x => `  - ${x}`).join('\n')}`,
-    `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}`,
+    `Held as: ${c.useName}. Term: ${c.ends ? `until ${c.ends}` : 'for good'}. Paid: ${c.fee}.${c.share ? ` To the maker: ${c.share}.` : ''}${isPrint && c.house ? ` The house’s share: ${c.house}.` : ''}`,
+    isPrint && c.paidWhen ? c.paidWhen : '',
     `Watermark number: ${c.number}. Anyone can check it: ${c.checkUrl}`,
     'Thank you for collecting. You are our honoured guest; this is our house, and you are welcome in it. We hope you come back.\nThe house',
   ].filter(Boolean).join('\n\n');
@@ -230,26 +233,56 @@ function looking(c) {
 
 
 // The curator's invitation (31 Oct, Will: "like Augusta National sending an invitation to play in the Masters; describing
-// what it means; the onboarding seamless"). Engraved, not marketed: who asks, what is given, what it opens, one door.
-// c: { base, name, maker, makerFirst, label, link, no (the key's number if accepted now), img, href, title, year }
+// what it means; the onboarding seamless"). (#225, a draft for Will) Said plainly: who asks, what the link opens, what
+// happens to a show, what is paid (c.share: hangs.js's curatorShare, the one sentence the house says about it), one door.
+// c: { base, name, maker, makerFirst, label, link, no (the key's number if accepted now), share, img, href, title, year }
 function curatorInvite(c) {
   const first = c.name ? clean(String(c.name).split(' ')[0]) : '';
   const firstKey = c.no === 1;
+  const share = c.share || 'a share of the price, from the house’s share';
+  const ask = `${c.makerFirst} is asking you to curate a show of the work on Watermark. The link below opens the whole archive to you: the photographs on the walls, and the ones not yet shown.`;
+  const lines = [
+    ['The archive', `Everything ${c.makerFirst} keeps here, including photographs no visitor has seen.`],
+    ['The show', `Choose the photographs, put them in order, write a line beside each and a statement. Send it to ${c.makerFirst}. Nothing opens until ${c.makerFirst} approves it; then it opens to the public under your name, and a letter brings you its link.`],
+    ['The share', `When a work is collected through your show, you earn ${share}, never ${c.makerFirst}’s. It is credited to your pocket at the sale; on Fridays what has cleared goes to your bank, once you have connected one.`],
+  ];
+  const firstLine = 'Yours is the first curator’s key the house has given. Each key is numbered, and a number is never given twice.';
+  const foot = `One tap opens the archive, signed in as yourself. There is nothing to set up. The link is for you alone; please do not forward it.${c.label ? ` Given to you as ${c.label}.` : ''}`;
   const body = `${kicker(firstKey ? 'The first curator&rsquo;s key of the house' : 'The curator&rsquo;s key')}
-${headline(`${esc(c.maker)} requests the pleasure of your eye.`)}
-${lede(`${first ? `${esc(first)}, ` : ''}${esc(c.makerFirst)} has opened the whole archive to you on Watermark: every photograph held there, and the work kept back from the walls, to choose from, to sequence and to hang as a show of your own making.`)}
+${headline(`${esc(c.maker)} has opened the archive to you.`)}
+${lede(`${first ? `${esc(first)}, ` : ''}${esc(ask)}`)}
 ${c.img ? mount({ img: c.img, href: c.href, title: c.title, year: c.year, maker: c.maker }) : ''}
-<tr><td style="padding:34px 56px 0" class="wm-pad"><p style="margin:0 0 14px;font:10px/1 ${SANS};letter-spacing:.28em;text-transform:uppercase;color:${MUTED}">What the key opens</p>
-<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The archive.</b> Everything ${esc(c.makerFirst)} holds, including what no visitor has seen.</p>
-<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The show.</b> Hang a wall: choose, sequence, a line beside each photograph, a statement. ${esc(c.makerFirst)} approves it and it opens to the house under your name.</p>
-<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26"><b>The share.</b> When a work is collected through your show, a curator&rsquo;s share is yours, paid on Fridays with the makers.</p>
-<p style="margin:0;font:16px/1.65 ${BODY};color:#2c2a26"><b>The Keys.</b> The house&rsquo;s rooms for those who hold one: the benches, the balcony at night, the season&rsquo;s dinners.</p></td></tr>
-${firstKey ? `<tr><td align="center" style="padding:30px 56px 0" class="wm-pad"><p style="margin:0;font:italic 16px/1.6 ${BODY};color:#4a463f">No one has held this key before you. It is numbered, it is never given twice, and the number is yours for as long as there is a house.</p></td></tr>` : ''}
-${button('Accept the keys', c.link)}
-<tr><td align="center" style="padding:16px 56px 0" class="wm-pad"><p style="margin:0;font:12px/1.7 ${SANS};color:${MUTED}">One tap opens the archive, signed in as yourself. Nothing to set up, nothing to install.${c.label ? ` Given to you as ${esc(c.label)}.` : ''}</p></td></tr>
+<tr><td style="padding:34px 56px 0" class="wm-pad"><p style="margin:0 0 14px;font:10px/1 ${SANS};letter-spacing:.28em;text-transform:uppercase;color:${MUTED}">What the link opens</p>
+${lines.map(([k, t], i) => `<p style="margin:0 0 ${i === lines.length - 1 ? 0 : 12}px;font:16px/1.65 ${BODY};color:#2c2a26"><b>${k}.</b> ${esc(t)}</p>`).join('\n')}</td></tr>
+${firstKey ? `<tr><td align="center" style="padding:30px 56px 0" class="wm-pad"><p style="margin:0;font:italic 16px/1.6 ${BODY};color:#4a463f">${esc(firstLine)}</p></td></tr>` : ''}
+${button('Open the archive', c.link)}
+<tr><td align="center" style="padding:16px 56px 0" class="wm-pad"><p style="margin:0;font:12px/1.7 ${SANS};color:${MUTED}">${esc(foot)}</p></td></tr>
 <tr><td align="center" style="padding:34px 48px 46px" class="wm-pad"><p style="margin:0;font:italic 15px/1.6 ${BODY};color:#4a463f">With the compliments of the house.</p></td></tr>`;
-  const text = `${first ? first + ',\n\n' : ''}${c.maker} requests the pleasure of your eye.\n\n${c.makerFirst} has opened the whole archive to you on Watermark: every photograph held there, and the work kept back from the walls, to choose from, to sequence and to hang as a show of your own making.\n\nWhat the key opens:\n- The archive: everything ${c.makerFirst} holds.\n- The show: choose, sequence, a line beside each, a statement; ${c.makerFirst} approves it and it opens under your name.\n- The share: when a work is collected through your show, a curator's share is yours, paid on Fridays.\n- The Keys: the house's rooms for those who hold one.\n${firstKey ? '\nNo one has held this key before you. It is numbered, never given twice, and the number is yours.\n' : ''}\nAccept the keys (one tap, signed in as yourself):\n${c.link}\n\nWith the compliments of the house.\nWatermark`;
-  return { subject: firstKey ? `The first curator’s key, from ${c.maker}` : `${c.maker} requests the pleasure of your eye`, text, html: frame({ base: c.base, preheader: `${c.makerFirst} has opened the archive to you.`, body }) };
+  const text = `${first ? first + ',\n\n' : ''}${c.maker} has opened the archive to you.\n\n${ask}\n\nWhat the link opens:\n${lines.map(([k, t]) => `- ${k}: ${t}`).join('\n')}\n${firstKey ? `\n${firstLine}\n` : ''}\nOpen the archive:\n${c.link}\n\n${foot}\n\nWith the compliments of the house.\nWatermark`;
+  return { subject: `${c.maker} asks you to curate a show`, text, html: frame({ base: c.base, preheader: `${c.makerFirst} has opened the archive to you.`, body }) };
+}
+// The show is open (#225): approval used to reach the curator only as a bell notice. The letter carries the public link,
+// what was left out if the maker opened it without some photographs, and the one sentence on the share.
+// c: { base, name, maker, makerFirst, title, link, n, left: [titles], share, img, href, imgTitle, year }
+function showApproved(c) {
+  const first = c.name ? clean(String(c.name).split(' ')[0]) : '';
+  const left = (c.left || []).filter(Boolean);
+  const open = `${c.makerFirst} approved ${c.title}. It is open to the public under your name: ${c.n} photograph${c.n === 1 ? '' : 's'}.`;
+  const out = left.length ? `${c.makerFirst} opened it without ${left.length === 1 ? 'one photograph, which stays private' : `${left.length} photographs, which stay private`}: ${left.join('; ')}.` : '';
+  const share = `When a work is collected through this link, you earn ${c.share || 'a share of the price, from the house’s share'}, never ${c.makerFirst}’s. It is credited to your pocket at the sale; on Fridays what has cleared goes to your bank, once you have connected one.`;
+  const body = `${kicker('Your show is open')}
+${headline(esc(c.title))}
+${lede(`${first ? `${esc(first)}, ` : ''}${esc(open)}`)}
+${c.img ? mount({ img: c.img, href: c.href || c.link, title: c.imgTitle, year: c.year, maker: c.maker }) : ''}
+<tr><td style="padding:34px 56px 0" class="wm-pad"><p style="margin:0 0 14px;font:10px/1 ${SANS};letter-spacing:.28em;text-transform:uppercase;color:${MUTED}">The public link</p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26;word-break:break-all"><a href="${c.link}" style="color:${INK}">${esc(c.link)}</a></p>
+<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26">Anyone can open it. The address follows the show&rsquo;s title; if the title changes, this link still opens it.</p>
+${out ? `<p style="margin:0 0 12px;font:16px/1.65 ${BODY};color:#2c2a26">${esc(out)}</p>` : ''}
+<p style="margin:0;font:16px/1.65 ${BODY};color:#2c2a26">${esc(share)}</p></td></tr>
+${button('See the show', c.link)}
+<tr><td align="center" style="padding:34px 48px 46px" class="wm-pad"><p style="margin:0;font:italic 15px/1.6 ${BODY};color:#4a463f">With the compliments of the house.</p></td></tr>`;
+  const text = `${first ? first + ',\n\n' : ''}${open}\n\nThe public link:\n${c.link}\n\nAnyone can open it. The address follows the show's title; if the title changes, this link still opens it.\n${out ? `\n${out}\n` : ''}\n${share}\n\nWith the compliments of the house.\nWatermark`;
+  return { subject: `Your show is open: ${c.title}`, text, html: frame({ base: c.base, preheader: `${c.makerFirst} approved it. The public link is inside.`, body }) };
 }
 // The key itself, the moment it is given: the number, and the first three steps.
 function curatorKey(c) {
@@ -267,4 +300,4 @@ ${links([`<a href="${c.base}/keys" style="color:${MUTED}">The Keys</a>`, `<a hre
   const text = `${first ? 'Welcome, ' + first + '.' : 'Welcome.'}\n\nThe curator's key, No. ${c.no}.${c.no === 1 ? ' The first ever given.' : ''} It is yours: numbered in the order given, never reissued.\n\nWhere to begin:\n1. Walk the archive. Tap any photograph to hang it in your show.\n2. Give the show a title and a few lines, and drag the photographs into their order.\n3. Send it to ${c.makerFirst}. When it is approved, it opens to the house under your name.\n\nOpen the archive: ${c.desk}\n\nWe are glad you are here.\nWatermark`;
   return { subject: `The curator’s key, No. ${c.no}`, text, html: frame({ base: c.base, preheader: `Numbered ${c.no}, never reissued.`, body }) };
 }
-module.exports = { collected, sold, ready, frame, friday, looking, curatorInvite, curatorKey };
+module.exports = { collected, sold, ready, frame, friday, looking, curatorInvite, curatorKey, showApproved };

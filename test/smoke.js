@@ -1,4 +1,5 @@
 // End-to-end smoke test: register, view, license (request + paid via signed webhook), certificate, download, ledger.
+process.env.COLLECT = 'on'; // (#208) the smoke walks the Collect's own code, kept behind the setting; test/collectoff.js walks the house with it off
 const assert = require('assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const http = require('http');
@@ -801,7 +802,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'POST', `/w/${w.slug}/thanks`, { cookie: bck, body: { amount: 'own', own: '12' } }); assert.equal(r.status, 303, 'more than the pocket holds goes to Checkout'); assert.ok(r.headers.location.includes('checkout'));
   r = await req(port, 'GET', `/w/${w.slug}?thanks=given`); assert.ok(r.body.toString().includes('1 person has said thank you'), 'counted on the work');
   // Getting paid: the maker's statement is exact (85% of licenses, cards whole), payouts through Stripe wait for PAYOUTS=stripe; a payment by hand is recorded.
-  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank') && r.body.toString().includes('Friday pay.'), 'the statement, with Friday pay');
+  r = await req(port, 'GET', '/account/payouts', { cookie: gck }); assert.ok(r.body.toString().includes('Owed to you now') && r.body.toString().includes('Add your bank') && (r.body.toString().includes('Friday pay.') || r.body.toString().includes('Paid by hand, for now.')), 'the statement, with how the money goes out (#224: one true sentence, by hand until payouts through Stripe are on)');
   { // Friday pay: a sale made today is clearing, not cleared; cleared + clearing = owed; the Friday run is off until Stripe pays.
     const mw = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id); const st = app.locals.payouts.statement(mw);
     assert.ok(st.cleared + st.clearing === st.owed && st.clearing > 0 && st.holdDays === 7 && /day, /.test(st.friday), 'today’s money is clearing: ' + JSON.stringify({ cleared: st.cleared, clearing: st.clearing, owed: st.owed }));
@@ -2788,8 +2789,11 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     const sid = new URL('http://x' + r.headers.location).searchParams.get('show'); assert.ok(sid);
     for (const w of ws) { r = await req(port, 'POST', '/curate/show/' + sid + '/toggle', { cookie: cc, body: { work: w.slug }, headers: { accept: 'application/json' } }); assert.ok(JSON.parse(r.body).in); }
     r = await req(port, 'POST', '/curate/show/' + sid + '/propose', { cookie: cc }); assert.equal(db.prepare('SELECT review FROM hangs WHERE id=?').get(+sid).review, 'proposed');
-    r = await req(port, 'GET', '/curate/show/' + sid, { cookie: cc }); assert.ok(r.body.includes('kept back'), 'the preview shows the kept-back photograph');
-    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc });
+    r = await req(port, 'GET', '/curate/show/' + sid, { cookie: cc }); assert.ok(r.body.includes('not public yet'), 'the preview marks the photograph the public has not seen');
+    // (#225) One press never publishes it: the press is sent to a page that names it, and that page's answer opens the show.
+    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc }); assert.equal(r.status, 303); assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'hidden', 'one press publishes nothing');
+    r = await req(port, 'GET', r.headers.location, { cookie: mc }); assert.ok(r.status === 200 && r.body.includes(require('../src/views').esc(require('../src/views').tidy(ws[1].title))), 'the approval names it');
+    r = await req(port, 'POST', '/account/shows/' + sid + '/approve', { cookie: mc, body: { with: 'all', seen: /name="seen" value="([^"]*)"/.exec(r.body)[1] } });
     const h = db.prepare('SELECT * FROM hangs WHERE id=?').get(+sid); assert.ok(h.review === 'approved' && h.public === 1, 'the show opens');
     assert.equal(db.prepare('SELECT status FROM works WHERE id=?').get(ws[1].id).status, 'held', 'the kept-back photograph is published with it');
     r = await req(port, 'GET', '/curate/' + require('../src/views').makerSlug(cm)); assert.equal(r.status, 302, 'a stranger cannot open the archive'); }
@@ -3013,7 +3017,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
   r = await req(port, 'GET', `/api/v1/verify?sha256=${w.sha256}`); { const j = JSON.parse(r.body); assert.ok(j.genuine && j.work.slug === w.slug, 'verify by fingerprint'); }
   { const dlr = db.prepare('SELECT sha256 FROM downloads WHERE sha256 IS NOT NULL ORDER BY id DESC LIMIT 1').get(); r = await req(port, 'GET', `/api/v1/verify?sha256=${dlr.sha256}`); const j = JSON.parse(r.body); assert.ok(j.genuine && j.delivered && j.delivered.license && !j.says.includes('delivered to'), 'a delivered copy traces, without the person'); }
   r = await req(port, 'POST', '/api/v1/verify', { body: mp('x.jpg', fs.readFileSync(BIG), {}), headers: { 'content-type': 'multipart/form-data; boundary=' + boundary } }); { const j = JSON.parse(r.body); assert.ok(typeof j.genuine === 'boolean' && 'work' in j, 'verify by file'); }
-  r = await req(port, 'GET', `/api/v1/credit/${w.slug}`); { const j = JSON.parse(r.body); assert.ok(j.text.includes('©') && j.html.includes('wm-credit') && j.short.includes('watermark.krafftco.com'), 'the credit'); }
+  r = await req(port, 'GET', `/api/v1/credit/${w.slug}`); { const j = JSON.parse(r.body); assert.ok(j.text.includes('©') && j.html.includes('wm-credit') && j.short.includes(require('../src/address').host()), 'the credit'); }
   r = await req(port, 'GET', `/api/v1/register/${w.slug}`); { const j = JSON.parse(r.body); assert.ok(j.entries.length > 0 && j.entries[0].hash && !j.entries.some(e => /^(signin|dispute)\./.test(e.type)), 'the public register, signed'); }
   r = await req(port, 'GET', `/oembed?url=${encodeURIComponent('http://localhost/w/' + w.slug)}`); { const j = JSON.parse(r.body); assert.equal(j.version, '1.0'); assert.ok(j.html.includes('watermark-image') && j.author_name, 'oEmbed rich'); }
   r = await req(port, 'GET', `/w/${w.slug}`); assert.ok(r.body.toString().includes('application/json+oembed'), 'oEmbed discovery on the page');

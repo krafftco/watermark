@@ -2,10 +2,10 @@
    Loaded on Krafft Studios (and any Krafft site). On a story, it asks Watermark which photographs are held
    there, then sets a small K seal in the corner of each one. Pressing it opens that photograph on Watermark,
    at checkout, to be collected; photographs held privately open a license request to the maker. At the end of the story, a quiet line leads to the room and to patronage.
-   Served from watermark.krafftco.com/k.js; change it only here. */
+   Served from the house's own address (/k.js, which writes that address in); change it only here. */
 (function () {
   if (window.__krafftK) return; window.__krafftK = 1;
-  var WM = 'https://watermark.krafftco.com';
+  var WM = '{{HOUSE}}'; if (WM.charAt(0) === '{') WM = (function () { try { return new URL(document.currentScript.src).origin; } catch (e) { return location.origin; } })();
   var GLYPH = '<svg viewBox="0 0 51.66 51.88" fill="currentColor" aria-hidden="true"><path d="M20.35.14L.14,26V0c7.28,0,20.21.14,20.21.14Z"/><polygon points="51.66 51.88 31.73 51.84 27.51 45.27 38.12 32.14 51.66 51.88"/><polygon points="0 41.9 .14 51.71 9.97 51.84 51.66 .3 31.8 .14 0 41.9"/></svg>';
   var css = ''
     + '.wk{position:absolute;right:12px;bottom:12px;z-index:5;-webkit-tap-highlight-color:transparent}'

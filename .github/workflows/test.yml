@@ -155,6 +155,8 @@ jobs:
       - run: NODE_ENV=test node test/wayback.js
       # An album in Wander (PR #200): the order, the acts as the rules allow, the way back, the card, a stranger refused.
       - run: NODE_ENV=test node test/albumwander.js
+      # Guests add their own photographs (#203): the guest, the letter, the studio, the photographer's choice, the group, a stranger, a phone.
+      - run: NODE_ENV=test node test/albumguests.js
   # The reach walk (#42): every control on every page pressable at iPad, phone and desk sizes, in both rotations.
   reach:
     runs-on: ubuntu-24.04
@@ -260,4 +262,4 @@ jobs:
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
           psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask keptcopies; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask keptcopies albumguests; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

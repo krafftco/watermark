@@ -5,6 +5,79 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.4 · A photographer's first ten minutes, tightened · 24 November 2026
+
+- From your studio, a work's title now opens its own desk, where its print editions and prices are set; so does the Library's large view, and your own public page offers "Edit this work".
+- Offering a print through the house's print room from a master under 24 MP is refused with the reason, and the choice is greyed on the form. Before, it answered "saved" and the print never appeared.
+- Putting work in: a raw file is named and left out, with what to bring instead. A folder can be chosen, or dropped on the page. A file under 12 MP is held with a line saying what it can and cannot be licensed for.
+- The Library on a phone: the sentence you agree to before publishing reads as one paragraph; pressing "Publish them" without the tick says so; with nothing selected the page says to select what to publish.
+- A title keeps a word that opens with a figure as you typed it: "81st", "5am".
+- The print editions on a work's desk stack on a phone instead of running off the side.
+- An invitation link opened a second time, on another device, offers "Sign in with your email".
+- First steps ticks "Your best in front" when you publish; a grade is not needed.
+- A guest adding to an album: a file over the album's size is named before anything is sent, and the form keeps what was typed.
+- A print's page says that sending is included in the price, and names the countries a print is sent to; they are the ones the payment page accepts.
+
+## 1.94.3 · A print buyer's papers match what they bought; the public certificate proves the piece and names no one · 24 November 2026
+
+Every new sentence here is a draft for Will. No price, share or fee changed.
+
+- After buying a print, the piece's room, the certificate, the thank-you page, the PDF and the receipt letter speak of a print: where the order is (near the top), the papers, "What you hold", and when the maker is paid. They no longer offer a file, downloads, printing it yourself or a proof, or say "licensed to". The print carries its own number in its edition. Licenses of files read as before.
+- The public certificate shows only what proves the piece: the work, the maker, the edition and number, the date, that it is genuine and held, and the register entry. It does not show the holder's name, the price paid or the split. The holder, the maker and the Studio see all of it as before. A holder may tick "Show my name on the public certificate" in the piece's room; it is off unless ticked.
+- The license page says the total, the maker's part and the house's share correctly. The work's page offers a print once: where an edition is on offer, "On a wall" leads to it.
+- Letters fit a phone: a bare link wraps, and "Type it, or tap it." is printed only beside a code.
+- A picture of yourself that you keep now hangs in your gallery, as the page said. The letter for a kept picture is the house's own.
+- The payouts page says one thing about the share and one about how the money goes out; the prices page no longer asks a price for the retired Collect and Reference. A "Collect it" link that led nowhere is gone. The papers tab speaks of a gallery's address. A print its maker makes is said to be with its maker.
+- The signed-in holder of a print can open the agreement they accepted. Signed out, the certificate shows the way in.
+## 1.94.2 · A curator's first ten minutes · 24 November 2026
+
+- What a curator earns is said once, the same way, in the invitation, in the curator's room and on the public show: ten percent of the price of a work collected through the show, from the house's share, never the maker's; credited at the sale, and sent to a bank on Fridays once one is connected. Nothing about the share changed; the words now match it.
+- When a maker approves a show, the curator gets a letter with the public link, as well as the notice.
+- A show's address follows its title. An address it had before still opens it.
+- The public link is at the head of the curator's preview and beside the show on the desk, with a Copy button. A show that is not yet approved says plainly that it has no public link, and no longer offers a Share button that led nowhere.
+- Approving a show never publishes a photograph the public has not seen at one press. The maker is shown each one by name and opens the show with them or without them. A photograph the maker has kept back stays private either way.
+- Curators is back on a maker's short menu, on Every room, and in Find.
+- The curator's invitation is plainer about what the link opens and what happens next.
+
+## 1.94.1 · A credential issued at the old address still checks · 23 November 2026
+
+- The house's identity for credentials is tied to its address. When the house moves, it keeps the identity it had: the old address still answers for it, with the same key, and the new address names the old one as its own.
+- A license or an authorship credential saved before the move checks after it. New ones are issued under the new address.
+- Nothing changes today: until the new address is switched on, the house has one identity, as before.
+
+## 1.94.0 · The house can stand at its own address · 23 November 2026
+
+- The house's address is one setting. Every page, letter, card, paper, feed and file that names the house reads it; nothing else spells a host.
+- When the house moves, the address it left sends every visitor on to the same page at the new one: albums with their links, pictures, downloads, certificates, register entries. Papers already issued are not rewritten; their links keep working.
+- Nothing changes today: the house stays where it is until the new address is switched on.
+
+## 1.93.1 · The story card, made for Instagram · 22 November 2026
+
+- An album's story and post cards, and a work's own, now end with the house's logo, drawn in the card's quiet grey, in place of the word typed.
+- On a story, everything stands between Instagram's name bar and its reply bar, so nothing is hidden under "Add to your story". A post keeps a margin of dark on every side.
+- Under the credit, the photographer's Instagram handle when their account has one. No address of an album is ever drawn on a card.
+- In the album, Post and Story hand the card to the phone's share sheet, so it goes straight into Instagram; elsewhere it downloads. Beside them, "Tag @handle" with a copy button, when the photographer has a handle.
+- Cards already made are drawn again.
+
+## 1.93.0 · Transparent, not cheap: the price is on the label · 22 November 2026
+
+Every sentence below is a draft for Will. No price was added or changed.
+- The few-dollar Collect is no longer offered, and neither is the Reference. Nothing sits on or over a picture to buy: not on a work's page, in Wander, on the front, in the collection or in the hall. The setting COLLECT=on brings both back as they were.
+- Each work's page has a wall label under the picture: the maker, the title and year, the edition and what remains, and the price of the print in plain figures where a print is offered. Never "on request".
+- A licence's price is shown in the licence check, not beside the picture.
+- What was collected stays collected: the pieces, their papers, their entries on the register and the holder's room are unchanged, and a holder can still offer a piece on the market. The market issues nothing new.
+- The stand's code now opens the work's own page and its label; the Instax print is as before. A standing order already running keeps its monthly piece; no new one begins. The monthly letter that offered a Collect is not sent.
+
+## 1.92.0 · Guests add their own photographs to an album · 22 November 2026
+
+- Anyone an album is shared with can now add the pictures they took, from a phone or a computer, many at once: "Add your photographs" on the album and in Wander from the album. A name and an email; no password.
+- One letter goes to that email. Until its link is pressed, nobody sees the pictures. The link opens the guest's own studio, with their pictures in it, private and theirs.
+- The album's photographer sees them as "Added by" the guest and chooses which the album shows. Shown pictures sit below the photographer's own, in "From the guests", credited by first name, and are a walk of their own in Wander. The group can heart, download and share them as the album allows; prints and licences stay with the photographer's pictures.
+- In their studio a guest sees each picture marked "Shared with" the album, and what kind of file it is (a phone copy or a full file), and can take any picture out of the album; it stays theirs.
+- Every album now names its photographer under the title, with a link to their page when they have one, and "Ask them to photograph your night", which opens the commission door. The same line ends Wander from the album.
+- A video, a file larger than an album takes, or anything that is not a photograph is turned away with a sentence saying why. A closed album takes nothing.
+- Repaired: the "That's me" form no longer shows, empty, on every album page.
+
 ## 1.91.0 · One link to answer with · 22 November 2026
 
 Every sentence below is a draft for Will; the credit-only clause and the license a photographer writes are questions for counsel (docs/COUNSEL.md 51 to 53). No price was added or changed. The house takes no share of a license a photographer arranges alone.
