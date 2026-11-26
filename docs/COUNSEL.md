@@ -47,7 +47,7 @@ The Standard Content License is counsel's own 2021 draft; the notes on it are in
 20. Holds (the house may make a studio private while it looks at something). Reasonable-notice wording.
 
 ### The Curator and Gallery Agreement
-21. The curation share (5% from the house's side) credited to a pocket and cashed out: any finder's-fee, agency or 1099 consequence for curators; the threshold for 1099-NEC.
+21. The curation share (10% of the price, from the house's side: `CURATOR_PCT` in `src/hangs.js` and the Curator and Gallery Agreement's own words; this packet said 5% until 26 Nov, the figure before 29 Oct) credited to a pocket and cashed out: any finder's-fee, agency or 1099 consequence for curators; the threshold for 1099-NEC.
 22. Representation: a gallery's percentage of the maker's side, one gallery at a time, ended on notice; the gallery's standing in the Standard Content License; exclusivity. Confidentiality of kept-back work under keys.
 23. Openings and reply cards: guest data held for the show only.
 
@@ -81,6 +81,19 @@ Kept by the `counsel-clerk` seat from the changes merged 12 to 19 November. What
 - **C6.** The repository that holds the house's code, its record of faults, the scout's weekly list of people to invite, the exposure list and this packet is reported public by GitHub [28]. Should any of these be kept where the public can read them? Is GitHub a processor to list (14)?
 - **C7.** Accessibility: the release notes now say "Accessibility is checked on every change" and "Every control in reach" (`docs/LEGAL-EXPOSURE.md` 3). Do they read as a statement of conformance before the statement at /accessibility (#6) is written?
 - **C8.** Money: the sums of what each maker is owed and each collector's pocket are computed a new way, held equal to the old by a test, not by the live books (`docs/LEGAL-EXPOSURE.md` 6). If a statement or a payment is ever wrong, what may the house correct, and must the agreements say so?
+
+### Added in the week to 26 November 2026
+Kept by the `counsel-clerk` seat from the changes merged 19 to 25 November. What was built and what is not known is in `docs/LEGAL-EXPOSURE.md`, section F, under the number in brackets. They are lettered D1 to D9 (the clerk's second week), as C1 to C8 were, so that each keeps its mark as the packet's numbers grow. The questions the week's own pull requests wrote are already above and below (35 to 54). Question 21 and the last line of this packet said a curator's share was 5%; the code and the agreement say 10%, and both lines are corrected.
+
+- **D1.** The public certificate showed any visitor the holder's name, the price paid and the split until 24 November; it now names no one unless the holder ticks it [29]. Does anything follow for those holders, and what should be established first? May the sums of sales stay in the public register, which is built not to be changed, beside the rule of question 43?
+- **D2.** The Collect and the Reference are no longer offered; what was collected is still held and can still change hands; standing orders already running go on [30]. What should the agreements say of a withdrawn offer, what must a person with a standing order be told, and which of questions 4, 5 and 44 to 48 does counsel still want answered?
+- **D3.** A print the photographer makes or hands over, which the house never sees, with papers issued at payment; and prints now sent to ten countries, where Prints and proofs says the United States [31]. Who sells such a print and who answers for it? What must a buyer abroad be told before the first one is sent (6, 26)?
+- **D4.** "On view at": a place named on a maker's word, and "<place> represents this work" on the maker's tick [32]. May the house publish that of a named gallery, fair or museum without asking it, and is the claim door, with no sale paused, the right way for the place to object?
+- **D5.** A private upload not yet hung was not guarded as a kept-back picture is, on its picture addresses and the doors under its page, until 22 November; a kept-back picture is now also seen by a licence's holder and an album's people; approving a curator's show used to publish unseen photographs at one press [33]. Is there a duty to tell makers, and what should be established first? What is owed about copies kept outside the house when a work leaves the walls or comes down on a claim? (Beside C3.)
+- **D6.** The house now refuses to enlarge an edition, or to lower a print's price, once one has sold [34]. May the house hold a maker to that price, and where must the rules be written for a maker and a collector to rely on them? (Beside 43.)
+- **D7.** The house can be moved to another address; the Terms name their address, so their fingerprint changes with it [35]. Must anyone accept again, and what must change on the day (24, 31)?
+- **D8.** A guest who adds photographs to an album has a studio from then on, and no age is asked; a guest's picture the house has not yet read can be shown to the album's people on the photographer's look; a picture that arrived while the AI account was out of credit was, until 22 November, never read [36]. Must the guests' door ask an age? What should the house do about pictures taken in while its reading was not running? (Beside 54.)
+- **D9.** The documents beside the house: `docs/REDLINE.md` (21 November, #188) lists about a dozen places where the Terms, Privacy, the Maker Agreement and Prints and proofs say one thing and the code does another, with words to consider, and changes none of their text; fonts came from Google until that day (`docs/LEGAL-EXPOSURE.md` 1 and 4). Does counsel want it as the working list, and which lines come first?
 
 ### The sources (#170, `docs/SOURCES.md`)
 Questions only; the terms quoted are in SOURCES.md with their links and the date read (20 Nov 2026).
@@ -131,4 +144,4 @@ Question only. Anyone an album is shared with may add their own photographs. Eac
 ## For Will, before counsel reads this
 - Decide the entity (task due 23 Oct) and the CPA's view on the split and sales tax.
 - Register the DMCA agent.
-- Say which of the draft numbers are confirmed: 85/15, the curator's 5%, the proof's $25, seats $50, the market's 10% royalty and 5% fee, Keeping's tiers.
+- Say which of the draft numbers are confirmed: 85/15, the curator's share (the code and the Curator and Gallery Agreement say 10%; this line said 5% until 26 Nov), the proof's $25, seats $50, the market's 10% royalty and 5% fee, Keeping's tiers.
