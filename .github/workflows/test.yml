@@ -238,6 +238,9 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:wm@localhost:5432/wm
       NODE_ENV: test
+      # (#162) The restore drill does not begin unless the scratch restore is known to fit on the database server. This
+      # server is a container whose disk the test cannot measure, so its room is vouched for here, as on Render.
+      DRILL_MIN_FREE_MB: '8000'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -262,4 +265,4 @@ jobs:
           run node test/smoke.js test/fixture.jpg
           run node scripts/sql-check.js
           psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/instances.js # (#123) two website copies (ROLE=web), one database; after sql-check, which reads the smoke's whole house (a web-only house lacks what the chores add, e.g. works.title_given)
-          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask keptcopies albumguests; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done
+          for t in vault drop beta fee boot moma pricebook privatedesk pdday diskless commission nga statements numbers-shut pglimit manyhands ledgerwalk prepared onview market-rules finddb findask keptcopies albumguests backup; do psql "$DATABASE_URL" -qc "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && run node test/$t.js || exit 1; done

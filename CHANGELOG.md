@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.6 · The restore drill runs again, and says why when it does not · 27 November 2026
+
+- The weekly restore drill had not run since 20 November: it was switched off for a database copy over 200 MB, and the house's health showed only that it had not passed. The nightly copies were made throughout. The drill now fetches the copy back to disk as a stream, whatever its size, restores it and checks it against the live register as before, and checks the fingerprint taken when the copy was made.
+- A drill that fails is written down with the step it reached, how long it took and what it said, on the Studio's Backups page and in the house's health; the house is written to and the alarm raised; and it is tried again after the next night's copy, not the next Sunday. A drill begins by itself only in the night.
+- The drill restores a second copy of the database beside the live one, so it does not begin unless that copy is known to fit on the database server; when it does not begin, it says so and why, in the same places.
+- The house's health calls the backups stale when no drill has passed in eight days, as it does when a night's copy is missing.
+- The nightly copy is sealed and sent to the vault as a stream, in parts; it is no longer held in memory.
+
 ## 1.94.5 · Wander's shelf no longer reads whole books · 27 November 2026
 
 - Wander answered "unavailable" several times a day on 25, 26 and 27 November. Its shelf of passages read whole books each time a visitor opened it, to choose one paragraph. The passages are now chosen ahead of time and kept; a visitor's page reads only the few it shows.

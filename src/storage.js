@@ -4,6 +4,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { Transform, pipeline } = require('stream');
+const pipe = require('stream/promises').pipeline;
 
 // Watermark's own key. With VAULT_KEY set (any random secret of 32+ characters; Render generates one), every object is sealed with
 // AES-256-GCM before it leaves the server, so the storage provider holds only what it cannot read.
@@ -11,7 +13,7 @@ const crypto = require('crypto');
 // keep it in two safe places.
 const MAGIC = Buffer.from('WMV1');
 function sealer(keyB64) {
-  if (!keyB64) return { on: false, seal: b => b, open: b => b };
+  if (!keyB64) return { on: false, seal: b => b, open: b => b, sealStream: () => new Transform({ transform(c, e, cb) { cb(null, c); } }), openStream: () => opener(null) };
   if (String(keyB64).length < 32) throw new Error('VAULT_KEY must be at least 32 characters.');
   const key = crypto.createHash('sha256').update('watermark-vault:' + keyB64).digest();
   return {
@@ -22,7 +24,46 @@ function sealer(keyB64) {
       const d = crypto.createDecipheriv('aes-256-gcm', key, b.subarray(4, 16)); d.setAuthTag(b.subarray(b.length - 16));
       return Buffer.concat([d.update(b.subarray(16, b.length - 16)), d.final()]);
     },
+    // The same seal as a stream (#162, 27 Nov): the same bytes on the far side (WMV1, the nonce, the sealed body, the
+    // tag), so `open` reads what `sealStream` wrote and `openStream` reads what `seal` wrote; nothing is held but the
+    // chunk in hand. What `openStream` passes on is not yet proven: the tag is checked at the end, and a copy that
+    // fails it ends the stream with an error, so a reader must wait for the end before trusting what it wrote.
+    sealStream() {
+      const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', key, iv); let head = false;
+      return new Transform({
+        transform(chunk, enc, cb) { if (!head) { head = true; this.push(MAGIC); this.push(iv); } cb(null, c.update(chunk)); },
+        flush(cb) { try { if (!head) { this.push(MAGIC); this.push(iv); } this.push(c.final()); this.push(c.getAuthTag()); cb(); } catch (e) { cb(e); } },
+      });
+    },
+    openStream() { return opener(key); },
   };
+}
+// Reads a sealed stream or a plain one (a file from before the key): the first sixteen bytes decide, as in `open`.
+function opener(key) {
+  let head = Buffer.alloc(0), d = null, plain = false, tail = Buffer.alloc(0);
+  return new Transform({
+    transform(chunk, enc, cb) {
+      try {
+        if (plain) return cb(null, chunk);
+        if (!d) {
+          head = Buffer.concat([head, chunk]); if (head.length < 16) return cb();
+          if (!key || !head.subarray(0, 4).equals(MAGIC)) { plain = true; const h = head; head = null; return cb(null, h); }
+          d = crypto.createDecipheriv('aes-256-gcm', key, head.subarray(4, 16)); chunk = head.subarray(16); head = null;
+        }
+        const all = tail.length ? Buffer.concat([tail, chunk]) : chunk; // the last sixteen bytes are the tag: held back until the end
+        if (all.length <= 16) { tail = all; return cb(); }
+        tail = Buffer.from(all.subarray(all.length - 16)); cb(null, d.update(all.subarray(0, all.length - 16)));
+      } catch (e) { cb(e); }
+    },
+    flush(cb) {
+      try {
+        if (plain) return cb();
+        if (!d) return cb(null, head && head.length ? head : undefined); // shorter than a seal's head: as it is
+        if (tail.length !== 16) throw new Error('the sealed copy is cut short');
+        d.setAuthTag(tail); cb(null, d.final());
+      } catch (e) { cb(/authenticate/.test(e.message) ? new Error('the seal does not verify (the copy was changed, cut short, or sealed with another key)') : e); }
+    },
+  });
 }
 
 function localStore(root) {
@@ -35,6 +76,8 @@ function localStore(root) {
     async del(key) { try { fs.unlinkSync(p(key)); } catch (e) { /* gone */ } },
     async size(key) { try { return fs.statSync(p(key)).size; } catch (e) { return null; } },
     async download(key, file) { fs.copyFileSync(p(key), file); },
+    async putStream(key, body) { fs.mkdirSync(path.dirname(p(key)), { recursive: true }); const part = `${p(key)}.${process.pid}.part`; try { await pipe(body, fs.createWriteStream(part)); fs.renameSync(part, p(key)); } catch (e) { try { fs.unlinkSync(part); } catch (x) { /* */ } throw e; } },
+    async stream(key) { return fs.existsSync(p(key)) ? fs.createReadStream(p(key)) : null; },
   };
 }
 
@@ -115,6 +158,32 @@ function s3Store({ bucket, region, endpoint, client }) {
       try { await c.send(new S3.PutBucketCorsCommand({ Bucket: bucket, CORSConfiguration: { CORSRules: [...rules.filter(r => !(r.AllowedOrigins || []).some(o => origins.includes(o))), want] } })); return 'set'; }
       catch (e) { if (e.$metadata && e.$metadata.httpStatusCode === 403) return 'forbidden'; return 'error: ' + e.message.slice(0, 80); }
     },
+    // A stream into the bucket (#162): in parts of PART bytes, so a database copy of any size is sent holding one part.
+    // What fits in one part goes as one object, as `put` sends it. A failed upload is aborted, never left half-made.
+    async putStream(key, body, type = 'application/octet-stream') {
+      const PART = Math.max(5, +process.env.VAULT_PART_MB || 16) * 1048576;
+      let held = [], n = 0, id = null; const parts = [];
+      const send = async buf => { const r = await c.send(new S3.UploadPartCommand({ Bucket: bucket, Key: key, UploadId: id, PartNumber: parts.length + 1, Body: buf })); parts.push({ PartNumber: parts.length + 1, ETag: r.ETag }); };
+      try {
+        for await (const chunk of body) {
+          held.push(chunk); n += chunk.length;
+          while (n >= PART) {
+            const all = held.length === 1 ? held[0] : Buffer.concat(held);
+            if (!id) id = (await c.send(new S3.CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: type, ...(isR2 ? {} : { ServerSideEncryption: 'AES256' }) }))).UploadId;
+            await send(all.subarray(0, PART)); const rest = all.subarray(PART); held = rest.length ? [rest] : []; n = rest.length;
+          }
+        }
+        const last = held.length === 1 ? held[0] : Buffer.concat(held);
+        if (!id) return await this.put(key, last, type);
+        if (last.length) await send(last);
+        await c.send(new S3.CompleteMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: id, MultipartUpload: { Parts: parts } }));
+      } catch (e) { if (id) { try { await c.send(new S3.AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: id })); } catch (x) { /* gone */ } } throw e; }
+    },
+    // the object as a stream, as it lies in the bucket; null when there is none
+    async stream(key) {
+      try { return (await c.send(new S3.GetObjectCommand({ Bucket: bucket, Key: key }))).Body; }
+      catch (e) { if (e.name === 'NoSuchKey' || (e.$metadata && e.$metadata.httpStatusCode === 404)) return null; throw e; }
+    },
     // the object as it is, unsealed, written to a file (for an arrival, which came from a browser and is not sealed)
     async download(key, file) { const r = await c.send(new S3.GetObjectCommand({ Bucket: bucket, Key: key })); await new Promise((res, rej) => { const w = fs.createWriteStream(file); r.Body.pipe(w).on('finish', res).on('error', rej); r.Body.on('error', rej); }); },
   };
@@ -130,6 +199,10 @@ function createStore(cfg) {
     list: prefix => raw.list(prefix),
     del: key => raw.del(key),
     size: key => raw.size(key),
+    // From disk and to disk, as streams (#162): a file sealed on its way out and opened on its way back, never held
+    // whole. For the database's copies; a master under the lock still goes by `put`, which knows the lock.
+    putFile: (key, file, type) => new Promise((resolve, reject) => { const sealed = pipeline(fs.createReadStream(file), k.sealStream(), () => {}); raw.putStream(key, sealed, type).then(resolve, e => { sealed.destroy(); reject(e); }); }),
+    async readStream(key) { const src = await raw.stream(key); if (!src) return null; return pipeline(src, k.openStream(), () => {}); },
     // In the open (5 Nov): display copies go to the bucket unsealed, since they are public pictures and an edge may one day read them straight from the bucket.
     plain: { put: (key, body, type) => raw.put(key, Buffer.isBuffer(body) ? body : fs.readFileSync(body), type), get: key => raw.get(key), size: key => raw.size(key), del: key => raw.del(key) },
     multipart: raw.multipart || null, download: raw.download || null, ensureCors: raw.ensureCors || null, lock: raw.lock || null, retainAll: raw.retainAll || null,

@@ -426,3 +426,20 @@ The CTO session keeps it honest.
 - SQLite reads a row's overflow pages to reach a column that sits after `body` (`updated_at`, `subscribers_only`);
   Postgres does not open the body for them. A time on SQLite for a texts statement that never names `body` can
   still grow with the book's size; judge those on Postgres (BIG_PG).
+
+## Backups and the drill (#162)
+- The vault has two roads: `put`/`get` hold the object whole (masters, small things); `putFile`/`readStream` are streams
+  in the same sealed format (`WMV1`, nonce, body, tag), for the database's copies. What `readStream` passes on is proven
+  only at its end (the tag): write it to a file and trust the file after the pipeline resolves, never before.
+- A bucket takes a stream in parts of `VAULT_PART_MB` (16; 5 in `test/backup.js`). The stand-in clients in `test/s3.js`
+  and `test/vault.js` know no part commands; `test/backup.js` has one that does.
+- A drill is a `backup_runs` line from its start (`step='begun'`, `ok=0`) and is updated when it ends. A reader that
+  asks "did the last drill fail" must allow for one under way (`summary().drill.running`).
+- The drill never begins unless the scratch restore is known to fit on the database server (`room()` in backup.js).
+  A server not on the test's machine (CI's container, Render) needs `DRILL_MIN_FREE_MB`; CI's `postgres` job sets it,
+  `test/backup.js` sets its own. A smoke run against a remote Postgres without it fails at "the drill restores".
+- The drill is due only after a copy made in the night (`drillDue(now, { copied })`); nothing starts one by the clock.
+- Memory in a test: the kernel's high-water mark (`resourceUsage().maxRSS`) of a child begins at its parent's size.
+  Sample `process.memoryUsage().rss` inside the child instead.
+- `test/backup.js` writes about four times `BACKUP_TEST_MB` (256) to TMPDIR and, on Postgres, as much again on the
+  server. A full-size run (660 MB) wants 5 GB free; this machine had 3.6 GB on 27 Nov and it was not run.
