@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.7 · In Wander the bar keeps away · 27 November 2026
+
+- On a phone, Wander's bar at the foot (Wander, Find, You) came back at every picture and only dimmed when the room was still. It now leaves with the rest: gone as a picture arrives and while you look, back for a few seconds when you tap the picture. The first picture still shows it.
+
 ## 1.94.6 · The restore drill runs again, and says why when it does not · 27 November 2026
 
 - The weekly restore drill had not run since 20 November: it was switched off for a database copy over 200 MB, and the house's health showed only that it had not passed. The nightly copies were made throughout. The drill now fetches the copy back to disk as a stream, whatever its size, restores it and checks it against the live register as before, and checks the fingerprint taken when the copy was made.

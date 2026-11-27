@@ -5159,7 +5159,9 @@ html.dv-veiled .dv img,html.dv-veiled .dvo img{filter:blur(28px) brightness(.6);
   body:has(.tb) .vtog{bottom:calc(68px + env(safe-area-inset-bottom))}
   body:has(.tb) main.st .st-plate,body:has(.tb) main.st .st-rail{bottom:calc(70px + env(safe-area-inset-bottom))}
   body:has(.tb) main.st .st-im{padding-bottom:56px}
-  body:has(main.st.st-still) .tb{opacity:.15}
+  /* In Wander the bar keeps away with the rest (#235, Will 27 Nov: "why does the footer keep coming up"): gone on
+     arrival and when the room is still, back on a tap; the first screen keeps it so a newcomer sees it exists. */
+  body:has(main.st.st-still) .tb,body:has(main.st.st-arr) .tb{opacity:0;pointer-events:none}
   body:has(.tb) main.st .st-look,body:has(.tb) main.st .st-top [data-find-open]{display:none}
   body:has(.tb) .lr-bar2{bottom:calc(56px + env(safe-area-inset-bottom));padding-bottom:8px}
   body:has(main.st.st-zoom) .tb,body:has(main.st.st-holding) .tb,body:has(main.st.st-sitting) .tb,body:has(.wv.lit) .tb,html.in-stay .tb{opacity:0;pointer-events:none;transform:translateY(100%)}
