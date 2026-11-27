@@ -29,7 +29,7 @@ The promotion walks what it promoted (#66): its push, made with the workflow's o
 | Mon–Fri 06:30 | the promotion, then the live walk | GitHub |
 | every 10 min | the watch: origin and edge, four doors | GitHub |
 | daily 03:00 | the nightly backup (BACKUP_HOUR 7 UTC) | the worker |
-| Sunday 03:00 | the restore drill | the worker |
+| Sunday 03:00 | the restore drill; any night after one that failed, or when none has passed in a week | the worker |
 | daily 02:30 | the import fire drill | GitHub |
 | daily 08:00 | the digest to the house (DIGEST_HOUR 13 UTC) | the worker |
 | Friday 09:00 | the makers' Friday letters | the worker |
@@ -55,6 +55,7 @@ The promotion walks what it promoted (#66): its push, made with the workflow's o
 - A bad deploy: `scripts/rollback.sh` (revert HEAD and push), or Render → Rollback to the previous deploy.
 - Closed for the moment (Studio → Launch) answers every write 503 for a move or a restore; GET pages keep serving.
 - Backups: Studio → Back office → Backups; by hand `node scripts/restore.js`.
+- The restore drill (#162, 27 Nov): the latest copy is fetched back as a stream (unsealed, unzipped and fingerprinted on its way to the worker's disk, never held whole), restored into a scratch database on the same server, its register compared with the live one and verified, and the scratch database dropped. It needs, for its minutes: room on the worker's disk for the copy unzipped, and room on the database server for a second copy of the database. `pg_restore` is allowed `DRILL_RESTORE_MIN` (45). A failure is one line under Runs with its step, its seconds and its words, the same on `/healthz` (`backup.drill`: `ok`, `step`, `secs`, `error`, `passed`), a letter to the house, and the alarm; it is tried again after the next night's copy. `backup.stale` is true when no good copy was made in 26 hours (`backupStale`) or no drill has passed in `DRILL_STALE_DAYS` (8; `drillStale`). A line that stays "begun, not finished" is a drill whose process was ended under it: read the worker's log at that minute. The worker logs `[drill] …` when one passes and `[drill] failed at <step>: …` when one does not.
 
 ## Moving the house's address
 

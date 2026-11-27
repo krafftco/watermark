@@ -415,3 +415,15 @@ The CTO session keeps it honest.
 - A walk in a browser: `.lib-tk` (a tile's tick) is under the picture for Playwright's pointer; `dispatchEvent('click')` on it selects. An album's `share_token` is made when its desk page is first opened.
 - A test house has no Stripe: `/w/:slug` offers no print there (editions.js `canSell`), so prove an offer with test/firstsale.js's stub.
 
+## Backups and the drill (#162)
+- The vault has two roads: `put`/`get` hold the object whole (masters, small things); `putFile`/`readStream` are streams
+  in the same sealed format (`WMV1`, nonce, body, tag), for the database's copies. What `readStream` passes on is proven
+  only at its end (the tag): write it to a file and trust the file after the pipeline resolves, never before.
+- A bucket takes a stream in parts of `VAULT_PART_MB` (16; 5 in `test/backup.js`). The stand-in clients in `test/s3.js`
+  and `test/vault.js` know no part commands; `test/backup.js` has one that does.
+- A drill is a `backup_runs` line from its start (`step='begun'`, `ok=0`) and is updated when it ends. A reader that
+  asks "did the last drill fail" must allow for one under way (`summary().drill.running`).
+- Memory in a test: the kernel's high-water mark (`resourceUsage().maxRSS`) of a child begins at its parent's size.
+  Sample `process.memoryUsage().rss` inside the child instead.
+- `test/backup.js` writes about four times `BACKUP_TEST_MB` (256) to TMPDIR and, on Postgres, as much again on the
+  server. A full-size run (660 MB) wants 5 GB free; this machine had 3.6 GB on 27 Nov and it was not run.
