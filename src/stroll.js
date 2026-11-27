@@ -157,7 +157,7 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     const seen = String(req.query.seen || '').split(',').filter(Boolean);
     const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
     const n = Math.max(1, Math.min(16, parseInt(req.query.n, 10) || PAGE));
-    if (req.query.in === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages(seen, n) : []; return res.set('Cache-Control', 'no-store').json({ items, end: items.length < n, label: 'The shelf', href: '/library' }); }
+    if (req.query.in === 'shelf') { const CP = app.locals.commonplace; let items = []; try { items = CP ? CP.passages(seen, n) : []; } catch (e) { console.error('[shelf]', e.message); /* (#126) the shelf never fails Wander */ } return res.set('Cache-Control', 'no-store').json({ items, end: items.length < n, label: 'The shelf', href: '/library' }); }
     if (req.query.in) { const r = await inSet(req, req.query.in, { seen, n }); if (r) return res.set('Cache-Control', 'no-store').json({ items: r.items, end: r.items.length < n, label: r.label, href: r.href }); }
     const items = await next(req, { seen, q, maker, n });
     res.set('Cache-Control', 'no-store').json({ items, q, maker });
@@ -382,7 +382,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     const atSlug = atIn || req.query.at;
     let at = atSlug ? await (isDelivery(key) ? adb.get("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')", String(atSlug)) : adb.get("SELECT * FROM works WHERE slug=? AND status='held'", String(atSlug))) : null;
     // The readers' feed (Will, 27 Oct): Wander, for words. One passage a screen, on the paper.
-    if (key === 'shelf') { const CP = app.locals.commonplace; const items = CP ? CP.passages([], 6) : []; res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
+    if (key === 'shelf') { const CP = app.locals.commonplace; let items = []; try { items = CP ? CP.passages([], 6) : []; } catch (e) { console.error('[shelf]', e.message); /* (#126) the shelf never fails Wander: the room opens without it */ } res.set('Cache-Control', 'private, no-store'); return res.send(strollPage({ items, set: { key, label: 'The shelf', href: '/library', n: 0, via: null }, I, front, shelf: true })); }
     const set = key ? await inSet(req, key, { at: at ? at.slug : '', n: 6 }) : null;
     if (isDelivery(key) && !set) return res.redirect(key.startsWith('album:') ? '/a/' + encodeURIComponent(key.slice(6).replace(/\.guests$/, '')) : '/deliver/' + encodeURIComponent(key.slice(9).replace(/\.guests$/, ''))); /* (#203) the guests' walk is part of its album */ // closed, or not an album: its own door says so
     // (#198) Opened at a work not on view: only through the album that holds it, or for those it is for.

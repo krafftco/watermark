@@ -423,7 +423,7 @@ ${have.length ? `<h2>On the shelf from Gutenberg</h2><ul>${have.map(h => `<li><a
     if (!isStudio(req)) return res.sendStatus(403);
     const t = db.prepare('SELECT id, slug, body FROM texts WHERE slug=?').get(String(req.params.slug)); if (!t || !t.body) return res.sendStatus(404);
     const body = rechapter(t.body); const n = (body.match(/^## /gm) || []).length;
-    db.prepare('UPDATE texts SET body=? WHERE id=?').run(body, t.id);
+    db.prepare("UPDATE texts SET body=?, updated_at=datetime('now') WHERE id=?").run(body, t.id);
     if (app.locals.bookplates && (db.prepare('SELECT pictures FROM texts WHERE id=?').get(t.id).pictures || '').length > 2) { db.prepare("UPDATE texts SET pictures=NULL WHERE id=?").run(t.id); app.locals.bookplates.queue(t.slug); }
     if (req.body.json) return res.json({ ok: true, chapters: n });
     res.redirect(`/library/${encodeURIComponent(t.slug)}?ok=` + encodeURIComponent(`The chapters set again: ${n}.`));
