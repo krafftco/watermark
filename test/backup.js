@@ -6,11 +6,14 @@
 //      process stays within MEM_MB of where it stood;
 //   3. every way a drill fails leaves its step, its seconds and its words on /healthz and Studio → Backups, raises the
 //      alarm, and is due again after the next night's copy; a drill ended with its process is not silence;
-//   4. `stale` is also a drill that has not passed in DRILL_STALE_DAYS.
+//   4. `stale` is also a drill that has not passed in DRILL_STALE_DAYS;
+//   5. a drill begins by the clock only after a copy made in the night, and does not begin at all where the scratch
+//      restore might not fit, or the room cannot be known: "not run", at the step "room", nothing fetched.
 // Both engines: with DATABASE_URL the copy is pg_dump's and the drill restores into a scratch database.
 //   node test/backup.js            BACKUP_TEST_MB (256) sets the copy's size; BACKUP_TEST_MEM_MB (200) the allowance.
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.VAULT_PART_MB = '5';
+process.env.DRILL_MIN_FREE_MB = process.env.DRILL_MIN_FREE_MB || '100000'; // the room vouched for (a server in CI is not on this machine); the guard itself is proved below
 const assert = require('assert');
 const fs = require('fs'); const path = require('path'); const os = require('os'); const zlib = require('zlib'); const crypto = require('crypto');
 const { Readable } = require('stream'); const { execFileSync } = require('child_process');
@@ -98,6 +101,7 @@ const drain = async s => { const c = []; for await (const d of s) c.push(d); ret
   assert.equal(B.drillDue(new Date('2026-11-25T07:10:00Z'), { copied: true }), false, 'a Wednesday after a drill that passed: not due'); // 25 Nov 2026 is a Wednesday
   assert.equal(B.drillDue(new Date('2026-11-29T07:10:00Z'), { copied: true }), true, 'after Sunday\'s copy: due');
   assert.equal(B.drillDue(new Date('2026-11-25T12:00:00Z')), false, 'between copies, with a passed drill: not due');
+  assert.equal(B.drillDue(new Date('2026-11-29T16:00:00Z'), { copied: true }), false, 'a copy made in the day, even on a Sunday, is not followed by a drill');
   // The restore by hand reads the same copy the same way, in a process of its own held to a small heap.
   { const pre = path.join(dir, 'maxrss.js'); fs.writeFileSync(pre, "let m = 0; const look = () => { m = Math.max(m, process.memoryUsage().rss); }; setInterval(look, 10).unref(); process.on('exit', () => { look(); console.log('maxrss ' + Math.round(m / 1048576)); });"); // sampled, not the kernel's high-water mark: that one begins at the parent's size
     const out = execFileSync(process.execPath, ['--max-old-space-size=64', '-r', pre, path.join(__dirname, '..', 'scripts', 'restore.js')], { env: { ...process.env, DATA_DIR: path.join(dir, 'house'), VAULT_KEY: KEY, S3_BUCKET: '' }, encoding: 'utf8' });
@@ -118,6 +122,7 @@ const drain = async s => { const c = []; for await (const d of s) c.push(d); ret
     assert.ok(mailed.some(m => /Backup drill failed/.test(m.subject) && m.text.includes(`at "${step}"`) && re.test(m.text) && /tried again after the next nightly copy/.test(m.text)), `${what}: the house is written to, with the step`);
     const w = app.locals.digest.wrongs(); assert.ok(w.some(x => x.includes(`the restore drill failed at "${step}"`) && re.test(x)), `${what} raises the alarm: ${w.join(' | ')}`);
     assert.equal(B.drillDue(new Date('2026-11-25T07:10:00Z'), { copied: true }), true, `${what}: tried again after the next night's copy, not the next Sunday`);
+    assert.equal(B.drillDue(new Date('2026-11-25T11:35:00Z')), false, `${what}: never by the clock alone`); assert.equal(B.drillDue(new Date('2026-11-25T11:35:00Z'), { copied: true }), false, `${what}: nor after a copy made in the day`);
     assert.ok(!fs.readdirSync(path.join(dir, 'house')).some(f => /^drill-.*tmp/.test(f)), `${what}: nothing left on the disk`);
     return h.drill;
   };
@@ -144,6 +149,42 @@ const drain = async s => { const c = []; for await (const d of s) c.push(d); ret
   { const run = db.prepare("SELECT id FROM backup_runs WHERE kind='drill' ORDER BY id DESC LIMIT 1").get();
     db.prepare('UPDATE backup_runs SET detail=? WHERE id=?').run('pg_restore: error: connection to postgres://wm:s3cret-pw@db.internal:5432/wm failed', run.id);
     const h2 = await health(); assert.ok(!/s3cret/.test(JSON.stringify(h2)) && /\(an address\)/.test(h2.drill.error), JSON.stringify(h2.drill)); assert.ok(!/s3cret/.test(await desk()), 'nor on the desk'); }
+  // 5. The room. A drill that might not fit does not begin: nothing is fetched, nothing made on the server, and it says so.
+  { const vouched = process.env.DRILL_MIN_FREE_MB, gets = []; const rs = store.readStream; store.readStream = k => { gets.push(k); return rs(k); };
+    const scratch = () => (pg ? db.prepare("SELECT COUNT(*) n FROM pg_database WHERE datname LIKE 'wm_drill_%'").get().n : 0), before = scratch();
+    const notRun = async (what, re) => {
+      mailed.length = 0; gets.length = 0; let e = null; try { await B.drill(); } catch (x) { e = x; }
+      assert.ok(e && e.notRun && e.step === 'room' && /^not run: /.test(e.message) && re.test(e.message), `${what}: ${e && e.step}: ${e && e.message}`);
+      assert.equal(gets.length, 0, `${what}: nothing was fetched`); assert.equal(scratch(), before, `${what}: nothing was made on the server`);
+      const h = await health(); assert.ok(h.drill.ok === false && h.drill.notRun === true && h.drill.step === 'room' && re.test(h.drill.error) && h.drill.error.length <= 200 && h.drill.passed, `${what} on /healthz: ${JSON.stringify(h.drill)}`);
+      const page = await desk(); assert.ok(/The last drill, [^<]*<b>not run<\/b>\./.test(page) && re.test(page) && /<td><b>not run<\/b><\/td><td>judging the room<\/td>/.test(page), `${what} on Studio → Backups`);
+      assert.ok(mailed.some(m => /Backup drill not run/.test(m.subject) && /was not run/.test(m.text) && re.test(m.text) && /nothing was fetched and nothing restored/.test(m.text)), `${what}: the letter says not run`);
+      const w = app.locals.digest.wrongs(); assert.ok(w.some(x => /the restore drill was not run: /.test(x) && re.test(x)), `${what} raises the alarm: ${w.join(' | ')}`);
+      assert.ok(/drill NOT RUN/.test(app.locals.digest.compose()), 'and the digest says not run');
+      assert.equal(B.drillDue(new Date('2026-11-25T07:10:00Z'), { copied: true }), true, `${what}: asked again after the next night's copy`);
+    };
+    // less room vouched for than the restore needs
+    process.env.DRILL_MIN_FREE_MB = '10';
+    await notRun('too little room', pg ? /a scratch restore needs about \d+ MB on the database server \(the database is \d+ MB\) and 10 MB is free there/ : /the copy unzipped needs about \d+ MB on this disk and 10 MB is free \(DRILL_MIN_FREE_MB\)/);
+    if (pg) {
+      // the vouched room shrinks as the database grows: set when the database was this size, then 40 MB more arrive
+      const size = Number(db.prepare('SELECT pg_database_size(current_database()) AS n').get().n), need = Math.ceil(size * 1.5 / MB);
+      process.env.DRILL_MIN_FREE_MB = String(need + 20);
+      const measured = (await (async () => { try { await B.drill(); return true; } catch (e) { return e.message; } })());
+      if (measured === true) { // enough by both measures; now the database grows past what was vouched
+        const ins = db.prepare('INSERT INTO wm_ballast (b) VALUES (?)'); for (let i = 0; i < 40; i++) ins.run(crypto.randomBytes(MB));
+        await notRun('room vouched for, since outgrown', /less the \d+ MB the database has grown since that was set|\(measured\)/);
+        db.prepare('DELETE FROM wm_ballast WHERE id > ?').run(SIZE);
+      } else assert.ok(/\(measured\)/.test(measured), `the server on this machine has less room than was vouched, and the smaller is believed: ${measured}`);
+      // not set, and a server whose disk this machine cannot see: not known is not run
+      delete process.env.DRILL_MIN_FREE_MB;
+      const local = (() => { try { const d = db.prepare("SELECT current_setting('data_directory') AS d").get().d; return fs.existsSync(d); } catch (e) { return false; } })();
+      if (!local) await notRun('room not known', /the room free on the database server is not known \(DRILL_MIN_FREE_MB is not set\); a scratch restore needs about \d+ MB/);
+      else say('the server is on this machine: its room is measured, so "not known" is proved only in CI');
+    }
+    process.env.DRILL_MIN_FREE_MB = vouched; store.readStream = rs; }
+  // A scratch database left by a drill whose process ended is dropped by the next drill, before the room is judged.
+  if (pg) { db.exec('CREATE DATABASE "wm_drill_1_1"'); assert.ok((await B.drill()).ok); assert.equal(db.prepare("SELECT COUNT(*) n FROM pg_database WHERE datname LIKE 'wm_drill_%'").get().n, 0, 'no scratch database is left on the server'); }
   // one drill at a time
   { const a = B.drill(), b = B.drill(); await assert.rejects(b, /under way/); assert.ok((await a).ok, 'and the drill passes again on the copy put back'); }
   h = await health(); assert.ok(h.drill.ok && !h.stale, 'passed again');
@@ -155,7 +196,8 @@ const drain = async s => { const c = []; for await (const d of s) c.push(d); ret
   const back = (id, days) => db.prepare("UPDATE backup_runs SET at=datetime('now', ?) WHERE id=?").run(`-${days} days`, id);
   { const id = db.prepare('INSERT INTO backup_runs (kind, key, bytes, ok, detail) VALUES (?,?,?,0,?)').run('drill', b1.key, 661241893, `${b1.key}: not drilled here; the copy is 631 MB and the drill reads it whole (over 200 MB)`).lastInsertRowid; back(id, 5);
     h = await health(); assert.ok(h.drill.ok === false && /not drilled here; the copy is 631 MB/.test(h.drill.error) && h.drill.step === null && h.drill.secs === null, JSON.stringify(h.drill));
-    assert.equal(B.drillDue(new Date('2026-11-27T12:00:00Z')), true, 'not tried in 26 hours and not passed: due at the next look, without waiting for a copy');
+    assert.equal(B.drillDue(new Date('2026-11-27T12:00:00Z')), false, 'not passed for days, and still it waits for the night');
+    assert.equal(B.drillDue(new Date('2026-11-28T07:09:00Z'), { copied: true }), true, 'and is due after the night\'s copy');
     assert.ok(!app.locals.digest.wrongs().some(x => /drill/.test(x)), 'five days on it is no longer news, and not yet stale by the drill that passed since');
     // 4. stale: no drill passed in DRILL_STALE_DAYS
     for (const r of db.prepare("SELECT id FROM backup_runs WHERE kind='drill' AND ok=1").all()) back(r.id, 9);
@@ -166,22 +208,22 @@ const drain = async s => { const c = []; for await (const d of s) c.push(d); ret
   // A drill ended with its process (the host's memory line, a deploy): its first line stays, and says so.
   { const id = db.prepare("INSERT INTO backup_runs (kind, ok, detail, step) VALUES ('drill', 0, 'begun, not finished: if this line stays, the process ended before the drill did', 'begun')").run().lastInsertRowid;
     h = await health(); assert.ok(h.drill.running === true && !h.drill.error, 'begun a moment ago: under way');
-    assert.equal(B.drillDue(new Date()), false, 'not begun twice');
+
     back(id, 2); h = await health(); assert.ok(!h.drill.running && h.drill.step === 'begun' && /process ended before the drill did/.test(h.drill.error), JSON.stringify(h.drill));
     assert.ok(/<b>failed<\/b> at “begun, not finished”/.test(await desk()));
-    assert.equal(B.drillDue(new Date()), true, 'and it is due'); }
+    assert.equal(B.drillDue(new Date('2026-11-28T07:09:00Z'), { copied: true }), true, 'and it is due after the night\'s copy'); }
   // The drill passes: nothing is stale.
   assert.ok((await B.drill()).ok); h = await health(); assert.ok(h.drill.ok && !h.stale && !h.drillStale, JSON.stringify(h));
   // The Studio's press: answered with how it ended, or within the moment allowed while the drill goes on.
   { const press = async () => { const r = await fetch(`${base}/studio/backups/drill`, { method: 'POST', redirect: 'manual', headers: { cookie: ck, 'content-type': 'application/x-www-form-urlencoded', origin: base }, body: '' }); return decodeURIComponent(r.headers.get('location') || String(r.status)); };
-    assert.ok(/matches the live one and verifies/.test(await press()), 'the press says how the drill ended');
+    process.env.DRILL_PRESS_MS = '300000'; { const l = await press(); assert.ok(/matches the live one and verifies/.test(l), 'the press says how the drill ended: ' + l); }
     process.env.DRILL_PRESS_MS = '1'; const l = await press(); delete process.env.DRILL_PRESS_MS; assert.ok(/The drill is under way/.test(l), l);
     for (let i = 0; i < 600 && (await health()).drill.running; i++) await new Promise(r => setTimeout(r, 100)); h = await health(); assert.ok(h.drill.ok && !h.drill.running, 'and it ends as a line: ' + JSON.stringify(h.drill)); }
   // A new house: stale by the drill only once its first good copy is DRILL_STALE_DAYS old and none has passed.
   db.prepare("DELETE FROM backup_runs WHERE kind='drill'").run(); h = await health(); assert.ok(h.drill === null && !h.stale, 'a copy made today, no drill yet: not stale');
   for (const r of db.prepare("SELECT id FROM backup_runs WHERE kind='backup'").all()) back(r.id, 9); await B.backup();
   h = await health(); assert.ok(h.drillStale && h.stale && !h.backupStale, JSON.stringify(h));
-  assert.equal(B.drillDue(new Date()), true);
+  assert.equal(B.drillDue(new Date('2026-11-28T07:09:00Z'), { copied: true }), true);
 
   mail.send = send0; srv.close(); db.exec('DROP TABLE wm_ballast');
   if (db.close) try { db.close(); } catch (e) { /* */ }

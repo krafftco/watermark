@@ -423,6 +423,10 @@ The CTO session keeps it honest.
   and `test/vault.js` know no part commands; `test/backup.js` has one that does.
 - A drill is a `backup_runs` line from its start (`step='begun'`, `ok=0`) and is updated when it ends. A reader that
   asks "did the last drill fail" must allow for one under way (`summary().drill.running`).
+- The drill never begins unless the scratch restore is known to fit on the database server (`room()` in backup.js).
+  A server not on the test's machine (CI's container, Render) needs `DRILL_MIN_FREE_MB`; CI's `postgres` job sets it,
+  `test/backup.js` sets its own. A smoke run against a remote Postgres without it fails at "the drill restores".
+- The drill is due only after a copy made in the night (`drillDue(now, { copied })`); nothing starts one by the clock.
 - Memory in a test: the kernel's high-water mark (`resourceUsage().maxRSS`) of a child begins at its parent's size.
   Sample `process.memoryUsage().rss` inside the child instead.
 - `test/backup.js` writes about four times `BACKUP_TEST_MB` (256) to TMPDIR and, on Postgres, as much again on the
