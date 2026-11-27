@@ -274,7 +274,9 @@ let dir;
       window.__reachHits = [];
       if (!window.__reachArmed) { window.__reachArmed = 1; addEventListener('click', e => { if (!window.__reachTrap) return; if (window.__reachHits[window.__reachI] == null) window.__reachHits[window.__reachI] = e.target; e.preventDefault(); e.stopImmediatePropagation(); }, true); }
       window.__reachTrap = 1;
-      const els = [...document.querySelectorAll(sel)].filter(el => { const r = el.getBoundingClientRect(); return r.width >= 2 && r.height >= 2 && el.checkVisibility({ visibilityProperty: true }) && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; });
+      const els = [...document.querySelectorAll(sel)].filter(el => { const r = el.getBoundingClientRect(); if (!(r.width >= 2 && r.height >= 2 && el.checkVisibility({ visibilityProperty: true }) && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth)) return false;
+        // Put away on purpose (#235: Wander's tab bar while a picture is looked at): unseen and taking no presses is not a control to press.
+        let op = 1; for (let e = el; e && e.nodeType === 1; e = e.parentElement) op *= +getComputedStyle(e).opacity; return !(op < 0.05 && getComputedStyle(el).pointerEvents === 'none'); });
       window.__reachEls = els;
       return els.map(el => { const r = el.getBoundingClientRect(); return { x: Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1), y: Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1) }; });
     }, TOPBAR);

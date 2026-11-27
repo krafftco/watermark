@@ -155,6 +155,8 @@ jobs:
       - run: NODE_ENV=test node test/wayback.js
       # An album in Wander (PR #200): the order, the acts as the rules allow, the way back, the card, a stranger refused.
       - run: NODE_ENV=test node test/albumwander.js
+      # The tab bar in Wander on a phone (#235): away on arrival and when still, back on a tap.
+      - run: NODE_ENV=test node test/wanderbar.js
       # Guests add their own photographs (#203): the guest, the letter, the studio, the photographer's choice, the group, a stranger, a phone.
       - run: NODE_ENV=test node test/albumguests.js
   # The reach walk (#42): every control on every page pressable at iPad, phone and desk sizes, in both rotations.
