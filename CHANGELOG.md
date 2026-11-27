@@ -5,6 +5,13 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.5 · Wander's shelf no longer reads whole books · 27 November 2026
+
+- Wander answered "unavailable" several times a day on 25, 26 and 27 November. Its shelf of passages read whole books each time a visitor opened it, to choose one paragraph. The passages are now chosen ahead of time and kept; a visitor's page reads only the few it shows.
+- A book newly shelved, or changed, appears on Wander's shelf within a few minutes rather than at once. Each book's passages are changed for others every seven days.
+- If the shelf cannot be read, Wander opens without it.
+- The Bookshop's list of the Library reads each book's title, author and price, not its text.
+
 ## 1.94.4 · A photographer's first ten minutes, tightened · 24 November 2026
 
 - From your studio, a work's title now opens its own desk, where its print editions and prices are set; so does the Library's large view, and your own public page offers "Edit this work".

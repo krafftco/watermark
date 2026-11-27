@@ -415,3 +415,14 @@ The CTO session keeps it honest.
 - A walk in a browser: `.lib-tk` (a tile's tick) is under the picture for Playwright's pointer; `dispatchEvent('click')` on it selects. An album's `share_token` is made when its desk page is first opened.
 - A test house has no Stripe: `/w/:slug` offers no print there (editions.js `canSell`), so prove an offer with test/firstsale.js's stub.
 
+## The shelf's passages (#126)
+- Wander's shelf reads `passages` (kept paragraphs, 48 a book at most) and `passage_marks` (one line a book: how many,
+  the book's stamp). `app.locals.commonplace.gather()` is the worker's round that fills them; a test house has no
+  timers, so a test that shelves a book calls `gather()` before it asks the shelf for it. A book whose body changes
+  must move `updated_at` (the stamp): the shelf drops its passages until the next round reads it again.
+- The gate's fixture carries 400 shelf books (`BIG_BOOKS`, `BIG_BOOK_KB`): `BIG_BOOKS=200 BIG_BOOK_KB=1000` is a
+  library of whole books (200 MB of text; the build is 1.6 GB on disk, the move to Postgres a few minutes). A desk
+  that lists texts will show in the gate when you add books: that is the fixture working, not your change.
+- SQLite reads a row's overflow pages to reach a column that sits after `body` (`updated_at`, `subscribers_only`);
+  Postgres does not open the body for them. A time on SQLite for a texts statement that never names `body` can
+  still grow with the book's size; judge those on Postgres (BIG_PG).

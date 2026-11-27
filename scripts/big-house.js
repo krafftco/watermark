@@ -17,7 +17,7 @@
 //    chain), 3,000 artists, 2,000 collectors, 8,000 licences, three view rows a work, half a stood row a work, 20,000
 //    notes, notices, 40 rooms of 30,000 places, three volumes (one of 945 pages, as Leonardo's), 300 albums, letters,
 //    a month of hits at three a work (pages, API, pictures, bots), fixity and conditions rows for every work (several
-//    for a share), 150 texts and a book of 1,566 numbered notes (the reader's whole-book page). Deterministic: no random numbers;
+//    for a share), 150 texts, a shelf of 400 books and a book of 1,566 numbered notes (the reader's whole-book page). Deterministic: no random numbers;
 //    dates are relative to today. Builds in about ten seconds on the workers' machine (printed: `built in`).
 // 2. The worker's round (`worker`): what the worker builds ahead for the website (shared.js), built once, as on live.
 // 3. The walk (`walk`): the house as the website (ROLE=web, NODE_ENV=production), every room once, one at a time, as
@@ -80,9 +80,9 @@ const ALLOW = [
   // 20 Nov (#116): the fixture gained a month of the visit log (3 M hits), four books of 1–2 MB and the read budget.
   // Measured on SQLite on the workers' machine. (/publishing read 6.9 MB until next's reading.js change; the numbers desk
   // over `hits` 11.9 s at 30 days until #114/#120, #125.)
-  { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832: every book's body
-  { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
-  { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+  // 27 Nov (#126): the fixture gained a shelf of 400 books of 20 KB (555 texts), so what grows with books shows.
+  { room: 'studio /studio/library', budget: 'read', max: 19000000, issue: 127 }, // 15,201,081 (6,901,863 before the shelf)
+  { room: 'studio /studio/reading', budget: 'read', max: 7600000, issue: 232 }, // 6,016,846: the held titles asked 270 times
   { room: 'museum /account/sheets', budget: 'read', max: 10000000, issue: 96 }, // 7,972,307
 ];
 
@@ -98,9 +98,9 @@ const ALLOW_PG = [
   { room: 'studio /studio/fixity', budget: 'stmtMs', max: 450, issue: 128, sql: 'FROM fixity' }, // 143
   { room: 'studio /studio', budget: 'stmtMs', max: 400, issue: 129 }, // 131: the month's most viewed
   { room: 'visitor /house', budget: 'stmtMs', max: 600, issue: 130 }, // 196
-  { room: 'visitor /wander?in=shelf', budget: 'read', max: 52000000, issue: 126 }, // 41,243,832
-  { room: 'visitor /bookshop', budget: 'read', max: 8700000, issue: 127 }, // 6,884,681
-  { room: 'studio /studio/library', budget: 'read', max: 8700000, issue: 127 }, // 6,901,863
+  // 27 Nov (#126): the fixture gained a shelf of 400 books of 20 KB (555 texts), so what grows with books shows.
+  { room: 'studio /studio/library', budget: 'read', max: 19000000, issue: 127 }, // 15,201,081 (6,901,863 before the shelf)
+  { room: 'studio /studio/reading', budget: 'read', max: 7600000, issue: 232 }, // 6,016,846: the held titles asked 270 times
 ];
 
 // ---------------------------------------------------------------------------------------------------------------- build
@@ -236,6 +236,12 @@ function build(dir) {
         // Live holds the Leonardo notebooks (about 1.5 MB of text) and other whole books: four of 1 to 2 MB here.
         const big = db.prepare("INSERT INTO texts (slug, kind, title, author, body, public, status, source, terms, created_at, updated_at) VALUES (?, 'book', ?, 'An author of the past', ?, 1, 'held', 'https://example.org/big', 'Public domain.', datetime('now'), datetime('now'))");
         [1.0, 1.3, 1.6, 2.0].forEach((mb, i) => { const para = `A long paragraph of a whole book, number ${i + 1}, written out as the source has it, plainly and at length, so the body is the size of a real one. `; const out = []; let n = 0, k = 0; while (n < mb * 1048576) { const ch = k % 40 === 0 ? `\n\n## Chapter ${k / 40 + 1}\n\n` : '\n\n'; out.push(ch + para + para); n += ch.length + para.length * 2; k++; } big.run(`big-book-${i + 1}`, `A Whole Book ${i + 1}`, out.join('')); });
+        // (#126, 27 Nov; live: Wander's shelf read whole books to choose a paragraph, 8.5 s on the thread) A shelf of
+        // books, so a statement that grows with books shows: BIG_BOOKS (400) of BIG_BOOK_KB (20) each, forty chapters,
+        // every paragraph one the shelf could show. `BIG_BOOKS=200 BIG_BOOK_KB=1000` is a library of whole books.
+        const NB = process.env.BIG_BOOKS != null ? +process.env.BIG_BOOKS : 400, KB = +process.env.BIG_BOOK_KB || 20;
+        const shelfBook = db.prepare("INSERT INTO texts (slug, kind, title, author, body, public, status, source, terms, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, 'held', 'https://example.org/shelf', 'Public domain.', datetime('now'), datetime('now'))");
+        db.transaction(() => { for (let b = 1; b <= NB; b++) { const out = []; let n = 0, k = 0; const per = Math.max(1, Math.ceil(KB * 1024 / 300 / 40)); while (n < KB * 1024) { const ch = k % per === 0 ? `## Chapter ${k / per + 1}\n\n` : ''; const para = `Paragraph ${k + 1} of shelf book ${b} stands whole on its own, begins like a sentence and ends like one, and runs to about the length a reader copies out into a commonplace book, neither a line nor a page, so the shelf has something true to show for every book that stands on it.`; out.push(ch + para); n += ch.length + para.length + 2; k++; } shelfBook.run(`shelf-book-${b}`, b % 5 === 0 ? 'essay' : 'book', `A Shelf Book ${b}`, `Author, Shelf ${b % 40}`, out.join('\n\n')); } })();
       });
     })();
     // The register: one entry a work, chained and signed as the house does it.
@@ -282,6 +288,8 @@ function worker(dir) {
   const built = []; const t = Date.now();
   for (let i = 0; i < 40; i++) { const t1 = Date.now(); const k = app.locals.shared.round(); if (!k) break; built.push(`${k} ${Date.now() - t1} ms`); }
   // (#114) the worker's round of the numbers, so the walk finds the desk, the digest and the agents' desk open on the kept answer
+  // (#126) the worker's round of the shelf: every book read once, here, and its passages kept for the website
+  if (app.locals.commonplace && app.locals.commonplace.gather) { const t1 = Date.now(); let books = 0, kept = 0; for (let i = 0; i < 400; i++) { const g = app.locals.commonplace.gather(); books += g.books; kept += g.kept; if (!g.more) break; } built.push(`passages ${Date.now() - t1} ms (${books} books read, ${kept} passages kept)`); }
   if (app.locals.numbers) { const n = app.locals.numbers.makeAll(); built.push(`numbers ${n.ms} ms${n.failed.length ? ' (failed: ' + n.failed.join(', ') + ')' : ''}`); }
   console.log('@@' + JSON.stringify({ ms: Date.now() - t, built }));
   process.exit(0);
