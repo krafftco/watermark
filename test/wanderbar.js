@@ -24,6 +24,9 @@ let dir;
   const bar = () => p.evaluate(() => { const b = document.querySelector('.tb'); if (!b) return null; const c = getComputedStyle(b); const r = b.getBoundingClientRect(); return { o: +c.opacity, pe: c.pointerEvents, shown: c.display !== 'none' && r.height > 0, cls: document.querySelector('main.st').className }; });
   await p.goto(base + '/wander', { waitUntil: 'load' }); await p.waitForTimeout(900);
   let b = await bar(); assert.ok(b && b.shown, 'Wander on a phone has the tab bar');
+  // (#245) A touch that ends on the room before one has begun there (a press that brought the visitor in from another page) throws nothing.
+  await p.evaluate(() => { const r = document.querySelector('main.st'); const t = new Touch({ identifier: 1, target: r, clientX: 100, clientY: 300 }); r.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], changedTouches: [t] })); r.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [t], changedTouches: [t] })); });
+  await p.waitForTimeout(200); assert.deepStrictEqual(errs, [], 'a touch that ends before one began throws nothing');
   assert.ok(b.o > 0.9, `the first screen shows the bar (opacity ${b.o}; ${b.cls})`);
   // On to the next picture: the bar stays away through the arrival and after it.
   await p.evaluate(() => { const s = document.querySelector('[data-st-scroll]'); s.scrollBy({ top: s.clientHeight, behavior: 'instant' }); });

@@ -490,6 +490,8 @@
   // The whole room hears a swipe, not only the scroll (6 Nov: on a phone the left swipe still did nothing when the
   // finger began on something laid over the picture); the doors, the sheets, the bar and the inputs keep their own.
   var OFFWALL = '.st-side, .st-shade, .st-sheet, .st-guide, .st-top, .st-tt, .st-install, .st-sitbar, .st-hld, .sty, input, textarea, select, .st-more';
+  // (#245) The swipe's own: declared, so a touch that moves or ends before one has begun on the room returns and throws nothing.
+  var sx0 = null, sy0 = 0, sLock = null, sEl = null;
   root.addEventListener('touchstart', function (e) {
     if (e.target.closest && e.target.closest(OFFWALL)) { sx0 = null; return; }
     if (e.touches.length === 2) {

@@ -5,6 +5,10 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.95.2 · A script error in Wander on a phone · 28 November 2026
+
+- In Wander on a phone, a press that carried over from the page before could raise a script error. Nothing was seen to break. It no longer does.
+
 ## 1.95.1 · A museum's Wander stays in the museum · 28 November 2026
 
 - Arriving in Wander at a work held by a museum (from Find, from the work's record, from a link someone sent), the next swipe went back to the open Wander, which held none of the museum's ungraded works. The walk now carries on in that museum. Its name is at the top, and one press on it returns to the open Wander.
