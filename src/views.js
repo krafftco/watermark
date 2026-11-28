@@ -304,7 +304,8 @@ ${DOORS.map(([g, list]) => `<section class="evr-g"><h2>${g}</h2><div class="evr-
 const TABS = (path, wander) => {
   const p = path || '';
   const on = (re) => re.test(p) ? ' aria-current="page"' : '';
-  if (QUIET) return `<nav class="tb tb-3" aria-label="The house"><a href="/wander" class="tb-w"${/^\/wander(\/|$)/.test(p) || (wander && p === '/') ? ' aria-current="page"' : ''}>${I.wave}<span>Wander</span></a><button type="button" data-find-open="${wander ? 'stroll' : 'page'}">${I.find}<span>Find</span></button><a href="/yours" data-tb-you${on(TAB_YOU)}>${I.you}<span>You</span></a></nav>`;
+  // (28 Nov, Will: "Discover is hidden on the iPhone; guide people") the quiet bar is four: Discover is the way to the museums, the artists and the years.
+  if (QUIET) return `<nav class="tb tb-4" aria-label="The house"><a href="/wander" class="tb-w"${/^\/wander(\/|$)/.test(p) || (wander && p === '/') ? ' aria-current="page"' : ''}>${I.wave}<span>Wander</span></a><a href="/look"${wander ? '' : on(TAB_LOOK)}>${I.look}<span>Discover</span></a><button type="button" data-find-open="${wander ? 'stroll' : 'page'}">${I.find}<span>Find</span></button><a href="/yours" data-tb-you${on(TAB_YOU)}>${I.you}<span>You</span></a></nav>`;
   return `<nav class="tb" aria-label="The house"><a href="/wander" class="tb-w"${/^\/wander(\/|$)/.test(p) || (wander && p === '/') ? ' aria-current="page"' : ''}>${I.wave}<span>Wander</span></a><a href="/look"${wander ? '' : on(TAB_LOOK)}>${I.look}<span>Look</span></a><button type="button" data-find-open="${wander ? 'stroll' : 'page'}">${I.find}<span>Find</span></button><a href="/library"${on(TAB_READ)}>${I.facing}<span>Read</span></a><a href="/yours" data-tb-you${on(TAB_YOU)}>${I.you}<span>You</span></a></nav>`;
 };
 function deskHeader(path = '') {

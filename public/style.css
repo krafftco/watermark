@@ -5275,7 +5275,7 @@ body:has(.yu) .rm-bar{display:none}
 /* The quiet house (4 Nov): three fields in front, Wander · Find · You at the foot, every room on /everything */
 .wh-5.wh-q{grid-template-columns:repeat(3,1fr);gap:40px}
 @media (max-width:760px){.wh-5.wh-q{grid-template-columns:1fr;gap:26px}}
-@media (max-width:760px) and (pointer:coarse){.tb.tb-3{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px) and (pointer:coarse){.tb.tb-4{grid-template-columns:repeat(4,1fr)}}
 .evr{max-width:1100px;margin:0 auto;padding:72px clamp(16px,4vw,56px) 96px}
 .evr h1{font:400 clamp(36px,4.4vw,60px)/1.04 var(--serif,Georgia,serif);margin:6px 0 14px;text-transform:none}
 .evr-l{max-width:58ch;color:var(--mut);font:400 16px/1.6 var(--sans);margin:0 0 28px}
