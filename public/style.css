@@ -6067,3 +6067,36 @@ main.st{overflow:clip}
 .wlb-p b{font-weight:600;color:#2a2622;font-variant-numeric:tabular-nums}
 .wlb-go{display:inline-block;margin-top:8px;padding:6px 0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#2a2622}
 @media (max-width:700px){.wlb{align-self:stretch;max-width:none}}
+/* Wander's two sides (#241, 28 Nov): the left is Where next, the right is About, said once. Where next: at most six
+   tiles (a cover, a name, a count; the first wide, with the strip by the same hand under it), then the standing doors.
+   About ends in the Watermark record, which the shield opens at. */
+.st-side:focus{outline:0}
+.wnx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 28px}
+.wnx-t{position:relative;display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#1d1b17;color:#f3efe7;text-decoration:none}
+.wnx-w{grid-column:1/-1;aspect-ratio:16/10}
+.wnx-t img,.wnx-e{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.wnx-e{background:linear-gradient(160deg,#26231d,#171511)}
+.wnx-c{position:absolute;left:0;right:0;bottom:0;display:grid;gap:4px;padding:34px 12px 11px;background:linear-gradient(to top,rgba(11,10,9,.9),rgba(11,10,9,.55) 55%,rgba(11,10,9,0))}
+.wnx-c small{font:500 9px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:rgba(239,234,224,.72)}
+.wnx-c b{font:400 17px/1.15 var(--disp,Georgia),serif;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wnx-w .wnx-c b{font-size:24px}
+.wnx-c i{font:400 12px/1 var(--sans);font-style:normal;color:rgba(239,234,224,.72)}
+.wnx .lk-s{grid-column:1/-1;margin:-6px 0 6px}.wnx .lk-s .whp-strip{margin:0}
+.wnx-t:focus-visible,.wnx-door:focus-visible{outline:2px solid #f3efe7;outline-offset:2px}
+.wnx-d{display:grid;margin:0}
+.wnx-d .k{margin:0 0 8px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.wnx-door{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 0;border-top:1px solid rgba(239,234,224,.14);color:#f3efe7;text-decoration:none}
+.wnx-door b{flex:1;font:400 19px/1.2 var(--disp,Georgia),serif}
+.wnx-door i{font:400 12px/1 var(--sans);font-style:normal;color:rgba(239,234,224,.55)}
+.wnx-door .ic{width:14px;height:14px;opacity:.6}
+.wka-rec{margin:30px 0 0;padding-top:22px;border-top:1px solid rgba(239,234,224,.14);outline:0;scroll-margin-top:12px}
+.wka-rec .k{margin:0 0 8px;font:500 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(239,234,224,.5)}
+.wka-rl{margin:0 0 14px;font:400 13px/1.55 var(--sans);color:rgba(239,234,224,.7)}
+.wka-rd{margin:0 0 18px}
+.wka-rd div{display:grid;grid-template-columns:104px 1fr;gap:12px;padding:11px 0;border-top:1px solid rgba(239,234,224,.1)}
+.wka-rd dt{font:500 10px/1.5 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(239,234,224,.5);padding-top:2px}
+.wka-rd dd{margin:0;font:400 14px/1.5 var(--sans);color:rgba(239,234,224,.86);overflow-wrap:anywhere}
+.wka-rd a,.whp-by a{color:inherit;text-decoration:underline;text-decoration-color:rgba(239,234,224,.3);text-underline-offset:3px}
+.wka-no{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
+.wka-rd .wka-u{display:flex;justify-content:space-between;gap:12px;padding:3px 0;text-decoration:none}
+.wka-u b{font-weight:400}.wka-u i{font-style:normal;color:rgba(239,234,224,.6)}

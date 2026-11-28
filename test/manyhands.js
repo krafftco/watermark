@@ -86,7 +86,7 @@ const SLEEP = PG ? 'SELECT pg_sleep(2) AS z' : 'WITH RECURSIVE c(x) AS (SELECT 1
   const ua = { 'user-agent': 'Mozilla/5.0 (Macintosh) Safari/605', accept: 'text/html,application/json' };
   for (const p of ROOMS) { const r = await fetch(base + p, { headers: ua }); const t = await r.text(); assert.strictEqual(r.status, 200, `${p} answers: ${r.status} ${t.slice(0, 200)}`); }
   const st = await (await fetch(base + `/api/stroll?n=6&q=kyoto&seen=`)).json(); assert.ok(st.items.length && st.items.every(x => x.place === 'Kyoto' || x.kind), 'a word\'s wander holds to the word');
-  const side = await (await fetch(base + `/stroll/side/${ws[1].slug}`)).json(); assert.ok(/whp-n/.test(side.who) && /lk-s/.test(side.like), 'the side doors carry who made it and more like this');
+  const side = await (await fetch(base + `/stroll/side/${ws[1].slug}`)).json(); assert.ok(/whp-n/.test(side.who) && /wnx-door/.test(side.like), 'the sides carry who made it and where next');
   const page = await (await fetch(base + `/w/${ws[0].slug}`, { headers: ua })).text(); assert.ok(page.includes('Harbour 0'), 'the work\'s page');
   // The client in its own process (a client in this one would be frozen with the server and measure nothing).
   const measure = () => new Promise((resolve, reject) => {

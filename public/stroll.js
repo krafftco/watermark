@@ -21,7 +21,7 @@
   });
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var ic = {};
-  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('[data-eye] svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
+  (function () { var first = scroller.querySelector('.st-i'); if (!first) return; var ey = first.querySelector('.st-eye svg'); ic.eye = ey ? ey.outerHTML : ''; ['hat', 'bravo', 'hang', 'buy', 'guide', 'card', 'easel', 'share', 'more', 'settings', 'record'].forEach(function (k) { var b = first.querySelector('[data-st-' + k + ']'); if (b) { var svg = b.querySelector('svg'); ic[k] = svg ? svg.outerHTML : ''; } }); ic.page = ic.record || ''; ic.collect = ic.buy || (first.querySelector('.st-held svg') || {}).outerHTML || ''; })();
   ['wave', 'play', 'pause', 'plus', 'share', 'in', 'card', 'look', 'pencil', 'print'].forEach(function (k) { var t = root.querySelector('template[data-st-ic="' + k + '"]'); if (t && !ic[k]) ic[k] = t.innerHTML; });
 
   // An album (31 Oct, Will: "view photos in deliveries in Wander, and download from Wander; make the Instax option
@@ -165,7 +165,7 @@
     el.className = 'st-i'; el.setAttribute('data-slug', w.slug);
     el.innerHTML = '<img class="st-im" src="' + esc(w.img) + '" alt="' + esc(w.title) + '" draggable="false" decoding="async" loading="lazy"' + (w.width && w.height ? ' width="' + w.width + '" height="' + w.height + '"' : '') + '>'
       + '<div class="st-plate"><a class="st-by" href="' + (w.artist ? esc(w.artist.href) + '"' : '/wander?maker=' + esc(w.makerSlug) + '&at=' + esc(w.slug) + '" data-st-maker') + '>' + esc(w.maker) + '</a>' + (w.life && (w.life.years || w.life.atWork || w.life.verified) ? '<span class="st-life">' + (w.life.years ? '<i>' + esc(w.life.years) + '</i>' : '') + (w.life.atWork ? '<b class="lfl-w" title="Put up new work in the last month">at work</b>' : '') + (w.life.verified ? '<b class="lfl-v" title="A real person, checked">Verified</b>' : '') + '</span>' : '') + '<a class="st-t" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander">' + esc(w.title) + '</a><span class="st-k">' + (w.place ? '<a href="/wander?q=' + encodeURIComponent(w.place) + '">' + esc(w.place) + '</a>' : '') + (w.place && w.year ? ' · ' : '') + esc(w.year || '') + '</span><a class="st-tog" href="/m/' + esc(w.makerSlug) + '/' + esc(w.slug) + '?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>' + (ic.wave || '') + 'Wander</b><span>' + (ic.eye || '') + 'Watermark</span></a></div>'
-      + '<button type="button" class="st-eye" data-eye="' + esc(w.slug) + '" aria-label="The Watermark: the asset, its number, its terms">' + (ic.eye || '') + '</button>'
+      + '<button type="button" class="st-eye" data-st-about="record" aria-label="The Watermark: the asset, its number, its terms">' + (ic.eye || '') + '</button>'
       + '<nav class="st-rail" aria-label="Acts">'
       + '<button type="button" class="st-b" data-st-hat aria-pressed="' + (w.hat && w.hat.mine ? 'true' : 'false') + '" title="Hat: a nod, I saw it. Free, as many as you like.">' + ic.hat + '<span data-st-hat-n>Hat</span></button>'
       + '<button type="button" class="st-b st-bv" data-st-bravo aria-pressed="' + (w.bravo && w.bravo.mine ? 'true' : 'false') + '" title="Bravo: it floored me. Three a month.">' + (ic.bravo || '') + '<span>Bravo</span></button>'
@@ -430,25 +430,34 @@
   // work (/stroll/side/:slug), for whoever is signed in. Replaces the old sideways swipe into the maker's stroll, which
   // looked like nothing had happened (the same picture, a chip).
   var sideL = root.querySelector('[data-st-side="yours"]'), sideR = root.querySelector('[data-st-side="keys"]'), shade = root.querySelector('[data-st-shade]');
-  var sideOpen = null, sideCache = {}, sideFor = null, sideAs = 'collector', sideTop = 0;
+  // (#241, 28 Nov) The two sides now: the left is Where next (the ways on from this picture, then the standing doors),
+  // the right is About (the work, who made it, the Watermark record, said once). The shield on the plate opens About at
+  // the record; it no longer opens a sheet of its own. Focus goes into the side that opens and back where it was.
+  var sideOpen = null, sideCache = {}, sideFor = null, sideAs = 'collector', sideTop = 0, sideAt = null, sideBack = null;
+  function sideRec() { if (sideAt !== 'record' || sideOpen !== 'keys') return; var r = sideR.querySelector('[data-st-rec]'); if (!r) return; sideAt = null; sideR.scrollTop = Math.max(0, r.offsetTop - 12); try { r.focus({ preventScroll: true }); } catch (e) { /* an old engine: the side itself has the focus */ } }
   try { sideAs = localStorage.getItem('wm_side_as') || 'collector'; } catch (e) {}
   function sideW(el) { return el ? el.getBoundingClientRect().width : 0; }
   function sideSet(el, x, anim) { if (!el) return; el.style.transition = anim ? 'transform .42s cubic-bezier(.16,1,.3,1)' : 'none'; el.style.transform = 'translateX(' + x + 'px)'; }
   function paintAs() { root.querySelectorAll('[data-sd-as]').forEach(function (p) { p.hidden = p.getAttribute('data-sd-as') !== sideAs; }); root.querySelectorAll('[data-sd-switch]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-sd-switch') === sideAs ? 'true' : 'false'); }); }
   function sideFill(slug) {
     if (sideFor === slug) return; sideFor = slug;
-    var go = function (d) { sideR.querySelector('[data-sd-body]').innerHTML = d.who || ''; if (sideL) sideL.querySelector('[data-sd-body]').innerHTML = d.like || ''; if (window.WMFollow && WMFollow.paint) WMFollow.paint(sideR); };
+    var go = function (d) { sideR.querySelector('[data-sd-body]').innerHTML = d.who || ''; if (sideL) sideL.querySelector('[data-sd-body]').innerHTML = d.like || ''; if (window.WMFollow && WMFollow.paint) WMFollow.paint(sideR); sideRec(); };
     if (sideCache[slug]) return go(sideCache[slug]);
     fetch('/stroll/side/' + encodeURIComponent(slug), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { sideCache[slug] = d; if (sideFor === slug) go(d); }).catch(function () {});
   }
   function sideShow(which, anim) {
     var el = which === 'keys' ? sideR : sideL; if (!el) return;
+    if (!sideOpen) { var ae = document.activeElement; sideBack = ae && ae !== document.body && !ae.closest('.st-side') ? ae : null; }
     sideOpen = which; sideTop = scroller.scrollTop; root.classList.add('st-side-on'); shade.hidden = false; el.classList.add('on');
     sideSet(el, 0, anim !== false); clearTimeout(stillT); root.classList.add('st-still');
+    if (sideAt !== 'record') el.scrollTop = 0;
+    try { el.focus({ preventScroll: true }); } catch (e) { /* */ }
+    sideRec();
   }
   function sideHide(anim) {
     if (!sideOpen) return; var el = sideOpen === 'keys' ? sideR : sideL; var w = sideW(el);
-    sideSet(el, sideOpen === 'keys' ? w : -w, anim !== false); el.classList.remove('on'); sideOpen = null; root.classList.remove('st-side-on'); shade.hidden = true;
+    sideSet(el, sideOpen === 'keys' ? w : -w, anim !== false); el.classList.remove('on'); sideOpen = null; sideAt = null; root.classList.remove('st-side-on'); shade.hidden = true;
+    var back = sideBack; sideBack = null; if (el.contains(document.activeElement)) { try { if (back && back.isConnected) back.focus({ preventScroll: true }); else document.activeElement.blur(); } catch (e) { /* */ } }
   }
   // Pinch (Will, 23 Oct, with the Duo in hand: "you need to be able to zoom and pinch inside Wander"): two fingers on
   // the photograph scale it about the pinch, up to five times; one finger then pans; a tap sets it back; while zoomed
@@ -590,6 +599,7 @@
     var w = items[cur]; if (w) sideFill(w.slug);
     // Who made it (Will, 5 Nov): left opens the person behind the picture; right, or Esc, puts them away.
     // More like this (6 Nov): the finger moving right opens the ways on from here; left, About. Either way back closes.
+    // (#241) The same steps, named: ← (a finger moving right, the left tab) is Where next; → (a finger moving left, the right tab) is About.
     if (!sideOpen) { sideShow(dir > 0 ? 'keys' : 'yours'); return; }
     if ((sideOpen === 'keys' && dir < 0) || (sideOpen === 'yours' && dir > 0)) sideHide();
   }
@@ -610,6 +620,10 @@
     if (Math.abs(wx) > 60) { wDone = true; wx = 0; e.preventDefault(); move(e.deltaX > 0 ? 1 : -1); }
   }, { passive: false });
   root.addEventListener('click', function (e) { var k = e.target.closest('[data-st-doors]'); if (!k) return; var w = items[cur]; if (w) sideFill(w.slug); sideShow(k.getAttribute('data-st-doors')); });
+  // The shield (#241): About, at the record of the work the shield is on. Taken first, so the picture's own tap, the
+  // viewer and a swipe never fire under it (as the sheet it replaces did).
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-st-about]'); if (!b || !root.contains(b)) return; e.preventDefault(); e.stopPropagation(); var it = b.closest('.st-i'), slug = it && it.getAttribute('data-slug'); if (!slug) return; sideAt = 'record'; sideFill(slug); sideShow('keys'); }, true);
+  ['pointerdown', 'touchstart', 'dblclick'].forEach(function (t) { document.addEventListener(t, function (e) { if (e.target.closest && e.target.closest('[data-st-about]')) e.stopPropagation(); }, { capture: true, passive: true }); });
   // A fresh work closes an open door and drops the old answer.
   var sideWatch = setInterval(function () { if (sideOpen) return; var w = items[cur]; if (w && sideFor && sideFor !== w.slug) sideFor = null; }, 800);
   // Staying is what pays (Will, 18 Oct: a feed pays you for moving on; Watermark pays you for staying).
