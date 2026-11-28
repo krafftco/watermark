@@ -443,3 +443,17 @@ The CTO session keeps it honest.
   Sample `process.memoryUsage().rss` inside the child instead.
 - `test/backup.js` writes about four times `BACKUP_TEST_MB` (256) to TMPDIR and, on Postgres, as much again on the
   server. A full-size run (660 MB) wants 5 GB free; this machine had 3.6 GB on 27 Nov and it was not run.
+
+## The presses, counted (#242)
+- `CHROME=<chrome> node scripts/taps.js` walks a small house on an iPhone 13 as a stranger and counts the fewest presses
+  from `/` to each thing in its `THINGS` (`TAPS_MD=file` writes the table, `TAPS_DEBUG=1` every screen read). About two
+  and a half minutes here, so it is not a CI job. It fails over four presses; `ALLOW` names an issue per exception.
+- Its house is small: every list holds the thing looked for. On the live house Find's opening state shows only the first
+  10 artists, 8 movements, 8 mediums, 16 decades, 6 museums, 14 places and 8 makers (`before()` in src/find.js), so a
+  count that passes there says the door exists, not that a given artist is on it.
+- `/` on a phone is Wander with a picture chosen afresh each visit: a walk that must return to "the first screen" cannot
+  count on the same picture. A link on that picture's plate is found by its class, not its words.
+- Wander puts the tab bar away after a few seconds still (#235): read the screen within a second of arriving, or touch
+  the picture first. A room fades in: a control read in the first half-second can be under the fade.
+- A new context for each read keeps the walker a stranger: Find's opening state and `/yours` change once the house has
+  seen the visitor stand before a work.
