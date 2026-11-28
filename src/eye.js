@@ -3,9 +3,9 @@
 // and the proof. The eye on every photograph opens it. Nothing personal: holders are counted, never named.
 function mountEye(app, { db, V }) {
   const MONEY = c => V.money(c);
-  app.get('/api/eye/:slug', (req, res) => {
-    const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug));
-    if (!w || w.status !== 'held') return res.status(404).json({ none: true });
+  // (#241) One reading of the record for both readers: the sheet on a work's page (public/eye.js) and the record at the
+  // foot of Wander's About side (stroll.js), so the two can never say different things.
+  function of(w) {
     const j = app.locals.workJSON(w);
     const m = db.prepare('SELECT * FROM makers WHERE id=?').get(w.maker_id) || {};
     const holders = db.prepare("SELECT COUNT(DISTINCT COALESCE(buyer_id, -id)) n FROM licenses WHERE work_id=? AND status IN ('active','expired') AND price_cents > 0").get(w.id).n;
@@ -13,7 +13,7 @@ function mountEye(app, { db, V }) {
     const first = (m.name || j.maker.name || '').split(' ')[0];
     const FEE = require('./fee'); const share = FEE.on() ? 100 : (m.share_pct || 85);
     const never = { ai: 'Training AI', alter: 'Altering the picture', political: 'Political campaigns', sensitive: 'Tobacco, firearms or gambling' };
-    res.set('Cache-Control', 'no-store').json({
+    return {
       slug: w.slug, title: j.title, number: j.id, maker: j.maker.name, makerHref: `/m/${j.maker.slug}`, place: j.place, year: j.year,
       copyright: j.copyright.licence ? `${j.copyright.licence}: no copyright is claimed here. ${j.credit}` : j.copyright.registered ? `© ${j.maker.name}. Registered with the U.S. Copyright Office${j.copyright.registration ? `, ${j.copyright.registration}` : ''}.` : `© ${j.maker.name}, from the moment it was made.`,
       paid: FEE.on() ? `The price is ${first}’s, every dollar; the house’s share is paid by the collector on top (Collect: $${(FEE.COLLECT_HOUSE_CENTS / 100).toFixed(0)}; other uses: ${FEE.schedule()}).` : `${share}% of every sale goes to ${first}.`,
@@ -22,7 +22,13 @@ function mountEye(app, { db, V }) {
       never: (j.rules && j.rules.never || []).map(k => never[k] || k),
       proof: j.register ? `Fingerprinted and entered in the register, No. ${j.register.entry}, ${new Date(j.register.registered_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.` : 'Fingerprinted on arrival.',
       life: `/w/${w.slug}/life`, verify: '/verify', open: j.open || null,
-    });
+    };
+  }
+  app.get('/api/eye/:slug', (req, res) => {
+    const w = db.prepare('SELECT * FROM works WHERE slug=?').get(String(req.params.slug));
+    if (!w || w.status !== 'held') return res.status(404).json({ none: true });
+    res.set('Cache-Control', 'no-store').json(of(w));
   });
+  app.locals.eye = { of };
 }
 module.exports = { mountEye };

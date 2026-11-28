@@ -239,7 +239,7 @@ ${(() => { const S = app.locals.season, nx = S ? S.next() : null; return nx ? `<
 ${art.bio ? `<p class="whp-bio">${esc(first(art.bio))}</p>` : ''}
 <p class="whp-n">${n} work${n === 1 ? '' : 's'} in the house</p>${strip(ws, 'artist:' + art.slug)}
 <div class="whp-acts"><a class="whp-go" href="/wander/art/${esc(art.slug)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/art/${esc(art.slug)}">Their page ${I.next}</a></div>
-${isInst ? `<p class="whp-by">Photographed for the house by ${esc(w.maker_name)}.</p>` : ''}`;
+${isInst ? `<p class="whp-by">Photographed for the house by <a href="/m/${esc(V.makerSlug({ handle: w.maker_handle, name: w.maker_name }))}">${esc(w.maker_name)}</a>.</p>` : ''}`;
       } else {
         const mk = await adb.get('SELECT * FROM makers WHERE id=?', w.maker_id);
         const slugM = V.makerSlug(mk);
@@ -254,7 +254,10 @@ ${mk.bio ? `<p class="whp-bio">${esc(first(mk.bio))}</p>` : ''}
 <div class="whp-acts">${fol}<a class="whp-go" href="/wander?maker=${esc(slugM)}">${I.wave || ''}<b>Wander their work</b></a><a class="whp-pg" href="/m/${esc(slugM)}">Their page ${I.next}</a></div>`;
       }
     }
-    // About the work (Will, 6 Nov: "it should get you more about the work"): the work first, the person after it.
+    // About (Will, 6 Nov: "it should get you more about the work"; 28 Nov, #241: the side, the shield and the record
+    // said the same work three times). One scroll, said once: the work, who made it, then the Watermark record (what
+    // the shield's sheet showed: its number, the copyright, how the maker is paid, who holds it, its terms, the proof).
+    // The shield on the plate opens this side at the record (`data-st-rec`).
     let about = '';
     if (w) {
       const A = app.locals.art; const art = A && A.ofWork ? (() => { try { return A.ofWork(w); } catch (e) { return null; } })() : null;
@@ -274,36 +277,74 @@ ${facts.length ? `<dl class="wka-f">${facts.map(([k, v]) => `<div><dt>${esc(k)}<
 ${words ? `<section class="wka-s"><p class="k">${c && c.text ? 'Look closer' : 'About it'}</p><p class="wka-t">${esc(words)}</p></section>` : ''}
 ${look.length ? `<section class="wka-s"><p class="k">What to look for</p><ol class="wka-l">${look.map(x => `<li><b>${esc(x.what)}</b>${x.why ? ` <span>${esc(x.why)}</span>` : ''}</li>`).join('')}</ol></section>` : ''}
 ${kept && kept.qid ? `<p class="wka-m">The original hangs at ${esc(kept.name)}. <a href="/art/visit/${esc(kept.qid)}">See it in person</a></p>` : ''}
-${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>The full record</b></a>${c && c.study && !c.studyHidden ? `<a class="whp-pg" href="${rec.replace('?from=wander', '')}#study">The study ${I.next}</a>` : ''}</div>
-<p class="wka-r">${openW ? 'In the public domain: free for everyone to look at, share and print.' : 'Numbered and on the register. To use it beyond looking, license it on the record.'}</p>
+${ovw}${c && c.study && !c.studyHidden ? `<div class="wka-acts"><a class="whp-pg" href="${rec.replace('?from=wander', '')}#study">The study ${I.next}</a></div>` : ''}
 <p class="k wka-who">Who made it</p>`;
-      who = about + who + `<p class="whp-x">Swipe right to go back to the picture.</p>`;
+      // The record: one reading (eye.js), the same the sheet on a work's own page gives. The title, the maker, the place
+      // and the year are above and are not said again.
+      let d = null; try { d = app.locals.eye ? app.locals.eye.of(w) : null; } catch (e) { console.error('[wander record]', e.message); d = null; }
+      const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
+      const record = `<section class="wka-rec" data-st-rec tabindex="-1" aria-label="The Watermark record"><p class="k">The Watermark record</p>
+<p class="wka-rl">${openW ? 'In the public domain: free for everyone to look at, share and print.' : 'A registered work: numbered, fingerprinted, on the house’s register, held under lock and key and shown in the open. Look as long as you like. To use it, in a story, a campaign, a product or on a wall, license it here: the maker is paid, and the licence travels inside the file.'}</p>
+${d ? `<dl class="wka-rd">${row('Its number', `<span class="wka-no">${esc(d.number)}</span>`)}${row('Copyright', esc(d.copyright))}${row('The maker is paid', esc(d.paid))}${row('Held', esc(d.held))}${d.open ? row('Free to use', 'Open to everyone, with the credit.') : row('To use it, license it', (d.uses || []).map(u => `<a class="wka-u" href="${esc(u.href)}"><b>${esc(u.name)}</b><i>${esc(u.price)}</i></a>`).join(''))}${row('Never', (d.never || []).map(esc).join(' · '))}${row('Proof', `${esc(d.proof)} <a href="${esc(d.life)}">Its life</a> · <a href="${esc(d.verify)}">Check a copy</a>`)}</dl>` : ''}
+<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>The full record</b></a></div></section>`;
+      who = about + who + record + `<p class="whp-x">Swipe right to go back to the picture.</p>`;
     }
-    // More like this (Will, 6 Nov: one direction did nothing): the finger moving right opens the left-hand door, the
-    // ways on from this picture: the same hand, the same place, the same time, the same movement; each a strip to tap
-    // into and a Wander through the whole set.
+    // Where next (#241; Will, 28 Nov: "nothing in Wander shows where one could go next"): the left-hand side. From the
+    // picture on screen, at most six ways onward, each a tile (a cover, a name, a count) and one press into that Wander:
+    // the same hand, the same collection, the same movement, the same time, the same place, the same kind; then the
+    // standing doors. A way is shown only when it holds FEW or more. Nothing here walks the collection: the names, the
+    // counts and the covers are Find's index (find.js, built ahead); a small set (under SMALL by the index) is counted
+    // as its own Wander counts it (walk.js's list, the wall standard with it), kept ten minutes, so the tile's number is
+    // what the press lands in. What More like this had (6 Nov) and is kept: the strip by the same hand, under its tile.
     let like = '';
-    if (w) {
-      // (9 Nov) The strip and its count are the same for every picture of a place, a hand or a decade: kept ten minutes
-      // by the group, this picture taken out of the strip here.
+    {
       const kept = app.locals.kept || ((k, ms, f) => f()); const SAFE0 = "status='held' AND COALESCE(zone,'all')!='mature'";
-      // The kept value is the promise: one question for everyone who arrives while it is asked; a fault is kept as empty.
-      const rows = async (where, ...a) => (await kept('like-r|' + where + '|' + a.join('|'), 600e3, () => adb.all(`SELECT slug, title FROM works WHERE ${SAFE0} AND ${where} ORDER BY curated DESC, stars DESC, id DESC LIMIT 9`, ...a).catch(() => []))).filter(x => x.slug !== w.slug).slice(0, 8);
-      const count = async (where, ...a) => Math.max(0, Number(await kept('like-n|' + where + '|' + a.join('|'), 600e3, () => adb.get(`SELECT COUNT(*) n FROM works WHERE ${SAFE0} AND ${where}`, ...a).then(r => r.n, () => 0))) - 1);
-      const art = w.artist_id ? await adb.get('SELECT id, slug, name, movement FROM artists WHERE id=?', w.artist_id) : null;
-      const yr = String(w.taken_at || '').match(/^(\d{3})\d/);
-      const groups = [];
-      if (art) groups.push(['By the same hand', art.name, 'artist:' + art.slug, 'artist_id=?', art.id]);
-      else if (!isInst) groups.push(['By the same hand', w.maker_name, 'maker:' + w.maker_handle, 'maker_id=?', w.maker_id]);
-      if (w.place) groups.push(['The same place', w.place, 'place:' + w.place, 'place=?', w.place]);
-      if (art && art.movement) groups.push(['The same movement', art.movement, 'movement:' + art.movement, 'artist_id IN (SELECT id FROM artists WHERE movement=?)', art.movement]);
-      if (yr) groups.push(['The same time', `The ${yr[1]}0s`, 'decade:' + yr[1] + '0', 'taken_at >= ? AND taken_at < ?', `${yr[1]}0-`, `${+yr[1] + 1}0-`]);
-      const secs = (await Promise.all(groups.map(async ([k, name, key, where, ...a]) => {
-        const ws = await rows(where, ...a); if (!ws.length) return '';
-        const n = await count(where, ...a);
-        return `<section class="lk-s"><p class="k">${esc(k)}</p><h3>${esc(name)}</h3><div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${encodeURIComponent(key)}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div><a class="sd-go" href="/wander?in=${encodeURIComponent(key)}">Wander ${n > 8 ? `all ${n}` : 'these'} →</a></section>`;
-      }))).filter(Boolean);
-      like = `<header class="wka-h"><p class="k">More like this</p><h3>Where to next</h3><p class="wka-by">From ${esc(V.tidy(w.title))}</p></header>${secs.join('') || '<p class="sd-m">Nothing beside it yet. <a href="/look">Look around</a></p>'}<p class="whp-x">Swipe left to go back to the picture.</p>`;
+      const FEW = 4, SMALL = 400, nf = n => Number(n).toLocaleString('en-US');
+      let ix = null; try { ix = app.locals.find && app.locals.find.index ? app.locals.find.index() : null; } catch (e) { console.error('[where next]', e.message); ix = null; }
+      const ways = []; let strip = '';
+      if (w && ix) {
+        const WK = app.locals.walk;
+        // A set as its Wander holds it: how many, and two covers (so the tile need not show the picture you are on).
+        const held = key => kept('next-n|' + key, 600e3, () => { try { const v = WK ? WK.list(key) : null; return v ? { n: v.works.length, covers: v.works.slice(0, 2).map(x => x.slug) } : { n: 0, covers: [] }; } catch (e) { return { n: 0, covers: [] }; } });
+        // A cover from the index is shown only if it is on view and not behind the door (one row by its slug, kept).
+        const fine = slug => (slug ? kept('next-c|' + slug, 600e3, () => adb.get(`SELECT slug FROM works WHERE slug=? AND ${SAFE0}`, slug).then(r => !!r, () => false)) : false);
+        const setWay = async (k, name, key, n0, cover0) => {
+          if (!(n0 >= FEW)) return;
+          if (n0 <= SMALL) { const h = held(key); if (h.n < FEW) return; ways.push({ k, name, n: h.n, cover: h.covers.find(x => x !== w.slug) || h.covers[0], href: `/wander?in=${encodeURIComponent(key)}` }); return; }
+          ways.push({ k, name, n: n0, cover: cover0 && cover0 !== w.slug && await fine(cover0) ? cover0 : null, href: `/wander?in=${encodeURIComponent(key)}` });
+        };
+        const art = w.artist_id ? (ix.artists || []).find(a => Number(a.id) === Number(w.artist_id)) : null;
+        // The same hand: the artist of a museum's object, or the living maker. Its strip is the first row.
+        let hand = null;
+        if (art) { await setWay('By the same hand', art.name, 'artist:' + art.slug, art.n, art.cover); if (ways.length) hand = ['artist:' + art.slug, 'artist_id=?', art.id]; }
+        else if (!isInst) { const mk = (ix.makers || []).find(x => Number(x.id) === Number(w.maker_id)); if (mk && mk.n >= FEW) { ways.push({ k: 'By the same hand', name: w.maker_name, n: mk.n, cover: mk.cover && mk.cover !== w.slug && await fine(mk.cover) ? mk.cover : null, href: `/wander?maker=${encodeURIComponent(V.makerSlug({ handle: w.maker_handle, name: w.maker_name }))}` }); hand = ['maker:' + w.maker_handle, 'maker_id=?', w.maker_id]; } }
+        if (hand) {
+          const ws = (await kept('like-r|' + hand[1] + '|' + hand[2], 600e3, () => adb.all(`SELECT slug, title FROM works WHERE ${SAFE0} AND ${hand[1]} ORDER BY curated DESC, stars DESC, id DESC LIMIT 9`, hand[2]).catch(() => []))).filter(x => x.slug !== w.slug).slice(0, 4);
+          if (!ways[0].cover && ws[0]) ways[0].cover = ws[0].slug;
+          if (ws.length === 4) strip = `<div class="lk-s"><div class="whp-strip">${ws.map(x => `<a href="/wander?at=${esc(x.slug)}&in=${encodeURIComponent(hand[0])}" aria-label="${esc(V.tidy(x.title))}"><img src="/img/${esc(x.slug)}/thumb" alt="" loading="lazy"></a>`).join('')}</div></div>`;
+        }
+        // The same collection: a museum's or a company's own work in the house.
+        if (isInst) { const mu = (ix.museums || []).find(x => x.id && Number(x.id) === Number(w.maker_id) && x.stroll); if (mu && mu.n >= FEW) { const cv = mu.img ? mu.img.replace(/^\/img\/|\/thumb$/g, '') : null; ways.push({ k: 'The same collection', name: mu.name, n: mu.n, cover: cv && cv !== w.slug && await fine(cv) ? cv : null, href: mu.stroll }); } }
+        if (art && art.movement) { const mv = (ix.movements || []).find(x => x.name === art.movement); if (mv) await setWay('The same movement', mv.name, 'movement:' + mv.name, mv.n, mv.cover); }
+        // The same time: the decade, or the century when the decade holds too few.
+        const yr = String(w.taken_at || '').match(/^(\d{3})\d/);
+        if (yr && ix.years) {
+          const span = (y0, len) => { let n = 0, cover = null; for (let y = y0; y < y0 + len; y++) { const e = ix.years.get(y); if (e) { n += e.n; if (!cover) cover = e.cover; } } return { n, cover }; };
+          const d0 = +yr[1] * 10, c0 = Math.floor(d0 / 100) * 100; const before = ways.length;
+          const dec = span(d0, 10); await setWay('The same time', `The ${d0}s`, 'decade:' + String(d0).padStart(4, '0'), dec.n, dec.cover);
+          if (ways.length === before && c0 >= 100) { const cen = span(c0, 100); const c = c0 / 100 + 1; const sfx = [11, 12, 13].includes(c % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][c % 10] || 'th'; await setWay('The same time', `The ${c}${sfx} century`, 'century:' + c0, cen.n, cen.cover); }
+        }
+        if (w.place) { const pl = (ix.places || []).find(x => x.name === w.place); if (pl) await setWay('The same place', pl.name, 'place:' + pl.name, pl.n, pl.cover); }
+        { const kd = (ix.kinds || []).find(x => x.k === (w.kind || 'photograph')); if (kd) await setWay('The same kind', kd.name, 'kind:' + kd.k, kd.n, String(kd.img || '').replace(/^\/img\/|\/thumb$/g, '')); }
+      }
+      const tile = (x, i) => `<a class="wnx-t${i === 0 ? ' wnx-w' : ''}" href="${esc(x.href)}">${x.cover ? `<img src="/img/${esc(x.cover)}/${i === 0 ? 'screen' : 'thumb'}" alt="" loading="lazy">` : '<span class="wnx-e"></span>'}<span class="wnx-c"><small>${esc(x.k)}</small><b>${esc(x.name)}</b><i>${nf(x.n)} work${x.n === 1 ? '' : 's'}</i></span></a>`;
+      // The standing doors: the same four whatever the picture, each only if the house has it.
+      const nMus = ix ? (ix.museums || []).filter(x => !x.known && !/the public domain/i.test(x.name)).length : 0, nArt = ix ? (ix.artists || []).filter(a => a.n).length : 0;
+      const doors = [nMus ? ['/look#museums', 'Museums', nf(nMus)] : null, nArt ? ['/art', 'Artists', nf(nArt)] : null, ix && ix.years && ix.years.size ? ['/look#time', 'In time', ''] : null, ['/look', 'Discover', '']].filter(Boolean);
+      like = `<header class="wka-h">${w ? `<p class="k">From ${esc(V.tidy(w.title))}</p>` : ''}<h3>Where next</h3></header>
+${ways.length ? `<nav class="wnx" aria-label="Ways on from this work">${ways.slice(0, 6).map((x, i) => tile(x, i) + (i === 0 ? strip : '')).join('')}</nav>` : ''}
+<nav class="wnx-d" aria-label="Elsewhere in the house"><p class="k">Elsewhere in the house</p>${doors.map(([h, name, n]) => `<a class="wnx-door" href="${h}"><b>${name}</b>${n ? `<i>${n}</i>` : ''}${I.next || ''}</a>`).join('')}</nav>
+<p class="whp-x">Swipe left to go back to the picture.</p>`;
     }
     res.json({ keys, yours, who, like });
   });
@@ -422,7 +463,7 @@ function strollPage({ items, q = '', maker = null, set = null, I, front = false,
   const cardOf = (w, i) => `<section class="st-i" data-slug="${esc(w.slug)}">
 <img class="st-im" src="${esc(w.img)}" alt="${esc(w.title)}" draggable="false" decoding="async"${i === 0 ? ' fetchpriority="high"' : i <= 2 ? ' fetchpriority="low"' : ' loading="lazy"'}${w.width && w.height ? ` width="${w.width}" height="${w.height}"` : ''}>
 <div class="st-plate"><a class="st-by" href="${w.artist ? esc(w.artist.href) : `/wander?maker=${esc(w.makerSlug)}&at=${esc(w.slug)}`}"${w.artist ? '' : ' data-st-maker'}>${esc(w.maker)}</a>${w.life && (w.life.years || w.life.atWork || w.life.verified) ? `<span class="st-life">${w.life.years ? `<i>${esc(w.life.years)}</i>` : ''}${w.life.atWork ? '<b class="lfl-w" title="Put up new work in the last month">at work</b>' : ''}${w.life.verified ? '<b class="lfl-v" title="A real person, checked">Verified</b>' : ''}</span>` : ''}<a class="st-t" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander">${esc(w.title)}</a><span class="st-k">${w.place ? `<a href="/wander?q=${encodeURIComponent(w.place)}">${esc(w.place)}</a>` : ''}${w.place && w.year ? ' · ' : ''}${esc(w.year || '')}</span><a class="st-tog" href="/m/${esc(w.makerSlug)}/${esc(w.slug)}?from=wander" title="Watermark: the asset under the picture; its number, its terms, its papers, the licence to use it"><b>${I.wave}Wander</b><span>${I.shield}Watermark</span></a></div>
-<button type="button" class="st-eye" data-eye="${esc(w.slug)}" aria-label="The Watermark: the asset, its number, its terms">${I.shield}</button>
+<button type="button" class="st-eye" data-st-about="record" aria-label="The Watermark: the asset, its number, its terms">${I.shield}</button>
 <nav class="st-rail" aria-label="Acts">
 <button type="button" class="st-b" data-st-hat aria-pressed="${w.hat && w.hat.mine ? 'true' : 'false'}" title="Hat: a nod, I saw it. Free, as many as you like.">${I.hat}<span data-st-hat-n>Hat</span></button><button type="button" class="st-b st-bv" data-st-bravo aria-pressed="${w.bravo && w.bravo.mine ? 'true' : 'false'}" title="Bravo: it floored me. Three a month.">${I.bravo}<span>Bravo</span></button>
 <button type="button" class="st-b" data-st-hang title="Save it to a wall of yours, like a pin. Find it again in Yours.">${I.hang}<span>Save</span></button>
@@ -443,8 +484,8 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-scroll" data-st-scroll>${items.map(card).join('')}${items.length ? '' : `<section class="st-i st-none"><p>Nothing by that word yet.</p><a href="/wander">Wander on</a></section>`}</div>
 <div class="st-guide" data-st-guide-sheet hidden><div class="st-gcard"><button type="button" class="st-gx" data-st-gx aria-label="Close">${I.close}</button><p class="k st-wil">${I.guide}Look closer &middot; Al</p>${V.GUIDE_SWITCH || ''}<div class="st-gt" data-st-gt></div><p class="st-gby" data-st-gby></p></div></div>
 ${gift ? `<div class="st-flower" data-st-flower>${gift.note ? `<p class="st-fl-note">“${esc(gift.note)}”</p>` : ''}<p class="st-fl-line">${esc(giftLine)}</p><p class="st-fl-sub">${items[0] ? `<b>${esc(V.tidy(items[0].title))}</b> · ${esc(items[0].maker)}` : ''}</p></div>` : ''}${front ? `<div class="st-hello" data-st-hello><p><b>Watermark takes art and copyright seriously.</b> Photographers keep their work here, show it properly, and are paid when it is used or collected.</p><a href="/house">What this is &rarr;</a></div>` : ''}<p class="st-toast" data-st-toast hidden></p>${['find','close','next','wave'].map(k => `<template data-ic="${k}">${I[k]}</template>`).join('')}
-<button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="More like this">${I.look || I.wave}<span>More</span></button><aside class="st-side st-side-l st-who st-like" data-st-side="yours" aria-label="More like this"><div class="sdr" data-sd-body></div></aside><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About the work">${I.page || I.look}<span>About</span></button>
-<aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="About the work and who made it"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
+<button type="button" class="st-tab st-tab-l" data-st-doors="yours" aria-label="Where next">${I.look || I.wave}<span>Next</span></button><aside class="st-side st-side-l st-who st-like" data-st-side="yours" aria-label="Where next" tabindex="-1"><div class="sdr" data-sd-body></div></aside><button type="button" class="st-tab st-tab-r" data-st-doors="keys" aria-label="About this work">${I.page || I.look}<span>About</span></button>
+<aside class="st-side st-side-r st-who" data-st-side="keys" aria-label="About this work" tabindex="-1"><div class="sdr" data-sd-body></div></aside><script src="/static/follow.js" defer></script><div class="st-shade" data-st-shade hidden></div>
 <template data-st-ic="wave">${I.wave}</template><template data-st-ic="look">${I.look}</template><template data-st-ic="pencil">${I.pencil}</template><template data-st-ic="in">${I.in || ''}</template><template data-st-ic="card">${I.card || ''}</template><template data-st-ic="play">${I.play}</template><template data-st-ic="pause">${I.pause}</template><template data-st-ic="plus">${I.plus}</template><template data-st-ic="share">${I.share}</template><template data-st-ic="print">${I.print || ''}</template>
 <div class="st-sitbar" data-st-sitbar hidden><button type="button" data-st-stand>Stand up</button></div>
 <p class="st-stay" data-st-stay hidden>Stay with this one.</p>

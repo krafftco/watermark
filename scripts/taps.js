@@ -6,6 +6,8 @@
 // that reach it, pressing only what is on the screen:
 //   - a press on a control that can be seen and pressed where the page stands counts one;
 //   - a control that has to be scrolled to (down a page, or along a row) counts two: the scroll, then the press;
+//   - in Wander a swipe to the side counts one, as a scroll does; on a phone nothing on the screen says it is there, so
+//     a way that begins with one is "not plainly named";
 //   - a word typed in Find counts two (open Find, type) and one more for the press on what it finds. A typed way is
 //     measured apart, as "by name": it only helps a person who already knows what the thing is called.
 // The search is breadth-first by cost over the controls each screen shows (FAN at most a screen). A link's far side is
@@ -93,7 +95,8 @@ function readScreen(FAN) {
   const seen = e => { for (let n = e; n && n.nodeType === 1; n = n.parentElement) { const c = getComputedStyle(n); if (c.display === 'none' || c.visibility === 'hidden' || +c.opacity < 0.05) return false; if (n.hasAttribute('hidden') || n.getAttribute('aria-hidden') === 'true' || n.inert) return false; if (n.tagName === 'DETAILS' && !n.open && !(e.tagName === 'SUMMARY' && e.parentElement === n)) return false; } return getComputedStyle(e).pointerEvents !== 'none'; };
   const words = e => (e.innerText || '').replace(/\s+/g, ' ').trim();
   const label = e => words(e) || e.getAttribute('aria-label') || e.getAttribute('title') || (e.querySelector('img[alt]:not([alt=""])') || { alt: '' }).alt || '';
-  const where = e => e.closest('nav.tb') ? 'the bar' : e.closest('.fd') ? 'Find' : e.closest('[role="dialog"]') ? 'the sheet' : (h => h && (!h.closest('main') || h.closest('main.st')))(e.closest('header')) ? 'the top bar' : e.closest('footer') ? 'the footer' : e.closest('main.st') ? 'Wander' : 'the page';
+  const sideOf = e => { const d = e.closest('[data-st-side]'); return d ? (d.getAttribute('aria-label') || 'the side') : null; };
+  const where = e => e.closest('nav.tb') ? 'the bar' : sideOf(e) ? sideOf(e) : e.closest('.fd') ? 'Find' : e.closest('[role="dialog"]') ? 'the sheet' : (h => h && (!h.closest('main') || h.closest('main.st')))(e.closest('header')) ? 'the top bar' : e.closest('footer') ? 'the footer' : e.closest('main.st') ? 'Wander' : 'the page';
   const dialogs = [].filter.call(document.querySelectorAll('[role="dialog"]'), d => seen(d) && d.getBoundingClientRect().height > 40);
   const top = dialogs[dialogs.length - 1] || null;
   const out = [];
@@ -109,12 +112,13 @@ function readScreen(FAN) {
     const slide = e.closest('.st-i'); if (slide && !near) continue;
     const a = e.tagName === 'A' ? e : null; let href = null, ext = false;
     if (a) { const u = new URL(a.href, location.href); ext = u.origin !== location.origin || !/^https?:$/.test(u.protocol) || a.target === '_blank' || a.hasAttribute('download'); href = u.pathname + u.search + u.hash; }
-    out.push({ tag: e.tagName.toLowerCase(), cls: String(e.className || ''), href, ext, label: label(e).slice(0, 90), words: words(e).slice(0, 90), near, slide: !!slide, where: where(e), screens: +(Math.max(0, r.top + (top ? 0 : scrollY)) / vh).toFixed(1), form: !a && !!e.closest('form') && (e.getAttribute('type') || 'submit') === 'submit' });
+    out.push({ tag: e.tagName.toLowerCase(), cls: String(e.className || ''), href, ext, label: label(e).slice(0, 90), words: words(e).slice(0, 90), near, slide: !!slide, side: !!sideOf(e), door: !!e.closest('.wnx-d'), where: where(e), screens: +(Math.max(0, r.top + (top ? 0 : scrollY)) / vh).toFixed(1), form: !a && !!e.closest('form') && (e.getAttribute('type') || 'submit') === 'submit' });
   }
+  const rec = [].some.call(document.querySelectorAll('[data-st-side].on [data-st-rec]'), r => seen(r) && r.getBoundingClientRect().height > 2);
   const rank = { 'the bar': 0, Find: 0, 'the sheet': 0, 'the top bar': 1, Wander: 2, 'the page': 3, 'the footer': 4 };
-  out.sort((x, y) => (x.near === y.near ? 0 : x.near ? -1 : 1) || rank[x.where] - rank[y.where]);
+  out.sort((x, y) => (x.near === y.near ? 0 : x.near ? -1 : 1) || (rank[x.where] == null ? 2 : rank[x.where]) - (rank[y.where] == null ? 2 : rank[y.where]));
   const cur = [].find.call(document.querySelectorAll('.st-i[data-slug]'), s => { const r = s.getBoundingClientRect(); return r.top < vh / 2 && r.bottom > vh / 2; });
-  return { url: location.pathname + location.search + location.hash, controls: out.slice(0, FAN), all: out.length, slug: cur ? cur.getAttribute('data-slug') : null, sheets: dialogs.map(d => d.getAttribute('aria-label') || d.className), title: document.title, coarse: matchMedia('(pointer:coarse)').matches, bar: (() => { const b = document.querySelector('nav.tb'); return b ? [].map.call(b.querySelectorAll('span'), x => x.textContent).join(' · ') : ''; })() };
+  return { url: location.pathname + location.search + location.hash, controls: out.slice(0, FAN), all: out.length, slug: cur ? cur.getAttribute('data-slug') : null, wander: !!document.querySelector('main.st .st-i .st-im'), rec, sides: [].filter.call(document.querySelectorAll('[data-st-side].on'), seen).map(d => d.getAttribute('aria-label') || ''), sheets: dialogs.map(d => d.getAttribute('aria-label') || d.className), title: document.title, coarse: matchMedia('(pointer:coarse)').matches, bar: (() => { const b = document.querySelector('nav.tb'); return b ? [].map.call(b.querySelectorAll('span'), x => x.textContent).join(' · ') : ''; })() };
 }
 
 (async () => {
@@ -137,7 +141,16 @@ function readScreen(FAN) {
     const SKIP = /^(×|back|close|share|send|hat|bravo|save|full screen|sign out|where you have been|skip to|install|play|pause)/i; // a deed or a way out, not a way in
     const DEAD = /^\/(studio|account|signout|api|img|static|feedback)(\/|$|\?)|\.(pdf|png|jpe?g|svg|epub|json|xml|txt)(\?|$)/i; // desks, files, deeds
     const same = (a, b) => a.tag === b.tag && (b.chance ? a.cls === b.cls : a.label === b.label && (a.href || '') === (b.href || '')); // a link of the picture on screen is known by its place on the plate, whichever picture it is
+    // A swipe to the side in Wander, made as a finger makes it (the touches test/wanderdoors.js sends).
+    const swipe = (p, dx) => p.evaluate(async dx => {
+      const img = document.querySelector('.st-i .st-im'); if (!img) throw new Error('no picture to swipe'); const x0 = dx < 0 ? 320 : 60, y = 380;
+      const T = x => new Touch({ identifier: 7, target: img, clientX: x, clientY: y });
+      const fire = (type, ts, ct) => img.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: ts, changedTouches: ct || ts, targetTouches: ts }));
+      fire('touchstart', [T(x0)]); for (let i = 1; i <= 10; i++) { fire('touchmove', [T(x0 + dx * i / 10)]); await new Promise(r => setTimeout(r, 12)); }
+      fire('touchend', [], [T(x0 + dx)]); await new Promise(r => setTimeout(r, 900));
+    }, dx);
     const press = async (p, ctl) => {
+      if (ctl.swipe) { await swipe(p, ctl.swipe); await settle(p); return; }
       const s = await read(p, 400); const c = s.controls.find(x => same(x, ctl) && x.near) || s.controls.find(x => same(x, ctl));
       if (!c) throw new Error(`“${ctl.label}” is not on ${s.url}${DEBUG ? ' [' + s.sheets + '] ' + s.controls.map(x => x.label + '|' + x.href + '|' + x.near).join(' ~ ') : ''}`);
       const i = await p.evaluate(({ c }) => { const words = e => (e.innerText || '').replace(/\s+/g, ' ').trim(); const label = e => words(e) || e.getAttribute('aria-label') || e.getAttribute('title') || (e.querySelector('img[alt]:not([alt=""])') || { alt: '' }).alt || ''; const all = [...document.querySelectorAll('a[href], button, summary, [role="button"]')]; const fit = all.filter(e => e.tagName.toLowerCase() === c.tag && String(e.className || '') === c.cls && label(e).slice(0, 90) === c.label && (c.href == null || (() => { const u = new URL(e.href, location.href); return u.pathname + u.search + u.hash === c.href; })())); const vis = fit.filter(e => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; }); const near = vis.find(e => { const r = e.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return h && (e.contains(h) || h.contains(e)); }); const e = near || vis[0]; if (!e) return -1; e.setAttribute('data-taps-press', '1'); return 1; }, { c });
@@ -161,8 +174,8 @@ function readScreen(FAN) {
     const found = {}, viaDiscover = {}; // key -> { cost, path, bad }
     const step = (c, from) => ({ tag: c.tag, cls: c.cls, label: c.label, words: c.words, href: c.href, near: c.near, where: c.where, screens: c.screens, on: from });
     const cost = path => path.reduce((n, s) => n + (s.near ? 1 : 2), 0);
-    const plainOf = (t, path) => { const bad = []; path.forEach((s, i) => { if (!s.words) bad.push(`“${s.label}” has no words to see`); else if (i === path.length - 1 && !t.says.test(s.words)) bad.push(`“${s.words}” does not name it`); }); return bad; };
-    const offer = (t, path) => { const c = cost(path), bad = plainOf(t, path), was = found[t.key]; if (path[0].href === '/look' && path[0].where === 'the bar' && (!viaDiscover[t.key] || c < viaDiscover[t.key].cost)) viaDiscover[t.key] = { cost: c, path, bad }; if (!was || c < was.cost || (c === was.cost && bad.length < was.bad.length)) { found[t.key] = { cost: c, path, bad }; if (DEBUG) say(`  found ${t.key} in ${c}: ${path.map(s => s.label).join(' > ')}`); } };
+    const plainOf = (t, path) => { const bad = []; path.forEach((s, i) => { if (s.swipe) bad.push(`a ${s.label}: nothing on the screen says it is there`); else if (!s.words) bad.push(`“${s.label}” has no words to see`); else if (i === path.length - 1 && !t.says.test(s.words)) bad.push(`“${s.words}” does not name it`); }); return bad; };
+    const offer = (t, path) => { const c = cost(path), bad = plainOf(t, path), was = found[t.key]; if (path[0].href === '/look' && path[0].where === 'the bar' && (!viaDiscover[t.key] || c < viaDiscover[t.key].cost)) viaDiscover[t.key] = { cost: c, path, bad }; if (!was || c < was.cost || (c === was.cost && bad.length < was.bad.length)) { found[t.key] = { cost: c, path, bad }; if (DEBUG) say(`  found ${t.key} in ${c}: ${path.map(s => s.label).join(' > ')}`); } else if (DEBUG && c === was.cost) say(`  also ${t.key} in ${c}: ${path.map(s => s.label).join(' > ')}`); };
     const hit = (u, slug) => things.filter(t => t.at(dec(u), slug));
     const buckets = Array.from({ length: MAX + 2 }, () => []); const seenUrl = new Map(), seenScreen = new Set();
     buckets[0].push({ url: '/', ops: [], path: [] }); const firstButtons = new Set(first.controls.filter(x => !x.href).map(x => x.label));
@@ -171,19 +184,21 @@ function readScreen(FAN) {
         if (c === MAX && things.every(t => found[t.key])) break;
         let s; try { s = await arrive(st); } catch (e) { if (DEBUG) say(`  could not arrive: ${st.path.map(x => x.label).join(' > ')}: ${String(e.message).split('\n')[0]}`); continue; }
         if (s.status >= 400) continue;
+        const sig0 = s.sides.join(',');
         const front = st.url === '/' || /^\/wander(\?at=[^&]*)?$/.test(s.url); // the open feed: which picture is on screen is chance
-        const sig = s.url.replace(/#.*/, '') + '|' + s.sheets.join(',') + '|' + s.controls.filter(x => x.near).map(x => x.label + (x.href || '')).join('~');
+        const sig = s.url.replace(/#.*/, '') + '|' + s.sheets.join(',') + sig0 + '|' + s.controls.filter(x => x.near).map(x => x.label + (x.href || '')).join('~');
         if (seenScreen.has(sig)) continue; seenScreen.add(sig);
         // What the screen itself is: an address a press was sent on to, or a sheet over the work.
-        if (st.path.length) { for (const t of hit(s.url, null)) offer(t, st.path); if (st.url === '/' && s.sheets.some(x => /watermark/i.test(x))) offer(things.find(t => t.key === 'record'), st.path); }
-        if (DEBUG) say(`[${c}] ${st.path.map(x => x.label).join(' > ') || '/'} -> ${s.url} ${s.sheets.length ? '(' + s.sheets + ')' : ''}: ${s.controls.filter(x => x.near).length} near, ${s.all} in all, ${s.ms} ms`);
+        if (st.path.length) { for (const t of hit(s.url, null)) offer(t, st.path); if (st.url === '/' && (s.rec || s.sheets.some(x => /watermark/i.test(x)))) offer(things.find(t => t.key === 'record'), st.path); }
+        if (DEBUG) say(`[${c}] ${st.path.map(x => x.label).join(' > ') || '/'} -> ${s.url} ${s.sheets.length ? '(' + s.sheets + ')' : ''}${s.sides.length ? '(' + s.sides + (s.rec ? ', the record showing' : '') + ')' : ''}: ${s.controls.filter(x => x.near).length} near, ${s.all} in all, ${s.ms} ms`);
         if (c === MAX) continue;
+        if (st.url === '/' && !st.ops.length && s.wander) for (const [dx, label] of [[240, 'swipe to the right'], [-240, 'swipe to the left']]) buckets[c + 1].push({ url: st.url, ops: [{ swipe: dx, label }], path: st.path.concat([{ swipe: dx, label, words: '', near: true, where: 'Wander', screens: 0 }]) });
         for (const ctl of s.controls) {
           if (ctl.ext || ctl.form || SKIP.test(ctl.label) || !ctl.label) continue;
-          if (c > 0 && !s.sheets.length && (ctl.where === 'the bar' || (!ctl.href && /^find$/i.test(ctl.label)))) continue; // the bar and Find are the same in every room: the first screen has pressed them
+          if (c > 0 && !s.sheets.length && !s.sides.length && (ctl.where === 'the bar' || (!ctl.href && /^find$/i.test(ctl.label)))) continue; // the bar and Find are the same in every room: the first screen has pressed them
           if (c > 0 && st.url !== '/' && !ctl.href && firstButtons.has(ctl.label)) continue; // so is Wander's rail on every picture
           const nc = c + (ctl.near ? 1 : 2); if (nc > MAX) continue;
-          const chance = front && !!ctl.href && (ctl.slide || ctl.where === 'the sheet'); // a link of the picture that happened to be first, or of its sheet
+          const chance = front && !!ctl.href && (ctl.slide || ctl.where === 'the sheet' || (ctl.side && !ctl.door)); // a link of the picture that happened to be first, or of its sheet
           const path = st.path.concat([{ ...step(ctl, s.url), chance }]);
           if (ctl.href) {
             if (DEAD.test(ctl.href)) continue;
@@ -207,7 +222,7 @@ function readScreen(FAN) {
         const s0 = await read(q, 10);
         for (const s of path) await press(q, s);
         const s = await read(q, 10);
-        if (!(t.at(dec(s.url), s0.slug) || (t.key === 'record' && s.sheets.some(x => /watermark/i.test(x))))) throw new Error(`the presses ended on ${s.url}`);
+        if (!(t.at(dec(s.url), s0.slug) || (t.key === 'record' && (s.rec || s.sheets.some(x => /watermark/i.test(x)))))) throw new Error(`the presses ended on ${s.url}`);
       } finally { await shut(q); }
     };
     for (const t of things) { const f = found[t.key]; if (!f) continue; try { await walk(t, f.path); f.walked = true; } catch (e) { f.walked = false; f.why = String(e.message).split('\n')[0]; } }
@@ -232,7 +247,7 @@ function readScreen(FAN) {
 
     lap('typed');
     // The table.
-    const way = f => f.path.map(s => `${s.near ? '' : `scroll (${s.screens} screen${s.screens === 1 ? '' : 's'} down), `}${s.words || `[${s.label}]`} (${s.chance ? 'the plate of the picture on screen' : s.where})`).join(' → ');
+    const way = f => f.path.map(s => `${s.near ? '' : `scroll (${s.screens} screen${s.screens === 1 ? '' : 's'} down), `}${s.swipe ? `[${s.label}]` : s.words || `[${s.label}]`} (${s.chance ? 'the plate of the picture on screen' : s.where})`).join(' → ');
     const rows = things.map(t => { const f = found[t.key], ty = typed[t.key]; return { t, f, ty, n: f && f.walked ? f.cost : null }; });
     const md = ['| The thing | The fewest presses | Presses | Plainly named? | Through Discover | By name in Find |', '|---|---|---|---|---|---|'];
     for (const r of rows) md.push(`| ${r.t.name} | ${r.f ? way(r.f) + (r.f.walked ? '' : ` (NOT walked: ${r.f.why})`) : `none within ${MAX}`} | ${r.n == null ? `over ${MAX}` : r.n} | ${!r.f ? 'n/a' : r.f.bad.length ? 'no: ' + r.f.bad.join('; ') : 'yes'} | ${viaDiscover[r.t.key] ? `${viaDiscover[r.t.key].cost}: ${way(viaDiscover[r.t.key]).replace(/^Discover \(the bar\) → /, '')}` : 'none found'} | ${!r.t.word ? 'n/a' : !r.ty || r.ty.none ? `“${r.t.word}”: not found${r.ty && r.ty.saw && r.ty.saw.length ? ' (it offers ' + r.ty.saw.join('; ') + ')' : ''}` : `“${r.t.word}”: ${r.ty.cost}`} |`);
