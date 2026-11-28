@@ -77,7 +77,31 @@ async function walk(name, opts, phone) {
   await p.waitForTimeout(700);
   const woke = await p.evaluate(() => !document.querySelector('.st').classList.contains('st-still'));
   ok(5, woke, name, 'a touch did not bring the chrome back');
-  // 3. one finger moves, two fingers look (phone); 8. doors (keys on a desk, swipes on a phone)
+  // 8. the two sides (#241): Where next on the left, About on the right, said once; the shield opens About at the record.
+  const SIDES = () => { window.sides = () => { const r = document.querySelector('.st-side-r'), l = document.querySelector('.st-side-l'); const on = e => !!(e && e.classList.contains('on') && getComputedStyle(e).visibility === 'visible'); const a = document.activeElement; const tab = s => { const t = document.querySelector(s); return t ? `${t.getAttribute('aria-label')}|${t.textContent.trim()}` : ''; }; return { about: on(r), next: on(l), cls: [l && l.className, r && r.className], focus: a && r.contains(a) ? 'about' : a && l.contains(a) ? 'next' : '', here: !!document.querySelector('.st-scroll'), tabs: { l: tab('.st-tab-l'), r: tab('.st-tab-r') } }; }; };
+  const aboutHolds = async () => {
+    await p.waitForFunction(() => document.querySelector('.st-side-r [data-st-rec]'), null, { timeout: 5000 }).catch(() => {});
+    const a = await p.evaluate(() => { const r = document.querySelector('.st-side-r'); const top = s => { const e = r.querySelector(s); return e ? e.getBoundingClientRect().top + r.scrollTop : -1; }; const t = (r.querySelector('.wka-h h3') || {}).textContent || ''; return { label: r.getAttribute('aria-label'), work: top('.wka-h'), who: top('.whp-h'), rec: top('[data-st-rec]'), recs: r.querySelectorAll('[data-st-rec]').length, title: t, said: t ? r.textContent.split(t).length - 1 : 0, number: [...r.querySelectorAll('dt')].filter(d => d.textContent === 'Its number').length, sheet: !!document.querySelector('.wye') }; });
+    ok(8, a.label === 'About this work', name, `the right side is named ${a.label}`);
+    ok(8, a.work >= 0 && a.work < a.who && a.who < a.rec, name, `About is not the work, who made it, the record, in that order (${a.work}, ${a.who}, ${a.rec})`);
+    ok(8, a.recs === 1 && a.number === 1 && a.said === 1 && !a.sheet, name, `About does not say it once (records ${a.recs}, numbers ${a.number}, the title ${a.said} times, a sheet ${a.sheet})`);
+  };
+  const nextHolds = async () => {
+    await p.waitForFunction(() => document.querySelector('.st-side-l .wnx-door'), null, { timeout: 5000 }).catch(() => {});
+    const n = await p.evaluate(() => { const l = document.querySelector('.st-side-l'); return { label: l.getAttribute('aria-label'), ways: [...l.querySelectorAll('.wnx-t')].map(a => ({ href: a.getAttribute('href'), n: parseInt(a.querySelector('i').textContent.replace(/,/g, ''), 10), name: a.querySelector('b').textContent })), doors: [...l.querySelectorAll('.wnx-door')].map(a => a.getAttribute('href')) }; });
+    ok(8, n.label === 'Where next', name, `the left side is named ${n.label}`);
+    ok(8, n.ways.length <= 6 && n.ways.every(w => w.n >= 4 && /^\/wander\?(in|maker)=/.test(w.href)), name, `Where next's ways are not six at most, four works or more, each a Wander (${JSON.stringify(n.ways)})`);
+    ok(8, n.doors.length >= 1 && n.doors[n.doors.length - 1] === '/look', name, `Where next does not end in the standing doors (${n.doors})`);
+    for (const w of [...n.ways.map(x => x.href), ...n.doors]) { const r = await fetch(BASE + w.replace(/#.*/, '')); ok(8, r.status === 200, name, `${w} answered ${r.status}`); if (/^\/wander/.test(w)) { const h = await r.text(); ok(8, (h.match(/class="st-i(?: |")/g) || []).length >= 1 && !/st-none/.test(h), name, `${w} lands on no picture`); } }
+  };
+  const shieldOpens = async press => {
+    const had = await press(); ok(8, had, name, 'no shield on the picture'); await p.waitForTimeout(900);
+    const s = await p.evaluate(() => { const r = document.querySelector('.st-side-r'), rec = r.querySelector('[data-st-rec]'); const b = rec ? rec.getBoundingClientRect() : null; return { on: r.classList.contains('on'), top: b ? b.top : -1, h: innerHeight, focus: document.activeElement === rec, sheet: !!document.querySelector('.wye'), eyes: document.querySelectorAll('.st [data-eye]').length }; });
+    ok(8, s.on && !s.sheet && !s.eyes, name, `the shield did not open About alone (${JSON.stringify(s)})`);
+    ok(8, s.top >= 0 && s.top < s.h * 0.5 && s.focus, name, `the shield did not open About at the record (${JSON.stringify(s)})`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+  };
+  // 3. one finger moves, two fingers look (phone)
   if (phone) {
     const sw = await p.evaluate(async () => {
       const sc = document.querySelector('.st-scroll'); const img = sc.querySelector('.st-im');
@@ -107,18 +131,23 @@ async function walk(name, opts, phone) {
     ok(3, sw.letGo, name, 'a flick did not let the zoom go');
     ok(3, Math.abs(sw.moved2 - 2 * sw.h) < 4, name, `after the flick the wall stood at ${sw.moved2}, not two screens (${2 * sw.h})`);
     ok(10, /at=/.test(sw.at), name, `the address did not follow the picture (${sw.at})`);
-    // 8. doors by swipe
-    const doors = await p.evaluate(async () => {
-      const sc = document.querySelector('.st-scroll'); const img = sc.querySelectorAll('.st-im')[2] || sc.querySelector('.st-im');
-      const T = (x, y, id) => new Touch({ identifier: id, target: img, clientX: x, clientY: y });
+    // 8. the two sides by swipe: a finger moving left opens About, a finger moving right opens Where next
+    const swipe = dx => p.evaluate(async dx => {
+      const sc = document.querySelector('.st-scroll'); const h = sc.clientHeight; const img = [...sc.querySelectorAll('.st-im')].find(i => { const r = i.getBoundingClientRect(); return r.top > -h / 2 && r.top < h / 2; }) || sc.querySelector('.st-im');
+      const x0 = dx < 0 ? 300 : 60; const T = x => new Touch({ identifier: 7, target: img, clientX: x, clientY: 400 });
       const fire = (type, ts, ct) => sc.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: ts, changedTouches: ct || ts, targetTouches: ts }));
-      const open = () => { const r = document.querySelector('.st-side-r'), l = document.querySelector('.st-side-l'); return { keys: !!(r && r.classList.contains('on')), yours: !!(l && l.classList.contains('on')), rk: r ? r.className : '', lk: l ? l.className : '' }; };
-      fire('touchstart', [T(300, 400, 7)]); for (let k = 1; k <= 10; k++) { fire('touchmove', [T(300 - k * 22, 400, 7)]); await new Promise(r => setTimeout(r, 12)); }
-      fire('touchend', [], [T(80, 400, 7)]); await new Promise(r => setTimeout(r, 600));
-      const a = open();
-      return a;
-    });
-    ok(8, doors.keys || /on|open/.test(doors.rk), name, `a swipe left did not open the Keys (${doors.rk})`);
+      fire('touchstart', [T(x0)]); for (let k = 1; k <= 10; k++) { fire('touchmove', [T(x0 + dx * k / 10)]); await new Promise(r => setTimeout(r, 12)); }
+      fire('touchend', [], [T(x0 + dx)]); await new Promise(r => setTimeout(r, 900));
+      return sides();
+    }, dx);
+    await p.evaluate(SIDES);
+    const doors = await swipe(-220);
+    ok(8, doors.about && !doors.next, name, `a finger moving left did not open About (${JSON.stringify(doors.cls)})`);
+    await aboutHolds();
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    const nx = await swipe(220);
+    ok(8, nx.next && !nx.about, name, `a finger moving right did not open Where next (${JSON.stringify(nx.cls)})`);
+    await nextHolds();
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     // The thumb starts a swipe left at the right edge, on the rail (5 Nov: "left swipe doesn't work"): it must open too.
     const fromRail = await p.evaluate(async () => {
@@ -130,19 +159,36 @@ async function walk(name, opts, phone) {
       fire('touchend', [], [T(x0 - 220, y0 + 10)]); await new Promise(r => setTimeout(r, 600));
       return document.querySelector('main.st').classList.contains('st-side-on') ? 'open' : 'shut';
     });
-    ok(8, fromRail === 'open', name, `a swipe left that starts on the rail did not open who made it (${fromRail})`);
+    ok(8, fromRail === 'open', name, `a swipe left that starts on the rail did not open About (${fromRail})`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    // The shield opens About at the record, and no sheet of its own. A tap brings the chrome first.
+    await p.touchscreen.tap(60, 300); await p.waitForTimeout(700);
+    await shieldOpens(() => p.evaluate(() => { const sc = document.querySelector('.st-scroll'); const h = sc.clientHeight; const b = [...sc.querySelectorAll('.st-i .st-eye')].find(e => { const r = e.getBoundingClientRect(); return r.top > 0 && r.top < h; }); if (b) b.click(); return !!b; }));
   } else {
+    await p.evaluate(SIDES);
+    // → opens About, ← closes it; ← opens Where next, → closes it; Esc closes either. The edge tabs say where they go.
+    await p.keyboard.press('ArrowRight'); await p.waitForTimeout(700);
+    let d = await p.evaluate(() => sides());
+    ok(8, d.about && !d.next, name, `→ did not open About (${JSON.stringify(d.cls)})`);
+    ok(8, d.focus === 'about', name, `focus did not go into About (${d.focus})`);
+    await aboutHolds();
+    await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(600);
+    d = await p.evaluate(() => sides()); ok(8, !d.about && !d.next, name, `← did not close About (${JSON.stringify(d.cls)})`);
+    await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(700);
+    d = await p.evaluate(() => sides()); ok(8, d.next && !d.about, name, `← from the picture did not open Where next (${JSON.stringify(d.cls)})`);
+    ok(8, d.focus === 'next', name, `focus did not go into Where next (${d.focus})`);
+    await nextHolds();
     await p.keyboard.press('ArrowRight'); await p.waitForTimeout(600);
-    const d1 = await p.evaluate(() => { const r = document.querySelector('.st-side-r'); return r ? r.className : ''; });
-    ok(8, /on|open/.test(d1), name, `→ did not open the Keys (${d1})`);
-    await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(500);
-    const d2 = await p.evaluate(() => { const r = document.querySelector('.st-side-r'); return r ? r.className : ''; });
-    ok(8, !/\bon\b|open/.test(d2), name, `← did not close the Keys (${d2})`);
-    // One door since 5 Nov (who made it, on the right): ← from the picture opens nothing and stays in Wander.
-    await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(500);
-    const d3 = await p.evaluate(() => ({ open: document.querySelector('main.st').classList.contains('st-side-on'), here: !!document.querySelector('.st-scroll') }));
-    ok(8, !d3.open && d3.here, name, `← from the picture should open nothing (${JSON.stringify(d3)})`);
+    d = await p.evaluate(() => sides()); ok(8, !d.about && !d.next && d.here, name, `→ did not close Where next (${JSON.stringify(d.cls)})`);
+    ok(8, d.tabs.l === 'Where next|Next' && d.tabs.r === 'About this work|About', name, `the edge tabs read ${JSON.stringify(d.tabs)}`);
+    for (const [which, want] of [['yours', 'next'], ['keys', 'about']]) {
+      await p.mouse.move(700, 450); await p.waitForTimeout(300);
+      await p.evaluate(w => document.querySelector(`[data-st-doors="${w}"]`).click(), which); await p.waitForTimeout(700);
+      d = await p.evaluate(() => sides()); ok(8, d[want] && !d[want === 'next' ? 'about' : 'next'], name, `the ${which === 'yours' ? 'left' : 'right'} edge tab did not open ${want === 'next' ? 'Where next' : 'About'}`);
+      await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+      d = await p.evaluate(() => sides()); ok(8, !d.about && !d.next && d.here, name, 'Esc did not close the side and stay in Wander');
+    }
+    await shieldOpens(() => p.evaluate(() => { const sc = document.querySelector('.st-scroll'); const h = sc.clientHeight; const b = [...sc.querySelectorAll('.st-i .st-eye')].find(e => { const r = e.getBoundingClientRect(); return r.top > 0 && r.top < h; }); if (b) b.click(); return !!b; }));
     const sc0 = await p.evaluate(() => document.querySelector('.st-scroll').scrollTop);
     await p.keyboard.press('ArrowDown'); await p.waitForTimeout(900);
     const sc1 = await p.evaluate(() => ({ t: document.querySelector('.st-scroll').scrollTop, h: document.querySelector('.st-scroll').clientHeight }));
