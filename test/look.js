@@ -17,7 +17,8 @@ const { createApp } = require('../src/app');
   // The nav and Wander.
   // The quiet house (4 Nov): Keep your work in the nav, Wander · Find · You at the foot; every room in Find and on /everything.
   const V = require('../src/views'); assert.ok(V.isQuiet(), 'quiet by default');
-  let t = await get('/library'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/makers"[^>]*>Keep your work<\/a>/.test(t) && /class="tb tb-3"/.test(t) && !/<span>Read<\/span>/.test(t.slice(t.indexOf('class="tb tb-3"'))), 'the quiet nav and tab bar');
+  let t = await get('/library'); assert.ok(/<nav class="nv-verbs"[^>]*><a href="\/makers"[^>]*>Keep your work<\/a>/.test(t) && /class="tb tb-4"/.test(t) && !/<span>Read<\/span>/.test(t.slice(t.indexOf('class="tb tb-4"'))), 'the quiet nav and tab bar');
+  assert.ok(/class="tb tb-4"[^>]*>(?:(?!<\/nav>).)*href="\/look"(?:(?!<\/nav>).)*<span>Discover<\/span>/s.test(t), 'the quiet tab bar carries Discover (28 Nov)');
   t = await get('/everything'); assert.ok(t.includes('Every room.') && t.includes('href="/listening"') && t.includes('href="/keys"') && t.includes('href="/met"'), '/everything lists the rooms');
   let fj = await fetch(base + '/api/find?q=listening').then(r => r.json()); assert.ok(fj.doors && fj.doors.some(d => d.href === '/listening') && fj.doorsFirst, 'Find finds a room by name');
   t = await get('/find?q=keys'); assert.ok(t.includes('In the house') && t.includes('href="/keys"'), 'the /find page shows the rooms');
@@ -28,7 +29,7 @@ const { createApp } = require('../src/app');
   // The tab bar: five, on public pages and in Wander, never on a desk.
   t = await get('/look'); assert.ok(/<nav class="tb"[^>]*>(?:(?!<\/nav>).)*Wander(?:(?!<\/nav>).)*aria-current="page">(?:(?!<\/nav>).)*Look<\/span>/s.test(t) && /data-tb-you/.test(t) && t.includes('<span>Read</span>') && t.includes('<span>Find</span>'), 'the tab bar, Look lit');
   t = await get('/wander'); assert.ok(t.includes('class="tb"') && t.includes('data-find-open="stroll"'), 'the tab bar in Wander');
-  V.setQuiet(true); t = await get('/wander?q=wheat'); assert.ok(/class="tb tb-3"/.test(t) && t.includes('data-find-open="stroll"'), 'the quiet tab bar in Wander');
+  V.setQuiet(true); t = await get('/wander?q=wheat'); assert.ok(/class="tb tb-4"/.test(t) && t.includes('data-find-open="stroll"'), 'the quiet tab bar in Wander');
   // The hub and the Met's room.
   // Discover (5 Nov): one search that finds everything, the ways in, the walls; the Met still first among the collections.
   const vg = app.locals.art.ensure('Vincent van Gogh', { born: 1853, died: 1890, movement: 'Post-Impressionism' }); db.prepare('UPDATE works SET artist_id=? WHERE slug=?').run(vg.id, wheat);

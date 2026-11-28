@@ -12,6 +12,10 @@ added or a promise made, the third for repairs. Nothing is announced that is not
 - Find opens with the museums first: the name, the place, the number of works and a cover, each going straight to that museum's Wander.
 - The open Wander now sets works held by the museums among the makers' own: about one picture in three, after the first two screens, from works that meet the wall standard. The share is a setting and a draft.
 - Albums, galleries, a maker's own Wander, a word and the shelf are as they were.
+## 1.94.8 · Discover is in the bar · 28 November 2026
+
+- On a phone the bar at the foot is now Wander, Discover, Find, You. Discover was reachable only from the foot of another page.
+- Discover opens with the collections, then the artists, then the museums. A museum's tile goes straight into wandering that museum.
 
 ## 1.94.7 · In Wander the bar keeps away · 27 November 2026
 
