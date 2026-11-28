@@ -2744,7 +2744,7 @@ function req(port, method, p, { body, headers = {}, cookie } = {}) {
     console.log('ok: the maker’s shelves and the reading list'); }
   console.log('ok: owners');
   // The basket: several photographs gathered, one payment; the basket shows what can be collected and the sum.
-  { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=3')).body).items.filter(w => w.collect).slice(0, 2);
+  { const two = JSON.parse((await req(port, 'GET', '/api/stroll?n=8')).body).items.filter(w => w.collect).slice(0, 2);
     assert.equal(two.length, 2, 'two collectable photographs for the basket');
     const ck = 'wm_bk=' + encodeURIComponent(two.map(w => w.slug).join(','));
     let r = await req(port, 'GET', '/basket', { cookie: ck }); assert.equal(r.status, 200); assert.ok(two.every(w => r.body.includes('data-slug="' + w.slug + '"')) && /Collect all 2/.test(r.body), 'the basket lists both and offers to collect all');

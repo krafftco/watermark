@@ -30,15 +30,16 @@
     if (q) location.href = '/wander?q=' + encodeURIComponent(q);
   }
   function workRow(w) { return '<a class="fd-w" href="' + esc(hrefOf(w)) + '" role="option"><img src="' + esc(w.img) + '" alt="" loading="lazy"><span><b>' + esc(w.title) + '</b><small>' + esc(w.maker) + (w.place ? ' · ' + esc(w.place) : '') + (w.year ? ' · ' + esc(w.year) : '') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
-  function wayRow(x, k) { return '<a class="fd-w fd-way" href="' + esc(hrefOf(x)) + '" role="option">' + (x.img ? '<img src="' + esc(x.img) + '" alt="" loading="lazy">' : '<span class="fd-blank"></span>') + '<span><b>' + esc(x.name) + '</b><small>' + k + (x.by ? ' · ' + esc(x.by) : '') + (x.n ? ' · ' + x.n + ' work' + (x.n === 1 ? '' : 's') : '') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
+  function wayRow(x, k) { return '<a class="fd-w fd-way" href="' + esc(hrefOf(x)) + '" role="option">' + (x.img ? '<img src="' + esc(x.img) + '" alt="" loading="lazy">' : '<span class="fd-blank"></span>') + '<span><b>' + esc(x.name) + '</b><small>' + [k, x.by ? esc(x.by) : '', x.n ? x.n + ' work' + (x.n === 1 ? '' : 's') : ''].filter(Boolean).join(' · ') + '</small></span><i>' + (IC.next || '') + '</i></a>'; }
   function chips(k, items) { if (!items || !items.length) return ''; return '<p class="fd-k">' + k + '</p><div class="fd-chips">' + items.map(function (x) { return '<a href="' + esc(x.href) + '">' + esc(x.name) + '<i>' + x.n + '</i></a>'; }).join('') + '</div>'; }
   function render(d) {
     sel = -1; rows = [];
     if (!d.q) {
       var b = d.before || {}; var h = '';
+      if (b.museums && b.museums.length) { h += '<p class="fd-k">Museums</p>' + b.museums.map(function (x) { return wayRow(x, ''); }).join(''); rows = rows.concat(b.museums); } // (#238) the museums first, each to its own Wander
       if (b.lately && b.lately.length) { h += '<p class="fd-k">Where you stood lately</p>' + b.lately.map(workRow).join(''); rows = rows.concat(b.lately); }
       if (b.yours && b.yours.length) { h += '<p class="fd-k">Yours</p>' + b.yours.map(workRow).join(''); rows = rows.concat(b.yours); }
-      h += chips('Artists of the hall', b.artists) + chips('Movements', b.movements) + chips('Mediums', b.kinds) + chips('In time', b.decades) + chips('Museums', b.museums) + chips('Places', b.places) + chips('Makers', b.makers) + chips('Rooms', b.rooms);
+      h += chips('Artists of the hall', b.artists) + chips('Movements', b.movements) + chips('Mediums', b.kinds) + chips('In time', b.decades) + chips('Places', b.places) + chips('Makers', b.makers) + chips('Rooms', b.rooms);
       list.innerHTML = h; foot.innerHTML = '<span>' + (PHONE ? 'What are you looking for? Type, or tap a way in.' : 'What are you looking for? Enter opens the first. ↑ ↓ choose.') + '</span>'; return;
     }
     var out = '';

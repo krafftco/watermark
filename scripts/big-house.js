@@ -433,6 +433,9 @@ async function walk(dir) {
     // Wander by the same words. Each is a visitor's path: no statement over the line, no walk of the collection.
     ...['the harbour by maker 12', 'paris 1962', 'study of a river 1960s', '"still life with lemons" kyoto', 'photographs in lisbon', 'artist 7 at museum a', 'BH.4242', 'WM-2026-000001', 'window in kyoto xyzzyq', 'kyoto zzzzqq blorp', 'vienna 1066', 'harbuor lisbon', 'zzzzqq'].map(q => `/api/find?q=${encodeURIComponent(q)}`),
     `/find?q=${encodeURIComponent('the harbour by maker 12 xyzzyq')}`, '/find?q=zzzzqq+blorp', `/api/stroll?n=8&q=${encodeURIComponent('the harbour by maker 12')}`, `/api/stroll?n=8&q=${encodeURIComponent('paris 1960s')}`, `/wander?q=${encodeURIComponent('street evening in rome')}`,
+    // (#238) A museum's own Wander, at the museum's size: the room by name, a page of its feed, and the door that
+    // arrives at one of its works with no room named; and Find's opening state, which lists the museums first.
+    `/wander?maker=${V.makerSlug ? V.makerSlug(museum) : museum.handle}`, `/api/stroll?n=8&maker=${museum.handle}`, `/wander?at=${w("SELECT slug FROM works WHERE maker_id=" + museum.id + " AND status='held' AND vol_page IS NULL ORDER BY id LIMIT 1")}`, '/api/find',
   ];
   const people = [
     ['visitor', '', [...rooms(V.DOORS), ...extra]],

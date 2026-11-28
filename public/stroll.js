@@ -4,6 +4,12 @@
   var root = document.querySelector('[data-stroll]'); if (!root) return;
   var scroller = root.querySelector('[data-st-scroll]'), S = window.__WM_STROLL || { items: [] }, q = S.q || '', maker = S.maker || '', guideOn = false;
   var set = S.set || null;
+  // (#238) Opened at a museum's work with no room named, the house walks on in that museum (data-arrived). The open
+  // Wander holds museums' works too, and its address is the picture alone: so the open Wander remembers, for this tab,
+  // the picture it stands before, and a return to that picture (a reload, back from its record or from Study) is a
+  // return to the open Wander, not an arrival at the museum.
+  var OPEN = !q && !maker && !set;
+  try { if (root.getAttribute('data-arrived') && S.items && S.items[0] && sessionStorage.getItem('wm_open') === S.items[0].slug) { location.replace('/wander?at=' + encodeURIComponent(S.items[0].slug) + '&all=1'); return; } } catch (e) {}
   // The guide is never read by itself (31 Oct, Will: "it goes off without you asking"): it plays only on a press, or
   // while you are sitting in this visit. Nothing about it is remembered between visits; the old setting is cleared.
   try { localStorage.removeItem('wm_stroll_guide'); sessionStorage.removeItem('wm_stroll_guide'); } catch (e) {}
@@ -264,6 +270,7 @@
       if (Z.on) zEnd(false);
       cur = slug; since = Date.now();
       var i = order.indexOf(slug); prefetch(i); if (i >= order.length - 6) more();
+      try { if (OPEN) sessionStorage.setItem('wm_open', slug); else sessionStorage.removeItem('wm_open'); } catch (x) {}
       try { history.replaceState(null, '', '/wander?at=' + slug + (set ? '&in=' + encodeURIComponent(set.key) : '') + (q ? '&q=' + encodeURIComponent(q) : '') + (maker ? '&maker=' + encodeURIComponent(maker) : '')); } catch (x) {}
       if (AL) [].forEach.call(root.querySelectorAll('.st-top .st-set, .st-top [data-st-close]'), function (b) { b.setAttribute('href', alBack(slug)); }); // back to the album lands at this photograph
       stopGuide(true); if (guideOn && items[slug] && items[slug].guide) setTimeout(function () { if (cur === slug) guide(items[slug], true); }, 500);

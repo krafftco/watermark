@@ -449,3 +449,13 @@ The CTO session keeps it honest.
   the picture works, and the shield is under `.st-arr` on arrival, so tap the picture first. `scripts/wander-walk.js` is
   not in CI: run it against a seeded house (`WALK_BASE`); a house of flat-colour fixtures with no prices fails its 2 (on
   the desk) and 7 for the fixtures' sake, before and after any change.
+- Wander's rooms (#238): the open Wander's address is `/wander?at=<slug>` and so is an arrival at a museum's work. The
+  server reads a bare `at=` at an institution's work as an arrival in that museum; `all=1` says "the open Wander, at
+  this picture" and `sessionStorage.wm_open` (public/stroll.js) is how a reload in the open Wander stays open. A test
+  that reloads the open Wander at a museum's work in the same tab lands on `all=1`; a fresh tab lands in the museum.
+- `WANDER_PAST_SHARE=0` gives the open Wander as it was before #238 (one pool, institutions' graded works in it).
+  `test/museumwander.js` sets `WANDER_POOL_MAX=16` so sixty works are "a museum larger than a pool".
+- The local Postgres (/var/lib/wmpg) had no schema in `wmtest` on 28 Nov: `scripts/sql-check.js` there reports every
+  table missing. Boot the house against it once first, or leave the check to CI's `postgres` job.
+- On an emulated phone Wander's top bar has no Find (`.st-top [data-find-open]` is display:none); Find is on the tab
+  bar, which is pressable only on the first screen's five seconds or after a tap on the picture (#235).
