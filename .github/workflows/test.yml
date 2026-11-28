@@ -157,6 +157,8 @@ jobs:
       - run: NODE_ENV=test node test/albumwander.js
       # The tab bar in Wander on a phone (#235): away on arrival and when still, back on a tap.
       - run: NODE_ENV=test node test/wanderbar.js
+      # A museum's Wander (#238): every door stays in the museum, its name shows, one press leaves; the open Wander's mix; Find's museums.
+      - run: NODE_ENV=test node test/museumwander.js
       # Guests add their own photographs (#203): the guest, the letter, the studio, the photographer's choice, the group, a stranger, a phone.
       - run: NODE_ENV=test node test/albumguests.js
   # The reach walk (#42): every control on every page pressable at iPad, phone and desk sizes, in both rotations.

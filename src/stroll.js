@@ -35,7 +35,59 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
     return db.prepare(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where}${slice}${sliced ? '' : ' ORDER BY w.curated DESC, w.stars DESC, w.id DESC'} LIMIT ${POOL_MAX}`).all(...params);
   }
   const openWhere = zoneOpen => "w.status='held'" + (zoneOpen ? '' : " AND COALESCE(w.zone,'all')='all'") + (app.locals.editSql ? app.locals.editSql('w') : '');
-  if (app.locals.shared) for (const zoneOpen of [false, true]) app.locals.shared.register(`wander-pool${zoneOpen ? '-open' : ''}`, { ms: POOL_MS || 120e3, build: () => poolRows(openWhere(zoneOpen), [], true) });
+  // (28 Nov, #238; Will: the open Wander honours the makers of the past as well as the living, "get people interested
+  // in Monet and Leonardo and Vincent van Gogh") The past among the living: WANDER_PAST_SHARE of the open Wander's
+  // pictures (a draft, one in three; '1/3' or 0.33; 0 is the open Wander as it was) are works held by the museums
+  // and the public domain (makers.kind 'institution'), graded or not, that pass the hall rule and the wall standard.
+  // The living's pool is the edit without them, so the share is the share. The past's pool is built ahead beside it,
+  // by the worker: PAST_RUNS short runs of neighbours, each begun at a place chosen afresh in one museum's wall (a
+  // museum is chosen by the length of its wall), read in the order of works_maker_id and never further than PAST_FAR
+  // rows on, so no statement walks a museum and the whole comes round. Works with an artist's name are kept alone
+  // when there are enough of them (a visitor's memory of 300, or a pool if smaller).
+  const PAST = (() => { const v = String(process.env.WANDER_PAST_SHARE == null ? '1/3' : process.env.WANDER_PAST_SHARE).trim(); const m = /^(\d+)\s*\/\s*(\d+)$/.exec(v); const x = m ? (+m[2] ? +m[1] / +m[2] : 0) : Number(v); return Number.isFinite(x) ? Math.max(0, Math.min(0.9, x)) : 1 / 3; })();
+  const PAST_RUNS = 32, PAST_FAR = 20, PAST_ENOUGH = Math.min(300, POOL_MAX);
+  const LIVING = PAST ? " AND COALESCE(m.kind,'')<>'institution'" : '';
+  function pastRows(zoneOpen) {
+    if (!PAST) return [];
+    const each = Math.max(1, Math.floor(POOL_MAX / PAST_RUNS)); const walls = [];
+    for (const m of db.prepare("SELECT id FROM makers WHERE kind='institution' ORDER BY id LIMIT 200").all()) {
+      const lo = db.prepare('SELECT id FROM works WHERE maker_id=? ORDER BY id LIMIT 1').get(m.id), hi = lo && db.prepare('SELECT id FROM works WHERE maker_id=? ORDER BY id DESC LIMIT 1').get(m.id);
+      if (lo && hi) walls.push({ id: Number(m.id), lo: Number(lo.id), n: Number(hi.id) - Number(lo.id) + 1 });
+    }
+    const all = walls.reduce((a, x) => a + x.n, 0); if (!all) return [];
+    const run = db.prepare(`SELECT w.id, w.slug, w.curated, w.stars, w.artist_id FROM works w WHERE w.maker_id=? AND w.id >= ? AND w.id < ? AND w.status='held'${zoneOpen ? '' : " AND COALESCE(w.zone,'all')='all'"}${app.locals.museums ? app.locals.museums.hallSql('w') : require('./wall').sql('w')} ORDER BY w.id LIMIT ${each}`);
+    const got = new Map();
+    for (let i = 0; i < PAST_RUNS; i++) { let r = Math.random() * all, m = walls[0]; for (const x of walls) { if (r < x.n) { m = x; break; } r -= x.n; } const from = m.lo + Math.floor(Math.random() * m.n); for (const w of run.all(m.id, from, from + each * PAST_FAR)) got.set(Number(w.id), w); }
+    const rows = [...got.values()], named = rows.filter(w => w.artist_id != null);
+    return (named.length >= PAST_ENOUGH ? named : rows).map(w => ({ id: w.id, slug: w.slug, curated: w.curated, stars: w.stars }));
+  }
+  if (app.locals.shared) for (const zoneOpen of [false, true]) {
+    app.locals.shared.register(`wander-pool${zoneOpen ? '-open' : ''}`, { ms: POOL_MS || 120e3, build: () => poolRows(openWhere(zoneOpen) + LIVING, [], true) });
+    app.locals.shared.register(`wander-past${zoneOpen ? '-open' : ''}`, { ms: POOL_MS || 120e3, build: () => pastRows(zoneOpen) });
+  }
+  // (28 Nov, #238) A museum's wander comes round the whole of what it holds. A maker's pool was their POOL_MAX best by
+  // grade, then newest: a museum of 60,000 ungraded works only ever showed its newest 4,000. For an institution with
+  // more held than one pool, the pool is WINDOWS runs of neighbours begun at places chosen afresh each time it is
+  // remade (every two minutes), each read in the order of works_maker_id (maker_id, id): POOL_MAX rows at most, a few
+  // hundred a statement, and never a walk of the museum. Whether it is that large (one bounded step down
+  // works_maker_best) and where its wall begins and ends are kept ten minutes. Anyone else's pool is as it was.
+  const WINDOWS = 8, SPAN = new Map(), SPAN_MS = process.env.NODE_ENV === 'test' ? 0 : 600e3;
+  async function wallSpan(makerId) {
+    const hit = SPAN.get(makerId); if (hit && Date.now() - hit.at < SPAN_MS) return hit.v;
+    let v = null;
+    try {
+      const past = await adb.get(`SELECT w.id FROM works w WHERE w.maker_id=? AND w.status='held' ORDER BY w.curated, w.stars, w.id LIMIT 1 OFFSET ${POOL_MAX}`, makerId);
+      if (past) { const [lo, hi] = await Promise.all([adb.get('SELECT w.id FROM works w WHERE w.maker_id=? ORDER BY w.id LIMIT 1', makerId), adb.get('SELECT w.id FROM works w WHERE w.maker_id=? ORDER BY w.id DESC LIMIT 1', makerId)]); if (lo && hi) v = { lo: Number(lo.id), hi: Number(hi.id) }; }
+    } catch (e) { v = null; }
+    SPAN.set(makerId, { at: Date.now(), v }); if (SPAN.size > 200) SPAN.delete(SPAN.keys().next().value);
+    return v;
+  }
+  async function windows(where, params, span) {
+    const each = Math.max(1, Math.floor(POOL_MAX / WINDOWS)); const got = new Map();
+    const runs = await Promise.all(Array.from({ length: WINDOWS }, () => adb.all(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} AND w.id >= ? ORDER BY w.id LIMIT ${each}`, ...params, span.lo + Math.floor(Math.random() * (span.hi - span.lo + 1)))));
+    for (const run of runs) for (const r of run) got.set(Number(r.id), r);
+    return [...got.values()];
+  }
   async function next(req, { seen = [], q = '', maker = '', n = PAGE } = {}) {
     const not = seen.slice(-300); const params = [];
     let where = "w.status='held'" + (app.locals.zone ? app.locals.zone.sql(req) : '') + (!q && !maker && app.locals.editSql ? app.locals.editSql('w') : '');
@@ -51,20 +103,31 @@ function mountStroll(app, { db, V, wanderJSON, I }) {
       const lit = t.toLowerCase().replace(/[^\p{L}\p{N} .,&-]/gu, ' ').trim(); // set into the question itself (no quote, no wildcard can remain), so the planner sees the word: a parameter gave a common word a blind plan
       where += ` AND (${W} LIKE '%${lit}%'${mids.length ? ` OR w.maker_id IN (${mids.join(',')})` : ''}${aids.length ? ` OR w.artist_id IN (${aids.join(',')})` : ''})`; }
     const mk = await makerBy(maker); if (mk) { where += ' AND w.maker_id=?'; params.push(mk.id); }
+    const span = mk && !q && mk.kind === 'institution' ? await wallSpan(mk.id) : null; // (#238) a museum larger than a pool: its whole wall comes round
     // The pool (28 Oct; light since 9 Nov): id, slug and the two weights, kept two minutes, for the open wander and now
     // for a word or a maker too. Never more than POOL_MAX rows: past that the open wander takes every Kth work, a
     // different slice each time the pool is remade, so the whole collection comes round and the website holds a
     // fixed amount whatever the collection's size.
     const key = where + '|' + JSON.stringify(params); let pool = POOL.get(key);
     const zs = app.locals.zone ? app.locals.zone.sql(req) : '';
-    if (!q && !mk && app.locals.shared && where === openWhere(!zs)) pool = { rows: app.locals.shared.get(`wander-pool${zs ? '' : '-open'}`) }; // the open wander: built ahead
+    let past = [];
+    if (!q && !mk && app.locals.shared && where === openWhere(!zs)) { pool = { rows: app.locals.shared.get(`wander-pool${zs ? '' : '-open'}`) }; if (PAST) try { past = app.locals.shared.get(`wander-past${zs ? '' : '-open'}`) || []; } catch (e) { past = []; } } // the open wander: built ahead
     else if (!pool || Date.now() - pool.at > POOL_MS) { // the promise is kept, so everyone arriving while it is asked shares one question
-      const p = adb.all(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${POOL_MAX}`, ...params);
+      const p = span ? windows(where, params, span) : adb.all(`SELECT w.id, w.slug, w.curated, w.stars FROM works w JOIN makers m ON m.id=w.maker_id WHERE ${where} ORDER BY w.curated DESC, w.stars DESC, w.id DESC LIMIT ${POOL_MAX}`, ...params);
       pool = { at: Date.now(), rows: p }; const mine0 = pool; p.catch(() => { if (POOL.get(key) === mine0) POOL.delete(key); });
       POOL.set(key, pool); if (POOL.size > 24) POOL.delete(POOL.keys().next().value); }
     const poolRowsNow = await pool.rows;
     const notSet0 = new Set(not); const cands = []; for (const r of poolRowsNow) if (!notSet0.has(r.slug)) cands.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) });
-    cands.sort((x, y) => y.k - x.k); const ids = cands.slice(0, n).map(x => x.id);
+    cands.sort((x, y) => y.k - x.k); let ids = cands.slice(0, n).map(x => x.id);
+    // (#238) The past among the living: its share of this page, set evenly through it and never on the first two
+    // screens (the living come first); where one side has run out, the other carries on.
+    if (past.length) {
+      const pc = []; for (const r of past) if (!notSet0.has(r.slug)) pc.push({ id: r.id, k: (r.curated ? 4 : r.stars >= 4 ? 3 : r.stars >= 3 ? 1.5 : 1) * (0.5 + Math.random()) }); pc.sort((x, y) => y.k - x.k);
+      const want = n * PAST; let k = Math.floor(want) + (Math.random() < want - Math.floor(want) ? 1 : 0); k = Math.min(pc.length, Math.max(k, n - cands.length));
+      const live = cands.slice(0, n - k).map(x => x.id), old = pc.slice(0, k).map(x => x.id); ids = [];
+      const at = new Set(old.map((_, j) => Math.floor((j + 1) * n / (k + 1))));
+      for (let i = 0; ids.length < live.length + old.length; i++) { if ((at.has(i) || !live.length) && old.length) ids.push(old.shift()); else if (live.length) ids.push(live.shift()); else if (old.length) ids.push(old.shift()); }
+    }
     const full = ids.length ? await adb.all(`SELECT * FROM works WHERE id IN (${ids.map(() => '?').join(',')}) AND status='held'`, ...ids) : []; const byId = new Map(full.map(w => [Number(w.id), w]));
     const rows = ids.map(i => byId.get(Number(i))).filter(Boolean);
     // For you: when the house knows what held this visitor, a few of the eye's picks are set among the rest.
@@ -377,7 +440,7 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
   // The first links of 5 Nov: /flower/<slug>?from=<name> still opens the same way.
   app.get('/flower/:slug', (req, res, next) => { const w = db.prepare("SELECT id FROM works WHERE slug=? AND status='held'").get(String(req.params.slug)); if (!w) return next(); return openSent(req, res, next, { work_id: w.id, from_name: okName(req.query.from) }); });
   async function wander(req, res, { front = false, key: keyIn = null, share = null, as = null, gift = null, at: atIn = null }) {
-    const q = String(req.query.q || '').trim().slice(0, 60), maker = String(req.query.maker || '').slice(0, 60);
+    const q = String(req.query.q || '').trim().slice(0, 60); let maker = String(req.query.maker || '').slice(0, 60);
     const key = String(keyIn || req.query.in || '').slice(0, 80);
     const atSlug = atIn || req.query.at;
     let at = atSlug ? await (isDelivery(key) ? adb.get("SELECT * FROM works WHERE slug=? AND status IN ('held','hidden')", String(atSlug)) : adb.get("SELECT * FROM works WHERE slug=? AND status='held'", String(atSlug))) : null;
@@ -390,6 +453,12 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     if (at && !inAlbum && OV && OV.off(at) && !OV.may(req, at)) at = null;
     // (22 Nov, Will) In an album, the album's own acts for the photograph on screen, as its rules allow this viewer.
     const album = isDelivery(key) && set && app.locals.deliveries && app.locals.deliveries.acts ? app.locals.deliveries.acts(key, req) : null;
+    // (28 Nov, #238; Will: "one swipe takes you right back to my pictures") Opened at a museum's work with no room
+    // named (Find's rows, the record's way back, a link sent): the walk goes on in that museum, as if its own Wander
+    // had been asked for; its name is on the chip, and the chip leaves for the open Wander. A set, a word or a maker
+    // asked for is left as asked.
+    let arrived = false; // (the open Wander now holds museums' works too: `all=1` is the open Wander at one of them, see public/stroll.js)
+    if (at && !set && !q && !maker && req.query.all !== '1') { const inst = await adb.get("SELECT id, name, handle FROM makers WHERE id=? AND kind='institution'", at.maker_id); if (inst) { maker = V.makerSlug(inst); arrived = true; } }
     let items = set ? set.items : await next(req, { q, maker, n: 6, seen: at ? [at.slug] : [] });
     if (q && !set && app.locals.find) try { app.locals.find.search(q, 1, req, { log: !req.get('x-wm-prepare') }); } catch (e) { /* (#179) words that found nothing are kept for the Studio; never in the walk's way */ }
     if (at) items = [carried(wanderJSON(at, req), inAlbum ? set.tq : ''), ...items];
@@ -400,13 +469,13 @@ ${ovw}<div class="wka-acts"><a class="whp-go" href="${rec}">${I.shield || ''}<b>
     // the card is the picture itself; the page opens on it alone, in the dark, and the chrome comes after.
     const giftLine = gift ? `${gift.from ? `${gift.from} found this for you.` : 'Someone found this for you.'}` : '';
     const giftNote = gift && gift.note ? gift.note : '';
-    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: (as && as.label) || set.label, href: (as && as.href) || set.href, n: set.n, via: set.via || null, files: set.files || null, album } : null, I , front, share: sh, gift: gift ? { from: gift.from || '', line: giftLine, note: giftNote, token: gift.token || '' } : null, me: meFirst(req) }));
+    res.send(strollPage({ items, q: set ? '' : q, maker: mk ? { name: mk.name, slug: V.makerSlug(mk) } : null, set: set ? { key, label: (as && as.label) || set.label, href: (as && as.href) || set.href, n: set.n, via: set.via || null, files: set.files || null, album } : null, I , front, share: sh, gift: gift ? { from: gift.from || '', line: giftLine, note: giftNote, token: gift.token || '' } : null, me: meFirst(req), arrived }));
   }
 }
 
 // The page: the first photographs are in the HTML, so the stroll begins the instant it opens; the script carries on.
 const isDeliveryKey = key => /^(delivery|album):/.test(String(key || ''));
-function strollPage({ items, q = '', maker = null, set = null, I, front = false, shelf = false, share = null, gift = null, me = '' }) {
+function strollPage({ items, q = '', maker = null, set = null, I, front = false, shelf = false, share = null, gift = null, me = '', arrived = false }) {
   const giftLine = gift ? gift.line : '';
   const V = require('./views');
   const BUNCH = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'keys', 'bunch.svg'), 'utf8').replace('<svg ', '<svg class="kmk kmk-bunch" aria-hidden="true" '); } catch (e) { return I.key || ''; } })();
@@ -434,7 +503,7 @@ ${w.held ? `<span class="st-b st-held">${I.collect}<span>Yours</span></span>` : 
 <div class="st-hat-fly" aria-hidden="true">${I.hat}</div>
 </section>`;
   const g0 = gift && items[0] ? items[0] : null;
-  return V.layout({ title: g0 ? `${V.tidy(g0.title)} · ${g0.maker}` : front ? 'Watermark · For photographers' : share ? `${share.title} · Watermark` : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: g0 ? (gift.note ? `“${gift.note}” ${giftLine}` : giftLine) : front ? 'Watermark takes art and copyright seriously. Photographers keep their work here, show it properly, and are paid when it is used or collected.' : share ? share.text : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: g0 ? (gift.token ? `/found/${gift.token}` : `/w/${g0.slug}`) : front ? '/' : share ? share.url : '/wander', bare: true, image: g0 ? `/img/${g0.slug}/large?f=jpg` : share && share.image ? share.image : items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}${gift ? ' st-gift st-gifting' : ''}" data-stroll${front ? ' data-front="1"' : ''}${gift ? ` data-gift="1" data-from="${esc(gift.from || '')}" data-found="${esc(gift.token || '')}"` : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}" data-me="${esc(me)}">
+  return V.layout({ title: g0 ? `${V.tidy(g0.title)} · ${g0.maker}` : front ? 'Watermark · For photographers' : share ? `${share.title} · Watermark` : `${q ? `${V.tidy(q)} · ` : ''}Wander · Watermark`, desc: g0 ? (gift.note ? `“${gift.note}” ${giftLine}` : giftLine) : front ? 'Watermark takes art and copyright seriously. Photographers keep their work here, show it properly, and are paid when it is used or collected.' : share ? share.text : 'Watermark on a phone: the finest work, one at a time, edge to edge. Swipe for the next.', path: g0 ? (gift.token ? `/found/${gift.token}` : `/w/${g0.slug}`) : front ? '/' : share ? share.url : '/wander', bare: true, image: g0 ? `/img/${g0.slug}/large?f=jpg` : share && share.image ? share.image : items[0] ? items[0].img : null, body: `<main class="st${front ? ' st-front' : ''}${gift ? ' st-gift st-gifting' : ''}" data-stroll${front ? ' data-front="1"' : ''}${gift ? ` data-gift="1" data-from="${esc(gift.from || '')}" data-found="${esc(gift.token || '')}"` : ''} data-q="${esc(q)}" data-maker="${esc(maker ? maker.slug : '')}"${arrived ? ' data-arrived="1"' : ''} data-me="${esc(me)}">
 <header class="st-top"><a class="st-home" href="${front ? '/house' : '/'}" aria-label="Watermark">${V.WAVE_MARK || ''}<span>Watermark</span></a><a class="st-look" href="/look" title="Every collection in the house: the Met, the masters, the makers">Look around</a>${maker ? `<a class="st-chip" href="/wander" title="Everything again">${esc(maker.name)}<i>${I.close}</i></a>` : ''}${set ? `<a class="st-chip st-set" href="${esc(set.href)}" title="Back to ${esc(set.label)}">${esc(set.label)}<i>${I.close}</i></a>` : ''}${q && !maker && !set ? `<a class="st-chip" href="/wander" title="Everything again">${esc(q)}<i>${I.close}</i></a>` : ''}<span class="st-sp"></span>${share ? `<button type="button" class="st-gon" data-st-setshare data-url="${esc(share.url)}" data-title="${esc(share.title)}" data-text="${esc(share.text)}" aria-label="Share this wander" title="Send this wander: the whole walk, from the first work">${I.share || I.send}<span>Share</span></button>` : ''}<button type="button" class="st-gon" data-find-open="stroll" aria-label="Find" title="Find a work, a place, a maker: straight to it">${I.find || I.eye}<span>Find</span></button><button type="button" class="st-gon st-full" data-st-fs hidden aria-label="Full screen" title="Full screen (F)">${I.full || ''}<span>Full screen</span></button><a class="st-x" href="${set ? esc(set.href) : front ? '/house' : '/collection'}" aria-label="Close" data-st-close>${I.close}</a></header>
 <div class="st-sheet st-ss" data-st-ssheet hidden><div class="st-scard"><button type="button" class="st-gx" data-st-sx2 aria-label="Close">${I.close}</button><p class="k">Settings</p>
 <button type="button" class="st-sit1" data-st-sit aria-pressed="false">${I.stand}<b>Sit a while</b><span>Each work held a minute and a half, the guide read, quiet music. Tap again to stand.</span></button>

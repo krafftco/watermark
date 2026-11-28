@@ -5,6 +5,14 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
+## 1.94.9 · A museum's Wander stays in the museum · 28 November 2026
+
+- Arriving in Wander at a work held by a museum (from Find, from the work's record, from a link someone sent), the next swipe went back to the open Wander, which held none of the museum's ungraded works. The walk now carries on in that museum. Its name is at the top, and one press on it returns to the open Wander.
+- A large museum's Wander showed only its newest four thousand works. It now comes round the whole of what the museum holds.
+- Find opens with the museums first: the name, the place, the number of works and a cover, each going straight to that museum's Wander.
+- The open Wander now sets works held by the museums among the makers' own: about one picture in three, after the first two screens, from works that meet the wall standard. The share is a setting and a draft.
+- Albums, galleries, a maker's own Wander, a word and the shelf are as they were.
+
 ## 1.94.7 · In Wander the bar keeps away · 27 November 2026
 
 - On a phone, Wander's bar at the foot (Wander, Find, You) came back at every picture and only dimmed when the room was still. It now leaves with the rest: gone as a picture arrives and while you look, back for a few seconds when you tap the picture. The first picture still shows it.
