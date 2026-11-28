@@ -449,3 +449,19 @@ The CTO session keeps it honest.
   the picture works, and the shield is under `.st-arr` on arrival, so tap the picture first. `scripts/wander-walk.js` is
   not in CI: run it against a seeded house (`WALK_BASE`); a house of flat-colour fixtures with no prices fails its 2 (on
   the desk) and 7 for the fixtures' sake, before and after any change.
+
+## The presses, counted (#242)
+- `CHROME=<chrome> node scripts/taps.js` walks a small house on an iPhone 13 as a stranger and counts the fewest presses
+  from `/` to each thing in its `THINGS` (`TAPS_MD=file` writes the table, `TAPS_DEBUG=1` every screen read). About two
+  and a half minutes here, so it is not a CI job. It fails over four presses; `ALLOW` names an issue per exception.
+- Its house is small: every list holds the thing looked for. On the live house Find's opening state shows only the first
+  10 artists, 8 movements, 8 mediums, 16 decades, 6 museums, 14 places and 8 makers (`before()` in src/find.js), so a
+  count that passes there says the door exists, not that a given artist is on it.
+- `/` on a phone is Wander with a picture chosen afresh each visit: a walk that must return to "the first screen" cannot
+  count on the same picture. A link on that picture's plate is found by its class, not its words.
+- Wander puts the tab bar away after a few seconds still (#235): read the screen within a second of arriving, or touch
+  the picture first. A room fades in: a control read in the first half-second can be under the fade.
+- Wander's sides (#241) have no control on a phone (the edge tabs are hidden there): the walk opens them with the
+  touches `test/wanderdoors.js` sends and counts the swipe as a press that nothing on the screen names.
+- A new context for each read keeps the walker a stranger: Find's opening state and `/yours` change once the house has
+  seen the visitor stand before a work.
