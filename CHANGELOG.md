@@ -5,13 +5,20 @@ The version is the house's own: the first number changes when the house itself c
 added or a promise made, the third for repairs. Nothing is announced that is not already running.
 
 
-## 1.94.9 · A museum's Wander stays in the museum · 28 November 2026
+## 1.95.1 · A museum's Wander stays in the museum · 28 November 2026
 
 - Arriving in Wander at a work held by a museum (from Find, from the work's record, from a link someone sent), the next swipe went back to the open Wander, which held none of the museum's ungraded works. The walk now carries on in that museum. Its name is at the top, and one press on it returns to the open Wander.
 - A large museum's Wander showed only its newest four thousand works. It now comes round the whole of what the museum holds.
 - Find opens with the museums first: the name, the place, the number of works and a cover, each going straight to that museum's Wander.
 - The open Wander now sets works held by the museums among the makers' own: about one picture in three, after the first two screens, from works that meet the wall standard. The share is a setting and a draft.
 - Albums, galleries, a maker's own Wander, a word and the shelf are as they were.
+## 1.95.0 · In Wander, left is where next and right is about · 28 November 2026
+
+- Wander's two sides now have one job each. A swipe to the right (or the left arrow, or the tab on the left edge) opens Where next: the ways on from the picture in front of you, each a tile with a picture, a name and a count, and one press into that Wander. More by the same artist or maker, the same collection, the same movement, the same years, the same place, the same kind of work; only the ways that hold four works or more. Below them, four standing doors: Museums, Artists, In time, Discover.
+- A swipe to the left (or the right arrow, or the tab on the right edge) opens About: the work, then who made it, then the Watermark record (its number, the copyright, how the maker is paid, who holds it, its terms, the proof). Each thing is said once.
+- The shield on a picture in Wander used to open a separate sheet that repeated much of this. It now opens About at the record. Nothing that could be read before has been taken away; the sheet still opens from the shield on a work's own page.
+- The edge tabs read Next and About, and opening a side moves the keyboard and a screen reader into it; Esc closes it and puts them back.
+- The words on these two sides are drafts until Will confirms them.
 ## 1.94.8 · Discover is in the bar · 28 November 2026
 
 - On a phone the bar at the foot is now Wander, Discover, Find, You. Discover was reachable only from the foot of another page.

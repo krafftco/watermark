@@ -443,6 +443,12 @@ The CTO session keeps it honest.
   Sample `process.memoryUsage().rss` inside the child instead.
 - `test/backup.js` writes about four times `BACKUP_TEST_MB` (256) to TMPDIR and, on Postgres, as much again on the
   server. A full-size run (660 MB) wants 5 GB free; this machine had 3.6 GB on 27 Nov and it was not run.
+- Wander's sides (#241): the left is Where next, the right is About; both come from `/stroll/side/:slug` (`like`, `who`).
+  Find's index is kept a minute under test: after seeding call `app.locals.findIndexDirty()` or the ways are empty. On a
+  phone the edge tabs are hidden (the tab bar is there), so a test opens a side with touches; a `TouchEvent` dispatched on
+  the picture works, and the shield is under `.st-arr` on arrival, so tap the picture first. `scripts/wander-walk.js` is
+  not in CI: run it against a seeded house (`WALK_BASE`); a house of flat-colour fixtures with no prices fails its 2 (on
+  the desk) and 7 for the fixtures' sake, before and after any change.
 - Wander's rooms (#238): the open Wander's address is `/wander?at=<slug>` and so is an arrival at a museum's work. The
   server reads a bare `at=` at an institution's work as an arrival in that museum; `all=1` says "the open Wander, at
   this picture" and `sessionStorage.wm_open` (public/stroll.js) is how a reload in the open Wander stays open. A test

@@ -9,7 +9,7 @@ Wander is the app; Watermark powers it (docs/HOUSE.md). This page is the standar
 5. **Stillness is honoured.** Six seconds without a movement and the chrome fades to nothing; any touch, wheel or key brings it back.
 6. **Every screen is a record.** The plate's toggle opens the Watermark record of the same work and the record's pill returns to Wander at the same picture.
 7. **Collect is quiet.** Last on the rail, the rail's weight, the price on it, one tap when the pocket covers and the pay sheet otherwise; never a fill, never the point of the screen.
-8. **Left and right land somewhere.** Yours · Wander · the Keys: a swipe or an arrow from Wander opens a door, a step back closes it, a step further wraps.
+8. **Left and right land somewhere, and say where.** Where next · Wander · About. From the picture, a finger moving right, the ← key or the left edge tab opens Where next: the ways on from this picture (the same hand, collection, movement, time, place, kind; only those holding four works or more), each one press into that Wander, then the standing doors. A finger moving left, the → key or the right edge tab opens About: the work, who made it and the Watermark record, each said once; the shield on the picture opens About at the record. A step back, the shade or Esc closes either side.
 9. **No connection is not the end.** With the signal gone the pack wanders what you brought with you and says so; found again, it says so and carries on.
 10. **No faults.** No script errors, no failed requests, and every address answers 200 (or a redirect of its own). The address follows the picture (`?at=`), so a return lands where you left.
 
